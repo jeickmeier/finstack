@@ -64,26 +64,46 @@ pub(crate) fn is_regular_period(accrual_start: Date, accrual_end: Date, freq: Te
         || step_tenor(accrual_end, freq, -1) == Some(accrual_start)
 }
 
-/// Build one skeletal schedule period from accrual bounds and payment lag.
+/// Build one skeletal schedule period from raw accrual bounds and payment lag.
+///
+/// When `adjust_accrual_dates` is set, both accrual boundaries are
+/// business-day adjusted (ISDA 2006 §4.10 adjusted Calculation Periods),
+/// mirroring [`generate_periods_with_adjustment`]; the raw bounds are retained
+/// as the period's unadjusted anchors either way.
 pub(crate) fn build_schedule_period(
     accrual_start: Date,
     accrual_end: Date,
     bdc: BusinessDayConvention,
     payment_lag_days: i32,
     cal: &dyn HolidayCalendar,
+    adjust_accrual_dates: bool,
 ) -> finstack_quant_core::Result<SchedulePeriod> {
-    let adjusted_payment = adjust(accrual_end, bdc, cal)?;
+    let adjusted_end = adjust(accrual_end, bdc, cal)?;
     let payment_date = if payment_lag_days == 0 {
-        adjusted_payment
+        adjusted_end
     } else {
-        adjusted_payment.add_business_days(payment_lag_days, cal)?
+        adjusted_end.add_business_days(payment_lag_days, cal)?
+    };
+    let (acc_start, acc_end) = if adjust_accrual_dates {
+        let adj_start = adjust(accrual_start, bdc, cal)?;
+        if adj_start >= adjusted_end {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "accrual adjustment collapsed period [{accrual_start}, {accrual_end}) to zero \
+                 length (adjusted to [{adj_start}, {adjusted_end}))"
+            )));
+        }
+        (adj_start, adjusted_end)
+    } else {
+        (accrual_start, accrual_end)
     };
     Ok(SchedulePeriod {
-        accrual_start,
-        accrual_end,
+        accrual_start: acc_start,
+        accrual_end: acc_end,
         payment_date,
         reset_date: None,
         accrual_year_fraction: 0.0,
+        unadjusted_start: accrual_start,
+        unadjusted_end: accrual_end,
     })
 }
 
@@ -107,9 +127,14 @@ pub(crate) fn index_period_schedule(
     frequency: Tenor,
 ) -> finstack_quant_core::Result<IndexedPeriods> {
     let dates = periods.iter().map(|period| period.payment_date).collect();
+    // Regularity is a property of the unadjusted scheduled dates (ISDA 2006
+    // §4.16(c)); business-day adjustment must not reclassify regular periods
+    // as stubs.
     let first_or_last = periods
         .iter()
-        .filter(|period| !is_regular_period(period.accrual_start, period.accrual_end, frequency))
+        .filter(|period| {
+            !is_regular_period(period.unadjusted_start, period.unadjusted_end, frequency)
+        })
         .map(|period| period.payment_date)
         .collect();
     let mut period_map: finstack_quant_core::HashMap<Date, SchedulePeriod> =
@@ -283,6 +308,8 @@ pub(crate) fn generate_periods_with_adjustment(
             payment_date,
             reset_date: None,
             accrual_year_fraction: 0.0,
+            unadjusted_start: raw_start,
+            unadjusted_end: raw_end,
         });
     }
 
@@ -414,6 +441,33 @@ mod tests {
         assert!(
             stubs.is_empty(),
             "regular periods must not be tagged as stubs"
+        );
+    }
+
+    #[test]
+    fn adjusted_accrual_regular_periods_are_not_stubs() {
+        // Regularity is judged on the UNADJUSTED scheduled dates: business-day
+        // adjustment of the accrual boundaries must not turn genuinely regular
+        // periods into stubs (ISDA 2006 §4.16(c); QuantLib Schedule::isRegular).
+        let periods = generate_periods_with_adjustment(
+            d(2025, 1, 4), // Saturday anchor
+            d(2026, 1, 4), // Sunday anchor
+            Tenor::semi_annual(),
+            StubKind::None,
+            BusinessDayConvention::ModifiedFollowing,
+            false,
+            0,
+            "weekends_only",
+            true,
+        )
+        .expect("schedule builds");
+
+        assert_eq!(periods.len(), 2);
+        let (_, _, stubs) =
+            index_period_schedule(periods, Tenor::semi_annual()).expect("period index");
+        assert!(
+            stubs.is_empty(),
+            "adjusted regular periods must not be tagged as stubs: {stubs:?}"
         );
     }
 

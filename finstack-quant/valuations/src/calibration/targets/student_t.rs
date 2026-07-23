@@ -238,17 +238,7 @@ impl StudentTTarget {
         let tolerance = self.config.solver.tolerance();
         let max_iters = self.config.solver.max_iterations();
 
-        // Residual acceptance tolerance for the calibrated df.
-        //
-        // `tolerance` above is the root-finder's x-domain termination criterion
-        // (default 1e-12); it must not double as the acceptance test on the
-        // upfront residual. Tranche upfronts are computed through Gauss-Hermite /
-        // Gauss-Laguerre quadrature whose intrinsic error is O(1e-4..1e-3) of
-        // notional, so a correctly-converged df can never satisfy a 1e-12
-        // residual bound. Mirror the tranche-appropriate tolerance used by the
-        // base-correlation target (BASE_CORRELATION_VALIDATION_TOLERANCE):
-        // ~10 bp of upfront, generous relative to quadrature precision but
-        // still rejecting a materially miscalibrated df.
+        // Separate the root x-tolerance from quadrature-limited residual accuracy.
         const STUDENT_T_UPFRONT_TOLERANCE: f64 = 1e-3;
         let acceptance_tolerance = tolerance.max(STUDENT_T_UPFRONT_TOLERANCE);
 

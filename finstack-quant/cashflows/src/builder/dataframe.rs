@@ -592,6 +592,11 @@ impl CashFlowSchedule {
                         cf.date
                     )));
                 }
+                // Historical rows on a conditional basis have raw
+                // sp(t_d)/sp(as_of) > 1, which is not a probability; clamp the
+                // exported column into [0, 1]. PV is unaffected: historical
+                // rows carry zero PV and future rows already satisfy sp <= 1.
+                let sp = sp.clamp(0.0, 1.0);
                 spv.push(Some(sp));
                 sp_row = Some(sp);
             }
@@ -606,11 +611,11 @@ impl CashFlowSchedule {
                     base,
                 )
             } else {
-                // PIK rows are notional accruals, not cash flows, so they
-                // contribute zero PV in the plain discounting view. Their
-                // economic value is already captured in the inflated notional
-                // redemption at maturity.
-                let is_non_cash = cf.kind == CFKind::PIK;
+                // Non-cash rows contribute zero PV in the plain discounting
+                // view, matching pv_by_period: PIK is a notional accrual whose
+                // value is already captured in the inflated redemption, and
+                // DefaultedNotional is a principal write-down, not cash.
+                let is_non_cash = !crate::primitives::is_cash_settlement_kind(cf.kind);
                 if is_non_cash || cf.date <= base {
                     0.0
                 } else {
@@ -753,6 +758,86 @@ mod tests {
         assert_eq!(df.pvs.len(), 2);
         assert!((df.pvs[0] - 0.0).abs() < 1e-12);
         assert!((df.pvs[1] - 200.0 * df.discount_factors[1]).abs() < 1e-12);
+    }
+
+    #[test]
+    fn dataframe_zeroes_defaulted_notional_pv_without_hazard_curve() {
+        // DefaultedNotional is a principal write-down, not a cash settlement.
+        // The plain-discount export must zero it exactly like the canonical
+        // pv_by_period path does; PIK stays zero as before.
+        let base = d(2025, 4, 1);
+        let flows = vec![
+            CashFlow::new(
+                d(2025, 5, 15),
+                None,
+                Money::new(300_000.0, Currency::USD),
+                CFKind::DefaultedNotional,
+                0.0,
+                None,
+            ),
+            CashFlow::new(
+                d(2025, 5, 15),
+                None,
+                Money::new(10_000.0, Currency::USD),
+                CFKind::PIK,
+                0.25,
+                None,
+            ),
+            CashFlow::new(
+                d(2025, 5, 15),
+                None,
+                Money::new(200.0, Currency::USD),
+                CFKind::Fixed,
+                0.25,
+                None,
+            ),
+        ];
+        let schedule = CashFlowSchedule {
+            flows,
+            notional: Notional::par(1_000_000.0, Currency::USD),
+            day_count: DayCount::Act365F,
+            meta: CashFlowMeta::default(),
+        };
+
+        let curve = DiscountCurve::builder("USD-OIS")
+            .base_date(base)
+            .knots([(0.0, 1.0), (30.0, 0.95)])
+            .interp(InterpStyle::Linear)
+            .build()
+            .expect("DiscountCurve builder should succeed with valid test data");
+        let market = MarketContext::new().insert(curve);
+
+        let options = PeriodDataFrameOptions {
+            as_of: Some(base),
+            day_count: Some(DayCount::Act365F),
+            ..Default::default()
+        };
+        let df = schedule
+            .to_period_dataframe(&quarters_2025(), &market, "USD-OIS", options)
+            .expect("PeriodDataFrame creation should succeed in test");
+
+        assert_eq!(df.pvs.len(), 3);
+        // Rows may be re-ordered by the export; locate them by kind.
+        let pv_of = |kind: CFKind| {
+            let idx = df
+                .cf_types
+                .iter()
+                .position(|k| *k == kind)
+                .unwrap_or_else(|| panic!("row for {kind:?} must exist"));
+            (df.pvs[idx], df.discount_factors[idx])
+        };
+        let (defaulted_pv, _) = pv_of(CFKind::DefaultedNotional);
+        assert!(
+            defaulted_pv.abs() < 1e-12,
+            "DefaultedNotional must carry zero PV in the plain view, got {defaulted_pv}"
+        );
+        let (pik_pv, _) = pv_of(CFKind::PIK);
+        assert!(pik_pv.abs() < 1e-12, "PIK must carry zero PV");
+        let (fixed_pv, fixed_df) = pv_of(CFKind::Fixed);
+        assert!(
+            (fixed_pv - 200.0 * fixed_df).abs() < 1e-12,
+            "cash coupon PV must be unaffected"
+        );
     }
 
     #[test]
@@ -1040,6 +1125,83 @@ mod tests {
             panic!("unsorted periods must be rejected")
         };
         assert!(err.to_string().contains("sorted"));
+    }
+
+    #[test]
+    fn dataframe_survival_probs_stay_within_unit_interval_for_historical_rows() {
+        // A historical row (cf.date < as_of) on a conditional hazard basis has
+        // raw sp(t_d)/sp(as_of) > 1 — not a probability. The exported column
+        // must clamp into [0, 1]; PV is zero for those rows regardless.
+        let h_base = d(2025, 1, 1);
+        let as_of = d(2025, 7, 1);
+        let flows = vec![
+            CashFlow::new(
+                d(2025, 3, 1),
+                None,
+                Money::new(100.0, Currency::USD),
+                CFKind::Fixed,
+                0.25,
+                None,
+            ),
+            CashFlow::new(
+                d(2025, 10, 1),
+                None,
+                Money::new(100.0, Currency::USD),
+                CFKind::Fixed,
+                0.25,
+                None,
+            ),
+        ];
+        let schedule = CashFlowSchedule {
+            flows,
+            notional: Notional::par(1_000.0, Currency::USD),
+            day_count: DayCount::Act365F,
+            meta: CashFlowMeta::default(),
+        };
+        let disc = DiscountCurve::builder("USD-OIS")
+            .base_date(h_base)
+            .knots([(0.0, 1.0), (2.0, 1.0)])
+            .interp(InterpStyle::Linear)
+            .build()
+            .expect("discount curve");
+        let hazard = HazardCurve::builder("USD-HZD")
+            .base_date(h_base)
+            .recovery_rate(0.40)
+            .knots([(1.0, 0.50), (2.0, 0.40)])
+            .build()
+            .expect("hazard curve");
+        let market = MarketContext::new().insert(disc).insert(hazard);
+        let periods = vec![Period {
+            id: PeriodId::annual(2025),
+            start: h_base,
+            end: d(2026, 1, 1),
+            is_actual: true,
+        }];
+
+        let df = schedule
+            .to_period_dataframe(
+                &periods,
+                &market,
+                "USD-OIS",
+                PeriodDataFrameOptions {
+                    credit_curve_id: Some("USD-HZD"),
+                    as_of: Some(as_of),
+                    day_count: Some(DayCount::Act365F),
+                    ..Default::default()
+                },
+            )
+            .expect("DataFrame with hazard curve");
+
+        let sps = df.survival_probs.as_ref().expect("survival column");
+        for (i, sp) in sps.iter().enumerate() {
+            let sp = sp.expect("sp value per row");
+            assert!(
+                (0.0..=1.0).contains(&sp),
+                "exported survival prob must lie in [0, 1]; row {i} has {sp}"
+            );
+        }
+        // Historical row PV is zero by convention.
+        assert!(df.pvs[0].abs() < 1e-12);
     }
 
     #[test]

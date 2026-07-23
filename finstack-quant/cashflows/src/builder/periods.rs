@@ -33,6 +33,13 @@ pub struct SchedulePeriod {
     pub reset_date: Option<Date>,
     /// Accrual year fraction for the period (0.0 when not computed).
     pub accrual_year_fraction: f64,
+    /// Unadjusted (scheduled) accrual start — the raw roll-grid anchor before
+    /// any business-day adjustment. Equals `accrual_start` for unadjusted
+    /// schedules. Period regularity (stub vs regular, ISDA 2006 §4.16(c)) is
+    /// judged on these dates, never on the adjusted boundaries.
+    pub unadjusted_start: Date,
+    /// Unadjusted (scheduled) accrual end — see [`Self::unadjusted_start`].
+    pub unadjusted_end: Date,
 }
 
 /// Parameters for building schedule periods.
@@ -98,19 +105,27 @@ fn enrich_period(
     params: &BuildPeriodsParams<'_>,
     cal: &dyn finstack_quant_core::dates::HolidayCalendar,
 ) -> finstack_quant_core::Result<SchedulePeriod> {
-    // Adjusted boundaries can classify a regular period as an ICMA stub;
-    // changing this would alter existing accrual results.
-    let regular = is_regular_period(period.accrual_start, period.accrual_end, params.frequency);
-    // ACT/ACT ICMA reference period: for regular periods the coupon period is
-    // the accrual period itself (exact ISMA accrual). For stub periods the
-    // reference period is not cleanly derivable from a single period, so it
-    // is left unset and core falls back to the quasi-coupon grid anchored on
-    // the accrual start (frequency-based subdivision).
+    // Regularity is judged on the unadjusted scheduled dates (ISDA 2006
+    // §4.16(c)): business-day adjustment of the accrual boundaries must not
+    // reclassify a regular period as an ICMA stub. The accrual year fraction
+    // itself still spans the (possibly adjusted) accrual boundaries.
+    let regular = is_regular_period(
+        period.unadjusted_start,
+        period.unadjusted_end,
+        params.frequency,
+    );
+    // ACT/ACT ICMA reference period: for regular periods the reference is the
+    // UNADJUSTED scheduled period (ICMA quasi-coupon periods are unadjusted;
+    // a business-day-adjusted reference would corrupt the whole-month period
+    // length inference). For unadjusted schedules this is the accrual period
+    // itself. For stub periods the reference period is not cleanly derivable
+    // from a single period, so it is left unset and core falls back to the
+    // quasi-coupon grid anchored on the accrual start.
     let dc_ctx = DayCountContext {
         calendar: Some(cal),
         frequency: Some(params.frequency),
         bus_basis: None,
-        coupon_period: regular.then_some((period.accrual_start, period.accrual_end)),
+        coupon_period: regular.then_some((period.unadjusted_start, period.unadjusted_end)),
         end_is_termination_date: period.accrual_end >= params.end,
     };
     period.accrual_year_fraction =
@@ -196,6 +211,7 @@ pub fn build_single_period(
         params.bdc,
         params.payment_lag_days,
         cal,
+        params.adjust_accrual_dates,
     )?;
     let mut enriched = enrich_periods(vec![period], &params)?.into_iter();
     enriched
@@ -303,6 +319,98 @@ mod tests {
         assert_eq!(
             single.accrual_year_fraction,
             scheduled.accrual_year_fraction
+        );
+    }
+
+    fn adjusted_params() -> BuildPeriodsParams<'static> {
+        BuildPeriodsParams {
+            // Sunday start, Saturday end: both boundaries need adjustment.
+            start: Date::from_calendar_date(2025, Month::January, 5).expect("valid date"),
+            end: Date::from_calendar_date(2025, Month::April, 5).expect("valid date"),
+            frequency: Tenor::quarterly(),
+            stub: StubKind::None,
+            bdc: BusinessDayConvention::ModifiedFollowing,
+            calendar_id: "weekends_only",
+            end_of_month: false,
+            day_count: DayCount::Act360,
+            payment_lag_days: 0,
+            reset_lag_days: None,
+            adjust_accrual_dates: true,
+        }
+    }
+
+    #[test]
+    fn single_period_honors_adjust_accrual_dates() {
+        // ISDA 2006 §4.10: when the adjusted-period convention applies, it
+        // applies to every Calculation Period — including one-period schedules.
+        let single = build_single_period(adjusted_params()).expect("single period");
+        assert_eq!(
+            single.accrual_start,
+            Date::from_calendar_date(2025, Month::January, 6).expect("valid date"),
+            "accrual start must be business-day adjusted"
+        );
+        assert_eq!(
+            single.accrual_end,
+            Date::from_calendar_date(2025, Month::April, 7).expect("valid date"),
+            "accrual end must be business-day adjusted"
+        );
+
+        // Parity with the full-schedule path for the same params.
+        let mut schedule = build_periods(adjusted_params())
+            .expect("period schedule")
+            .into_iter();
+        let scheduled = schedule.next().expect("one period");
+        assert!(schedule.next().is_none());
+        assert_eq!(single.accrual_start, scheduled.accrual_start);
+        assert_eq!(single.accrual_end, scheduled.accrual_end);
+        assert_eq!(single.payment_date, scheduled.payment_date);
+        assert_eq!(
+            single.accrual_year_fraction,
+            scheduled.accrual_year_fraction
+        );
+    }
+
+    #[test]
+    fn adjusted_regular_icma_period_uses_unadjusted_reference_period() {
+        // Regularity is a property of the UNADJUSTED scheduled dates (ISDA 2006
+        // §4.16(c); QuantLib Schedule::isRegular), and the ICMA reference
+        // period is the unadjusted scheduled period. Adjusted accrual days are
+        // measured against that reference; accrual spilling past the scheduled
+        // end is split into the next quasi-coupon period by core.
+        //
+        // Schedule: semiannual, anchors 2025-01-04 (Sat) → 2025-07-04 (Fri) →
+        // 2026-01-04 (Sun); ModifiedFollowing weekends-only adjustment gives
+        // accrual periods [2025-01-06, 2025-07-04) and [2025-07-04, 2026-01-05).
+        let params = BuildPeriodsParams {
+            start: Date::from_calendar_date(2025, Month::January, 4).expect("valid date"),
+            end: Date::from_calendar_date(2026, Month::January, 4).expect("valid date"),
+            frequency: Tenor::semi_annual(),
+            stub: StubKind::None,
+            bdc: BusinessDayConvention::ModifiedFollowing,
+            calendar_id: "weekends_only",
+            end_of_month: false,
+            day_count: DayCount::ActActIsma,
+            payment_lag_days: 0,
+            reset_lag_days: None,
+            adjust_accrual_dates: true,
+        };
+        let periods = build_periods(params).expect("periods");
+        assert_eq!(periods.len(), 2);
+
+        // Period 1: 179 adjusted days over the 181-day scheduled half-year.
+        let expected_first = 179.0 / 181.0 * 0.5;
+        // Period 2: full 184-day scheduled half-year plus one day spilling
+        // into the next 181-day quasi-coupon period.
+        let expected_second = 0.5 + 0.5 / 181.0;
+        assert!(
+            (periods[0].accrual_year_fraction - expected_first).abs() < 1e-12,
+            "first adjusted ICMA period: got {}, expected {expected_first}",
+            periods[0].accrual_year_fraction
+        );
+        assert!(
+            (periods[1].accrual_year_fraction - expected_second).abs() < 1e-12,
+            "second adjusted ICMA period: got {}, expected {expected_second}",
+            periods[1].accrual_year_fraction
         );
     }
 

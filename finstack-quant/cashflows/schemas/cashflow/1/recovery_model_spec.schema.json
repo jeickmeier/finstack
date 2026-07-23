@@ -1,6 +1,7 @@
 {
   "$id": "https://finstack_quant.dev/schemas/cashflow/1/recovery_model_spec.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
   "description": "Recovery model specifications for credit instruments. Rust type: RecoveryModelSpec from finstack_quant_valuations::cashflow::builder::specs::recovery",
   "properties": {
     "rate": {

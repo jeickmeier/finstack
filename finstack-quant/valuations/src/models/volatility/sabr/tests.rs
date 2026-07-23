@@ -1082,18 +1082,12 @@ fn test_sabr_calibrate_with_atm_pinning_matches_synthetic_smile() {
     }
 }
 
-/// β=0 (normal SABR) is shift-invariant, so a negative forward with strikes
-/// straddling zero — the EUR/JPY negative-rate swaption regime normal vols
-/// exist for — must both price and calibrate. Before the fix,
-/// `validate_inputs` rejected `forward <= 0` for any un-shifted model,
-/// making Normal-convention negative-rate calibration impossible.
+/// Normal SABR calibrates a negative forward with strikes crossing zero.
 #[test]
 fn test_sabr_beta_zero_calibrates_negative_cross_zero_forward() {
     let true_params = SABRParameters::new(0.0055, 0.0, 0.30, -0.20).expect("valid params");
     let true_model = SABRModel::new(true_params);
 
-    // EUR-style negative forward with strikes straddling zero (rates in
-    // decimal: -0.25% forward, strikes from -75bp to +25bp).
     let forward = -0.0025;
     let expiry = 2.0;
     let strikes = vec![-0.0075, -0.0050, -0.0025, 0.0, 0.0025];
@@ -1117,7 +1111,6 @@ fn test_sabr_beta_zero_calibrates_negative_cross_zero_forward() {
         .expect("β=0 negative-forward calibration should succeed");
     let calibrated_model = SABRModel::new(calibrated);
 
-    // ATM pin: model ATM normal vol matches the market ATM quote.
     let atm_market = market_vols[2];
     let calibrated_atm = calibrated_model
         .atm_volatility(forward, expiry)
@@ -1127,7 +1120,6 @@ fn test_sabr_beta_zero_calibrates_negative_cross_zero_forward() {
         "ATM pin failed: {calibrated_atm} vs {atm_market}"
     );
 
-    // Smile refit within a tight normal-vol tolerance (0.5bp).
     for (strike, market_vol) in strikes.iter().zip(market_vols.iter()) {
         let fitted = calibrated_model
             .implied_volatility(forward, *strike, expiry)

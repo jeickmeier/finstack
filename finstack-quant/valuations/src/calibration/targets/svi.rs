@@ -118,11 +118,7 @@ impl SviSurfaceTarget {
             .map(|curve_id| context.get_discount(curve_id))
             .transpose()?;
 
-        // Dividend/borrow yield: explicit override, else the conventional
-        // "<ticker>-DIVYIELD" scalar, else zero (mirrors the SABR
-        // `VolSurfaceTarget`). SVI log-moneyness is defined against the
-        // *forward*, so omitting `q` mislocates ATM and biases the fitted
-        // skew (m, ρ) for dividend-paying underlyings.
+        // Resolve dividend yield from the override, market scalar, or zero.
         let div_yield = if let Some(q) = params.dividend_yield_override {
             q
         } else {
@@ -221,10 +217,6 @@ impl SviSurfaceTarget {
             let forward = forward_fn(target_expiry);
             Self::validate_positive_input("SVI forward", forward)?;
             for &target_strike in &params.target_strikes {
-                // Pass the absolute strike (not a single pre-computed
-                // log-moneyness): each bracketing slice was calibrated in its
-                // own forward-moneyness coordinate, so `interpolate_svi_vol`
-                // must re-derive `k_i = ln(K / F(Tᵢ))` per slice.
                 let vol = interpolate_svi_vol(
                     target_expiry,
                     target_strike,
@@ -247,22 +239,8 @@ impl SviSurfaceTarget {
             &grid,
         )?;
 
-        // After Gatheral total-variance interpolation, sanity-check the produced grid
-        // for calendar-spread and butterfly arbitrage.
-        //
-        //  * Calendar-spread is checked in STRICT mode at fixed **forward
-        //    log-moneyness** — the correct Gatheral–Jacquier Lemma 2.1
-        //    condition (checking at fixed absolute strike is only equivalent
-        //    under flat forwards). A strict-mode `Err` here is a genuine
-        //    arbitrage and must fail the calibration (item 9 — see below).
-        //
-        //  * Butterfly is enforced STRICTLY on each calibrated SVI slice via
-        //    the analytic Durrleman `g(k) ≥ 0` test — cheap and exact for SVI
-        //    (Gatheral–Jacquier Thm 2.1). The per-slice necessary conditions
-        //    in `SviParams::validate` deliberately omit it; without this scan
-        //    a slice with negative implied density could pass silently.
-        //    The grid-level call-convexity validator is additionally run in
-        //    lenient mode as a diagnostic on the *interpolated* surface.
+        // Calendar and per-slice butterfly checks are strict; interpolated
+        // grid call convexity is advisory.
         let target_forwards: Vec<f64> = params
             .target_expiries
             .iter()
@@ -276,14 +254,12 @@ impl SviSurfaceTarget {
             lenient_arbitrage: true,
             ..ValidationConfig::default()
         };
-        // A strict calendar-spread `Err` is a genuine arbitrage -> fails the report.
         let calendar_arbitrage =
             validate_calendar_spread_with_forwards(&surface, &calendar_cfg, &target_forwards)
                 .err()
                 .map(|e| format!("SVI calendar-spread arbitrage: {e}"));
 
-        // Per-slice Durrleman butterfly scan: strict. Scan the calibrated
-        // quote range extended by ±1 in log-moneyness (customary wing margin).
+        // Scan each calibrated slice with a one-unit wing margin.
         let mut slice_butterfly_arbitrage: Option<String> = None;
         for (&expiry_key, svi_params) in &params_by_expiry {
             let expiry = expiry_key.into_inner();
@@ -301,8 +277,6 @@ impl SviSurfaceTarget {
             }
         }
 
-        // Grid-level call-convexity diagnostic on the interpolated surface
-        // (advisory: the strict per-slice Durrleman test above is the gate).
         let butterfly_warning =
             validate_butterfly_call_convexity(&surface, &butterfly_cfg, &target_forwards)
                 .err()
@@ -317,8 +291,6 @@ impl SviSurfaceTarget {
         .with_model_version(finstack_quant_core::versions::SVI_SURFACE);
         report.update_solver_config(global_config.solver.clone());
 
-        // Strict failures: calendar-spread arbitrage on the interpolated grid,
-        // and per-slice Durrleman butterfly arbitrage on the calibrated slices.
         let strict_failures: Vec<String> = [calendar_arbitrage, slice_butterfly_arbitrage]
             .into_iter()
             .flatten()
@@ -326,21 +298,14 @@ impl SviSurfaceTarget {
         if !strict_failures.is_empty() {
             report.validation_passed = false;
             let mut detail = strict_failures.join("; ");
-            // Append the advisory grid-level butterfly diagnostic, if any.
             if let Some(bf) = &butterfly_warning {
                 detail = format!("{detail}; (advisory) {bf}");
             }
             report.validation_error = Some(detail.clone());
-            // Item 9: `success` MUST reflect `validation_passed`. An SVI surface that
-            // fails a no-arbitrage check is not a usable calibration result —
-            // reporting `success = true` while `validation_passed` is `false`
-            // lets an arbitrageable surface be silently accepted downstream.
             report.success = false;
             report.convergence_reason =
                 format!("SVI surface calibration failed validation: {detail}");
         } else if let Some(bf) = butterfly_warning {
-            // Grid-level butterfly is advisory only: the strict gate is the
-            // per-slice analytic Durrleman scan above.
             report.validation_error = Some(format!("(advisory) {bf}"));
         }
 
@@ -348,35 +313,9 @@ impl SviSurfaceTarget {
     }
 }
 
-/// Interpolate implied volatility between calibrated SVI expiry slices using
-/// Gatheral's total-variance recipe: `w(T) = (1 − τ)·w₁(k₁) + τ·w₂(k₂)`
-/// where `τ = (T − T₁) / (T₂ − T₁)` and `wᵢ(kᵢ) = σ²·Tᵢ` is the per-slice
-/// total variance. Returns `σ(T) = √(w(T) / T)`.
-///
-/// # Per-slice forward-moneyness
-///
-/// Each SVI slice is calibrated in *its own* forward-moneyness coordinate
-/// `kᵢ = ln(K / F(Tᵢ))`. With a non-flat discount curve `F(T)` varies with
-/// `T`, so a single `k` computed at the target expiry does **not** address
-/// the same absolute strike on the neighbouring slices. To keep the
-/// interpolation calendar-arbitrage-free at a *fixed absolute strike* `K`,
-/// this function takes `target_strike` and `forward_fn` and re-derives the
-/// log-moneyness per slice before evaluating its total variance.
-///
-/// This preserves calendar-spread monotonicity of `w` by construction:
-/// if the calibrated slices at `T₁ < T₂` are themselves calendar-monotone
-/// at every absolute strike (i.e. `w₁(k₁) ≤ w₂(k₂)`), linear interpolation
-/// in `w` keeps the surface arbitrage-free between them.
-///
-/// Extrapolation (outside the calibrated range) falls back to the nearest
-/// slice's `implied_vol`, evaluated at *that slice's* forward-moneyness —
-/// the standard approach when there's no data to constrain the surface
-/// beyond the outermost expiries.
-///
-/// A naive parameter-space interpolation (linear in `a`, `b`, `ρ`,
-/// `m`, `σ`) makes no calendar-spread guarantees; Gatheral (2004,
-/// 2013) showed this admits calendar arbitrage under common calibration
-/// conditions, which motivates the total-variance form used here.
+/// Interpolate total variance at a fixed absolute strike, evaluating each SVI
+/// slice in its own forward-moneyness coordinate. Extrapolation uses the
+/// nearest calibrated slice.
 fn interpolate_svi_vol(
     target_expiry: f64,
     target_strike: f64,
@@ -389,8 +328,6 @@ fn interpolate_svi_vol(
         )));
     }
 
-    // Log-moneyness of `target_strike` in the forward-moneyness coordinate of
-    // the SVI slice calibrated at expiry `slice_expiry`.
     let slice_log_moneyness = |slice_expiry: f64| -> Result<f64> {
         let forward = forward_fn(slice_expiry);
         if !forward.is_finite() || forward <= 0.0 {

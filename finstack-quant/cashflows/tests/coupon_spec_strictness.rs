@@ -79,3 +79,48 @@ fn step_up_coupon_spec_rejects_unknown_field() {
         "error must name the offending key: {error}"
     );
 }
+
+// -----------------------------------------------------------------------------
+// Credit-model specs (prepayment / default / recovery) must be closed inbound
+// types: a typo'd key silently deserializing to defaults changes cashflows.
+// -----------------------------------------------------------------------------
+
+#[test]
+fn prepayment_model_spec_rejects_unknown_field() {
+    use finstack_quant_cashflows::builder::PrepaymentModelSpec;
+
+    let error = serde_json::from_str::<PrepaymentModelSpec>(
+        r#"{"cpr": 0.06, "curve": {"curve": "psa", "speed_multiplier": 1.0}, "speed_multipler": 2.0}"#,
+    )
+    .expect_err("unknown fields must be rejected");
+    assert!(
+        error.to_string().contains("speed_multipler"),
+        "error must name the offending key: {error}"
+    );
+}
+
+#[test]
+fn default_model_spec_rejects_unknown_field() {
+    use finstack_quant_cashflows::builder::DefaultModelSpec;
+
+    let error = serde_json::from_str::<DefaultModelSpec>(r#"{"cdr": 0.02, "sda_multiplier": 1.5}"#)
+        .expect_err("unknown fields must be rejected");
+    assert!(
+        error.to_string().contains("sda_multiplier"),
+        "error must name the offending key: {error}"
+    );
+}
+
+#[test]
+fn recovery_model_spec_rejects_unknown_field() {
+    use finstack_quant_cashflows::builder::RecoveryModelSpec;
+
+    let error = serde_json::from_str::<RecoveryModelSpec>(
+        r#"{"rate": 0.40, "recovery_lag": 12, "recovery_lag_months": 12}"#,
+    )
+    .expect_err("unknown fields must be rejected");
+    assert!(
+        error.to_string().contains("recovery_lag_months"),
+        "error must name the offending key: {error}"
+    );
+}

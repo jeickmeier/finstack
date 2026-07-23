@@ -157,10 +157,7 @@ fn create_pricing_quote(quote: &CDSTrancheQuote) -> CDSTrancheQuote {
 
 /// Compute the upfront money amount from quote fields.
 ///
-/// `upfront_pct` is a **decimal fraction** of tranche notional (e.g. `-0.025`
-/// means −2.5%), matching the `CDSTrancheQuote` schema and the instrument
-/// builder in `market::build::cds_tranche` (which rejects `abs() > 1.0` to
-/// block percentage-point notation). No further scaling is applied.
+/// `upfront_pct` is a decimal fraction of tranche notional.
 fn compute_upfront_money(
     attachment: f64,
     detachment: f64,

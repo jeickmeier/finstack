@@ -15,6 +15,7 @@ pub enum DefaultCurve {
 
 /// Default model specification.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DefaultModelSpec {
     /// CDR: Constant Default Rate (annual, e.g., 0.02 for 2%).
     ///

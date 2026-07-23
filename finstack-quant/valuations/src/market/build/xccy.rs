@@ -99,11 +99,7 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
             let quote_notional = ctx.notional();
             let base_notional = quote_notional / fx_spot;
 
-            // Market convention for G10-vs-USD basis swaps: the USD (quote)
-            // leg pays its index flat and the non-USD (base) leg carries the
-            // quoted basis (e.g. EUR/USD quoted as ESTR + basis vs SOFR
-            // flat). See Baba, Packer & Nagano (BIS Quarterly Review, 2008)
-            // and Du, Tepper & Verdelhan (2018) on the cross-currency basis.
+            // Apply the quoted basis to the base leg; the quote leg is flat.
             let leg1 = XccySwapLeg {
                 currency: conv.base_currency,
                 notional: Money::new(base_notional, conv.base_currency),

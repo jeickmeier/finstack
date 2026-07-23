@@ -240,10 +240,7 @@ fn cdx_ig_46_reported_npv_uses_supplied_curve_not_zero_rebootstrap() {
         (supplied_pv - BBG_NPV).abs() < 6.0,
         "reported NPV should remain anchored to the supplied fixture market: supplied={supplied_pv}, target={BBG_NPV}",
     );
-    // Since the CDS tenor->maturity fix to the ISDA 2015 semi-annual roll,
-    // the sensitivity-path rebootstrap resolves the same pillar maturities as
-    // the originally supplied curve, so a zero bump is an identity. This
-    // replaces the previous documented >$100 drift between the two paths.
+    // A zero-bump rebootstrap must preserve the supplied curve.
     assert!(
         (zero_pv - supplied_pv).abs() < 1e-6,
         "zero-bump rebootstrap should reproduce the supplied-curve NPV: supplied={supplied_pv}, zero={zero_pv}",

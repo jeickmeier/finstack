@@ -666,60 +666,18 @@ impl SwapFrequency {
     }
 }
 
-/// HW1F κ hard-bounds check. Mean-reversion must lie in [1e-3, 1.0].
-///
-/// **Lower bound (`1e-3`):** below this, the mean-reversion half-life
-/// `ln(2)/κ` exceeds 693y. More practically, `B(t,T) = (1 − e^{−κ(T−t)})/κ`
-/// grows nearly linearly with `(T−t)` — at κ=1e-3, `B(0, 30) ≈ 29.55` —
-/// and the bond-option vol `σ_P ∝ B(T,S) · σ · √variance_factor` blows up
-/// for long-dated, volatile calibrations. Concretely: at κ=1e-3, σ=0.01,
-/// T=20, B(20,21) ≈ 1.0, the variance factor `(1 − e^{−2κT})/(2κ) ≈ 19.6`,
-/// so `σ_P ≈ 1.0 × 0.01 × √19.6 ≈ 0.044` per unit notional, which Brent
-/// resolves robustly. Below κ=1e-3 the integrated-variance-time floor
-/// becomes O(T) rather than O(1/κ), and the Jamshidian d1/d2 lose
-/// numerical stability in the put-pricing formula.
-///
-/// **Upper bound (`1.0`):** above this, the half-life drops below 8 months
-/// and the short rate is essentially absorbed at its instantaneous level
-/// over typical (1Y+) swaption expiries — HW1F effectively collapses to
-/// a Vasicek with no meaningful term structure for bond options.
+// HW1F mean-reversion bounds.
 const KAPPA_MIN: f64 = 0.001;
 const KAPPA_MAX: f64 = 1.0;
 
-/// Short-rate volatility bounds enforced as native LM box constraints in
-/// log-space.
-///
-/// **Lower bound (`1e-5`):** 0.1 bp of annualised short-rate volatility — far
-/// below any economically meaningful HW1F calibration but strictly positive,
-/// so the log-space parameter `ln σ` stays finite. A smaller σ would make the
-/// model degenerate (deterministic short rate) and the vega-scaled residual
-/// ill-conditioned.
-///
-/// **Upper bound (`2.0`):** 200% annualised short-rate volatility. No realistic
-/// rates market calibration approaches this; the cap simply keeps LM iterates
-/// (and multi-start perturbations) from wandering into a regime where the
-/// Jamshidian decomposition loses numerical accuracy.
+// Short-rate volatility bounds for the log-space LM solve.
 const SIGMA_MIN: f64 = 1e-5;
 const SIGMA_MAX: f64 = 2.0;
 
-/// Relative margin used to detect calibrated parameters pinned at a box bound.
-///
-/// The global LM solver clamps its returned solution *strictly interior* to
-/// the box (by `BOUND_INWARD_EPS = 1e-8` in log-space), so an exact
-/// out-of-range check like `!(MIN..=MAX).contains(&x)` can never fire after
-/// clamping. A parameter within this relative margin of either bound means
-/// the optimizer wanted to leave the feasible region — an under-identified or
-/// mis-specified fit that must not be reported as a successful calibration
-/// (Andersen–Piterbarg Vol. II §8.1: boundary solutions must be flagged).
+// Relative margin for detecting parameters pinned near a box bound.
 const AT_BOUND_REL_TOL: f64 = 1e-6;
 
-/// Reject calibrated HW1F `(κ, σ)` pinned at (or within [`AT_BOUND_REL_TOL`]
-/// of) their box bounds.
-///
-/// # Errors
-///
-/// Returns a `Validation` error naming the pinned parameter and the bound it
-/// hit, with remediation guidance.
+/// Reject calibrated HW1F parameters pinned near their box bounds.
 fn reject_at_bound_params(
     kappa: f64,
     sigma: f64,

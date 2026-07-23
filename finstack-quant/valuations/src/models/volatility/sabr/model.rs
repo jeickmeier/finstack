@@ -515,11 +515,7 @@ impl SABRModel {
 
         // Rate validation based on model type
         if self.params.shift.is_none() {
-            // β = 0 (normal SABR) is shift-invariant: the state variable is
-            // arithmetic, so negative and cross-zero forwards/strikes are
-            // exactly the regime the model exists for (Hagan et al. 2002 §3;
-            // EUR/JPY negative-rate swaptions). Only β > 0 requires positive
-            // (or shifted-positive) rates for the CEV backbone `F^β`.
+            // Normal SABR permits non-positive forwards and strikes.
             let beta_is_zero = self.params.beta < BETA_SNAP_TOL;
             if !beta_is_zero && (forward <= 0.0 || strike <= 0.0) {
                 return Err(Error::Validation(format!(

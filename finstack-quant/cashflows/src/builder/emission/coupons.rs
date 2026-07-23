@@ -308,10 +308,12 @@ pub(crate) fn emit_fixed_coupons_on(
                 .get(&accrual_start)
                 .unwrap_or(&outstanding_fallback);
 
-            // ACT/ACT ICMA reference period: regular periods use the accrual
-            // period itself (exact ISMA accrual). For stubs the adjacent
-            // regular period is not available here, so core's frequency-based
-            // quasi-coupon subdivision is used instead (coupon_period: None).
+            // ACT/ACT ICMA reference period: regular periods use the
+            // UNADJUSTED scheduled period (equal to the accrual period on
+            // unadjusted schedules; ICMA quasi-coupon periods are unadjusted).
+            // For stubs the adjacent regular period is not available here, so
+            // core's frequency-based quasi-coupon subdivision is used instead
+            // (coupon_period: None).
             let yf = spec.schedule.dc.year_fraction(
                 accrual_start,
                 accrual_end,
@@ -319,7 +321,8 @@ pub(crate) fn emit_fixed_coupons_on(
                     calendar: Some(calendar),
                     frequency: Some(spec.schedule.freq),
                     bus_basis: None,
-                    coupon_period: (!is_stub).then_some((accrual_start, accrual_end)),
+                    coupon_period: (!is_stub)
+                        .then_some((period.unadjusted_start, period.unadjusted_end)),
                     end_is_termination_date: is_termination_date,
                 },
             )?;
@@ -780,8 +783,9 @@ pub(crate) fn emit_float_coupons_on(
 
             // Accrual context uses the PAYMENT frequency (mirroring the fixed
             // path): for ACT/ACT ICMA the coupon period is the payment
-            // period, not the reset cadence. Regular periods use the accrual
-            // period itself as the ICMA reference period; stubs fall back to
+            // period, not the reset cadence. Regular periods use the
+            // UNADJUSTED scheduled period as the ICMA reference (equal to the
+            // accrual period on unadjusted schedules); stubs fall back to
             // core's frequency-based quasi-coupon subdivision.
             let yf = spec.schedule.dc.year_fraction(
                 accrual_start,
@@ -790,7 +794,8 @@ pub(crate) fn emit_float_coupons_on(
                     calendar: Some(calendar),
                     frequency: Some(spec.schedule.freq),
                     bus_basis: None,
-                    coupon_period: (!is_stub).then_some((accrual_start, accrual_end)),
+                    coupon_period: (!is_stub)
+                        .then_some((period.unadjusted_start, period.unadjusted_end)),
                     end_is_termination_date: is_termination_date,
                 },
             )?;

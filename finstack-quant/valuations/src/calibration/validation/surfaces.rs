@@ -1,20 +1,7 @@
-//! Surface validators (volatility surfaces).
+//! Volatility-surface validators.
 //!
-//! Two families of checks are provided:
-//!
-//! - **Forward-aware validators** (`*_with_forwards`) — the correct
-//!   no-arbitrage tests. Calendar monotonicity of total variance is evaluated
-//!   at fixed *forward log-moneyness* `k = ln(K/F_T)` (Gatheral–Jacquier 2014,
-//!   Lemma 2.1) and butterfly arbitrage is tested as *call-price convexity in
-//!   strike* (equivalent to non-negative risk-neutral density,
-//!   `∂²C/∂K² ≥ 0`). Prefer these whenever per-expiry forwards are available.
-//! - **Legacy grid validators** (`validate_calendar_spread`,
-//!   `validate_butterfly_spread`) — forward-free heuristics retained for
-//!   callers with no forward information. The calendar check at fixed
-//!   *absolute* strike is exact only under flat forwards (zero rates and
-//!   dividends); the butterfly band on total-variance convexity in absolute
-//!   strike is neither necessary nor sufficient for no-arbitrage and should
-//!   be treated as a smoothness diagnostic only.
+//! Prefer the forward-aware validators when per-expiry forwards are available.
+//! The forward-free variants remain as heuristics for callers without them.
 
 use crate::calibration::validation::ValidationConfig;
 use finstack_quant_core::market_data::surfaces::VolSurface;
@@ -23,8 +10,7 @@ use finstack_quant_core::{Error, Result};
 
 /// Validate all volatility-surface constraints.
 ///
-/// Forward-free variant; see the module docs for the flat-forward caveat on
-/// the calendar check and the heuristic nature of the butterfly band. Prefer
+/// Forward-free variant. Prefer
 /// [`validate_surface_with_forwards`] when per-expiry forwards are available.
 ///
 /// # Arguments
@@ -42,9 +28,8 @@ pub fn validate_surface(surface: &VolSurface, config: &ValidationConfig) -> Resu
 
 /// Validate all volatility-surface constraints using per-expiry forwards.
 ///
-/// Runs the correct no-arbitrage tests: calendar monotonicity of total
-/// variance at fixed forward log-moneyness, butterfly (density) via call-price
-/// convexity in strike, and vol bounds.
+/// Checks calendar monotonicity at fixed forward log-moneyness, call-price
+/// convexity in strike, and volatility bounds.
 ///
 /// # Arguments
 ///
@@ -90,15 +75,8 @@ fn validate_forwards_input(surface: &VolSurface, forwards: &[f64]) -> Result<()>
     Ok(())
 }
 
-/// Validate no calendar-spread arbitrage at fixed **forward log-moneyness**.
-///
-/// The no-arbitrage condition is `∂_T w(k, T) ≥ 0` at fixed
-/// `k = ln(K/F_T)` (Gatheral & Jacquier 2014, Lemma 2.1) — *not* at fixed
-/// absolute strike, which differs whenever rates/dividends give the forward a
-/// term structure. For each adjacent expiry pair the grid strikes of the later
-/// expiry are mapped to the earlier expiry at equal `k`; probes falling
-/// outside the quoted strike range are skipped (extrapolated vols would
-/// contaminate the test).
+/// Validate calendar monotonicity of total variance at fixed forward
+/// log-moneyness, skipping probes outside the quoted strike range.
 ///
 /// # Arguments
 ///
@@ -126,7 +104,6 @@ pub fn validate_calendar_spread_with_forwards(
         return Ok(());
     };
 
-    // (k, T_prev, T_next, w_prev, w_next)
     let mut violations: Vec<(f64, f64, f64, f64, f64)> = Vec::new();
 
     for i in 1..expiries.len() {
@@ -134,10 +111,9 @@ pub fn validate_calendar_spread_with_forwards(
         let (t2, f2) = (expiries[i], forwards[i]);
         for &strike in strikes {
             let k = (strike / f2).ln();
-            // Same forward log-moneyness at the earlier expiry.
             let strike_prev = f1 * k.exp();
             if strike_prev < k_min || strike_prev > k_max {
-                continue; // avoid testing against extrapolated vols
+                continue;
             }
             let v1 = surface.value_checked(t1, strike_prev)?;
             let v2 = surface.value_checked(t2, strike)?;
@@ -187,14 +163,8 @@ pub fn validate_calendar_spread_with_forwards(
     Ok(())
 }
 
-/// Validate no butterfly arbitrage via **call-price convexity in strike**.
-///
-/// Non-negative risk-neutral density is equivalent to `∂²C/∂K² ≥ 0`
-/// (Breeden–Litzenberger); discounting scales prices by a positive constant
-/// per expiry, so convexity of the *undiscounted* Black-76 call in strike is
-/// an exact test. This replaces the total-variance-convexity band, which is
-/// neither necessary nor sufficient. Call monotonicity (`∂C/∂K ≤ 0`,
-/// non-negative vertical spreads) is checked as well.
+/// Validate that undiscounted call prices are non-increasing and convex in
+/// strike.
 ///
 /// # Arguments
 ///
@@ -223,7 +193,6 @@ pub fn validate_butterfly_call_convexity(
         return Ok(());
     }
 
-    // (expiry, strike, call_mid, call_interp)
     let mut violations: Vec<(f64, f64, f64, f64)> = Vec::new();
 
     for (i, &expiry) in expiries.iter().enumerate() {
@@ -297,15 +266,10 @@ pub fn validate_butterfly_call_convexity(
     Ok(())
 }
 
-/// Validate no calendar spread arbitrage (forward-free variant).
+/// Validate calendar monotonicity at fixed absolute strike.
 ///
-/// Checks that total variance (sigma^2 T) is monotonically increasing with expiry,
-/// ensuring that longer-dated options are not cheaper than shorter-dated ones.
-///
-/// **Caveat**: monotonicity is evaluated at fixed *absolute* strike, which
-/// equals the true condition (fixed forward log-moneyness, Gatheral–Jacquier
-/// 2014 Lemma 2.1) only under flat forwards. With a rates/dividend term
-/// structure prefer [`validate_calendar_spread_with_forwards`].
+/// Prefer [`validate_calendar_spread_with_forwards`] when forwards vary by
+/// expiry.
 ///
 /// # Arguments
 ///
@@ -387,16 +351,10 @@ pub fn validate_calendar_spread(surface: &VolSurface, config: &ValidationConfig)
     Ok(())
 }
 
-/// Validate no butterfly arbitrage (forward-free heuristic).
+/// Apply a forward-free convexity-band heuristic to total variance.
 ///
-/// Checks that total variance (sigma^2 T) stays within a convexity band in
-/// absolute strike.
-///
-/// **Caveat**: this is a smoothness diagnostic, not a density test —
-/// total-variance convexity in absolute strike is neither necessary nor
-/// sufficient for non-negative implied density. When per-expiry forwards are
-/// available prefer [`validate_butterfly_call_convexity`], which tests the
-/// exact Breeden–Litzenberger condition (call-price convexity in strike).
+/// Prefer [`validate_butterfly_call_convexity`] when per-expiry forwards are
+/// available.
 ///
 /// # Arguments
 ///

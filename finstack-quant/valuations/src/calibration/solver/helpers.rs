@@ -8,13 +8,7 @@ use crate::calibration::CalibrationConfig;
 
 /// Finite-difference bump step used by both bootstrap and global diagnostics.
 ///
-/// Floored at `ε^{1/3} ≈ 6.06e-6`, the optimal central-difference step for
-/// unit-scale parameters (Press et al., *Numerical Recipes* §5.7): a smaller
-/// step (the old `1e-8` floor) puts the rounding error `O(ε/h)` two orders of
-/// magnitude above the truncation error, producing a noisy diagnostics
-/// Jacobian and an unreliable condition number. This also matches the step
-/// the LM solver itself uses (`solver_multi::fd_step`), so the diagnostics
-/// Jacobian is computed on the same scale as the one the solver optimized.
+/// Uses the central-difference `ε^(1/3)` floor shared by the LM solver.
 pub(crate) fn diagnostics_bump_h(config: &CalibrationConfig) -> f64 {
     let eps_cbrt = f64::EPSILON.cbrt();
     config.discount_curve.jacobian_step_size.max(eps_cbrt)
@@ -523,20 +517,8 @@ fn bracket_solve_1d_impl(
         return Ok((diag.best_point, diag));
     }
 
-    // Fallback: stay inside the discovered bracket with bounded false-position
-    // updates, using the **Illinois modification**: when the same endpoint is
-    // retained on two consecutive iterations, its stored function value is
-    // halved. Plain regula falsi retains one endpoint forever on a convex or
-    // concave objective, degrading to linear one-sided convergence and — on a
-    // wide bracket left by an early bisection break — potentially exhausting
-    // the iteration budget without reaching `|f| < tol`, spuriously failing a
-    // genuinely bracketed root. The Illinois down-weighting restores
-    // superlinear convergence and guaranteed bracket reduction.
-    //
-    // Reference: Dowell & Jarratt (1971); Press et al., *Numerical Recipes*
-    // 3rd ed., §9.2.
-    //
-    // `retained` tracks which endpoint survived the last update: -1 = a, +1 = b.
+    // Illinois false position halves a repeatedly retained endpoint.
+    // `retained`: -1 = a, +1 = b.
     let mut retained: i8 = 0;
     for _ in 0..max_iters.max(50) {
         let denom = fb - fa;
@@ -560,19 +542,17 @@ fn bracket_solve_1d_impl(
         }
 
         if opposite_signs(fa, fc) {
-            // Root is in [a, candidate]: endpoint `a` is retained.
             b = candidate;
             fb = fc;
             if retained == -1 {
-                fa *= 0.5; // Illinois: down-weight the twice-retained endpoint.
+                fa *= 0.5;
             }
             retained = -1;
         } else if opposite_signs(fc, fb) {
-            // Root is in [candidate, b]: endpoint `b` is retained.
             a = candidate;
             fa = fc;
             if retained == 1 {
-                fb *= 0.5; // Illinois: down-weight the twice-retained endpoint.
+                fb *= 0.5;
             }
             retained = 1;
         } else {
