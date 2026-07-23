@@ -520,19 +520,17 @@ export interface RateConstructor {
    */
   fromPercent(pct: number): Rate;
   /**
-   * Create a rate from basis points.
+   * Create a rate from a whole number of basis points.
    *
    * The canonical Rust `Rate::from_bps` takes an integer (`i32`) number
    * of basis points. Because JavaScript numbers are `f64`, this binding
-   * accepts a float and rounds it to the nearest integer basis point
-   * before delegating (banker-free half-away rounding via `Bps`).
-   * Fractional inputs therefore lose sub-bp precision; use
-   * `new Rate(decimal)` or `Rate.fromPercent` for sub-bp rates.
+   * accepts a float but **rejects fractional input** rather than silently
+   * rounding it. Use `new Rate(decimal)` or `Rate.fromPercent` for sub-bp
+   * rates.
    *
-   * @param bps - Rate in basis points (e.g. `500` for 5%). Rounded to the
-   * nearest integer bp.
+   * @param bps - Rate in whole basis points (e.g. `500` for 5%).
    * @returns The constructed `Rate`.
-   * @throws If `bps` is non-finite.
+   * @throws If `bps` is non-finite or not a whole number of basis points.
    *
    * @example
    * ```javascript
@@ -546,7 +544,7 @@ export interface RateConstructor {
 /**
  * Basis points (1 bp = 0.01%, 10_000 bps = 100%).
  *
- * Stored as integer bps internally; constructors round to the nearest bp.
+ * Stored as integer bps internally; constructors reject fractional input.
  *
  * @example
  * ```javascript
@@ -575,7 +573,7 @@ export interface Bps extends WasmOwned {
 /**
  * Basis points (1 bp = 0.01%, 10_000 bps = 100%).
  *
- * Stored as integer bps internally; constructors round to the nearest bp.
+ * Stored as integer bps internally; constructors reject fractional input.
  *
  * @example
  * ```javascript
@@ -588,12 +586,13 @@ export interface Bps extends WasmOwned {
  */
 export interface BpsConstructor {
   /**
-   * Create basis points from a floating value.
+   * Create basis points from a whole-number value.
    *
-   * @param value - Value in basis points (e.g. `25` for 25 bps). Rounded
-   * to the nearest integer bp.
+   * @param value - Value in whole basis points (e.g. `25` for 25 bps).
    * @returns The constructed `Bps`.
-   * @throws If `value` is non-finite.
+   * @throws If `value` is non-finite or not a whole number of basis
+   * points. Sub-bp spreads must use the JSON instrument path (which
+   * preserves fractional values) or a decimal `Rate`.
    */
   new (value: number): Bps;
 }
@@ -4328,7 +4327,9 @@ export interface BondConstructor {
    * @param id - Unique instrument identifier.
    * @param notional - Principal amount of the bond.
    * @param indexId - Forward curve identifier (e.g. `"USD-SOFR-3M"`).
-   * @param marginBp - Spread over the index in basis points.
+   * @param marginBp - Spread over the index in whole basis points (`Bps`
+   * rejects fractional values; use `Bond.fromJson` for sub-bp margins,
+   * which preserves the exact decimal spread).
    * @param issue - Issue date as an ISO-8601 string (`"YYYY-MM-DD"`).
    * @param maturity - Maturity date as an ISO-8601 string (`"YYYY-MM-DD"`).
    * @param freq - Payment frequency (e.g. `Tenor.quarterly()`).

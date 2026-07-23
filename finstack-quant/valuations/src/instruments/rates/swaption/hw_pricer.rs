@@ -461,9 +461,12 @@ mod tests {
             .strikes(&[1.0, 2.0, 5.0])
             .secondary_axis(finstack_quant_core::market_data::surfaces::VolSurfaceAxis::Tenor)
             .quote_type(finstack_quant_core::market_data::surfaces::VolQuoteType::Normal)
-            .row(&[0.020, 0.022, 0.024])
-            .row(&[0.022, 0.024, 0.026])
-            .row(&[0.024, 0.026, 0.028])
+            // Declining vol in expiry identifies an interior mean-reversion
+            // speed; a rising/flat term structure drives κ to its lower rail,
+            // which the calibration's at-bound guard now (correctly) rejects.
+            .row(&[0.028, 0.026, 0.024])
+            .row(&[0.024, 0.022, 0.020])
+            .row(&[0.020, 0.018, 0.016])
             .build()
             .expect("swaption surface");
         let market = market.insert_surface(surface);

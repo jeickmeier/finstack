@@ -238,6 +238,20 @@ impl StudentTTarget {
         let tolerance = self.config.solver.tolerance();
         let max_iters = self.config.solver.max_iterations();
 
+        // Residual acceptance tolerance for the calibrated df.
+        //
+        // `tolerance` above is the root-finder's x-domain termination criterion
+        // (default 1e-12); it must not double as the acceptance test on the
+        // upfront residual. Tranche upfronts are computed through Gauss-Hermite /
+        // Gauss-Laguerre quadrature whose intrinsic error is O(1e-4..1e-3) of
+        // notional, so a correctly-converged df can never satisfy a 1e-12
+        // residual bound. Mirror the tranche-appropriate tolerance used by the
+        // base-correlation target (BASE_CORRELATION_VALIDATION_TOLERANCE):
+        // ~10 bp of upfront, generous relative to quadrature precision but
+        // still rejecting a materially miscalibrated df.
+        const STUDENT_T_UPFRONT_TOLERANCE: f64 = 1e-3;
+        let acceptance_tolerance = tolerance.max(STUDENT_T_UPFRONT_TOLERANCE);
+
         let objective = |df: f64| -> f64 {
             if df <= 2.0 || !df.is_finite() {
                 return f64::INFINITY;
@@ -270,7 +284,7 @@ impl StudentTTarget {
         let (calibrated_df, success, reason) = match root {
             Some(df) if df.is_finite() && df > 2.0 => {
                 let residual = objective(df);
-                if residual.abs() <= tolerance {
+                if residual.abs() <= acceptance_tolerance {
                     (
                         df,
                         true,
@@ -280,7 +294,7 @@ impl StudentTTarget {
                     return Err(finstack_quant_core::Error::Calibration {
                         message: format!(
                             "Student-t df calibration failed: best df={:.4} but residual {:.2e} exceeds tolerance {:.2e}",
-                            df, residual.abs(), tolerance
+                            df, residual.abs(), acceptance_tolerance
                         ),
                         category: "student_t_df".to_string(),
                     });

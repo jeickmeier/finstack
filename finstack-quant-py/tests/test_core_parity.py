@@ -54,6 +54,17 @@ def test_bps_constructor_rejects_rounded_i32_overflow() -> None:
         Bps(2_147_483_648)
 
 
+def test_bps_constructor_rejects_fractional_input() -> None:
+    """Reject fractional bp instead of silently rounding.
+
+    Sub-bp spreads change instrument economics; the JSON path preserves
+    them exactly.
+    """
+    with pytest.raises(ValueError, match="whole number"):
+        Bps(62.5)
+    assert Bps(62.0).as_bps == 62
+
+
 class TestCurrencyParity:
     """Currency construction and property access match Rust."""
 

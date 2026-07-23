@@ -467,9 +467,8 @@ fn validate_base_correlation_step(
     p: &crate::calibration::api::schema::BaseCorrelationParams,
     quotes: &[MarketQuote],
     context: &MarketContext,
-    global_config: &CalibrationConfig,
+    _global_config: &CalibrationConfig,
 ) -> Result<()> {
-    let recovery_rate_abs_tolerance = global_config.validation.recovery_rate_abs_tolerance;
     if !p.notional.is_finite() || p.notional <= 0.0 {
         return Err(finstack_quant_core::Error::Validation(format!(
             "BaseCorrelation calibration notional must be positive; got {}",
@@ -478,7 +477,7 @@ fn validate_base_correlation_step(
     }
 
     // Base correlation calibration requires credit index data to be present in the context.
-    let index_data = context.get_credit_index(&p.index_id)?;
+    let _index_data = context.get_credit_index(&p.index_id)?;
 
     // Market-standard: ensure recovery/currency/series/index are consistent.
     let tranche_quotes: Vec<crate::market::quotes::cds_tranche::CDSTrancheQuote> =
@@ -488,7 +487,6 @@ fn validate_base_correlation_step(
             finstack_quant_core::InputError::TooFewPoints,
         ));
     }
-    let tranche_recovery: Option<f64> = None;
 
     for q in &tranche_quotes {
         match q {
@@ -531,18 +529,11 @@ fn validate_base_correlation_step(
                     )));
                 }
 
-                // Note: CDS tranche quotes don't have recovery_rate in the convention.
-                // Recovery rate comes from the credit index data and is validated later.
+                // Note: CDS tranche quotes carry no recovery_rate of their
+                // own — the recovery used in pricing comes from the credit
+                // index data (validated present above), so there is no
+                // quote-vs-index recovery consistency check to perform here.
             }
-        }
-    }
-
-    if let Some(r) = tranche_recovery {
-        if (r - index_data.recovery_rate).abs() > recovery_rate_abs_tolerance {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Tranche quote recovery_rate={} does not match credit index recovery_rate={}",
-                r, index_data.recovery_rate
-            )));
         }
     }
 
@@ -768,6 +759,7 @@ mod tests {
                 target_expiries: vec![0.5, 1.0],
                 target_strikes: vec![80.0, 90.0, 100.0, 110.0, 120.0],
                 spot_override: Some(100.0),
+                dividend_yield_override: None,
             }),
         };
 
@@ -795,6 +787,7 @@ mod tests {
             target_expiries: vec![0.5, 1.0],
             target_strikes: vec![80.0, 90.0, 100.0, 110.0, 120.0],
             spot_override: Some(0.0),
+            dividend_yield_override: None,
         };
 
         let err = validate_svi_surface_step(&params, &MarketContext::new())
@@ -813,6 +806,7 @@ mod tests {
             target_expiries: vec![0.5, 1.0],
             target_strikes: vec![0.0, 90.0, 100.0, 110.0, 120.0],
             spot_override: Some(100.0),
+            dividend_yield_override: None,
         };
 
         let err = validate_svi_surface_step(&params, &MarketContext::new())

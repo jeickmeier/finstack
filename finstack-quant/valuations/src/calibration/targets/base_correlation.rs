@@ -156,6 +156,11 @@ fn create_pricing_quote(quote: &CDSTrancheQuote) -> CDSTrancheQuote {
 }
 
 /// Compute the upfront money amount from quote fields.
+///
+/// `upfront_pct` is a **decimal fraction** of tranche notional (e.g. `-0.025`
+/// means −2.5%), matching the `CDSTrancheQuote` schema and the instrument
+/// builder in `market::build::cds_tranche` (which rejects `abs() > 1.0` to
+/// block percentage-point notation). No further scaling is applied.
 fn compute_upfront_money(
     attachment: f64,
     detachment: f64,
@@ -167,7 +172,7 @@ fn compute_upfront_money(
     let detachment_pct = normalize_pct(detachment);
     let width_frac = ((detachment_pct - attachment_pct) / 100.0).max(0.0);
     let tranche_notional = notional * width_frac;
-    Money::new(upfront_pct * 0.01 * tranche_notional, currency)
+    Money::new(upfront_pct * tranche_notional, currency)
 }
 
 /// Normalize a value to percentage (0-100 scale).
@@ -608,7 +613,9 @@ mod tests {
         assert_eq!(normalize_pct(0.03), 3.0);
         assert_eq!(normalize_pct(7.0), 7.0);
 
-        let upfront = compute_upfront_money(0.03, 0.07, -2.0, 1_000_000.0, Currency::USD);
+        // upfront_pct is a decimal fraction of tranche notional: -0.02 = -2%.
+        // Tranche notional = 1_000_000 * (7% - 3%) = 40_000; upfront = -800.
+        let upfront = compute_upfront_money(0.03, 0.07, -0.02, 1_000_000.0, Currency::USD);
         assert_eq!(upfront.currency(), Currency::USD);
         assert!((upfront.amount() - (-800.0)).abs() < 1e-12);
     }

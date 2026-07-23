@@ -13,7 +13,11 @@ use ts_rs::TS;
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum XccyQuote {
-    /// Cross-currency basis swap quoted as a spread over the quote-currency leg.
+    /// Cross-currency basis swap quoted as a spread on the base-currency leg.
+    ///
+    /// Per dealer convention for G10-vs-USD pairs, the USD (quote-currency)
+    /// leg pays its index flat and the non-USD (base-currency) leg carries
+    /// the quoted basis (e.g. EUR/USD is ESTR + basis vs SOFR flat).
     BasisSwap {
         /// Unique identifier for the quote.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
@@ -24,7 +28,8 @@ pub enum XccyQuote {
         /// Far-leg maturity pillar; near leg is the convention spot date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         far_pillar: Pillar,
-        /// Basis spread in basis points applied to the quote-currency leg.
+        /// Basis spread in basis points applied to the base-currency
+        /// (non-USD) leg; the quote-currency leg pays its index flat.
         basis_spread_bp: f64,
         /// Optional spot FX quote (quote currency per 1 unit of base currency).
         ///

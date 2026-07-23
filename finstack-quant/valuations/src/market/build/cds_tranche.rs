@@ -300,8 +300,8 @@ pub fn build_cds_tranche_instrument(
         adjust_accrual_dates: false,
     };
 
-    // Side: Quote usually implies we are observing market price.
-    // If we build instrument to price it, we usually align with "Buy Protection" logic (pay premium).
+    // Quote-built tranches are constructed as buy-protection (pay premium),
+    // the standard orientation for calibration instruments.
     let side = TrancheSide::BuyProtection;
 
     let mut instrument = CDSTranche::new(

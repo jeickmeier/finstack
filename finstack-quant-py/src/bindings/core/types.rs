@@ -179,8 +179,19 @@ impl PyBps {
 
     #[new]
     #[pyo3(text_signature = "(bps)")]
-    /// Construct from a floating basis-point value (rounded to the nearest integer bp).
+    /// Construct from a whole basis-point value.
+    ///
+    /// Raises ``ValueError`` for fractional input: ``Bps`` is integer-backed,
+    /// and silently rounding a sub-bp spread (e.g. an FRN margin of 62.5bp)
+    /// would change instrument economics. Use a decimal ``Rate`` or the JSON
+    /// instrument path for sub-bp precision.
     fn new(bps: f64) -> PyResult<Self> {
+        if bps.is_finite() && bps.fract() != 0.0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Bps requires a whole number of basis points; got {bps}. \
+                 For sub-bp precision use a decimal Rate or the JSON instrument path."
+            )));
+        }
         Bps::try_new(bps).map(Self::from_inner).map_err(core_to_py)
     }
 

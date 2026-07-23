@@ -7,7 +7,12 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "ts_export")]
 use ts_rs::TS;
 
-const STANDARD_UPFRONT_RUNNING_COUPONS_BP: [f64; 2] = [100.0, 500.0];
+/// Standard fixed running coupons for ISDA-style upfront CDS quotes.
+///
+/// North American conventions (SNAC) use 100bp (IG) and 500bp (HY);
+/// European/STEC conventions additionally trade 25bp and 1000bp fixed
+/// coupons (ISDA Standard European Contract, Big Bang/Small Bang 2009).
+const STANDARD_UPFRONT_RUNNING_COUPONS_BP: [f64; 4] = [25.0, 100.0, 500.0, 1000.0];
 
 fn is_standard_upfront_running_coupon_bp(running_spread_bp: f64) -> bool {
     // Running coupons are quoted in whole bp market standards, so an absolute
@@ -110,7 +115,7 @@ pub enum CdsQuote {
         /// Maturity pillar.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         pillar: Pillar,
-        /// Running spread in basis points (e.g. 100.0 or 500.0).
+        /// Running spread in basis points (25.0, 100.0, 500.0 or 1000.0).
         running_spread_bp: f64,
         /// Upfront payment percentage of notional (e.g. 0.01 for 1%).
         upfront_pct: f64,
@@ -262,7 +267,7 @@ impl CdsQuote {
         {
             if !is_standard_upfront_running_coupon_bp(*running_spread_bp) {
                 return Err(Error::Validation(format!(
-                    "CDS upfront quotes require a standard running coupon of 100bp or 500bp; got {}bp",
+                    "CDS upfront quotes require a standard running coupon of 25bp, 100bp, 500bp or 1000bp; got {}bp",
                     running_spread_bp
                 )));
             }

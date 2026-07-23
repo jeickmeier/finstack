@@ -249,6 +249,111 @@ pub fn prev_cds_date(date: Date) -> Date {
     }
 }
 
+/// Return the **semi-annual CDS roll date** (20-Mar / 20-Sep) **on or before**
+/// `date`.
+///
+/// Since December 2015, single-name CDS (and the CDX/iTraxx indices) roll
+/// **semi-annually** on 20 March and 20 September rather than quarterly. A
+/// benchmark tenor quote (e.g. "5Y") references a contract whose term runs
+/// from the semi-annual roll date on or before the trade date. A trade dated
+/// exactly on 20-Mar/20-Sep uses that same date as its roll anchor.
+///
+/// # Standards Reference
+///
+/// - ISDA, "Amendments to Single Name CDS Roll Dates" (2015): effective
+///   20 December 2015, new on-the-run maturities are created only twice a
+///   year, on 20 March and 20 September.
+///
+/// # Examples
+/// ```rust
+/// use finstack_quant_core::dates::prev_cds_semiannual_roll;
+/// use time::{Date, Month};
+///
+/// let trade = Date::from_calendar_date(2024, Month::January, 15)?;
+/// assert_eq!(
+///     prev_cds_semiannual_roll(trade),
+///     Date::from_calendar_date(2023, Month::September, 20)?
+/// );
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// # Arguments
+///
+/// * `date` - Trade or valuation date anchoring the on-the-run contract.
+#[must_use]
+pub fn prev_cds_semiannual_roll(date: Date) -> Date {
+    const SEMIANNUAL_ROLL_MONTHS: [Month; 2] = [Month::September, Month::March];
+    let mut year = date.year();
+    loop {
+        for &m in &SEMIANNUAL_ROLL_MONTHS {
+            let candidate = Date::from_calendar_date(year, m, 20).unwrap_or_else(|_| {
+                if year > Date::MAX.year() {
+                    Date::MAX
+                } else {
+                    Date::MIN
+                }
+            });
+            if candidate <= date {
+                return candidate;
+            }
+        }
+        year -= 1;
+    }
+}
+
+/// Return the **standard CDS scheduled termination date** (20-Jun / 20-Dec)
+/// **on or after** `date`.
+///
+/// Under the post-2015 semi-annual roll, on-the-run CDS maturities fall only
+/// on 20 June and 20 December (the semi-annual roll anchor plus the tenor
+/// lands on 20-Mar/20-Sep and is then extended to the following standard
+/// maturity month). This helper snaps an unadjusted "roll + tenor" date to
+/// that standard maturity grid. A date already on 20-Jun/20-Dec is returned
+/// unchanged.
+///
+/// # Standards Reference
+///
+/// - ISDA, "Amendments to Single Name CDS Roll Dates" (2015).
+///
+/// # Examples
+/// ```rust
+/// use finstack_quant_core::dates::next_semiannual_cds_maturity;
+/// use time::{Date, Month};
+///
+/// // 20-Sep roll + 5Y = 20-Sep-2028 -> standard maturity 20-Dec-2028
+/// let raw = Date::from_calendar_date(2028, Month::September, 20)?;
+/// assert_eq!(
+///     next_semiannual_cds_maturity(raw),
+///     Date::from_calendar_date(2028, Month::December, 20)?
+/// );
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// # Arguments
+///
+/// * `date` - Unadjusted candidate maturity to snap forward to the standard
+///   semi-annual maturity grid.
+#[must_use]
+pub fn next_semiannual_cds_maturity(date: Date) -> Date {
+    const MATURITY_MONTHS: [Month; 2] = [Month::June, Month::December];
+    let mut year = date.year();
+    loop {
+        for &m in &MATURITY_MONTHS {
+            let candidate = Date::from_calendar_date(year, m, 20).unwrap_or_else(|_| {
+                if year < Date::MIN.year() {
+                    Date::MIN
+                } else {
+                    Date::MAX
+                }
+            });
+            if candidate >= date {
+                return candidate;
+            }
+        }
+        year += 1;
+    }
+}
+
 /// Return the **IMM option expiry date** (Friday before the third Wednesday) for
 /// `month` in `year`.
 ///
@@ -591,6 +696,66 @@ mod tests {
         assert_eq!(
             cds,
             Date::from_calendar_date(2025, Month::March, 20).expect("Valid test date")
+        );
+    }
+
+    #[test]
+    fn prev_semiannual_roll_selects_mar_or_sep_on_or_before() {
+        let d = |y, m, day| Date::from_calendar_date(y, m, day).expect("valid test date");
+        // Mid-January -> prior September roll
+        assert_eq!(
+            prev_cds_semiannual_roll(d(2024, Month::January, 15)),
+            d(2023, Month::September, 20)
+        );
+        // Between rolls (May) -> March roll of same year
+        assert_eq!(
+            prev_cds_semiannual_roll(d(2026, Month::May, 2)),
+            d(2026, Month::March, 20)
+        );
+        // Exactly on the roll date -> that roll date (on-or-before semantics)
+        assert_eq!(
+            prev_cds_semiannual_roll(d(2025, Month::March, 20)),
+            d(2025, Month::March, 20)
+        );
+        // Day before the roll -> prior September roll
+        assert_eq!(
+            prev_cds_semiannual_roll(d(2025, Month::March, 19)),
+            d(2024, Month::September, 20)
+        );
+        // June 20 (quarterly but not semi-annual roll) -> March roll
+        assert_eq!(
+            prev_cds_semiannual_roll(d(2025, Month::June, 20)),
+            d(2025, Month::March, 20)
+        );
+    }
+
+    #[test]
+    fn semiannual_maturity_snaps_to_jun_or_dec() {
+        let d = |y, m, day| Date::from_calendar_date(y, m, day).expect("valid test date");
+        // Roll + tenor lands on 20-Sep -> extend to 20-Dec
+        assert_eq!(
+            next_semiannual_cds_maturity(d(2028, Month::September, 20)),
+            d(2028, Month::December, 20)
+        );
+        // Lands on 20-Mar -> extend to 20-Jun
+        assert_eq!(
+            next_semiannual_cds_maturity(d(2031, Month::March, 20)),
+            d(2031, Month::June, 20)
+        );
+        // Already on 20-Jun -> unchanged (on-or-after semantics)
+        assert_eq!(
+            next_semiannual_cds_maturity(d(2030, Month::June, 20)),
+            d(2030, Month::June, 20)
+        );
+        // Already on 20-Dec -> unchanged
+        assert_eq!(
+            next_semiannual_cds_maturity(d(2029, Month::December, 20)),
+            d(2029, Month::December, 20)
+        );
+        // Late December date -> next June
+        assert_eq!(
+            next_semiannual_cds_maturity(d(2029, Month::December, 21)),
+            d(2030, Month::June, 20)
         );
     }
 

@@ -82,37 +82,42 @@ fn nonflat_discount_curve(base_date: Date) -> DiscountCurve {
 /// One calibrated SVI expiry slice: its expiry (years) and true parameters.
 ///
 /// The three slices are calendar-monotone at every fixed *absolute* strike on
-/// the test grid and are individually arbitrage-valid (`SviParams::validate`).
+/// the test grid AND at fixed forward log-moneyness, individually pass
+/// `SviParams::validate`, and — unlike the original steeper fixture
+/// (b=0.5+, ρ=0.6), which had Durrleman `g(k) < 0` in the call wing — satisfy
+/// the full butterfly condition `g(k) ≥ 0` over the calibration target range
+/// extended by ±1 in log-moneyness (verified against the strict per-slice
+/// Durrleman scan the SVI target now enforces).
 fn true_slices() -> [(f64, SviParams); 3] {
     [
         (
             0.5,
             SviParams {
-                a: 0.015,
-                b: 0.50,
-                rho: 0.6,
-                m: 0.20,
-                sigma: 0.10,
+                a: 0.020,
+                b: 0.15,
+                rho: 0.3,
+                m: 0.10,
+                sigma: 0.25,
             },
         ),
         (
             1.5,
             SviParams {
-                a: 0.060,
-                b: 0.525,
-                rho: 0.6,
-                m: 0.08,
-                sigma: 0.10,
+                a: 0.070,
+                b: 0.16,
+                rho: 0.3,
+                m: 0.05,
+                sigma: 0.25,
             },
         ),
         (
             3.0,
             SviParams {
-                a: 0.180,
-                b: 0.55,
-                rho: 0.6,
+                a: 0.190,
+                b: 0.17,
+                rho: 0.3,
                 m: 0.0,
-                sigma: 0.10,
+                sigma: 0.25,
             },
         ),
     ]
@@ -196,6 +201,7 @@ fn svi_surface_grid_is_calendar_monotone_under_nonflat_curve() {
                 target_expiries: target_expiries.clone(),
                 target_strikes: target_strikes.clone(),
                 spot_override: Some(SPOT),
+                dividend_yield_override: None,
             }),
         }],
     };

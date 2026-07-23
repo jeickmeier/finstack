@@ -160,14 +160,21 @@ impl PyCalibrationResult {
     }
 
     /// The calibrated market serialized as a JSON string.
+    ///
+    /// Validates the state through the same ``MarketContext`` conversion as
+    /// the ``market`` getter before serializing, so both representations
+    /// fail identically on an invalid state instead of the JSON form
+    /// silently diverging from the validated object form.
     #[getter]
     fn market_json<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyString>> {
+        MarketContext::try_from(self.inner.result.final_market.clone()).map_err(display_to_py)?;
         cached_json(py, &self.cached_market_json, || {
             serde_json::to_string_pretty(&self.inner.result.final_market)
         })
     }
 
     fn _market_json_uncached(&self) -> PyResult<String> {
+        MarketContext::try_from(self.inner.result.final_market.clone()).map_err(display_to_py)?;
         serde_json::to_string_pretty(&self.inner.result.final_market).map_err(display_to_py)
     }
 

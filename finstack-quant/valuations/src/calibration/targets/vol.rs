@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 
 use crate::calibration::constants::OrderedF64;
 use crate::calibration::validation::surfaces::{
-    validate_butterfly_spread, validate_calendar_spread,
+    validate_butterfly_call_convexity, validate_calendar_spread_with_forwards,
 };
 
 /// Bootstrapper for calibrating option volatility surfaces.
@@ -69,6 +69,23 @@ impl VolSurfaceTarget {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "VolSurface model '{}' is not supported (currently supported: 'sabr')",
                 params.model
+            )));
+        }
+
+        // The equity surface stores Black (lognormal) implied vols. SABR with
+        // β below the snap tolerance evaluates through the *normal*-vol
+        // branch (`SabrVolType::Normal`, absolute rate units) — silently
+        // writing Bachelier vols into a Black-labeled surface would corrupt
+        // every downstream price. Reject rather than mislabel; use the
+        // swaption target (Normal convention) for β=0 normal-vol fitting.
+        // Threshold mirrors `models::volatility::sabr::model::BETA_SNAP_TOL`.
+        const EQUITY_BETA_MIN: f64 = 1e-4;
+        if params.beta < EQUITY_BETA_MIN {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Equity vol surface calibration requires beta >= {EQUITY_BETA_MIN} \
+                 (Black/lognormal surface); beta={} would produce normal (Bachelier) \
+                 vols mislabeled as lognormal",
+                params.beta
             )));
         }
 
@@ -276,22 +293,31 @@ impl VolSurfaceTarget {
         )?;
 
         // Sanity-check the produced grid for calendar-spread and butterfly
-        // arbitrage. Mirrors the SVI surface target: the validators operate
-        // on a generic vol grid so they are reusable for SABR-calibrated
-        // surfaces. `lenient_arbitrage = true` keeps a borderline surface
-        // from hard-failing the calibration pipeline; any violation is
-        // surfaced as a diagnostic on the report so strict-mode callers can
-        // promote it to an error.
+        // arbitrage with the forward-aware validators: calendar monotonicity
+        // of total variance at fixed forward log-moneyness (Gatheral–Jacquier
+        // Lemma 2.1) and butterfly via call-price convexity in strike
+        // (Breeden–Litzenberger density test). Violations are recorded on the
+        // report and — mirroring the SVI target (item 9) — fail `success`:
+        // an arbitrageable surface is not a usable calibration result.
+        // Strict mode: lenient validators log-and-return-Ok, which would leave
+        // these diagnostics permanently `None` (the pre-fix behaviour).
         let validation_cfg = ValidationConfig {
-            lenient_arbitrage: true,
+            lenient_arbitrage: false,
             ..ValidationConfig::default()
         };
-        let calendar_warning = validate_calendar_spread(&surface, &validation_cfg)
-            .err()
-            .map(|e| format!("SABR calendar-spread arbitrage: {e}"));
-        let butterfly_warning = validate_butterfly_spread(&surface, &validation_cfg)
-            .err()
-            .map(|e| format!("SABR butterfly-spread arbitrage: {e}"));
+        let target_forwards: Vec<f64> = params
+            .target_expiries
+            .iter()
+            .map(|&t| forward_fn(t))
+            .collect();
+        let calendar_warning =
+            validate_calendar_spread_with_forwards(&surface, &validation_cfg, &target_forwards)
+                .err()
+                .map(|e| format!("SABR calendar-spread arbitrage: {e}"));
+        let butterfly_warning =
+            validate_butterfly_call_convexity(&surface, &validation_cfg, &target_forwards)
+                .err()
+                .map(|e| format!("SABR butterfly-spread arbitrage: {e}"));
 
         let calibrated_expiries: Vec<String> = sabr_params_by_expiry
             .keys()
@@ -330,14 +356,16 @@ impl VolSurfaceTarget {
 
         report.update_solver_config(config.solver.clone());
 
-        // Surface arbitrage warnings on the report so callers can detect them.
+        // Surface arbitrage violations fail the calibration outright: `success`
+        // must reflect `validation_passed` (mirrors the SVI target's item-9
+        // rule) so an arbitrageable surface cannot be silently accepted.
         let warnings: Vec<String> = [calendar_warning, butterfly_warning]
             .into_iter()
             .flatten()
             .collect();
         if !warnings.is_empty() {
-            report.validation_passed = false;
-            report.validation_error = Some(warnings.join("; "));
+            let detail = warnings.join("; ");
+            report = report.with_validation_result(false, Some(detail));
         }
 
         Ok((surface, report))

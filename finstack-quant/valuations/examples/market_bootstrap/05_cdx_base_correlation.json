@@ -260,7 +260,7 @@
       "attachment": 0.0,
       "detachment": 0.03,
       "maturity": "2031-06-20",
-      "upfront_pct": 66.83840994,
+      "upfront_pct": 0.6683840994,
       "running_spread_bp": 100.0,
       "convention": {
         "currency": "USD",
@@ -275,7 +275,7 @@
       "attachment": 0.03,
       "detachment": 0.07,
       "maturity": "2031-06-20",
-      "upfront_pct": 28.68463538,
+      "upfront_pct": 0.2868463538,
       "running_spread_bp": 100.0,
       "convention": {
         "currency": "USD",
@@ -290,7 +290,7 @@
       "attachment": 0.07,
       "detachment": 0.1,
       "maturity": "2031-06-20",
-      "upfront_pct": 10.68773173,
+      "upfront_pct": 0.1068773173,
       "running_spread_bp": 100.0,
       "convention": {
         "currency": "USD",
@@ -305,7 +305,7 @@
       "attachment": 0.1,
       "detachment": 0.15,
       "maturity": "2031-06-20",
-      "upfront_pct": 2.41734717,
+      "upfront_pct": 0.0241734717,
       "running_spread_bp": 100.0,
       "convention": {
         "currency": "USD",
@@ -320,7 +320,7 @@
       "attachment": 0.15,
       "detachment": 0.3,
       "maturity": "2031-06-20",
-      "upfront_pct": -3.22877182,
+      "upfront_pct": -0.0322877182,
       "running_spread_bp": 100.0,
       "convention": {
         "currency": "USD",

@@ -355,7 +355,8 @@ pub(crate) fn execute_params(
                     acc_start = acc_end;
                 }
 
-                let is_normal = quote_type.eq_ignore_ascii_case("normal");
+                let is_normal = crate::market::quotes::vol::parse_vol_quote_type(quote_type)?
+                    == finstack_quant_core::market_data::surfaces::VolQuoteType::Normal;
                 hw_quotes.push(SwaptionQuote {
                     expiry: t_exp,
                     tenor: t_ten,
@@ -432,7 +433,8 @@ pub(crate) fn execute_params(
                     strike: *strike,
                     volatility: *vol,
                     is_cap: *is_cap,
-                    is_normal_vol: quote_type.eq_ignore_ascii_case("normal"),
+                    is_normal_vol: crate::market::quotes::vol::parse_vol_quote_type(quote_type)?
+                        == finstack_quant_core::market_data::surfaces::VolQuoteType::Normal,
                 });
             }
 
@@ -966,6 +968,7 @@ mod tests {
             target_expiries: vec![t1, t2],
             target_strikes: vec![80.0, 90.0, 100.0, 110.0, 120.0],
             spot_override: Some(100.0),
+            dividend_yield_override: None,
         });
 
         let quotes = vec![

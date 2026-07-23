@@ -43,6 +43,13 @@ use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
 use std::sync::Arc;
 
+/// Notional used to build the calibration instruments, and the divisor that
+/// normalizes residuals to per-unit-notional. Keeping the two identical means
+/// the bootstrap success gate (`discount_curve.validation_tolerance`, default
+/// `1e-8`) is applied on the same per-notional scale as the sibling
+/// discount/inflation targets, independent of instrument size.
+const XCCY_RESIDUAL_NOTIONAL: f64 = 1_000_000.0;
+
 /// Parameters for constructing an [`XccyBasisTarget`].
 #[derive(Clone)]
 pub(crate) struct XccyBasisTargetParams {
@@ -119,7 +126,7 @@ impl XccyBasisTarget {
                 schema_params.base_date,
                 discount_only_curve_ids(schema_params.curve_id.as_ref()),
                 schema_params.conventions.curve_day_count,
-                1_000_000.0,
+                XCCY_RESIDUAL_NOTIONAL,
             )?;
             prepared_quotes.extend(prepared.quotes);
         }
@@ -136,10 +143,28 @@ impl XccyBasisTarget {
             );
             let xccy_build_ctx = crate::market::build::context::BuildCtx::new(
                 schema_params.base_date,
-                1_000_000.0,
+                XCCY_RESIDUAL_NOTIONAL,
                 xccy_curve_ids,
             );
             for q in xccy_quotes {
+                // Per-quote `spot_fx` wins; fall back to the step-level
+                // `fx_spot` (validated positive in preflight) so the schema
+                // parameter is honoured rather than silently ignored.
+                let q = match q {
+                    XccyQuote::BasisSwap {
+                        id,
+                        convention,
+                        far_pillar,
+                        basis_spread_bp,
+                        spot_fx,
+                    } => XccyQuote::BasisSwap {
+                        id,
+                        convention,
+                        far_pillar,
+                        basis_spread_bp,
+                        spot_fx: spot_fx.or(Some(schema_params.fx_spot)),
+                    },
+                };
                 let prepared = crate::market::build::prepared::prepare_xccy_quote(
                     q,
                     &xccy_build_ctx,
@@ -268,8 +293,13 @@ impl BootstrapTarget for XccyBasisTarget {
     }
 
     fn calculate_residual(&self, curve: &Self::Curve, quote: &Self::Quote) -> Result<f64> {
+        // Normalize to per-unit-notional so residuals (and the
+        // `validation_tolerance` success gate, default 1e-8) are on the same
+        // scale as the sibling discount/inflation targets. The instruments are
+        // built with `XCCY_RESIDUAL_NOTIONAL`, so the raw PV is in absolute
+        // currency units of order `notional × spread`.
         self.scratch.with_curve(curve, |ctx| {
-            quote.calibration_value_raw(ctx, self.params.base_date)
+            Ok(quote.calibration_value_raw(ctx, self.params.base_date)? / XCCY_RESIDUAL_NOTIONAL)
         })
     }
 

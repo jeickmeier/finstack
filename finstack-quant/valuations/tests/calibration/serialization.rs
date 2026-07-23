@@ -307,6 +307,7 @@ fn test_svi_surface_step_params_serde() {
         target_expiries: vec![0.5, 1.0],
         target_strikes: vec![90.0, 100.0, 110.0],
         spot_override: Some(100.0),
+        dividend_yield_override: None,
     });
     let _ = roundtrip_json(&svi);
 }

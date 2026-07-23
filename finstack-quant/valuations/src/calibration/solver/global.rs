@@ -299,7 +299,8 @@ impl GlobalFitOptimizer {
                 }),
             );
         };
-        let (solved_params, stats, eval_counter_val, eval_diagnostics_val) = best_result;
+        let (solved_params, stats, eval_counter_val, eval_diagnostics_val, final_n_clamped) =
+            best_result;
 
         // Build final curve
         let final_curve = target.build_curve_final_from_params(&times, &solved_params)?;
@@ -406,6 +407,18 @@ impl GlobalFitOptimizer {
             }
         }
 
+        // W-41: the final LM solution violated the target's box bounds and was
+        // clamped back inside. The reported point is rail-pinned, not a
+        // stationary point — the fit is under-identified or mis-specified, and
+        // magnitude-based penalty detection cannot see this (the residuals were
+        // honestly re-evaluated at the clamped point). Propagate the explicit
+        // penalty flag so `success` cannot silently report a pinned solution.
+        if final_n_clamped > 0 {
+            report = report
+                .with_metadata("final_params_clamped", final_n_clamped.to_string())
+                .with_has_penalty_residuals(true);
+        }
+
         report = report
             .with_metadata("method", "global_fit_lm_weighted_lsq")
             .with_metadata("tolerance_definition", "weighted_l2_norm_and_max_residual")
@@ -497,11 +510,16 @@ impl GlobalFitOptimizer {
 // strategy. See that module for documentation, references, and unit
 // tests.
 
+// The trailing `usize` is the number of parameters of the *final* LM solution
+// that had to be clamped back inside the target's box bounds. Non-zero means
+// the unconstrained optimum sits outside the feasible region — the reported
+// (in-bounds) point is rail-pinned, not stationary (W-41).
 type SingleSolveResult = (
     Vec<f64>,
     finstack_quant_core::math::solver_multi::LmStats,
     usize,
     EvalDiagnostics,
+    usize,
 );
 
 /// Run a single LM solve from the given initial guess. Returns (solved_params, stats,
@@ -718,12 +736,12 @@ where
     // Clamp the returned parameters to the bounds here, BEFORE the residuals are
     // re-evaluated below, so the reported curve and residuals correspond to the
     // same (in-bounds) parameter set rather than a stale unclamped one.
-    let solved_params = if lb.is_some() || ub.is_some() {
+    let (solved_params, final_n_clamped) = if lb.is_some() || ub.is_some() {
         let mut clamped = Vec::with_capacity(solution.params.len());
-        clamp_to_bounds(&solution.params, lb, ub, &mut clamped);
-        clamped
+        let n_clamped = clamp_to_bounds(&solution.params, lb, ub, &mut clamped);
+        (clamped, n_clamped)
     } else {
-        solution.params
+        (solution.params, 0)
     };
     let stats = solution.stats;
 
@@ -755,7 +773,16 @@ where
     let eval_count = eval_counter.get();
     let diagnostics = eval_diagnostics.into_inner();
 
-    Ok(((solved_params, stats, eval_count, diagnostics), weighted_l2))
+    Ok((
+        (
+            solved_params,
+            stats,
+            eval_count,
+            diagnostics,
+            final_n_clamped,
+        ),
+        weighted_l2,
+    ))
 }
 
 fn validate_global_inputs(times: &[f64], initials: &[f64], n_residuals: usize) -> Result<()> {
@@ -1173,7 +1200,16 @@ fn compute_condition_number(
         return None;
     }
 
-    Some((lambda_max / lambda_min).abs())
+    // The eigenvalues of J^T W J are the *squares* of the singular values of
+    // W^{1/2} J, so λ_max/λ_min is κ(W^{1/2}J)² — the normal-equations
+    // conditioning, which overstates the calibration problem's conditioning by
+    // a full square (a Jacobian conditioned at 1e6 would report 1e12). Return
+    // the square root so the diagnostic is κ(J), the quantity practitioners
+    // mean by "the condition number of the calibration".
+    //
+    // Reference: Golub & Van Loan, *Matrix Computations* §5.3; Nocedal &
+    // Wright, *Numerical Optimization* 2e §10.3.
+    Some((lambda_max / lambda_min).abs().sqrt())
 }
 
 #[cfg(test)]

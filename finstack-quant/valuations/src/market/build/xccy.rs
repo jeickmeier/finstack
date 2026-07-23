@@ -99,6 +99,11 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
             let quote_notional = ctx.notional();
             let base_notional = quote_notional / fx_spot;
 
+            // Market convention for G10-vs-USD basis swaps: the USD (quote)
+            // leg pays its index flat and the non-USD (base) leg carries the
+            // quoted basis (e.g. EUR/USD quoted as ESTR + basis vs SOFR
+            // flat). See Baba, Packer & Nagano (BIS Quarterly Review, 2008)
+            // and Du, Tepper & Verdelhan (2018) on the cross-currency basis.
             let leg1 = XccySwapLeg {
                 currency: conv.base_currency,
                 notional: Money::new(base_notional, conv.base_currency),
@@ -111,7 +116,8 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
                 day_count: conv.day_count,
                 bdc: conv.business_day_convention,
                 stub: finstack_quant_core::dates::StubKind::ShortFront,
-                spread_bp: Decimal::ZERO,
+                spread_bp: Decimal::try_from(*basis_spread_bp)
+                    .map_err(|_| finstack_quant_core::InputError::ConversionOverflow)?,
                 payment_lag_days: base_index.default_payment_lag_days,
                 calendar_id: Some(conv.base_calendar_id.clone()),
                 reset_lag_days: Some(base_index.default_reset_lag_days),
@@ -130,8 +136,7 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
                 day_count: conv.day_count,
                 bdc: conv.business_day_convention,
                 stub: finstack_quant_core::dates::StubKind::ShortFront,
-                spread_bp: Decimal::try_from(*basis_spread_bp)
-                    .map_err(|_| finstack_quant_core::InputError::ConversionOverflow)?,
+                spread_bp: Decimal::ZERO,
                 payment_lag_days: quote_index.default_payment_lag_days,
                 calendar_id: Some(conv.quote_calendar_id.clone()),
                 reset_lag_days: Some(quote_index.default_reset_lag_days),

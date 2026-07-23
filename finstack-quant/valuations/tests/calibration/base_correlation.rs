@@ -32,11 +32,12 @@ use time::Month;
 
 use super::tolerances;
 
-// Fixture upfronts (percent of tranche notional) generated from a frozen market snapshot.
-// To regenerate after a pricing model change:
+// Fixture upfronts (decimal fraction of tranche notional, matching the
+// `CDSTrancheQuote::upfront_pct` schema: -0.025 means -2.5%) generated from a
+// frozen market snapshot. To regenerate after a pricing model change:
 // FINSTACK_REGEN_BASE_CORR_FIXTURES=1 cargo test -p finstack-quant-valuations base_correlation_step_builds_curve_and_updates_credit_index_data -- --nocapture
-const UPFRONT_0_3_PCT: f64 = 3.98577377;
-const UPFRONT_3_7_PCT: f64 = -4.30385846;
+const UPFRONT_0_3_FRAC: f64 = 0.039_857_737_7;
+const UPFRONT_3_7_FRAC: f64 = -0.043_038_584_6;
 
 fn create_discount_curve(base_date: Date) -> DiscountCurve {
     DiscountCurve::builder("USD-OIS")
@@ -78,7 +79,7 @@ fn create_credit_index(
         .expect("credit index")
 }
 
-fn tranche_upfront_pct(
+fn tranche_upfront_frac(
     base_date: Date,
     maturity: Date,
     attach_pct: f64,
@@ -115,7 +116,8 @@ fn tranche_upfront_pct(
         .expect("price")
         .amount();
 
-    (pv / notional) * 100.0
+    // Decimal fraction of tranche notional (schema convention).
+    pv / notional
 }
 
 fn fixture_upfronts(
@@ -126,7 +128,7 @@ fn fixture_upfronts(
     quote_market: &MarketContext,
 ) -> (f64, f64) {
     if env::var("FINSTACK_REGEN_BASE_CORR_FIXTURES").is_ok() {
-        let upfront_0_3 = tranche_upfront_pct(
+        let upfront_0_3 = tranche_upfront_frac(
             base_date,
             maturity,
             0.0,
@@ -135,7 +137,7 @@ fn fixture_upfronts(
             notional,
             quote_market,
         );
-        let upfront_3_7 = tranche_upfront_pct(
+        let upfront_3_7 = tranche_upfront_frac(
             base_date,
             maturity,
             3.0,
@@ -144,12 +146,12 @@ fn fixture_upfronts(
             notional,
             quote_market,
         );
-        println!("UPFRONT_0_3_PCT={upfront_0_3:.8}");
-        println!("UPFRONT_3_7_PCT={upfront_3_7:.8}");
+        println!("UPFRONT_0_3_FRAC={upfront_0_3:.10}");
+        println!("UPFRONT_3_7_FRAC={upfront_3_7:.10}");
         return (upfront_0_3, upfront_3_7);
     }
 
-    (UPFRONT_0_3_PCT, UPFRONT_3_7_PCT)
+    (UPFRONT_0_3_FRAC, UPFRONT_3_7_FRAC)
 }
 
 #[test]

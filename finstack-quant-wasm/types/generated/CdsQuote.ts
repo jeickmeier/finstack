@@ -100,7 +100,7 @@ convention: string,
  */
 pillar: string,
 /**
- * Running spread in basis points (e.g. 100.0 or 500.0).
+ * Running spread in basis points (25.0, 100.0, 500.0 or 1000.0).
  */
 running_spread_bp: number,
 /**

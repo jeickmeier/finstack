@@ -702,6 +702,58 @@ const KAPPA_MAX: f64 = 1.0;
 const SIGMA_MIN: f64 = 1e-5;
 const SIGMA_MAX: f64 = 2.0;
 
+/// Relative margin used to detect calibrated parameters pinned at a box bound.
+///
+/// The global LM solver clamps its returned solution *strictly interior* to
+/// the box (by `BOUND_INWARD_EPS = 1e-8` in log-space), so an exact
+/// out-of-range check like `!(MIN..=MAX).contains(&x)` can never fire after
+/// clamping. A parameter within this relative margin of either bound means
+/// the optimizer wanted to leave the feasible region — an under-identified or
+/// mis-specified fit that must not be reported as a successful calibration
+/// (Andersen–Piterbarg Vol. II §8.1: boundary solutions must be flagged).
+const AT_BOUND_REL_TOL: f64 = 1e-6;
+
+/// Reject calibrated HW1F `(κ, σ)` pinned at (or within [`AT_BOUND_REL_TOL`]
+/// of) their box bounds.
+///
+/// # Errors
+///
+/// Returns a `Validation` error naming the pinned parameter and the bound it
+/// hit, with remediation guidance.
+fn reject_at_bound_params(
+    kappa: f64,
+    sigma: f64,
+    context: &str,
+) -> finstack_quant_core::Result<()> {
+    let near_bound = |v: f64, lo: f64, hi: f64| -> Option<&'static str> {
+        if v <= lo * (1.0 + AT_BOUND_REL_TOL) {
+            Some("lower")
+        } else if v >= hi * (1.0 - AT_BOUND_REL_TOL) {
+            Some("upper")
+        } else {
+            None
+        }
+    };
+    if let Some(side) = near_bound(kappa, KAPPA_MIN, KAPPA_MAX) {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "{context}: calibrated κ = {kappa:.6} is pinned at the {side} bound of \
+             [{KAPPA_MIN}, {KAPPA_MAX}]. The optimizer wanted to leave the feasible \
+             region — the mean-reversion speed is not identified by this quote set. \
+             Review the swaption grid (expiry/tenor spread) or supply a bounded \
+             `initial_guess`."
+        )));
+    }
+    if let Some(side) = near_bound(sigma, SIGMA_MIN, SIGMA_MAX) {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "{context}: calibrated σ = {sigma:.6} is pinned at the {side} bound of \
+             [{SIGMA_MIN}, {SIGMA_MAX}]. The optimizer wanted to leave the feasible \
+             region — review the quoted vols (a zero/extreme vol input is the usual \
+             cause) or supply a bounded `initial_guess`."
+        )));
+    }
+    Ok(())
+}
+
 /// Vega floor: 1 bp of annuity-year. Protects against division by a
 /// near-zero vega at extreme expiries or zero quoted vol.
 ///
@@ -1231,16 +1283,11 @@ fn calibrate_hull_white_to_swaptions_core(
         report = report.with_metadata("vega_floor_hits_detail", vega_floor_hits.join("; "));
     }
 
-    if !(KAPPA_MIN..=KAPPA_MAX).contains(&params.kappa) {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "Hull-White calibration produced κ = {:.6} outside the \
-             bounded range [{KAPPA_MIN}, {KAPPA_MAX}]. This typically \
-             indicates an under-weighted, over-damped, or under-specified \
-             swaption grid; review the quotes or supply a bounded \
-             `initial_guess`.",
-            params.kappa
-        )));
-    }
+    reject_at_bound_params(
+        params.kappa,
+        params.sigma,
+        "Hull-White swaption calibration",
+    )?;
 
     // Final validation of (κ, σ) > 0 — `HullWhiteParams::new` is the
     // canonical gate.
@@ -1510,12 +1557,11 @@ pub fn calibrate_hull_white_to_cap_floors(
         Some(&multi_start),
     )?;
 
-    if !(KAPPA_MIN..=KAPPA_MAX).contains(&params.kappa) {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "Hull-White cap/floor calibration produced κ = {:.6} outside the bounded range [{KAPPA_MIN}, {KAPPA_MAX}]",
-            params.kappa
-        )));
-    }
+    reject_at_bound_params(
+        params.kappa,
+        params.sigma,
+        "Hull-White cap/floor calibration",
+    )?;
 
     let moneyness = cap_floor_moneyness_summary(quotes, forward_df, frequency);
     let report = enrich_cap_floor_report(
@@ -3926,17 +3972,20 @@ mod tests {
     #[test]
     fn swaption_schedule_fallback_is_stamped() {
         let df_fn = flat_df(0.03);
+        // A declining vol term structure identifies an interior mean-reversion
+        // speed; a flat one drives κ to its lower rail, which the at-bound
+        // guard now (correctly) rejects.
         let quotes = vec![
             SwaptionQuote {
                 expiry: 1.0,
                 tenor: 5.0,
-                volatility: 0.006,
+                volatility: 0.007,
                 is_normal_vol: true,
             },
             SwaptionQuote {
                 expiry: 5.0,
                 tenor: 5.0,
-                volatility: 0.006,
+                volatility: 0.005,
                 is_normal_vol: true,
             },
         ];

@@ -308,6 +308,13 @@ macro_rules! fx_option_class {
                 )?;
                 let mut out = Map::new();
                 for (metric, value) in pairs {
+                    // serde_json maps non-finite f64 to `null`; fail loudly
+                    // instead so a NaN greek cannot silently become `null`.
+                    if !value.is_finite() {
+                        return Err(JsValue::from_str(&format!(
+                            "greek '{metric}' evaluated to a non-finite value ({value})"
+                        )));
+                    }
                     out.insert(metric.to_string(), Value::from(value));
                 }
                 to_js_value(&Value::Object(out))
@@ -354,6 +361,13 @@ macro_rules! fx_option_subset_class {
                 )?;
                 let mut out = Map::new();
                 for (metric, value) in pairs {
+                    // serde_json maps non-finite f64 to `null`; fail loudly
+                    // instead so a NaN greek cannot silently become `null`.
+                    if !value.is_finite() {
+                        return Err(JsValue::from_str(&format!(
+                            "greek '{metric}' evaluated to a non-finite value ({value})"
+                        )));
+                    }
                     out.insert(metric.to_string(), Value::from(value));
                 }
                 to_js_value(&Value::Object(out))

@@ -10,9 +10,56 @@ use crate::market::conventions::ids::{
     CapFloorConventionId, OptionConventionId, SwaptionConventionId,
 };
 use finstack_quant_core::dates::Date;
+use finstack_quant_core::market_data::surfaces::VolQuoteType;
 use finstack_quant_core::types::UnderlyingId;
+use finstack_quant_core::{Error, Result};
 #[cfg(feature = "ts_export")]
 use ts_rs::TS;
+
+/// Parse a vol quote's `quote_type` string into a typed [`VolQuoteType`].
+///
+/// Calibrations that must discriminate between normal (Bachelier) and
+/// lognormal (Black) volatilities use this strict, fail-closed vocabulary:
+///
+/// | Input (case-insensitive) | Result |
+/// |---|---|
+/// | `"normal"`, `"bachelier"` | [`VolQuoteType::Normal`] |
+/// | `"lognormal"`, `"log_normal"`, `"black"`, `"black_lognormal"` | [`VolQuoteType::BlackLognormal`] |
+/// | anything else | `Err(Error::Validation)` |
+///
+/// Unknown strings are rejected rather than silently defaulted so that a
+/// mislabelled quote cannot flip a Bachelier calibration into Black (or
+/// vice versa).
+///
+/// # Errors
+///
+/// Returns [`Error::Validation`] when the string is not one of the accepted
+/// vocabulary entries above.
+///
+/// # Examples
+/// ```rust
+/// use finstack_quant_valuations::market::quotes::vol::parse_vol_quote_type;
+/// use finstack_quant_core::market_data::surfaces::VolQuoteType;
+///
+/// assert_eq!(parse_vol_quote_type("Normal").unwrap(), VolQuoteType::Normal);
+/// assert_eq!(
+///     parse_vol_quote_type("black_lognormal").unwrap(),
+///     VolQuoteType::BlackLognormal
+/// );
+/// assert!(parse_vol_quote_type("implied_vol").is_err());
+/// ```
+pub fn parse_vol_quote_type(quote_type: &str) -> Result<VolQuoteType> {
+    match quote_type.to_ascii_lowercase().as_str() {
+        "normal" | "bachelier" => Ok(VolQuoteType::Normal),
+        "lognormal" | "log_normal" | "black" | "black_lognormal" => {
+            Ok(VolQuoteType::BlackLognormal)
+        }
+        other => Err(Error::Validation(format!(
+            "Unrecognized vol quote_type '{other}': expected one of \
+             'normal', 'bachelier', 'lognormal', 'log_normal', 'black', 'black_lognormal'"
+        ))),
+    }
+}
 
 /// Volatility quotes for option and swaption surface calibration.
 ///
@@ -107,7 +154,13 @@ pub enum VolQuote {
         strike: f64,
         /// Implied volatility
         vol: f64,
-        /// Quote type
+        /// Quote type label.
+        ///
+        /// Calibrations that discriminate normal (Bachelier) vs lognormal
+        /// (Black) vols parse this via [`parse_vol_quote_type`] and fail
+        /// closed on unknown strings. Surface targets that do not need the
+        /// distinction (e.g. SABR smile calibration) treat it as an
+        /// informational label (e.g. `"ATM"`, `"ATM-50"`).
         quote_type: String,
         /// Option exercise conventions
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
@@ -127,6 +180,9 @@ pub enum VolQuote {
         /// Implied volatility.
         vol: f64,
         /// Quote type, e.g. "normal".
+        ///
+        /// Parsed strictly via [`parse_vol_quote_type`] by calibrations that
+        /// discriminate normal vs lognormal vols; unknown strings error.
         quote_type: String,
         /// `true` for cap, `false` for floor.
         is_cap: bool,
@@ -241,6 +297,42 @@ mod tests {
     use super::*;
     use crate::market::conventions::ids::CapFloorConventionId;
     use time::macros::date;
+
+    #[test]
+    fn parse_vol_quote_type_accepts_standard_vocabulary() {
+        for s in ["normal", "Normal", "NORMAL", "bachelier", "Bachelier"] {
+            assert_eq!(
+                parse_vol_quote_type(s).expect("normal vocabulary"),
+                VolQuoteType::Normal,
+                "'{s}' should parse as Normal"
+            );
+        }
+        for s in [
+            "lognormal",
+            "log_normal",
+            "black",
+            "Black",
+            "black_lognormal",
+            "BLACK_LOGNORMAL",
+        ] {
+            assert_eq!(
+                parse_vol_quote_type(s).expect("lognormal vocabulary"),
+                VolQuoteType::BlackLognormal,
+                "'{s}' should parse as BlackLognormal"
+            );
+        }
+    }
+
+    /// Regression: unknown strings must fail closed, never silently default
+    /// to lognormal. "implied_vol" and moneyness labels are the historical
+    /// offenders.
+    #[test]
+    fn parse_vol_quote_type_rejects_unknown_strings() {
+        for s in ["implied_vol", "ATM", "ATM-50", "nrmal", "", "vol"] {
+            let result = parse_vol_quote_type(s);
+            assert!(result.is_err(), "'{s}' should be rejected");
+        }
+    }
 
     #[test]
     fn cap_floor_vol_quote_bumps_absolute_vol() {

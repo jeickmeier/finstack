@@ -253,6 +253,91 @@ impl SviParams {
         }
         Ok(())
     }
+
+    /// Durrleman's butterfly-arbitrage function `g(k)`.
+    ///
+    /// The risk-neutral density implied by an SVI slice is non-negative — i.e.
+    /// the slice is free of butterfly arbitrage — if and only if `g(k) ≥ 0`
+    /// for all log-moneyness `k`:
+    ///
+    /// ```text
+    /// g(k) = (1 − k·w′/(2w))² − (w′²/4)·(1/w + 1/4) + w″/2
+    /// ```
+    ///
+    /// where `w(k)` is total variance and derivatives are taken in `k`. For
+    /// raw SVI the derivatives are closed-form:
+    ///
+    /// ```text
+    /// R    = √((k − m)² + σ²)
+    /// w′   = b·(ρ + (k − m)/R)
+    /// w″   = b·σ²/R³
+    /// ```
+    ///
+    /// Returns `f64::NEG_INFINITY` when `w(k) ≤ 0` (degenerate slice).
+    ///
+    /// # References
+    ///
+    /// - Gatheral, J., & Jacquier, A. (2014). "Arbitrage-free SVI volatility
+    ///   surfaces." *Quantitative Finance*, 14(1), 59-71. Eq. (2.2) and
+    ///   Theorem 2.1 (Durrleman's condition).
+    #[must_use]
+    pub fn durrleman_g(&self, k: f64) -> f64 {
+        let km = k - self.m;
+        let r = (km * km + self.sigma * self.sigma).sqrt();
+        let w = self.a + self.b * (self.rho * km + r);
+        if w <= 0.0 {
+            return f64::NEG_INFINITY;
+        }
+        let wp = self.b * (self.rho + km / r);
+        let wpp = self.b * self.sigma * self.sigma / (r * r * r);
+        let t1 = 1.0 - k * wp / (2.0 * w);
+        t1 * t1 - 0.25 * wp * wp * (1.0 / w + 0.25) + 0.5 * wpp
+    }
+
+    /// Scan Durrleman's `g(k)` over `[k_lo, k_hi]` on `n` evenly spaced points
+    /// and return the location and value of the most negative violation, or
+    /// `None` when `g(k) ≥ -tol` everywhere on the grid.
+    ///
+    /// This is the full butterfly-arbitrage test that [`Self::validate`]'s
+    /// necessary conditions deliberately omit; it is cheap for SVI because
+    /// `w`, `w′`, `w″` are closed-form.
+    ///
+    /// # Arguments
+    ///
+    /// * `k_lo`, `k_hi` — log-moneyness scan range (should extend beyond the
+    ///   quoted strikes; ±1 beyond the calibrated wings is customary)
+    /// * `n` — number of grid points (≥ 2)
+    /// * `tol` — non-negativity slack; small positive values absorb floating-
+    ///   point noise near a tangent zero of `g`
+    #[must_use]
+    pub fn butterfly_violation(
+        &self,
+        k_lo: f64,
+        k_hi: f64,
+        n: usize,
+        tol: f64,
+    ) -> Option<(f64, f64)> {
+        // `k_hi <= k_lo` also rejects NaN bounds (any comparison with NaN is
+        // false, so a NaN bound falls through to the scan producing no
+        // violations — but `partial_cmp` makes the empty/invalid-range intent
+        // explicit and clippy-clean).
+        if n < 2 || k_hi.partial_cmp(&k_lo) != Some(std::cmp::Ordering::Greater) {
+            return None;
+        }
+        let mut worst: Option<(f64, f64)> = None;
+        let step = (k_hi - k_lo) / (n - 1) as f64;
+        for i in 0..n {
+            let k = k_lo + step * i as f64;
+            let g = self.durrleman_g(k);
+            if g < -tol {
+                match worst {
+                    Some((_, wg)) if g >= wg => {}
+                    _ => worst = Some((k, g)),
+                }
+            }
+        }
+        worst
+    }
 }
 
 /// Calibrate SVI parameters to market-implied volatilities at a single expiry.
@@ -754,6 +839,81 @@ mod tests {
         // Unknown field rejected.
         let unknown = r#"{"a":0.04,"b":0.4,"rho":-0.4,"m":0.0,"sigma":0.1,"extra":1.0}"#;
         assert!(serde_json::from_str::<SviParams>(unknown).is_err());
+    }
+
+    #[test]
+    fn durrleman_g_matches_finite_difference_density() {
+        // g(k) is (up to a positive factor) the risk-neutral density implied
+        // by the slice. Cross-check the closed-form g against the density
+        // computed by central finite differences of the undiscounted Black
+        // call in strike: sign agreement everywhere, and g >= 0 exactly where
+        // the FD density is >= 0.
+        use crate::math::volatility::black_call;
+
+        let params = SviParams {
+            a: 0.02,
+            b: 0.15,
+            rho: 0.3,
+            m: 0.1,
+            sigma: 0.25,
+        };
+        params.validate().expect("valid slice");
+        let (forward, t) = (100.0, 1.0);
+        for i in 0..=80 {
+            let k = -1.0 + 2.0 * f64::from(i) / 80.0;
+            let g = params.durrleman_g(k);
+            let strike = forward * k.exp();
+            let dk = strike * 1e-3;
+            let call_at = |kk: f64| {
+                let lm = (kk / forward).ln();
+                let vol = params.implied_vol(lm, t).expect("vol");
+                black_call(forward, kk, vol, t)
+            };
+            let density =
+                (call_at(strike - dk) - 2.0 * call_at(strike) + call_at(strike + dk)) / (dk * dk);
+            assert!(
+                (g >= -1e-8) == (density >= -1e-10),
+                "g and FD density disagree at k={k}: g={g:.6e}, density={density:.6e}"
+            );
+            assert!(g >= 0.0, "fixture slice must be butterfly-free, g({k})={g}");
+        }
+    }
+
+    #[test]
+    fn butterfly_violation_detects_negative_density_slice() {
+        // A steep slice that passes the necessary conditions (validate()) but
+        // violates Durrleman in the call wing — the exact gap the full scan
+        // exists to close.
+        let steep = SviParams {
+            a: 0.015,
+            b: 0.50,
+            rho: 0.6,
+            m: 0.20,
+            sigma: 0.10,
+        };
+        steep
+            .validate()
+            .expect("necessary conditions hold for the steep slice");
+        let violation = steep.butterfly_violation(-1.5, 1.5, 201, 1e-10);
+        assert!(
+            violation.is_some(),
+            "steep slice must be flagged by the Durrleman scan"
+        );
+        let (k, g) = violation.expect("violation");
+        assert!(
+            g < 0.0 && (0.0..1.0).contains(&k),
+            "call-wing violation expected, got k={k}, g={g}"
+        );
+
+        // A mild slice passes.
+        let mild = SviParams {
+            a: 0.02,
+            b: 0.15,
+            rho: 0.3,
+            m: 0.1,
+            sigma: 0.25,
+        };
+        assert!(mild.butterfly_violation(-1.5, 1.5, 201, 1e-10).is_none());
     }
 
     #[test]

@@ -1149,6 +1149,15 @@
               "default": null,
               "description": "Discount curve ID (optional)."
             },
+            "dividend_yield_override": {
+              "default": null,
+              "description": "Optional continuously-compounded dividend/borrow yield override.\n\nSVI is parameterized in **forward** log-moneyness `k = ln(K/F(T))`, so\nthe forward must carry the full cost of carry:\n`F(T) = S·e^{(r − q)T}`. When unset, the target looks up the scalar\n`\"<underlying_ticker>-DIVYIELD\"` in the market context (mirroring the\nSABR `VolSurfaceParams` behaviour) and falls back to `q = 0`.",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
             "kind": {
               "const": "svi_surface",
               "type": "string"
@@ -1243,7 +1252,7 @@
               "description": "Extrapolation policy for the foreign curve."
             },
             "fx_spot": {
-              "description": "FX spot rate (domestic per foreign).",
+              "description": "FX spot rate (domestic per foreign).\n\nUsed as the fallback for any `XccyQuote::BasisSwap` in the step's\nquote set whose own `spot_fx` is `None`; a per-quote `spot_fx` always\ntakes precedence.",
               "format": "double",
               "type": "number"
             },
@@ -1940,7 +1949,7 @@
                   "type": "number"
                 },
                 "running_spread_bp": {
-                  "description": "Running spread in basis points (e.g. 100.0 or 500.0).",
+                  "description": "Running spread in basis points (25.0, 100.0, 500.0 or 1000.0).",
                   "format": "double",
                   "type": "number"
                 },
@@ -2376,7 +2385,7 @@
                       "type": "string"
                     },
                     "quote_type": {
-                      "description": "Quote type",
+                      "description": "Quote type label.\n\nCalibrations that discriminate normal (Bachelier) vs lognormal\n(Black) vols parse this via [`parse_vol_quote_type`] and fail\nclosed on unknown strings. Surface targets that do not need the\ndistinction (e.g. SABR smile calibration) treat it as an\ninformational label (e.g. `\"ATM\"`, `\"ATM-50\"`).",
                       "type": "string"
                     },
                     "strike": {
@@ -2431,7 +2440,7 @@
                       "type": "boolean"
                     },
                     "quote_type": {
-                      "description": "Quote type, e.g. \"normal\".",
+                      "description": "Quote type, e.g. \"normal\".\n\nParsed strictly via [`parse_vol_quote_type`] by calibrations that\ndiscriminate normal vs lognormal vols; unknown strings error.",
                       "type": "string"
                     },
                     "strike": {
@@ -2478,10 +2487,10 @@
           "description": "Cross-currency basis-swap quote.",
           "oneOf": [
             {
-              "description": "Cross-currency basis swap quoted as a spread over the quote-currency leg.",
+              "description": "Cross-currency basis swap quoted as a spread on the base-currency leg.\n\nPer dealer convention for G10-vs-USD pairs, the USD (quote-currency)\nleg pays its index flat and the non-USD (base-currency) leg carries\nthe quoted basis (e.g. EUR/USD is ESTR + basis vs SOFR flat).",
               "properties": {
                 "basis_spread_bp": {
-                  "description": "Basis spread in basis points applied to the quote-currency leg.",
+                  "description": "Basis spread in basis points applied to the base-currency\n(non-USD) leg; the quote-currency leg pays its index flat.",
                   "format": "double",
                   "type": "number"
                 },

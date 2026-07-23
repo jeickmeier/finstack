@@ -197,17 +197,19 @@ class Bps:
     """
     A value measured in basis points (1 bp = 0.0001).
 
-    Immutable, hashable value type. Integer-valued internally after rounding.
+    Immutable, hashable value type. Integer-valued internally; fractional
+    input is rejected rather than rounded.
 
     Parameters
     ----------
     bps : float
-        Basis-point value (rounded to the nearest integer bp).
+        Whole basis-point value.
 
     Raises
     ------
     ValueError
-        If *bps* is not finite.
+        If *bps* is not finite or not a whole number of basis points. Use a
+        decimal ``Rate`` or the JSON instrument path for sub-bp precision.
 
     Examples
     --------
@@ -223,17 +225,17 @@ class Bps:
 
     def __init__(self, bps: float) -> None:
         """
-        Construct from a floating basis-point value (rounded to nearest integer bp).
+        Construct from a whole basis-point value.
 
         Parameters
         ----------
         bps : float
-            Basis-point value.
+            Whole basis-point value.
 
         Raises
         ------
         ValueError
-            If *bps* is not finite.
+            If *bps* is not finite or not a whole number of basis points.
 
         Examples
         --------

@@ -154,7 +154,7 @@ fn price_instrument_with_metrics_returns_result() {
         &inst,
         &mkt,
         "2024-01-01",
-        "discounting",
+        Some("discounting".to_string()),
         metrics,
         None,
         None,
@@ -174,7 +174,7 @@ fn price_instrument_with_metrics_accepts_pricing_options() {
         &inst,
         &mkt,
         "2024-01-01",
-        "discounting",
+        Some("discounting".to_string()),
         metrics,
         Some(r#"{"theta_period":"1D"}"#.to_string()),
         None,
@@ -193,7 +193,7 @@ fn registered_term_loan_metrics_cross_wasm_json_boundary() {
         &term_loan_instrument_json(),
         &market_context_json(),
         "2024-01-01",
-        "discounting",
+        Some("discounting".to_string()),
         metrics,
         None,
         None,
@@ -217,12 +217,18 @@ fn public_json_routes_validate_instrument_before_malformed_market() {
     let metrics = serde_wasm_bindgen::to_value(&vec!["not-a-metric".to_string()]).unwrap();
 
     let errors = [
-        price_instrument(&instrument, market, "not-a-date", "not-a-model").unwrap_err(),
+        price_instrument(
+            &instrument,
+            market,
+            "not-a-date",
+            Some("not-a-model".to_string()),
+        )
+        .unwrap_err(),
         price_instrument_with_metrics(
             &instrument,
             market,
             "not-a-date",
-            "not-a-model",
+            Some("not-a-model".to_string()),
             metrics,
             None,
             None,
@@ -303,8 +309,13 @@ fn fx_price_with_metrics_validates_merged_overrides_before_market() {
 fn price_instrument_structured_credit_stochastic_returns_details() {
     let inst = structured_credit_instrument_json();
     let mkt = market_context_json();
-    let result =
-        price_instrument(&inst, &mkt, "2024-01-01", "structured_credit_stochastic").expect("price");
+    let result = price_instrument(
+        &inst,
+        &mkt,
+        "2024-01-01",
+        Some("structured_credit_stochastic".to_string()),
+    )
+    .expect("price");
     let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
     assert_eq!(parsed["details"]["type"], "structured_credit_stochastic");
     let tranches = parsed["details"]["data"]["tranche_results"]
@@ -324,8 +335,13 @@ fn price_instrument_structured_credit_waterfall_rules() {
     value["spec"]["waterfall_rules"] = serde_json::json!({ "afc": { "capped_tranches": ["SR"] } });
     let inst = serde_json::to_string(&value).unwrap();
     let mkt = market_context_json();
-    let result =
-        price_instrument(&inst, &mkt, "2024-01-01", "structured_credit_stochastic").expect("price");
+    let result = price_instrument(
+        &inst,
+        &mkt,
+        "2024-01-01",
+        Some("structured_credit_stochastic".to_string()),
+    )
+    .expect("price");
     let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
     assert_eq!(parsed["details"]["type"], "structured_credit_stochastic");
 }
@@ -389,7 +405,7 @@ fn price_instrument_structured_credit_stochastic_missing_market_data_errors() {
         &inst,
         &empty_market,
         "2024-01-01",
-        "structured_credit_stochastic",
+        Some("structured_credit_stochastic".to_string()),
     )
     .expect_err("missing discount curve should error");
     assert!(format!("{err:?}").contains("USD-OIS"));

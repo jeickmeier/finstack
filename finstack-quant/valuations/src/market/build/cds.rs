@@ -6,14 +6,17 @@ use crate::instruments::common_impl::parameters::legs::{
 use crate::instruments::common_impl::traits::Attributes;
 use crate::instruments::credit_derivatives::cds::{CDSConvention, CreditDefaultSwap};
 use crate::instruments::Instrument;
-use crate::market::build::helpers::{resolve_calendar, resolve_spot_date};
+use crate::market::build::helpers::resolve_spot_date;
 use crate::market::conventions::ids::CdsConventionKey;
 use crate::market::conventions::registry::ConventionRegistry;
 use crate::market::conventions::CdsConventions;
 use crate::market::quotes::cds::CdsQuote;
 use crate::market::quotes::ids::Pillar;
 use crate::market::BuildCtx;
-use finstack_quant_core::dates::{next_cds_date, BusinessDayConvention, Date, DateExt, StubKind};
+use finstack_quant_core::dates::{
+    next_cds_date, next_semiannual_cds_maturity, prev_cds_semiannual_roll, BusinessDayConvention,
+    Date, DateExt, StubKind,
+};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_core::Result;
@@ -60,8 +63,6 @@ fn resolve_cds_dates(
         conv.settlement_days,
         conv.bdc,
     )?;
-    let cal = resolve_calendar(&conv.calendar_id)?;
-
     // CDS Start: Market standard is the prior CDS roll (20th of Mar/Jun/Sep/Dec).
     // Use the CDS IMM roll date on or before spot.
     let roll_anchor = spot.add_months(-3);
@@ -69,12 +70,14 @@ fn resolve_cds_dates(
 
     let maturity = match pillar {
         Pillar::Tenor(t) => {
-            // Market CDS tenors run from the trade/spot date and then roll to
-            // the next standard IMM-20 maturity. They do not run from the prior
-            // accrual start date; doing so turns a May 5Y quote into the March
-            // roll instead of the Bloomberg/ISDA June roll.
-            let raw = t.add_to_date(spot, Some(cal), BusinessDayConvention::Unadjusted)?;
-            next_cds_date(raw - time::Duration::days(1))
+            // Post-2015 ISDA semi-annual roll: an on-the-run tenor quote
+            // references the semi-annual roll date (20-Mar/20-Sep) on or
+            // before the trade date, plus the tenor, extended to the next
+            // standard maturity (20-Jun/20-Dec). On-the-run maturities never
+            // fall in March or September.
+            let roll = prev_cds_semiannual_roll(ctx.as_of());
+            let raw = t.add_to_date(roll, None, BusinessDayConvention::Unadjusted)?;
+            next_semiannual_cds_maturity(raw)
         }
         Pillar::Date(d) => {
             // Enforce IMM alignment using the unadjusted input date.
@@ -112,9 +115,12 @@ fn resolve_cds_dates(
 ///
 /// # CDS Date Conventions
 ///
-/// CDS instruments use IMM roll dates (20th of March, June, September, December) for
-/// start dates. The start date is set to the IMM date on or before spot, and maturity
-/// is adjusted to the next IMM date after the pillar date.
+/// Premium accrual starts on the quarterly CDS roll date (20th of March, June,
+/// September, December) on or before spot. For tenor pillars, the scheduled
+/// termination date follows the post-2015 ISDA semi-annual roll: the
+/// semi-annual roll anchor (20-Mar/20-Sep) on or before the trade date, plus
+/// the tenor, extended to the next standard maturity (20-Jun/20-Dec). Explicit
+/// date pillars are snapped to the quarterly IMM grid unchanged.
 ///
 /// # Examples
 ///
@@ -253,9 +259,10 @@ pub fn build_cds_instrument(quote: &CdsQuote, ctx: &BuildCtx) -> Result<Box<dyn 
     let cds = CreditDefaultSwap {
         id: InstrumentId::new(id.as_str()),
         notional: Money::new(ctx.notional(), convention_key.currency),
-        side: PayReceive::Pay, // Standard: Quote implies we buy protection (pay premium/spread) ? Or we are pricing the contract?
-        // Usually "Par Spread" implies the spread we pay.
-        // Default to Buy Protection (Pay Premium).
+        // Quote-built CDS are constructed as buy-protection (pay premium),
+        // the standard orientation for calibration instruments; the sign
+        // flip for a sold-protection position is a position-level concern.
+        side: PayReceive::Pay,
         convention: convention_enum,
         premium: PremiumLegSpec {
             start: dates.start,
@@ -358,9 +365,11 @@ mod tests {
         Ok(())
     }
 
-    /// Test that tenor-based CDS pillar also correctly aligns to IMM dates
+    /// On-the-run tenor pillars must land on the semi-annual maturity grid:
+    /// 20 June or 20 December only, never March or September (post-2015
+    /// ISDA semi-annual roll).
     #[test]
-    fn test_cds_tenor_pillar_aligns_to_imm() -> Result<()> {
+    fn test_cds_tenor_pillar_aligns_to_semiannual_maturity() -> Result<()> {
         let ctx = cds_build_ctx();
 
         let quote = CdsQuote::CdsParSpread {
@@ -383,23 +392,78 @@ mod tests {
             .downcast_ref::<CreditDefaultSwap>()
             .expect("Expected CreditDefaultSwap");
 
-        // Maturity should be on the 20th (CDS IMM date)
         assert_eq!(
             cds.premium.end.day(),
             20,
-            "CDS maturity should be on the 20th (IMM date)"
+            "CDS maturity should be on the 20th"
+        );
+        assert!(
+            matches!(cds.premium.end.month(), Month::June | Month::December),
+            "on-the-run CDS maturity must be 20-Jun or 20-Dec, got {:?}",
+            cds.premium.end.month()
         );
 
-        // Should be in a quarterly month (Mar, Jun, Sep, Dec)
-        let maturity_month = cds.premium.end.month();
-        assert!(
-            matches!(
-                maturity_month,
-                Month::March | Month::June | Month::September | Month::December
-            ),
-            "CDS maturity should be in a quarterly month, got {:?}",
-            maturity_month
-        );
+        Ok(())
+    }
+
+    /// Semi-annual roll convention across all four calendar windows.
+    ///
+    /// Rule (ISDA 2015 amendment): maturity = semi-annual roll (20-Mar/20-Sep)
+    /// on or before the trade date, plus the tenor, snapped forward to the
+    /// next 20-Jun/20-Dec.
+    #[test]
+    fn test_cds_5y_maturity_all_four_quarters() -> Result<()> {
+        let cases = [
+            // (trade date, expected 5Y scheduled termination)
+            // Roll 2023-09-20 -> 2028-09-20 -> 2028-12-20
+            ((2024, Month::January, 15), (2028, Month::December, 20)),
+            // Roll 2026-03-20 -> 2031-03-20 -> 2031-06-20
+            ((2026, Month::May, 2), (2031, Month::June, 20)),
+            // Roll 2026-03-20 -> 2031-03-20 -> 2031-06-20 (Jun window trade)
+            ((2026, Month::July, 1), (2031, Month::June, 20)),
+            // Roll 2024-09-20 -> 2029-09-20 -> 2029-12-20
+            ((2024, Month::October, 1), (2029, Month::December, 20)),
+            // Trade exactly on the roll date uses that roll:
+            // Roll 2025-03-20 -> 2030-03-20 -> 2030-06-20
+            ((2025, Month::March, 20), (2030, Month::June, 20)),
+            // Day before the roll still uses the prior September roll:
+            // Roll 2024-09-20 -> 2029-09-20 -> 2029-12-20
+            ((2025, Month::March, 19), (2029, Month::December, 20)),
+        ];
+
+        for ((ty, tm, td), (ey, em, ed)) in cases {
+            let as_of = Date::from_calendar_date(ty, tm, td).unwrap();
+            let mut curve_ids = HashMap::default();
+            curve_ids.insert("discount".to_string(), "USD-OIS".to_string());
+            curve_ids.insert("credit".to_string(), "ABC-CORP".to_string());
+            let ctx = BuildCtx::new(as_of, 10_000_000.0, curve_ids);
+
+            let quote = CdsQuote::CdsParSpread {
+                id: QuoteId::new("CDS-TEST-5Y"),
+                entity: "Test Corp".to_string(),
+                convention: CdsConventionKey {
+                    currency: Currency::USD,
+                    doc_clause: CdsDocClause::IsdaNa,
+                },
+                pillar: Pillar::Tenor("5Y".parse().unwrap()),
+                spread_bp: 100.0,
+                recovery_rate: 0.40,
+            };
+
+            let instrument = build_cds_instrument(&quote, &ctx)?;
+            use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
+            let cds = instrument
+                .as_any()
+                .downcast_ref::<CreditDefaultSwap>()
+                .expect("Expected CreditDefaultSwap");
+
+            let expected = Date::from_calendar_date(ey, em, ed).unwrap();
+            assert_eq!(
+                cds.premium.end, expected,
+                "trade {as_of}: expected 5Y maturity {expected}, got {}",
+                cds.premium.end
+            );
+        }
 
         Ok(())
     }

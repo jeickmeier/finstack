@@ -211,7 +211,7 @@ fn cashflows_json_bridge_builds_accrues_and_prices_custom_bond() {
         &instrument_json,
         &market_context_json(),
         "2024-09-03",
-        "discounting",
+        Some("discounting".to_string()),
     )
     .expect("price custom bond");
     let result: serde_json::Value = serde_json::from_str(&result_json).unwrap();

@@ -48,6 +48,19 @@ fn test_build_xccy_basis_swap() {
     assert_eq!(swap.leg1.reset_lag_days, Some(0));
     assert_eq!(swap.leg2.reset_lag_days, Some(0));
     assert!(swap.leg2.end > swap.leg2.start);
+
+    // Market convention: the non-USD (base, EUR) leg carries the quoted
+    // basis; the USD (quote) leg pays its index flat.
+    assert_eq!(
+        swap.leg1.spread_bp,
+        rust_decimal::Decimal::try_from(-15.0).expect("valid decimal"),
+        "basis spread must sit on the base-currency (EUR) leg"
+    );
+    assert_eq!(
+        swap.leg2.spread_bp,
+        rust_decimal::Decimal::ZERO,
+        "USD quote-currency leg must pay its index flat"
+    );
 }
 
 #[cfg(test)]

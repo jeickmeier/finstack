@@ -687,8 +687,10 @@ impl SABRCalibrator {
                     .iter()
                     .zip(market_vols_vec.iter())
                     .map(|(&strike, &market_vol)| {
-                        // Skip ATM point (it's matched exactly by construction)
-                        let is_atm = (strike - forward).abs() / forward < 0.001;
+                        // Skip ATM point (it's matched exactly by construction).
+                        // Scale by |forward| so the test is well-defined for
+                        // negative (β=0 normal SABR) and near-zero forwards.
+                        let is_atm = (strike - forward).abs() / forward.abs().max(1e-8) < 0.001;
                         if is_atm {
                             0.0
                         } else {
@@ -747,8 +749,15 @@ pub(super) fn solve_alpha_for_atm(
     rho: f64,
     tolerance: f64,
 ) -> Result<f64> {
-    // Initial guess: first-order approximation
-    let f_pow = forward.powf(1.0 - beta);
+    // Initial guess: first-order approximation. For β=0 (normal SABR) the ATM
+    // normal vol is α to first order, independent of the forward — and the
+    // forward may legitimately be negative/cross-zero, where `F^{1-β}` would
+    // poison the guess.
+    let f_pow = if beta < BETA_SNAP_TOL {
+        1.0
+    } else {
+        forward.powf(1.0 - beta)
+    };
     let mut alpha = target_atm_vol * f_pow;
 
     const MAX_ITER: usize = 50;

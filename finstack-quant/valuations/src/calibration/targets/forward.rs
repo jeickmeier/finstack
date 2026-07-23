@@ -803,7 +803,7 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                         )));
                     }
                 };
-                *residual = if let RateQuote::Deposit { rate, .. } = pq.quote.as_ref() {
+                *residual = if let RateQuote::Deposit { rate, index, .. } = pq.quote.as_ref() {
                     let (start, end) =
                         self.reset_intervals(pq)?.first().copied().ok_or_else(|| {
                             finstack_quant_core::Error::Calibration {
@@ -824,7 +824,35 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                         end,
                         DayCountContext::default(),
                     )?;
-                    curve.rate_between(start_time, end_time)? - rate
+                    // The quoted deposit rate is a simple rate accruing on the
+                    // *index* day count (e.g. Act/360 for SOFR/ESTR deposits),
+                    // which need not match the curve's time-axis day count
+                    // (`time_day_count`, often Act/365F for vendor-zero
+                    // parity). `rate_between` divides the projection growth by
+                    // the curve-day-count interval, so comparing it directly
+                    // against the raw quote would bake a ~365/360 day-count
+                    // basis into the front of the curve. Rescale the growth
+                    // onto the deposit's own accrual factor before differencing.
+                    let idx_conv = crate::market::conventions::registry::ConventionRegistry::
+                        try_global()?
+                        .require_rate_index(index)?;
+                    let deposit_accrual = idx_conv.day_count.year_fraction(
+                        start,
+                        end,
+                        DayCountContext::default(),
+                    )?;
+                    if deposit_accrual <= 0.0 {
+                        return Err(finstack_quant_core::Error::Calibration {
+                            message: format!(
+                                "Forward deposit quote {} has non-positive accrual {deposit_accrual}",
+                                pq.quote.id()
+                            ),
+                            category: "global_solve".to_string(),
+                        });
+                    }
+                    let growth =
+                        curve.rate_between(start_time, end_time)? * (end_time - start_time);
+                    growth / deposit_accrual - rate
                 } else {
                     pq.instrument.value_raw(ctx, self.base_date)?
                 };
@@ -1104,6 +1132,91 @@ mod tests {
         assert!(report.success, "{}", report.convergence_reason);
         assert!((curve.rate_between(0.0, 0.25).expect("3M rate") - 0.04).abs() < 1e-8);
         assert!((curve.rate_between(0.0, 0.5).expect("6M rate") - 0.05).abs() < 1e-8);
+    }
+
+    /// Regression: with a curve time axis (Act/365F) that differs from the
+    /// deposit index day count (Act/360 for USD-SOFR), the deposit residual
+    /// must reprice the quote on the *deposit's* accrual basis. The old
+    /// shortcut set the Act/365F simple rate equal to the Act/360 quote,
+    /// baking a ~365/360 (≈1.4% relative) day-count basis into the front of
+    /// the projection curve.
+    #[test]
+    fn deposit_residual_uses_index_day_count_for_accrual() {
+        let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let config = CalibrationConfig {
+            calibration_method: CalibrationMethod::GlobalSolve {
+                use_analytical_jacobian: false,
+            },
+            ..CalibrationConfig::default()
+        };
+        let target = ForwardCurveTarget::new(ForwardCurveTargetParams {
+            base_date,
+            currency: Currency::USD,
+            fwd_curve_id: CurveId::new("USD-FWD"),
+            tenor_years: 0.25,
+            solve_interp: InterpStyle::Linear,
+            config: config.clone(),
+            // Curve time axis deliberately different from the Act/360 index dc.
+            time_day_count: DayCount::Act365F,
+            base_context: MarketContext::new(),
+        });
+        let quotes = [(90_i64, 0.04), (180_i64, 0.05)]
+            .into_iter()
+            .map(|(days, rate)| {
+                let maturity = base_date + time::Duration::days(days);
+                CalibrationQuote::Rates(PreparedQuote::new(
+                    Arc::new(RateQuote::Deposit {
+                        id: QuoteId::new(format!("DEP-{days}D")),
+                        index: finstack_quant_core::types::IndexId::new("USD-SOFR-3M"),
+                        pillar: crate::market::quotes::ids::Pillar::Date(maturity),
+                        rate,
+                    }),
+                    Arc::new(Deposit {
+                        id: InstrumentId::new(format!("DEP-{days}D")),
+                        quote_rate: Some(
+                            rust_decimal::Decimal::try_from(rate).expect("valid deposit rate"),
+                        ),
+                        discount_curve_id: CurveId::new("USD-OIS"),
+                        instrument_pricing_overrides: Default::default(),
+                        metric_pricing_overrides: Default::default(),
+                        scenario_pricing_overrides: Default::default(),
+                        attributes: Default::default(),
+                        spot_lag_days: Some(0),
+                        bdc: BusinessDayConvention::Following,
+                        calendar_id: None,
+                        start_date: base_date,
+                        maturity,
+                        notional: Money::new(1.0, Currency::USD),
+                        day_count: DayCount::Act360,
+                    }),
+                    maturity,
+                    // Pillar time on the curve's Act/365F axis.
+                    days as f64 / 365.0,
+                ))
+            })
+            .collect::<Vec<_>>();
+
+        let (curve, report) = GlobalFitOptimizer::optimize(&target, &quotes, &config, Some(1e-8))
+            .expect("mixed day-count deposit global solve");
+        assert!(report.success, "{}", report.convergence_reason);
+
+        for (days, quote_rate) in [(90_f64, 0.04), (180_f64, 0.05)] {
+            let t_end = days / 365.0;
+            let growth = curve.rate_between(0.0, t_end).expect("implied forward") * t_end;
+            // Repricing on the deposit's own Act/360 accrual must recover the quote.
+            let act360_rate = growth / (days / 360.0);
+            assert!(
+                (act360_rate - quote_rate).abs() < 1e-8,
+                "{days}d deposit reprices to {act360_rate}, expected {quote_rate}"
+            );
+            // The curve-axis (Act/365F) simple rate is therefore the quote scaled
+            // by 365/360 — NOT the raw quote (the old, wrong behaviour).
+            let curve_axis_rate = curve.rate_between(0.0, t_end).expect("curve-axis rate");
+            assert!(
+                (curve_axis_rate - quote_rate * 365.0 / 360.0).abs() < 1e-6,
+                "{days}d curve-axis rate {curve_axis_rate} should carry the 365/360 rescale"
+            );
+        }
     }
 
     #[test]

@@ -50,6 +50,18 @@ fn without_timestamp(result_json: &str) -> serde_json::Value {
     value
 }
 
+/// Fractional basis-point input must be rejected, not silently rounded:
+/// a 62.5bp FRN margin rounded to whole bp would price differently from
+/// the JSON path for the same instrument.
+#[wasm_bindgen_test]
+fn bps_rejects_fractional_input() {
+    assert!(JsBps::new(62.5).is_err());
+    assert!(JsRate::from_bps(12.4).is_err());
+    // Whole values still construct.
+    assert!(JsBps::new(200.0).is_ok());
+    assert!(JsRate::from_bps(250.0).is_ok());
+}
+
 #[wasm_bindgen_test]
 fn bond_fixed_to_json_is_tagged_and_matches_rust() {
     let bond = fixed_bond();
@@ -116,8 +128,13 @@ fn bond_from_json_rejects_invalid_json_and_wrong_type() {
 fn bond_typed_to_json_prices_identically_to_handwritten_json() {
     let bond = fixed_bond();
     let market = market_context_json();
-    let typed = price_instrument(&bond.to_json().unwrap(), &market, "2024-06-30", "default")
-        .expect("price typed");
+    let typed = price_instrument(
+        &bond.to_json().unwrap(),
+        &market,
+        "2024-06-30",
+        Some("default".to_string()),
+    )
+    .expect("price typed");
     let via_json = price_instrument(
         &JsBond::from_json(&bond.to_json().unwrap())
             .unwrap()
@@ -125,7 +142,7 @@ fn bond_typed_to_json_prices_identically_to_handwritten_json() {
             .unwrap(),
         &market,
         "2024-06-30",
-        "default",
+        Some("default".to_string()),
     )
     .expect("price via json");
     assert_eq!(without_timestamp(&typed), without_timestamp(&via_json));
@@ -143,7 +160,8 @@ fn term_loan_example_round_trips_and_prices() {
     assert_eq!(json, round_tripped);
 
     let market = market_context_json();
-    let priced = price_instrument(&json, &market, "2024-06-30", "default").expect("price loan");
+    let priced = price_instrument(&json, &market, "2024-06-30", Some("default".to_string()))
+        .expect("price loan");
     let result: serde_json::Value = serde_json::from_str(&priced).unwrap();
     assert_eq!(result["instrument_id"], "TERM-LOAN-USD-5Y");
 }
