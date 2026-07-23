@@ -232,6 +232,7 @@ impl CDSTranche {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: crate::cashflow::builder::specs::RollRule::None,
         };
         CDSTranche::new(
             InstrumentId::new("CDXIG-42-0X3"),
@@ -337,6 +338,7 @@ impl CDSTranche {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: crate::cashflow::builder::specs::RollRule::None,
         };
 
         let mut tranche = Self::new(

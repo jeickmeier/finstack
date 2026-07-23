@@ -3,6 +3,69 @@
 use finstack_quant_core::dates::{BusinessDayConvention, DayCount, StubKind, Tenor};
 use rust_decimal::Decimal;
 
+/// Roll-date rule applied when generating schedule anchors.
+///
+/// Selects the core `ScheduleBuilder` date-generation mode. The IMM modes
+/// force a quarterly grid: the schedule frequency and stub rule configured on
+/// [`ScheduleParams`] are overridden with quarterly / short-back, matching
+/// `ScheduleBuilder::imm` and `ScheduleBuilder::cds_imm`.
+///
+/// # Variants
+///
+/// - **`None`**: plain tenor stepping from the schedule boundaries (default).
+/// - **`Imm`**: quarterly third Wednesdays of Mar/Jun/Sep/Dec (CME IMM dates
+///   for rate, currency, and equity index futures).
+/// - **`CdsImm`**: 20th of Mar/Jun/Sep/Dec (post-Big-Bang standard CDS roll
+///   dates). When the start date is not itself a roll date, the first period
+///   accrues from the roll date immediately **preceding** the start (standard
+///   front accrual per the ISDA Big Bang Protocol, April 2009).
+///
+/// # Examples
+///
+/// ```rust
+/// use finstack_quant_cashflows::builder::specs::RollRule;
+///
+/// let rule = RollRule::default();
+/// assert_eq!(rule, RollRule::None);
+/// ```
+///
+/// # References
+///
+/// - `docs/REFERENCES.md#isda-cds-standard-model`
+/// - CME IMM date rules (third Wednesday of the contract month)
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
+#[non_exhaustive]
+pub enum RollRule {
+    /// Plain tenor stepping from the schedule boundaries (no roll-date grid).
+    #[default]
+    None,
+    /// Standard IMM dates: third Wednesday of Mar/Jun/Sep/Dec.
+    Imm,
+    /// CDS IMM dates: 20th of Mar/Jun/Sep/Dec with post-Big-Bang front accrual.
+    CdsImm,
+}
+
+impl RollRule {
+    /// Returns `true` for [`RollRule::None`].
+    ///
+    /// Used by serde to keep the default rule off the wire so existing
+    /// payloads are unchanged.
+    #[must_use]
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+}
+
 /// Canonical schedule-generation parameters for coupons and periodic fees.
 ///
 /// This type controls how accrual boundaries and payment dates are generated.
@@ -54,6 +117,15 @@ pub struct ScheduleParams {
     /// Serialized only when `true`, so existing wire payloads are unchanged.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub adjust_accrual_dates: bool,
+    /// Roll-date rule for schedule anchors (standard IMM or CDS IMM grids).
+    ///
+    /// [`RollRule::None`] (default) keeps plain tenor stepping. The IMM modes
+    /// override `freq`/`stub` with quarterly / short-back; see [`RollRule`].
+    ///
+    /// Serialized only when not `None`, so existing wire payloads are
+    /// unchanged.
+    #[serde(default, skip_serializing_if = "RollRule::is_none")]
+    pub roll_rule: RollRule,
 }
 
 const WK: &str = crate::builder::calendar::WEEKENDS_ONLY_ID;
@@ -69,6 +141,7 @@ impl ScheduleParams {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: RollRule::None,
         }
     }
 

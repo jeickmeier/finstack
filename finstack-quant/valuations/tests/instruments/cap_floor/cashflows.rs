@@ -27,6 +27,7 @@ fn build_schedule(
         payment_lag_days: 0,
         reset_lag_days: None,
         adjust_accrual_dates: false,
+        roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
     })
 }
 

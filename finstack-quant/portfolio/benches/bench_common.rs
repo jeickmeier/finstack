@@ -848,6 +848,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         };
         let tranche = CDSTranche::new(
             tranche_id.clone(),
@@ -1011,6 +1012,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
                 payment_lag_days: 0,
 
                 adjust_accrual_dates: false,
+                roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
             },
         };
         let convertible = ConvertibleBond {

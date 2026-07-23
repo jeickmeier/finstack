@@ -178,6 +178,7 @@ fn test_asw_par_tracks_coupon_minus_par_rate() {
             payment_lag_days: spec.schedule.payment_lag_days,
             reset_lag_days: None,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     )
     .expect("schedule build should succeed");

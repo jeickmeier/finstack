@@ -87,6 +87,7 @@ impl MetricCalculator for AnnuityCalculator {
                     irs.attributes.get_meta("adjust_accrual_dates"),
                     Some("true")
                 ),
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         )?;
         if periods.is_empty() {

@@ -982,6 +982,7 @@ pub(crate) fn run_simulation_with_source<S: PoolFlowSource + ?Sized>(
         end_of_month: false,
         payment_lag_days: 0,
         adjust_accrual_dates: false,
+        roll_rule: crate::cashflow::builder::specs::RollRule::None,
     };
     let first_period = build_single_period(BuildPeriodsParams::from_schedule(
         &schedule_params,

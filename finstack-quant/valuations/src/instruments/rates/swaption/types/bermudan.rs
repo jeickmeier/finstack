@@ -342,6 +342,7 @@ mod wire_tests {
                 payment_lag_days: fixed.payment_lag_days,
                 reset_lag_days: None,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         )
         .expect("direct fixed-leg schedule");
@@ -864,6 +865,7 @@ impl BermudanSwaption {
                 payment_lag_days: fixed.payment_lag_days,
                 reset_lag_days: None,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         )
     }

@@ -824,6 +824,7 @@ fn create_institutional_portfolio(num_positions: usize) -> finstack_quant_portfo
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         };
 
         let tranche = CDSTranche::new(
@@ -1000,6 +1001,7 @@ fn create_institutional_portfolio(num_positions: usize) -> finstack_quant_portfo
                 payment_lag_days: 0,
 
                 adjust_accrual_dates: false,
+                roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
             },
         };
 

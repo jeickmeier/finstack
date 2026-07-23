@@ -147,6 +147,7 @@ fn bench_schedule_builder_fixed(c: &mut Criterion) {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 

@@ -222,6 +222,7 @@ pub(crate) fn projected_compounded_float_leg_schedule(
         payment_lag_days: float.payment_lag_days,
         reset_lag_days: None,
         adjust_accrual_dates: adjust_accrual_dates(irs),
+        roll_rule: crate::cashflow::builder::specs::RollRule::None,
     })?;
     if periods.is_empty() {
         return Ok(crate::cashflow::traits::schedule_from_classified_flows(
@@ -376,6 +377,7 @@ pub(crate) fn fixed_leg_schedule(irs: &InterestRateSwap) -> Result<CashFlowSched
         payment_lag_days: fixed.payment_lag_days,
         reset_lag_days: None,
         adjust_accrual_dates,
+        roll_rule: crate::cashflow::builder::specs::RollRule::None,
     })?;
     let cal = crate::cashflow::builder::calendar::resolve_calendar_strict(calendar_id)?;
     let rate = decimal_to_f64(fixed.rate, "fixed leg rate")?;
@@ -509,6 +511,7 @@ pub(crate) fn float_leg_schedule_with_curves_as_of(
                 end_of_month: float.end_of_month,
                 payment_lag_days: float.payment_lag_days,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         });
     let mut sched = float_b.build(curves)?;

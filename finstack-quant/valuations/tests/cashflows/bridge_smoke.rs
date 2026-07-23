@@ -44,6 +44,7 @@ fn bridge_builder_schedule_builds() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -72,6 +73,7 @@ fn bridge_period_generation_works() {
         end_of_month: false,
         payment_lag_days: 0,
         adjust_accrual_dates: false,
+        roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
     };
 
     let periods = finstack_quant_cashflows::builder::periods::build_periods(
@@ -87,6 +89,7 @@ fn bridge_period_generation_works() {
             payment_lag_days: params.payment_lag_days,
             reset_lag_days: None,
             adjust_accrual_dates: params.adjust_accrual_dates,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     )
     .expect("bridge date generation should work");

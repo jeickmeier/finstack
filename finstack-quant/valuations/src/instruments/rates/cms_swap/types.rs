@@ -317,6 +317,7 @@ impl CmsSwap {
             payment_lag_days: 0,
             reset_lag_days: Some(reset_lag_days),
             adjust_accrual_dates: false,
+            roll_rule: crate::cashflow::builder::specs::RollRule::None,
         })?;
 
         if cms_periods.is_empty() {
@@ -349,6 +350,7 @@ impl CmsSwap {
                     payment_lag_days: 0,
                     reset_lag_days: None,
                     adjust_accrual_dates: false,
+                    roll_rule: crate::cashflow::builder::specs::RollRule::None,
                 })?;
                 FundingLeg::Fixed {
                     rate,
@@ -377,6 +379,7 @@ impl CmsSwap {
                     payment_lag_days: 0,
                     reset_lag_days: None,
                     adjust_accrual_dates: false,
+                    roll_rule: crate::cashflow::builder::specs::RollRule::None,
                 })?;
                 FundingLeg::Floating {
                     spread,

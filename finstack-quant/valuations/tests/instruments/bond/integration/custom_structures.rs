@@ -48,6 +48,7 @@ fn test_pik_bond() {
                 payment_lag_days: 0,
 
                 adjust_accrual_dates: false,
+                roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
             },
         })
         .build(None)
@@ -76,6 +77,7 @@ fn test_step_up_bond() {
         end_of_month: false,
         payment_lag_days: 0,
         adjust_accrual_dates: false,
+        roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
     };
 
     let schedule = CashFlowSchedule::builder()

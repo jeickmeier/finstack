@@ -454,6 +454,7 @@ impl BasisSwap {
                 payment_lag_days: leg.payment_lag_days,
                 reset_lag_days: Some(leg.reset_lag_days),
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         )?;
 
@@ -531,6 +532,7 @@ impl BasisSwap {
                 payment_lag_days: leg.payment_lag_days,
                 reset_lag_days: Some(leg.reset_lag_days),
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         )?;
 
@@ -601,6 +603,7 @@ impl BasisSwap {
                     end_of_month: false,
                     payment_lag_days: leg.payment_lag_days,
                     adjust_accrual_dates: false,
+                    roll_rule: crate::cashflow::builder::specs::RollRule::None,
                 },
             });
         let mut schedule = builder.build(Some(market))?;

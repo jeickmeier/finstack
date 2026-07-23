@@ -32,6 +32,7 @@ fn test_bond_with_custom_cashflows() {
         end_of_month: false,
         payment_lag_days: 0,
         adjust_accrual_dates: false,
+        roll_rule: crate::cashflow::builder::specs::RollRule::None,
     };
 
     let step1_date = Date::from_calendar_date(2026, Month::January, 15).expect("Valid test date");
@@ -123,6 +124,7 @@ fn test_bond_builder_with_custom_cashflows() {
                 payment_lag_days: 0,
 
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         })
         .build(None)
@@ -197,6 +199,7 @@ fn test_bond_with_cashflows_method() {
                 end_of_month: false,
                 payment_lag_days: 0,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         })
         .build(None)
@@ -251,6 +254,7 @@ fn test_custom_cashflows_override_regular_generation() {
                 end_of_month: false,
                 payment_lag_days: 0,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         })
         .build(None)

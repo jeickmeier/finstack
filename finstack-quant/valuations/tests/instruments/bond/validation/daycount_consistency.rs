@@ -65,6 +65,7 @@ fn create_bond_with_daycount(
                 payment_lag_days: 0,
 
                 adjust_accrual_dates: false,
+                roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
             },
         }))
         .discount_curve_id("USD-OIS".into())

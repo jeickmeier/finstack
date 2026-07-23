@@ -402,6 +402,7 @@ impl TermLoan {
                 payment_lag_days: 0,
                 reset_lag_days: None,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         )?;
         if periods.is_empty() {

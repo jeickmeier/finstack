@@ -11,6 +11,7 @@
 
 use super::calendar::resolve_calendar_strict;
 use super::periods::SchedulePeriod;
+use super::specs::RollRule;
 use finstack_quant_core::dates::{
     adjust, BusinessDayConvention, Date, DateExt, HolidayCalendar, ScheduleBuilder, StubKind,
     Tenor, TenorUnit,
@@ -184,6 +185,7 @@ pub(crate) fn generate_periods(
         payment_lag_days,
         calendar_id,
         false,
+        RollRule::None,
     )
 }
 
@@ -193,6 +195,12 @@ pub(crate) fn generate_periods(
 /// and the cashflow compiler. Enrichment (day counts and reset dates) remains
 /// the responsibility of the caller because the compiler needs its raw
 /// periods for coupon-specific metadata.
+///
+/// `roll_rule` selects the core `ScheduleBuilder` anchor mode: the IMM modes
+/// force a quarterly grid (overriding `freq`/`stub` with quarterly /
+/// short-back), and `RollRule::CdsImm` anchors the first period at the CDS
+/// roll date preceding `start` (post-Big-Bang front accrual), so the first
+/// accrual start may lie before `start`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn generate_periods_with_adjustment(
     start: Date,
@@ -204,6 +212,7 @@ pub(crate) fn generate_periods_with_adjustment(
     payment_lag_days: i32,
     calendar_id: &str,
     adjust_accrual_dates: bool,
+    roll_rule: RollRule,
 ) -> finstack_quant_core::Result<Vec<SchedulePeriod>> {
     if payment_lag_days < 0 {
         return Err(finstack_quant_core::Error::Validation(format!(
@@ -214,6 +223,11 @@ pub(crate) fn generate_periods_with_adjustment(
         .frequency(freq)
         .stub_rule(stub)
         .end_of_month(end_of_month);
+    let builder = match roll_rule {
+        RollRule::None => builder,
+        RollRule::Imm => builder.imm(),
+        RollRule::CdsImm => builder.cds_imm(),
+    };
     let cal = resolve_calendar_strict(calendar_id)?;
 
     let schedule = builder.build()?;
@@ -342,6 +356,7 @@ mod tests {
                 0,
                 "usny",
                 true,
+                RollRule::None,
             )
             .expect("schedule builds");
 
@@ -367,6 +382,7 @@ mod tests {
             0,
             "usny",
             true,
+            RollRule::None,
         )
         .expect("schedule builds");
 

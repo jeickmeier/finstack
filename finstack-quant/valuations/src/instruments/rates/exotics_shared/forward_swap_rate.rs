@@ -136,6 +136,7 @@ pub fn calculate_forward_swap_rate(inputs: ForwardSwapRateInputs<'_>) -> Result<
             payment_lag_days: inputs.payment_lag_days,
             reset_lag_days: None,
             adjust_accrual_dates: false,
+            roll_rule: crate::cashflow::builder::specs::RollRule::None,
         },
     )?;
 
@@ -178,6 +179,7 @@ pub fn calculate_forward_swap_rate(inputs: ForwardSwapRateInputs<'_>) -> Result<
                 payment_lag_days: inputs.payment_lag_days,
                 reset_lag_days: None,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         )?;
 

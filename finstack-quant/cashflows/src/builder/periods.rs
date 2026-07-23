@@ -14,7 +14,7 @@ use super::date_generation::{
     validate_unique_payment_dates,
 };
 use super::emission::compute_reset_date;
-use super::specs::ScheduleParams;
+use super::specs::{RollRule, ScheduleParams};
 
 /// Accrual period with payment timing.
 ///
@@ -62,6 +62,11 @@ pub struct BuildPeriodsParams<'a> {
     pub reset_lag_days: Option<i32>,
     /// Adjust accrual start/end boundaries with the business-day convention.
     pub adjust_accrual_dates: bool,
+    /// Roll-date rule for schedule anchors (standard IMM or CDS IMM grids).
+    ///
+    /// The IMM modes override `frequency`/`stub` with quarterly / short-back;
+    /// see [`RollRule`].
+    pub roll_rule: RollRule,
 }
 
 impl<'a> BuildPeriodsParams<'a> {
@@ -89,6 +94,7 @@ impl<'a> BuildPeriodsParams<'a> {
             payment_lag_days: schedule.payment_lag_days,
             reset_lag_days,
             adjust_accrual_dates: schedule.adjust_accrual_dates,
+            roll_rule: schedule.roll_rule,
         }
     }
 }
@@ -165,6 +171,7 @@ fn enrich_periods(
 ///
 /// ```rust
 /// use finstack_quant_cashflows::builder::periods::{build_single_period, BuildPeriodsParams};
+/// use finstack_quant_cashflows::builder::specs::RollRule;
 /// use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 /// use time::Month;
 ///
@@ -180,6 +187,7 @@ fn enrich_periods(
 ///     payment_lag_days: 2,
 ///     reset_lag_days: Some(2),
 ///     adjust_accrual_dates: false,
+///     roll_rule: RollRule::None,
 /// })
 /// .expect("single-period build succeeds");
 ///
@@ -229,6 +237,7 @@ pub fn build_single_period(
 ///
 /// ```rust
 /// use finstack_quant_cashflows::builder::periods::{build_periods, BuildPeriodsParams};
+/// use finstack_quant_cashflows::builder::specs::RollRule;
 /// use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 /// use time::Month;
 ///
@@ -244,6 +253,7 @@ pub fn build_single_period(
 ///     payment_lag_days: 2,
 ///     reset_lag_days: Some(2),
 ///     adjust_accrual_dates: false,
+///     roll_rule: RollRule::None,
 /// })
 /// .expect("period build succeeds");
 ///
@@ -262,6 +272,7 @@ pub fn build_periods(
         params.payment_lag_days,
         params.calendar_id,
         params.adjust_accrual_dates,
+        params.roll_rule,
     )?;
     enrich_periods(periods, &params)
 }
@@ -284,6 +295,7 @@ mod tests {
             payment_lag_days: 2,
             reset_lag_days: Some(2),
             adjust_accrual_dates: false,
+            roll_rule: crate::builder::specs::RollRule::None,
         }
     }
 
@@ -320,6 +332,7 @@ mod tests {
             payment_lag_days: 2,
             reset_lag_days: None,
             adjust_accrual_dates: true,
+            roll_rule: crate::builder::specs::RollRule::None,
         };
         let periods = build_periods(params).expect("periods");
         assert_eq!(
@@ -339,6 +352,7 @@ mod tests {
             payment_lag_days: 2,
             reset_lag_days: None,
             adjust_accrual_dates: false,
+            roll_rule: crate::builder::specs::RollRule::None,
         };
         let periods = build_periods(params).expect("periods");
         assert_eq!(
@@ -361,6 +375,7 @@ mod tests {
             payment_lag_days: 0,
             reset_lag_days: None,
             adjust_accrual_dates: false,
+            roll_rule: crate::builder::specs::RollRule::None,
         };
 
         let err = build_periods(params).expect_err("payment-date collision must be rejected");

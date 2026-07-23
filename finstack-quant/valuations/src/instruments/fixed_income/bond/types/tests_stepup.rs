@@ -112,6 +112,7 @@ fn test_bond_serde_allows_missing_issue_date_with_custom_cashflows() {
                 payment_lag_days: 0,
 
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         })
         .build(None)
@@ -197,6 +198,7 @@ fn test_bond_custom_cashflows_serde_roundtrip() {
                 payment_lag_days: 0,
 
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         })
         .build(None)

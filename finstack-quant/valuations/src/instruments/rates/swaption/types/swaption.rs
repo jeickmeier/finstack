@@ -1608,6 +1608,7 @@ impl Swaption {
             payment_lag_days: fixed.payment_lag_days,
             reset_lag_days: None,
             adjust_accrual_dates: false,
+            roll_rule: crate::cashflow::builder::specs::RollRule::None,
         })?;
 
         let mut forward_leg = NeumaierAccumulator::new();

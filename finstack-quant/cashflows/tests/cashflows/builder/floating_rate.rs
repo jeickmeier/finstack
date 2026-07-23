@@ -53,6 +53,7 @@ fn make_float_spec(fallback: FloatingRateFallback, spread_bp: Decimal) -> Floati
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     }
 }
@@ -1049,6 +1050,7 @@ fn make_overnight_float_spec(
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     }
 }
@@ -1617,6 +1619,7 @@ fn test_overnight_compounding_weekend_start_no_lost_days() {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -1733,6 +1736,7 @@ fn test_overnight_empty_fixing_window_errors() {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 

@@ -498,6 +498,7 @@ impl ForwardCurveTarget {
                         payment_lag_days: swap.float.payment_lag_days,
                         reset_lag_days: None,
                         adjust_accrual_dates: false,
+                        roll_rule: crate::cashflow::builder::specs::RollRule::None,
                     },
                 )?;
                 if schedule.is_empty() {

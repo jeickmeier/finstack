@@ -209,6 +209,7 @@ impl SwaptionHullWhitePricer {
                 payment_lag_days: fixed_leg.payment_lag_days,
                 reset_lag_days: None,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         )
         .map_err(|e| {

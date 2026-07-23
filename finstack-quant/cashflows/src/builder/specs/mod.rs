@@ -41,4 +41,4 @@ pub use default::{DefaultCurve, DefaultModelSpec};
 pub use fees::{evaluate_fee_tiers, FeeAccrualBasis, FeeBase, FeeSpec, FeeTier};
 pub use prepayment::{PrepaymentCurve, PrepaymentModelSpec};
 pub use recovery::RecoveryModelSpec;
-pub use schedule::{FixedWindow, ScheduleParams};
+pub use schedule::{FixedWindow, RollRule, ScheduleParams};

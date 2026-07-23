@@ -60,6 +60,7 @@ fn build_xccy_mtm_periods(
         payment_lag_days: leg.payment_lag_days,
         reset_lag_days: leg.reset_lag_days,
         adjust_accrual_dates: false,
+        roll_rule: crate::cashflow::builder::specs::RollRule::None,
     })
 }
 

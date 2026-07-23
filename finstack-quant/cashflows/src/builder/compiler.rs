@@ -128,6 +128,7 @@ fn build_periods_with_meta(
         params.payment_lag_days,
         &params.calendar_id,
         params.adjust_accrual_dates,
+        params.roll_rule,
     )?;
     index_period_schedule(periods, params.freq)
 }
@@ -282,6 +283,7 @@ pub(super) fn build_fee_schedules(
                     end_of_month: false,
                     payment_lag_days: 0,
                     adjust_accrual_dates: false,
+                    roll_rule: crate::builder::specs::RollRule::None,
                 };
                 let (dates, prev, _) =
                     build_periods_with_meta(DateWindow::new(issue, maturity), &schedule)?;
@@ -825,6 +827,7 @@ mod tests {
                 end_of_month: false,
                 payment_lag_days: 0,
                 adjust_accrual_dates: false,
+                roll_rule: crate::builder::specs::RollRule::None,
             },
         }
     }

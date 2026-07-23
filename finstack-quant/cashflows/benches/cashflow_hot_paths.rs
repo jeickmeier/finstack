@@ -101,6 +101,7 @@ fn make_fixed_schedule(base: Date, years: i32, freq: Tenor) -> CashFlowSchedule 
                 payment_lag_days: 0,
 
                 adjust_accrual_dates: false,
+                roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
             },
         })
         .build(None)
@@ -380,6 +381,7 @@ fn bench_build_fixed_schedule(c: &mut Criterion) {
                             payment_lag_days: 0,
 
                             adjust_accrual_dates: false,
+                            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
                         },
                     })
                     .build(None)

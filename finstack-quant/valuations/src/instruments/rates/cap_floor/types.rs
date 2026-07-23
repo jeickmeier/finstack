@@ -567,6 +567,7 @@ impl CapFloor {
             },
             reset_lag_days: self.resolved_reset_lag_days(),
             adjust_accrual_dates: false,
+            roll_rule: crate::cashflow::builder::specs::RollRule::None,
         };
 
         let mut periods = if matches!(
@@ -1064,6 +1065,7 @@ mod tests {
                 payment_lag_days: 0,
                 reset_lag_days: None,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         )
         .expect("periods");

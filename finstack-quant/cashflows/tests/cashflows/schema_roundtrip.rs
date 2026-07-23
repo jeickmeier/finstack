@@ -509,6 +509,7 @@ fn test_step_up_coupon_preserves_adjusted_accruals() {
         step_schedule: Vec::<(Date, Decimal)>::new(),
         schedule: ScheduleParams {
             adjust_accrual_dates: true,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
             ..ScheduleParams::semiannual_30360()
         },
     };

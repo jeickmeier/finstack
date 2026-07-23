@@ -1699,6 +1699,7 @@ mod tests {
                 payment_lag_days: 0,
 
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         };
 
@@ -2207,6 +2208,7 @@ mod tests {
                 end_of_month: false,
                 payment_lag_days: 0,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         };
 

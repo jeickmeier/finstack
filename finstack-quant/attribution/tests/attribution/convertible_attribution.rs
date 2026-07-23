@@ -64,6 +64,7 @@ fn convertible_with_credit() -> Arc<dyn Instrument> {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
     Arc::new(ConvertibleBond {

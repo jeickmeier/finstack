@@ -90,6 +90,7 @@ fn test_all_flows_preserve_currency() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -174,6 +175,7 @@ fn contractual_accrual_boundaries_are_not_business_day_adjusted() {
         payment_lag_days: 0,
         reset_lag_days: None,
         adjust_accrual_dates: false,
+        roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
     })
     .expect("schedule should build");
 

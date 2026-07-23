@@ -683,6 +683,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
                     payment_lag_days: 0,
                     reset_lag_days: None,
                     adjust_accrual_dates: false,
+                    roll_rule: crate::cashflow::builder::specs::RollRule::None,
                 },
             )?;
             if float_periods.is_empty() {
@@ -761,6 +762,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
                 payment_lag_days: 0,
                 reset_lag_days: None,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         )?;
         if periods.is_empty() {
@@ -1562,6 +1564,7 @@ mod tests {
                 payment_lag_days: 0,
                 reset_lag_days: None,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             },
         )
         .expect("floating schedule");

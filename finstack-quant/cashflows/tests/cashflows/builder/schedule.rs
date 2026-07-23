@@ -60,6 +60,7 @@ fn linear_vs_step_parity() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -89,6 +90,7 @@ fn linear_vs_step_parity() {
             payment_lag_days: 0,
             reset_lag_days: None,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     )
     .unwrap();
@@ -146,6 +148,7 @@ fn pik_capitalization_increases_outstanding() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -182,6 +185,7 @@ fn linear_amortization_uses_first_coupon_leg_cadence() {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
     let quarterly_float = FloatingCouponSpec {
@@ -213,6 +217,7 @@ fn linear_amortization_uses_first_coupon_leg_cadence() {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -274,6 +279,7 @@ fn ordering_invariants_within_date() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -334,6 +340,7 @@ fn fixed_schedule_npv_equals_sum_cashflows() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -403,6 +410,7 @@ fn detects_stub_periods() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -464,6 +472,7 @@ fn negative_rate_fixed_coupons_are_emitted() {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -566,6 +575,7 @@ fn outstanding_by_date_dedup_and_values() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -728,6 +738,7 @@ fn builder_created_schedule_sets_issue_date_for_outstanding_by_date() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -819,6 +830,7 @@ fn schedule_errors_on_unknown_calendar() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -859,6 +871,7 @@ fn stub_period_thirty360_produces_proportional_accrual() {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -958,6 +971,7 @@ fn npv_golden_value_with_realistic_discount_curve() {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -1096,6 +1110,7 @@ fn coupon_amount_golden_values() {
             end_of_month: false,
             payment_lag_days: 0,
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -1203,6 +1218,7 @@ fn cashflow_conservation_bond_principal() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -1257,6 +1273,7 @@ fn cashflow_conservation_amortizing_bond_principal() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -1312,6 +1329,7 @@ fn outstanding_never_negative() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 
@@ -1364,6 +1382,7 @@ fn npv_decreases_with_higher_discount_rate() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 

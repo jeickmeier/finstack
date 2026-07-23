@@ -720,6 +720,7 @@ impl ConvertibleBond {
                     payment_lag_days: 0,
 
                     adjust_accrual_dates: false,
+                    roll_rule: crate::cashflow::builder::specs::RollRule::None,
                 },
             }))
             .floating_coupon_opt(None)
@@ -815,6 +816,7 @@ impl ConvertibleBond {
                     payment_lag_days: 0,
 
                     adjust_accrual_dates: false,
+                    roll_rule: crate::cashflow::builder::specs::RollRule::None,
                 },
             }))
             .floating_coupon_opt(None)

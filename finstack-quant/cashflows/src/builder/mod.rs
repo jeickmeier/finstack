@@ -72,7 +72,7 @@ pub use specs::{
     FeeAccrualBasis, FeeBase, FeeSpec, FeeTier, FixedCouponSpec, FixedWindow, FloatingCouponSpec,
     FloatingRateFallback, FloatingRateSpec, Notional, OvernightCompoundingMethod,
     OvernightIndexConstraintApplication, PrepaymentCurve, PrepaymentModelSpec, RecoveryModelSpec,
-    ScheduleParams, StepUpCouponSpec,
+    RollRule, ScheduleParams, StepUpCouponSpec,
 };
 
 // Re-export credit rate conversions (hazard-style CPR↔SMM helpers)

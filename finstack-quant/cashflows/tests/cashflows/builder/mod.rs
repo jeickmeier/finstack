@@ -12,4 +12,5 @@ mod conventions;
 mod credit_models;
 mod floating_rate;
 mod principal_events;
+mod roll_rule;
 mod schedule;

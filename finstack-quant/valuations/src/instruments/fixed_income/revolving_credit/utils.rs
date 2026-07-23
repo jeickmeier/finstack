@@ -35,6 +35,7 @@ pub(super) fn build_payment_periods(
         payment_lag_days: 0,
         reset_lag_days: None,
         adjust_accrual_dates: false,
+        roll_rule: crate::cashflow::builder::specs::RollRule::None,
     })?;
 
     if periods.is_empty() {
@@ -162,6 +163,7 @@ pub(super) fn build_reset_dates(facility: &RevolvingCredit) -> Result<Option<Vec
                 payment_lag_days: 0,
                 reset_lag_days: None,
                 adjust_accrual_dates: false,
+                roll_rule: crate::cashflow::builder::specs::RollRule::None,
             })?;
             Ok(Some(
                 periods

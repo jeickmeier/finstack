@@ -215,6 +215,7 @@ fn test_time_mapping_with_quarterly_coupons() {
             payment_lag_days: 0,
 
             adjust_accrual_dates: false,
+            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
         },
     };
 

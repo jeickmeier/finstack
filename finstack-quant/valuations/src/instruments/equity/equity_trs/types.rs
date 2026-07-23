@@ -216,6 +216,7 @@ impl EquityTotalReturnSwap {
                     end_of_month: false,
                     payment_lag_days: 0,
                     adjust_accrual_dates: false,
+                    roll_rule: crate::cashflow::builder::specs::RollRule::None,
                 },
             ))
             .side(TrsSide::ReceiveTotalReturn)
@@ -550,6 +551,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for EquityTotalReturnSwap 
                     end_of_month: self.schedule.params.end_of_month,
                     payment_lag_days: self.schedule.params.payment_lag_days,
                     adjust_accrual_dates: false,
+                    roll_rule: crate::cashflow::builder::specs::RollRule::None,
                 },
             });
         let schedule = builder.build(Some(context))?;
