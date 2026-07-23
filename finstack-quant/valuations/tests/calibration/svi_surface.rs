@@ -81,13 +81,7 @@ fn nonflat_discount_curve(base_date: Date) -> DiscountCurve {
 
 /// One calibrated SVI expiry slice: its expiry (years) and true parameters.
 ///
-/// The three slices are calendar-monotone at every fixed *absolute* strike on
-/// the test grid AND at fixed forward log-moneyness, individually pass
-/// `SviParams::validate`, and — unlike the original steeper fixture
-/// (b=0.5+, ρ=0.6), which had Durrleman `g(k) < 0` in the call wing — satisfy
-/// the full butterfly condition `g(k) ≥ 0` over the calibration target range
-/// extended by ±1 in log-moneyness (verified against the strict per-slice
-/// Durrleman scan the SVI target now enforces).
+/// The slices are calendar-monotone and pass the target's butterfly scan.
 fn true_slices() -> [(f64, SviParams); 3] {
     [
         (

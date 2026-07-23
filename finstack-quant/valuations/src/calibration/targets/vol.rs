@@ -72,13 +72,7 @@ impl VolSurfaceTarget {
             )));
         }
 
-        // The equity surface stores Black (lognormal) implied vols. SABR with
-        // β below the snap tolerance evaluates through the *normal*-vol
-        // branch (`SabrVolType::Normal`, absolute rate units) — silently
-        // writing Bachelier vols into a Black-labeled surface would corrupt
-        // every downstream price. Reject rather than mislabel; use the
-        // swaption target (Normal convention) for β=0 normal-vol fitting.
-        // Threshold mirrors `models::volatility::sabr::model::BETA_SNAP_TOL`.
+        // Equity surfaces store Black vols; β≈0 produces normal vols.
         const EQUITY_BETA_MIN: f64 = 1e-4;
         if params.beta < EQUITY_BETA_MIN {
             return Err(finstack_quant_core::Error::Validation(format!(
@@ -89,10 +83,7 @@ impl VolSurfaceTarget {
             )));
         }
 
-        // Filter quotes. Only ingest `OptionVol` quotes whose underlying
-        // matches `params.underlying_ticker` — without this filter the SABR
-        // surface would pool quotes from unrelated underlyings into the same
-        // expiry bucket (mirrors the SVI target's ticker filter).
+        // Use only option quotes for the requested underlying.
         let vol_quotes: Vec<&VolQuote> = quotes
             .iter()
             .filter_map(|q| match q {
@@ -174,17 +165,7 @@ impl VolSurfaceTarget {
             spot * ((r - div_yield) * t).exp()
         };
 
-        // Calibrate SABR per expiry.
-        //
-        // Note: `config.solver` is the Brent *root-finding* configuration for
-        // the 1D bootstrap (price-space tolerance, default 1e-12). That is not
-        // a meaningful tolerance for the vega-weighted SSE objective minimized
-        // by the SABR Levenberg-Marquardt calibrator: reusing it previously
-        // "worked" only because the LM solver silently returned its best
-        // iterate on MaxIterations.
-        // `core::math::solver_multi::minimize` errors loudly on
-        // non-convergence, so the SABR fit uses the calibrator's attainable
-        // production defaults (tolerance 1e-4 on the SSE, 2000 iterations).
+        // The SABR calibrator owns tolerances for its vega-weighted SSE.
         let sabr_calibrator = SABRCalibrator::new();
 
         let mut sabr_params_by_expiry: BTreeMap<OrderedF64, SABRParameters> = BTreeMap::new();
@@ -292,15 +273,7 @@ impl VolSurfaceTarget {
             &grid,
         )?;
 
-        // Sanity-check the produced grid for calendar-spread and butterfly
-        // arbitrage with the forward-aware validators: calendar monotonicity
-        // of total variance at fixed forward log-moneyness (Gatheral–Jacquier
-        // Lemma 2.1) and butterfly via call-price convexity in strike
-        // (Breeden–Litzenberger density test). Violations are recorded on the
-        // report and — mirroring the SVI target (item 9) — fail `success`:
-        // an arbitrageable surface is not a usable calibration result.
-        // Strict mode: lenient validators log-and-return-Ok, which would leave
-        // these diagnostics permanently `None` (the pre-fix behaviour).
+        // Forward-aware arbitrage violations fail the calibration.
         let validation_cfg = ValidationConfig {
             lenient_arbitrage: false,
             ..ValidationConfig::default()
@@ -356,9 +329,6 @@ impl VolSurfaceTarget {
 
         report.update_solver_config(config.solver.clone());
 
-        // Surface arbitrage violations fail the calibration outright: `success`
-        // must reflect `validation_passed` (mirrors the SVI target's item-9
-        // rule) so an arbitrageable surface cannot be silently accepted.
         let warnings: Vec<String> = [calendar_warning, butterfly_warning]
             .into_iter()
             .flatten()

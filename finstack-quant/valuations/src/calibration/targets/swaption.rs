@@ -168,13 +168,7 @@ impl SwaptionVolTarget {
             .with_max_iterations(config.solver.max_iterations());
 
         let mut sabr_params: SABRParamsByExpiryTenor = BTreeMap::new();
-        // Forward used to *calibrate* each bucket, keyed like `sabr_params`.
-        // The cube must store this same forward for directly-calibrated
-        // buckets: the SABR smile's ATM anchor is the calibration forward,
-        // and recomputing it later under `default_leg_conventions` (index
-        // BDC/calendar rather than the quote's swaption convention) can give
-        // a slightly different schedule/forward — pairing calibrated params
-        // with a shifted forward reads the smile off-ATM.
+        // Preserve each bucket's calibration forward for its ATM anchor.
         let mut calibration_forwards: BTreeMap<(u64, u64), f64> = BTreeMap::new();
         let mut residuals = BTreeMap::new();
         let mut bucket_errors: BTreeMap<(u64, u64), String> = BTreeMap::new();
@@ -423,10 +417,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
                 }
 
                 if let Some(p) = p {
-                    // Directly-calibrated bucket: reuse the exact forward the
-                    // SABR params were calibrated against (quote conventions).
-                    // Interpolated/extrapolated grid points have no calibration
-                    // forward, so fall back to the index-default conventions.
+                    // Interpolated points fall back to index-default conventions.
                     let f = if let Some(&cal_fwd) = calibration_forwards.get(&key) {
                         cal_fwd
                     } else {

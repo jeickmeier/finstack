@@ -26,6 +26,7 @@ pub enum PrepaymentCurve {
 
 /// Prepayment model specification.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PrepaymentModelSpec {
     /// CPR: Constant Prepayment Rate (annual, e.g., 0.06 for 6%).
     ///

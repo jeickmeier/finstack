@@ -116,7 +116,6 @@ fn tranche_upfront_frac(
         .expect("price")
         .amount();
 
-    // Decimal fraction of tranche notional (schema convention).
     pv / notional
 }
 

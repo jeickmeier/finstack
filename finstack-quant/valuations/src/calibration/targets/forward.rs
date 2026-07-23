@@ -825,18 +825,10 @@ impl GlobalSolveTarget for ForwardCurveTarget {
                         end,
                         DayCountContext::default(),
                     )?;
-                    // The quoted deposit rate is a simple rate accruing on the
-                    // *index* day count (e.g. Act/360 for SOFR/ESTR deposits),
-                    // which need not match the curve's time-axis day count
-                    // (`time_day_count`, often Act/365F for vendor-zero
-                    // parity). `rate_between` divides the projection growth by
-                    // the curve-day-count interval, so comparing it directly
-                    // against the raw quote would bake a ~365/360 day-count
-                    // basis into the front of the curve. Rescale the growth
-                    // onto the deposit's own accrual factor before differencing.
-                    let idx_conv = crate::market::conventions::registry::ConventionRegistry::
-                        try_global()?
-                        .require_rate_index(index)?;
+                    // Compare simple deposit rates on the index accrual basis.
+                    let idx_conv =
+                        crate::market::conventions::registry::ConventionRegistry::try_global()?
+                            .require_rate_index(index)?;
                     let deposit_accrual = idx_conv.day_count.year_fraction(
                         start,
                         end,

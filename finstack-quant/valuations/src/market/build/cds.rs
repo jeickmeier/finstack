@@ -70,11 +70,7 @@ fn resolve_cds_dates(
 
     let maturity = match pillar {
         Pillar::Tenor(t) => {
-            // Post-2015 ISDA semi-annual roll: an on-the-run tenor quote
-            // references the semi-annual roll date (20-Mar/20-Sep) on or
-            // before the trade date, plus the tenor, extended to the next
-            // standard maturity (20-Jun/20-Dec). On-the-run maturities never
-            // fall in March or September.
+            // Post-2015 ISDA semi-annual roll convention.
             let roll = prev_cds_semiannual_roll(ctx.as_of());
             let raw = t.add_to_date(roll, None, BusinessDayConvention::Unadjusted)?;
             next_semiannual_cds_maturity(raw)
@@ -259,9 +255,7 @@ pub fn build_cds_instrument(quote: &CdsQuote, ctx: &BuildCtx) -> Result<Box<dyn 
     let cds = CreditDefaultSwap {
         id: InstrumentId::new(id.as_str()),
         notional: Money::new(ctx.notional(), convention_key.currency),
-        // Quote-built CDS are constructed as buy-protection (pay premium),
-        // the standard orientation for calibration instruments; the sign
-        // flip for a sold-protection position is a position-level concern.
+        // Calibration instruments buy protection and pay premium.
         side: PayReceive::Pay,
         convention: convention_enum,
         premium: PremiumLegSpec {
@@ -302,6 +296,7 @@ pub fn build_cds_instrument(quote: &CdsQuote, ctx: &BuildCtx) -> Result<Box<dyn 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
     use crate::market::conventions::ids::{CdsConventionKey, CdsDocClause};
     use crate::market::quotes::cds::CdsQuote;
     use crate::market::quotes::ids::{Pillar, QuoteId};
@@ -344,7 +339,6 @@ mod tests {
 
         let instrument = build_cds_instrument(&quote, &ctx)?;
 
-        use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
         let cds = instrument
             .as_any()
             .downcast_ref::<CreditDefaultSwap>()
@@ -386,7 +380,6 @@ mod tests {
 
         let instrument = build_cds_instrument(&quote, &ctx)?;
 
-        use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
         let cds = instrument
             .as_any()
             .downcast_ref::<CreditDefaultSwap>()
@@ -406,28 +399,16 @@ mod tests {
         Ok(())
     }
 
-    /// Semi-annual roll convention across all four calendar windows.
-    ///
-    /// Rule (ISDA 2015 amendment): maturity = semi-annual roll (20-Mar/20-Sep)
-    /// on or before the trade date, plus the tenor, snapped forward to the
-    /// next 20-Jun/20-Dec.
+    /// Semi-annual maturity roll across all four calendar windows.
     #[test]
     fn test_cds_5y_maturity_all_four_quarters() -> Result<()> {
         let cases = [
             // (trade date, expected 5Y scheduled termination)
-            // Roll 2023-09-20 -> 2028-09-20 -> 2028-12-20
             ((2024, Month::January, 15), (2028, Month::December, 20)),
-            // Roll 2026-03-20 -> 2031-03-20 -> 2031-06-20
             ((2026, Month::May, 2), (2031, Month::June, 20)),
-            // Roll 2026-03-20 -> 2031-03-20 -> 2031-06-20 (Jun window trade)
             ((2026, Month::July, 1), (2031, Month::June, 20)),
-            // Roll 2024-09-20 -> 2029-09-20 -> 2029-12-20
             ((2024, Month::October, 1), (2029, Month::December, 20)),
-            // Trade exactly on the roll date uses that roll:
-            // Roll 2025-03-20 -> 2030-03-20 -> 2030-06-20
             ((2025, Month::March, 20), (2030, Month::June, 20)),
-            // Day before the roll still uses the prior September roll:
-            // Roll 2024-09-20 -> 2029-09-20 -> 2029-12-20
             ((2025, Month::March, 19), (2029, Month::December, 20)),
         ];
 
@@ -451,7 +432,6 @@ mod tests {
             };
 
             let instrument = build_cds_instrument(&quote, &ctx)?;
-            use crate::instruments::credit_derivatives::cds::CreditDefaultSwap;
             let cds = instrument
                 .as_any()
                 .downcast_ref::<CreditDefaultSwap>()

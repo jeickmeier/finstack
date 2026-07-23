@@ -932,13 +932,8 @@ pub struct SviSurfaceParams {
     /// Optional spot price override.
     #[serde(default)]
     pub spot_override: Option<f64>,
-    /// Optional continuously-compounded dividend/borrow yield override.
-    ///
-    /// SVI is parameterized in **forward** log-moneyness `k = ln(K/F(T))`, so
-    /// the forward must carry the full cost of carry:
-    /// `F(T) = S·e^{(r − q)T}`. When unset, the target looks up the scalar
-    /// `"<underlying_ticker>-DIVYIELD"` in the market context (mirroring the
-    /// SABR `VolSurfaceParams` behaviour) and falls back to `q = 0`.
+    /// Optional continuous dividend yield; defaults to the market scalar
+    /// `"<underlying_ticker>-DIVYIELD"` or zero.
     #[serde(default)]
     pub dividend_yield_override: Option<f64>,
 }
@@ -1046,11 +1041,7 @@ pub struct XccyBasisParams {
     #[schemars(with = "String")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
-    /// FX spot rate (domestic per foreign).
-    ///
-    /// Used as the fallback for any `XccyQuote::BasisSwap` in the step's
-    /// quote set whose own `spot_fx` is `None`; a per-quote `spot_fx` always
-    /// takes precedence.
+    /// FX spot rate (domestic per foreign), used when a quote omits `spot_fx`.
     pub fx_spot: f64,
     /// Identifier for the pre-calibrated domestic discount curve.
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]

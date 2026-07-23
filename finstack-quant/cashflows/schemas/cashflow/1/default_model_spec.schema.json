@@ -40,6 +40,7 @@
   },
   "$id": "https://finstack_quant.dev/schemas/cashflow/1/default_model_spec.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
   "description": "Default model specifications for credit instruments. Rust types: DefaultCurve and DefaultModelSpec from finstack_quant_cashflows::builder::specs::default",
   "properties": {
     "cdr": {

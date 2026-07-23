@@ -54,9 +54,7 @@ pub(crate) fn preflight_step(
         StepParams::Inflation(p) => validate_inflation_step(p, quotes, context),
         StepParams::VolSurface(p) => validate_vol_surface_step(p, context),
         StepParams::SwaptionVol(p) => validate_swaption_vol_step(p, context),
-        StepParams::BaseCorrelation(p) => {
-            validate_base_correlation_step(p, quotes, context, global_config)
-        }
+        StepParams::BaseCorrelation(p) => validate_base_correlation_step(p, quotes, context),
         StepParams::StudentT(p) => validate_student_t_step(p, quotes, context),
         StepParams::HullWhite(_) | StepParams::CapFloorHullWhite(_) | StepParams::Parametric(_) => {
             Ok(())
@@ -467,7 +465,6 @@ fn validate_base_correlation_step(
     p: &crate::calibration::api::schema::BaseCorrelationParams,
     quotes: &[MarketQuote],
     context: &MarketContext,
-    _global_config: &CalibrationConfig,
 ) -> Result<()> {
     if !p.notional.is_finite() || p.notional <= 0.0 {
         return Err(finstack_quant_core::Error::Validation(format!(
@@ -476,10 +473,8 @@ fn validate_base_correlation_step(
         )));
     }
 
-    // Base correlation calibration requires credit index data to be present in the context.
-    let _index_data = context.get_credit_index(&p.index_id)?;
+    context.get_credit_index(&p.index_id)?;
 
-    // Market-standard: ensure recovery/currency/series/index are consistent.
     let tranche_quotes: Vec<crate::market::quotes::cds_tranche::CDSTrancheQuote> =
         quotes.extract_quotes();
     if tranche_quotes.is_empty() {
@@ -528,11 +523,6 @@ fn validate_base_correlation_step(
                         attachment, detachment
                     )));
                 }
-
-                // Note: CDS tranche quotes carry no recovery_rate of their
-                // own — the recovery used in pricing comes from the credit
-                // index data (validated present above), so there is no
-                // quote-vs-index recovery consistency check to perform here.
             }
         }
     }

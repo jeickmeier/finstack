@@ -1084,7 +1084,7 @@
                   "type": "string"
                 },
                 "quote_type": {
-                  "description": "Quote type label.\n\nCalibrations that discriminate normal (Bachelier) vs lognormal\n(Black) vols parse this via [`parse_vol_quote_type`] and fail\nclosed on unknown strings. Surface targets that do not need the\ndistinction (e.g. SABR smile calibration) treat it as an\ninformational label (e.g. `\"ATM\"`, `\"ATM-50\"`).",
+                  "description": "Quote type label; see [`parse_vol_quote_type`].",
                   "type": "string"
                 },
                 "strike": {
@@ -1139,7 +1139,7 @@
                   "type": "boolean"
                 },
                 "quote_type": {
-                  "description": "Quote type, e.g. \"normal\".\n\nParsed strictly via [`parse_vol_quote_type`] by calibrations that\ndiscriminate normal vs lognormal vols; unknown strings error.",
+                  "description": "Quote type label, e.g. `\"normal\"`; see [`parse_vol_quote_type`].",
                   "type": "string"
                 },
                 "strike": {
@@ -1186,10 +1186,10 @@
       "description": "Cross-currency swap instruments",
       "oneOf": [
         {
-          "description": "Cross-currency basis swap quoted as a spread on the base-currency leg.\n\nPer dealer convention for G10-vs-USD pairs, the USD (quote-currency)\nleg pays its index flat and the non-USD (base-currency) leg carries\nthe quoted basis (e.g. EUR/USD is ESTR + basis vs SOFR flat).",
+          "description": "Cross-currency basis swap quoted as a spread on the base-currency leg.",
           "properties": {
             "basis_spread_bp": {
-              "description": "Basis spread in basis points applied to the base-currency\n(non-USD) leg; the quote-currency leg pays its index flat.",
+              "description": "Basis spread in basis points on the base-currency leg.",
               "format": "double",
               "type": "number"
             },

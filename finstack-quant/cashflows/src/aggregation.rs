@@ -159,7 +159,7 @@ pub(crate) fn validate_periods(periods: &[Period]) -> finstack_quant_core::Resul
 fn aggregate_by_period_sorted(
     sorted: &[crate::DatedFlow],
     periods: &[Period],
-) -> IndexMap<PeriodId, IndexMap<Currency, Money>> {
+) -> finstack_quant_core::Result<IndexMap<PeriodId, IndexMap<Currency, Money>>> {
     let mut out: IndexMap<PeriodId, IndexMap<Currency, Money>> = IndexMap::new();
     let mut per_ccy: IndexMap<Currency, NeumaierAccumulator> = IndexMap::new();
 
@@ -175,11 +175,13 @@ fn aggregate_by_period_sorted(
         }
         let mut result: IndexMap<Currency, Money> = IndexMap::with_capacity(per_ccy.len());
         for (&ccy, acc) in &per_ccy {
-            result.insert(ccy, Money::new(acc.total(), ccy));
+            // try_new errors loudly on non-finite or Decimal-overflow totals
+            // instead of panicking inside Money::new (same policy as PV paths).
+            result.insert(ccy, Money::try_new(acc.total(), ccy)?);
         }
         out.insert(p.id, result);
     }
-    out
+    Ok(out)
 }
 
 /// Aggregate cashflows by period with currency preservation.
@@ -206,7 +208,8 @@ fn aggregate_by_period_sorted(
 /// # Errors
 ///
 /// Returns [`finstack_quant_core::Error::Validation`] if periods are unsorted,
-/// overlapping, or contain duplicate `PeriodId`s.
+/// overlapping, or contain duplicate `PeriodId`s, and a conversion error when a
+/// per-currency total is non-finite or exceeds the `Decimal` range.
 ///
 /// # Performance
 ///
@@ -248,11 +251,11 @@ pub fn aggregate_by_period(
     }
     let is_sorted = flows.windows(2).all(|w| w[0].0 <= w[1].0);
     if is_sorted {
-        return Ok(aggregate_by_period_sorted(flows, periods));
+        return aggregate_by_period_sorted(flows, periods);
     }
     let mut sorted: Vec<crate::DatedFlow> = flows.to_vec();
     sorted.sort_unstable_by_key(|(d, _)| *d);
-    Ok(aggregate_by_period_sorted(&sorted, periods))
+    aggregate_by_period_sorted(&sorted, periods)
 }
 
 // =============================================================================
@@ -533,7 +536,10 @@ pub(crate) fn credit_adjusted_period_pv(
 
     let recovery_term = if let Some(r) = recovery_rate {
         match cf.kind {
-            CFKind::Amortization | CFKind::Notional | CFKind::PrePayment => r * (1.0 - sp),
+            CFKind::Amortization
+            | CFKind::Notional
+            | CFKind::PrePayment
+            | CFKind::RevolvingRepayment => r * (1.0 - sp),
             _ => 0.0,
         }
     } else {
@@ -714,7 +720,8 @@ fn time_discount_survival(
 /// # Recovery Rationale
 ///
 /// This follows standard credit modeling convention where:
-/// - Principal claims (Amortization, Notional, PrePayment) have recovery value in default
+/// - Principal claims (Amortization, Notional, PrePayment, RevolvingRepayment)
+///   have recovery value in default
 /// - Interest/fee claims are typically subordinate and assumed to have zero recovery
 ///
 /// # Recovery and Explicit Recovery Flows
@@ -901,8 +908,9 @@ fn precompute_integrated_pv(
 
         let (t_next, df_t, sp_t) = time_discount_survival(cf.date, disc, Some(hazard), date_ctx)?;
 
-        // DefaultedNotional: zeroed (identical to AtPaymentDate path)
-        if cf.kind == CFKind::DefaultedNotional {
+        // Non-cash flows (PIK capitalization, DefaultedNotional write-downs)
+        // carry zero PV — identical to the AtPaymentDate path.
+        if !is_cash_settlement_kind(cf.kind) {
             out.push((ccy, 0.0));
             continue;
         }
@@ -912,13 +920,17 @@ fn precompute_integrated_pv(
             continue;
         }
 
+        // Only positive principal flows carry default-recovery exposure; a
+        // negative flow (a future draw) keeps its survival-weighted cash PV
+        // but must not enter the exposure ladder (whose accumulation filter
+        // above is positive-amount-only) nor advance the interval boundary.
         let is_principal = matches!(
             cf.kind,
             CFKind::Amortization
                 | CFKind::Notional
                 | CFKind::PrePayment
                 | CFKind::RevolvingRepayment
-        );
+        ) && cf.amount.amount() > 0.0;
 
         if is_principal && current_principal_date != Some(cf.date) {
             // Entering a new principal date group: the boundary becomes the
@@ -1321,6 +1333,139 @@ mod credit_pv_tests {
             0.0,
             None,
         )
+    }
+
+    /// Linearly decaying survival without a base date: `sp(t) = 1 − 0.1·t`.
+    struct LinearSurvival;
+
+    impl TermStructure for LinearSurvival {
+        fn id(&self) -> &CurveId {
+            static ID: std::sync::LazyLock<CurveId> =
+                std::sync::LazyLock::new(|| "hzd-linear".into());
+            &ID
+        }
+    }
+
+    impl Survival for LinearSurvival {
+        fn sp(&self, t: f64) -> f64 {
+            1.0 - 0.1 * t
+        }
+    }
+
+    #[test]
+    fn integrated_timing_zeroes_pik_flows() {
+        // PIK is a capitalization event, not cash: its value is already carried
+        // by the inflated notional redemption. Both recovery-timing modes must
+        // zero it identically.
+        let base = d(2025, 1, 1);
+        let periods = vec![make_period(base, d(2026, 1, 1))];
+        let disc = FlatDiscount { base };
+        let hazard = FlatSurvival;
+        let flows = vec![
+            flow(d(2025, 6, 1), 50_000.0, CFKind::Fixed),
+            flow(d(2025, 6, 1), 40_000.0, CFKind::PIK),
+        ];
+
+        let out = pv_by_period_credit_adjusted_detailed_with_timing(
+            &flows,
+            &periods,
+            &disc,
+            Some(&hazard),
+            None,
+            RecoveryTiming::AtDefaultIntegrated,
+            DateContext::new(base, DayCount::Act365F, DayCountContext::default()),
+        )
+        .expect("integrated timing prices");
+
+        let pv = out[&PeriodId::quarter(2025, 1)][&Currency::USD].amount();
+        let expected = 50_000.0 * 0.95;
+        assert!(
+            (pv - expected).abs() < 1e-9,
+            "PIK must carry zero PV under integrated timing: got {pv}, expected {expected}"
+        );
+    }
+
+    #[test]
+    fn revolving_repayment_recovery_applies_under_payment_date_timing() {
+        // RevolvingRepayment is a principal claim; the payment-date path must
+        // apply the same R·(1−SP) recovery term the integrated path applies.
+        let base = d(2025, 1, 1);
+        let periods = vec![make_period(base, d(2026, 1, 1))];
+        let disc = FlatDiscount { base };
+        let hazard = FlatSurvival;
+        let flows = vec![flow(d(2025, 6, 1), 100_000.0, CFKind::RevolvingRepayment)];
+
+        let out = pv_by_period_credit_adjusted_detailed_with_timing(
+            &flows,
+            &periods,
+            &disc,
+            Some(&hazard),
+            Some(0.40),
+            RecoveryTiming::AtPaymentDate,
+            DateContext::new(base, DayCount::Act365F, DayCountContext::default()),
+        )
+        .expect("payment-date timing prices");
+
+        let pv = out[&PeriodId::quarter(2025, 1)][&Currency::USD].amount();
+        let expected = 100_000.0 * (0.95 + 0.40 * 0.05);
+        assert!(
+            (pv - expected).abs() < 1e-9,
+            "revolving repayment must earn recovery on default: got {pv}, expected {expected}"
+        );
+    }
+
+    #[test]
+    fn integrated_recovery_skips_negative_principal_draws() {
+        // A future delayed draw is a negative Notional flow. It must keep its
+        // survival-weighted cash PV but never enter the recovery-exposure
+        // ladder (whose accumulation filter is positive-amount-only).
+        let base = d(2025, 1, 1);
+        let periods = vec![make_period(base, d(2026, 1, 1))];
+        let disc = FlatDiscount { base };
+        let hazard = LinearSurvival;
+        let flows = vec![
+            flow(d(2025, 6, 1), -500_000.0, CFKind::Notional),
+            flow(d(2025, 12, 1), 500_000.0, CFKind::Amortization),
+        ];
+
+        let out = pv_by_period_credit_adjusted_detailed_with_timing(
+            &flows,
+            &periods,
+            &disc,
+            Some(&hazard),
+            Some(0.40),
+            RecoveryTiming::AtDefaultIntegrated,
+            DateContext::new(base, DayCount::Act365F, DayCountContext::default()),
+        )
+        .expect("negative draws must not corrupt integrated recovery");
+
+        let pv = out[&PeriodId::quarter(2025, 1)][&Currency::USD].amount();
+        let t1 = 151.0 / 365.0; // 2025-01-01 → 2025-06-01
+        let t2 = 334.0 / 365.0; // 2025-01-01 → 2025-12-01
+        let sp1 = 1.0 - 0.1 * t1;
+        let sp2 = 1.0 - 0.1 * t2;
+        // Draw: survival-weighted cash PV only. Amortization: survival-weighted
+        // PV plus recovery integrated over (base, T] with df = 1.
+        let expected = -500_000.0 * sp1 + 500_000.0 * sp2 + 0.40 * 500_000.0 * (1.0 - sp2);
+        assert!(
+            (pv - expected).abs() < 1e-6,
+            "got {pv}, expected {expected}"
+        );
+    }
+
+    #[test]
+    fn aggregate_by_period_errors_on_decimal_overflow() {
+        // Two near-Decimal-max flows in one period overflow the Decimal range
+        // when materialized as Money; that must surface as Err, not a panic.
+        let base = d(2025, 1, 1);
+        let periods = vec![make_period(base, d(2026, 1, 1))];
+        let flows: Vec<crate::DatedFlow> = vec![
+            (d(2025, 3, 1), Money::new(7.0e28, Currency::USD)),
+            (d(2025, 6, 1), Money::new(7.0e28, Currency::USD)),
+        ];
+
+        let res = aggregate_by_period(&flows, &periods);
+        assert!(res.is_err(), "Decimal-overflow sums must error, not panic");
     }
 
     #[test]

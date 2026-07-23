@@ -18,23 +18,15 @@ use ts_rs::TS;
 
 /// Parse a vol quote's `quote_type` string into a typed [`VolQuoteType`].
 ///
-/// Calibrations that must discriminate between normal (Bachelier) and
-/// lognormal (Black) volatilities use this strict, fail-closed vocabulary:
+/// Accepts normal/Bachelier and lognormal/Black aliases case-insensitively.
 ///
-/// | Input (case-insensitive) | Result |
-/// |---|---|
-/// | `"normal"`, `"bachelier"` | [`VolQuoteType::Normal`] |
-/// | `"lognormal"`, `"log_normal"`, `"black"`, `"black_lognormal"` | [`VolQuoteType::BlackLognormal`] |
-/// | anything else | `Err(Error::Validation)` |
+/// # Arguments
 ///
-/// Unknown strings are rejected rather than silently defaulted so that a
-/// mislabelled quote cannot flip a Bachelier calibration into Black (or
-/// vice versa).
+/// * `quote_type` - Case-insensitive quote convention label.
 ///
 /// # Errors
 ///
-/// Returns [`Error::Validation`] when the string is not one of the accepted
-/// vocabulary entries above.
+/// Returns [`Error::Validation`] for an unrecognized label.
 ///
 /// # Examples
 /// ```rust
@@ -154,13 +146,7 @@ pub enum VolQuote {
         strike: f64,
         /// Implied volatility
         vol: f64,
-        /// Quote type label.
-        ///
-        /// Calibrations that discriminate normal (Bachelier) vs lognormal
-        /// (Black) vols parse this via [`parse_vol_quote_type`] and fail
-        /// closed on unknown strings. Surface targets that do not need the
-        /// distinction (e.g. SABR smile calibration) treat it as an
-        /// informational label (e.g. `"ATM"`, `"ATM-50"`).
+        /// Quote type label; see [`parse_vol_quote_type`].
         quote_type: String,
         /// Option exercise conventions
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
@@ -179,10 +165,7 @@ pub enum VolQuote {
         strike: f64,
         /// Implied volatility.
         vol: f64,
-        /// Quote type, e.g. "normal".
-        ///
-        /// Parsed strictly via [`parse_vol_quote_type`] by calibrations that
-        /// discriminate normal vs lognormal vols; unknown strings error.
+        /// Quote type label, e.g. `"normal"`; see [`parse_vol_quote_type`].
         quote_type: String,
         /// `true` for cap, `false` for floor.
         is_cap: bool,

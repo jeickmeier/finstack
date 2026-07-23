@@ -114,8 +114,7 @@ fn plan_and_envelope_serde_roundtrip() {
     assert_eq!(decoded.plan.steps.len(), 1);
 }
 
-/// Build a two-independent-discount-step envelope used by the parallel
-/// execution tests.
+/// Build two independent discount-curve steps.
 fn two_step_envelope(use_parallel: bool) -> CalibrationEnvelope {
     let base_date = Date::from_calendar_date(2025, Month::January, 2).unwrap();
     let currency = Currency::USD;
@@ -213,10 +212,7 @@ fn parallel_execution_batches_independent_discount_steps() {
         .expect("second curve present");
 }
 
-/// Workspace invariant: serial and parallel execution must produce identical
-/// results — same calibrated market state, same residuals, same success flag.
-/// This is the regression gate for the engine's parallel-batch scheduling
-/// (`execute_parallel` vs `execute_sequential`).
+/// Serial and parallel execution must produce identical results.
 #[test]
 fn parallel_and_sequential_execution_produce_identical_results() {
     let sequential = engine::execute(&two_step_envelope(false)).expect("sequential succeeds");
@@ -231,9 +227,6 @@ fn parallel_and_sequential_execution_produce_identical_results() {
         "aggregated residuals must be bit-identical between serial and parallel runs"
     );
 
-    // The full calibrated market state must serialize identically. Serde maps
-    // in `MarketContextState` are ordered, so byte equality is a meaningful
-    // (and the strongest available) equivalence check.
     let seq_market =
         serde_json::to_string(&sequential.result.final_market).expect("serialize sequential");
     let par_market =

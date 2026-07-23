@@ -20,6 +20,10 @@ notes.
 
 - [`REFERENCES.md`](REFERENCES.md): canonical sources for formulas, conventions,
   and market practice.
+- [`FINSTACK_DATA_PLATFORM_PRD.md`](FINSTACK_DATA_PLATFORM_PRD.md): product
+  requirements for the versioned database platform, artifact compiler,
+  multi-backend adapters, pandas research interface, and portfolio
+  materialization targets.
 - [`SERDE_STABILITY.md`](SERDE_STABILITY.md): serialization compatibility rules
   and stability expectations.
 - [`../finstack-quant-py/DOCS_STYLE.md`](../finstack-quant-py/DOCS_STYLE.md):

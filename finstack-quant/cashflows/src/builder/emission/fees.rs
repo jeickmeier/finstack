@@ -363,6 +363,8 @@ mod tests {
                 payment_date,
                 reset_date: None,
                 accrual_year_fraction: 0.0,
+                unadjusted_start: accrual_start,
+                unadjusted_end: accrual_end,
             },
         );
         PeriodicFee {

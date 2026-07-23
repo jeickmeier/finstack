@@ -407,12 +407,7 @@ impl GlobalFitOptimizer {
             }
         }
 
-        // W-41: the final LM solution violated the target's box bounds and was
-        // clamped back inside. The reported point is rail-pinned, not a
-        // stationary point — the fit is under-identified or mis-specified, and
-        // magnitude-based penalty detection cannot see this (the residuals were
-        // honestly re-evaluated at the clamped point). Propagate the explicit
-        // penalty flag so `success` cannot silently report a pinned solution.
+        // A clamped final point is not a stationary solution.
         if final_n_clamped > 0 {
             report = report
                 .with_metadata("final_params_clamped", final_n_clamped.to_string())
@@ -510,10 +505,7 @@ impl GlobalFitOptimizer {
 // strategy. See that module for documentation, references, and unit
 // tests.
 
-// The trailing `usize` is the number of parameters of the *final* LM solution
-// that had to be clamped back inside the target's box bounds. Non-zero means
-// the unconstrained optimum sits outside the feasible region — the reported
-// (in-bounds) point is rail-pinned, not stationary (W-41).
+// The final field counts parameters clamped back inside their bounds.
 type SingleSolveResult = (
     Vec<f64>,
     finstack_quant_core::math::solver_multi::LmStats,
@@ -522,8 +514,8 @@ type SingleSolveResult = (
     usize,
 );
 
-/// Run a single LM solve from the given initial guess. Returns (solved_params, stats,
-/// eval_count, diagnostics) and the weighted L2 norm of the final residuals.
+/// Run one LM solve and return parameters, statistics, evaluation diagnostics,
+/// clamp count, and the final weighted L2 residual norm.
 #[allow(clippy::too_many_arguments)]
 fn run_single_solve<T>(
     target: &T,
@@ -1200,15 +1192,7 @@ fn compute_condition_number(
         return None;
     }
 
-    // The eigenvalues of J^T W J are the *squares* of the singular values of
-    // W^{1/2} J, so λ_max/λ_min is κ(W^{1/2}J)² — the normal-equations
-    // conditioning, which overstates the calibration problem's conditioning by
-    // a full square (a Jacobian conditioned at 1e6 would report 1e12). Return
-    // the square root so the diagnostic is κ(J), the quantity practitioners
-    // mean by "the condition number of the calibration".
-    //
-    // Reference: Golub & Van Loan, *Matrix Computations* §5.3; Nocedal &
-    // Wright, *Numerical Optimization* 2e §10.3.
+    // Eigenvalues of JᵀWJ are squared singular values, so report κ(J).
     Some((lambda_max / lambda_min).abs().sqrt())
 }
 
