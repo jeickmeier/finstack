@@ -94,8 +94,7 @@ per-issuer overrides.
    caller-override → history → bucket-peer-proxy → global-default cascade.
 7. **Anchor** every factor's level value at `as_of` using the same peeling
    logic on a single observation in level space.
-8. Per-factor annualized variance from the unbiased (Bessel-corrected)
-   sample variance.
+8. Per-factor variance forecast via the configured [`VolModelChoice`] (sample or EWMA).
 9. Assemble correlation + covariance per [`CovarianceStrategy`]:
    - `Diagonal` — identity ρ, `Σ = diag(σ²)`.
    - `Ridge { alpha }` — sample ρ (PSD-repaired if needed), `Σ = D·ρ·D + α·I`.
@@ -140,9 +139,9 @@ serialize to byte-identical JSON.
 
 ### Supported / reserved features
 
-- `VolModelChoice::Sample` is the only supported variant today. `Ewma` is
-  reserved at the type level but the calibrator returns a clean
-  `Error::Validation` if it is requested.
+- `VolModelChoice::Sample` (unbiased sample variance) and
+  `VolModelChoice::Ewma { lambda }` (RiskMetrics exponentially weighted
+  variance, λ ∈ (0, 1); Longerstaey & Spencer 1996, §5.2) are both supported.
 - The peer-proxy fallback chain treats `idiosyncratic_overrides` as the
   highest-precedence source for adder vols (caller → history → bucket-peer
   proxy → global mean → zero).

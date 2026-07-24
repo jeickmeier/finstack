@@ -19,7 +19,7 @@
 //! 6. After the last level, the remaining residual is the issuer adder.
 //! 7. Anchor every factor's level value at `as_of` using the same peeling logic
 //!    on a single observation in level space.
-//! 8. Estimate per-factor variance via the sample variance.
+//! 8. Estimate per-factor variance via the configured vol model (sample or RiskMetrics EWMA).
 //! 9. Assemble correlation and covariance per
 //!    [`CovarianceStrategy`][crate::credit::calibration::CovarianceStrategy]:
 //!    `Diagonal` → identity ρ, Σ = diag(σ²); `Ridge` → sample ρ (PSD-repaired
@@ -99,18 +99,27 @@ pub enum PanelSpace {
 
 /// Volatility model selector for the per-factor variance forecast.
 ///
-/// `Sample` is the plain (unbiased) sample variance. `Ewma` is reserved at the
-/// type level and implemented by a follow-up change; the calibrator returns a
-/// clean error if it is supplied.
+/// `Sample` is the plain (unbiased) sample variance. `Ewma` is the RiskMetrics
+/// finite-window exponentially weighted variance estimator (Longerstaey &
+/// Spencer, 1996, §5.2): both are fully supported by the calibrator.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum VolModelChoice {
     /// Plain sample variance (unbiased, Bessel-corrected).
     Sample,
-    /// EWMA with smoothing parameter `lambda`, reserved but not implemented.
+    /// RiskMetrics exponentially weighted moving-average variance.
+    ///
+    /// See [`ewma_variance`] for the estimator implementation. `lambda` must
+    /// be in the open interval `(0, 1)`; validated by
+    /// [`validate_calibration_config`].
+    ///
+    /// # References
+    ///
+    /// - Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical
+    ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2.
     Ewma {
-        /// Smoothing parameter.
+        /// Smoothing parameter λ ∈ (0, 1) (RiskMetrics daily default 0.94).
         lambda: f64,
     },
 }
@@ -182,7 +191,7 @@ pub struct CreditCalibrationConfig {
     pub hierarchy: CreditHierarchySpec,
     /// Per-level minimum-bucket-size thresholds.
     pub min_bucket_size_per_level: BucketSizeThresholds,
-    /// Vol-model choice for the per-factor variance forecast (`Sample` only today).
+    /// Vol-model choice for the per-factor variance forecast (sample or EWMA).
     pub vol_model: VolModelChoice,
     /// Covariance assembly strategy.
     pub covariance_strategy: CovarianceStrategy,
@@ -306,7 +315,8 @@ impl CreditCalibrator {
     /// # Errors
     ///
     /// Returns [`finstack_quant_core::Error::Validation`] when:
-    /// - an unsupported [`VolModelChoice`] is requested,
+    /// - the calibration config fails validation (e.g. an out-of-range
+    ///   [`VolModelChoice::Ewma`] `lambda`),
     /// - the inputs are structurally malformed (length mismatches, missing
     ///   `as_of` in the date grid, missing tags),
     /// - the assembled [`CreditFactorModel::validate`] check fails.
@@ -315,14 +325,6 @@ impl CreditCalibrator {
     ///
     /// * `inputs` - Inputs supplied by the caller for this operation
     pub fn calibrate(&self, inputs: CreditCalibrationInputs) -> Result<CreditFactorModel> {
-        // -- 0. Reject the reserved-but-unimplemented EWMA estimator early. --
-        if let VolModelChoice::Ewma { .. } = self.config.vol_model {
-            return Err(validation_err(
-                "CreditCalibrator supports VolModelChoice::Sample only; \
-                 EWMA is reserved but not implemented",
-            ));
-        }
-
         validate_calibration_config(&self.config)?;
         validate_calibration_inputs(&inputs)?;
 
@@ -403,8 +405,11 @@ impl CreditCalibrator {
         // policy) all issuers are `BucketOnly`, and restricting this step to
         // `IssuerBeta` issuers would leave every idiosyncratic vol at the
         // hard-coded 0.0 fallback — silently zeroing issuer-specific risk.
-        let from_history_vols =
-            adder_vols_from_history(&peel_outcome.adder_series, self.config.annualization_factor);
+        let from_history_vols = adder_vols_from_history(
+            &peel_outcome.adder_series,
+            self.config.vol_model,
+            self.config.annualization_factor,
+        );
         // Build per-level peer proxy index: level_k → bucket_path → [vols].
         let peer_proxy_index = build_peer_proxy_index(
             &from_history_vols,
@@ -423,9 +428,10 @@ impl CreditCalibrator {
             &folded,
         )?;
 
-        // -- 8. Per-factor variance forecast (Sample). ----------------------
+        // -- 8. Per-factor variance forecast (sample or EWMA). --------------
         let factor_variances = factor_variances(
             &peel_outcome.factor_returns,
+            self.config.vol_model,
             self.config.annualization_factor,
         );
 
@@ -513,7 +519,7 @@ impl CreditCalibrator {
             &peel_outcome.factor_returns,
         ));
 
-        let vol_state = build_vol_state(&factor_variances, &issuer_betas);
+        let vol_state = build_vol_state(&factor_variances, &issuer_betas, self.config.vol_model);
 
         let model = CreditFactorModel {
             schema_version: CreditFactorModel::SCHEMA_VERSION.to_owned(),
@@ -588,6 +594,15 @@ fn validate_calibration_config(config: &CreditCalibrationConfig) -> Result<()> {
 
     if let CovarianceStrategy::Ridge { alpha } = config.covariance_strategy {
         validate_non_negative_finite("CreditCalibrator: ridge alpha", alpha)?;
+    }
+
+    if let VolModelChoice::Ewma { lambda } = config.vol_model {
+        validate_finite("CreditCalibrator: ewma lambda", lambda)?;
+        if !(lambda > 0.0 && lambda < 1.0) {
+            return Err(validation_err(format!(
+                "CreditCalibrator: ewma lambda must be in the open interval (0, 1), got {lambda}"
+            )));
+        }
     }
 
     // Custom dimension keys join into dotted dimension paths inside factor
@@ -1266,23 +1281,25 @@ fn compute_fit_quality(y: &[Option<f64>], x: &[f64], beta: f64) -> Option<FitQua
 ///
 /// Variance uses the unbiased sample estimator (`n − 1`, Bessel's correction),
 /// matching [`factor_variances`]; sparse adders can have short effective
-/// histories where the `n` vs `n − 1` distinction is material.
+/// histories where the `n` vs `n − 1` distinction is material. Under
+/// [`VolModelChoice::Ewma`] the same EWMA recursion replaces the sample
+/// estimator; the `< 2` observation gate is unchanged.
 fn adder_vols_from_history(
     adder_series: &BTreeMap<IssuerId, Vec<Option<f64>>>,
+    vol_model: VolModelChoice,
     annualization_factor: f64,
 ) -> BTreeMap<IssuerId, f64> {
     let mut out = BTreeMap::new();
     for (issuer, series) in adder_series {
-        let valid: Vec<f64> = series.iter().filter_map(|v| *v).collect();
-        let n = valid.len();
-        if n < 2 {
+        let n_valid = series.iter().filter(|v| v.is_some()).count();
+        if n_valid < 2 {
             continue;
         }
-        let nf = n as f64;
-        let mean = valid.iter().sum::<f64>() / nf;
-        let var = valid.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (nf - 1.0);
-        let ann_var = var * annualization_factor;
-        out.insert(issuer.clone(), ann_var.max(0.0).sqrt());
+        let ann_var = match vol_model {
+            VolModelChoice::Sample => sample_variance_annualized(series, annualization_factor),
+            VolModelChoice::Ewma { lambda } => ewma_variance(series, lambda, annualization_factor),
+        };
+        out.insert(issuer.clone(), ann_var.sqrt());
     }
     out
 }
@@ -1477,37 +1494,83 @@ fn anchor_levels(
     })
 }
 
-/// Step 8: per-factor annualized variance.
+/// Annualized unbiased sample variance over the `Some` entries of a sparse
+/// series. Returns `0.0` when fewer than 2 valid observations exist.
+///
+/// Extracted from the previous inline bodies of [`factor_variances`] and
+/// [`adder_vols_from_history`] so both estimators share one implementation.
+fn sample_variance_annualized(series: &[Option<f64>], annualization_factor: f64) -> f64 {
+    let valid: Vec<f64> = series.iter().filter_map(|v| *v).collect();
+    let n = valid.len();
+    if n < 2 {
+        return 0.0;
+    }
+    let nf = n as f64;
+    let mean = valid.iter().sum::<f64>() / nf;
+    let var = valid.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (nf - 1.0);
+    (var * annualization_factor).max(0.0)
+}
+
+/// Annualized RiskMetrics EWMA variance over the `Some` entries of a sparse
+/// series.
+///
+/// Implements the finite-window normalized exponentially weighted variance
+/// with the RiskMetrics zero-mean convention (squared returns, no demeaning):
+///
+/// ```text
+/// σ² = (1 − λ) · Σ_{t=0}^{T−1} λ^{T−1−t} · r_t²  /  (1 − λ^T)
+/// ```
+///
+/// computed by the serial recursion `acc ← λ·acc + (1 − λ)·r²` (oldest →
+/// newest) followed by the `1 − λ^T` normalization, then multiplied by
+/// `annualization_factor`. Missing (`None`) entries are skipped; the recency
+/// ordering is taken over the observed entries only. Returns `0.0` when fewer
+/// than 2 valid observations exist (mirrors [`sample_variance_annualized`]).
+///
+/// # References
+///
+/// - Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical
+///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2 (recommends λ = 0.94 for
+///   daily data, λ = 0.97 for monthly).
+fn ewma_variance(series: &[Option<f64>], lambda: f64, annualization_factor: f64) -> f64 {
+    let valid: Vec<f64> = series.iter().filter_map(|v| *v).collect();
+    let n = valid.len();
+    if n < 2 {
+        return 0.0;
+    }
+    let mut acc = 0.0_f64;
+    for r in &valid {
+        acc = lambda * acc + (1.0 - lambda) * r * r;
+    }
+    // λ ∈ (0, 1) (validated in `validate_calibration_config`) and n ≥ 2, so
+    // the normalizer is strictly positive.
+    let norm = 1.0 - lambda.powf(n as f64);
+    ((acc / norm) * annualization_factor).max(0.0)
+}
+
+/// Step 8: per-factor annualized variance under the configured vol model.
 ///
 /// Returns annualized factor variances (already squared) suitable for placing
-/// on the diagonal of `Σ`. Values are **not** std devs; callers must not
-/// take a square root before inserting into the covariance matrix.
+/// on the diagonal of `Σ`. Values are **not** std devs; callers must not take
+/// a square root before inserting into the covariance matrix. Sparse entries
+/// (`None`, empty-bucket dates) are skipped by both estimators.
 ///
-/// Each series may contain `None` entries for dates where all bucket members
-/// were absent (empty-bucket). Such entries are skipped so that variance is
-/// computed only over observed dates. The estimator is the **unbiased sample
-/// variance** (sum of squared deviations from the sample mean divided by
-/// `n − 1`, Bessel's correction). The PC factor is typically observed on every
-/// date, but sparse bucket factors can have a much shorter effective history
-/// than the PC factor, so the `n` vs `n − 1` distinction is material there:
-/// dividing by `n` would systematically understate bucket-factor variance.
+/// - [`VolModelChoice::Sample`]: unbiased (Bessel-corrected) sample variance;
+///   see [`sample_variance_annualized`].
+/// - [`VolModelChoice::Ewma`]: RiskMetrics exponentially weighted variance;
+///   see [`ewma_variance`].
 fn factor_variances(
     factor_returns: &BTreeMap<FactorId, Vec<Option<f64>>>,
+    vol_model: VolModelChoice,
     annualization_factor: f64,
 ) -> BTreeMap<FactorId, f64> {
     let mut out = BTreeMap::new();
     for (fid, series) in factor_returns {
-        let valid: Vec<f64> = series.iter().filter_map(|v| *v).collect();
-        let n = valid.len();
-        if n < 2 {
-            out.insert(fid.clone(), 0.0);
-            continue;
-        }
-        let nf = n as f64;
-        let mean = valid.iter().sum::<f64>() / nf;
-        // Unbiased (Bessel-corrected) sample variance: divide by n − 1.
-        let var = valid.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (nf - 1.0);
-        out.insert(fid.clone(), (var * annualization_factor).max(0.0));
+        let var = match vol_model {
+            VolModelChoice::Sample => sample_variance_annualized(series, annualization_factor),
+            VolModelChoice::Ewma { lambda } => ewma_variance(series, lambda, annualization_factor),
+        };
+        out.insert(fid.clone(), var);
     }
     out
 }
@@ -1809,18 +1872,30 @@ fn build_factor_histories(
 fn build_vol_state(
     factor_variances: &BTreeMap<FactorId, f64>,
     issuer_betas: &[IssuerBetaRow],
+    vol_model: VolModelChoice,
 ) -> VolState {
     let mut factors = BTreeMap::new();
     for (fid, var) in factor_variances {
-        factors.insert(fid.clone(), FactorVolModel::Sample { variance: *var });
+        let model = match vol_model {
+            VolModelChoice::Sample => FactorVolModel::Sample { variance: *var },
+            VolModelChoice::Ewma { lambda } => FactorVolModel::Ewma {
+                lambda,
+                variance: *var,
+            },
+        };
+        factors.insert(fid.clone(), model);
     }
     let mut idiosyncratic = BTreeMap::new();
     for row in issuer_betas {
         let var = row.adder_vol_annualized.powi(2);
-        idiosyncratic.insert(
-            row.issuer_id.clone(),
-            IdiosyncraticVolModel::Sample { variance: var },
-        );
+        let model = match vol_model {
+            VolModelChoice::Sample => IdiosyncraticVolModel::Sample { variance: var },
+            VolModelChoice::Ewma { lambda } => IdiosyncraticVolModel::Ewma {
+                lambda,
+                variance: var,
+            },
+        };
+        idiosyncratic.insert(row.issuer_id.clone(), model);
     }
     VolState {
         factors,
@@ -1891,7 +1966,7 @@ fn build_diagnostics(
 
 #[cfg(test)]
 mod calibration_estimator_tests {
-    use super::{factor_variances, sample_correlation_flat};
+    use super::{ewma_variance, factor_variances, sample_correlation_flat, VolModelChoice};
     use crate::FactorId;
     use std::collections::BTreeMap;
 
@@ -1963,12 +2038,55 @@ mod calibration_estimator_tests {
         let mut returns: BTreeMap<FactorId, Vec<Option<f64>>> = BTreeMap::new();
         returns.insert(fid.clone(), vec![Some(0.0), Some(2.0)]);
 
-        let out = factor_variances(&returns, 1.0);
+        let out = factor_variances(&returns, VolModelChoice::Sample, 1.0);
         let var = *out.get(&fid).expect("variance present");
         assert!(
             (var - 2.0).abs() < 1e-12,
             "expected unbiased variance 2.0 (n-1), got {var}"
         );
+    }
+
+    /// RiskMetrics finite-window EWMA (Longerstaey & Spencer 1996, §5.2),
+    /// zero-mean convention, normalized weights w_t ∝ λ^{T−1−t}.
+    ///
+    /// λ = 0.5, returns (oldest → newest) [2, 1]:
+    ///   raw weights (1−λ)·λ^{T−1−t} = [0.25, 0.5], sum = 1 − λ² = 0.75
+    ///   normalized  = [1/3, 2/3]
+    ///   σ² = (1/3)·4 + (2/3)·1 = 2.0
+    #[test]
+    fn ewma_variance_matches_hand_worked_recursion() {
+        let series = vec![Some(2.0), Some(1.0)];
+        let var = ewma_variance(&series, 0.5, 1.0);
+        assert!((var - 2.0).abs() < 1e-12, "expected 2.0, got {var}");
+    }
+
+    /// Sparse entries are skipped; annualization multiplies the per-period
+    /// variance. Same data as above with a gap and ×12 → 24.0.
+    #[test]
+    fn ewma_variance_skips_missing_observations_and_annualizes() {
+        let series = vec![Some(2.0), None, Some(1.0)];
+        let var = ewma_variance(&series, 0.5, 12.0);
+        assert!((var - 24.0).abs() < 1e-12, "expected 24.0, got {var}");
+    }
+
+    /// λ = 0.5, returns [1, 1, 3]:
+    ///   raw weights = [0.125, 0.25, 0.5], sum = 1 − 0.5³ = 0.875
+    ///   σ² = (0.125·1 + 0.25·1 + 0.5·9)/0.875 = 4.875/0.875 = 39/7
+    /// Recency weighting must overweight the large final move relative to the
+    /// equally-weighted mean of squares (11/3).
+    #[test]
+    fn ewma_variance_weights_recent_observations() {
+        let series = vec![Some(1.0), Some(1.0), Some(3.0)];
+        let var = ewma_variance(&series, 0.5, 1.0);
+        assert!((var - 39.0 / 7.0).abs() < 1e-12, "expected 39/7, got {var}");
+    }
+
+    /// Fewer than 2 valid observations → 0.0 (same fallback as
+    /// `factor_variances`).
+    #[test]
+    fn ewma_variance_insufficient_history_is_zero() {
+        assert_eq!(ewma_variance(&[Some(5.0)], 0.94, 12.0), 0.0);
+        assert_eq!(ewma_variance(&[None, None], 0.94, 12.0), 0.0);
     }
 }
 
@@ -2004,10 +2122,37 @@ mod calibration_config_tests {
 
     #[test]
     fn vol_model_choice_serde_roundtrip() {
-        let variant = VolModelChoice::Sample;
-        let json = serde_json::to_string(&variant).unwrap();
-        let back: VolModelChoice = serde_json::from_str(&json).unwrap();
-        assert_eq!(variant, back);
+        for variant in [
+            VolModelChoice::Sample,
+            VolModelChoice::Ewma { lambda: 0.94 },
+        ] {
+            let json = serde_json::to_string(&variant).unwrap();
+            let back: VolModelChoice = serde_json::from_str(&json).unwrap();
+            assert_eq!(variant, back);
+        }
+        assert_eq!(
+            serde_json::to_string(&VolModelChoice::Ewma { lambda: 0.94 }).unwrap(),
+            r#"{"ewma":{"lambda":0.94}}"#
+        );
+    }
+
+    #[test]
+    fn ewma_lambda_must_be_in_open_unit_interval() {
+        for bad in [0.0, 1.0, -0.5, 1.5, f64::NAN] {
+            let config = CreditCalibrationConfig {
+                vol_model: VolModelChoice::Ewma { lambda: bad },
+                ..CreditCalibrationConfig::default()
+            };
+            assert!(
+                validate_calibration_config(&config).is_err(),
+                "lambda = {bad} must be rejected"
+            );
+        }
+        let good = CreditCalibrationConfig {
+            vol_model: VolModelChoice::Ewma { lambda: 0.94 },
+            ..CreditCalibrationConfig::default()
+        };
+        assert!(validate_calibration_config(&good).is_ok());
     }
 
     #[test]

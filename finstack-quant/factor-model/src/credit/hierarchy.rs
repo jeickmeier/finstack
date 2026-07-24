@@ -503,7 +503,8 @@ impl FactorCorrelationMatrix {
 
 /// Volatility model for a single factor.
 ///
-/// The `Sample` variant stores a single variance estimate.
+/// The `Sample` variant stores a single variance estimate; `Ewma` additionally
+/// persists the smoothing parameter used at calibration time.
 /// The enum intentionally omits `#[serde(deny_unknown_fields)]` to allow
 /// additive extension without breaking readers of older writers.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -513,6 +514,22 @@ pub enum FactorVolModel {
     /// Simple sample-variance estimate.
     Sample {
         /// Annualized variance estimate for this factor.
+        variance: f64,
+    },
+    /// RiskMetrics exponentially weighted moving-average estimate.
+    ///
+    /// Persists both the smoothing parameter and the calibrated annualized
+    /// variance so downstream forecasters can reproduce the estimator without
+    /// re-reading the calibration config.
+    ///
+    /// # References
+    ///
+    /// - Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical
+    ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2.
+    Ewma {
+        /// Smoothing parameter λ ∈ (0, 1) used at calibration time.
+        lambda: f64,
+        /// Annualized one-step-ahead variance forecast.
         variance: f64,
     },
 }
@@ -530,6 +547,23 @@ pub enum IdiosyncraticVolModel {
         /// Annualized variance of the issuer's idiosyncratic adder.
         variance: f64,
     },
+    /// RiskMetrics exponentially weighted moving-average estimate.
+    ///
+    /// Persists both the smoothing parameter and the calibrated annualized
+    /// variance so downstream forecasters can reproduce the estimator without
+    /// re-reading the calibration config.
+    ///
+    /// # References
+    ///
+    /// - Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical
+    ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2.
+    Ewma {
+        /// Smoothing parameter λ ∈ (0, 1) used at calibration time.
+        lambda: f64,
+        /// Annualized one-step-ahead variance forecast for the idiosyncratic
+        /// adder.
+        variance: f64,
+    },
 }
 
 /// Complete vol state for all factors and all issuers at the calibration date.
@@ -537,7 +571,7 @@ pub enum IdiosyncraticVolModel {
 /// Feeds `Σ(t) = D(t) · ρ · D(t)` and per-issuer idiosyncratic vol forecasts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VolState {
-    /// GARCH/EWMA/sample vol model for each systematic factor.
+    /// EWMA or sample vol model for each systematic factor.
     ///
     /// Keys are factor IDs from [`crate::FactorModelConfig`].
     /// `BTreeMap` for deterministic serialization order.
@@ -698,7 +732,7 @@ pub struct CreditFactorModel {
     /// `config.covariance = D·ρ·D + α·I`, so its implied correlations are
     /// shrunk relative to `ρ` by `σᵢσⱼ/√((σᵢ²+α)(σⱼ²+α))`.
     pub static_correlation: FactorCorrelationMatrix,
-    /// GARCH/EWMA/sample vol state at the anchor date.
+    /// EWMA or sample vol state at the anchor date.
     pub vol_state: VolState,
     /// Embedded factor histories (recommended for self-contained artifacts).
     ///

@@ -127,14 +127,19 @@
         { "const": "sample", "description": "Plain sample variance." },
         {
           "type": "object",
-          "description": "EWMA with smoothing parameter lambda, reserved but not implemented.",
+          "description": "RiskMetrics EWMA with smoothing parameter lambda in (0, 1).",
           "required": ["ewma"],
           "properties": {
             "ewma": {
               "type": "object",
               "required": ["lambda"],
               "properties": {
-                "lambda": { "type": "number", "description": "Smoothing parameter." }
+                "lambda": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "exclusiveMaximum": 1,
+                  "description": "Smoothing parameter (RiskMetrics daily default 0.94)."
+                }
               }
             }
           }

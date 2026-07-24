@@ -633,6 +633,52 @@ fn ridge_covariance_accepted() {
     );
 }
 
+/// EWMA vol model calibrates and persists the estimator in vol_state.
+#[test]
+fn ewma_vol_model_calibrates_and_persists_estimator() {
+    let cfg = CreditCalibrationConfig {
+        vol_model: VolModelChoice::Ewma { lambda: 0.94 },
+        min_bucket_size_per_level: BucketSizeThresholds { per_level: vec![1] },
+        ..config_with(
+            IssuerBetaPolicy::GloballyOff,
+            vec![HierarchyDimension::Rating],
+        )
+    };
+    let model = CreditCalibrator::new(cfg)
+        .calibrate(fixture_panel().into_inputs())
+        .expect("EWMA calibration succeeds");
+
+    assert!(!model.vol_state.factors.is_empty());
+    for (fid, vol_model) in &model.vol_state.factors {
+        let FactorVolModel::Ewma { lambda, variance } = vol_model else {
+            panic!("factor {fid} must persist the EWMA estimator, got {vol_model:?}");
+        };
+        assert!((lambda - 0.94).abs() < 1e-15);
+        assert!(variance.is_finite() && *variance >= 0.0);
+    }
+
+    // JSON round-trip preserves the EWMA vol state byte-for-byte.
+    let json = serde_json::to_string(&model).expect("serialize");
+    let back: CreditFactorModel = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(model.vol_state, back.vol_state);
+}
+
+/// Out-of-range lambda is rejected before any estimation runs.
+#[test]
+fn ewma_lambda_out_of_range_rejected_by_calibrate() {
+    let cfg = CreditCalibrationConfig {
+        vol_model: VolModelChoice::Ewma { lambda: 1.0 },
+        ..config_with(
+            IssuerBetaPolicy::GloballyOff,
+            vec![HierarchyDimension::Rating],
+        )
+    };
+    let err = CreditCalibrator::new(cfg)
+        .calibrate(fixture_panel().into_inputs())
+        .expect_err("lambda = 1.0 must be rejected");
+    assert!(err.to_string().contains("ewma lambda"));
+}
+
 /// PR-5b I3: Ridge must reject negative alpha.
 #[test]
 fn ridge_covariance_rejects_negative_alpha() {
