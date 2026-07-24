@@ -106,6 +106,11 @@ impl AgencyProgram {
     /// Returns [`finstack_quant_core::Error::Validation`] if `accrual_year` is
     /// outside the range supported by the calendar (the payment day-of-month
     /// — 15/20/25 — is always valid, so only an out-of-range year can fail).
+///
+/// # Arguments
+///
+/// * `accrual_year` - Accrual year supplied by the caller for this operation
+/// * `accrual_month` - Accrual month supplied by the caller for this operation
     pub fn payment_date_for_period(&self, accrual_year: i32, accrual_month: Month) -> Result<Date> {
         let (pay_year, pay_month, pay_day) = match self {
             AgencyProgram::Fnma | AgencyProgram::Fhlmc => {
@@ -405,6 +410,10 @@ impl AgencyMbsPassthrough {
     /// adding that many calendar days from `period_start`. Otherwise uses
     /// the agency's calendar-based rule via
     /// [`AgencyProgram::payment_date_for_period`].
+///
+/// # Arguments
+///
+/// * `period_start` - Period start supplied by the caller for this operation
     pub fn payment_date_for_accrual_period(&self, period_start: Date) -> Result<Date> {
         if let Some(custom_delay) = self.payment_lag_days {
             super::delay::actual_payment_date(period_start, custom_delay, false)

@@ -75,6 +75,12 @@ impl SABRModel {
     ///
     /// This is the standard SABR formula from Hagan et al. (2002) with enhanced
     /// numerical stability and support for negative rates through shifting.
+///
+/// # Arguments
+///
+/// * `forward` - Forward price or rate used by the volatility or pricing model
+/// * `strike` - Option strike in the surface's quote units (absolute or relative)
+/// * `time_to_expiry` - Time to expiry supplied by the caller for this operation
     #[must_use = "computed volatility should be used"]
     #[inline]
     pub fn implied_volatility(

@@ -224,6 +224,10 @@ impl SabrParams {
     /// The shift is used to handle negative rate environments: when evaluating
     /// implied vol the model internally uses `F+shift` and `K+shift`, keeping
     /// both arguments positive. A typical value for EUR/JPY is `0.03` (300 bps).
+///
+/// # Arguments
+///
+/// * `shift` - Displacement shift applied to forward/strike for negative-rate SABR
     pub fn with_shift(self, shift: f64) -> Self {
         Self {
             shift: Some(shift),
@@ -461,6 +465,12 @@ impl SabrParams {
     ///   explicit shift via [`with_shift`](Self::with_shift).
     /// - Returns [`InputError::Invalid`](crate::error::InputError::Invalid)
     ///   when the underlying expansion yields a non-finite volatility.
+///
+/// # Arguments
+///
+/// * `f` - Objective or payoff closure evaluated by the solver or Monte Carlo engine
+/// * `k` - K supplied by the caller for this operation
+/// * `t` - Year-fraction time from the curve or surface base date to the query point
     pub fn implied_vol_normal(&self, f: f64, k: f64, t: f64) -> crate::Result<f64> {
         let shift = self.shift.unwrap_or(0.0);
         let (sf, sk) = (f + shift, k + shift);

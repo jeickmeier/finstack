@@ -936,6 +936,12 @@ impl Waterfall {
     /// 2. Interest tier (sequential, by priority)
     /// 3. Principal tier (sequential, by priority, divertible)
     /// 4. Equity tier (residual)
+///
+/// # Arguments
+///
+/// * `base_currency` - Base currency supplied by the caller for this operation
+/// * `tranches` - Tranches supplied by the caller for this operation
+/// * `fee_recipients` - Fee recipients supplied by the caller for this operation
     pub fn standard_sequential(
         base_currency: Currency,
         tranches: &super::TrancheStructure,

@@ -371,6 +371,11 @@ impl FactorCorrelationMatrix {
     /// - Any diagonal entry deviates from `1.0` by more than `1e-9`
     /// - The matrix is not symmetric within `1e-9`
     /// - the `factor_ids` list contains duplicates.
+///
+/// # Arguments
+///
+/// * `factor_ids` - Factor ids supplied by the caller for this operation
+/// * `data` - Data supplied by the caller for this operation
     pub fn new(
         factor_ids: Vec<FactorId>,
         data: Vec<Vec<f64>>,

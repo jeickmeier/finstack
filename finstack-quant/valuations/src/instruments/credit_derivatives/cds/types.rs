@@ -315,6 +315,10 @@ impl CDSConvention {
     /// let asia = CDSConvention::detect_from_currency(Currency::JPY);
     /// assert_eq!(asia, CDSConvention::IsdaAs);
     /// ```
+///
+/// # Arguments
+///
+/// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
     #[must_use]
     pub fn detect_from_currency(currency: Currency) -> Self {
         match currency {

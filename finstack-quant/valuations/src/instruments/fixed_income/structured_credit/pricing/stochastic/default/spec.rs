@@ -292,6 +292,10 @@ impl StochasticDefaultSpec {
     /// from the loan-age `seasoning` the engines pass in. The other models
     /// are seasoning-curve based (loan age is the correct index) and ignore
     /// the offset.
+///
+/// # Arguments
+///
+/// * `seasoning_offset_months` - Seasoning offset months supplied by the caller for this operation
     pub fn build_with_seasoning_offset(
         &self,
         seasoning_offset_months: u32,

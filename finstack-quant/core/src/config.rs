@@ -461,6 +461,10 @@ impl RoundingContext {
     }
 
     /// Money epsilon derived from the currency output scale (half ULP at that scale).
+///
+/// # Arguments
+///
+/// * `ccy` - Ccy supplied by the caller for this operation
     #[inline]
     pub fn money_epsilon(&self, ccy: crate::currency::Currency) -> f64 {
         let scale = self.output_scale(ccy) as i32;

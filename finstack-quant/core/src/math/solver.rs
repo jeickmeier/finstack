@@ -397,6 +397,10 @@ impl NewtonSolver {
     /// The residual test becomes `|f(x)| < tolerance × residual_scale`. Use the
     /// natural magnitude of the objective (e.g. notional or reference price) when
     /// residuals are not O(1). Defaults to `1.0`.
+///
+/// # Arguments
+///
+/// * `residual_scale` - Residual scale supplied by the caller for this operation
     #[must_use]
     pub fn residual_scale(mut self, residual_scale: f64) -> Self {
         self.residual_scale = residual_scale;

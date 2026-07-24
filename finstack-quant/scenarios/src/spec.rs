@@ -108,6 +108,10 @@ impl ScenarioSpec {
     ///
     /// This is the preferred entry point when the scenario identifier is known
     /// up front and the ordered operations will be assembled fluently.
+///
+/// # Arguments
+///
+/// * `id` - Stable string identifier used for lookup and serialization of this object
     #[must_use]
     pub fn builder(id: impl Into<String>) -> crate::templates::ScenarioSpecBuilder {
         crate::templates::ScenarioSpecBuilder::new(id)

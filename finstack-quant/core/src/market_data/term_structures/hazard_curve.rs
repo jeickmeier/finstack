@@ -258,6 +258,10 @@ impl HazardCurve {
     }
 
     /// Survival probability S(t) up to time `t` (in **years**).
+///
+/// # Arguments
+///
+/// * `t` - Year-fraction time from the curve or surface base date to the query point
     #[must_use]
     pub fn sp(&self, t: f64) -> f64 {
         if t <= 0.0 {
@@ -281,6 +285,11 @@ impl HazardCurve {
     /// # Errors
     ///
     /// Returns an error if `t2 < t1`.
+///
+/// # Arguments
+///
+/// * `t1` - Start year-fraction of the forward or rate interval being queried
+/// * `t2` - End year-fraction of the forward or rate interval being queried
     #[must_use = "computed default probability should not be discarded"]
     pub fn default_prob(&self, t1: f64, t2: f64) -> crate::Result<f64> {
         if t2 < t1 {
@@ -299,7 +308,9 @@ impl HazardCurve {
     /// corresponding to the interval containing `t`.
     ///
     /// # Arguments
-    /// * `t` - Time in years
+    ///
+    /// * `t` - Year-fraction from the curve base date to the query point; values
+    ///   at or below zero return the first segment's hazard rate
     ///
     /// # Panics
     ///
@@ -733,6 +744,11 @@ impl HazardCurve {
 
     /// Return an interpolated par spread in basis points for reporting.
     /// Linear interpolation in spread, with log-linear fallback when values are positive and requested.
+///
+/// # Arguments
+///
+/// * `t` - Year-fraction time from the curve or surface base date to the query point
+/// * `method` - Named algorithm or interpolation method applied by the operation
     #[must_use]
     pub fn cds_quote_bp(&self, t: f64, method: ParInterp) -> f64 {
         // If the curve was constructed without explicit par-spread quotes, fall back to a

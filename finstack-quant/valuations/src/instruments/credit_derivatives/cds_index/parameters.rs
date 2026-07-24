@@ -53,6 +53,14 @@ impl CDSIndexParams {
     /// For standard indices prefer the dedicated factories:
     /// [`CDSIndexParams::cdx_na_ig`], [`cdx_na_hy`](Self::cdx_na_hy),
     /// [`itraxx_europe`](Self::itraxx_europe).
+///
+/// # Arguments
+///
+/// * `index_name` - Index name supplied by the caller for this operation
+/// * `series` - Time-ordered numeric samples for a single risk factor or price series
+/// * `version` - Version supplied by the caller for this operation
+/// * `fixed_coupon_bp` - Fixed coupon bp supplied by the caller for this operation
+/// * `convention` - Convention supplied by the caller for this operation
     pub fn new(
         index_name: impl Into<String>,
         series: u16,
@@ -83,6 +91,12 @@ impl CDSIndexParams {
     ///
     /// Defaults to the standard 125-name pool; override with
     /// `CDSIndex::with_num_constituents` for an off-series count.
+///
+/// # Arguments
+///
+/// * `series` - Time-ordered numeric samples for a single risk factor or price series
+/// * `version` - Version supplied by the caller for this operation
+/// * `fixed_coupon_bp` - Fixed coupon bp supplied by the caller for this operation
     pub fn cdx_na_ig(series: u16, version: u16, fixed_coupon_bp: f64) -> Self {
         Self::new(
             "CDX.NA.IG",
@@ -99,6 +113,12 @@ impl CDSIndexParams {
     /// Defaults to a 100-name pool; CDX.NA.HY membership varies by series, so
     /// override with `CDSIndex::with_num_constituents` when the exact
     /// per-series count is known.
+///
+/// # Arguments
+///
+/// * `series` - Time-ordered numeric samples for a single risk factor or price series
+/// * `version` - Version supplied by the caller for this operation
+/// * `fixed_coupon_bp` - Fixed coupon bp supplied by the caller for this operation
     pub fn cdx_na_hy(series: u16, version: u16, fixed_coupon_bp: f64) -> Self {
         Self::new(
             "CDX.NA.HY",
@@ -114,6 +134,12 @@ impl CDSIndexParams {
     ///
     /// Defaults to the standard 125-name pool; override with
     /// `CDSIndex::with_num_constituents` for an off-series count.
+///
+/// # Arguments
+///
+/// * `series` - Time-ordered numeric samples for a single risk factor or price series
+/// * `version` - Version supplied by the caller for this operation
+/// * `fixed_coupon_bp` - Fixed coupon bp supplied by the caller for this operation
     pub fn itraxx_europe(series: u16, version: u16, fixed_coupon_bp: f64) -> Self {
         Self::new(
             "iTraxx Europe",

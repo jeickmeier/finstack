@@ -55,6 +55,13 @@ impl EvolutionParams {
     /// happens for extreme combinations of `vol`, `drift`, `dt`). Release builds
     /// must enforce this — silent arbitrage in lattice probabilities is a
     /// production hazard.
+///
+/// # Arguments
+///
+/// * `volatility` - Volatility supplied by the caller for this operation
+/// * `risk_free_rate` - Risk free rate supplied by the caller for this operation
+/// * `dividend_yield` - Dividend yield supplied by the caller for this operation
+/// * `dt` - Dt supplied by the caller for this operation
     pub fn equity_crr(
         volatility: f64,
         risk_free_rate: f64,
@@ -110,6 +117,13 @@ impl EvolutionParams {
     /// to one within `1e-10`. This catches arbitrage-violating parameter
     /// combinations (extreme drift/vol/dt) in release builds; debug-only
     /// `debug_assert!` was insufficient.
+///
+/// # Arguments
+///
+/// * `volatility` - Volatility supplied by the caller for this operation
+/// * `risk_free_rate` - Risk free rate supplied by the caller for this operation
+/// * `dividend_yield` - Dividend yield supplied by the caller for this operation
+/// * `dt` - Dt supplied by the caller for this operation
     pub fn equity_trinomial(
         volatility: f64,
         risk_free_rate: f64,

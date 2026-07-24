@@ -63,6 +63,10 @@ impl YieldPca {
     /// - Fewer than 3 observations (need at least 2 yield changes)
     /// - Fewer than 2 tenors
     /// - Covariance matrix is degenerate (all-zero yield changes)
+///
+/// # Arguments
+///
+/// * `panel` - Panel supplied by the caller for this operation
     pub fn fit(panel: &YieldPanel) -> crate::Result<Self> {
         let n = panel.num_tenors();
         let t = panel.num_dates();
@@ -189,6 +193,10 @@ impl YieldPca {
     /// - Yield-change rows are empty or ragged
     /// - Fewer than two yield-change rows or fewer than two tenors are supplied
     /// - The covariance matrix is degenerate
+///
+/// # Arguments
+///
+/// * `yield_changes` - Yield changes supplied by the caller for this operation
     pub fn fit_yield_changes(yield_changes: Vec<Vec<f64>>) -> crate::Result<Self> {
         let panel = YieldPanel::from_yield_changes(yield_changes)?;
         Self::fit(&panel)

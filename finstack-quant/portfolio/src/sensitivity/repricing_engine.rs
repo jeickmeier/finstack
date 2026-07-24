@@ -60,6 +60,10 @@ impl ScenarioGrid {
     /// Returns a validation error when `n_points < 3` or when `n_points` is
     /// even, because an even number of points cannot include a center point and
     /// symmetric `-1` / `+1` shocks.
+///
+/// # Arguments
+///
+/// * `n_points` - N points supplied by the caller for this operation
     pub fn try_new(n_points: usize) -> Result<Self> {
         if n_points < Self::MIN_POINTS {
             return Err(Error::Validation(format!(

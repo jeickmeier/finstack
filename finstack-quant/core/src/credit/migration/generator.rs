@@ -154,6 +154,10 @@ impl GeneratorMatrix {
     /// - [`MigrationError::NoValidGenerator`] if any eigenvalue is ≤ 0.
     /// - [`MigrationError::RoundTripError`] if ‖exp(Q) − P‖∞ exceeds the default
     ///   tolerance of `1e-2`.
+///
+/// # Arguments
+///
+/// * `p` - P supplied by the caller for this operation
     pub fn from_transition_matrix(p: &TransitionMatrix) -> Result<Self, MigrationError> {
         Self::from_transition_matrix_with_tol(p, 1e-2)
     }
@@ -166,6 +170,11 @@ impl GeneratorMatrix {
     /// - [`MigrationError::ComplexEigenvalues`] if P has complex eigenvalues.
     /// - [`MigrationError::NoValidGenerator`] if any eigenvalue is ≤ 0.
     /// - [`MigrationError::RoundTripError`] if ‖exp(Q) − P‖∞ exceeds `round_trip_tol`.
+///
+/// # Arguments
+///
+/// * `p` - P supplied by the caller for this operation
+/// * `round_trip_tol` - Round trip tol supplied by the caller for this operation
     pub fn from_transition_matrix_with_tol(
         p: &TransitionMatrix,
         round_trip_tol: f64,

@@ -363,7 +363,7 @@ impl ValuationResult {
     /// # Arguments
     ///
     /// * `instrument_id` - Unique identifier for the priced instrument
-    /// * `as_of` - Valuation date
+    /// * `as_of` - Valuation date stamped onto the result for audit and replay
     /// * `value` - Present value in the instrument's currency
     /// * `meta` - Pre-constructed metadata with policy stamps
     ///
@@ -505,12 +505,20 @@ impl ValuationResult {
     }
 
     /// Attach rich model-specific valuation details.
+///
+/// # Arguments
+///
+/// * `details` - Details supplied by the caller for this operation
     pub fn with_details(mut self, details: ValuationDetails) -> Self {
         self.details = Some(details);
         self
     }
 
     /// Get a metric by `MetricId`.
+///
+/// # Arguments
+///
+/// * `id` - Stable string identifier used for lookup and serialization of this object
     pub fn metric(&self, id: MetricId) -> Option<f64> {
         self.measures.get(&id).copied()
     }

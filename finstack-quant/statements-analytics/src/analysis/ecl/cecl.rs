@@ -227,6 +227,11 @@ impl<'a> CeclEngine<'a> {
     /// finite, non-negative, and summing to 1.0, or when the configured
     /// methodology is not [`CeclMethodology::PdLgdEad`] (the only one
     /// implemented).
+///
+/// # Arguments
+///
+/// * `config` - Configuration object controlling validation, rounding, or solver behavior
+/// * `pd_sources` - Pd sources supplied by the caller for this operation
     pub fn new(
         config: CeclConfig,
         pd_sources: Vec<(&'a MacroScenario, &'a dyn PdTermStructure)>,

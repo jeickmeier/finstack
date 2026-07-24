@@ -161,6 +161,13 @@ impl BasisSwap {
     /// - Either leg has `start >= end` (invalid swap tenor)
     /// - Both legs reference the same forward curve (use `new_allowing_same_curve` to override)
     /// - Any lag is negative
+///
+/// # Arguments
+///
+/// * `id` - Stable string identifier used for lookup and serialization of this object
+/// * `notional` - Trade notional amount in the instrument currency's major units
+/// * `primary_leg` - Primary leg supplied by the caller for this operation
+/// * `reference_leg` - Reference leg supplied by the caller for this operation
     pub fn new(
         id: impl Into<String>,
         notional: Money,

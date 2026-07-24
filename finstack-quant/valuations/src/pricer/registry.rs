@@ -307,7 +307,7 @@ impl PricerRegistry {
     /// * `instrument` - Instrument to price (as trait object)
     /// * `model` - Pricing model to use
     /// * `market` - Market data context with curves and surfaces
-    /// * `as_of` - Valuation date
+    /// * `as_of` - Valuation date that anchors discounting, accruals, and metric bumps
     /// * `metrics` - Standard metrics to compute (e.g., `MetricId::Ytm`,
     ///   `MetricId::ZSpread`). Pass `&[]` for PV only.
     /// * `options` - Optional overrides for config, market history, etc.

@@ -201,6 +201,10 @@ impl MarketContext {
     ///
     /// Returns an error if any bumped entry is missing, the bump type is unsupported,
     /// or reconstruction fails.
+///
+/// # Arguments
+///
+/// * `bumps` - Bumps supplied by the caller for this operation
     pub fn bump<I>(&self, bumps: I) -> Result<Self>
     where
         I: IntoIterator<Item = MarketBump>,

@@ -53,6 +53,11 @@ impl Performance {
     ///
     /// Returns [`crate::error::InputError::InvalidReturnSeries`] when
     /// `ticker_idx` is outside the loaded ticker columns.
+///
+/// # Arguments
+///
+/// * `ticker_idx` - Zero-based column index of the ticker in the loaded performance panel
+/// * `n` - Count of elements, paths, or periods requested by the caller
     pub fn drawdown_details(
         &self,
         ticker_idx: usize,
@@ -128,6 +133,11 @@ impl Performance {
     }
 
     /// Excess returns (portfolio minus risk-free) for each ticker.
+///
+/// # Arguments
+///
+/// * `rf` - Rf supplied by the caller for this operation
+/// * `nperiods` - Nperiods supplied by the caller for this operation
     pub fn excess_returns(&self, rf: &[f64], nperiods: Option<f64>) -> Vec<Vec<f64>> {
         self.map_tickers(|i| excess_returns(self.active_returns(i), rf, nperiods))
     }

@@ -617,6 +617,12 @@ impl LatentMultiFactor {
     ///
     /// A validated model from the original matrix, a model built from the
     /// Higham-projected matrix, or (last resort) an uncorrelated fallback.
+///
+/// # Arguments
+///
+/// * `num_factors` - Num factors supplied by the caller for this operation
+/// * `volatilities` - Volatilities supplied by the caller for this operation
+/// * `correlations` - Correlations supplied by the caller for this operation
     #[must_use]
     pub fn new_or_identity(
         num_factors: usize,

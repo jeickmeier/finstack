@@ -792,6 +792,10 @@ impl StructuredCredit {
     /// # Ok(())
     /// # }
     /// ```
+///
+/// # Arguments
+///
+/// * `waterfall` - Waterfall supplied by the caller for this operation
     pub fn with_waterfall(mut self, waterfall: Waterfall) -> finstack_quant_core::Result<Self> {
         self.waterfall = Some(waterfall);
         self.validate_custom_waterfall()?;

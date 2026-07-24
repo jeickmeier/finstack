@@ -598,6 +598,10 @@ impl CashflowSpec {
     /// - `overnight_compounding`: `None`
     /// - `overnight_basis`: `None`
     /// - `fallback`: `FloatingRateFallback::Error`
+///
+/// # Arguments
+///
+/// * `params` - Params supplied by the caller for this operation
     pub fn floating_with_conventions(params: FloatingConventionParams) -> Self {
         Self::Floating(FloatingCouponSpec {
             rate_spec: FloatingRateSpec {
@@ -772,6 +776,10 @@ impl CashflowSpec {
     /// # Calendar fallback
     ///
     /// If `params.calendar_id` is `None`, falls back to `"weekends_only"`.
+///
+/// # Arguments
+///
+/// * `params` - Params supplied by the caller for this operation
     pub fn from_bond_builder_params(params: BondBuilderParams) -> Self {
         let BondBuilderParams {
             coupon_rate,

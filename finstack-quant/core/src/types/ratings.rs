@@ -590,6 +590,10 @@ impl RatingFactorTable {
     /// Returns [`crate::error::InputError::NotFound`] if this table contains no
     /// factor for `rating`. The error identifies the requested generic rating
     /// label; it does not apply `default_factor` implicitly.
+///
+/// # Arguments
+///
+/// * `rating` - Rating supplied by the caller for this operation
     pub fn get_factor(&self, rating: CreditRating) -> crate::Result<f64> {
         self.factors.get(&rating).copied().ok_or_else(|| {
             crate::Error::Input(crate::error::InputError::NotFound {
@@ -599,6 +603,10 @@ impl RatingFactorTable {
     }
 
     /// Get factor for a specific rating, falling back to the table default when missing.
+///
+/// # Arguments
+///
+/// * `rating` - Rating supplied by the caller for this operation
     pub fn get_factor_or_default(&self, rating: CreditRating) -> f64 {
         self.get_factor(rating).unwrap_or(self.default_factor)
     }

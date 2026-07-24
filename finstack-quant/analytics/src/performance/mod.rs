@@ -802,6 +802,10 @@ impl Performance {
     ///
     /// Returns [`crate::error::InputError::InvalidReturnSeries`] when
     /// `ticker_idx` is outside the loaded ticker columns.
+///
+/// # Arguments
+///
+/// * `ticker_idx` - Zero-based column index of the ticker in the loaded performance panel
     pub fn active_dates_for_ticker(&self, ticker_idx: usize) -> crate::Result<&[Date]> {
         self.ensure_ticker_idx(ticker_idx)?;
         Ok(self.active_dates_for_ticker_unchecked(ticker_idx))

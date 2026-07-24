@@ -211,6 +211,11 @@ impl CorrelationFactor {
     /// # Errors
     ///
     /// Returns [`CholeskyError::DimensionMismatch`] if either slice length differs from `n`.
+///
+/// # Arguments
+///
+/// * `independent` - Independent supplied by the caller for this operation
+/// * `correlated` - Correlated supplied by the caller for this operation
     pub fn apply(
         &self,
         independent: &[f64],

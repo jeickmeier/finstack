@@ -108,6 +108,14 @@ impl Lookback {
     ///
     /// - For **Call**: pass the observed maximum so far (e.g., `max(observed_max, spot)`)
     /// - For **Put**: pass the observed minimum so far (e.g., `min(observed_min, spot)`)
+///
+/// # Arguments
+///
+/// * `direction` - Direction supplied by the caller for this operation
+/// * `strike` - Option strike in the surface's quote units (absolute or relative)
+/// * `notional` - Trade notional amount in the instrument currency's major units
+/// * `maturity_step` - Maturity step supplied by the caller for this operation
+/// * `initial_extremum` - Initial extremum supplied by the caller for this operation
     pub fn with_initial_extremum(
         direction: LookbackDirection,
         strike: f64,
@@ -192,6 +200,12 @@ impl FloatingStrikeLookbackCall {
     ///
     /// Use this for seasoned options where the observed minimum is below the current spot.
     /// The `initial_min` is preserved across MC path resets.
+///
+/// # Arguments
+///
+/// * `notional` - Trade notional amount in the instrument currency's major units
+/// * `maturity_step` - Maturity step supplied by the caller for this operation
+/// * `initial_min` - Initial min supplied by the caller for this operation
     pub fn with_initial_min(notional: f64, maturity_step: usize, initial_min: f64) -> Self {
         Self {
             notional,
@@ -270,6 +284,12 @@ impl FloatingStrikeLookbackPut {
     ///
     /// Use this for seasoned options where the observed maximum is above the current spot.
     /// The `initial_max` is preserved across MC path resets.
+///
+/// # Arguments
+///
+/// * `notional` - Trade notional amount in the instrument currency's major units
+/// * `maturity_step` - Maturity step supplied by the caller for this operation
+/// * `initial_max` - Initial max supplied by the caller for this operation
     pub fn with_initial_max(notional: f64, maturity_step: usize, initial_max: f64) -> Self {
         Self {
             notional,

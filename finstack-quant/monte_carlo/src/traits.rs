@@ -441,6 +441,10 @@ impl PathState {
     /// Prefer this over [`Self::vars`] on hot paths to reuse a single `HashMap`
     /// allocation instead of cloning the dynamic map and allocating a fresh map
     /// on every call.
+///
+/// # Arguments
+///
+/// * `out` - Out supplied by the caller for this operation
     pub fn collect_vars(&self, out: &mut HashMap<&'static str, f64>) {
         out.clear();
 
@@ -509,6 +513,11 @@ impl PathState {
     }
 
     /// Add a cashflow to this state.
+///
+/// # Arguments
+///
+/// * `time` - Time supplied by the caller for this operation
+/// * `amount` - Finite monetary quantity in major currency units before rounding
     pub fn add_cashflow(&mut self, time: f64, amount: f64) {
         self.extras_mut()
             .cashflows
@@ -516,6 +525,12 @@ impl PathState {
     }
 
     /// Add a typed cashflow to this state.
+///
+/// # Arguments
+///
+/// * `time` - Time supplied by the caller for this operation
+/// * `amount` - Finite monetary quantity in major currency units before rounding
+/// * `cf_type` - Cf type supplied by the caller for this operation
     pub fn add_typed_cashflow(&mut self, time: f64, amount: f64, cf_type: CashflowType) {
         self.extras_mut().cashflows.push((time, amount, cf_type));
     }

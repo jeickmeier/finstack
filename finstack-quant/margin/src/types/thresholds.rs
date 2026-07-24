@@ -324,6 +324,11 @@ impl ImParameters {
     /// # Errors
     ///
     /// Returns an error if the embedded margin registry cannot be loaded.
+///
+/// # Arguments
+///
+/// * `methodology` - Methodology supplied by the caller for this operation
+/// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
     pub fn for_methodology(methodology: ImMethodology, currency: Currency) -> Result<Self> {
         let registry = embedded_registry()?;
         Ok(Self::from_registry_defaults(

@@ -108,6 +108,10 @@ impl McEngineConfig {
     /// Enable or disable antithetic path pairing.
     ///
     /// Path capture and antithetic pricing are currently mutually exclusive.
+///
+/// # Arguments
+///
+/// * `enabled` - Enabled supplied by the caller for this operation
     #[must_use]
     pub fn antithetic(mut self, enabled: bool) -> Self {
         self.antithetic = enabled;
@@ -154,6 +158,10 @@ impl McEngineBuilder {
     }
 
     /// Set the simulation time grid.
+///
+/// # Arguments
+///
+/// * `grid` - Grid supplied by the caller for this operation
     pub fn time_grid(mut self, grid: TimeGrid) -> Self {
         self.time_grid = Some(grid);
         self

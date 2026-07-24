@@ -336,6 +336,10 @@ impl MertonMcConfig {
     }
 
     /// Set the market-calibration specification.
+///
+/// # Arguments
+///
+/// * `c` - C supplied by the caller for this operation
     #[must_use]
     pub fn calibration(mut self, c: MertonMcCalibrationSpec) -> Self {
         self.calibration = Some(c);
@@ -457,12 +461,12 @@ impl MertonMcEngine {
     ///
     /// # Arguments
     ///
-    /// * `notional` - Bond face value
-    /// * `coupon_rate` - Annual coupon rate (e.g., 0.08 for 8%)
-    /// * `maturity_years` - Time to maturity in years
-    /// * `coupon_frequency` - Coupons per year (e.g., 2 for semi-annual)
-    /// * `config` - Monte Carlo configuration (includes PIK schedule)
-    /// * `discount_rate` - Discount rate for the Merton drift and flat-rate
+    /// * `notional` - Bond face amount in major currency units used as the repayment basis
+    /// * `coupon_rate` - Annual coupon rate as a decimal (for example 0.08 for 8%)
+    /// * `maturity_years` - Time to maturity in years under the pricing day-count
+    /// * `coupon_frequency` - Number of coupon periods per year (for example 2 for semi-annual)
+    /// * `config` - Monte Carlo configuration including path count and PIK schedule
+    /// * `discount_rate` - Continuous discount rate for Merton drift and the flat-rate
     ///   fallback when `cashflow_dfs` is not set
     ///
     /// # Errors

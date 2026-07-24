@@ -237,6 +237,11 @@ impl MarketSnapshot {
     ///
     /// Only the families corresponding to set flags are populated into the snapshot;
     /// other fields remain empty (or `None` for FX).
+///
+/// # Arguments
+///
+/// * `market` - Market context providing curves, surfaces, and fixing data for pricing
+/// * `flags` - Flags supplied by the caller for this operation
     pub fn extract(market: &MarketContext, flags: MarketRestoreFlags) -> Self {
         let mut snapshot = Self::default();
 

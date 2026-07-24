@@ -312,6 +312,11 @@ impl PricingError {
     ///     .model(ModelKey::Discounting);
     /// let pricing_err = PricingError::from_core(core_err, ctx);
     /// ```
+///
+/// # Arguments
+///
+/// * `err` - Err supplied by the caller for this operation
+/// * `context` - Context supplied by the caller for this operation
     pub fn from_core(err: finstack_quant_core::Error, context: PricingErrorContext) -> Self {
         match err {
             finstack_quant_core::Error::Input(input) => match input {

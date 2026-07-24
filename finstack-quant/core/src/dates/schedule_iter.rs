@@ -656,6 +656,10 @@ impl<'a> ScheduleBuilder<'a> {
     }
 
     /// Set stub handling rule.
+///
+/// # Arguments
+///
+/// * `stub` - Stub supplied by the caller for this operation
     #[must_use]
     pub fn stub_rule(mut self, stub: StubKind) -> Self {
         self.stub = stub;
@@ -663,6 +667,11 @@ impl<'a> ScheduleBuilder<'a> {
     }
 
     /// Configure business-day adjustment using `conv` and `cal`.
+///
+/// # Arguments
+///
+/// * `conv` - Conv supplied by the caller for this operation
+/// * `cal` - Cal supplied by the caller for this operation
     #[must_use]
     pub fn adjust_with(
         mut self,
@@ -743,6 +752,10 @@ impl<'a> ScheduleBuilder<'a> {
     }
 
     /// Configure how recoverable schedule-construction errors are handled.
+///
+/// # Arguments
+///
+/// * `policy` - Policy enum controlling error handling, unmatched keys, or fallbacks
     #[must_use]
     pub fn error_policy(mut self, policy: ScheduleErrorPolicy) -> Self {
         self.error_policy = policy;

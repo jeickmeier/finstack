@@ -79,6 +79,10 @@ impl ScorecardScale {
     /// Returns [`Error::Validation`] if the JSON is malformed, the rating list
     /// is empty, a level is invalid or duplicated, or the score/minimum-score
     /// order is not strictly best-to-worst.
+///
+/// # Arguments
+///
+/// * `json` - JSON text encoding the object; unknown fields follow the type's serde policy
     pub fn from_json(json: &str) -> Result<Self> {
         let scale: ScorecardScale = serde_json::from_str(json)
             .map_err(|err| Error::Validation(format!("invalid scorecard scale JSON: {err}")))?;
@@ -160,6 +164,10 @@ impl RatingScaleRegistry {
     }
 
     /// Returns true when the provided name is a known scale id or alias.
+///
+/// # Arguments
+///
+/// * `name` - Human-readable name used for registry lookup or diagnostic messages
     pub fn is_known_rating_scale(&self, name: &str) -> bool {
         self.resolve_scale_id(name).is_some()
     }
@@ -176,6 +184,10 @@ impl RatingScaleRegistry {
     /// Returns [`Error::Validation`] if `name` is unknown and the policy is
     /// [`UnknownScalePolicy::Error`], or if the configured default scale is
     /// missing (which indicates an invalid registry state).
+///
+/// # Arguments
+///
+/// * `name` - Human-readable name used for registry lookup or diagnostic messages
     pub fn rating_scale(&self, name: &str) -> Result<&ScorecardScale> {
         let id = match self.resolve_scale_id(name) {
             Some(id) => id,

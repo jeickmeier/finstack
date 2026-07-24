@@ -253,6 +253,14 @@ impl EquityOption {
     /// # Errors
     ///
     /// Returns an error if the builder fails validation.
+///
+/// # Arguments
+///
+/// * `id` - Stable string identifier used for lookup and serialization of this object
+/// * `ticker` - Ticker supplied by the caller for this operation
+/// * `strike` - Option strike in the surface's quote units (absolute or relative)
+/// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
+/// * `notional` - Trade notional amount in the instrument currency's major units
     pub fn european_call(
         id: impl Into<String>,
         ticker: impl Into<String>,

@@ -108,6 +108,11 @@ impl TreeCompounding {
     /// deeply negative rates with simple compounding where `1 + r*dt <= 0`),
     /// the base is clamped to a small positive value to avoid negative or
     /// NaN discount factors.
+///
+/// # Arguments
+///
+/// * `rate` - Rate supplied by the caller for this operation
+/// * `dt` - Dt supplied by the caller for this operation
     #[inline]
     pub fn df(self, rate: f64, dt: f64) -> f64 {
         const FLOOR: f64 = 1e-15;
@@ -411,6 +416,10 @@ impl ShortRateTreeConfig {
     ///
     /// Suitable for developed market government bonds with positive rates.
     /// Uses the non-mean-reverting (κ = 0) binomial BDT calibration.
+///
+/// # Arguments
+///
+/// * `steps` - Steps supplied by the caller for this operation
     pub fn default_bdt(steps: usize) -> Self {
         Self::bdt(steps, DEFAULT_LOGNORMAL_VOL, 0.0)
     }

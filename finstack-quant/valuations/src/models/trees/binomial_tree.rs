@@ -161,6 +161,10 @@ impl BinomialTree {
     /// let tree = BinomialTree::leisen_reimer_odd(99);
     /// assert_eq!(tree.steps, 99);
     /// ```
+///
+/// # Arguments
+///
+/// * `steps` - Steps supplied by the caller for this operation
     pub fn leisen_reimer_odd(steps: usize) -> Self {
         let odd_steps = if steps.is_multiple_of(2) {
             steps + 1

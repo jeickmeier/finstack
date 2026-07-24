@@ -96,6 +96,10 @@ impl Calendar {
     }
 
     /// Override the weekend convention for this calendar.
+///
+/// # Arguments
+///
+/// * `rule` - Rule supplied by the caller for this operation
     pub const fn with_weekend_rule(mut self, rule: WeekendRule) -> Self {
         self.weekend_rule = rule;
         self

@@ -201,6 +201,14 @@ impl VolCube {
     /// - Either axis is empty, non-finite, or not strictly increasing
     /// - `params.len()` or `forwards.len()` does not equal `expiries.len() * tenors.len()`
     /// - Any forward is non-finite
+///
+/// # Arguments
+///
+/// * `id` - Stable string identifier used for lookup and serialization of this object
+/// * `expiries` - Expiries supplied by the caller for this operation
+/// * `tenors` - Tenors supplied by the caller for this operation
+/// * `params` - Params supplied by the caller for this operation
+/// * `forwards` - Forwards supplied by the caller for this operation
     pub fn from_grid(
         id: impl AsRef<str>,
         expiries: &[f64],
@@ -478,6 +486,12 @@ impl VolCube {
     /// It propagates SABR errors for an invalid shifted lognormal domain or a
     /// non-finite expansion, and returns a validation error if total-variance
     /// interpolation produces non-positive or non-finite variance.
+///
+/// # Arguments
+///
+/// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
+/// * `tenor` - Market tenor label or period length used to locate the quote or rate
+/// * `strike` - Option strike in the surface's quote units (absolute or relative)
     pub fn vol(&self, expiry: f64, tenor: f64, strike: f64) -> crate::Result<f64> {
         // Validate coordinates are within grid bounds
         locate_segment(&self.expiries, expiry)?;
@@ -503,6 +517,12 @@ impl VolCube {
     /// interpolation. Degenerate finite expansions are floored to a small
     /// positive vol, matching the `materialize_*` slice helpers. Non-finite
     /// inputs propagate as `NaN` rather than being silently mapped to an edge.
+///
+/// # Arguments
+///
+/// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
+/// * `tenor` - Market tenor label or period length used to locate the quote or rate
+/// * `strike` - Option strike in the surface's quote units (absolute or relative)
     pub fn vol_clamped(&self, expiry: f64, tenor: f64, strike: f64) -> f64 {
         if !expiry.is_finite() || !tenor.is_finite() || !strike.is_finite() {
             return f64::NAN;
@@ -542,6 +562,12 @@ impl VolCube {
     /// Returns `Err` if `expiry` or `tenor` falls outside the grid, if the
     /// expansion yields a non-finite volatility, or for cross-zero quotes
     /// (`(F+s)(K+s) <= 0`) with `beta > 0`, which require an explicit shift.
+///
+/// # Arguments
+///
+/// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
+/// * `tenor` - Market tenor label or period length used to locate the quote or rate
+/// * `strike` - Option strike in the surface's quote units (absolute or relative)
     pub fn vol_normal(&self, expiry: f64, tenor: f64, strike: f64) -> crate::Result<f64> {
         // Validate coordinates are within grid bounds
         locate_segment(&self.expiries, expiry)?;
@@ -628,6 +654,11 @@ impl VolCube {
     /// Returns an input error if `strikes` is empty, `tenor` is non-finite, or
     /// any strike is non-finite. It also propagates surface-construction errors
     /// if the materialized grid violates the surface contract.
+///
+/// # Arguments
+///
+/// * `tenor` - Market tenor label or period length used to locate the quote or rate
+/// * `strikes` - Strikes supplied by the caller for this operation
     pub fn materialize_tenor_slice(
         &self,
         tenor: f64,
@@ -708,6 +739,11 @@ impl VolCube {
     /// Returns an input error if `strikes` is empty, `expiry` is non-finite, or
     /// any strike is non-finite. It also propagates surface-construction errors
     /// if the materialized grid cannot satisfy the [`VolSurface`] contract.
+///
+/// # Arguments
+///
+/// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
+/// * `strikes` - Strikes supplied by the caller for this operation
     pub fn materialize_expiry_slice(
         &self,
         expiry: f64,

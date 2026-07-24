@@ -175,6 +175,10 @@ impl ExCouponRule {
     /// - `days_before_coupon` exceeds 366 (a configuration error — see
     ///   `MAX_EX_COUPON_DAYS`)
     /// - `calendar_id` is set but cannot be resolved
+///
+/// # Arguments
+///
+/// * `payment_date` - Payment date supplied by the caller for this operation
     pub fn ex_date(&self, payment_date: Date) -> finstack_quant_core::Result<Date> {
         if self.days_before_coupon > MAX_EX_COUPON_DAYS {
             return Err(finstack_quant_core::Error::Validation(format!(

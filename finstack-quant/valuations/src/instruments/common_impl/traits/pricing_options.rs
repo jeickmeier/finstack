@@ -90,12 +90,20 @@ impl PricingOptions {
     ///
     /// Most callers can stay on [`super::Instrument::price_with_metrics`] and use this
     /// override only when they need a non-default registered model.
+///
+/// # Arguments
+///
+/// * `model` - Model supplied by the caller for this operation
     pub fn with_model(mut self, model: ModelKey) -> Self {
         self.model = Some(model);
         self
     }
 
     /// Set an explicit pricer registry override for this pricing request.
+///
+/// # Arguments
+///
+/// * `registry` - Registry supplied by the caller for this operation
     pub fn with_registry(mut self, registry: Arc<PricerRegistry>) -> Self {
         self.registry = Some(registry);
         self

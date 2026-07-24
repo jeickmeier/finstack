@@ -302,6 +302,12 @@ impl FxDeltaVolSurface {
     ///
     /// Returns an error if the expiry is non-positive or a recovered wing vol
     /// is non-positive.
+///
+/// # Arguments
+///
+/// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
+/// * `strike` - Option strike in the surface's quote units (absolute or relative)
+/// * `forward` - Forward price or rate used by the volatility or pricing model
     pub fn implied_vol(&self, expiry: f64, strike: f64, forward: f64) -> crate::Result<f64> {
         if expiry <= 0.0 || !expiry.is_finite() {
             return Err(InputError::NonPositiveValue.into());
@@ -349,9 +355,9 @@ impl FxDeltaVolSurface {
     ///
     /// # Arguments
     ///
-    /// * `spot`    - FX spot rate
-    /// * `r_d`     - Domestic continuously compounded interest rate
-    /// * `r_f`     - Foreign continuously compounded interest rate
+    /// * `spot` - Positive FX spot rate used to convert delta quotes into absolute strikes
+    /// * `r_d` - Domestic continuously compounded interest rate in decimal annual units
+    /// * `r_f` - Foreign continuously compounded interest rate in decimal annual units
     ///
     /// The resulting surface has a strike axis equal to the union of the
     /// per-expiry delta-derived strikes. At a quoted expiry, its row exactly

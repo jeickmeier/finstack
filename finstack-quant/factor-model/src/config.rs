@@ -248,6 +248,11 @@ impl BumpSizeConfig {
     /// if a user wants a non-canonical interpretation (e.g. an absolute
     /// shift on a rates factor), introduce a new factor with a different
     /// type or a `MarketMapping` that encodes the desired `BumpUnits`.
+///
+/// # Arguments
+///
+/// * `factor_id` - Factor id supplied by the caller for this operation
+/// * `factor_type` - Factor type supplied by the caller for this operation
     #[must_use]
     pub fn bump_size_with_unit_for_factor(
         &self,

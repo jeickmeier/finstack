@@ -17,6 +17,10 @@ pub struct ThresholdSchedule(Vec<(Date, f64)>);
 
 impl ThresholdSchedule {
     /// Create a new threshold schedule, sorting entries by date.
+///
+/// # Arguments
+///
+/// * `entries` - Entries supplied by the caller for this operation
     pub fn new(mut entries: Vec<(Date, f64)>) -> Self {
         entries.sort_by_key(|(d, _)| *d);
         Self(entries)

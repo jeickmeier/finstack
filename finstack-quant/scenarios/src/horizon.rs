@@ -160,6 +160,10 @@ impl HorizonAnalysis {
     /// let analyzer = HorizonAnalysis::default().with_calendar_id("nyse");
     /// assert!(analyzer.calendar_id.is_some());
     /// ```
+///
+/// # Arguments
+///
+/// * `calendar_id` - Registry identifier of the holiday calendar used for adjustments
     #[must_use]
     pub fn with_calendar_id(mut self, calendar_id: impl Into<CalendarId>) -> Self {
         self.calendar_id = Some(calendar_id.into());
@@ -225,6 +229,13 @@ impl HorizonAnalysis {
     /// scenario contains an instrument-scoped operation unsupported by horizon
     /// attribution, or if [`Self::calendar_id`] does not name a built-in
     /// calendar.
+///
+/// # Arguments
+///
+/// * `instrument` - Instrument supplied by the caller for this operation
+/// * `market_t0` - Market t0 supplied by the caller for this operation
+/// * `as_of_t0` - As of t0 supplied by the caller for this operation
+/// * `scenario` - Scenario supplied by the caller for this operation
     pub fn compute(
         &self,
         instrument: &Arc<dyn Instrument>,

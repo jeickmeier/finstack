@@ -612,6 +612,10 @@ impl SimmSensitivities {
     /// Merge another set of sensitivities into this one.
     ///
     /// Sensitivities are added together, enabling risk offsetting within a netting set.
+///
+/// # Arguments
+///
+/// * `other` - Second operand used by the binary arithmetic or merge operation
     pub fn merge(&mut self, other: &SimmSensitivities) {
         merge_into(&mut self.ir_delta, &other.ir_delta);
         merge_into(&mut self.ir_vega, &other.ir_vega);

@@ -197,6 +197,10 @@ impl PortfolioMarginResult {
     /// Returns an error if the netting set margin currency differs from the
     /// portfolio's base currency. Cross-currency margin aggregation requires
     /// explicit FX conversion via [`Self::add_netting_set_with_fx`].
+///
+/// # Arguments
+///
+/// * `result` - Result supplied by the caller for this operation
     pub fn add_netting_set(
         &mut self,
         result: NettingSetMargin,

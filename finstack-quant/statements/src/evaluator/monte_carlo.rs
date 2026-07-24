@@ -56,6 +56,11 @@ pub struct MonteCarloConfig {
 
 impl MonteCarloConfig {
     /// Create a new Monte Carlo configuration with default percentiles.
+///
+/// # Arguments
+///
+/// * `n_paths` - Number of Monte Carlo paths to simulate for the pricing estimate
+/// * `seed` - RNG seed that makes Monte Carlo or sampling paths reproducible
     pub fn new(n_paths: usize, seed: u64) -> Self {
         Self {
             n_paths,

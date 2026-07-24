@@ -199,6 +199,10 @@ impl TridiagOperator {
     ///
     /// `x` has length `n` (interior values only). Boundary contributions are
     /// added from the stored corrections.
+///
+/// # Arguments
+///
+/// * `x` - Independent variable at which the function or interpolant is evaluated
     pub fn apply(&self, x: &[f64]) -> Vec<f64> {
         debug_assert_eq!(x.len(), self.n);
         let mut y = vec![0.0; self.n];

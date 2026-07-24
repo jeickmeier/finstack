@@ -305,6 +305,12 @@ impl InflationIndex {
     /// Returns an input error if `observations` is empty or cannot form a valid
     /// scalar time series, including duplicate observation dates or invalid
     /// values rejected by the underlying storage.
+///
+/// # Arguments
+///
+/// * `id` - Stable string identifier used for lookup and serialization of this object
+/// * `observations` - Observations supplied by the caller for this operation
+/// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
     pub fn new(
         id: impl Into<String>,
         observations: Vec<(Date, f64)>,

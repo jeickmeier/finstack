@@ -508,6 +508,10 @@ impl FinancingLegSpec {
     }
 
     /// Set the rate-compounding convention (consuming builder style).
+///
+/// # Arguments
+///
+/// * `compounding` - Compounding supplied by the caller for this operation
     pub fn with_compounding(mut self, compounding: FinancingRateCompounding) -> Self {
         self.compounding = compounding;
         self

@@ -180,6 +180,10 @@ impl PathDependentPricerConfig {
     }
 
     /// Enable Brownian bridge (only used with Sobol RNG).
+///
+/// # Arguments
+///
+/// * `enable` - Enable supplied by the caller for this operation
     #[must_use]
     pub fn with_brownian_bridge(mut self, enable: bool) -> Self {
         self.use_brownian_bridge = enable;
@@ -777,6 +781,19 @@ impl PathDependentPricer {
     /// distributional σ-sensitivity but omits the payoff's explicit
     /// σ-dependence. Prefer the CRN finite-difference helpers in
     /// [`crate::greeks::finite_diff`] when that term matters.
+///
+/// # Arguments
+///
+/// * `process` - Stochastic process driving the simulated state variables over the grid
+/// * `initial_spot` - Initial spot supplied by the caller for this operation
+/// * `time_to_maturity` - Time to maturity supplied by the caller for this operation
+/// * `num_steps` - Num steps supplied by the caller for this operation
+/// * `payoff` - Pathwise payoff evaluator that returns the discounted path contribution
+/// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
+/// * `discount_factor` - Callable mapping payment time to a discount factor for cashflows
+/// * `rate` - Rate supplied by the caller for this operation
+/// * `dividend_yield` - Dividend yield supplied by the caller for this operation
+/// * `volatility` - Volatility supplied by the caller for this operation
     #[allow(clippy::too_many_arguments)]
     pub fn price_with_lrm_greeks<P>(
         &self,

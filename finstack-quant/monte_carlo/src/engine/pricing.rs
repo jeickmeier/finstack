@@ -438,10 +438,15 @@ impl McEngine {
     ///
     /// # Arguments
     ///
+    /// * `rng` - Random stream supplying the Monte Carlo uniforms / Gaussians
+    /// * `process` - Stochastic process that evolves the simulated state vector
+    /// * `disc` - Discretization scheme paired with `process` for path stepping
+    /// * `initial_state` - Process state at time zero; length must match the factor count
+    /// * `payoff` - Pathwise payoff evaluated on each simulated trajectory
+    /// * `currency` - Currency stamped onto the returned monetary estimate
+    /// * `discount_factor` - Scalar present-value factor applied to payoff units
     /// * `process_params` - Metadata describing the captured state layout,
-    ///   process parameters, and optional correlation matrix.
-    ///
-    /// For the other arguments, see [`Self::price`].
+    ///   process parameters, and optional correlation matrix
     ///
     /// # Returns
     ///

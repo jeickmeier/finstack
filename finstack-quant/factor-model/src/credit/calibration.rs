@@ -285,6 +285,10 @@ pub struct CreditCalibrator {
 
 impl CreditCalibrator {
     /// Wrap a configuration into a calibrator.
+///
+/// # Arguments
+///
+/// * `config` - Configuration object controlling validation, rounding, or solver behavior
     #[must_use]
     pub fn new(config: CreditCalibrationConfig) -> Self {
         Self { config }
@@ -311,6 +315,10 @@ impl CreditCalibrator {
     /// - the inputs are structurally malformed (length mismatches, missing
     ///   `as_of` in the date grid, missing tags),
     /// - the assembled [`CreditFactorModel::validate`] check fails.
+///
+/// # Arguments
+///
+/// * `inputs` - Inputs supplied by the caller for this operation
     pub fn calibrate(&self, inputs: CreditCalibrationInputs) -> Result<CreditFactorModel> {
         // -- 0. Reject unsupported volatility estimators early. --------------
         match self.config.vol_model {

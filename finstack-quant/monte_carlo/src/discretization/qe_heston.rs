@@ -124,6 +124,10 @@ impl QeHeston {
     /// Returns [`finstack_quant_core::Error::Validation`] when `psi_c` is not in
     /// \[1, 2\] (a ψ_c above 2 lets ψ ∈ (2, ψ_c\] reach Case A and produce
     /// NaN variance draws).
+///
+/// # Arguments
+///
+/// * `psi_c` - Psi c supplied by the caller for this operation
     pub fn with_psi_c(psi_c: f64) -> finstack_quant_core::Result<Self> {
         super::qe_common::validate_psi_c(psi_c)?;
         Ok(Self {

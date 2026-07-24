@@ -269,6 +269,10 @@ impl NpvOptions {
     /// (negative or zero) year fraction, i.e. future-valued to the valuation
     /// date — the pre-2026-06-09-review legacy behavior, appropriate for
     /// project/investment NPV that must contain the time-0 outlay.
+///
+/// # Arguments
+///
+/// * `include` - Include supplied by the caller for this operation
     #[must_use]
     pub fn include_past_flows(mut self, include: bool) -> Self {
         self.include_past_flows = include;

@@ -410,6 +410,11 @@ impl ToggleExerciseModel {
     }
 
     /// Returns `true` if the borrower elects PIK at this coupon date.
+///
+/// # Arguments
+///
+/// * `state` - State supplied by the caller for this operation
+/// * `rng` - Random-number generator supplying uniform or Gaussian draws for simulation
     pub fn should_pik(&self, state: &CreditState, rng: &mut dyn RandomNumberGenerator) -> bool {
         match self {
             Self::Threshold(t) => {

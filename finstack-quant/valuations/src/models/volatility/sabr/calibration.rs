@@ -189,6 +189,10 @@ impl SABRCalibrator {
     }
 
     /// Set maximum iterations
+///
+/// # Arguments
+///
+/// * `max_iterations` - Max iterations supplied by the caller for this operation
     pub fn with_max_iterations(mut self, max_iterations: usize) -> Self {
         self.max_iterations = max_iterations;
         self

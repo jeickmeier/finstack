@@ -697,6 +697,10 @@ impl TrancheStructure {
     /// After structural validation this assigns each tranche a distinct,
     /// strictly-increasing `payment_priority` (see `Self::assign_priorities`),
     /// so that multiple notes at one `TrancheSeniority` are ranked correctly.
+///
+/// # Arguments
+///
+/// * `tranches` - Tranches supplied by the caller for this operation
     pub fn new(mut tranches: Vec<Tranche>) -> finstack_quant_core::Result<Self> {
         if tranches.is_empty() {
             return Err(finstack_quant_core::InputError::TooFewPoints.into());

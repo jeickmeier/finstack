@@ -327,54 +327,19 @@ impl<State> ModelBuilder<State> {
 
     /// Add an interest rate swap to the capital structure.
     ///
-    /// # Arguments
-    /// * `id` - Unique instrument identifier
-    /// * `notional` - Notional amount
-    /// * `fixed_rate` - Fixed rate (e.g., 0.04 for 4%)
-    /// * `start_date` - Swap start date
-    /// * `maturity_date` - Swap maturity date
-    /// * `discount_curve_id` - Discount curve ID
-    /// * `forward_curve_id` - Forward curve ID for floating leg
-    ///
-    /// # Example
-    /// ```ignore
-    /// use finstack_quant_statements::builder::ModelBuilder;
-    /// use finstack_quant_core::currency::Currency;
-    /// use finstack_quant_core::money::Money;
-    /// use time::macros::date;
-    ///
-    /// # fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
-    /// let start_date = date!(2025-01-15);
-    /// let maturity_date = date!(2030-01-15);
-    ///
-    /// let builder = ModelBuilder::new("cs-model")
-    ///     .add_swap(
-    ///         "SWAP-001",
-    ///         Money::new(5_000_000.0, Currency::USD),
-    ///         0.04, // 4% fixed rate
-    ///         start_date,
-    ///         maturity_date,
-    ///         "USD-OIS",
-    ///         "USD-SOFR-3M",
-    ///     )?;
-    /// # let _ = builder;
-    /// # Ok(())
-    /// # }
-    /// ```
-    /// Add an interest rate swap to the capital structure.
-    ///
     /// Uses US market conventions: fixed leg semi-annual 30/360, float leg quarterly ACT/360,
     /// both Modified Following. For non-USD or non-standard conventions, use
     /// [`add_swap_with_conventions`](Self::add_swap_with_conventions).
     ///
     /// # Arguments
-    /// * `id` - Unique instrument identifier
-    /// * `notional` - Notional amount
-    /// * `fixed_rate` - Fixed rate (e.g., 0.04 for 4%)
-    /// * `start_date` - Swap start date
-    /// * `maturity_date` - Swap maturity date
-    /// * `discount_curve_id` - Discount curve ID
-    /// * `forward_curve_id` - Forward curve ID for floating leg
+    ///
+    /// * `id` - Unique instrument identifier stored on the capital-structure debt entry
+    /// * `notional` - Swap notional as [`Money`] in the trade currency's major units
+    /// * `fixed_rate` - Fixed leg rate as a decimal (for example 0.04 for 4%)
+    /// * `start_date` - Effective / accrual start date of the swap schedule
+    /// * `maturity_date` - Final maturity date of the swap schedule
+    /// * `discount_curve_id` - Market-context ID of the discount curve used at evaluation
+    /// * `forward_curve_id` - Market-context ID of the floating-leg forward curve
     ///
     /// # Example
     /// ```ignore
@@ -458,6 +423,21 @@ impl<State> ModelBuilder<State> {
     /// coherent frequencies, day-count conventions, and curve identifiers for
     /// the market and legal confirmation being modeled.
     ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique instrument identifier stored on the capital-structure debt entry
+    /// * `notional` - Swap notional as [`Money`] in the trade currency's major units
+    /// * `fixed_rate` - Fixed leg rate as a decimal (for example 0.04 for 4%)
+    /// * `start_date` - Effective / accrual start date of the swap schedule
+    /// * `maturity_date` - Final maturity date of the swap schedule
+    /// * `discount_curve_id` - Market-context ID of the discount curve used at evaluation
+    /// * `forward_curve_id` - Market-context ID of the floating-leg forward curve
+    /// * `fixed_freq` - Payment frequency of the fixed leg
+    /// * `fixed_dc` - Day-count convention applied to the fixed leg
+    /// * `float_freq` - Payment / fixing frequency of the floating leg
+    /// * `float_dc` - Day-count convention applied to the floating leg
+    /// * `bdc` - Business-day convention used when adjusting schedule dates
+    ///
     /// # Errors
     ///
     /// Returns an invalid-input error if `fixed_rate` cannot be represented as
@@ -522,6 +502,11 @@ impl<State> ModelBuilder<State> {
     /// );
     /// # let _ = builder;
     /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Unique instrument identifier stored on the capital-structure debt entry
+    /// * `spec` - Tagged JSON payload `{"type": "<tag>", "spec": {...}}` for a registered instrument
     pub fn add_custom_debt(mut self, id: impl Into<String>, spec: serde_json::Value) -> Self {
         ensure_capital_structure(&mut self.capital_structure)
             .debt_instruments

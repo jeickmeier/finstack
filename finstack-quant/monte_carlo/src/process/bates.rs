@@ -105,6 +105,10 @@ pub struct BatesProcess {
 
 impl BatesProcess {
     /// Create a new Bates process.
+///
+/// # Arguments
+///
+/// * `params` - Params supplied by the caller for this operation
     pub fn new(params: BatesParams) -> Self {
         // `r − λk` preserves every HestonParams validity constraint (only
         // the rate changes), so reconstructing the params cannot fail.

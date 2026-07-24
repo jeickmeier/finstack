@@ -123,6 +123,11 @@ impl PortfolioLossResult {
     ///
     /// Returns an error for an empty distribution, a non-finite or negative
     /// loss, or confidence outside `(0, 1)`.
+///
+/// # Arguments
+///
+/// * `losses` - Losses supplied by the caller for this operation
+/// * `confidence` - Tail confidence level in (0.5, 1), for example 0.99 for 99% VaR
     pub fn from_losses(losses: Vec<f64>, confidence: f64) -> Result<Self> {
         validate_confidence(confidence)?;
         if losses.is_empty() {

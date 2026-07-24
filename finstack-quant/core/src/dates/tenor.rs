@@ -230,6 +230,11 @@ impl Tenor {
     /// Returns `InputError::InvalidTenor` when `count` is zero, exceeds the
     /// supported range for `unit`, or cannot be converted safely between weeks
     /// and days or years and months.
+///
+/// # Arguments
+///
+/// * `count` - Count supplied by the caller for this operation
+/// * `unit` - Unit enum selecting the interpretation of the numeric magnitude
     pub fn try_new(count: u32, unit: TenorUnit) -> crate::Result<Self> {
         let max_count = match unit {
             TenorUnit::Days => MAX_TENOR_DAYS,
@@ -613,10 +618,11 @@ impl Tenor {
     /// 3. Computing the year fraction using the specified day count convention
     ///
     /// # Arguments
-    /// * `as_of` - Starting date
-    /// * `calendar` - Optional holiday calendar for business day adjustment
-    /// * `bdc` - Business day convention to apply
-    /// * `day_count` - Day count convention for year fraction calculation
+    ///
+    /// * `as_of` - Anchor calendar date from which the tenor is projected forward
+    /// * `calendar` - Optional holiday calendar used when applying `bdc` to the end date
+    /// * `bdc` - Business-day convention applied when a calendar is provided
+    /// * `day_count` - Day-count convention used to convert the date span into a year fraction
     ///
     /// # Returns
     /// Year fraction computed using the specified conventions.

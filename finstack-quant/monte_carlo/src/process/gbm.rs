@@ -144,6 +144,12 @@ impl GbmParams {
     /// - `r` is non-finite
     /// - `q` is non-finite
     /// - `sigma` is non-finite or negative
+///
+/// # Arguments
+///
+/// * `r` - Continuously compounded risk-free rate in decimal annual units
+/// * `q` - Continuous dividend yield in decimal annual units
+/// * `sigma` - Diffusion volatility of the process in decimal annual units
     pub fn new(r: f64, q: f64, sigma: f64) -> finstack_quant_core::Result<Self> {
         if !r.is_finite() {
             return Err(finstack_quant_core::Error::Validation(format!(
