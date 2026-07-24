@@ -1365,6 +1365,41 @@ mod tests {
     }
 
     #[test]
+    fn downturn_stress_applies_on_top_of_scenario_lgd_override() {
+        // Documented precedence (see LgdType::Downturn docs above): a
+        // scenario `lgd_override` sets the *base* LGD, and the Downturn
+        // stress is layered on top of that base -- not on top of the
+        // exposure's own lgd (0.45, per lgd_test_exposure()).
+        //
+        // regulatory_floor(add_on=0.08, floor=0.10) with override base 0.30:
+        //   LGD_eff = max(0.30 + 0.08, 0.10) = 0.38 (floor not binding)
+        //   ECL = cumPD(1y) x LGD_eff x EAD = 0.02 x 0.38 x 100,000 = 760.0
+        //
+        // If the override were ignored and exposure.lgd (0.45) were used as
+        // the base instead, LGD_eff would be max(0.45 + 0.08, 0.10) = 0.53
+        // and ECL = 1,060 (see downturn_regulatory_floor_golden) -- a
+        // different number, so this assertion also pins the precedence.
+        let adjuster =
+            finstack_quant_core::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.10).unwrap();
+        let config = EclConfigBuilder::new()
+            .lgd_type(LgdType::Downturn)
+            .downturn_lgd(adjuster)
+            .build()
+            .unwrap();
+        let scenario = MacroScenario {
+            id: "downside".to_string(),
+            weight: 1.0,
+            lgd_override: Some(0.30),
+        };
+        let curve = one_year_2pct_curve();
+        let pd_sources: Vec<(&MacroScenario, &dyn PdTermStructure)> = vec![(&scenario, &curve)];
+        let result =
+            compute_ecl_weighted(&lgd_test_exposure(), Stage::Stage1, &pd_sources, &config)
+                .unwrap();
+        assert!((result.ecl - 760.0).abs() < 1e-9, "got {}", result.ecl);
+    }
+
+    #[test]
     fn lgd_type_validation_matrix() {
         // TTC requires ttc_lgd.
         assert!(EclConfigBuilder::new()
