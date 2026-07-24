@@ -139,7 +139,7 @@ All keyed maps are `BTreeMap`, all iteration orders are stable, and
 peer-proxy vol lists are sorted. Two calibrations with byte-identical inputs
 serialize to byte-identical JSON.
 
-### Supported / reserved features
+### Supported features
 
 - `VolModelChoice::Sample` (unbiased sample variance) and
   `VolModelChoice::Ewma { lambda }` (RiskMetrics exponentially weighted
