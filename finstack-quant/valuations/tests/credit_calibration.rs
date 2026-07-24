@@ -789,6 +789,52 @@ fn ledoit_wolf_covariance_accepted() {
     }
 }
 
+/// Pins the Ewma vol_model + LedoitWolf covariance_strategy composition: both
+/// settings are independently supported, but this is the only test exercising
+/// them together end-to-end. Asserts vol_state persists the Ewma variant and
+/// the LedoitWolf covariance still satisfies the Cauchy-Schwarz bound.
+#[test]
+fn ewma_vol_model_composes_with_ledoit_wolf_covariance() {
+    let cfg = CreditCalibrationConfig {
+        vol_model: VolModelChoice::Ewma { lambda: 0.94 },
+        covariance_strategy: CovarianceStrategy::LedoitWolf,
+        min_bucket_size_per_level: BucketSizeThresholds { per_level: vec![1] },
+        ..config_with(
+            IssuerBetaPolicy::GloballyOff,
+            vec![HierarchyDimension::Rating],
+        )
+    };
+    let model = CreditCalibrator::new(cfg)
+        .calibrate(fixture_panel().into_inputs())
+        .expect("Ewma + LedoitWolf calibration succeeds");
+
+    assert!(!model.vol_state.factors.is_empty());
+    for (fid, vol_model) in &model.vol_state.factors {
+        let FactorVolModel::Ewma { lambda, variance } = vol_model else {
+            panic!("factor {fid} must persist the Ewma variant, got {vol_model:?}");
+        };
+        assert!((lambda - 0.94).abs() < 1e-15);
+        assert!(variance.is_finite() && *variance >= 0.0);
+    }
+
+    let cov = &model.config.covariance;
+    let ids = cov.factor_ids().to_vec();
+    assert!(
+        ids.len() >= 2,
+        "expected generic + bucket factors, got {}",
+        ids.len()
+    );
+    for i in &ids {
+        for j in &ids {
+            let bound = (cov.variance(i) * cov.variance(j)).sqrt();
+            assert!(
+                cov.covariance(i, j).abs() <= bound + 1e-12,
+                "|Σ({i},{j})| must satisfy the Cauchy-Schwarz bound"
+            );
+        }
+    }
+}
+
 /// Out-of-range lambda is rejected before any estimation runs.
 #[test]
 fn ewma_lambda_out_of_range_rejected_by_calibrate() {
