@@ -11,6 +11,38 @@ stability contract and schema-version policy.
 
 ## [Unreleased]
 
+### Changed (breaking, wire format)
+- **`CeclMethodology::Vintage` removed.** No cohort/vintage data model existed
+  to support it, so the variant was unimplemented. Inbound JSON carrying
+  `"methodology": "Vintage"` now fails to parse instead of silently selecting
+  an unimplemented path; migrate persisted configs to `PdLgdEad` or `Warm`.
+
+### Changed
+- **`CovenantForecastConfig` stochastic forecasting now does what it says.**
+  `num_paths > 0` runs path-consistent Monte Carlo simulation instead of
+  silently falling back to the closed-form analytic calculation; `num_paths ==
+  0` with `stochastic = true` now selects the analytic mode (previously an
+  error). Recalibrate any caller that set `num_paths > 0` expecting the old
+  analytic-only behavior.
+
+### Added
+- **CECL WARM methodology** (`CeclConfig.warm_annual_loss_rate`,
+  `CeclMethodology::Warm`): undiscounted weighted-average remaining maturity
+  loss-rate method per the FASB 2019 CECL practical expedient.
+- **`LgdType::{ThroughTheCycle, Downturn}`** wired through
+  `EclConfig.ttc_lgd` / `EclConfig.downturn_lgd`, the latter applying core's
+  `DownturnLgd` (Frye-Jacobs-style stress or regulatory floor) on top of the
+  base LGD.
+- **`StagingTrigger::RatingDowngrade`** (`StagingConfig.rating_scale_labels`):
+  IFRS 9 stage transfer triggered by a configurable notch-count downgrade on a
+  user-supplied rating scale.
+- **Altman EM-Score** (`finstack_quant_core::credit::scoring::altman_em_score`,
+  also exposed to Python): emerging-market four-factor Z''-based corporate
+  bond scoring per Altman, Hartzell & Peck (1995).
+- **`ImResult.approximation`**: CCP and internal-model initial-margin proxy
+  calculators now flag their output as a conservative approximation rather
+  than an exact model result.
+
 ## [0.6.0] - 2026-07-23
 
 ### Changed (breaking, wire format)
