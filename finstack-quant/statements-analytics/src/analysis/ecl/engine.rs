@@ -258,11 +258,18 @@ impl EclConfig {
                 }
             }
             LgdType::Downturn => {
-                if self.downturn_lgd.is_none() {
-                    return Err(Error::Validation(
-                        "lgd_type = Downturn requires downturn_lgd".to_string(),
-                    ));
-                }
+                let downturn_lgd = self.downturn_lgd.as_ref().ok_or_else(|| {
+                    Error::Validation("lgd_type = Downturn requires downturn_lgd".to_string())
+                })?;
+                // `DownturnLgd` derives `Deserialize`, so a config parsed
+                // from untrusted JSON can carry parameters that bypass its
+                // constructors' invariant checks (e.g. a negative asset
+                // correlation, or stress_quantile == 1.0). Without this,
+                // such values reach `DownturnLgd::adjust` and silently
+                // produce NaN/infinite LGD deep inside ECL computation.
+                downturn_lgd.validate().map_err(|e| {
+                    Error::Validation(format!("invalid downturn_lgd parameters: {e}"))
+                })?;
                 if self.ttc_lgd.is_some() {
                     return Err(Error::Validation(
                         "ttc_lgd is only valid with lgd_type = ThroughTheCycle".to_string(),
@@ -1380,6 +1387,48 @@ mod tests {
         let adj =
             finstack_quant_core::credit::lgd::DownturnLgd::regulatory_floor(0.05, 0.25).unwrap();
         assert!(EclConfigBuilder::new().downturn_lgd(adj).build().is_err());
+    }
+
+    #[test]
+    fn eclconfig_validate_rejects_bad_downturn_lgd_from_untrusted_json() {
+        // `DownturnLgd` derives Deserialize, so it can be embedded in an
+        // EclConfig JSON payload with parameters that bypass the
+        // `frye_jacobs` constructor's checks entirely (e.g. a negative
+        // asset_correlation). Deserialization itself must succeed -- the
+        // guard is EclConfig::validate, which now delegates to
+        // DownturnLgd::validate.
+        //
+        // Start from a config that serializes/deserializes cleanly (so this
+        // test doesn't hand-roll every nested field of StagingConfig), then
+        // swap in a malformed `downturn_lgd` payload before re-parsing.
+        let base = EclConfigBuilder::new()
+            .lgd_type(LgdType::Downturn)
+            .downturn_lgd(
+                finstack_quant_core::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.25)
+                    .unwrap(),
+            )
+            .build()
+            .unwrap();
+        let mut json = serde_json::to_value(&base).expect("serialize");
+        json["downturn_lgd"] = serde_json::json!({
+            "method": {
+                "FryeJacobs": {
+                    "asset_correlation": -0.5,
+                    "lgd_sensitivity": 0.4,
+                    "stress_quantile": 0.999
+                }
+            }
+        });
+        let parsed: EclConfig = serde_json::from_value(json)
+            .expect("malformed downturn_lgd parameters still deserialize");
+        let err = parsed
+            .validate()
+            .expect_err("negative asset_correlation must be rejected by EclConfig::validate");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("downturn_lgd"),
+            "expected validation error to name downturn_lgd, got: {msg}"
+        );
     }
 
     #[test]

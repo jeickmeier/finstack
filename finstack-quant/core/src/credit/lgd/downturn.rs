@@ -92,22 +92,15 @@ impl DownturnLgd {
         lgd_sensitivity: f64,
         stress_quantile: f64,
     ) -> Result<Self> {
-        if !asset_correlation.is_finite() || asset_correlation <= 0.0 || asset_correlation >= 1.0 {
-            return Err(InputError::Invalid.into());
-        }
-        if !lgd_sensitivity.is_finite() || lgd_sensitivity < 0.0 {
-            return Err(InputError::NegativeValue.into());
-        }
-        if !stress_quantile.is_finite() || stress_quantile <= 0.0 || stress_quantile >= 1.0 {
-            return Err(InputError::Invalid.into());
-        }
-        Ok(Self {
+        let dt = Self {
             method: DownturnMethod::FryeJacobs {
                 asset_correlation,
                 lgd_sensitivity,
                 stress_quantile,
             },
-        })
+        };
+        dt.validate()?;
+        Ok(dt)
     }
 
     /// Create a regulatory-floor downturn adjuster.
@@ -116,15 +109,65 @@ impl DownturnLgd {
     ///
     /// Returns an error if `add_on < 0`, `floor < 0`, or `floor > 1`.
     pub fn regulatory_floor(add_on: f64, floor: f64) -> Result<Self> {
-        if !add_on.is_finite() || add_on < 0.0 {
-            return Err(InputError::NegativeValue.into());
-        }
-        if !floor.is_finite() || !(0.0..=1.0).contains(&floor) {
-            return Err(InputError::Invalid.into());
-        }
-        Ok(Self {
+        let dt = Self {
             method: DownturnMethod::RegulatoryFloor { add_on, floor },
-        })
+        };
+        dt.validate()?;
+        Ok(dt)
+    }
+
+    /// Validate the invariants of the configured downturn method's parameters.
+    ///
+    /// [`DownturnLgd::frye_jacobs`] and [`DownturnLgd::regulatory_floor`]
+    /// already enforce these invariants at construction time, but
+    /// `DownturnLgd` also derives `Deserialize` and can be produced directly
+    /// from untrusted JSON (e.g. embedded in a config struct's
+    /// `#[derive(Deserialize)]` field), bypassing the constructors entirely.
+    /// Callers that accept a `DownturnLgd` deserialized from an external
+    /// boundary must call this before using it, since an invalid value
+    /// (e.g. negative `asset_correlation`, or `stress_quantile == 1.0`)
+    /// otherwise propagates `NaN` or `+/-inf` through [`DownturnLgd::adjust`]
+    /// silently.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - `FryeJacobs`: `asset_correlation` is not finite and in (0, 1),
+    ///   `lgd_sensitivity` is not finite and non-negative, or
+    ///   `stress_quantile` is not finite and in (0, 1)
+    /// - `RegulatoryFloor`: `add_on` is not finite and non-negative, or
+    ///   `floor` is not finite and in \[0, 1\]
+    pub fn validate(&self) -> Result<()> {
+        match self.method {
+            DownturnMethod::FryeJacobs {
+                asset_correlation,
+                lgd_sensitivity,
+                stress_quantile,
+            } => {
+                if !asset_correlation.is_finite()
+                    || asset_correlation <= 0.0
+                    || asset_correlation >= 1.0
+                {
+                    return Err(InputError::Invalid.into());
+                }
+                if !lgd_sensitivity.is_finite() || lgd_sensitivity < 0.0 {
+                    return Err(InputError::NegativeValue.into());
+                }
+                if !stress_quantile.is_finite() || stress_quantile <= 0.0 || stress_quantile >= 1.0
+                {
+                    return Err(InputError::Invalid.into());
+                }
+            }
+            DownturnMethod::RegulatoryFloor { add_on, floor } => {
+                if !add_on.is_finite() || add_on < 0.0 {
+                    return Err(InputError::NegativeValue.into());
+                }
+                if !floor.is_finite() || !(0.0..=1.0).contains(&floor) {
+                    return Err(InputError::Invalid.into());
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Load a downturn LGD preset from the credit assumptions registry.
@@ -312,6 +355,31 @@ mod tests {
         assert!((adj_s - 0.28).abs() < 1e-12);
         // Unsecured: max(0.20 + 0.05, 0.25) = 0.25
         assert!((adj_u - 0.25).abs() < 1e-12);
+    }
+
+    #[test]
+    fn validate_rejects_deserialized_negative_correlation() {
+        // Deserialization bypasses the frye_jacobs constructor entirely, so a
+        // struct built directly (mirroring what serde produces from
+        // untrusted JSON) must still be caught by `validate`.
+        let json = r#"{"method":{"FryeJacobs":{"asset_correlation":-0.5,"lgd_sensitivity":0.4,"stress_quantile":0.999}}}"#;
+        let dt: DownturnLgd = serde_json::from_str(json).expect("deserializes despite bad data");
+        let err = dt
+            .validate()
+            .expect_err("negative asset_correlation must fail validate");
+        assert_eq!(err, InputError::Invalid.into());
+    }
+
+    #[test]
+    fn validate_rejects_deserialized_unit_stress_quantile() {
+        // stress_quantile = 1.0 pins Phi^-1(q) at +infinity, which would
+        // silently propagate through `adjust` as LGD = 1.0 for any base.
+        let json = r#"{"method":{"FryeJacobs":{"asset_correlation":0.15,"lgd_sensitivity":0.4,"stress_quantile":1.0}}}"#;
+        let dt: DownturnLgd = serde_json::from_str(json).expect("deserializes despite bad data");
+        let err = dt
+            .validate()
+            .expect_err("stress_quantile = 1.0 must fail validate");
+        assert_eq!(err, InputError::Invalid.into());
     }
 
     #[test]
