@@ -179,18 +179,17 @@ fn cecl_engine_rejects_unimplemented_methodologies() {
         weight: 1.0,
         lgd_override: None,
     };
-    for methodology in [CeclMethodology::Warm, CeclMethodology::Vintage] {
-        let config = CeclConfig {
-            methodology,
-            ..CeclConfig::default()
-        };
-        let pd_sources: Vec<(&MacroScenario, &dyn PdTermStructure)> =
-            vec![(&scenario, &curve as &dyn PdTermStructure)];
-        assert!(
-            CeclEngine::new(config, pd_sources).is_err(),
-            "{methodology:?} must be rejected rather than silently no-op"
-        );
-    }
+    let methodology = CeclMethodology::Warm;
+    let config = CeclConfig {
+        methodology,
+        ..CeclConfig::default()
+    };
+    let pd_sources: Vec<(&MacroScenario, &dyn PdTermStructure)> =
+        vec![(&scenario, &curve as &dyn PdTermStructure)];
+    assert!(
+        CeclEngine::new(config, pd_sources).is_err(),
+        "{methodology:?} must be rejected rather than silently no-op"
+    );
 }
 
 #[test]

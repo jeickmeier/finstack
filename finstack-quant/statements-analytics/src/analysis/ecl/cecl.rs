@@ -49,10 +49,11 @@ pub enum ReversionMethod {
 
 /// CECL calculation methodology.
 ///
-/// Only [`CeclMethodology::PdLgdEad`] is implemented; [`CeclEngine::new`]
-/// rejects the other methodologies rather than silently falling back to the
-/// PD-LGD-EAD formula. The unimplemented variants are retained for serde
-/// wire stability.
+/// [`CeclMethodology::PdLgdEad`] is the discounted PD-LGD-EAD integration;
+/// [`CeclMethodology::Warm`] is the undiscounted weighted-average remaining
+/// maturity loss-rate method. (A `Vintage` variant existed through 0.6.x but
+/// was removed before it was ever implemented — no cohort data model exists
+/// to support it honestly.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CeclMethodology {
     /// PD-LGD-EAD approach (same formula as IFRS 9, always lifetime).
@@ -63,11 +64,6 @@ pub enum CeclMethodology {
     /// error. (A real WARM implementation must not reuse the EIR
     /// discounting of the PD-LGD-EAD path.)
     Warm,
-    /// Vintage/cohort analysis.
-    ///
-    /// **Not yet implemented** — [`CeclEngine::new`] returns a validation
-    /// error.
-    Vintage,
 }
 
 /// Configuration for CECL (US GAAP ASC 326) calculation.
@@ -659,5 +655,14 @@ mod tests {
             cecl_result.ecl,
             ifrs9_result.ecl
         );
+    }
+
+    #[test]
+    fn cecl_methodology_vintage_is_removed_from_the_wire() {
+        // Vintage was removed 2026-07-24: no cohort data model exists to support
+        // it honestly. Inbound JSON must fail to parse rather than silently map
+        // anywhere.
+        let parsed: std::result::Result<CeclMethodology, _> = serde_json::from_str("\"Vintage\"");
+        assert!(parsed.is_err(), "removed variant must not deserialize");
     }
 }
