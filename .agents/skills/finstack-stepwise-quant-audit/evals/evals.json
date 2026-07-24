@@ -1,0 +1,82 @@
+{
+  "skill_name": "finstack-stepwise-quant-audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bond-dirty-price-walkthrough",
+      "prompt": "Go step by step through the bond dirty price calculation in finstack-quant/valuations and verify each stage (settlement, schedule, accrual, discounting, clean/dirty assembly) is industry standard and correct.",
+      "expected_output": "Numbered step map, per-step Intent/Standard/Evidence/Verdict/Fix audits with file:line citations, cross-step contract checks, findings ordered by severity, open questions, brief summary. Fails backed by a cited convention.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "curve-bootstrap-certification",
+      "prompt": "Audit our OIS curve bootstrap pipeline one step at a time before we trust it for production discounting. Certify each step against market standards and flag anything nonstandard.",
+      "expected_output": "Step map covering instrument validation, node placement, solve, interpolation, reprice check, extrapolation; verdict per step citing algorithm-standards interpolation/bootstrap conventions; explicit check that input instruments reprice within tolerance.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "dv01-bump-path-audit",
+      "prompt": "Walk through how position-level DV01 is computed in finstack-quant/portfolio stage by stage and check each step does what a desk would expect (bump unit, rebuild, reprice, scaling, bucket aggregation, sign).",
+      "expected_output": "Step-ordered audit of the bump-and-reprice path; identifies zero-bump vs quote-bump policy and marks it Uncertain if undocumented; checks bucket sum vs parallel consistency, per-1bp scaling, sign convention, metric key format.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "swap-schedule-generation-audit",
+      "prompt": "Go through our swap schedule builder in finstack-quant/core one step at a time: anchor direction, unadjusted grid, stubs, business-day adjustment, accrual fractions, and fixing dates. Is each stage market standard?",
+      "expected_output": "Step map matching the schedule-generation template; verdict per step citing roll/stub/adjustment conventions; checks adjusted vs unadjusted accrual policy, fixing calendar vs payment calendar, and contiguity invariants (no gaps or overlaps).",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "black-scholes-pricer-walkthrough",
+      "prompt": "Walk me step by step through the European option pricer in finstack-quant/analytics and verify each step against the standard Black/Black-Scholes formulation, including time conventions, forward construction, discounting, and edge regimes like zero vol and near expiry.",
+      "expected_output": "Step-ordered audit distinguishing vol time from discount time, Black (forward) vs Black-Scholes (spot) form, premium units, and edge-regime handling (zero vol to intrinsic, T->0, deep ITM/OTM without NaN); Fails cite the specific formula or convention violated.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "buggy-snippet-step-audit",
+      "prompt": "Here is a dirty price function someone wrote:\n\nfn dirty_price(bond: &Bond, curve: &Curve, trade_date: NaiveDate) -> f64 {\n    let settle = trade_date;\n    let accrued = accrued_interest(bond, settle);\n    let pv: f64 = bond.cashflows_after(settle).iter().map(|cf| cf.amount * curve.df(trade_date, cf.date)).sum();\n    pv + accrued\n}\n\nGo through it step by step and tell me whether each step is industry standard, and what to fix.",
+      "expected_output": "Catches both planted defects: missing settlement lag (Step 1 Fail, Major) and discounting anchored at trade date instead of settlement (Fail, Major). Accrual step gets a conditional Pass attributed to the Step 1 defect, not a duplicate Fail. Fixes are concrete and note the two anchors must change together.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "monte-carlo-pipeline-certification",
+      "prompt": "Before we trust the Monte Carlo engine in finstack-quant/monte_carlo for exotics, certify the pipeline stage by stage: discretization, RNG and seeding, path construction, payoff evaluation, discounting, and the estimator with its error reporting.",
+      "expected_output": "Step map matching the Monte Carlo template; checks martingale/measure consistency (E[S_T] vs forward), reproducible seeding, correlation PSD validation, discrete vs continuous barrier monitoring, and that a standard error accompanies the price estimate.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "name": "correct-pipeline-no-false-positives",
+      "prompt": "Step through the ACT/360 and ACT/365F day count implementations and the year-fraction handoff into accrual calculations in finstack-quant/core/src/dates, and confirm each step is standard.",
+      "expected_output": "Mostly-Pass audit with each Pass backed by a cited convention and file:line evidence, not vibes. Does not invent Fails on correct code; any Uncertain names the specific missing evidence. Cross-step section confirms consistent year-fraction units at the handoff.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "name": "sofr-ois-swap-pricing-walkthrough",
+      "prompt": "Walk through how a SOFR OIS swap is priced in finstack-quant/valuations one step at a time: leg schedules, fixed accruals, compounded floating projection, curve roles, netting, and the par rate cross-check. Confirm each stage matches desk practice.",
+      "expected_output": "Step map matching the vanilla swap template; verifies geometric compounding of in-arrears SOFR (not simple averaging), payment lag, ACT/360 accrual, projection vs discount curve roles, pay/receive sign convention, and that NPV is approximately zero at the par rate. Fails cite the RFR convention violated; curve-role mixups are Blockers.",
+      "files": []
+    },
+    {
+      "id": 10,
+      "name": "vol-calibration-pipeline-audit",
+      "prompt": "Audit our vol surface calibration stage by stage before we ship it: target instrument selection, parameter bounds, objective function, optimizer behavior on non-convergence, fit reporting, and arbitrage checks.",
+      "expected_output": "Step map matching the calibration template; flags silent non-convergence or last-iterate returns as Fails, requires the objective space (price vs vol, weighting) to be documented, checks per-instrument residual reporting and butterfly/calendar arbitrage sanity on the calibrated surface.",
+      "files": []
+    },
+    {
+      "id": 11,
+      "name": "cds-pricer-certification",
+      "prompt": "Go through the CDS pricer step by step and certify each stage against ISDA standard model conventions: contract terms, hazard vs discount curve roles, premium leg with accrual-on-default, protection leg, upfront conversion, and CS01.",
+      "expected_output": "Step map matching the CDS template; checks IMM 20th maturity grid, standard 100/500bp coupons, ACT/360 premium accrual, accrual-on-default treatment, protection leg discounted on the risk-free curve (not hazard), 40% recovery default, and CS01 from a re-bootstrapped hazard curve per 1bp.",
+      "files": []
+    }
+  ]
+}
