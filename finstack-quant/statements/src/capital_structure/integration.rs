@@ -424,10 +424,12 @@ pub fn aggregate_instrument_cashflows(
 
                 // Accrued interest is measured at the period snapshot date (`end - 1 day`)
                 // to align with half-open `[start, end)` attribution.
-                // Limitation: `AccrualConfig::default()` leaves `frequency: None`,
-                // which is incorrect for ACT/ACT ISMA schedules (the accrual
-                // engine falls back to ISDA semantics). `CashFlowMeta` does not
-                // carry the coupon frequency, so it cannot be populated here.
+                // `AccrualConfig::default()` leaves `frequency: None`; for
+                // ACT/ACT ISMA schedules the accrual engine fails closed with
+                // `InputError::MissingFrequencyForActActIsma` (no silent ISDA
+                // fallback), so an ISMA schedule errors rather than reporting
+                // a wrong accrued figure. Threading the coupon frequency
+                // through `CashFlowMeta` would lift the limitation.
                 let accrued_scalar = accrual_index.accrued_at(snapshot_date)?;
                 let accrued_money = Money::new(accrued_scalar, currency);
                 breakdown.accrued_interest = accrued_money;

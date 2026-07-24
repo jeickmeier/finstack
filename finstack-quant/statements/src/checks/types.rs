@@ -221,7 +221,13 @@ fn default_check_tolerance() -> f64 {
 }
 
 fn default_relative_tolerance() -> f64 {
-    0.0
+    // Statement evaluation runs in f64 (see `NumericMode::Float64`), so
+    // identity checks accumulate rounding proportional to the magnitudes
+    // involved. A flat absolute default alone (one cent) false-positives on
+    // large balance sheets; 1e-9 relative keeps the effective tolerance at
+    // f64-noise scale (e.g. $10 on a $10B sheet) without loosening small ones,
+    // where the absolute floor still dominates.
+    1e-9
 }
 
 /// Configuration parameters that govern check execution.
@@ -230,15 +236,17 @@ fn default_relative_tolerance() -> f64 {
 /// `|diff| > max(default_tolerance, default_relative_tolerance * |reference|)`,
 /// so an analyst can set an absolute floor (currency units) that catches
 /// micro-errors on small balances plus a relative ceiling that scales with
-/// larger balance sheets.
+/// larger balance sheets. A per-check tolerance override bypasses both
+/// defaults and is applied verbatim.
 ///
 /// All four fields are part of the public configuration surface and are
 /// intended to be tuned per-deployment via JSON / serde overrides — e.g.,
 /// raising `default_relative_tolerance` to `1e-4` (1 bp) when a downstream
 /// process is known to round to the nearest hundred. The defaults
-/// (`default_tolerance = 0.01`, `default_relative_tolerance = 0.0`,
-/// `materiality_threshold = 0.0`, `min_severity = Info`) are conservative
-/// — they fire on any sub-cent drift and surface every finding.
+/// (`default_tolerance = 0.01`, `default_relative_tolerance = 1e-9`,
+/// `materiality_threshold = 0.0`, `min_severity = Info`) are conservative:
+/// the absolute cent floor catches micro-errors on small balances while the
+/// relative component absorbs f64 accumulation noise on large ones.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CheckConfig {
@@ -252,7 +260,9 @@ pub struct CheckConfig {
     /// disables relative tolerance.
     #[serde(default = "default_relative_tolerance")]
     pub default_relative_tolerance: f64,
-    /// Findings below this absolute materiality threshold are excluded from reports.
+    /// Findings below this absolute materiality threshold are excluded from
+    /// reports. Error-severity findings are exempt: materiality filters
+    /// advisory noise, it never changes a check's pass/fail verdict.
     #[serde(default)]
     pub materiality_threshold: f64,
     /// Minimum severity a finding must have to appear in the report.
@@ -264,7 +274,7 @@ impl Default for CheckConfig {
     fn default() -> Self {
         Self {
             default_tolerance: 0.01,
-            default_relative_tolerance: 0.0,
+            default_relative_tolerance: default_relative_tolerance(),
             materiality_threshold: 0.0,
             min_severity: Severity::Info,
         }
@@ -276,15 +286,23 @@ impl Default for CheckConfig {
 /// relative tolerance.
 ///
 /// `|diff| > effective_tolerance(...)` means the check should fire.
+///
+/// A per-check `absolute_override` is the analyst's deliberate choice and is
+/// used verbatim. Only the config-default path blends in the relative
+/// component, which keeps the *default* scale-aware for the f64 evaluation
+/// engine without silently loosening an explicitly configured tolerance.
 #[must_use]
 pub(crate) fn effective_tolerance(
     config: &CheckConfig,
     absolute_override: Option<f64>,
     reference: f64,
 ) -> f64 {
-    let absolute = absolute_override.unwrap_or(config.default_tolerance);
-    let relative = config.default_relative_tolerance * reference.abs();
-    absolute.max(relative)
+    match absolute_override {
+        Some(tolerance) => tolerance,
+        None => config
+            .default_tolerance
+            .max(config.default_relative_tolerance * reference.abs()),
+    }
 }
 
 // ---------------------------------------------------------------------------

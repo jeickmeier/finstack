@@ -677,10 +677,12 @@ mod tests {
     }
 
     #[test]
-    fn ewm_mean_skips_non_finite_values() {
-        // NaN history entries are dropped (retain-finite policy, matching the
-        // other aggregates), so the EWM runs over [1, 3] only:
-        // 0.5 * 3 + 0.5 * 1 = 2.0.
+    fn ewm_mean_decays_across_nan_gaps() {
+        // pandas `ignore_na=False` (the default): a NaN observation is skipped
+        // but the decay weight still advances across the gap, so the weights
+        // for [1, NaN, 3] with adjust=False are (1−α)² and α:
+        // pd.Series([1, nan, 3]).ewm(alpha=0.5, adjust=False).mean().iloc[-1]
+        //   = (0.25·1 + 0.5·3) / 0.75 = 7/3.
         let p1 = PeriodId::quarter(2025, 1);
         let p2 = PeriodId::quarter(2025, 2);
         let p3 = PeriodId::quarter(2025, 3);
@@ -695,7 +697,146 @@ mod tests {
         )
         .expect("ewm_mean");
 
-        assert!((value - 2.0).abs() < 1e-12, "got {value}");
+        assert!((value - 7.0 / 3.0).abs() < 1e-12, "got {value}");
+    }
+
+    #[test]
+    fn ewm_var_decays_across_nan_gaps() {
+        // pd.Series([1, nan, 2, 3]).ewm(alpha=0.5, adjust=False).var(bias=False):
+        // absolute-position weights w = [(1−α)³, α(1−α), α] = [1/8, 1/4, 1/2];
+        // ŵ = [1/7, 2/7, 4/7]; mean = 17/7; biased var = 26/49; Σŵ² = 3/7;
+        // correction = 7/4 ⇒ 26/49 · 7/4 = 13/14.
+        // (Two-observation cases cannot discriminate: unbiased var of two
+        // points is d²/2 under any weighting.)
+        let p1 = PeriodId::quarter(2025, 1);
+        let p2 = PeriodId::quarter(2025, 2);
+        let p3 = PeriodId::quarter(2025, 3);
+        let p4 = PeriodId::quarter(2025, 4);
+
+        let mut context = build_context_with_history(
+            p4,
+            "series",
+            vec![(p1, 1.0), (p2, f64::NAN), (p3, 2.0)],
+            3.0,
+        );
+        let value = evaluate_function(
+            &Function::EwmVar,
+            &[Expr::column("series"), Expr::literal(0.5)],
+            &mut context,
+            Some("ewm_var"),
+        )
+        .expect("ewm_var");
+
+        assert!((value - 13.0 / 14.0).abs() < 1e-12, "got {value}");
+    }
+
+    #[test]
+    fn ewm_rejects_alpha_zero() {
+        // pandas requires 0 < alpha <= 1: alpha = 0 freezes the mean at the
+        // oldest value and zeroes the variance bias-correction denominator.
+        let p1 = PeriodId::quarter(2025, 1);
+        let p2 = PeriodId::quarter(2025, 2);
+
+        for func in [Function::EwmMean, Function::EwmVar, Function::EwmStd] {
+            let mut context = build_context_with_history(p2, "series", vec![(p1, 1.0)], 2.0);
+            let err = evaluate_function(
+                &func,
+                &[Expr::column("series"), Expr::literal(0.0)],
+                &mut context,
+                Some("ewm"),
+            )
+            .expect_err("alpha = 0 must be rejected");
+            assert!(err.to_string().contains("alpha"), "got: {err}");
+        }
+    }
+
+    #[test]
+    fn rolling_mean_returns_nan_until_window_full() {
+        // pandas parity: rolling(window=4) uses min_periods=window by default,
+        // so a 3-observation history yields NaN — not a silent 3-point mean
+        // presented as a 4-period statistic.
+        let p1 = PeriodId::quarter(2025, 1);
+        let p2 = PeriodId::quarter(2025, 2);
+        let p3 = PeriodId::quarter(2025, 3);
+
+        let mut context =
+            build_context_with_history(p3, "series", vec![(p1, 10.0), (p2, 20.0)], 30.0);
+        let value = evaluate_function(
+            &Function::RollingMean,
+            &[Expr::column("series"), Expr::literal(4.0)],
+            &mut context,
+            Some("rolling_mean"),
+        )
+        .expect("rolling_mean");
+
+        assert!(value.is_nan(), "partial window must be NaN, got {value}");
+    }
+
+    #[test]
+    fn rolling_mean_honors_explicit_min_periods() {
+        let p1 = PeriodId::quarter(2025, 1);
+        let p2 = PeriodId::quarter(2025, 2);
+        let p3 = PeriodId::quarter(2025, 3);
+
+        let mut context =
+            build_context_with_history(p3, "series", vec![(p1, 10.0), (p2, 20.0)], 30.0);
+        let value = evaluate_function(
+            &Function::RollingMean,
+            &[
+                Expr::column("series"),
+                Expr::literal(4.0),
+                Expr::literal(2.0),
+            ],
+            &mut context,
+            Some("rolling_mean"),
+        )
+        .expect("rolling_mean with min_periods");
+
+        assert!((value - 20.0).abs() < 1e-12, "got {value}");
+    }
+
+    #[test]
+    fn rolling_mean_nan_in_window_yields_nan_by_default() {
+        // A NaN inside a full window reduces the finite-observation count
+        // below min_periods (= window by default), matching pandas.
+        let p1 = PeriodId::quarter(2025, 1);
+        let p2 = PeriodId::quarter(2025, 2);
+        let p3 = PeriodId::quarter(2025, 3);
+
+        let mut context =
+            build_context_with_history(p3, "series", vec![(p1, 1.0), (p2, f64::NAN)], 3.0);
+        let value = evaluate_function(
+            &Function::RollingMean,
+            &[Expr::column("series"), Expr::literal(3.0)],
+            &mut context,
+            Some("rolling_mean"),
+        )
+        .expect("rolling_mean");
+
+        assert!(
+            value.is_nan(),
+            "NaN in a full window must be NaN, got {value}"
+        );
+    }
+
+    #[test]
+    fn rolling_min_periods_larger_than_window_rejected() {
+        let p1 = PeriodId::quarter(2025, 1);
+        let p2 = PeriodId::quarter(2025, 2);
+
+        let mut context = build_context_with_history(p2, "series", vec![(p1, 1.0)], 2.0);
+        let err = evaluate_function(
+            &Function::RollingMean,
+            &[
+                Expr::column("series"),
+                Expr::literal(2.0),
+                Expr::literal(3.0),
+            ],
+            &mut context,
+            Some("rolling_mean"),
+        )
+        .expect_err("min_periods > window must be rejected");
+        assert!(err.to_string().contains("min_periods"), "got: {err}");
     }
 
     #[test]

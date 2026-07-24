@@ -49,7 +49,9 @@ impl CheckSuite {
     /// `materiality_threshold` filters from the config.
     ///
     /// Each check produces its full findings first; filtering then removes
-    /// findings below the configured severity or absolute materiality. A check
+    /// findings below the configured severity or absolute materiality.
+    /// Error-severity findings are exempt from materiality filtering, so a
+    /// materiality threshold can never flip a failing check to passed. A check
     /// passes when none of its retained findings has `Error` severity. The
     /// returned summary counts only retained findings, so it describes the
     /// reporting policy rather than every raw diagnostic a check generated.
@@ -82,7 +84,13 @@ impl CheckSuite {
                 if f.severity < min_severity {
                     return false;
                 }
-                if mat_threshold > 0.0 {
+                // Materiality is a reporting filter for advisory findings
+                // only. Error findings are always retained: suppressing one
+                // here would flip `passed` (recomputed below) and let a
+                // materiality setting silently convert a failing accounting
+                // identity into a passing check. Tolerances — not materiality
+                // — decide whether a diff is an Error in the first place.
+                if mat_threshold > 0.0 && f.severity < Severity::Error {
                     if let Some(ref m) = f.materiality {
                         if m.absolute.abs() < mat_threshold {
                             return false;

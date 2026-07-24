@@ -233,3 +233,56 @@ fn resolved_suite_runs_against_model() {
     assert!(!report.has_errors());
     assert_eq!(report.summary.passed, 1);
 }
+
+// ============================================================================
+// Materiality is a reporting filter, not a verdict knob: an Error finding
+// must never be suppressed in a way that flips a failing check to passed.
+// ============================================================================
+
+#[test]
+fn materiality_threshold_does_not_flip_error_verdict() {
+    use finstack_quant_statements::checks::builtins::BalanceSheetArticulation;
+    use finstack_quant_statements::checks::{CheckConfig, CheckSuite};
+
+    // Imbalance of 100 on a 1000 sheet: an unambiguous Error.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value("total_assets", &[(q(1), s(1000.0))])
+        .value("total_liabilities", &[(q(1), s(600.0))])
+        .value("total_equity", &[(q(1), s(300.0))])
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let results = evaluator.evaluate(&model).unwrap();
+
+    let suite = CheckSuite::builder("materiality")
+        .add_check(BalanceSheetArticulation {
+            assets_nodes: vec![NodeId::new("total_assets")],
+            liabilities_nodes: vec![NodeId::new("total_liabilities")],
+            equity_nodes: vec![NodeId::new("total_equity")],
+            tolerance: None,
+        })
+        .config(CheckConfig {
+            materiality_threshold: 1_000_000.0, // far above the 100 imbalance
+            ..CheckConfig::default()
+        })
+        .build();
+
+    let report = suite.run(&model, &results).unwrap();
+    let result = &report.results[0];
+
+    assert!(
+        !result.passed,
+        "a materiality threshold must not convert a failing identity into a pass"
+    );
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Error),
+        "the Error finding must survive materiality filtering, got: {:?}",
+        result.findings
+    );
+}

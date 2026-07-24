@@ -162,3 +162,166 @@ fn within_tolerance_passes() {
     assert!(result.passed);
     assert!(result.findings.is_empty());
 }
+
+// ============================================================================
+// Fail-open guards: the identity must never pass because its operands are
+// absent (missing nodes sum to zero on both sides → imbalance 0 → "pass").
+// ============================================================================
+
+#[test]
+fn empty_node_group_is_rejected() {
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value("total_assets", &[(q(1), AmountOrScalar::scalar(1000.0))])
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let results = evaluator.evaluate(&model).unwrap();
+
+    let check = BalanceSheetArticulation {
+        assets_nodes: vec![NodeId::new("total_assets")],
+        liabilities_nodes: vec![],
+        equity_nodes: vec![],
+        tolerance: None,
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let err = check
+        .execute(&ctx)
+        .expect_err("an empty node group makes the identity vacuous and must be rejected");
+    assert!(
+        err.to_string().contains("node group"),
+        "error should name the empty node group, got: {err}"
+    );
+}
+
+#[test]
+fn misnamed_nodes_warn_instead_of_silently_passing() {
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value("total_assets", &[(q(1), AmountOrScalar::scalar(1000.0))])
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let results = evaluator.evaluate(&model).unwrap();
+
+    // Every referenced node name is misspelled: the identity cannot be
+    // evaluated, so the check must surface that — not report a clean pass.
+    let check = BalanceSheetArticulation {
+        assets_nodes: vec![NodeId::new("total_assetz")],
+        liabilities_nodes: vec![NodeId::new("total_liabilitiez")],
+        equity_nodes: vec![NodeId::new("total_equityz")],
+        tolerance: None,
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        !result.findings.is_empty(),
+        "missing operands must produce a finding, not a silent pass"
+    );
+    assert!(
+        result.findings.iter().any(|f| f.severity
+            == finstack_quant_statements::checks::Severity::Warning
+            && f.message.contains("total_assetz")),
+        "the warning should name the missing node, got: {:?}",
+        result.findings
+    );
+}
+
+#[test]
+fn partially_missing_group_skips_period_with_warning() {
+    // Assets are split across two subtotals but one is misspelled: summing the
+    // resolvable one alone would fabricate an imbalance (or mask one), so the
+    // period must be skipped with a warning instead of evaluated one-sided.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value("current_assets", &[(q(1), AmountOrScalar::scalar(400.0))])
+        .value(
+            "total_liabilities",
+            &[(q(1), AmountOrScalar::scalar(600.0))],
+        )
+        .value("total_equity", &[(q(1), AmountOrScalar::scalar(400.0))])
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let results = evaluator.evaluate(&model).unwrap();
+
+    let check = BalanceSheetArticulation {
+        assets_nodes: vec![NodeId::new("current_assets"), NodeId::new("fixed_assetz")],
+        liabilities_nodes: vec![NodeId::new("total_liabilities")],
+        equity_nodes: vec![NodeId::new("total_equity")],
+        tolerance: None,
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    use finstack_quant_statements::checks::Severity;
+    assert!(
+        !result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Error),
+        "a period with unresolved operands must be skipped, not judged: {:?}",
+        result.findings
+    );
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Warning && f.message.contains("fixed_assetz")),
+        "the warning should name the missing node, got: {:?}",
+        result.findings
+    );
+}
+
+#[test]
+fn large_balance_sheet_within_relative_tolerance_passes() {
+    // A $10B balance sheet with $0.05 of f64 accumulation drift must not fail
+    // under the *default* config: the default tolerance is scale-aware
+    // (relative component), not a flat absolute cent.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value(
+            "total_assets",
+            &[(q(1), AmountOrScalar::scalar(10_000_000_000.0))],
+        )
+        .value(
+            "total_liabilities",
+            &[(q(1), AmountOrScalar::scalar(6_000_000_000.0))],
+        )
+        .value(
+            "total_equity",
+            &[(q(1), AmountOrScalar::scalar(3_999_999_999.95))],
+        )
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let results = evaluator.evaluate(&model).unwrap();
+
+    let check = BalanceSheetArticulation {
+        assets_nodes: vec![NodeId::new("total_assets")],
+        liabilities_nodes: vec![NodeId::new("total_liabilities")],
+        equity_nodes: vec![NodeId::new("total_equity")],
+        tolerance: None,
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        result.passed,
+        "a 5e-12 relative imbalance on a $10B sheet is f64 noise, not an accounting error: {:?}",
+        result.findings
+    );
+}

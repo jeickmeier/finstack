@@ -62,6 +62,19 @@ pub(super) fn growth_pct(
         );
     }
 
+    // Multiplicative growth on a negative base compounds the loss and can
+    // never change sign: "grow 5%" on -100 forecasts -105, -110.25, ...
+    // That is almost always a misconfiguration (the statistical methods
+    // reject negative bases outright), so surface it.
+    if base_value < 0.0 {
+        tracing::warn!(
+            base_value,
+            rate,
+            "GrowthPct forecast on a negative base compounds the loss (the series cannot \
+             change sign) - verify this is intentional"
+        );
+    }
+
     let mut results = IndexMap::new();
     let mut current_value = base_value;
 
@@ -123,6 +136,15 @@ pub(super) fn curve_pct(
             curve.len(),
             forecast_periods.len()
         )));
+    }
+
+    // Same negative-base compounding trap as GrowthPct: see the warning there.
+    if base_value < 0.0 {
+        tracing::warn!(
+            base_value,
+            "CurvePct forecast on a negative base compounds the loss (the series cannot \
+             change sign) - verify this is intentional"
+        );
     }
 
     let mut results = IndexMap::new();

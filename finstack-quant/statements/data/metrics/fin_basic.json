@@ -15,21 +15,21 @@
     {
       "id": "operating_income",
       "name": "Operating Income",
-      "formula": "revenue - cogs - opex",
-      "description": "Revenue minus cost of goods sold and operating expenses",
+      "formula": "revenue - cogs - opex - depreciation - amortization",
+      "description": "Revenue minus cost of goods sold, operating expenses, and depreciation & amortization (EBIT). CONVENTION: `opex` excludes depreciation and amortization, which are supplied as separate nodes.",
       "category": "income_statement",
       "unit_type": "currency",
-      "requires": ["revenue", "cogs", "opex"],
+      "requires": ["revenue", "cogs", "opex", "depreciation", "amortization"],
       "tags": ["income_statement", "profitability"]
     },
     {
       "id": "ebitda",
       "name": "EBITDA",
-      "formula": "revenue - cogs - opex + depreciation + amortization",
-      "description": "Earnings before interest, taxes, depreciation, and amortization",
+      "formula": "revenue - cogs - opex",
+      "description": "Earnings before interest, taxes, depreciation, and amortization. CONVENTION: `opex` excludes depreciation and amortization, so no add-back is applied here; use `ebit` / `operating_income` for post-D&A earnings.",
       "category": "income_statement",
       "unit_type": "currency",
-      "requires": ["revenue", "cogs", "opex", "depreciation", "amortization"],
+      "requires": ["revenue", "cogs", "opex"],
       "tags": ["income_statement", "profitability", "cash_proxy"]
     },
     {
@@ -45,21 +45,21 @@
     {
       "id": "ebt",
       "name": "EBT",
-      "formula": "revenue - cogs - opex - interest_expense",
-      "description": "Earnings before tax",
+      "formula": "revenue - cogs - opex - depreciation - amortization - interest_expense",
+      "description": "Earnings before tax. CONVENTION: `opex` excludes depreciation and amortization.",
       "category": "income_statement",
       "unit_type": "currency",
-      "requires": ["revenue", "cogs", "opex", "interest_expense"],
+      "requires": ["revenue", "cogs", "opex", "depreciation", "amortization", "interest_expense"],
       "tags": ["income_statement", "profitability"]
     },
     {
       "id": "net_income",
       "name": "Net Income",
-      "formula": "revenue - cogs - opex - interest_expense - tax_expense",
-      "description": "Earnings after all expenses and taxes",
+      "formula": "revenue - cogs - opex - depreciation - amortization - interest_expense - tax_expense",
+      "description": "Earnings after all expenses and taxes. CONVENTION: `opex` excludes depreciation and amortization.",
       "category": "income_statement",
       "unit_type": "currency",
-      "requires": ["revenue", "cogs", "opex", "interest_expense", "tax_expense"],
+      "requires": ["revenue", "cogs", "opex", "depreciation", "amortization", "interest_expense", "tax_expense"],
       "tags": ["income_statement", "profitability", "bottom_line"]
     }
   ]

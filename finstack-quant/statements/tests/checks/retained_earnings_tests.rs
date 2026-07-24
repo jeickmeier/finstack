@@ -213,3 +213,124 @@ fn with_other_adjustments() {
     assert!(result.passed);
     assert!(result.findings.is_empty());
 }
+
+// ============================================================================
+// Configured-but-missing optional inputs must warn and skip, not silently
+// coerce to zero (a misspelled dividends node otherwise reconciles against
+// the wrong identity or misattributes the error).
+// ============================================================================
+
+#[test]
+fn missing_configured_dividends_node_warns_and_skips() {
+    use finstack_quant_statements::checks::Severity;
+
+    // RE moved 500 -> 550 with NI 100 because 50 of dividends were paid, but
+    // the configured dividends node name does not exist in the results.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q2", None)
+        .unwrap()
+        .value(
+            "retained_earnings",
+            &[
+                (q(1), AmountOrScalar::scalar(500.0)),
+                (q(2), AmountOrScalar::scalar(550.0)),
+            ],
+        )
+        .value(
+            "net_income",
+            &[
+                (q(1), AmountOrScalar::scalar(90.0)),
+                (q(2), AmountOrScalar::scalar(100.0)),
+            ],
+        )
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let results = evaluator.evaluate(&model).unwrap();
+
+    let check = RetainedEarningsReconciliation {
+        retained_earnings_node: NodeId::new("retained_earnings"),
+        net_income_node: NodeId::new("net_income"),
+        dividends_node: Some(NodeId::new("dividendz")), // misspelled
+        other_adjustments: vec![],
+        tolerance: None,
+        dividends_sign_convention: Default::default(),
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        !result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Error),
+        "a period with an unresolvable configured input must be skipped, not judged: {:?}",
+        result.findings
+    );
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Warning && f.message.contains("dividendz")),
+        "the warning should name the missing dividends node, got: {:?}",
+        result.findings
+    );
+}
+
+#[test]
+fn missing_configured_adjustment_node_warns_and_skips() {
+    use finstack_quant_statements::checks::Severity;
+
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q2", None)
+        .unwrap()
+        .value(
+            "retained_earnings",
+            &[
+                (q(1), AmountOrScalar::scalar(500.0)),
+                (q(2), AmountOrScalar::scalar(600.0)),
+            ],
+        )
+        .value(
+            "net_income",
+            &[
+                (q(1), AmountOrScalar::scalar(90.0)),
+                (q(2), AmountOrScalar::scalar(100.0)),
+            ],
+        )
+        .build()
+        .unwrap();
+
+    let check = RetainedEarningsReconciliation {
+        retained_earnings_node: NodeId::new("retained_earnings"),
+        net_income_node: NodeId::new("net_income"),
+        dividends_node: None,
+        other_adjustments: vec![NodeId::new("aoci_adjustmentz")], // misspelled
+        tolerance: None,
+        dividends_sign_convention: Default::default(),
+    };
+
+    let mut evaluator = Evaluator::new();
+    let results = evaluator.evaluate(&model).unwrap();
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        !result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Error),
+        "unexpected Error findings: {:?}",
+        result.findings
+    );
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Warning && f.message.contains("aoci_adjustmentz")),
+        "the warning should name the missing adjustment node, got: {:?}",
+        result.findings
+    );
+}

@@ -233,9 +233,11 @@ pub(crate) fn normal_forecast_with_stream(
 /// multiplicative increment is `exp(mean)`, matching the drift convention
 /// in Black–Scholes and standard GBM literature.
 ///
-/// When `base_value` is zero, falls back to i.i.d. `exp(N(mean, std_dev))`
-/// draws (no path dependence since multiplication by zero would collapse
-/// the path).
+/// When `base_value` is zero, falls back to i.i.d.
+/// `exp(N(mean - 0.5*std_dev², std_dev))` draws (no path dependence since
+/// multiplication by zero would collapse the path). The fallback keeps the
+/// same Itô-corrected drift convention as the path, so `mean` means
+/// "expected log-growth" in both regimes.
 ///
 /// # Arguments
 ///
@@ -284,7 +286,7 @@ pub(super) fn lognormal_forecast(
 ///   positive levels for a series whose last actual was a loss.
 ///
 /// Only a base of exactly zero legitimately selects the documented i.i.d.
-/// `exp(N(mean, std_dev))` fallback.
+/// `exp(N(mean - 0.5*std_dev², std_dev))` fallback.
 fn validate_lognormal_base(base_value: f64, context: &str) -> Result<()> {
     if !base_value.is_finite() {
         return Err(crate::error::Error::forecast(format!(
@@ -322,7 +324,8 @@ pub(crate) fn lognormal_forecast_with_stream(
     let mut results = IndexMap::new();
     let mut prev = base_value;
     // Anchor the geometric walk at any strictly-positive base; a base of exactly
-    // zero uses the documented i.i.d. `exp(N(mean, std_dev))` fallback. Keying on
+    // zero uses the documented i.i.d. `exp(N(mean - 0.5*std_dev², std_dev))`
+    // fallback. Keying on
     // `> 0.0` (rather than `abs() > f64::EPSILON`) removes the discontinuity where
     // a rounding residue like 1e-17 vs 1e-15 produced forecasts orders of
     // magnitude apart.
@@ -343,7 +346,11 @@ pub(crate) fn lognormal_forecast_with_stream(
             }
             prev * log_return.clamp(-EXP_CLAMP, EXP_CLAMP).exp()
         } else {
-            let normal_value = p.mean + p.std_dev * z;
+            // Same drift convention as the geometric path: the Itô correction
+            // keeps `mean` meaning "expected log-growth" (`E[·] = exp(mean)`)
+            // in both regimes instead of silently switching to
+            // `exp(mean + σ²/2)` at the base-0 boundary.
+            let normal_value = (p.mean - 0.5 * p.std_dev * p.std_dev) + p.std_dev * z;
             if normal_value.abs() > EXP_CLAMP {
                 tracing::warn!(
                     mean = p.mean,
@@ -378,8 +385,8 @@ pub(crate) fn lognormal_forecast_with_stream(
 /// - LogNormal with path (`base_value > 0.0`, GBM):
 ///   `v_t = v_{t-1} * exp((mean - 0.5*std_dev²) + std_dev * z_t)`
 ///   ⇒ `z_t = (ln(v_t / v_{t-1}) - (mean - 0.5*std_dev²)) / std_dev`.
-/// - LogNormal zero-base fallback (i.i.d. `exp(N(mean, std_dev))`):
-///   ⇒ `z_t = (ln(v_t) - mean) / std_dev`.
+/// - LogNormal zero-base fallback (i.i.d. `exp(N(mean - 0.5*std_dev², std_dev))`):
+///   ⇒ `z_t = (ln(v_t) - (mean - 0.5*std_dev²)) / std_dev`.
 ///
 /// These per-period shocks are what [`monte_carlo_correlated_series`] mixes
 /// via `ρ·Z_peer + sqrt(1-ρ²)·Z_indep`, so the correlation is applied in the
@@ -443,8 +450,9 @@ pub(crate) fn record_independent_z_scores_for_mc(
                     let ln_ratio = (v / prev).ln();
                     (ln_ratio - (p.mean - 0.5 * p.std_dev * p.std_dev)) / p.std_dev
                 } else {
-                    // Zero-base fallback: i.i.d. exp(N(mean, std_dev))
-                    ((v).ln() - p.mean) / p.std_dev
+                    // Zero-base fallback: i.i.d. exp((mean − σ²/2) + σz),
+                    // matching the generator's Itô-corrected drift.
+                    (v.ln() - (p.mean - 0.5 * p.std_dev * p.std_dev)) / p.std_dev
                 };
                 entry.insert(*pid, z);
                 if use_path {
@@ -485,7 +493,8 @@ pub(crate) struct CorrelatedMonteCarloSeries<'a> {
 /// - LogNormal (GBM) when `base_value > 0.0`:
 ///   `v_t = v_{t-1} * exp((mean - 0.5*std_dev²) + std_dev * z_t)`.
 /// - LogNormal zero-base fallback (`base_value == 0.0`): i.i.d.
-///   `exp(mean + std_dev * z_t)`. Negative and non-finite bases are rejected.
+///   `exp((mean - 0.5*std_dev²) + std_dev * z_t)`. Negative and non-finite
+///   bases are rejected.
 ///
 /// Matches the shock convention recorded by
 /// [`record_independent_z_scores_for_mc`] so linear correlation of the
@@ -603,8 +612,9 @@ pub(crate) fn monte_carlo_correlated_series(
                 prev * log_return.clamp(-EXP_CLAMP, EXP_CLAMP).exp()
             }
             ForecastMethod::LogNormal => {
-                // base_value ≈ 0 fallback: i.i.d. exp(N(mean, std_dev))
-                let normal_value = p.mean + p.std_dev * z;
+                // base_value = 0 fallback: i.i.d. exp((mean − σ²/2) + σz),
+                // same Itô-corrected drift convention as the geometric path.
+                let normal_value = (p.mean - 0.5 * p.std_dev * p.std_dev) + p.std_dev * z;
                 if normal_value.abs() > EXP_CLAMP {
                     tracing::warn!(
                         mean = p.mean,
@@ -654,6 +664,70 @@ mod tests {
         params.insert("std_dev".to_string(), serde_json::json!(0.1));
         params.insert("seed".to_string(), serde_json::json!(7));
         params
+    }
+
+    /// The zero-base i.i.d. fallback must use the same drift convention as
+    /// the geometric path: `exp((mean − σ²/2) + σz)`, so `mean` means
+    /// "expected log-growth" (`E[·] = exp(mean)`) in both regimes.
+    ///
+    /// Without the Itô correction in the fallback, the same `(mean, std_dev)`
+    /// produced `E[value] = exp(mean + σ²/2)` when the base was exactly 0 but
+    /// `E[ratio] = exp(mean)` otherwise — a silent convention switch at the
+    /// base-0 boundary. With the shared drift, a unit-base GBM step and the
+    /// fallback draw are identical for identical seeds.
+    #[test]
+    fn lognormal_zero_base_fallback_matches_unit_base_drift_convention() {
+        let periods = vec![PeriodId::quarter(2025, 1), PeriodId::quarter(2025, 2)];
+        let params = lognormal_params();
+
+        let from_zero = lognormal_forecast_with_stream(0.0, &periods, &params, Some(11))
+            .expect("zero-base forecast");
+        let from_unit = lognormal_forecast_with_stream(1.0, &periods, &params, Some(11))
+            .expect("unit-base forecast");
+
+        // First step: unit-base GBM gives 1·exp((mean−σ²/2)+σz); the fallback
+        // draw with the same seed must produce exactly the same value.
+        let z0 = from_zero.get(&periods[0]).unwrap();
+        let u0 = from_unit.get(&periods[0]).unwrap();
+        assert!(
+            (z0 - u0).abs() < 1e-15,
+            "fallback drift convention diverges from the GBM path: {z0} vs {u0}"
+        );
+    }
+
+    /// The Z-score recorder must invert exactly the recurrence the generator
+    /// applied, in the zero-base fallback regime as well: recorded shocks must
+    /// reproduce the raw normals the RNG drew.
+    #[test]
+    fn lognormal_zero_base_z_recording_inverts_the_generator() {
+        let periods = vec![PeriodId::quarter(2025, 1), PeriodId::quarter(2025, 2)];
+        let params = lognormal_params();
+        let node = NodeId::new("node");
+
+        let values = lognormal_forecast_with_stream(0.0, &periods, &params, Some(5))
+            .expect("zero-base forecast");
+
+        let mut cache: IndexMap<NodeId, IndexMap<PeriodId, f64>> = IndexMap::new();
+        record_independent_z_scores_for_mc(
+            ForecastMethod::LogNormal,
+            &params,
+            &periods,
+            &values,
+            0.0,
+            &node,
+            &mut cache,
+        )
+        .expect("record z-scores");
+
+        let mut rng = build_rng(7, Some(5));
+        for pid in &periods {
+            let expected_z = rng.normal(0.0, 1.0);
+            let recorded_z = cache[&node][pid];
+            assert!(
+                (recorded_z - expected_z).abs() < 1e-12,
+                "recorded z {recorded_z} must invert the generator's draw {expected_z}"
+            );
+        }
     }
 
     /// A misspelled parameter must fail loudly rather than be ignored.

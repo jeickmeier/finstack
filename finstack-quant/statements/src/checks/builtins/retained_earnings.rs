@@ -131,6 +131,42 @@ impl Check for RetainedEarningsReconciliation {
                 }
             };
 
+            // A configured-but-unresolvable optional input must not be
+            // silently coerced to zero: a misspelled dividends node would make
+            // the check reconcile against the wrong identity (or misattribute
+            // the resulting error to RE itself). Warn and skip, mirroring the
+            // core-input handling above.
+            let mut missing_optional: Vec<String> = Vec::new();
+            if let Some(node) = self.dividends_node.as_ref() {
+                if get_node_value(context.results, node, curr_pid).is_none() {
+                    missing_optional.push(format!("{node} @ {curr_pid}"));
+                }
+            }
+            for node in &self.other_adjustments {
+                if get_node_value(context.results, node, curr_pid).is_none() {
+                    missing_optional.push(format!("{node} @ {curr_pid}"));
+                }
+            }
+            if !missing_optional.is_empty() {
+                findings.push(CheckFinding {
+                    check_id: self.id().to_string(),
+                    severity: Severity::Warning,
+                    message: format!(
+                        "Retained earnings reconciliation skipped for {curr_pid}: configured \
+                         inputs are missing [{}]. A missing dividends or adjustment node is not \
+                         treated as zero.",
+                        missing_optional.join(", ")
+                    ),
+                    period: Some(*curr_pid),
+                    materiality: None,
+                    nodes: vec![
+                        self.retained_earnings_node.clone(),
+                        self.net_income_node.clone(),
+                    ],
+                });
+                continue;
+            }
+
             let dividends = self
                 .dividends_node
                 .as_ref()

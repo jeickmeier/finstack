@@ -2,11 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::sum_nodes;
+use super::{get_node_value, sum_nodes};
 use crate::checks::types::effective_tolerance;
 use crate::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
 };
+use crate::error::Error;
 use crate::types::NodeId;
 use crate::Result;
 
@@ -38,10 +39,62 @@ impl Check for BalanceSheetArticulation {
     }
 
     fn execute(&self, context: &CheckContext) -> Result<CheckResult> {
+        // An empty node group would sum to zero and make the identity vacuous
+        // (0 == 0 always "articulates"): the check would pass while checking
+        // nothing. Fail loudly instead.
+        for (label, group) in [
+            ("assets_nodes", &self.assets_nodes),
+            ("liabilities_nodes", &self.liabilities_nodes),
+            ("equity_nodes", &self.equity_nodes),
+        ] {
+            if group.is_empty() {
+                return Err(Error::invalid_input(format!(
+                    "balance_sheet_articulation: node group '{label}' is empty; the identity \
+                     Assets = Liabilities + Equity cannot be evaluated against an empty side"
+                )));
+            }
+        }
+
         let mut findings = Vec::new();
 
         for period in &context.model.periods {
             let pid = &period.id;
+
+            // Missing operands must not be coerced to zero: a misspelled node
+            // silently understates one side and can flip a real imbalance into
+            // a false pass (or fabricate a false failure). Skip the period
+            // with a visible warning instead, mirroring the missing-input
+            // handling in cash reconciliation and retained earnings.
+            let missing: Vec<String> = self
+                .assets_nodes
+                .iter()
+                .chain(&self.liabilities_nodes)
+                .chain(&self.equity_nodes)
+                .filter(|n| get_node_value(context.results, n, pid).is_none())
+                .map(|n| n.to_string())
+                .collect();
+            if !missing.is_empty() {
+                findings.push(CheckFinding {
+                    check_id: self.id().to_string(),
+                    severity: Severity::Warning,
+                    message: format!(
+                        "Balance sheet articulation skipped for {pid}: missing inputs [{}]. \
+                         The identity cannot be evaluated with unresolved operands.",
+                        missing.join(", ")
+                    ),
+                    period: Some(*pid),
+                    materiality: None,
+                    nodes: self
+                        .assets_nodes
+                        .iter()
+                        .chain(&self.liabilities_nodes)
+                        .chain(&self.equity_nodes)
+                        .cloned()
+                        .collect(),
+                });
+                continue;
+            }
+
             let assets = sum_nodes(context.results, &self.assets_nodes, pid);
             let liabilities = sum_nodes(context.results, &self.liabilities_nodes, pid);
             let equity = sum_nodes(context.results, &self.equity_nodes, pid);

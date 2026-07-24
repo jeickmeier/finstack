@@ -726,7 +726,8 @@ fn test_seasonal_mode_typo_errors() {
 
 #[test]
 fn test_rolling_window_with_limited_history() {
-    // With limited historical data, rolling functions use available data
+    // pandas parity: a partial window is NaN by default (min_periods = window);
+    // pass an explicit min_periods to opt into expanding-until-full behavior.
     let model = ModelBuilder::new("test")
         .periods("2025Q1..2025Q2", None)
         .unwrap()
@@ -739,29 +740,36 @@ fn test_rolling_window_with_limited_history() {
         )
         .compute("rolling_mean_4", "rolling_mean(revenue, 4)")
         .unwrap()
+        .compute("rolling_mean_4_mp1", "rolling_mean(revenue, 4, 1)")
+        .unwrap()
         .build()
         .unwrap();
 
     let mut evaluator = Evaluator::new();
     let results = evaluator.evaluate(&model).unwrap();
 
-    // Q1: With only 1 value and window=4, uses just that value
-    let q1_value = results
-        .get("rolling_mean_4", &PeriodId::quarter(2025, 1))
-        .unwrap();
-    assert_eq!(
-        q1_value, 100.0,
-        "Rolling mean with 1 value returns that value"
-    );
+    // Default (min_periods = window): partial windows are NaN, so a 1- or
+    // 2-observation history is never presented as a 4-period statistic.
+    for quarter in [1, 2] {
+        let value = results
+            .get("rolling_mean_4", &PeriodId::quarter(2025, quarter))
+            .unwrap();
+        assert!(
+            value.is_nan(),
+            "partial window must be NaN by default, got {value} in Q{quarter}"
+        );
+    }
 
-    // Q2: With 2 values and window=4, uses both: (100+110)/2 = 105
-    let q2_value = results
-        .get("rolling_mean_4", &PeriodId::quarter(2025, 2))
+    // Explicit min_periods=1 restores expanding-until-full behavior.
+    let q1_value = results
+        .get("rolling_mean_4_mp1", &PeriodId::quarter(2025, 1))
         .unwrap();
-    assert_eq!(
-        q2_value, 105.0,
-        "Rolling mean with 2 values returns their mean"
-    );
+    assert_eq!(q1_value, 100.0, "min_periods=1: 1 value returns that value");
+
+    let q2_value = results
+        .get("rolling_mean_4_mp1", &PeriodId::quarter(2025, 2))
+        .unwrap();
+    assert_eq!(q2_value, 105.0, "min_periods=1: mean of available values");
 }
 
 #[test]

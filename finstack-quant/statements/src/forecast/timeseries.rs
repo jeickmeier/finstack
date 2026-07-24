@@ -365,7 +365,31 @@ pub(super) fn seasonal_forecast(
     // Validated here as well as at dispatch: this entry point is reachable
     // directly, and the vocabulary itself lives in one place.
     crate::forecast::validate_params(crate::types::ForecastMethod::Seasonal, params)?;
-    // `base_value` is currently ignored for seasonal forecasts—historical data provides the level.
+
+    // `base_value` is ignored for seasonal forecasts — the user-supplied
+    // `historical` array provides the level. That array is a separate input
+    // with no cross-check against the model's own actuals, so if its last
+    // entry has drifted away from the node's last actual the forecast opens
+    // with a discontinuity at the actual/forecast seam. Surface the drift.
+    if let Some(last_hist) = params
+        .get("historical")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.last())
+        .and_then(serde_json::Value::as_f64)
+    {
+        let scale = base_value.abs().max(last_hist.abs()).max(1.0);
+        if base_value.is_finite() && (base_value - last_hist).abs() > 1e-6 * scale {
+            tracing::warn!(
+                base_value,
+                last_historical = last_hist,
+                "Seasonal forecast level comes from the 'historical' parameter, whose last \
+                 entry differs from the node's last actual value - the forecast will not \
+                 connect to the actuals at the seam. Update 'historical' to match the \
+                 model's actuals if this is unintentional."
+            );
+        }
+    }
+
     seasonal_forecast_with_decomposition(base_value, forecast_periods, params)
 }
 

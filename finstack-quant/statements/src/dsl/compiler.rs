@@ -88,6 +88,19 @@ pub fn compile(ast: &StmtExpr) -> Result<Expr> {
 /// must be compatible for addition, subtraction, comparison, and conditional
 /// branches. This catches currency-unit mistakes before numerical evaluation.
 ///
+/// # Coverage limits (currency-safety is gradual, not total)
+///
+/// The checker is sound only over *typed* references. Any node whose
+/// `value_type` is not in `node_types` — notably formula-only `Calculated`
+/// nodes, whose type is not inferred until after evaluation — degrades to
+/// `Dimension::Unknown`, and `Unknown` combines with anything without error.
+/// Direct mixing of typed monetary leaves (e.g. `usd_revenue + eur_costs`) is
+/// rejected, but the same mix routed through an intermediate Calculated node
+/// (`usd_revenue + eur_total` where `eur_total` is itself a formula) is not
+/// detectable at validation time. Statement evaluation itself runs in `f64`
+/// (see `NumericMode::Float64`), so nothing re-checks units numerically —
+/// declare `value_type` on nodes wherever possible to maximize coverage.
+///
 /// # Arguments
 ///
 /// * `ast` - Parsed statements DSL expression whose known value dimensions are
@@ -438,21 +451,25 @@ fn compile_function_call(func_name: &str, args: &[StmtExpr]) -> Result<Expr> {
                     ));
                 }
             }
-            Function::Lag
-            | Function::Shift
-            | Function::RollingMean
+            Function::Lag | Function::Shift | Function::EwmMean | Function::Quantile => {
+                if compiled_args.len() != 2 {
+                    return Err(crate::error::Error::eval(format!(
+                        "{}() requires exactly 2 arguments",
+                        func_name
+                    )));
+                }
+            }
+            Function::RollingMean
             | Function::RollingSum
             | Function::RollingStd
             | Function::RollingVar
             | Function::RollingMedian
             | Function::RollingMin
             | Function::RollingMax
-            | Function::RollingCount
-            | Function::EwmMean
-            | Function::Quantile => {
-                if compiled_args.len() != 2 {
+            | Function::RollingCount => {
+                if compiled_args.len() < 2 || compiled_args.len() > 3 {
                     return Err(crate::error::Error::eval(format!(
-                        "{}() requires exactly 2 arguments",
+                        "{}() requires 2 or 3 arguments (series, window, [min_periods])",
                         func_name
                     )));
                 }
@@ -600,6 +617,20 @@ mod tests {
         let expr = compile(&ast);
 
         assert!(expr.is_ok());
+    }
+
+    /// Rolling functions accept an optional third `min_periods` argument
+    /// (pandas parity); one or four-plus arguments stay rejected.
+    #[test]
+    fn rolling_functions_accept_optional_min_periods() {
+        for formula in ["rolling_mean(x, 4)", "rolling_mean(x, 4, 2)"] {
+            let ast = parse_formula(formula).expect("should parse");
+            assert!(compile(&ast).is_ok(), "should compile: {formula}");
+        }
+        for formula in ["rolling_mean(x)", "rolling_mean(x, 4, 2, 1)"] {
+            let ast = parse_formula(formula).expect("should parse");
+            assert!(compile(&ast).is_err(), "should reject: {formula}");
+        }
     }
 
     // Regression (C8): `min`/`max` now compile to a single n-ary

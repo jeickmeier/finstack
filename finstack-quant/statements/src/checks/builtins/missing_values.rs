@@ -10,6 +10,10 @@ use crate::types::NodeId;
 use crate::Result;
 
 /// Flags required nodes that lack values in applicable periods.
+///
+/// **Advisory-only**: findings are `Severity::Warning`, so
+/// `CheckResult::passed` is always `true`; the check surfaces gaps without
+/// failing a pipeline gate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MissingValueCheck {
     /// Nodes that must have values in every in-scope period.

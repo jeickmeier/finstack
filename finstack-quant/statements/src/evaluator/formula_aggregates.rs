@@ -109,7 +109,12 @@ fn evaluate_rolling_function(
     context: &mut EvaluationContext,
     node_id: Option<&str>,
 ) -> Result<f64> {
-    require_args(&func.to_string(), args, 2, node_id)?;
+    if args.len() < 2 || args.len() > 3 {
+        return Err(eval_error(
+            node_id,
+            format!("{func}() requires 2 or 3 arguments (series, window, [min_periods])"),
+        ));
+    }
 
     let window =
         evaluate_non_negative_integer_arg(&func.to_string(), &args[1], context, node_id)? as usize;
@@ -117,13 +122,32 @@ fn evaluate_rolling_function(
         return Err(eval_error(node_id, "Window size must be greater than 0"));
     }
 
+    // pandas parity: `min_periods` defaults to the window size, so a partial
+    // window (or a window containing NaN) yields NaN rather than silently
+    // computing a k-point statistic labeled as a `window`-period one. Pass an
+    // explicit third argument to relax it (e.g. `rolling_mean(x, 4, 1)` for
+    // the old expanding-until-full behavior).
+    let min_periods = if args.len() == 3 {
+        let mp = evaluate_non_negative_integer_arg(&func.to_string(), &args[2], context, node_id)?
+            as usize;
+        if mp > window {
+            return Err(eval_error(
+                node_id,
+                format!("{func}() min_periods ({mp}) cannot exceed window ({window})"),
+            ));
+        }
+        mp.max(1)
+    } else {
+        window
+    };
+
     let raw_values = collect_window_values(&args[0], context, window, node_id)?;
 
     // Skip non-finite values (see `retain_finite` doc). Note: `RollingCount`
     // counts finite observations, matching pandas `rolling().count()`.
     let values = retain_finite(&raw_values);
 
-    if values.is_empty() {
+    if values.len() < min_periods {
         return Ok(f64::NAN);
     }
 

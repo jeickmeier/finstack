@@ -8,6 +8,10 @@ use crate::types::NodeId;
 use crate::Result;
 
 /// Flags values with unexpected signs (e.g., revenue < 0 or expense > 0).
+///
+/// **Advisory-only**: every finding is `Severity::Warning`, so this check's
+/// `CheckResult::passed` is always `true` and it never fails a pipeline gate.
+/// Treat its findings as review prompts, not assertions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignConventionCheck {
     /// Nodes expected to carry positive values.

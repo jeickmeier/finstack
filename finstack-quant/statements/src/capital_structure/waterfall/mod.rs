@@ -352,6 +352,26 @@ pub fn execute_waterfall(
     };
     let available_cash = if let Some(available_cash_node) = &waterfall_spec.available_cash_node {
         let cash = eval_value_or_formula(context, available_cash_node, &mut warnings)?;
+        // A negative pool (operating shortfall) is floored to zero for
+        // allocation, but the shortfall itself must stay visible: without
+        // this warning the period simply shorts every creditor and the
+        // negative signal disappears.
+        if cash < 0.0 {
+            warnings.push(EvalWarning::CapitalStructureCashflowIgnored {
+                period: *_period_id,
+                kind: format!(
+                    "negative_available_cash_floored(node={available_cash_node}, amount={cash:.4})"
+                ),
+                cashflow_date: _period_id.to_string(),
+            });
+            tracing::warn!(
+                node = available_cash_node.as_str(),
+                cash,
+                period = _period_id.to_string(),
+                "Available cash is negative; floored to zero for waterfall allocation. \
+                 The operating shortfall is surfaced as a warning."
+            );
+        }
         Some(money_from_expr(
             cash.max(0.0),
             cash_currency,
@@ -554,6 +574,25 @@ pub fn execute_waterfall(
             sweep_allocations[idx] += share;
             residual -= share;
         }
+    }
+
+    // Sweep cash beyond total debt capacity: with an available-cash pool the
+    // excess falls through to the equity residual in Step 5, but in legacy
+    // mode (`available_cash_node: None`) there is no equity bucket and the
+    // cash would silently vanish from the model. Surface it.
+    if residual > MONEY_TOLERANCE && available_cash.is_none() {
+        warnings.push(EvalWarning::CapitalStructureCashflowIgnored {
+            period: *_period_id,
+            kind: format!("sweep_excess_unallocated(amount={residual:.4})"),
+            cashflow_date: _period_id.to_string(),
+        });
+        tracing::warn!(
+            excess = residual,
+            period = _period_id.to_string(),
+            "ECF sweep exceeds total remaining debt capacity and no available_cash_node is \
+             configured; the excess has no destination (no equity residual in legacy mode) \
+             and is reported as a warning."
+        );
     }
 
     // Second pass: apply computed shares
@@ -988,6 +1027,187 @@ mod tests {
                 .amount(),
             425_000.0
         );
+    }
+
+    /// A negative cash pool is floored to zero for allocation, but the
+    /// operating shortfall must be surfaced, not silently erased: every
+    /// creditor gets shorted and the only diagnostic would otherwise be
+    /// downstream shortfall warnings that never mention the negative pool.
+    #[test]
+    fn negative_available_cash_is_warned_before_flooring() {
+        let period = PeriodId::quarter(2025, 1);
+        let context = build_context(period, &[("cash", -500.0)]);
+
+        let mut contractual_flows: IndexMap<String, CashflowBreakdown> = IndexMap::new();
+        let mut breakdown = CashflowBreakdown::with_currency(Currency::USD);
+        breakdown.interest_expense_cash = Money::new(100.0, Currency::USD);
+        contractual_flows.insert("TL-1".to_string(), breakdown);
+
+        let mut state = CapitalStructureState::new();
+        state
+            .opening_balances
+            .insert("TL-1".to_string(), Money::new(10_000.0, Currency::USD));
+
+        let waterfall = WaterfallSpec {
+            priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Interest,
+                PaymentPriority::Amortization,
+                PaymentPriority::Equity,
+            ],
+            available_cash_node: Some("cash".into()),
+            ecf_sweep: None,
+            pik_toggle: None,
+        };
+
+        let result = execute_waterfall(
+            &period,
+            &context,
+            &waterfall,
+            &mut state,
+            &contractual_flows,
+        )
+        .expect("a negative pool floors to zero and still executes");
+
+        assert!(
+            result.warnings.iter().any(|w| matches!(
+                w,
+                EvalWarning::CapitalStructureCashflowIgnored { kind, .. }
+                    if kind.contains("negative_available_cash")
+            )),
+            "the negative cash pool must be surfaced: {:?}",
+            result.warnings
+        );
+    }
+
+    /// In legacy mode (`available_cash_node: None`) sweep cash beyond total
+    /// debt capacity has nowhere to go — there is no equity residual — so the
+    /// unallocated excess must be surfaced rather than silently dropped.
+    #[test]
+    fn legacy_sweep_excess_beyond_debt_capacity_is_surfaced() {
+        let period = PeriodId::quarter(2025, 1);
+        let context = build_context(period, &[("ebitda", 1_000_000.0)]);
+
+        let mut contractual_flows: IndexMap<String, CashflowBreakdown> = IndexMap::new();
+        let breakdown = CashflowBreakdown::with_currency(Currency::USD);
+        contractual_flows.insert("TL-1".to_string(), breakdown);
+
+        // Only 100k of debt: a 500k sweep leaves 400k with no destination.
+        let mut state = CapitalStructureState::new();
+        state
+            .opening_balances
+            .insert("TL-1".to_string(), Money::new(100_000.0, Currency::USD));
+
+        let waterfall = WaterfallSpec {
+            priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Interest,
+                PaymentPriority::Amortization,
+                PaymentPriority::Sweep,
+                PaymentPriority::Equity,
+            ],
+            available_cash_node: None,
+            ecf_sweep: Some(EcfSweepSpec {
+                ebitda_node: "ebitda".into(),
+                taxes_node: None,
+                capex_node: None,
+                working_capital_node: None,
+                cash_interest_node: None,
+                sweep_percentage: 0.5,
+                target_instrument_id: None,
+            }),
+            pik_toggle: None,
+        };
+
+        let result = execute_waterfall(
+            &period,
+            &context,
+            &waterfall,
+            &mut state,
+            &contractual_flows,
+        )
+        .expect("waterfall should execute");
+
+        // The debt is fully repaid...
+        assert_eq!(
+            result
+                .flows
+                .get("TL-1")
+                .expect("instrument exists")
+                .principal_payment
+                .amount(),
+            100_000.0
+        );
+        // ...and the 400k of over-swept cash is surfaced, not dropped.
+        assert!(
+            result.warnings.iter().any(|w| matches!(
+                w,
+                EvalWarning::CapitalStructureCashflowIgnored { kind, .. }
+                    if kind.contains("sweep_excess")
+            )),
+            "unallocated sweep excess must be surfaced: {:?}",
+            result.warnings
+        );
+    }
+
+    /// Cash conservation under an available-cash cap: every cash outflow
+    /// (fees + cash interest + cash principal) plus the equity residual must
+    /// sum exactly to the available pool when claims exceed it.
+    #[test]
+    fn capped_waterfall_conserves_available_cash_identity() {
+        let period = PeriodId::quarter(2025, 1);
+        let context = build_context(period, &[("cash", 260.0)]);
+
+        let mut contractual_flows: IndexMap<String, CashflowBreakdown> = IndexMap::new();
+        let mut breakdown = CashflowBreakdown::with_currency(Currency::USD);
+        breakdown.interest_expense_cash = Money::new(100.0, Currency::USD);
+        breakdown.principal_payment = Money::new(200.0, Currency::USD);
+        breakdown.fees = Money::new(50.0, Currency::USD);
+        contractual_flows.insert("TL-1".to_string(), breakdown);
+
+        let mut state = CapitalStructureState::new();
+        state
+            .opening_balances
+            .insert("TL-1".to_string(), Money::new(10_000.0, Currency::USD));
+
+        let waterfall = WaterfallSpec {
+            priority_of_payments: vec![
+                PaymentPriority::Fees,
+                PaymentPriority::Interest,
+                PaymentPriority::Amortization,
+                PaymentPriority::Equity,
+            ],
+            available_cash_node: Some("cash".into()),
+            ecf_sweep: None,
+            pik_toggle: None,
+        };
+
+        let result = execute_waterfall(
+            &period,
+            &context,
+            &waterfall,
+            &mut state,
+            &contractual_flows,
+        )
+        .expect("waterfall should execute");
+
+        let flows = result.flows.get("TL-1").expect("instrument exists");
+        let cash_out = flows.fees.amount()
+            + flows.interest_expense_cash.amount()
+            + flows.principal_payment.amount();
+        let equity = result
+            .equity_distribution
+            .map_or(0.0, |money| money.amount());
+
+        // Claims total 350 against a 260 pool: waterfall order pays fees 50,
+        // interest 100, principal 110; nothing reaches equity.
+        assert!(
+            (cash_out + equity - 260.0).abs() < 1e-9,
+            "cash out ({cash_out}) + equity ({equity}) must equal the 260 pool"
+        );
+        assert_eq!(flows.fees.amount(), 50.0);
+        assert_eq!(flows.interest_expense_cash.amount(), 100.0);
+        assert_eq!(flows.principal_payment.amount(), 110.0);
     }
 
     /// A non-finite `available_cash_node` must be a hard error, not a silent

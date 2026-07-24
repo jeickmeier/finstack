@@ -432,10 +432,11 @@ pub fn calculate_period_flows(
 
     // Calculate accrued interest at period end.
     // Note: detailed accrual config (day count, compounding) comes from the schedule itself.
-    // Limitation: `AccrualConfig::default()` leaves `frequency: None`, which is
-    // incorrect for ACT/ACT ISMA schedules (the accrual engine falls back to
-    // ISDA semantics). `CashFlowMeta` does not carry the coupon frequency, so
-    // it cannot be populated from what is visible here.
+    // `AccrualConfig::default()` leaves `frequency: None`; for ACT/ACT ISMA
+    // schedules the accrual engine then fails closed with
+    // `InputError::MissingFrequencyForActActIsma` (there is no silent ISDA
+    // fallback), so an ISMA schedule cannot produce a wrong accrued figure
+    // here — it errors until `CashFlowMeta` carries the coupon frequency.
     let accrued_scalar =
         accrued_interest_amount(&full_schedule, snapshot_date, &AccrualConfig::default())?;
     let accrued_interest = if opening_balance.amount() == 0.0 && !has_new_funding {

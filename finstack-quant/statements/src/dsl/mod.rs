@@ -31,11 +31,11 @@
 //! | `diff(expr[, n])`, `pct_change(expr[, n])` | 1-2 | Difference or percentage change versus `n` periods ago, defaulting to 1. Missing or near-zero denominators return NaN. |
 //! | `growth_rate(expr[, periods])` | 1-2 | Compound annual growth rate between the current value and `periods` periods ago. Defaults to the current period frequency. |
 //! | `cumsum(expr)`, `cumprod(expr)`, `cummin(expr)`, `cummax(expr)` | 1 | Cumulative aggregate through the current period, skipping non-finite values. |
-//! | `rolling_mean(expr, window)`, `rolling_sum(expr, window)`, `rolling_std(expr, window)`, `rolling_var(expr, window)`, `rolling_median(expr, window)`, `rolling_min(expr, window)`, `rolling_max(expr, window)`, `rolling_count(expr, window)` | 2 | Rolling-window aggregate over finite observations. Empty finite windows return NaN except `rolling_count`, which returns a count. |
+//! | `rolling_mean(expr, window[, min_periods])`, `rolling_sum(expr, window[, min_periods])`, `rolling_std(expr, window[, min_periods])`, `rolling_var(expr, window[, min_periods])`, `rolling_median(expr, window[, min_periods])`, `rolling_min(expr, window[, min_periods])`, `rolling_max(expr, window[, min_periods])`, `rolling_count(expr, window[, min_periods])` | 2-3 | Rolling-window aggregate over finite observations. `min_periods` defaults to `window` (pandas parity): a window with fewer finite observations returns NaN. Pass a smaller `min_periods` for expanding-until-full behavior. |
 //! | `std(expr)`, `var(expr)`, `median(expr)` | 1 | Historical distribution statistic over finite observations available through the current period. |
 //! | `rank(expr[, ascending])`, `quantile(expr, q)` | 1-2 | Historical rank and linear quantile over finite observations. |
-//! | `ewm_mean(column, alpha)` | 2 | Exponentially weighted moving mean for a column reference. |
-//! | `ewm_std(column, alpha[, adjust])`, `ewm_var(column, alpha[, adjust])` | 2-3 | Exponentially weighted variance or standard deviation. The optional `adjust` flag controls pandas-compatible bias correction. |
+//! | `ewm_mean(column, alpha)` | 2 | Exponentially weighted moving mean for a column reference (pandas `adjust=False, ignore_na=False`: decay advances across NaN gaps). Requires `0 < alpha <= 1`. |
+//! | `ewm_std(column, alpha[, unbiased])`, `ewm_var(column, alpha[, unbiased])` | 2-3 | Exponentially weighted variance or standard deviation (pandas `adjust=False, ignore_na=False`). The optional `unbiased` flag is pandas' `bias` toggle: nonzero (default) applies the `bias=False` correction, `0` returns the biased variance. Requires `0 < alpha <= 1`. |
 //! | `ttm(expr)`, `ltm(expr)` | 1 | Trailing-twelve-month sum. Quarterly models require 4 quarters; monthly models require 12 months. |
 //! | `ytd(expr)` | 1 | Calendar year-to-date finite sum. |
 //! | `qtd(expr)` | 1 | Quarter-to-date finite sum for monthly models. |

@@ -344,11 +344,13 @@ pub enum Function {
     RollingMean,
     /// Rolling sum over a fixed row window size.
     RollingSum,
-    /// Exponentially weighted moving average with alpha and adjust flag.
+    /// Exponentially weighted moving average with alpha. The recursion is
+    /// pandas `adjust=False, ignore_na=False` (decay advances across NaN
+    /// gaps); there is no adjust flag.
     EwmMean,
-    /// Population standard deviation.
+    /// Sample standard deviation (n−1, Bessel's correction; pandas `ddof=1`).
     Std,
-    /// Population variance.
+    /// Sample variance (n−1, Bessel's correction; pandas `ddof=1`).
     Var,
     /// Median.
     Median,
@@ -361,7 +363,8 @@ pub enum Function {
 
     /// Shift values by N positions (positive = shift down, negative = shift up).
     Shift,
-    /// Rank values (dense ranking).
+    /// Rank values (min ranking; ties share the minimum rank, pandas
+    /// `method='min'`).
     Rank,
     /// Calculate quantile/percentile of values.
     ///

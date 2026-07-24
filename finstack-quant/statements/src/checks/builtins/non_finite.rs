@@ -7,6 +7,10 @@ use crate::types::NodeId;
 use crate::Result;
 
 /// Detects NaN or infinite values in node results.
+///
+/// **Advisory-only**: findings are `Severity::Warning`, so
+/// `CheckResult::passed` is always `true`; the check surfaces non-finite
+/// cells without failing a pipeline gate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NonFiniteCheck {
     /// Specific nodes to check; if empty, all nodes in results are inspected.

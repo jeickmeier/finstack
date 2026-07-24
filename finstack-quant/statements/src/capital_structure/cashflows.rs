@@ -35,6 +35,7 @@ use serde::{Deserialize, Serialize};
 ///     .or_default()
 ///     .insert(period, CashflowBreakdown {
 ///         interest_expense_cash: Money::new(10_000.0, Currency::USD),
+///         interest_income_cash: None,
 ///         interest_expense_pik: Money::new(2_500.0, Currency::USD),
 ///         principal_payment: Money::new(100_000.0, Currency::USD),
 ///         fees: Money::new(0.0, Currency::USD),
@@ -43,6 +44,7 @@ use serde::{Deserialize, Serialize};
 ///     });
 /// cs.totals.insert(period, CashflowBreakdown {
 ///     interest_expense_cash: Money::new(10_000.0, Currency::USD),
+///     interest_income_cash: None,
 ///     interest_expense_pik: Money::new(2_500.0, Currency::USD),
 ///     principal_payment: Money::new(100_000.0, Currency::USD),
 ///     fees: Money::new(0.0, Currency::USD),

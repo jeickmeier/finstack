@@ -70,8 +70,106 @@ fn test_builtin_return_metrics() {
     let roe = registry.get("fin.roe").unwrap();
     assert_eq!(
         roe.definition.formula,
-        "(revenue - cogs - opex - interest_expense - taxes) / total_equity"
+        "(revenue - cogs - opex - depreciation - amortization - interest_expense - taxes) / total_equity"
     );
+
+    // ROIC uses NOPAT (EBIT less taxes), not pre-tax EBIT: pre-tax overstates
+    // the return by the tax rate.
+    let roic = registry.get("fin.roic").unwrap();
+    assert_eq!(
+        roic.definition.formula,
+        "(revenue - cogs - opex - depreciation - amortization - taxes) / (total_debt + total_equity)"
+    );
+}
+
+/// The built-in P&L metrics use the standard convention where `opex`
+/// EXCLUDES depreciation & amortization (D&A is supplied separately).
+///
+/// The previous formulas were only self-consistent if `opex` already
+/// included D&A — under the common convention (opex excluding D&A) they
+/// overstated EBITDA by D&A (double-counted add-back) and conflated
+/// operating income with EBITDA.
+#[test]
+fn builtin_pl_metrics_use_opex_excluding_da_convention() {
+    let registry = Registry::with_builtins().unwrap();
+
+    assert_eq!(
+        registry.get("fin.ebitda").unwrap().definition.formula,
+        "revenue - cogs - opex"
+    );
+    assert_eq!(
+        registry
+            .get("fin.operating_income")
+            .unwrap()
+            .definition
+            .formula,
+        "revenue - cogs - opex - depreciation - amortization"
+    );
+    assert_eq!(
+        registry.get("fin.ebit").unwrap().definition.formula,
+        "ebitda - depreciation - amortization"
+    );
+    assert_eq!(
+        registry.get("fin.net_income").unwrap().definition.formula,
+        "revenue - cogs - opex - depreciation - amortization - interest_expense - tax_expense"
+    );
+}
+
+/// Numeric articulation: with opex excluding D&A, EBITDA − D − A must equal
+/// operating income (= EBIT), and EBITDA must not double-count the add-back.
+#[test]
+fn builtin_pl_metrics_articulate_numerically() {
+    use finstack_quant_core::dates::PeriodId;
+    use finstack_quant_statements::builder::ModelBuilder;
+    use finstack_quant_statements::evaluator::Evaluator;
+    use finstack_quant_statements::types::AmountOrScalar;
+
+    let registry = Registry::with_builtins().unwrap();
+    let q1 = PeriodId::quarter(2025, 1);
+    let v = |x: f64| AmountOrScalar::scalar(x);
+
+    let model = ModelBuilder::new("articulation")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value("revenue", &[(q1, v(1000.0))])
+        .value("cogs", &[(q1, v(400.0))])
+        .value("opex", &[(q1, v(300.0))]) // excludes D&A
+        .value("depreciation", &[(q1, v(50.0))])
+        .value("amortization", &[(q1, v(30.0))])
+        .compute(
+            "ebitda",
+            registry
+                .get("fin.ebitda")
+                .unwrap()
+                .definition
+                .formula
+                .clone(),
+        )
+        .unwrap()
+        .compute(
+            "operating_income",
+            registry
+                .get("fin.operating_income")
+                .unwrap()
+                .definition
+                .formula
+                .clone(),
+        )
+        .unwrap()
+        .compute(
+            "ebit",
+            registry.get("fin.ebit").unwrap().definition.formula.clone(),
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let results = evaluator.evaluate(&model).unwrap();
+
+    assert_eq!(results.get("ebitda", &q1), Some(300.0));
+    assert_eq!(results.get("operating_income", &q1), Some(220.0));
+    assert_eq!(results.get("ebit", &q1), Some(220.0));
 }
 
 #[test]
@@ -510,21 +608,27 @@ fn test_complete_pl_model_with_select_registry_metrics() {
     let mut evaluator = Evaluator::new();
     let results = evaluator.evaluate(&model).unwrap();
 
-    // Test Q1 calculations
+    // Test Q1 calculations. Convention: opex excludes D&A, so
+    // EBITDA = 1,000k − 600k − 200k = 200k and
+    // operating income (EBIT) = EBITDA − 60k D&A = 140k.
     let q1 = PeriodId::quarter(2025, 1);
     assert_eq!(results.get("fin.gross_profit", &q1).unwrap(), 400_000.0);
-    assert_eq!(results.get("fin.operating_income", &q1).unwrap(), 200_000.0);
-    assert_eq!(results.get("fin.ebitda", &q1).unwrap(), 260_000.0);
+    assert_eq!(results.get("fin.operating_income", &q1).unwrap(), 140_000.0);
+    assert_eq!(results.get("fin.ebitda", &q1).unwrap(), 200_000.0);
     assert!((results.get("fin.gross_margin", &q1).unwrap() - 0.4).abs() < 0.0001);
-    assert!((results.get("fin.operating_margin", &q1).unwrap() - 0.2).abs() < 0.0001);
+    assert!((results.get("fin.operating_margin", &q1).unwrap() - 0.14).abs() < 0.0001);
 
-    // Test Q2 calculations
+    // Test Q2 calculations: EBITDA = 1,100k − 660k − 220k = 220k,
+    // operating income = 220k − 60k = 160k.
     let q2 = PeriodId::quarter(2025, 2);
     assert_eq!(results.get("fin.gross_profit", &q2).unwrap(), 440_000.0);
-    assert_eq!(results.get("fin.operating_income", &q2).unwrap(), 220_000.0);
-    assert_eq!(results.get("fin.ebitda", &q2).unwrap(), 280_000.0);
+    assert_eq!(results.get("fin.operating_income", &q2).unwrap(), 160_000.0);
+    assert_eq!(results.get("fin.ebitda", &q2).unwrap(), 220_000.0);
     assert!((results.get("fin.gross_margin", &q2).unwrap() - 0.4).abs() < 0.0001);
-    assert!((results.get("fin.operating_margin", &q2).unwrap() - 0.2).abs() < 0.0001);
+    assert!(
+        (results.get("fin.operating_margin", &q2).unwrap() - 160_000.0 / 1_100_000.0).abs()
+            < 0.0001
+    );
 }
 
 #[test]

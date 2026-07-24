@@ -1,9 +1,11 @@
 //! Exponentially-weighted moving statistics: `ewm_mean`, `ewm_std`, `ewm_var`.
 //!
 //! All three functions share the same "collect chronological values for a
-//! column" preamble and pandas-compatible bias correction semantics. Splitting
-//! them out of `formula.rs` keeps the main dispatcher smaller while grouping
-//! semantically related code.
+//! column" preamble and pandas-compatible semantics (`adjust=False`,
+//! `ignore_na=False`): a NaN observation is skipped, but the decay weight
+//! still advances across the gap, exactly as pandas weights observations by
+//! absolute position. Splitting them out of `formula.rs` keeps the main
+//! dispatcher smaller while grouping semantically related code.
 
 use crate::error::Result;
 use crate::evaluator::context::EvaluationContext;
@@ -17,8 +19,10 @@ use finstack_quant_core::math::ZERO_TOLERANCE;
 /// not a column reference.
 ///
 /// Only periods at or before the context's evaluation period are included so
-/// lagged evaluation cannot look ahead, and non-finite values are skipped to
-/// match the retain-finite policy used by the other aggregates.
+/// lagged evaluation cannot look ahead. Non-finite values are **kept** as NaN
+/// slots: the EWM weighting is positional (pandas `ignore_na=False`), so a gap
+/// must still advance the decay. Trailing non-finite slots are trimmed — they
+/// scale every weight uniformly and cancel out of the normalized moments.
 fn collect_column_series(column_name: &str, context: &EvaluationContext) -> Vec<(PeriodId, f64)> {
     let mut values = Vec::with_capacity(context.historical_results.len() + 1);
     for (period_id, period_results) in context.historical_results.iter() {
@@ -26,18 +30,84 @@ fn collect_column_series(column_name: &str, context: &EvaluationContext) -> Vec<
             continue;
         }
         if let Some(value) = period_results.get(column_name) {
-            if value.is_finite() {
-                values.push((*period_id, *value));
-            }
+            values.push((*period_id, *value));
         }
     }
     if let Ok(current) = context.get_value(column_name) {
-        if current.is_finite() {
-            values.push((context.period_id, current));
-        }
+        values.push((context.period_id, current));
     }
     values.sort_by_key(|(period, _)| *period);
+    while values.last().is_some_and(|(_, v)| !v.is_finite()) {
+        values.pop();
+    }
     values
+}
+
+/// Weighted moments of a slot series under the pandas `adjust=False,
+/// ignore_na=False` weighting.
+///
+/// The slot at distance `d` from the end carries weight `α(1−α)^d`, except the
+/// earliest finite observation, which carries `(1−α)^d` (the recursion's
+/// initialization weight). NaN slots contribute no observation but still count
+/// toward `d`, so decay advances across gaps. Returns
+/// `(mean, biased_var, sum_normalized_weight_sq, n_obs)`, or `None` when the
+/// series has no finite observation.
+///
+/// Reference: pandas `ewm` documentation ("Exponentially weighted windows"),
+/// weights for `adjust=False, ignore_na=False`; RiskMetrics TD4 for the
+/// recursion this weighting unrolls.
+fn ewm_weighted_moments(values: &[(PeriodId, f64)], alpha: f64) -> Option<(f64, f64, f64, usize)> {
+    let t_last = values.len().checked_sub(1)?;
+    let one_minus = 1.0 - alpha;
+
+    let mut weighted: Vec<(f64, f64)> = Vec::with_capacity(values.len());
+    let mut w_sum = 0.0_f64;
+    let mut wx_sum = 0.0_f64;
+    let mut first = true;
+    for (i, (_, x)) in values.iter().enumerate() {
+        if !x.is_finite() {
+            continue;
+        }
+        let d = (t_last - i) as i32;
+        let w = if first {
+            first = false;
+            one_minus.powi(d)
+        } else {
+            alpha * one_minus.powi(d)
+        };
+        weighted.push((w, *x));
+        w_sum += w;
+        wx_sum += w * x;
+    }
+
+    if weighted.is_empty() || w_sum <= 0.0 {
+        return None;
+    }
+
+    let mean = wx_sum / w_sum;
+    let mut biased_var = 0.0_f64;
+    let mut sum_w2 = 0.0_f64;
+    for (w, x) in &weighted {
+        let w_norm = w / w_sum;
+        let diff = x - mean;
+        biased_var += w_norm * diff * diff;
+        sum_w2 += w_norm * w_norm;
+    }
+
+    Some((mean, biased_var, sum_w2, weighted.len()))
+}
+
+/// Validate an EWM decay parameter: pandas requires `0 < alpha <= 1`.
+/// `alpha = 0` would freeze the mean at the oldest value and zero the
+/// variance bias-correction denominator.
+fn validate_alpha(alpha: f64, func_name: &str, node_id: Option<&str>) -> Result<()> {
+    if !(alpha > 0.0 && alpha <= 1.0) {
+        return Err(eval_error(
+            node_id,
+            format!("{func_name} alpha must be in (0, 1]"),
+        ));
+    }
+    Ok(())
 }
 
 /// Extract the column-reference argument or fail with a standard error.
@@ -64,27 +134,15 @@ pub(crate) fn eval_ewm_mean(
     require_args("ewm_mean", args, 2, node_id)?;
 
     let alpha = evaluate_expr(&args[1], context, node_id)?;
-    if !(0.0..=1.0).contains(&alpha) {
-        return Err(eval_error(
-            node_id,
-            "ewm_mean alpha must be between 0 and 1",
-        ));
-    }
+    validate_alpha(alpha, "ewm_mean", node_id)?;
 
     let node_name = column_ref_or_err(args, "ewm_mean", node_id)?;
     let values = collect_column_series(node_name, context);
 
-    if values.is_empty() {
-        return Ok(f64::NAN);
+    match ewm_weighted_moments(&values, alpha) {
+        Some((mean, _, _, _)) => Ok(mean),
+        None => Ok(f64::NAN),
     }
-
-    // EWM_t = alpha * x_t + (1 - alpha) * EWM_{t-1}, initialized with x_0.
-    let mut ewm = values[0].1;
-    for (_, value) in values.iter().skip(1) {
-        ewm = alpha * value + (1.0 - alpha) * ewm;
-    }
-
-    Ok(ewm)
 }
 
 /// Evaluate `ewm_std` or `ewm_var`. `func` determines whether to return the
@@ -92,10 +150,12 @@ pub(crate) fn eval_ewm_mean(
 ///
 /// Arguments:
 /// - 2 args: `(series, alpha)` — bias-corrected (pandas `adjust=False, bias=False`)
-/// - 3 args: `(series, alpha, adjust)` — bias correction enabled when `adjust != 0.0`
+/// - 3 args: `(series, alpha, unbiased)` — bias correction enabled when
+///   `unbiased != 0.0` (pandas `bias=False`); `0.0` returns the biased
+///   (`bias=True`) variance. Note this flag is pandas' `bias` toggle, not its
+///   `adjust` parameter: the weighting is always the `adjust=False` recursion.
 ///
-/// The recursion is the pandas `adjust=False` form, so the matching unbiased
-/// correction is `1 / (1 − Σŵ²)` over the normalized recursion weights
+/// The unbiased correction is `1 / (1 − Σŵ²)` over the normalized weights
 /// (RiskMetrics TD4 convention; pandas `adjust=False, bias=False`). It
 /// converges to the standard Bessel correction `n/(n-1)` as alpha → 0
 /// (equal weighting).
@@ -108,17 +168,15 @@ pub(crate) fn eval_ewm_std_or_var(
     if args.len() < 2 || args.len() > 3 {
         return Err(eval_error(
             node_id,
-            format!("{func}() requires 2 or 3 arguments (series, alpha, [adjust])"),
+            format!("{func}() requires 2 or 3 arguments (series, alpha, [unbiased])"),
         ));
     }
 
     let alpha = evaluate_expr(&args[1], context, node_id)?;
-    if !(0.0..=1.0).contains(&alpha) {
-        return Err(eval_error(node_id, "ewm alpha must be between 0 and 1"));
-    }
+    validate_alpha(alpha, "ewm", node_id)?;
 
     // Default to bias-corrected output (pandas `adjust=False, bias=False`).
-    let adjust = if args.len() == 3 {
+    let unbiased = if args.len() == 3 {
         evaluate_expr(&args[2], context, node_id)? != 0.0
     } else {
         true
@@ -127,31 +185,15 @@ pub(crate) fn eval_ewm_std_or_var(
     let node_name = column_ref_or_err(args, "ewm_std/var", node_id)?;
     let values = collect_column_series(node_name, context);
 
-    if values.len() < 2 {
+    let Some((_, biased_var, sum_w2, n_obs)) = ewm_weighted_moments(&values, alpha) else {
+        return Ok(f64::NAN);
+    };
+    if n_obs < 2 {
         return Ok(f64::NAN);
     }
 
-    // Recursive EWM variance:
-    //   ewm_var_t = (1 - alpha) * (ewm_var_{t-1} + alpha * (x_t - ewm_mean_{t-1})^2)
-    let mut ewm_mean = values[0].1;
-    let mut ewm_var = 0.0;
-
-    for (_, value) in values.iter().skip(1) {
-        let diff = value - ewm_mean;
-        ewm_mean = alpha * value + (1.0 - alpha) * ewm_mean;
-        ewm_var = (1.0 - alpha) * (ewm_var + alpha * diff * diff);
-    }
-
-    if adjust {
-        // Σŵ² of the normalized `adjust=False` recursion weights, computed
-        // recursively: after each new observation the previous weights scale
-        // by (1 − α) and the newest gets α, so s₂ ← (1−α)²·s₂ + α².
-        let n = values.len();
-        let one_minus_alpha = 1.0 - alpha;
-        let mut sum_w2 = 1.0_f64;
-        for _ in 1..n {
-            sum_w2 = one_minus_alpha * one_minus_alpha * sum_w2 + alpha * alpha;
-        }
+    let mut ewm_var = biased_var;
+    if unbiased {
         let denom = 1.0 - sum_w2;
         if denom.abs() > ZERO_TOLERANCE {
             ewm_var /= denom;
