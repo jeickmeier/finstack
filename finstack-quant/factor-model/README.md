@@ -140,9 +140,9 @@ serialize to byte-identical JSON.
 
 ### Supported / reserved features
 
-- `VolModelChoice::Sample` is the only supported variant today. `Garch`,
-  `Egarch`, and `Ewma` are reserved at the type level but the calibrator returns
-  a clean `Error::Validation` if any of them is requested.
+- `VolModelChoice::Sample` is the only supported variant today. `Ewma` is
+  reserved at the type level but the calibrator returns a clean
+  `Error::Validation` if it is requested.
 - The peer-proxy fallback chain treats `idiosyncratic_overrides` as the
   highest-precedence source for adder vols (caller → history → bucket-peer
   proxy → global mean → zero).

@@ -615,19 +615,6 @@ fn sparse_bucket_emits_none_for_empty_dates() {
 // Additional: unsupported PR-5a/b features error cleanly
 // ---------------------------------------------------------------------------
 
-#[test]
-fn rejects_garch_vol_model() {
-    let cfg = CreditCalibrationConfig {
-        vol_model: VolModelChoice::Garch,
-        ..config_with(
-            IssuerBetaPolicy::GloballyOff,
-            vec![HierarchyDimension::Rating],
-        )
-    };
-    let inputs = fixture_panel().into_inputs();
-    assert!(CreditCalibrator::new(cfg).calibrate(inputs).is_err());
-}
-
 /// PR-5b: Ridge covariance is now supported (replaces the old rejection test).
 #[test]
 fn ridge_covariance_accepted() {

@@ -99,20 +99,15 @@ pub enum PanelSpace {
 
 /// Volatility model selector for the per-factor variance forecast.
 ///
-/// `Sample` is the only executable choice today. The other variants are
-/// reserved at the type level so downstream config schemas do not churn when
-/// those estimators are implemented, but the calibrator returns a clean error
-/// if any non-`Sample` variant is supplied.
+/// `Sample` is the plain (unbiased) sample variance. `Ewma` is reserved at the
+/// type level and implemented by a follow-up change; the calibrator returns a
+/// clean error if it is supplied.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum VolModelChoice {
-    /// Plain sample variance.
+    /// Plain sample variance (unbiased, Bessel-corrected).
     Sample,
-    /// GARCH(1,1), reserved but not implemented.
-    Garch,
-    /// EGARCH, reserved but not implemented.
-    Egarch,
     /// EWMA with smoothing parameter `lambda`, reserved but not implemented.
     Ewma {
         /// Smoothing parameter.
@@ -320,15 +315,12 @@ impl CreditCalibrator {
     ///
     /// * `inputs` - Inputs supplied by the caller for this operation
     pub fn calibrate(&self, inputs: CreditCalibrationInputs) -> Result<CreditFactorModel> {
-        // -- 0. Reject unsupported volatility estimators early. --------------
-        match self.config.vol_model {
-            VolModelChoice::Sample => {}
-            VolModelChoice::Garch | VolModelChoice::Egarch | VolModelChoice::Ewma { .. } => {
-                return Err(validation_err(
-                    "CreditCalibrator supports VolModelChoice::Sample only; \
-                     GARCH/EGARCH/EWMA are reserved but not implemented",
-                ));
-            }
+        // -- 0. Reject the reserved-but-unimplemented EWMA estimator early. --
+        if let VolModelChoice::Ewma { .. } = self.config.vol_model {
+            return Err(validation_err(
+                "CreditCalibrator supports VolModelChoice::Sample only; \
+                 EWMA is reserved but not implemented",
+            ));
         }
 
         validate_calibration_config(&self.config)?;
@@ -2016,6 +2008,19 @@ mod calibration_config_tests {
         let json = serde_json::to_string(&variant).unwrap();
         let back: VolModelChoice = serde_json::from_str(&json).unwrap();
         assert_eq!(variant, back);
+    }
+
+    #[test]
+    fn garch_and_egarch_json_are_rejected() {
+        // Removed in v0.6: an inert config surface is worse than a smaller enum.
+        assert!(
+            serde_json::from_str::<VolModelChoice>("\"garch\"").is_err(),
+            "\"garch\" must no longer deserialize"
+        );
+        assert!(
+            serde_json::from_str::<VolModelChoice>("\"egarch\"").is_err(),
+            "\"egarch\" must no longer deserialize"
+        );
     }
 
     #[test]

@@ -126,14 +126,6 @@
       "oneOf": [
         { "const": "sample", "description": "Plain sample variance." },
         {
-          "const": "garch",
-          "description": "GARCH(1,1), reserved but not implemented."
-        },
-        {
-          "const": "egarch",
-          "description": "EGARCH, reserved but not implemented."
-        },
-        {
           "type": "object",
           "description": "EWMA with smoothing parameter lambda, reserved but not implemented.",
           "required": ["ewma"],
