@@ -252,6 +252,7 @@ fn classify_stage(
         // Disable relative PD trigger by setting ratio threshold effectively out of reach.
         pd_delta_relative: f64::INFINITY,
         rating_downgrade_notches: u32::MAX,
+        rating_scale_labels: None,
         dpd_stage2_threshold: if dpd_30_trigger {
             default_staging.dpd_stage2_threshold
         } else {

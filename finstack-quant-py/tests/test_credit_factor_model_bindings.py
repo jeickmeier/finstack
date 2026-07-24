@@ -250,20 +250,46 @@ def test_calibrator_bad_config_raises() -> None:
         CreditCalibrator('{"completely": "wrong"}')
 
 
-@pytest.mark.parametrize(
-    "vol_model",
-    [
-        "garch",
-        "egarch",
-        {"ewma": {"lambda": 0.94}},
-    ],
-)
-def test_calibrator_reserved_vol_models_raise_cleanly(vol_model: object) -> None:
+@pytest.mark.parametrize("vol_model", ["garch", "egarch"])
+def test_calibrator_removed_vol_models_rejected_at_parse(vol_model: str) -> None:
+    """Garch/Egarch were removed in 0.6: the config no longer parses."""
     config = _calibration_config()
     config["vol_model"] = vol_model
-    cal = CreditCalibrator(json.dumps(config))
+    with pytest.raises(ValueError, match="unknown variant"):
+        CreditCalibrator(json.dumps(config))
 
-    with pytest.raises(ValueError, match="Sample only"):
+
+def test_calibrator_ewma_vol_model_calibrates() -> None:
+    """EWMA calibrates and persists the estimator in vol_state JSON."""
+    config = _calibration_config()
+    config["vol_model"] = {"ewma": {"lambda": 0.94}}
+    cal = CreditCalibrator(json.dumps(config))
+    model = cal.calibrate(json.dumps(_fixture_inputs()))
+    assert model.n_factors >= 1
+    artifact = json.loads(model.to_json())
+    factor_models = artifact["vol_state"]["factors"]
+    assert factor_models, "vol_state.factors must not be empty"
+    for entry in factor_models.values():
+        assert "ewma" in entry, f"expected ewma vol model, got {entry}"
+        assert abs(entry["ewma"]["lambda"] - 0.94) < 1e-12
+        assert entry["ewma"]["variance"] >= 0.0
+
+
+def test_calibrator_ledoit_wolf_strategy_calibrates() -> None:
+    """Ledoit-Wolf covariance strategy is accepted end-to-end via JSON."""
+    config = _calibration_config()
+    config["covariance_strategy"] = "ledoit_wolf"
+    cal = CreditCalibrator(json.dumps(config))
+    model = cal.calibrate(json.dumps(_fixture_inputs()))
+    assert model.n_factors >= 1
+
+
+def test_calibrator_ewma_bad_lambda_rejected() -> None:
+    """Lambda outside (0, 1) fails calibration validation."""
+    config = _calibration_config()
+    config["vol_model"] = {"ewma": {"lambda": 1.0}}
+    cal = CreditCalibrator(json.dumps(config))
+    with pytest.raises(ValueError, match="ewma lambda"):
         cal.calibrate(json.dumps(_fixture_inputs()))
 
 
