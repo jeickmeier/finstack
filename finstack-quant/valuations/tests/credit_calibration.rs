@@ -835,6 +835,77 @@ fn ewma_vol_model_composes_with_ledoit_wolf_covariance() {
     }
 }
 
+/// The LedoitWolf covariance is estimated from the factor-return panel alone, so
+/// it must be bit-identical whether the vols come from the `Sample` or `Ewma`
+/// estimator. This pins that independence directly: the Cauchy-Schwarz bound in
+/// [`ewma_vol_model_composes_with_ledoit_wolf_covariance`] holds for *any* PSD
+/// matrix and so would not catch vol-model state leaking into the stored `Σ`.
+///
+/// The final assertion is the anti-vacuity guard: it proves the fixture actually
+/// distinguishes the two estimators, so "the covariances match" is a real
+/// invariant rather than an artifact of both paths producing the same vols.
+#[test]
+fn ledoit_wolf_covariance_is_independent_of_vol_model() {
+    let base = || CreditCalibrationConfig {
+        covariance_strategy: CovarianceStrategy::LedoitWolf,
+        min_bucket_size_per_level: BucketSizeThresholds { per_level: vec![1] },
+        ..config_with(
+            IssuerBetaPolicy::GloballyOff,
+            vec![HierarchyDimension::Rating],
+        )
+    };
+
+    let sample_model = CreditCalibrator::new(CreditCalibrationConfig {
+        vol_model: VolModelChoice::Sample,
+        ..base()
+    })
+    .calibrate(fixture_panel().into_inputs())
+    .expect("Sample + LedoitWolf calibration succeeds");
+    let ewma_model = CreditCalibrator::new(CreditCalibrationConfig {
+        vol_model: VolModelChoice::Ewma { lambda: 0.94 },
+        ..base()
+    })
+    .calibrate(fixture_panel().into_inputs())
+    .expect("Ewma + LedoitWolf calibration succeeds");
+
+    let sample_cov = &sample_model.config.covariance;
+    let ewma_cov = &ewma_model.config.covariance;
+    let ids = sample_cov.factor_ids().to_vec();
+    assert_eq!(
+        ids,
+        ewma_cov.factor_ids().to_vec(),
+        "both calibrations must produce the same factor set"
+    );
+    assert!(ids.len() >= 2, "expected generic + bucket factors");
+
+    for i in &ids {
+        for j in &ids {
+            assert_eq!(
+                sample_cov.covariance(i, j),
+                ewma_cov.covariance(i, j),
+                "Σ({i},{j}) must not depend on the vol model under LedoitWolf"
+            );
+        }
+    }
+
+    let vols_differ = ids.iter().any(|fid| {
+        let sample_var = match sample_model.vol_state.factors.get(fid) {
+            Some(FactorVolModel::Sample { variance }) => *variance,
+            other => panic!("factor {fid} must persist the Sample variant, got {other:?}"),
+        };
+        let ewma_var = match ewma_model.vol_state.factors.get(fid) {
+            Some(FactorVolModel::Ewma { variance, .. }) => *variance,
+            other => panic!("factor {fid} must persist the Ewma variant, got {other:?}"),
+        };
+        (sample_var - ewma_var).abs() > 1e-12
+    });
+    assert!(
+        vols_differ,
+        "fixture must distinguish the Sample and Ewma estimators, otherwise the \
+         covariance-equality assertion above is vacuous"
+    );
+}
+
 /// Out-of-range lambda is rejected before any estimation runs.
 #[test]
 fn ewma_lambda_out_of_range_rejected_by_calibrate() {
