@@ -103,17 +103,29 @@ pub enum PanelSpace {
 /// `Sample` is the plain (unbiased) sample variance. `Ewma` is the RiskMetrics
 /// finite-window exponentially weighted variance estimator (Longerstaey &
 /// Spencer, 1996, §5.2): both are fully supported by the calibrator.
+///
+/// The two differ in centering: `Sample` demeans the series before squaring
+/// (the usual `Var(x) = E[(x − x̄)²]`), while `Ewma` does not — it recurses
+/// directly on squared observations (`σ²_t = λσ²_{t−1} + (1−λ)r²_{t−1}`),
+/// matching the RiskMetrics convention of treating financial return series as
+/// zero-mean. That convention only holds for a *return* panel; combining
+/// `Ewma` with a raw levels panel
+/// ([`PanelSpace::Levels`]) is rejected by
+/// `validate_calibration_config` because the squared-level mean-square is
+/// dominated by the level itself, not its dispersion.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum VolModelChoice {
-    /// Plain sample variance (unbiased, Bessel-corrected).
+    /// Plain sample variance (unbiased, Bessel-corrected); demeans before
+    /// squaring.
     Sample,
     /// RiskMetrics exponentially weighted moving-average variance.
     ///
-    /// See [`ewma_variance`] for the estimator implementation. `lambda` must
+    /// Uncentered (zero-mean) squared returns, no demeaning step — see the
+    /// enum-level docs above. Implemented by `ewma_variance`. `lambda` must
     /// be in the open interval `(0, 1)`; validated by
-    /// [`validate_calibration_config`].
+    /// `validate_calibration_config`.
     ///
     /// # References
     ///
@@ -150,6 +162,15 @@ pub enum CovarianceStrategy {
     /// calibration fails with a validation error when fewer than 2 such dates
     /// exist (use [`CovarianceStrategy::Ridge`] or
     /// [`CovarianceStrategy::FullSampleRepaired`] for very sparse panels).
+    ///
+    /// The resulting `config.covariance` is authoritative for point-in-time
+    /// risk but diverges from the vol-forecast rebuild `D·ρ·D` on both the
+    /// diagonal and off-diagonal, because `vol_state` variances come from a
+    /// different estimator (the configured
+    /// [`VolModelChoice`]) over a different observation set (per-factor
+    /// all-available rows, not the complete-case rows used here). See
+    /// [`CreditFactorModel::static_correlation`][crate::credit::hierarchy::CreditFactorModel::static_correlation]
+    /// for the full explanation.
     ///
     /// Reference: Ledoit, O., & Wolf, M. (2004). "A well-conditioned estimator
     /// for large-dimensional covariance matrices." *Journal of Multivariate

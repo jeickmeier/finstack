@@ -519,8 +519,13 @@ pub enum FactorVolModel {
     /// RiskMetrics exponentially weighted moving-average estimate.
     ///
     /// Persists both the smoothing parameter and the calibrated annualized
-    /// variance so downstream forecasters can reproduce the estimator without
-    /// re-reading the calibration config.
+    /// variance. `lambda` is retained as calibration provenance: no consumer
+    /// reads it back today (the martingale forecast in
+    /// `FactorCovarianceForecast` matches on the `Ewma { variance, .. }`
+    /// shape and ignores λ, since horizon scaling doesn't depend on it), but
+    /// keeping it on the wire preserves the option for a future
+    /// term-structure-aware forecaster to recompute or extend the estimate
+    /// without re-reading the calibration config.
     ///
     /// # References
     ///
@@ -550,8 +555,13 @@ pub enum IdiosyncraticVolModel {
     /// RiskMetrics exponentially weighted moving-average estimate.
     ///
     /// Persists both the smoothing parameter and the calibrated annualized
-    /// variance so downstream forecasters can reproduce the estimator without
-    /// re-reading the calibration config.
+    /// variance. `lambda` is retained as calibration provenance: no consumer
+    /// reads it back today (the martingale forecast in
+    /// `FactorCovarianceForecast` matches on the `Ewma { variance, .. }`
+    /// shape and ignores λ, since horizon scaling doesn't depend on it), but
+    /// keeping it on the wire preserves the option for a future
+    /// term-structure-aware forecaster to recompute or extend the estimate
+    /// without re-reading the calibration config.
     ///
     /// # References
     ///
@@ -731,6 +741,23 @@ pub struct CreditFactorModel {
     /// the two deliberately differ —
     /// `config.covariance = D·ρ·D + α·I`, so its implied correlations are
     /// shrunk relative to `ρ` by `σᵢσⱼ/√((σᵢ²+α)(σⱼ²+α))`.
+    ///
+    /// Under
+    /// [`CovarianceStrategy::LedoitWolf`][crate::credit::calibration::CovarianceStrategy::LedoitWolf]
+    /// the divergence is larger still, and affects both the diagonal and the
+    /// off-diagonal: `config.covariance` is the shrinkage estimator's own
+    /// `annualization_factor · (δ*·μ·I + (1 − δ*)·S)`, computed once over the
+    /// complete-case rows (dates where every factor is observed), and is
+    /// authoritative for point-in-time risk. The rebuilt `D·ρ·D` instead
+    /// combines this same `ρ` with `vol_state` variances — which are
+    /// estimated per-factor over all available observations (not just the
+    /// complete-case subset) via whichever
+    /// [`VolModelChoice`][crate::credit::calibration::VolModelChoice] was
+    /// configured (`Sample` or `Ewma`). Because the diagonals come from two
+    /// different estimators over two different observation sets, `D·ρ·D`
+    /// deliberately differs from `config.covariance` on **both** the
+    /// diagonal and the off-diagonal; treat it as an approximation for
+    /// horizon scaling, not as a substitute for `config.covariance`.
     pub static_correlation: FactorCorrelationMatrix,
     /// EWMA or sample vol state at the anchor date.
     pub vol_state: VolState,
