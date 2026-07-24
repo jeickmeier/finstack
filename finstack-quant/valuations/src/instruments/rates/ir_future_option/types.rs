@@ -394,7 +394,7 @@ impl IrFutureOption {
 
     /// Volatility time-decay component of theta, per calendar day
     /// (undiscounted; the discount-decay term `r·PV` is added in
-    /// [`OptionGreeksProvider::option_theta`]).
+    /// [`OptionGreeksProvider::option_theta`](crate::instruments::OptionGreeksProvider::option_theta)).
     ///
     /// Black: −F·σ·n(d₁)/(2√T) per year. Normal: −σ·n(d)/(2√T) per year.
     /// Divided by 365.25 for daily.

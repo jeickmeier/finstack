@@ -104,6 +104,17 @@ pub fn extended_basis(t_years: f64, short_rate: f64) -> Vec<f64> {
 /// the shared HW1F LSMC harness.
 ///
 /// [`RateExoticMcConfig::basis_degree`]: crate::instruments::rates::exotics_shared::mc_config::RateExoticMcConfig::basis_degree
+///
+/// # Arguments
+///
+/// * `degree` - Configured polynomial degree from
+///   [`RateExoticMcConfig::basis_degree`] (clamped to `[1, 4]` at parse time).
+///   Values `1`–`2` select [`standard_basis`]; `3`–`4` select [`extended_basis`].
+/// * `t_years` - Time from valuation to the exercise date in year fractions
+///   under the instrument day-count convention, matching the shared HW1F
+///   LSMC harness time basis.
+/// * `short_rate` - Simulated instantaneous short rate at that exercise time,
+///   expressed as a decimal annual rate.
 pub fn basis_for_degree(degree: usize, t_years: f64, short_rate: f64) -> Vec<f64> {
     if degree >= 3 {
         extended_basis(t_years, short_rate)

@@ -62,7 +62,10 @@ mise run python-examples
 
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md): contribution workflow, project
   principles, and binding-change checklist.
-- [`reviews/`](reviews/): quant, architecture, and test-suite review notes.
+- [`../INVARIANTS.md`](../INVARIANTS.md): cross-crate numerical and API
+  invariants that must hold across releases.
+- [`SERDE_STABILITY.md`](SERDE_STABILITY.md): wire-format and schema-version
+  policy for persisted payloads.
 - [`superpowers/specs/`](superpowers/specs/): design specs for planned or
   recently implemented feature work.
 - [`superpowers/plans/`](superpowers/plans/): implementation plans. Do not edit

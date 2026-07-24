@@ -36,12 +36,7 @@ target_strikes: Array<number>,
  */
 spot_override: number | null,
 /**
- * Optional continuously-compounded dividend/borrow yield override.
- *
- * SVI is parameterized in **forward** log-moneyness `k = ln(K/F(T))`, so
- * the forward must carry the full cost of carry:
- * `F(T) = S·e^{(r − q)T}`. When unset, the target looks up the scalar
- * `"<underlying_ticker>-DIVYIELD"` in the market context (mirroring the
- * SABR `VolSurfaceParams` behaviour) and falls back to `q = 0`.
+ * Optional continuous dividend yield; defaults to the market scalar
+ * `"<underlying_ticker>-DIVYIELD"` or zero.
  */
 dividend_yield_override: number | null, };

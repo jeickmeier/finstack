@@ -121,7 +121,7 @@ parity-tested surface, update `parity_contract.toml` in the same change.
 
 | Check | Command |
 |-------|---------|
-| Python tests | `mise run python-test` (release build, then pytest) |
+| Python tests | `mise run python-test` (dev build, then pytest) |
 | Parity only | `uv run pytest finstack-quant-py/tests/parity` |
 | Type check | `mise run python-typecheck` |
 

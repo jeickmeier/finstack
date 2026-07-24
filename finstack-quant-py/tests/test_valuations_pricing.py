@@ -595,7 +595,9 @@ def test_structured_credit_stochastic_json_details_include_all_tranches() -> Non
 
 
 def test_structured_credit_stochastic_json_missing_market_data_raises() -> None:
-    with pytest.raises(ValueError, match="Curve not found"):
+    # Missing discount curves surface as Calibration failures, which the
+    # binding layer maps to RuntimeError (see errors.rs valuations_to_py).
+    with pytest.raises(RuntimeError, match="Curve not found"):
         price_instrument(
             _structured_credit_json(),
             _market_json(include_discount=False),

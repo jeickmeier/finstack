@@ -67,7 +67,7 @@ corresponding `const` lives in the same module and is the source of truth.
 | `StatementResult` | `finstack_quant_statements::evaluator::results` | `STATEMENT_RESULT_SCHEMA_VERSION` | 1 |
 | `PortfolioResult` | `finstack_quant_portfolio::results` | `PORTFOLIO_RESULT_SCHEMA_VERSION` | 1 |
 | `PortfolioOptimizationResult` | `finstack_quant_portfolio::optimization::result` | `PORTFOLIO_OPTIMIZATION_RESULT_SCHEMA_VERSION` | 1 |
-| `CreditFactorModel` | `finstack_quant_valuations::factor_model::credit` | `"finstack_quant.credit_factor_model/1"` (string tag, not a `u32` const) | 1 |
+| `CreditFactorModel` | `finstack_quant_factor_model::credit::hierarchy` | `"finstack_quant.credit_factor_model/1"` (string tag, not a `u32` const) | 1 |
 
 ### When to bump `schema_version`
 
@@ -149,10 +149,10 @@ minor versions without a schema-version bump.
 - `SourceLine` (`finstack_quant_attribution::credit_factor`) — custom
   `Deserialize`: accepts both legacy `Money` shape and new tagged shape for
   backward compatibility.
-- `PositionResidualContribution` (`finstack_quant_valuations::factor_model::credit`) —
+- `PositionResidualContribution` (`finstack_quant_portfolio::factor_model`) —
   additive, opt-in field on `RiskDecomposition`.
 - `CreditCalibrationInputs`, `CreditCalibrationConfig`
-  (`finstack_quant_valuations::factor_model::credit_calibration`) — versioned serde
+  (`finstack_quant_factor_model::credit::calibration`) — versioned serde
   (round-trippable) but carry no `schema_version` constant yet; safe to
   persist when the workspace version is pinned.
 

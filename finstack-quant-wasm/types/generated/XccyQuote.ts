@@ -17,8 +17,7 @@ convention: string,
  */
 far_pillar: string,
 /**
- * Basis spread in basis points applied to the base-currency
- * (non-USD) leg; the quote-currency leg pays its index flat.
+ * Basis spread in basis points on the base-currency leg.
  */
 basis_spread_bp: number,
 /**

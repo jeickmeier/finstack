@@ -1583,6 +1583,43 @@
       ],
       "type": "object"
     },
+    "DefaultCurve": {
+      "description": "Default curve shape.",
+      "oneOf": [
+        {
+          "description": "Constant CDR (no seasoning effect)",
+          "properties": {
+            "curve": {
+              "const": "constant",
+              "type": "string"
+            }
+          },
+          "required": [
+            "curve"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "SDA standard curve: ramps to peak then declines",
+          "properties": {
+            "curve": {
+              "const": "sda",
+              "type": "string"
+            },
+            "speed_multiplier": {
+              "description": "Speed multiplier (1.0 = 100% SDA)",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "curve",
+            "speed_multiplier"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "EarlyAmortizationSpec": {
       "additionalProperties": false,
       "description": "Early-amortization specification for revolving (master-trust) deals.\n\nWhile a deal's reinvestment/revolving period is active, principal is recycled\nand the investor (tranche) balances are held flat. If cumulative losses reach\n`max_cumulative_loss_pct`, an early-amortization event is triggered: the\nrevolving period ends immediately and the deal begins paying principal down\n(amortizing) even before its scheduled revolving-period end.",
@@ -3093,6 +3130,63 @@
       ],
       "type": "object"
     },
+    "PrepaymentCurve": {
+      "description": "Prepayment curve shape.",
+      "oneOf": [
+        {
+          "description": "Constant CPR (no seasoning effect)",
+          "properties": {
+            "curve": {
+              "const": "constant",
+              "type": "string"
+            }
+          },
+          "required": [
+            "curve"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "PSA standard curve: ramps to 6% CPR over 30 months",
+          "properties": {
+            "curve": {
+              "const": "psa",
+              "type": "string"
+            },
+            "speed_multiplier": {
+              "description": "Speed multiplier (1.0 = 100% PSA)",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "curve",
+            "speed_multiplier"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "CMBS-style lockout: zero prepayment for an initial period, then constant CPR.\n\nCommercial mortgage-backed securities typically have prepayment lockout\nperiods (defeasance/yield maintenance) lasting 5-10 years, after which\nvoluntary prepayment resumes at the specified CPR.",
+          "properties": {
+            "curve": {
+              "const": "cmbs_lockout",
+              "type": "string"
+            },
+            "lockout_months": {
+              "description": "Number of months with zero prepayment (e.g., 60 for 5-year lockout)",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "curve",
+            "lockout_months"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "Recipient": {
       "additionalProperties": false,
       "description": "Individual payment recipient within a tier",
@@ -3468,16 +3562,34 @@
       "description": "Stochastic default model specification.\n\nAllows default model selection and configuration without\nconstructing the full model.",
       "oneOf": [
         {
-          "$ref": "https://finstack_quant.dev/schemas/cashflow/1/default_model_spec.schema.json",
+          "additionalProperties": false,
           "description": "Use deterministic default model (no stochastic component).",
           "properties": {
+            "cdr": {
+              "description": "CDR: Constant Default Rate (annual, e.g., 0.02 for 2%).\n\nThis field is **ignored** when [`DefaultCurve::Sda`] is active: the\nannual CDR is then derived entirely from the SDA seasoning curve and\nits `speed_multiplier`.",
+              "format": "double",
+              "type": "number"
+            },
+            "curve": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/DefaultCurve"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Optional curve shape (default: constant)"
+            },
             "model": {
               "const": "Deterministic",
               "type": "string"
             }
           },
           "required": [
-            "model"
+            "model",
+            "cdr"
           ],
           "type": "object"
         },
@@ -3593,16 +3705,34 @@
       "description": "Stochastic prepayment model specification.\n\nAllows prepayment model selection and configuration without\nconstructing the full model, enabling serialization and deferred construction.",
       "oneOf": [
         {
-          "$ref": "https://finstack_quant.dev/schemas/cashflow/1/prepayment_model_spec.schema.json",
+          "additionalProperties": false,
           "description": "Use deterministic prepayment model (no stochastic component).",
           "properties": {
+            "cpr": {
+              "description": "CPR: Constant Prepayment Rate (annual, e.g., 0.06 for 6%).\n\nThis field is **ignored** when [`PrepaymentCurve::Psa`] is active: the\nannual CPR is then derived entirely from the PSA seasoning ramp and\nits `speed_multiplier`. It IS used by [`PrepaymentCurve::CmbsLockout`]\nas the post-lockout CPR.",
+              "format": "double",
+              "type": "number"
+            },
+            "curve": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PrepaymentCurve"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Optional curve shape (default: constant)"
+            },
             "model": {
               "const": "Deterministic",
               "type": "string"
             }
           },
           "required": [
-            "model"
+            "model",
+            "cpr"
           ],
           "type": "object"
         },

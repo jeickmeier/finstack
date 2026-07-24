@@ -22,11 +22,7 @@ currency: string,
  */
 base_date: string,
 /**
- * FX spot rate (domestic per foreign).
- *
- * Used as the fallback for any `XccyQuote::BasisSwap` in the step's
- * quote set whose own `spot_fx` is `None`; a per-quote `spot_fx` always
- * takes precedence.
+ * FX spot rate (domestic per foreign), used when a quote omits `spot_fx`.
  */
 fx_spot: number,
 /**

@@ -98,13 +98,7 @@ strike: number,
  */
 vol: number,
 /**
- * Quote type label.
- *
- * Calibrations that discriminate normal (Bachelier) vs lognormal
- * (Black) vols parse this via [`parse_vol_quote_type`] and fail
- * closed on unknown strings. Surface targets that do not need the
- * distinction (e.g. SABR smile calibration) treat it as an
- * informational label (e.g. `"ATM"`, `"ATM-50"`).
+ * Quote type label; see [`parse_vol_quote_type`].
  */
 quote_type: string,
 /**
@@ -128,10 +122,7 @@ strike: number,
  */
 vol: number,
 /**
- * Quote type, e.g. "normal".
- *
- * Parsed strictly via [`parse_vol_quote_type`] by calibrations that
- * discriminate normal vs lognormal vols; unknown strings error.
+ * Quote type label, e.g. `"normal"`; see [`parse_vol_quote_type`].
  */
 quote_type: string,
 /**

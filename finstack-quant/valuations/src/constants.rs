@@ -254,7 +254,7 @@ pub mod credit {
     /// conditional loss distribution.
     ///
     /// The threshold is set from a measured bias study (2026-07
-    /// credit-derivatives audit, junior [3,7] tranche on dispersed-hazard
+    /// credit-derivatives audit, junior \[3,7\] tranche on dispersed-hazard
     /// pools, normal approx vs exact-convolution PV):
     ///
     /// | Pool size | Relative PV bias |
