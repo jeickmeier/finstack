@@ -37,6 +37,7 @@
 //! - IFRS 9 B5.5.44 -- Discount rate (effective interest rate)
 //! - IFRS 9 B5.5.42 -- Probability-weighted scenarios
 
+use finstack_quant_core::credit::lgd::DownturnLgd;
 use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 
@@ -69,20 +70,52 @@ pub struct MacroScenario {
 
 /// LGD methodology selection.
 ///
-/// **Not yet implemented**: the ECL engines always use the LGD carried on
-/// each [`Exposure`] (optionally overridden per scenario via
-/// [`MacroScenario::lgd_override`]); no TTC averaging or downturn stress is
-/// applied. The enum is retained for serde wire stability.
-/// [`EclConfig::validate`] rejects any value other than
-/// [`LgdType::PointInTime`] so the unimplemented methodologies cannot be
-/// silently stamped into results.
+/// Selects how the base LGD carried on an [`Exposure`] (or a scenario
+/// [`MacroScenario::lgd_override`]) is converted into the effective LGD used
+/// in the ECL calculation. Each non-default variant requires a companion
+/// [`EclConfig`] field; [`EclConfig::validate`] enforces that the field is
+/// present for the selected variant and absent otherwise (a "set but unused"
+/// knob is rejected symmetrically with a "used but unset" one), so a
+/// misconfigured methodology cannot be silently stamped into results.
+///
+/// # Variants and formulas
+///
+/// - [`LgdType::PointInTime`]: `LGD_eff = base`, where `base` is
+///   [`Exposure::lgd`] or the scenario [`MacroScenario::lgd_override`] when
+///   present. No companion field.
+/// - [`LgdType::ThroughTheCycle`]: `LGD_eff = EclConfig::ttc_lgd`, a
+///   cycle-average LGD that pins the effective LGD regardless of `base`.
+///   Because the pin would silently discard a scenario `lgd_override`,
+///   combining `ThroughTheCycle` with any scenario override is a validation
+///   error (see [`compute_ecl_weighted`]).
+/// - [`LgdType::Downturn`]: `LGD_eff = EclConfig::downturn_lgd.adjust(base)`,
+///   applied via [`DownturnLgd::adjust`] on top of `base` (so a scenario
+///   `lgd_override` sets the base and the downturn stress is layered on top
+///   of it):
+///   - Stressed (`DownturnMethod::FryeJacobs`):
+///     `LGD_eff = clamp(base + s·√ρ·Φ⁻¹(q)·√(base·(1−base)), 0, 1)`, core's
+///     documented mean-plus-Bernoulli-stdev approximation (see
+///     `core/src/credit/lgd/downturn.rs` Methodology Note; Frye & Jacobs
+///     (2012) is related literature only, not the formula implemented here).
+///   - Regulatory floor (`DownturnMethod::RegulatoryFloor`):
+///     `LGD_eff = clamp(max(base + add_on, floor), 0, 1)`.
+///
+/// # References
+///
+/// - Basel Framework CRE36.85-36.90 -- downturn LGD requirement and
+///   regulatory floors.
+/// - Frye, J. & Jacobs, M. (2012). "Credit Loss and Systematic Loss Given
+///   Default." *Journal of Credit Risk*, 8(1), 109-140 (related literature
+///   only; see [`DownturnLgd`] for the exact formula implemented).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LgdType {
-    /// Point-in-time LGD from the exposure.
+    /// Point-in-time LGD from the exposure (or scenario override). No
+    /// companion field required.
     PointInTime,
-    /// Through-the-cycle average LGD.
+    /// Through-the-cycle average LGD. Requires [`EclConfig::ttc_lgd`].
     ThroughTheCycle,
-    /// Downturn LGD (stressed scenario).
+    /// Downturn LGD (stressed scenario). Requires
+    /// [`EclConfig::downturn_lgd`].
     Downturn,
 }
 
@@ -114,9 +147,17 @@ pub struct EclConfig {
     /// Staging configuration for IFRS 9.
     pub staging: StagingConfig,
 
-    /// LGD methodology label. Only [`LgdType::PointInTime`] is supported;
-    /// see [`LgdType`] for details.
+    /// LGD methodology label; see [`LgdType`] for the formulas each variant
+    /// applies and the companion field it requires.
     pub lgd_type: LgdType,
+
+    /// Cycle-average LGD used when `lgd_type == `[`LgdType::ThroughTheCycle`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ttc_lgd: Option<f64>,
+
+    /// Downturn LGD adjuster applied when `lgd_type == `[`LgdType::Downturn`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub downturn_lgd: Option<DownturnLgd>,
 
     /// Assumed time (in years) from the reporting date to recovery
     /// realisation for Stage 3 (credit-impaired) exposures. Used to
@@ -180,11 +221,54 @@ impl EclConfig {
                 "At least one scenario is required".to_string(),
             ));
         }
-        if self.lgd_type != LgdType::PointInTime {
-            return Err(Error::Validation(format!(
-                "lgd_type {:?} is not implemented; only PointInTime is supported",
-                self.lgd_type
-            )));
+        match self.lgd_type {
+            LgdType::PointInTime => {
+                if self.ttc_lgd.is_some() {
+                    return Err(Error::Validation(
+                        "ttc_lgd is only valid with lgd_type = ThroughTheCycle".to_string(),
+                    ));
+                }
+                if self.downturn_lgd.is_some() {
+                    return Err(Error::Validation(
+                        "downturn_lgd is only valid with lgd_type = Downturn".to_string(),
+                    ));
+                }
+            }
+            LgdType::ThroughTheCycle => {
+                let lgd = self.ttc_lgd.ok_or_else(|| {
+                    Error::Validation("lgd_type = ThroughTheCycle requires ttc_lgd".to_string())
+                })?;
+                if !lgd.is_finite() || !(0.0..=1.0).contains(&lgd) {
+                    return Err(Error::Validation(format!(
+                        "ttc_lgd must be a finite value in [0, 1], got {lgd}"
+                    )));
+                }
+                if self.scenarios.iter().any(|s| s.lgd_override.is_some()) {
+                    return Err(Error::Validation(
+                        "lgd_type = ThroughTheCycle pins the LGD; scenario lgd_override \
+                         entries would be silently ignored — remove them or use \
+                         PointInTime/Downturn"
+                            .to_string(),
+                    ));
+                }
+                if self.downturn_lgd.is_some() {
+                    return Err(Error::Validation(
+                        "downturn_lgd is only valid with lgd_type = Downturn".to_string(),
+                    ));
+                }
+            }
+            LgdType::Downturn => {
+                if self.downturn_lgd.is_none() {
+                    return Err(Error::Validation(
+                        "lgd_type = Downturn requires downturn_lgd".to_string(),
+                    ));
+                }
+                if self.ttc_lgd.is_some() {
+                    return Err(Error::Validation(
+                        "ttc_lgd is only valid with lgd_type = ThroughTheCycle".to_string(),
+                    ));
+                }
+            }
         }
         if !self.stage3_time_to_recovery_years.is_finite()
             || self.stage3_time_to_recovery_years < 0.0
@@ -304,8 +388,9 @@ impl EclConfigBuilder {
 
     /// Set the LGD methodology.
     ///
-    /// Only [`LgdType::PointInTime`] is currently supported; `build()`
-    /// rejects any other value (see [`LgdType`]).
+    /// `build()` validates that the companion field each variant requires is
+    /// present (and that no other variant's field is set); see [`LgdType`]
+    /// for the formulas and requirements.
     ///
     /// # Arguments
     ///
@@ -316,6 +401,34 @@ impl EclConfigBuilder {
     /// The updated builder.
     pub fn lgd_type(mut self, lgd_type: LgdType) -> Self {
         self.config.lgd_type = lgd_type;
+        self
+    }
+
+    /// Set the cycle-average LGD used with [`LgdType::ThroughTheCycle`].
+    ///
+    /// # Arguments
+    ///
+    /// * `lgd` - Cycle-average LGD in `[0, 1]`; validated on `build()`.
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    pub fn ttc_lgd(mut self, lgd: f64) -> Self {
+        self.config.ttc_lgd = Some(lgd);
+        self
+    }
+
+    /// Set the downturn LGD adjuster used with [`LgdType::Downturn`].
+    ///
+    /// # Arguments
+    ///
+    /// * `adjuster` - Core downturn adjuster (stressed or regulatory-floor).
+    ///
+    /// # Returns
+    ///
+    /// The updated builder.
+    pub fn downturn_lgd(mut self, adjuster: DownturnLgd) -> Self {
+        self.config.downturn_lgd = Some(adjuster);
         self
     }
 
@@ -428,6 +541,23 @@ pub struct ExposureEclResult {
 // Core computation (stateless)
 // ---------------------------------------------------------------------------
 
+/// Effective LGD after applying the configured [`LgdType`] to the base LGD
+/// (the exposure LGD, or a scenario `lgd_override` already applied upstream).
+fn effective_lgd(config: &EclConfig, base_lgd: f64) -> Result<f64> {
+    match config.lgd_type {
+        LgdType::PointInTime => Ok(base_lgd),
+        LgdType::ThroughTheCycle => config.ttc_lgd.ok_or_else(|| {
+            Error::Validation("lgd_type = ThroughTheCycle requires ttc_lgd".to_string())
+        }),
+        LgdType::Downturn => {
+            let adjuster = config.downturn_lgd.as_ref().ok_or_else(|| {
+                Error::Validation("lgd_type = Downturn requires downturn_lgd".to_string())
+            })?;
+            adjuster.adjust(base_lgd)
+        }
+    }
+}
+
 /// Compute ECL for a single exposure under a single scenario.
 ///
 /// Integrates marginal PD x LGD x EAD x DF over time buckets up to the
@@ -528,7 +658,7 @@ pub fn compute_ecl_single(
         let rating = exposure.current_rating.as_deref().unwrap_or("NR");
         pd_source.cumulative_pd(rating, 0.0)?;
         let t_recovery = config.stage3_time_to_recovery_years;
-        let lgd = exposure.lgd;
+        let lgd = effective_lgd(config, exposure.lgd)?;
         let ead = exposure.ead_at(0.0);
         let df = 1.0 / (1.0 + exposure.eir).powf(t_recovery);
         let ecl = lgd * ead * df;
@@ -559,6 +689,7 @@ pub fn compute_ecl_single(
     let n_buckets = (horizon / dt).ceil() as usize;
     let n_buckets = n_buckets.max(1); // At least one bucket
 
+    let lgd = effective_lgd(config, exposure.lgd)?;
     let mut ecl = 0.0;
     let mut bucket_details = Vec::with_capacity(n_buckets);
 
@@ -576,7 +707,6 @@ pub fn compute_ecl_single(
         let pd_start = pd_source.cumulative_pd(rating, t_start)?;
         let pd_end = pd_source.cumulative_pd(rating, t_end)?;
         let uncond_mpd = (pd_end - pd_start).max(0.0);
-        let lgd = exposure.lgd;
         let ead = exposure.ead_at(t_mid);
         let df = 1.0 / (1.0 + exposure.eir).powf(t_mid);
 
@@ -618,6 +748,16 @@ pub fn compute_ecl_single(
 ///   weights must satisfy the configured probability validation.
 /// * `config` - ECL bucketing and recovery-time calculation parameters.
 ///
+/// # LGD methodology interaction
+///
+/// A scenario `lgd_override`, when present, becomes the *base* LGD that
+/// [`LgdType`] is then applied to: under [`LgdType::Downturn`] the stress
+/// adjustment is layered **on top of** the scenario override (override sets
+/// the base, stress adjusts it). Under [`LgdType::ThroughTheCycle`] the
+/// cycle-average LGD pins the effective LGD, so a scenario `lgd_override`
+/// would be silently discarded -- combining the two is rejected as a
+/// validation error instead.
+///
 /// # Returns
 ///
 /// A [`WeightedEclResult`] containing the probability-weighted ECL and each
@@ -625,8 +765,10 @@ pub fn compute_ecl_single(
 ///
 /// # Errors
 ///
-/// Returns an error if `pd_sources` is empty, if exposure validation fails, or
-/// if any scenario PD source cannot provide cumulative PDs for the exposure.
+/// Returns an error if `pd_sources` is empty, if exposure validation fails,
+/// if any scenario PD source cannot provide cumulative PDs for the exposure,
+/// or if `config.lgd_type == `[`LgdType::ThroughTheCycle`] and any scenario
+/// sets `lgd_override`.
 ///
 /// # Examples
 ///
@@ -683,6 +825,12 @@ pub fn compute_ecl_weighted(
     let mut scenario_results = Vec::with_capacity(pd_sources.len());
 
     for (scenario, pd_source) in pd_sources {
+        if config.lgd_type == LgdType::ThroughTheCycle && scenario.lgd_override.is_some() {
+            return Err(Error::Validation(format!(
+                "scenario '{}' has lgd_override but lgd_type = ThroughTheCycle pins the LGD",
+                scenario.id
+            )));
+        }
         let lgd_adj = scenario.lgd_override.unwrap_or(exposure.lgd);
         let adj_exposure = Exposure {
             lgd: lgd_adj,
@@ -1082,9 +1230,186 @@ mod tests {
     }
 
     #[test]
-    fn test_lgd_type_non_default_rejected() {
+    fn lgd_type_downturn_without_adjuster_rejected() {
         let config = EclConfigBuilder::new().lgd_type(LgdType::Downturn).build();
         assert!(config.is_err());
+    }
+
+    fn lgd_test_exposure() -> Exposure {
+        // eir = 0 so DF = 1 and the bucket sum telescopes exactly to cumPD(1y).
+        Exposure {
+            ead: 100_000.0,
+            eir: 0.0,
+            remaining_maturity_years: 1.0,
+            lgd: 0.45,
+            ..make_exposure()
+        }
+    }
+
+    fn one_year_2pct_curve() -> RawPdCurve {
+        RawPdCurve::new("BBB", vec![(0.0, 0.0), (1.0, 0.02)]).unwrap()
+    }
+
+    #[test]
+    fn ttc_lgd_replaces_exposure_lgd() {
+        // PIT: ECL = cumPD(1y) × LGD × EAD = 0.02 × 0.45 × 100,000 = 900.
+        // TTC (ttc_lgd = 0.40): ECL = 0.02 × 0.40 × 100,000 = 800.
+        let pit = EclConfig::default();
+        let pit_ecl = compute_ecl_single(
+            &lgd_test_exposure(),
+            Stage::Stage1,
+            &one_year_2pct_curve(),
+            &pit,
+        )
+        .unwrap()
+        .ecl;
+        assert!((pit_ecl - 900.0).abs() < 1e-9, "got {pit_ecl}");
+
+        let ttc = EclConfigBuilder::new()
+            .lgd_type(LgdType::ThroughTheCycle)
+            .ttc_lgd(0.40)
+            .build()
+            .unwrap();
+        let ttc_ecl = compute_ecl_single(
+            &lgd_test_exposure(),
+            Stage::Stage1,
+            &one_year_2pct_curve(),
+            &ttc,
+        )
+        .unwrap()
+        .ecl;
+        assert!((ttc_ecl - 800.0).abs() < 1e-9, "got {ttc_ecl}");
+    }
+
+    #[test]
+    fn downturn_regulatory_floor_golden() {
+        // base LGD 0.45, add_on 0.08, floor 0.25:
+        //   LGD_eff = max(0.45 + 0.08, 0.25) = 0.53
+        //   ECL = 0.02 × 0.53 × 100,000 = 1,060.
+        let adjuster =
+            finstack_quant_core::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.25).unwrap();
+        let config = EclConfigBuilder::new()
+            .lgd_type(LgdType::Downturn)
+            .downturn_lgd(adjuster)
+            .build()
+            .unwrap();
+        let ecl = compute_ecl_single(
+            &lgd_test_exposure(),
+            Stage::Stage1,
+            &one_year_2pct_curve(),
+            &config,
+        )
+        .unwrap()
+        .ecl;
+        assert!((ecl - 1_060.0).abs() < 1e-9, "got {ecl}");
+    }
+
+    #[test]
+    fn downturn_stressed_golden() {
+        // frye_jacobs(rho=0.15, sensitivity=0.4, q=0.999), base 0.45:
+        //   Φ⁻¹(0.999) = 3.090232...
+        //   add-on = 0.4 × √0.15 × 3.090232 × √(0.45 × 0.55)
+        //          = 0.4 × 0.3872983 × 3.090232 × 0.4974937 ≈ 0.238164
+        //   LGD_eff ≈ 0.688164 → ECL ≈ 0.02 × 0.688164 × 100,000 ≈ 1,376.33
+        let adjuster =
+            finstack_quant_core::credit::lgd::DownturnLgd::frye_jacobs(0.15, 0.4, 0.999).unwrap();
+        let expected_lgd = adjuster.adjust(0.45).unwrap();
+        assert!(
+            (expected_lgd - 0.688164).abs() < 1e-3,
+            "hand check: {expected_lgd}"
+        );
+
+        let config = EclConfigBuilder::new()
+            .lgd_type(LgdType::Downturn)
+            .downturn_lgd(adjuster)
+            .build()
+            .unwrap();
+        let ecl = compute_ecl_single(
+            &lgd_test_exposure(),
+            Stage::Stage1,
+            &one_year_2pct_curve(),
+            &config,
+        )
+        .unwrap()
+        .ecl;
+        let expected = 0.02 * expected_lgd * 100_000.0;
+        assert!((ecl - expected).abs() < 1e-9, "got {ecl}, want {expected}");
+    }
+
+    #[test]
+    fn downturn_applies_to_stage3_shortcut() {
+        // Stage 3, eir 0: ECL = LGD_eff × EAD = 0.53 × 100,000 = 53,000.
+        let adjuster =
+            finstack_quant_core::credit::lgd::DownturnLgd::regulatory_floor(0.08, 0.25).unwrap();
+        let config = EclConfigBuilder::new()
+            .lgd_type(LgdType::Downturn)
+            .downturn_lgd(adjuster)
+            .build()
+            .unwrap();
+        let ecl = compute_ecl_single(
+            &lgd_test_exposure(),
+            Stage::Stage3,
+            &one_year_2pct_curve(),
+            &config,
+        )
+        .unwrap()
+        .ecl;
+        assert!((ecl - 53_000.0).abs() < 1e-9, "got {ecl}");
+    }
+
+    #[test]
+    fn lgd_type_validation_matrix() {
+        // TTC requires ttc_lgd.
+        assert!(EclConfigBuilder::new()
+            .lgd_type(LgdType::ThroughTheCycle)
+            .build()
+            .is_err());
+        // Downturn requires downturn_lgd.
+        assert!(EclConfigBuilder::new()
+            .lgd_type(LgdType::Downturn)
+            .build()
+            .is_err());
+        // ttc_lgd out of range.
+        assert!(EclConfigBuilder::new()
+            .lgd_type(LgdType::ThroughTheCycle)
+            .ttc_lgd(1.5)
+            .build()
+            .is_err());
+        // Symmetric inert-config guard: PIT with a set-but-unused knob is rejected.
+        assert!(EclConfigBuilder::new().ttc_lgd(0.4).build().is_err());
+        let adj =
+            finstack_quant_core::credit::lgd::DownturnLgd::regulatory_floor(0.05, 0.25).unwrap();
+        assert!(EclConfigBuilder::new().downturn_lgd(adj).build().is_err());
+    }
+
+    #[test]
+    fn ttc_conflicts_with_scenario_lgd_override() {
+        let config = EclConfigBuilder::new()
+            .lgd_type(LgdType::ThroughTheCycle)
+            .ttc_lgd(0.40)
+            .build()
+            .unwrap();
+        let scenario = MacroScenario {
+            id: "downside".to_string(),
+            weight: 1.0,
+            lgd_override: Some(0.60),
+        };
+        let curve = one_year_2pct_curve();
+        let pd_sources: Vec<(&MacroScenario, &dyn PdTermStructure)> = vec![(&scenario, &curve)];
+        let result =
+            compute_ecl_weighted(&lgd_test_exposure(), Stage::Stage1, &pd_sources, &config);
+        assert!(
+            result.is_err(),
+            "TTC pins LGD; a scenario override must not be silently ignored"
+        );
+    }
+
+    #[test]
+    fn lgd_config_serde_is_additive() {
+        let json = serde_json::to_string(&EclConfig::default()).unwrap();
+        assert!(!json.contains("ttc_lgd") && !json.contains("downturn_lgd"));
+        let parsed: EclConfig = serde_json::from_str(&json).unwrap();
+        assert!(parsed.ttc_lgd.is_none() && parsed.downturn_lgd.is_none());
     }
 
     #[test]
