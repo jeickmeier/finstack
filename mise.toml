@@ -128,6 +128,12 @@ env = { RUSTFLAGS = "-C debuginfo=0" }
 run = "cargo build --workspace --exclude finstack-quant-py --exclude finstack-quant-wasm --release"
 
 [tasks.rust-test]
+# `--exclude finstack-quant-py` is required, not an oversight: building that crate's
+# test target links against libpython (e.g. `ld: library 'python3.9' not found`), which
+# is not available in a plain `cargo` environment. The crate has no Rust `#[test]`s
+# anyway — its behaviour is covered by pytest via `mise run python-test`.
+# Type-checking it is still gated: `rust-lint` runs clippy with `--workspace`, and
+# clippy type-checks without linking, so binding compile errors are caught there.
 description = "Run Rust tests via cargo-nextest"
 run = "cargo nextest run --workspace --exclude finstack-quant-py --lib --test '*' --no-fail-fast"
 
@@ -156,19 +162,30 @@ echo "HTML report: target/llvm-cov/html/index.html"
 """
 
 [tasks.rust-fmt]
+# `--workspace` keeps the mutating pass in step with `rust-lint`'s check-only pass;
+# without it, auto-fixes would skip the binding crates that rust-lint now gates on.
 description = "Format + auto-fix Rust code (cargo fmt + clippy --fix, mutating)"
 run = [
   "cargo fmt --all",
-  "cargo clippy --all-targets --fix --allow-dirty -- -D warnings",
+  "cargo clippy --workspace --all-targets --fix --allow-dirty -- -D warnings",
 ]
 
 [tasks.rust-lint]
 # `-D warnings` matches the CI pre-commit hook (.pre-commit-config.yaml) so that a
-# green local run implies a green CI run. Note this operates on `default-members`,
-# which excludes finstack-quant-py and finstack-quant-wasm — lint those with
-# `cargo clippy -p finstack-quant-py --all-targets` / `-p finstack-quant-wasm`.
+# green local run implies a green CI run.
+#
+# `--workspace` is deliberate: a bare `cargo clippy` operates on `default-members`,
+# which omits finstack-quant-py and finstack-quant-wasm. That blind spot let a
+# breaking change land on master with a Python binding that did not compile
+# (a struct gained a field; the binding's struct-literal call site was not updated).
+# `cargo fmt --all` already covered those crates, and the `cargo check --workspace`
+# pre-commit hook would have caught it but only runs at the pre-push stage.
+# Clippy type-checks, so linting the whole workspace closes the gap at commit time.
 description = "Lint Rust (fmt --check + clippy with -D warnings, check-only)"
-run = ["cargo fmt --all -- --check", "cargo clippy --all-targets -- -D warnings"]
+run = [
+  "cargo fmt --all -- --check",
+  "cargo clippy --workspace --all-targets -- -D warnings",
+]
 
 [tasks.rust-audit]
 description = "Audit Rust dependencies via cargo-deny"

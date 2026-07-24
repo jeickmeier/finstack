@@ -78,7 +78,10 @@ repos:
     hooks:
       - id: rust-clippy
         name: Rust lint (cargo clippy)
-        entry: bash -c 'CARGO_INCREMENTAL=1 cargo clippy --all-targets -- -D warnings'
+        # `--workspace` is required: a bare `cargo clippy` checks only
+        # `default-members`, omitting finstack-quant-py / finstack-quant-wasm.
+        # Keep in step with `mise run rust-lint`.
+        entry: bash -c 'CARGO_INCREMENTAL=1 cargo clippy --workspace --all-targets -- -D warnings'
         language: system
         types: [rust]
         pass_filenames: false
