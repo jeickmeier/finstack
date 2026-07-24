@@ -334,3 +334,133 @@ fn missing_configured_adjustment_node_warns_and_skips() {
         result.findings
     );
 }
+
+#[test]
+fn nan_dividends_value_warns_and_skips() {
+    use finstack_quant_statements::checks::Severity;
+
+    // A dividends node that resolves to NaN poisons the roll-forward
+    // (expected RE becomes NaN, `NaN > tolerance` is false) and the period
+    // silently passes. Non-finite configured inputs must be treated like
+    // missing ones: warn and skip.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q2", None)
+        .unwrap()
+        .value(
+            "retained_earnings",
+            &[
+                (q(1), AmountOrScalar::scalar(500.0)),
+                (q(2), AmountOrScalar::scalar(9999.0)), // blatantly broken roll-forward
+            ],
+        )
+        .value(
+            "net_income",
+            &[
+                (q(1), AmountOrScalar::scalar(90.0)),
+                (q(2), AmountOrScalar::scalar(100.0)),
+            ],
+        )
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let mut results = evaluator.evaluate(&model).unwrap();
+    results
+        .nodes
+        .entry("dividends".to_string())
+        .or_default()
+        .insert(q(2), f64::NAN);
+
+    let check = RetainedEarningsReconciliation {
+        retained_earnings_node: NodeId::new("retained_earnings"),
+        net_income_node: NodeId::new("net_income"),
+        dividends_node: Some(NodeId::new("dividends")),
+        other_adjustments: vec![],
+        tolerance: None,
+        dividends_sign_convention: Default::default(),
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Warning && f.message.contains("dividends")),
+        "a NaN dividends value must warn and skip, not silently pass: {:?}",
+        result.findings
+    );
+    assert!(
+        !result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Error),
+        "the poisoned period must be skipped, not judged: {:?}",
+        result.findings
+    );
+}
+
+#[test]
+fn nan_core_input_warns_and_skips() {
+    use finstack_quant_statements::checks::Severity;
+
+    // A NaN retained-earnings balance must be treated as unresolvable, not
+    // compared: `NaN > tolerance` is false, which would silently pass.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q2", None)
+        .unwrap()
+        .value(
+            "retained_earnings",
+            &[
+                (q(1), AmountOrScalar::scalar(500.0)),
+                (q(2), AmountOrScalar::scalar(600.0)),
+            ],
+        )
+        .value(
+            "net_income",
+            &[
+                (q(1), AmountOrScalar::scalar(90.0)),
+                (q(2), AmountOrScalar::scalar(100.0)),
+            ],
+        )
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let mut results = evaluator.evaluate(&model).unwrap();
+    results
+        .nodes
+        .entry("retained_earnings".to_string())
+        .or_default()
+        .insert(q(1), f64::NAN);
+
+    let check = RetainedEarningsReconciliation {
+        retained_earnings_node: NodeId::new("retained_earnings"),
+        net_income_node: NodeId::new("net_income"),
+        dividends_node: None,
+        other_adjustments: vec![],
+        tolerance: None,
+        dividends_sign_convention: Default::default(),
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Warning && f.message.contains("retained_earnings")),
+        "a NaN core input must warn and skip: {:?}",
+        result.findings
+    );
+    assert!(
+        !result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Error),
+        "the poisoned period must be skipped, not judged: {:?}",
+        result.findings
+    );
+}

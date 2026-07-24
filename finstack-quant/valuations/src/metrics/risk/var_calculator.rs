@@ -142,18 +142,22 @@ fn validate_confidence_level(confidence_level: f64) -> Result<()> {
 /// the two measures are mutually consistent.
 #[derive(Debug, Clone)]
 pub struct VarResult {
-    /// Value-at-Risk at specified confidence level (always positive).
+    /// Value-at-Risk at specified confidence level.
     ///
-    /// The loss at the `(1 - α)` quantile of the P&L distribution, computed
+    /// Loss convention (workspace-wide): follows the P&L sign, so losses are
+    /// reported as **negative** numbers (zero for all-gain distributions),
+    /// matching `analytics::value_at_risk` and the portfolio risk engines.
+    /// The signed P&L at the `(1 - α)` quantile of the distribution, computed
     /// by linear interpolation between bracketing order statistics.
     pub var: f64,
 
-    /// Expected Shortfall (CVaR) at specified confidence level (always positive).
+    /// Expected Shortfall (CVaR) at specified confidence level.
     ///
-    /// The conditional tail expectation: the average loss over the worst
-    /// `(1 - α)` fraction of the distribution, computed as the mean of the
-    /// interpolated quantile function over `[0, 1 - α]`. By construction
-    /// `expected_shortfall >= var`.
+    /// Same loss convention as [`Self::var`]. The conditional tail
+    /// expectation: the average signed P&L over the worst `(1 - α)` fraction
+    /// of the distribution, computed as the mean of the interpolated quantile
+    /// function over `[0, 1 - α]`. By construction
+    /// `expected_shortfall <= var` (ES lies at or beyond VaR in the loss tail).
     pub expected_shortfall: f64,
 
     /// Full P&L distribution from historical simulation (sorted, worst first)
@@ -228,9 +232,12 @@ impl VarResult {
         //   function over the tail `[0, p]`, i.e. the genuine average loss
         //   beyond the `p` quantile. Because it integrates the SAME quantile
         //   function used for VaR, `ES >= VaR` holds by construction.
+        // Loss convention (workspace-wide): VaR/ES follow the P&L sign, so
+        // losses are negative. Clamp to zero only when the tail quantile is
+        // actually a gain (all-profit distributions).
         let p = 1.0 - confidence_level;
-        let var = (-tail_quantile(&pnl_distribution, p)).max(0.0);
-        let expected_shortfall = (-tail_quantile_mean(&pnl_distribution, p)).max(0.0);
+        let var = tail_quantile(&pnl_distribution, p).min(0.0);
+        let expected_shortfall = tail_quantile_mean(&pnl_distribution, p).min(0.0);
 
         // Warn about statistical reliability for small sample sizes
         // With fewer than 20 scenarios, the quantile estimates may be unreliable
@@ -1346,6 +1353,43 @@ mod tests {
         }
     }
 
+    /// Workspace sign convention: VaR and ES follow the P&L sign, so losses
+    /// are reported as **negative** numbers — matching
+    /// `analytics::value_at_risk` and the portfolio factor/position risk
+    /// engines. ES lies at or beyond VaR in the loss tail.
+    #[test]
+    fn var_result_reports_losses_as_negative() -> Result<()> {
+        // 100 P&Ls: -50..49. The 1% tail is the worst loss region.
+        let pnls: Vec<f64> = (0..100).map(|s| f64::from(s) - 50.0).collect();
+        let result = VarResult::from_distribution(pnls, 0.99)?;
+
+        assert!(
+            result.var < 0.0,
+            "VaR must be negative (losses-negative convention), got {}",
+            result.var
+        );
+        assert!(
+            result.expected_shortfall <= result.var,
+            "ES ({}) must lie at or beyond VaR ({}) in the loss tail",
+            result.expected_shortfall,
+            result.var
+        );
+        // Type-7 quantile at p = 0.01 over -50..49: h = 0.99 -> -49.01.
+        assert!((result.var - (-49.01)).abs() < 1e-9);
+        Ok(())
+    }
+
+    /// An all-gains distribution clamps VaR/ES to zero rather than
+    /// reporting a positive "risk" number.
+    #[test]
+    fn var_result_clamps_all_gain_distribution_to_zero() -> Result<()> {
+        let pnls: Vec<f64> = (1..=100).map(f64::from).collect();
+        let result = VarResult::from_distribution(pnls, 0.95)?;
+        assert_eq!(result.var, 0.0);
+        assert_eq!(result.expected_shortfall, 0.0);
+        Ok(())
+    }
+
     #[test]
     fn test_var_config_creation() {
         let config = VarConfig::var_95();
@@ -1480,9 +1524,12 @@ mod tests {
         let full = calculate_var(&[&bond], &base_market, &history, as_of, &full_config)?;
         let taylor = calculate_var(&[&bond], &base_market, &history, as_of, &taylor_config)?;
 
-        assert!(taylor.var > 0.0, "Taylor VaR should be positive");
+        assert!(
+            taylor.var < 0.0,
+            "Taylor VaR should be negative (losses-negative convention)"
+        );
         let diff = (taylor.var - full.var).abs();
-        let rel = diff / full.var.max(1.0);
+        let rel = diff / full.var.abs().max(1.0);
         assert!(
             rel < 0.15,
             "Taylor VaR should be close to full revaluation (diff: {:.4}%)",
@@ -2237,10 +2284,10 @@ mod tests {
         // 95% VaR uses the R type-7 linear-interpolated quantile at p = 0.05:
         //   h = (n - 1) * p = 7 * 0.05 = 0.35  ->  lo = 0, frac = 0.35
         //   Q(p) = pnl[0] + 0.35 * (pnl[1] - pnl[0])
-        //        = -200 + 0.35 * 50 = -182.5  ->  VaR = 182.5
-        // (The previous ceil-index estimator reported the worst loss, 200.0.)
+        //        = -200 + 0.35 * 50 = -182.5  ->  VaR = -182.5
+        // (losses-negative convention: VaR keeps the P&L sign).
         assert!(
-            (result.var - 182.5).abs() < 1e-9,
+            (result.var - (-182.5)).abs() < 1e-9,
             "interpolated 95% VaR should be 182.5, got {}",
             result.var
         );
@@ -2250,16 +2297,17 @@ mod tests {
         // so the integral is a single trapezoid:
         //   integral = p * (Q(0) + Q(p)) / 2 = 0.05 * (-200 + -182.5) / 2
         //            = 0.05 * -191.25 = -9.5625
-        //   ES = integral / p = -9.5625 / 0.05 = -191.25  ->  191.25
+        //   ES = integral / p = -9.5625 / 0.05 = -191.25
         assert!(
-            (result.expected_shortfall - 191.25).abs() < 1e-9,
-            "interpolated 95% ES should be 191.25, got {}",
+            (result.expected_shortfall - (-191.25)).abs() < 1e-9,
+            "interpolated 95% ES should be -191.25, got {}",
             result.expected_shortfall
         );
 
         // VaR and ES come from one quantile definition: ES averages Q over
-        // [0, p] and VaR is its least-extreme endpoint Q(p), so ES >= VaR.
-        assert!(result.expected_shortfall >= result.var);
+        // [0, p] and VaR is its least-extreme endpoint Q(p), so as signed
+        // P&L numbers ES <= VaR (ES lies deeper in the loss tail).
+        assert!(result.expected_shortfall <= result.var);
     }
 
     #[test]
@@ -2320,9 +2368,12 @@ mod tests {
 
         // Verify results
         assert_eq!(result.num_scenarios, 3);
-        assert!(result.var > 0.0, "VaR should be positive");
         assert!(
-            result.expected_shortfall >= result.var,
+            result.var < 0.0,
+            "VaR should be negative (losses-negative convention)"
+        );
+        assert!(
+            result.expected_shortfall <= result.var,
             "ES should be >= VaR"
         );
 

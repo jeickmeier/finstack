@@ -223,8 +223,11 @@ mod tests {
             .measures
             .get("expected_shortfall")
             .expect("ES should be computed");
-        assert!(var > 0.0, "VaR should be positive");
-        assert!(es >= var, "ES should be >= VaR");
+        assert!(
+            var < 0.0,
+            "VaR should be negative (losses-negative convention)"
+        );
+        assert!(es <= var, "ES should lie at or beyond VaR in the loss tail");
         assert!(
             (var - expected.var).abs() < 1e-10,
             "VaR mismatch: got {var}, expected {}",

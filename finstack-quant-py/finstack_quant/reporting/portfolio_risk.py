@@ -34,7 +34,9 @@ def _section_contributions(decomp: dict[str, Any], theme: Theme) -> Section | No
     contribs = [c for c in (decomp.get("contributions") or []) if isinstance(c, dict)]
     if not contribs:
         return None
-    contribs = sorted(contribs, key=lambda c: c.get("component_var") or 0.0, reverse=True)
+    # Loss convention: component VaR follows the P&L sign, so the largest
+    # risk contributor is the most negative value — sort ascending.
+    contribs = sorted(contribs, key=lambda c: c.get("component_var") or 0.0)
     top = contribs[:_TOP_N]
     chart = charts.bar_chart(
         [(c.get("position_id") or "·") for c in top], [c.get("component_var") for c in top], theme=theme
@@ -64,7 +66,8 @@ def _section_es(es: dict[str, Any] | None, theme: Theme) -> Section | None:
     contribs = [c for c in (es or {}).get("contributions") or [] if isinstance(c, dict)]
     if not contribs:
         return None
-    contribs = sorted(contribs, key=lambda c: c.get("component_es") or 0.0, reverse=True)
+    # Loss convention: the largest ES contributor is the most negative value.
+    contribs = sorted(contribs, key=lambda c: c.get("component_es") or 0.0)
     rows = [
         {
             "Position": c.get("position_id") or "·",

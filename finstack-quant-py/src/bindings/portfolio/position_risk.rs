@@ -8,8 +8,8 @@
 
 use crate::errors::core_to_py;
 use finstack_quant_portfolio::factor_model::{
-    DecompositionConfig, HistoricalPositionDecomposer, ParametricPositionDecomposer,
-    PositionRiskDecomposition, RiskBudget,
+    risk_budget_result_view, DecompositionConfig, HistoricalPositionDecomposer,
+    ParametricPositionDecomposer, PositionRiskDecomposition, RiskBudget,
 };
 use finstack_quant_portfolio::types::PositionId;
 use indexmap::IndexMap;
@@ -105,7 +105,9 @@ fn es_decomposition_to_dict<'py>(
 ///     ``{portfolio_var, portfolio_es, confidence, n_positions,
 ///     euler_residual, contributions: [{position_id, component_var,
 ///     marginal_var, pct_contribution, incremental_var}, ...]}``.
-///     Under normality, ``sum(component_var) == portfolio_var`` exactly.
+///     Loss convention: VaR/ES and their contributions follow the P&L sign,
+///     so losses are negative. Under normality,
+///     ``sum(component_var) == portfolio_var`` exactly.
 #[pyfunction]
 #[pyo3(signature = (position_ids, weights, covariance, confidence = 0.95))]
 fn parametric_var_decomposition<'py>(
@@ -149,7 +151,9 @@ fn parametric_var_decomposition<'py>(
 ///     ``{portfolio_var, portfolio_es, confidence, n_positions,
 ///     contributions: [{position_id, component_es, marginal_es,
 ///     pct_contribution}, ...]}``.
-///     Under normality, ``sum(component_es) == portfolio_es`` exactly.
+///     Loss convention: VaR/ES and their contributions follow the P&L sign,
+///     so losses are negative. Under normality,
+///     ``sum(component_es) == portfolio_es`` exactly.
 #[pyfunction]
 #[pyo3(signature = (position_ids, weights, covariance, confidence = 0.95))]
 fn parametric_es_decomposition<'py>(
@@ -295,30 +299,27 @@ fn evaluate_risk_budget<'py>(
         })
         .map_err(core_to_py)?;
 
+    // Serialize via the canonical Rust view so the target_pct / breach
+    // conventions live in exactly one place (the WASM binding uses the
+    // same view); the binding does no risk arithmetic of its own.
+    let view = risk_budget_result_view(&result, portfolio_var, utilization_threshold);
+
     let out = PyDict::new(py);
-    out.set_item("portfolio_var", portfolio_var)?;
-    out.set_item("total_overbudget", result.total_overbudget)?;
-    out.set_item("has_breach", result.has_breach)?;
-    out.set_item("utilization_threshold", utilization_threshold)?;
+    out.set_item("portfolio_var", view.portfolio_var)?;
+    out.set_item("total_overbudget", view.total_overbudget)?;
+    out.set_item("has_breach", view.has_breach)?;
+    out.set_item("utilization_threshold", view.utilization_threshold)?;
 
     let positions = PyList::empty(py);
-    let portfolio_var_magnitude = portfolio_var.abs();
-    for entry in &result.positions {
-        let target_pct = if portfolio_var_magnitude > 1e-15 {
-            entry.target_component_var / portfolio_var_magnitude
-        } else if entry.target_component_var.abs() > 1e-15 {
-            f64::INFINITY
-        } else {
-            0.0
-        };
+    for entry in &view.positions {
         let d = PyDict::new(py);
         d.set_item("position_id", entry.position_id.as_str())?;
         d.set_item("actual_component_var", entry.actual_component_var)?;
         d.set_item("target_component_var", entry.target_component_var)?;
-        d.set_item("target_pct", target_pct)?;
+        d.set_item("target_pct", entry.target_pct)?;
         d.set_item("utilization", entry.utilization)?;
         d.set_item("excess", entry.excess)?;
-        d.set_item("breach", entry.utilization > utilization_threshold)?;
+        d.set_item("breach", entry.breach)?;
         positions.append(d)?;
     }
     out.set_item("positions", positions)?;

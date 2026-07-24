@@ -396,10 +396,14 @@ fn optimize_partial_trade_universe_keeps_excluded_positions_fixed() {
         PositionUnit::Units,
     );
 
+    // The objective is incidental here — every weight is pinned by the
+    // budget and bounds. Use a candidate-safe constant metric: PvBase is
+    // rejected in aggregated expressions when candidates are in scope
+    // (candidates have pv_base = 0 and would be silently ignored).
     let problem = PortfolioOptimizationProblem::new(
         portfolio,
         Objective::Maximize(MetricExpr::WeightedSum {
-            metric: PerPositionMetric::PvBase,
+            metric: PerPositionMetric::Constant(1.0),
             filter: None,
         }),
     )
@@ -438,4 +442,146 @@ fn optimize_partial_trade_universe_keeps_excluded_positions_fixed() {
     assert!((fixed_weight - 0.8).abs() < 1.0e-9);
     assert!(trade_weight.abs() < 1.0e-9);
     assert!((candidate_weight - 0.2).abs() < 1.0e-9);
+}
+
+/// A `ValueWeightedAverage` bound is linearized as `Σ_F wᵢ(mᵢ − rhs) OP 0`,
+/// the multiply-through form of `average OP rhs`, which flips its inequality
+/// sense when the filtered weight sum `Σ_F wᵢ` goes negative (dividing by a
+/// negative quantity reverses the inequality). Here the basket average is 1,
+/// the floor demands ≥ 2, yet a net-short filtered holding "satisfies" the
+/// flipped row — the optimizer must fail loudly instead of reporting
+/// Optimal for a bound that enforced the opposite of what was asked.
+#[test]
+fn value_weighted_average_bound_with_negative_filtered_weight_sum_errors() {
+    let as_of = base_date();
+    let long_pos = Position::new(
+        "POS_LONG",
+        "ENTITY_A",
+        "LONG",
+        Arc::new(FixedValueInstrument::new(
+            "LONG",
+            Money::new(150.0, Currency::USD),
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .expect("long position should build");
+    let short_pos = Position::new(
+        "POS_SHORT",
+        "ENTITY_A",
+        "SHORT",
+        Arc::new(FixedValueInstrument::new(
+            "SHORT",
+            Money::new(-50.0, Currency::USD),
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .expect("short position should build");
+
+    let portfolio = PortfolioBuilder::new("TEST_PORTFOLIO")
+        .base_ccy(Currency::USD)
+        .as_of(as_of)
+        .entity(finstack_quant_portfolio::types::Entity::new("ENTITY_A"))
+        .position(long_pos)
+        .position(short_pos)
+        .build()
+        .expect("portfolio should build");
+
+    // The short basket's metric is a constant 1.0 and the floor demands an
+    // average >= 2 — no positive holding can satisfy it. The linearized row
+    // `w_short * (1 - 2) >= 0` is instead satisfied by w_short <= 0, so the
+    // solver happily drives the short negative (budget 0.5 forces
+    // w_long = 1, w_short = -0.5) while the true basket average (1.0)
+    // violates the requested floor.
+    let mut problem = PortfolioOptimizationProblem::new(
+        portfolio,
+        Objective::Maximize(MetricExpr::WeightedSum {
+            metric: PerPositionMetric::Constant(1.0),
+            filter: Some(PositionFilter::ByPositionIds(vec!["POS_LONG".into()])),
+        }),
+    );
+    // Replace the default Budget { rhs: 1.0 } — the net-short book needs a
+    // 0.5 budget so the short leg can go negative while the long maxes out.
+    problem.constraints = vec![
+        Constraint::Budget { rhs: 0.5 },
+        Constraint::MetricBound {
+            label: Some("short_avg".to_string()),
+            metric: MetricExpr::ValueWeightedAverage {
+                metric: PerPositionMetric::Constant(1.0),
+                filter: Some(PositionFilter::ByPositionIds(vec!["POS_SHORT".into()])),
+            },
+            op: finstack_quant_portfolio::optimization::Inequality::Ge,
+            rhs: 2.0,
+        },
+    ];
+
+    let optimizer = DefaultLpOptimizer;
+    let error = optimizer
+        .optimize(&problem, &market_with_usd(), &FinstackConfig::default())
+        .expect_err("negative filtered weight sum must fail loudly");
+    let message = error.to_string();
+    assert!(
+        message.contains("short_avg") && message.contains("weight sum"),
+        "error should name the constraint and the flipped weight sum: {message}"
+    );
+}
+
+/// `PvBase` in an aggregated objective must be rejected when candidate
+/// positions are in scope: candidates carry `pv_base = 0` (no held value),
+/// so their objective coefficient would silently be zero and the LP would
+/// ignore their actual value — a fail-open. Mirror of the `PvNative`
+/// rejection already enforced for aggregated expressions.
+#[test]
+fn pv_base_objective_with_candidate_in_scope_is_rejected() {
+    let as_of = base_date();
+    let existing = Position::new(
+        "POS_A",
+        "ENTITY_A",
+        "A",
+        Arc::new(FixedValueInstrument::new(
+            "A",
+            Money::new(80.0, Currency::USD),
+        )),
+        1.0,
+        PositionUnit::Units,
+    )
+    .expect("position should build");
+
+    let portfolio = PortfolioBuilder::new("TEST_PORTFOLIO")
+        .base_ccy(Currency::USD)
+        .as_of(as_of)
+        .entity(finstack_quant_portfolio::types::Entity::new("ENTITY_A"))
+        .position(existing)
+        .build()
+        .expect("portfolio should build");
+
+    let candidate = CandidatePosition::new(
+        "CANDIDATE",
+        "ENTITY_A",
+        Arc::new(FixedValueInstrument::new(
+            "CANDIDATE",
+            Money::new(30.0, Currency::USD),
+        )),
+        PositionUnit::Units,
+    );
+
+    let problem = PortfolioOptimizationProblem::new(
+        portfolio,
+        Objective::Maximize(MetricExpr::WeightedSum {
+            metric: PerPositionMetric::PvBase,
+            filter: None,
+        }),
+    )
+    .with_trade_universe(TradeUniverse::default().with_candidate(candidate));
+
+    let optimizer = DefaultLpOptimizer;
+    let error = optimizer
+        .optimize(&problem, &market_with_usd(), &FinstackConfig::default())
+        .expect_err("PvBase objective with a candidate in scope must error, not ignore it");
+    let message = error.to_string();
+    assert!(
+        message.contains("PvBase") && message.contains("candidate"),
+        "error should name PvBase and candidates: {message}"
+    );
 }

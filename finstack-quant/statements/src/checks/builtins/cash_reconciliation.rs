@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::get_node_value;
+use super::get_finite_node_value;
 use crate::checks::types::effective_tolerance;
 use crate::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
@@ -77,9 +77,15 @@ impl Check for CashReconciliation {
                 continue;
             }
 
-            let cash_prev = get_node_value(context.results, &self.cash_balance_node, prev_pid);
-            let cash_curr = get_node_value(context.results, &self.cash_balance_node, curr_pid);
-            let total_cf = get_node_value(context.results, &self.total_cash_flow_node, curr_pid);
+            // `get_finite_node_value`: a NaN/Inf input poisons the
+            // roll-forward (`NaN > tolerance` is false ⇒ silent pass), so it
+            // is treated exactly like a missing one.
+            let cash_prev =
+                get_finite_node_value(context.results, &self.cash_balance_node, prev_pid);
+            let cash_curr =
+                get_finite_node_value(context.results, &self.cash_balance_node, curr_pid);
+            let total_cf =
+                get_finite_node_value(context.results, &self.total_cash_flow_node, curr_pid);
 
             let (cash_prev, cash_curr, total_cf) = match (cash_prev, cash_curr, total_cf) {
                 (Some(p), Some(c), Some(t)) => (p, c, t),
@@ -98,8 +104,9 @@ impl Check for CashReconciliation {
                         check_id: self.id().to_string(),
                         severity: Severity::Warning,
                         message: format!(
-                            "Cash reconciliation skipped for {curr_pid}: missing inputs [{}]. \
-                             The identity cannot be evaluated without all three values.",
+                            "Cash reconciliation skipped for {curr_pid}: missing or non-finite \
+                             inputs [{}]. The identity cannot be evaluated without all three \
+                             values.",
                             missing.join(", ")
                         ),
                         period: Some(*curr_pid),
@@ -147,9 +154,9 @@ impl Check for CashReconciliation {
             if let (Some(cfo_node), Some(cfi_node), Some(cff_node)) =
                 (&self.cfo_node, &self.cfi_node, &self.cff_node)
             {
-                let cfo = get_node_value(context.results, cfo_node, curr_pid);
-                let cfi = get_node_value(context.results, cfi_node, curr_pid);
-                let cff = get_node_value(context.results, cff_node, curr_pid);
+                let cfo = get_finite_node_value(context.results, cfo_node, curr_pid);
+                let cfi = get_finite_node_value(context.results, cfi_node, curr_pid);
+                let cff = get_finite_node_value(context.results, cff_node, curr_pid);
 
                 if let (Some(cfo_val), Some(cfi_val), Some(cff_val)) = (cfo, cfi, cff) {
                     let component_sum = cfo_val + cfi_val + cff_val;

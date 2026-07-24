@@ -163,6 +163,21 @@ pub enum Warning {
         detail: String,
     },
 
+    /// An interpolated node bump split its shock across two pillars of a
+    /// curve that is rebuilt by solve-to-par recalibration (discount, par-CDS,
+    /// inflation). On those curves the 1/Σw² delivery correction is only
+    /// first-order — the weighted targets are snapped to the nearest
+    /// calibration quotes before re-solving, so the realized shock at the
+    /// requested tenor may differ from the requested size. Use
+    /// `TenorMatchMode::Exact` at pillar tenors for pillar-accurate bucket
+    /// risk.
+    InterpolatedNodeBumpFirstOrder {
+        /// Curve identifier.
+        curve_id: String,
+        /// Free-text describing the tenor and adjacent pillars.
+        detail: String,
+    },
+
     /// Bucket-correlation shock matched no detachment buckets.
     BaseCorrBucketNoMatch {
         /// Surface identifier.
@@ -242,7 +257,8 @@ impl fmt::Display for Warning {
             Warning::DiscountCurveHeuristic { reason, .. } => f.write_str(reason),
             Warning::CommodityShockOutsideRange { detail, .. }
             | Warning::FxTriangulationInconsistent { detail }
-            | Warning::TenorExtrapolated { detail, .. } => f.write_str(detail),
+            | Warning::TenorExtrapolated { detail, .. }
+            | Warning::InterpolatedNodeBumpFirstOrder { detail, .. } => f.write_str(detail),
             Warning::EquityNotFound { id } => write!(f, "Equity {id}: not found in market data"),
             Warning::RateBindingNoForecastValues { node_id, curve_id } => write!(
                 f,

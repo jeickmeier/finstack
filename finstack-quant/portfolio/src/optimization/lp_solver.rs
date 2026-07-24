@@ -32,6 +32,11 @@ struct LpConstraint {
     name: Option<String>,
     /// Whether this is a turnover placeholder to be expanded with auxiliary variables.
     is_turnover_placeholder: bool,
+    /// For `ValueWeightedAverage` bounds: which decision items matched the
+    /// filter. The `Σ_F wᵢ(mᵢ − rhs) OP 0` linearization is only equivalent
+    /// to `average OP rhs` when `Σ_F wᵢ > 0`, so the solution is checked
+    /// post-solve against this mask.
+    vwa_filter_mask: Option<Vec<bool>>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -176,6 +181,18 @@ impl DefaultLpOptimizer {
                              Use PerPositionMetric::PvBase instead.",
                         ));
                     }
+                    // Candidates carry `pv_base = 0` (no held value), so a
+                    // PvBase coefficient would silently ignore their actual
+                    // value in the objective/constraint — fail closed instead.
+                    if matches!(metric, PerPositionMetric::PvBase) && !item.is_existing {
+                        return Err(Error::invalid_input(format!(
+                            "PvBase is not valid in aggregated expressions when candidate \
+                             positions are in scope: candidate '{}' has no held base value \
+                             (pv_base = 0) and would be silently ignored. Filter candidates \
+                             out of the expression or use a per-position metric/attribute.",
+                            item.position_id
+                        )));
+                    }
                     let m_i = Self::per_position_metric_value(metric, feat, missing_policy)?;
                     coeffs.push(m_i);
                 }
@@ -197,8 +214,9 @@ impl DefaultLpOptimizer {
         feats: &[DecisionFeatures],
         missing_policy: MissingMetricPolicy,
         items: &[DecisionItem],
-    ) -> Result<Vec<f64>> {
+    ) -> Result<(Vec<f64>, Vec<bool>)> {
         let mut coeffs = Vec::with_capacity(feats.len());
+        let mut mask = Vec::with_capacity(feats.len());
         for (item, feat) in items.iter().zip(feats) {
             if let Some(f) = filter {
                 if !f.matches(
@@ -207,19 +225,32 @@ impl DefaultLpOptimizer {
                     &feat.attributes,
                 ) {
                     coeffs.push(0.0);
+                    mask.push(false);
                     continue;
                 }
             }
+            mask.push(true);
             if matches!(metric, PerPositionMetric::PvNative) {
                 return Err(Error::invalid_input(
                     "PvNative is not valid in ValueWeightedAverage constraints; \
                      use PerPositionMetric::PvBase instead.",
                 ));
             }
+            // Candidates carry `pv_base = 0`; see the identical guard in
+            // `build_metric_coefficients`.
+            if matches!(metric, PerPositionMetric::PvBase) && !item.is_existing {
+                return Err(Error::invalid_input(format!(
+                    "PvBase is not valid in aggregated expressions when candidate \
+                     positions are in scope: candidate '{}' has no held base value \
+                     (pv_base = 0) and would be silently ignored. Filter candidates \
+                     out of the expression or use a per-position metric/attribute.",
+                    item.position_id
+                )));
+            }
             let m_i = Self::per_position_metric_value(metric, feat, missing_policy)?;
             coeffs.push(m_i - rhs);
         }
-        Ok(coeffs)
+        Ok((coeffs, mask))
     }
 }
 
@@ -287,18 +318,19 @@ impl DefaultLpOptimizer {
                     op,
                     rhs,
                 } => {
-                    let (a, lowered_rhs) = match metric {
-                        MetricExpr::ValueWeightedAverage { metric, filter } => (
-                            Self::build_value_weighted_average_bound_coefficients(
-                                metric,
-                                filter.as_ref(),
-                                *rhs,
-                                decision_features,
-                                problem.missing_metric_policy,
-                                decision_items,
-                            )?,
-                            0.0,
-                        ),
+                    let (a, lowered_rhs, vwa_filter_mask) = match metric {
+                        MetricExpr::ValueWeightedAverage { metric, filter } => {
+                            let (coeffs, mask) =
+                                Self::build_value_weighted_average_bound_coefficients(
+                                    metric,
+                                    filter.as_ref(),
+                                    *rhs,
+                                    decision_features,
+                                    problem.missing_metric_policy,
+                                    decision_items,
+                                )?;
+                            (coeffs, 0.0, Some(mask))
+                        }
                         MetricExpr::WeightedSum { .. } => (
                             Self::build_metric_coefficients(
                                 metric,
@@ -307,6 +339,7 @@ impl DefaultLpOptimizer {
                                 decision_items,
                             )?,
                             *rhs,
+                            None,
                         ),
                     };
                     lp_constraints.push(LpConstraint {
@@ -315,6 +348,7 @@ impl DefaultLpOptimizer {
                         rhs: lowered_rhs,
                         name: label.clone(),
                         is_turnover_placeholder: false,
+                        vwa_filter_mask,
                     });
                 }
                 Constraint::WeightBounds { .. } => {
@@ -330,6 +364,7 @@ impl DefaultLpOptimizer {
                         rhs: *max_turnover,
                         name: label.clone().or_else(|| Some("turnover".to_string())),
                         is_turnover_placeholder: true,
+                        vwa_filter_mask: None,
                     });
                 }
                 Constraint::Budget { rhs } => {
@@ -340,6 +375,7 @@ impl DefaultLpOptimizer {
                         rhs: *rhs,
                         name: Some("budget".to_string()),
                         is_turnover_placeholder: false,
+                        vwa_filter_mask: None,
                     });
                 }
             }
@@ -358,6 +394,7 @@ impl DefaultLpOptimizer {
                 rhs: 1.0,
                 name: Some("budget".to_string()),
                 is_turnover_placeholder: false,
+                vwa_filter_mask: None,
             });
         }
 
@@ -801,6 +838,38 @@ impl DefaultLpOptimizer {
                 });
             }
         };
+
+        // Post-solve validation: the `Σ_F wᵢ(mᵢ − rhs) OP 0` linearization of a
+        // ValueWeightedAverage bound is the multiply-through form of
+        // `average OP rhs` and preserves the inequality sense only when the
+        // filtered weight sum is non-negative. A zero sum is fine — holding
+        // none of the filtered basket satisfies an average bound vacuously —
+        // but a *negative* sum enforces the opposite of what the caller asked
+        // (dividing by a negative quantity flips the inequality), so fail
+        // loudly instead of reporting Optimal.
+        for lc in &rows.lp_constraints {
+            let Some(mask) = &lc.vwa_filter_mask else {
+                continue;
+            };
+            let filtered_weight_sum: f64 = model
+                .w_vars
+                .iter()
+                .zip(mask)
+                .filter(|(_, matched)| **matched)
+                .map(|(w, _)| model.solution.value(w.var) + w.offset)
+                .sum();
+            if filtered_weight_sum < -1e-9 {
+                return Err(Error::invalid_input(format!(
+                    "MO-18: ValueWeightedAverage bound '{}' has a negative filtered weight \
+                     sum ({filtered_weight_sum:.3e}) at the solution, which flips the \
+                     inequality sense of the average linearization — the reported optimum \
+                     enforces the opposite of the requested bound. Keep the filtered \
+                     positions' net weight non-negative (e.g. WeightBounds) or express \
+                     the bound as a WeightedSum.",
+                    lc.name.as_deref().unwrap_or("<unnamed>")
+                )));
+            }
+        }
 
         // Post-solve: reconstruct the portfolio-level result.
         Ok(Self::reconstruct_result(

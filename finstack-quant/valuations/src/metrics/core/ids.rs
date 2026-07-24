@@ -1725,7 +1725,7 @@ impl MetricGroup {
             MetricGroup::Fx => (126, 133),
             MetricGroup::Equity => (133, 151),
             MetricGroup::StructuredCredit => (151, 180),
-            MetricGroup::Alternatives => (180, 205),
+            MetricGroup::Alternatives => (180, 206),
         }
     }
 }

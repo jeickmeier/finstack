@@ -49,6 +49,18 @@ struct BumpTargetResult {
     warnings: Vec<Warning>,
 }
 
+/// Whether the bumped curve is rebuilt by solve-to-par recalibration
+/// (discount, par-CDS, inflation) rather than a direct knot shift. On
+/// recalibrated curves the interpolated-split delivery correction is only
+/// first-order, so splits emit a [`Warning::InterpolatedNodeBumpFirstOrder`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BumpDelivery {
+    /// Curve knots are shifted directly; interpolated splits deliver exactly.
+    Direct,
+    /// Shifted targets are snapped to calibration quotes and re-solved to par.
+    SolveToPar,
+}
+
 fn resolve_bump_targets(
     curve_id: &str,
     nodes: &[(String, f64)],
@@ -56,6 +68,7 @@ fn resolve_bump_targets(
     match_mode: TenorMatchMode,
     as_of: finstack_quant_core::dates::Date,
     day_count: DayCount,
+    delivery: BumpDelivery,
 ) -> Result<BumpTargetResult> {
     let mut targets = Vec::new();
     let mut indexed_targets = Vec::new();
@@ -137,6 +150,26 @@ fn resolve_bump_targets(
                 // first-order for solve-to-par recalibration paths.
                 let norm: f64 = result.weights.iter().map(|(_, w)| w * w).sum();
                 let scale = if norm > 1e-12 { 1.0 / norm } else { 1.0 };
+                if result.weights.len() > 1 && delivery == BumpDelivery::SolveToPar {
+                    let pillars: Vec<String> = result
+                        .weights
+                        .iter()
+                        .map(|(idx, _)| format!("{:.2}Y", knots[*idx]))
+                        .collect();
+                    warnings.push(Warning::InterpolatedNodeBumpFirstOrder {
+                        curve_id: curve_id.to_string(),
+                        detail: format!(
+                            "Tenor '{tenor_str}' on curve '{curve_id}' falls between pillars \
+                             [{}] and the curve is rebuilt by solve-to-par recalibration: the \
+                             interpolated-split delivery correction is only first-order and the \
+                             split targets are snapped to the nearest calibration quotes, so the \
+                             realized shock at '{tenor_str}' may differ from the requested size. \
+                             Use TenorMatchMode::Exact at pillar tenors for pillar-accurate \
+                             bucket risk.",
+                            pillars.join(", ")
+                        ),
+                    });
+                }
                 for (idx, weight) in result.weights {
                     targets.push((knots[idx], add * weight * scale));
                     indexed_targets.push((idx, add * weight * scale));
@@ -434,6 +467,7 @@ pub(crate) fn curve_node_effects(
                 match_mode,
                 as_of,
                 base_curve.day_count(),
+                BumpDelivery::SolveToPar,
             )?;
             let bump_req = BumpRequest::Tenors(result.targets);
 
@@ -459,6 +493,7 @@ pub(crate) fn curve_node_effects(
                 match_mode,
                 as_of,
                 base_curve.day_count(),
+                BumpDelivery::Direct,
             )?;
 
             for &(idx, bp) in &result.indexed_targets {
@@ -497,6 +532,7 @@ pub(crate) fn curve_node_effects(
                 match_mode,
                 as_of,
                 base_curve.day_count(),
+                BumpDelivery::SolveToPar,
             )?;
             let bump_req = BumpRequest::Tenors(result.targets);
 
@@ -536,6 +572,7 @@ pub(crate) fn curve_node_effects(
                 match_mode,
                 as_of,
                 tenor_day_count,
+                BumpDelivery::SolveToPar,
             )?;
             let bump_req = BumpRequest::Tenors(result.targets);
 
@@ -572,6 +609,7 @@ pub(crate) fn curve_node_effects(
                 match_mode,
                 as_of,
                 base_curve.day_count(),
+                BumpDelivery::Direct,
             )?;
 
             let mut dfs: Vec<f64> = base_curve.dfs().to_vec();
@@ -680,6 +718,7 @@ pub(crate) fn vol_index_node_effects(
         match_mode,
         as_of,
         base_curve.day_count(),
+        BumpDelivery::Direct,
     )?;
 
     let mut levels: Vec<f64> = base_curve.levels().to_vec();
@@ -865,6 +904,209 @@ mod tests {
         let err = vol_index_parallel_effects(&curve_id, -15.0, &ctx)
             .expect_err("shock to zero must be rejected");
         assert!(err.to_string().contains("non-positive level"));
+    }
+
+    /// An off-pillar interpolated node bump on a discount curve goes through
+    /// solve-to-par recalibration, where the 1/Σw² delivery correction is only
+    /// first-order and the split targets snap to calibration quotes. That
+    /// approximation must be surfaced, not silent.
+    #[test]
+    fn interpolated_node_bump_on_discount_curve_warns_first_order() {
+        use finstack_quant_core::market_data::term_structures::DiscountCurve;
+
+        let as_of = date!(2025 - 01 - 01);
+        let curve = DiscountCurve::builder("USD-OIS")
+            .base_date(as_of)
+            .knots(vec![(0.0, 1.0), (1.0, 0.98), (5.0, 0.90), (10.0, 0.80)])
+            .build()
+            .expect("discount curve should build");
+        let mut market = MarketContext::new().insert(curve);
+        let mut model = FinancialModelSpec::new("test", vec![]);
+        let ctx = ExecutionContext {
+            market: &mut market,
+            model: Some(&mut model),
+            instruments: None,
+            rate_bindings: None,
+            calendar: None,
+            as_of,
+        };
+
+        // 3Y sits between the 1Y and 5Y pillars -> split weights.
+        let curve_id = CurveId::from("USD-OIS");
+        let effects = curve_node_effects(
+            CurveKind::Discount,
+            &curve_id,
+            None,
+            &[("3Y".into(), 25.0)],
+            TenorMatchMode::Interpolate,
+            &ctx,
+        )
+        .expect("interpolated discount node bump should apply");
+
+        assert!(
+            effects.iter().any(|e| matches!(
+                e,
+                ScenarioEffect::Warning(Warning::InterpolatedNodeBumpFirstOrder { .. })
+            )),
+            "off-pillar interpolated bump on a solve-to-par curve must warn, got {effects:?}"
+        );
+    }
+
+    /// The first-order warning must not fire when no approximation is in
+    /// play: exact pillar matches (Σw² = 1) and direct-shift curve kinds
+    /// (forward) deliver the shock exactly.
+    #[test]
+    fn exact_and_direct_shift_node_bumps_do_not_warn_first_order() {
+        use finstack_quant_core::market_data::term_structures::{DiscountCurve, ForwardCurve};
+
+        let as_of = date!(2025 - 01 - 01);
+        let discount = DiscountCurve::builder("USD-OIS")
+            .base_date(as_of)
+            .knots(vec![(0.0, 1.0), (1.0, 0.98), (5.0, 0.90), (10.0, 0.80)])
+            .build()
+            .expect("discount curve should build");
+        let forward = ForwardCurve::builder("USD-SOFR", 0.25)
+            .base_date(as_of)
+            .knots([(0.0, 0.02), (1.0, 0.021), (5.0, 0.022)])
+            .build()
+            .expect("forward curve should build");
+        let mut market = MarketContext::new().insert(discount).insert(forward);
+        let mut model = FinancialModelSpec::new("test", vec![]);
+        let ctx = ExecutionContext {
+            market: &mut market,
+            model: Some(&mut model),
+            instruments: None,
+            rate_bindings: None,
+            calendar: None,
+            as_of,
+        };
+
+        // Exact pillar hit on the solve-to-par curve: no approximation.
+        let effects = curve_node_effects(
+            CurveKind::Discount,
+            &CurveId::from("USD-OIS"),
+            None,
+            &[("5Y".into(), 25.0)],
+            TenorMatchMode::Exact,
+            &ctx,
+        )
+        .expect("exact discount node bump should apply");
+        assert!(
+            !effects.iter().any(|e| matches!(
+                e,
+                ScenarioEffect::Warning(Warning::InterpolatedNodeBumpFirstOrder { .. })
+            )),
+            "exact pillar bump must not warn first-order"
+        );
+
+        // Off-pillar interpolated bump on a direct-shift (forward) curve: the
+        // 1/Σw² correction is exact there, so no warning either.
+        let effects = curve_node_effects(
+            CurveKind::Forward,
+            &CurveId::from("USD-SOFR"),
+            None,
+            &[("3Y".into(), 25.0)],
+            TenorMatchMode::Interpolate,
+            &ctx,
+        )
+        .expect("interpolated forward node bump should apply");
+        assert!(
+            !effects.iter().any(|e| matches!(
+                e,
+                ScenarioEffect::Warning(Warning::InterpolatedNodeBumpFirstOrder { .. })
+            )),
+            "direct-shift interpolated bump must not warn first-order"
+        );
+    }
+
+    /// Commodity parallel and all-node bumps must agree: both are additive
+    /// continuous-zero-rate shifts, `DF'(t) = DF(t)·exp(−Δ·t)`. The parallel
+    /// path delegates to core's `DiscountCurve::with_parallel_bump` while the
+    /// node path does an explicit zero round-trip per knot; this test pins
+    /// the two code paths to identical semantics.
+    #[test]
+    fn commodity_parallel_and_all_node_bumps_agree() {
+        use finstack_quant_core::market_data::term_structures::DiscountCurve;
+
+        let as_of = date!(2025 - 01 - 01);
+        let build_market = || {
+            let curve = DiscountCurve::builder("WTI")
+                .base_date(as_of)
+                .knots(vec![(0.0, 1.0), (1.0, 0.97), (5.0, 0.85)])
+                .build()
+                .expect("commodity curve should build");
+            MarketContext::new().insert(curve)
+        };
+
+        let engine = ScenarioEngine::new();
+        let bp = 50.0;
+
+        let mut market_parallel = build_market();
+        let mut model_a = FinancialModelSpec::new("test", vec![]);
+        let parallel = ScenarioSpec {
+            id: "commodity_parallel".into(),
+            name: None,
+            description: None,
+            operations: vec![OperationSpec::CurveParallelBp {
+                curve_kind: CurveKind::Commodity,
+                curve_id: "WTI".into(),
+                discount_curve_id: None,
+                bp,
+            }],
+            priority: 0,
+            resolution_mode: Default::default(),
+        };
+        let mut ctx = ExecutionContext {
+            market: &mut market_parallel,
+            model: Some(&mut model_a),
+            instruments: None,
+            rate_bindings: None,
+            calendar: None,
+            as_of,
+        };
+        engine.apply(&parallel, &mut ctx).expect("parallel applies");
+
+        let mut market_nodes = build_market();
+        let mut model_b = FinancialModelSpec::new("test", vec![]);
+        let nodes = ScenarioSpec {
+            id: "commodity_nodes".into(),
+            name: None,
+            description: None,
+            operations: vec![OperationSpec::CurveNodeBp {
+                curve_kind: CurveKind::Commodity,
+                curve_id: "WTI".into(),
+                discount_curve_id: None,
+                nodes: vec![("1Y".into(), bp), ("5Y".into(), bp)],
+                match_mode: TenorMatchMode::Exact,
+            }],
+            priority: 0,
+            resolution_mode: Default::default(),
+        };
+        let mut ctx = ExecutionContext {
+            market: &mut market_nodes,
+            model: Some(&mut model_b),
+            instruments: None,
+            rate_bindings: None,
+            calendar: None,
+            as_of,
+        };
+        engine.apply(&nodes, &mut ctx).expect("node bump applies");
+
+        let curve_parallel = market_parallel.get_discount("WTI").expect("parallel curve");
+        let curve_nodes = market_nodes.get_discount("WTI").expect("node curve");
+        for t in [1.0_f64, 5.0] {
+            let dp = curve_parallel.df(t);
+            let dn = curve_nodes.df(t);
+            let expected = if t == 1.0 { 0.97 } else { 0.85 } * (-(bp / 10_000.0) * t).exp();
+            assert!(
+                (dp - dn).abs() < 1e-12,
+                "parallel vs node DF({t}) diverged: {dp} vs {dn}"
+            );
+            assert!(
+                (dp - expected).abs() < 1e-12,
+                "DF({t}) should equal base·exp(−Δt): {dp} vs {expected}"
+            );
+        }
     }
 
     #[test]

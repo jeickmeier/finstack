@@ -34,6 +34,21 @@ pub(crate) fn get_node_value(
         .and_then(|m| m.get(period).copied())
 }
 
+/// Look up a node value that can participate in an accounting identity:
+/// present **and** finite.
+///
+/// A NaN/Inf operand poisons the identity arithmetic — the diff becomes NaN
+/// and `NaN > tolerance` is `false`, so a genuinely broken statement would
+/// silently pass — exactly the fail-open a missing operand causes by summing
+/// to zero. The skip-with-warning guards therefore treat both the same way.
+pub(crate) fn get_finite_node_value(
+    results: &StatementResult,
+    node: &NodeId,
+    period: &PeriodId,
+) -> Option<f64> {
+    get_node_value(results, node, period).filter(|v| v.is_finite())
+}
+
 /// Sum several nodes' values for a given period, treating missing values as zero.
 pub(crate) fn sum_nodes(results: &StatementResult, nodes: &[NodeId], period: &PeriodId) -> f64 {
     nodes

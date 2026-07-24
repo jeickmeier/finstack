@@ -291,6 +291,12 @@ impl Default for CheckConfig {
 /// used verbatim. Only the config-default path blends in the relative
 /// component, which keeps the *default* scale-aware for the f64 evaluation
 /// engine without silently loosening an explicitly configured tolerance.
+///
+/// Verbatim also means the override forgoes the relative f64-noise cushion:
+/// an override tighter than ~1e-9 of the reference magnitude (e.g. `1e-6` on
+/// a `1e12` balance) can fire on pure floating-point accumulation noise
+/// rather than a real identity break. Size explicit overrides relative to
+/// the magnitudes being reconciled.
 #[must_use]
 pub(crate) fn effective_tolerance(
     config: &CheckConfig,

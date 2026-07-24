@@ -819,6 +819,53 @@ mod tests {
         );
     }
 
+    /// Characterization: `rolling_count` follows the same `min_periods`
+    /// gating as the other rolling aggregates (a behavior change from the
+    /// old "always return the count"). A partial window is NaN by default;
+    /// `min_periods=1` restores counting over whatever is available.
+    /// Matches modern pandas `rolling(window).count()` (min_periods applies
+    /// since pandas 1.0).
+    #[test]
+    fn rolling_count_respects_min_periods_default() {
+        let p1 = PeriodId::quarter(2025, 1);
+        let p2 = PeriodId::quarter(2025, 2);
+        let p3 = PeriodId::quarter(2025, 3);
+
+        // 3 observations (one NaN → 2 finite), window 4: partial window.
+        let mut context =
+            build_context_with_history(p3, "series", vec![(p1, 10.0), (p2, f64::NAN)], 30.0);
+        let value = evaluate_function(
+            &Function::RollingCount,
+            &[Expr::column("series"), Expr::literal(4.0)],
+            &mut context,
+            Some("rolling_count"),
+        )
+        .expect("rolling_count");
+        assert!(
+            value.is_nan(),
+            "partial window must be NaN by default, got {value}"
+        );
+
+        // Explicit min_periods=1: counts the finite observations (2).
+        let mut context =
+            build_context_with_history(p3, "series", vec![(p1, 10.0), (p2, f64::NAN)], 30.0);
+        let value = evaluate_function(
+            &Function::RollingCount,
+            &[
+                Expr::column("series"),
+                Expr::literal(4.0),
+                Expr::literal(1.0),
+            ],
+            &mut context,
+            Some("rolling_count"),
+        )
+        .expect("rolling_count with min_periods");
+        assert!(
+            (value - 2.0).abs() < 1e-12,
+            "min_periods=1 must count finite observations, got {value}"
+        );
+    }
+
     #[test]
     fn rolling_min_periods_larger_than_window_rejected() {
         let p1 = PeriodId::quarter(2025, 1);

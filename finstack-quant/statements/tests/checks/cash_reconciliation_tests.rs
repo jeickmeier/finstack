@@ -235,3 +235,68 @@ fn component_check_fails() {
     let mat = component_findings[0].materiality.as_ref().unwrap();
     assert!((mat.absolute - 5.0).abs() < 0.01);
 }
+
+#[test]
+fn nan_cash_balance_warns_and_skips() {
+    use finstack_quant_statements::checks::Severity;
+
+    // A NaN prior cash balance poisons the roll-forward (`NaN > tolerance`
+    // is false), silently passing a blatantly broken reconciliation. It must
+    // be treated like a missing input: warn and skip.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q2", None)
+        .unwrap()
+        .value(
+            "cash",
+            &[
+                (q(1), AmountOrScalar::scalar(100.0)),
+                (q(2), AmountOrScalar::scalar(9999.0)), // broken roll-forward
+            ],
+        )
+        .value(
+            "total_cf",
+            &[
+                (q(1), AmountOrScalar::scalar(0.0)),
+                (q(2), AmountOrScalar::scalar(50.0)),
+            ],
+        )
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let mut results = evaluator.evaluate(&model).unwrap();
+    results
+        .nodes
+        .entry("cash".to_string())
+        .or_default()
+        .insert(q(1), f64::NAN);
+
+    let check = CashReconciliation {
+        cash_balance_node: NodeId::new("cash"),
+        total_cash_flow_node: NodeId::new("total_cf"),
+        cfo_node: None,
+        cfi_node: None,
+        cff_node: None,
+        tolerance: None,
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Warning && f.message.contains("cash")),
+        "a NaN cash balance must warn and skip, not silently pass: {:?}",
+        result.findings
+    );
+    assert!(
+        !result
+            .findings
+            .iter()
+            .any(|f| f.severity == Severity::Error),
+        "the poisoned period must be skipped, not judged: {:?}",
+        result.findings
+    );
+}

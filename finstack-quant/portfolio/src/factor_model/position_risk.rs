@@ -143,9 +143,9 @@ pub struct PositionVarContribution {
     /// Sum of all component VaRs equals total portfolio VaR (exact under
     /// the parametric normal assumption; approximate for historical).
     ///
-    /// Formula (parametric):
+    /// Formula (parametric, loss-signed):
     /// ```text
-    /// CVaR_i = w_i * (Sigma * w)_i / sigma_p * z_alpha
+    /// CVaR_i = -w_i * (Sigma * w)_i / sigma_p * z_alpha
     /// ```
     pub component_var: f64,
 
@@ -157,9 +157,9 @@ pub struct PositionVarContribution {
 
     /// Marginal VaR: per-unit sensitivity of portfolio VaR to this position.
     ///
-    /// Formula (parametric):
+    /// Formula (parametric, loss-signed):
     /// ```text
-    /// MVaR_i = (Sigma * w)_i / sigma_p * z_alpha
+    /// MVaR_i = -(Sigma * w)_i / sigma_p * z_alpha
     /// ```
     ///
     /// Used as gradient input for mean-variance optimization and
@@ -237,9 +237,16 @@ pub struct PositionEsContribution {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PositionRiskDecomposition {
     /// Total portfolio VaR.
+    ///
+    /// Loss convention (workspace-wide): VaR follows the P&L sign, so
+    /// losses are reported as **negative** numbers, matching the
+    /// factor-level engines and `analytics::value_at_risk`.
     pub portfolio_var: f64,
 
     /// Total portfolio Expected Shortfall.
+    ///
+    /// Same loss convention as [`Self::portfolio_var`]; ES lies at or
+    /// beyond VaR in the loss tail (`portfolio_es <= portfolio_var`).
     pub portfolio_es: f64,
 
     /// Confidence level used for both VaR and ES.
@@ -280,7 +287,8 @@ pub struct PositionRiskDecomposition {
 /// positions contributed the most to the portfolio loss.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StressAttribution {
-    /// Portfolio VaR threshold (losses exceeding this are "tail events").
+    /// Portfolio VaR threshold (scenarios with P&L at or below this are
+    /// "tail events"). Loss convention: reported as a negative number.
     pub var_threshold: f64,
 
     /// Number of tail scenarios analyzed.
@@ -347,7 +355,8 @@ pub struct TailScenarioBreakdown {
 /// selected using the same boundary convention as
 /// [`HistoricalPositionDecomposer::decompose_from_pnls`]: sort portfolio P&Ls
 /// ascending, take `floor((1 - confidence) * n_scenarios)` scenarios, and set
-/// `var_threshold` to the positive loss of the least-bad tail scenario.
+/// `var_threshold` to the signed P&L of the least-bad tail scenario
+/// (losses-negative convention).
 ///
 /// # Errors
 ///
@@ -430,8 +439,11 @@ pub fn build_stress_attribution(
         .collect();
     portfolio_pnls.sort_by(|a, b| a.1.total_cmp(&b.1));
 
+    // Loss convention (workspace-wide): the threshold follows the P&L sign,
+    // so tail losses are negative. Clamp to zero only if the boundary
+    // scenario is actually a gain.
     let var_idx = (n_tail - 1).min(n_scenarios - 1);
-    let var_threshold = -portfolio_pnls[var_idx].1;
+    let var_threshold = portfolio_pnls[var_idx].1.min(0.0);
 
     let tail = &portfolio_pnls[..n_tail];
     let avg_tail_loss = -tail.iter().map(|(_, pnl)| *pnl).sum::<f64>() / n_tail as f64;
@@ -560,9 +572,15 @@ fn validate_decomposition_inputs(
         }
     }
 
-    // Positive semi-definiteness via Cholesky (only if n > 0).
+    // Positive semi-definiteness via the rank-tolerant Cholesky shared with
+    // the factor-level engines (`ParametricDecomposer` / `SimulationDecomposer`).
+    // A strict positive-definite factorization would reject rank-deficient
+    // PSD covariance — perfectly collinear positions, factor structure
+    // `B Σ_f Bᵀ + D` with singular `Σ_f`, or sample covariance with fewer
+    // observations than positions — all of which are valid risk inputs:
+    // Euler allocation only requires `σ_p = √(wᵀΣw) ≥ 0`.
     if n > 0 {
-        finstack_quant_core::math::linalg::cholesky_decomposition(covariance, n).map_err(|e| {
+        super::simulation::cholesky(covariance, n).map_err(|e| {
             finstack_quant_core::Error::Validation(format!(
                 "covariance matrix is not positive semi-definite: {e}"
             ))
@@ -618,7 +636,10 @@ fn compute_incremental_var(
             let variance_excl =
                 (portfolio_variance - 2.0 * w_k * sw_k + w_k * w_k * cov_kk).max(0.0);
 
-            let var_excl = z_alpha * variance_excl.sqrt();
+            // Loss-signed: VaR excluding k is also a negative number, so the
+            // incremental (VaR_with − VaR_without) is negative for a
+            // risk-adding position and positive for a diversifier.
+            let var_excl = -(z_alpha * variance_excl.sqrt());
             portfolio_var - var_excl
         })
         .collect()
@@ -638,7 +659,7 @@ fn compute_incremental_var(
 /// Under the normal model, portfolio return `r_p = w'r` has:
 /// ```text
 /// sigma_p = sqrt(w' * Sigma * w)
-/// VaR_p   = z_alpha * sigma_p  (zero-mean assumption for risk)
+/// VaR_p   = -z_alpha * sigma_p  (zero-mean assumption; losses negative)
 /// ```
 ///
 /// The Euler decomposition exploits the positive homogeneity of VaR:
@@ -721,8 +742,11 @@ impl ParametricPositionDecomposer {
         let variance = raw_variance.max(0.0);
         let sigma_p = variance.sqrt();
 
-        let portfolio_var = sigma_p * z_alpha;
-        let portfolio_es = sigma_p * es_multiplier;
+        // Loss convention (workspace-wide): VaR and ES follow the P&L sign,
+        // so losses are reported as negative numbers — matching the
+        // factor-level engines and `analytics::value_at_risk`.
+        let portfolio_var = -(sigma_p * z_alpha);
+        let portfolio_es = -(sigma_p * es_multiplier);
 
         // Guard against zero-risk portfolio to avoid division by zero.
         let inv_sigma = if sigma_p > VARIANCE_TOLERANCE.sqrt() {
@@ -748,12 +772,12 @@ impl ParametricPositionDecomposer {
             // Component variance = w_i * (Sigma * w)_i.
             let cv_i = weights[i] * sigma_w[i];
 
-            // Component VaR = CV_i / sigma_p * z_alpha.
-            let component_var = cv_i * inv_sigma * z_alpha;
+            // Component VaR = -CV_i / sigma_p * z_alpha (loss-signed).
+            let component_var = -(cv_i * inv_sigma * z_alpha);
             sum_component_var += component_var;
 
-            // Marginal VaR = (Sigma * w)_i / sigma_p * z_alpha.
-            let marginal_var = sigma_w[i] * inv_sigma * z_alpha;
+            // Marginal VaR = -(Sigma * w)_i / sigma_p * z_alpha (loss-signed).
+            let marginal_var = -(sigma_w[i] * inv_sigma * z_alpha);
 
             // Relative VaR = CVaR_i / VaR_p.
             let relative_var = if portfolio_var.abs() > VARIANCE_TOLERANCE {
@@ -762,11 +786,11 @@ impl ParametricPositionDecomposer {
                 0.0
             };
 
-            // Component ES = CV_i / sigma_p * phi(z_alpha) / (1 - alpha).
-            let component_es = cv_i * inv_sigma * es_multiplier;
+            // Component ES = -CV_i / sigma_p * phi(z_alpha) / (1 - alpha) (loss-signed).
+            let component_es = -(cv_i * inv_sigma * es_multiplier);
 
-            // Marginal ES = (Sigma * w)_i / sigma_p * phi(z_alpha) / (1 - alpha).
-            let marginal_es = sigma_w[i] * inv_sigma * es_multiplier;
+            // Marginal ES = -(Sigma * w)_i / sigma_p * phi(z) / (1 - alpha) (loss-signed).
+            let marginal_es = -(sigma_w[i] * inv_sigma * es_multiplier);
 
             // Relative ES = CES_i / ES_p.
             let relative_es = if portfolio_es.abs() > VARIANCE_TOLERANCE {
@@ -954,18 +978,24 @@ impl HistoricalPositionDecomposer {
         // The C2 guard above ensures this is >= 1.
         let n_tail = ((1.0 - config.confidence) * n_scenarios as f64).floor() as usize;
 
-        // Portfolio VaR: negative of the worst-case boundary scenario. The
+        // Portfolio VaR: the signed P&L at the tail boundary scenario. The
         // tail spans sorted indices 0..n_tail (ascending P&L), so the VaR
         // threshold is the least-bad scenario of the tail, index n_tail-1.
+        //
+        // Loss convention (workspace-wide): VaR/ES follow the P&L sign, so
+        // losses are negative. Clamp to zero only when the quantile P&L is
+        // actually a gain (extremely low confidence levels), matching
+        // `SimulationDecomposer::tail_risk_decomposition`.
         let var_idx = (n_tail - 1).min(n_scenarios - 1);
-        let portfolio_var = -portfolio_pnls[var_idx].1;
+        let portfolio_var = portfolio_pnls[var_idx].1.min(0.0);
 
-        // Portfolio ES: average loss in tail scenarios.
-        let portfolio_es: f64 = -portfolio_pnls[..n_tail]
+        // Portfolio ES: average signed P&L in the tail scenarios.
+        let portfolio_es: f64 = (portfolio_pnls[..n_tail]
             .iter()
             .map(|(_, pnl)| pnl)
             .sum::<f64>()
-            / n_tail as f64;
+            / n_tail as f64)
+            .min(0.0);
 
         // Per-position Component ES: average of position-level losses in tail.
         //
@@ -991,8 +1021,8 @@ impl HistoricalPositionDecomposer {
                 portfolio_pnls[..n_tail].iter().map(|&(s, _)| s).collect();
 
             // Shard the position axis (cheap) instead of the scenario axis.
-            // Each chunk holds [start, end) and accumulates the negative-sum
-            // for those positions across every tail scenario. Output is a
+            // Each chunk holds [start, end) and accumulates the signed P&L
+            // sum for those positions across every tail scenario. Output is a
             // flat `Vec<f64>` (no nested Vec<Vec<f64>> allocation).
             const POSITION_CHUNK: usize = 256;
             let chunked: Vec<(usize, Vec<f64>)> = (0..n)
@@ -1005,7 +1035,7 @@ impl HistoricalPositionDecomposer {
                     for &s in &tail_indices {
                         let row_start = s * n;
                         for (j, slot) in local.iter_mut().enumerate() {
-                            *slot += -position_pnls[row_start + start + j];
+                            *slot += position_pnls[row_start + start + j];
                         }
                     }
                     (start, local)
@@ -1021,7 +1051,7 @@ impl HistoricalPositionDecomposer {
             for &(s, _) in &portfolio_pnls[..n_tail] {
                 let row_start = s * n;
                 for i in 0..n {
-                    component_es_vec[i] += -position_pnls[row_start + i];
+                    component_es_vec[i] += position_pnls[row_start + i];
                 }
             }
         }
@@ -1151,6 +1181,121 @@ mod tests {
         Ok(())
     }
 
+    /// Workspace sign convention: VaR and ES follow the P&L sign, so losses
+    /// are reported as **negative** numbers — matching the factor-level
+    /// engines (`ParametricDecomposer`, `SimulationDecomposer`) and
+    /// `analytics::value_at_risk`. Component/marginal contributions carry
+    /// the same sign so Euler exhaustion holds with signed totals.
+    #[test]
+    fn parametric_var_and_es_report_losses_as_negative() -> TestResult {
+        let weights = [0.6, 0.4];
+        let covariance = [0.04, 0.0, 0.0, 0.09];
+        let ids = [PositionId::new("A"), PositionId::new("B")];
+        let config = DecompositionConfig::parametric_99();
+
+        let result = ParametricPositionDecomposer.decompose_positions(
+            &weights,
+            &covariance,
+            &ids,
+            &config,
+        )?;
+
+        // sigma_p = sqrt(0.36*0.04 + 0.16*0.09) = sqrt(0.0288)
+        let sigma_p = 0.0288_f64.sqrt();
+        let z_99 = 2.326_347_874_040_840_8;
+        assert!(
+            (result.portfolio_var - (-sigma_p * z_99)).abs() < 1e-6,
+            "VaR must be negative (losses-negative convention), got {}",
+            result.portfolio_var
+        );
+        assert!(result.portfolio_var < 0.0);
+        assert!(result.portfolio_es < result.portfolio_var, "ES beyond VaR");
+
+        // Contributions carry the loss sign; Euler exhaustion on signed totals.
+        let sum_cvar: f64 = result
+            .var_contributions
+            .iter()
+            .map(|c| c.component_var)
+            .sum();
+        assert!((sum_cvar - result.portfolio_var).abs() < 1e-10);
+        for c in &result.var_contributions {
+            assert!(c.component_var < 0.0, "long risk contributes losses");
+            // relative share stays a positive fraction (signs cancel).
+            assert!(c.relative_var > 0.0);
+        }
+        Ok(())
+    }
+
+    /// Historical decomposition follows the same losses-negative convention:
+    /// the VaR is the signed P&L at the tail quantile, ES the signed tail
+    /// mean, matching `SimulationDecomposer::tail_risk_decomposition`.
+    #[test]
+    fn historical_var_and_es_report_losses_as_negative() -> TestResult {
+        // 100 scenarios, single position, P&L = -50..49 (worst = -50).
+        let n_scenarios = 100;
+        let pnls: Vec<f64> = (0..n_scenarios).map(|s| s as f64 - 50.0).collect();
+        let ids = [PositionId::new("A")];
+        let config = DecompositionConfig {
+            confidence: 0.99,
+            method: DecompositionMethod::Historical,
+            compute_incremental: false,
+            seed: None,
+        };
+
+        let result =
+            HistoricalPositionDecomposer.decompose_from_pnls(&pnls, &ids, n_scenarios, &config)?;
+
+        // 1% tail of 100 scenarios = 1 scenario: the -50 loss.
+        assert!(
+            (result.portfolio_var - (-50.0)).abs() < 1e-12,
+            "historical VaR must be the signed tail P&L, got {}",
+            result.portfolio_var
+        );
+        assert!((result.portfolio_es - (-50.0)).abs() < 1e-12);
+        let sum_ces: f64 = result.es_contributions.iter().map(|c| c.component_es).sum();
+        assert!((sum_ces - result.portfolio_es).abs() < 1e-9);
+        Ok(())
+    }
+
+    /// Rank-deficient PSD covariance (perfectly collinear positions) is a
+    /// valid risk input — factor covariance `B Σ_f Bᵀ + D` can be exactly
+    /// singular and sample covariance with T < N always is. The position
+    /// decomposer must accept it like the factor-level engines do
+    /// (see `parametric::tests::test_parametric_accepts_rank_deficient_psd_covariance`);
+    /// Euler allocation only requires `σ_p = √(wᵀΣw) ≥ 0` (Meucci, *Risk
+    /// and Asset Allocation* §4).
+    #[test]
+    fn accepts_rank_deficient_psd_covariance() -> TestResult {
+        // Two perfectly correlated positions with identical variance:
+        // covariance is PSD but rank 1. Dyadic-exact entries (0.25, whose
+        // square root 0.5 is exact in binary) make the second Cholesky
+        // pivot exactly zero, so a strict positive-definite factorization
+        // deterministically rejects this matrix rather than escaping via
+        // floating-point rounding noise.
+        let weights = [0.5, 0.5];
+        let covariance = [0.25, 0.25, 0.25, 0.25];
+        let ids = [PositionId::new("A"), PositionId::new("A2")];
+        let config = DecompositionConfig::parametric_99();
+
+        let decomposer = ParametricPositionDecomposer;
+        let result = decomposer.decompose_positions(&weights, &covariance, &ids, &config)?;
+
+        // sigma_p = sqrt(0.25*0.25 + 2*0.25*0.25 + 0.25*0.25) = 0.5;
+        // losses-negative convention: VaR = -sigma_p * z.
+        let z_99 = 2.326_347_874_040_840_8;
+        assert!((result.portfolio_var - (-0.5 * z_99)).abs() < 1e-6);
+
+        // Euler exhaustion still holds on the singular direction.
+        let sum_cvar: f64 = result
+            .var_contributions
+            .iter()
+            .map(|c| c.component_var)
+            .sum();
+        assert!((sum_cvar - result.portfolio_var).abs() < 1e-10);
+
+        Ok(())
+    }
+
     #[test]
     fn equal_weight_equal_vol_has_equal_component_var() -> TestResult {
         // Three assets, all identical vol, zero correlation.
@@ -1254,7 +1399,8 @@ mod tests {
 
     #[test]
     fn es_ge_var_for_all_positions() -> TestResult {
-        // ES should always be >= VaR at the same confidence level.
+        // Losses-negative convention: ES is beyond VaR in the loss tail,
+        // i.e. ES <= VaR as signed numbers.
         let weights = [0.4, 0.3, 0.3];
         let covariance = [0.04, 0.01, 0.005, 0.01, 0.09, 0.02, 0.005, 0.02, 0.0625];
         let ids = [
@@ -1268,7 +1414,7 @@ mod tests {
         let result = decomposer.decompose_positions(&weights, &covariance, &ids, &config)?;
 
         assert!(
-            result.portfolio_es >= result.portfolio_var,
+            result.portfolio_es <= result.portfolio_var,
             "portfolio ES ({}) < VaR ({})",
             result.portfolio_es,
             result.portfolio_var
@@ -1279,10 +1425,11 @@ mod tests {
             .iter()
             .zip(result.es_contributions.iter())
         {
-            // For positive component VaR, ES component should be >= VaR component.
-            if vc.component_var > 0.0 {
+            // For a risk-adding (loss-signed, negative) component VaR, the
+            // ES component lies beyond it in the loss tail.
+            if vc.component_var < 0.0 {
                 assert!(
-                    ec.component_es >= vc.component_var - 1e-12,
+                    ec.component_es <= vc.component_var + 1e-12,
                     "position {} ES ({}) < VaR ({})",
                     vc.position_id,
                     ec.component_es,
@@ -1307,23 +1454,26 @@ mod tests {
         let decomposer = ParametricPositionDecomposer;
         let result = decomposer.decompose_positions(&weights, &covariance, &ids, &config)?;
 
-        // Portfolio VaR should be much less than sum of standalone VaRs.
+        // Diversification: the portfolio loses less than the sum of
+        // standalone losses, so the signed portfolio VaR sits above the
+        // (negative) sum of standalone VaRs.
         let z = normal_quantile(0.95);
-        let standalone_var_a = 0.5 * 0.2 * z;
-        let standalone_var_b = 0.5 * 0.2 * z;
+        let standalone_var_a = -(0.5 * 0.2 * z);
+        let standalone_var_b = -(0.5 * 0.2 * z);
         let sum_standalone = standalone_var_a + standalone_var_b;
 
         assert!(
-            result.portfolio_var < sum_standalone,
-            "portfolio VaR ({}) should be less than sum of standalone VaRs ({sum_standalone})",
+            result.portfolio_var > sum_standalone,
+            "portfolio VaR ({}) should show diversification vs standalone sum ({sum_standalone})",
             result.portfolio_var
         );
 
-        // Both component VaRs should be positive (even with negative corr).
+        // Both component VaRs stay loss-signed (negative) even with
+        // negative correlation: each long position still adds risk here.
         for c in &result.var_contributions {
             assert!(
-                c.component_var > 0.0,
-                "component VaR for {} should be positive: {}",
+                c.component_var < 0.0,
+                "component VaR for {} should be negative: {}",
                 c.position_id,
                 c.component_var
             );
@@ -1494,13 +1644,14 @@ mod tests {
             );
         }
 
-        // Position B (highest standalone vol = 0.30) should have
-        // the largest incremental VaR since removing it reduces risk most.
+        // Position B (highest standalone vol = 0.30) should have the most
+        // negative incremental VaR since removing it reduces risk most
+        // (losses-negative convention).
         let ivar_b = result.var_contributions[1].incremental_var.unwrap_or(0.0);
         let ivar_c = result.var_contributions[2].incremental_var.unwrap_or(0.0);
         assert!(
-            ivar_b > ivar_c,
-            "position B (higher vol) should have larger incremental VaR than C: B={ivar_b}, C={ivar_c}"
+            ivar_b < ivar_c,
+            "position B (higher vol) should have a more negative incremental VaR than C: B={ivar_b}, C={ivar_c}"
         );
 
         Ok(())
@@ -1537,12 +1688,12 @@ mod tests {
         let result = decomposer.decompose_from_pnls(&pnls, &ids, n_scenarios, &config)?;
 
         assert!(
-            result.portfolio_var > 0.0,
-            "portfolio VaR should be positive"
+            result.portfolio_var < 0.0,
+            "portfolio VaR should be negative (losses-negative convention)"
         );
         assert!(
-            result.portfolio_es >= result.portfolio_var,
-            "ES should >= VaR"
+            result.portfolio_es <= result.portfolio_var,
+            "ES should lie at or beyond VaR in the loss tail"
         );
         assert_eq!(result.n_positions, 2);
         assert_eq!(result.method, DecompositionMethod::Historical);
@@ -1598,7 +1749,7 @@ mod tests {
         let attr = build_stress_attribution(&ids, &pnls, n_scenarios, 0.95)?;
 
         assert_eq!(attr.n_tail_scenarios, 1);
-        assert!((attr.var_threshold - 10.0).abs() < 1e-12);
+        assert!((attr.var_threshold - (-10.0)).abs() < 1e-12);
         assert_eq!(attr.tail_scenarios[0].scenario_index, 0);
         assert_eq!(attr.tail_scenarios[0].portfolio_pnl, -10.0);
         // Per-position P&L is index-aligned to the shared `position_ids` list
@@ -1644,7 +1795,7 @@ mod tests {
         let attr = build_stress_attribution(&ids, &pnls, n_scenarios, 0.95)?;
 
         assert_eq!(attr.n_tail_scenarios, 2);
-        assert!((attr.var_threshold - 6.0).abs() < 1e-12);
+        assert!((attr.var_threshold - (-6.0)).abs() < 1e-12);
         assert_eq!(attr.tail_scenarios[0].scenario_index, 0);
         assert_eq!(attr.tail_scenarios[1].scenario_index, 1);
 
@@ -1698,10 +1849,10 @@ mod tests {
         let result = decomposer.decompose_from_pnls(&pnls, &ids, n_scenarios, &config)?;
 
         // n_tail = 5, var_idx = 4, sorted pnl[4] = 4/100 - 0.5 = -0.46.
-        // Portfolio VaR = -(-0.46) = 0.46.
+        // Losses-negative convention: portfolio VaR = -0.46.
         assert!(
-            (result.portfolio_var - 0.46).abs() < 1e-12,
-            "portfolio_var = {}, expected 0.46 (boundary index 4)",
+            (result.portfolio_var - (-0.46)).abs() < 1e-12,
+            "portfolio_var = {}, expected -0.46 (boundary index 4)",
             result.portfolio_var
         );
 
@@ -1771,7 +1922,7 @@ mod tests {
     // positions the incremental VaR for each position must be non-negative
     // (removing a risky position cannot increase portfolio VaR).
     #[test]
-    fn incremental_var_non_negative_for_long_only_portfolio() -> TestResult {
+    fn incremental_var_non_positive_for_long_only_portfolio() -> TestResult {
         let weights = [0.4, 0.35, 0.25];
         let covariance = [0.04, 0.01, 0.005, 0.01, 0.09, 0.02, 0.005, 0.02, 0.0625];
         let ids = [
@@ -1789,15 +1940,17 @@ mod tests {
                 .incremental_var
                 .expect("incremental VaR must be present when requested");
             assert!(
-                ivar >= -1e-12,
-                "long-only incremental VaR for {} must be non-negative, got {ivar}",
+                ivar <= 1e-12,
+                "long-only incremental VaR for {} must be non-positive \
+                 (losses-negative convention), got {ivar}",
                 c.position_id
             );
-            // Textbook bound: incremental_k <= portfolio_var (the minimum
-            // possible var_excl is zero, achieved only when the remaining
-            // weights are perfectly hedged, which isn't true here).
+            // Textbook bound: |incremental_k| <= |portfolio_var|, i.e. the
+            // signed incremental is bounded below by the signed portfolio
+            // VaR (var_excl is at most zero when the remaining weights are
+            // perfectly hedged, which isn't true here).
             assert!(
-                ivar <= result.portfolio_var + 1e-12,
+                ivar >= result.portfolio_var - 1e-12,
                 "incremental VaR for {} exceeds portfolio VaR: ivar={ivar}, pvar={}",
                 c.position_id,
                 result.portfolio_var
@@ -1893,7 +2046,7 @@ mod tests {
         for &(s, _) in &portfolio_pnls[..n_tail] {
             let row_start = s * n;
             for i in 0..n {
-                serial_ces[i] += -pnls[row_start + i];
+                serial_ces[i] += pnls[row_start + i];
             }
         }
         for v in serial_ces.iter_mut() {

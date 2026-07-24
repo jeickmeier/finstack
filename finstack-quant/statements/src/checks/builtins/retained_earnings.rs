@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{get_node_value, sum_nodes};
+use super::{get_finite_node_value, sum_nodes};
 use crate::checks::types::effective_tolerance;
 use crate::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
@@ -94,9 +94,14 @@ impl Check for RetainedEarningsReconciliation {
                 continue;
             }
 
-            let re_prev = get_node_value(context.results, &self.retained_earnings_node, prev_pid);
-            let re_curr = get_node_value(context.results, &self.retained_earnings_node, curr_pid);
-            let ni = get_node_value(context.results, &self.net_income_node, curr_pid);
+            // `get_finite_node_value`: a NaN/Inf core input poisons the
+            // roll-forward (`NaN > tolerance` is false ⇒ silent pass), so it
+            // is treated exactly like a missing one.
+            let re_prev =
+                get_finite_node_value(context.results, &self.retained_earnings_node, prev_pid);
+            let re_curr =
+                get_finite_node_value(context.results, &self.retained_earnings_node, curr_pid);
+            let ni = get_finite_node_value(context.results, &self.net_income_node, curr_pid);
 
             let (re_prev, re_curr, ni) = match (re_prev, re_curr, ni) {
                 (Some(p), Some(c), Some(n)) => (p, c, n),
@@ -116,8 +121,8 @@ impl Check for RetainedEarningsReconciliation {
                         severity: Severity::Warning,
                         message: format!(
                             "Retained earnings reconciliation skipped for {curr_pid}: \
-                             missing inputs [{}]. The identity cannot be evaluated without \
-                             all three core values.",
+                             missing or non-finite inputs [{}]. The identity cannot be \
+                             evaluated without all three core values.",
                             missing.join(", ")
                         ),
                         period: Some(*curr_pid),
@@ -134,16 +139,17 @@ impl Check for RetainedEarningsReconciliation {
             // A configured-but-unresolvable optional input must not be
             // silently coerced to zero: a misspelled dividends node would make
             // the check reconcile against the wrong identity (or misattribute
-            // the resulting error to RE itself). Warn and skip, mirroring the
-            // core-input handling above.
+            // the resulting error to RE itself), and a NaN/Inf value poisons
+            // the roll-forward into a silent pass. Warn and skip, mirroring
+            // the core-input handling above.
             let mut missing_optional: Vec<String> = Vec::new();
             if let Some(node) = self.dividends_node.as_ref() {
-                if get_node_value(context.results, node, curr_pid).is_none() {
+                if get_finite_node_value(context.results, node, curr_pid).is_none() {
                     missing_optional.push(format!("{node} @ {curr_pid}"));
                 }
             }
             for node in &self.other_adjustments {
-                if get_node_value(context.results, node, curr_pid).is_none() {
+                if get_finite_node_value(context.results, node, curr_pid).is_none() {
                     missing_optional.push(format!("{node} @ {curr_pid}"));
                 }
             }
@@ -153,8 +159,8 @@ impl Check for RetainedEarningsReconciliation {
                     severity: Severity::Warning,
                     message: format!(
                         "Retained earnings reconciliation skipped for {curr_pid}: configured \
-                         inputs are missing [{}]. A missing dividends or adjustment node is not \
-                         treated as zero.",
+                         inputs are missing or non-finite [{}]. A missing dividends or \
+                         adjustment node is not treated as zero.",
                         missing_optional.join(", ")
                     ),
                     period: Some(*curr_pid),
@@ -170,7 +176,7 @@ impl Check for RetainedEarningsReconciliation {
             let dividends = self
                 .dividends_node
                 .as_ref()
-                .and_then(|n| get_node_value(context.results, n, curr_pid))
+                .and_then(|n| get_finite_node_value(context.results, n, curr_pid))
                 .unwrap_or(0.0);
 
             // Dividends must be a non-negative magnitude under the

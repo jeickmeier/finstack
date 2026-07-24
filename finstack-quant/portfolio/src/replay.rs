@@ -612,6 +612,7 @@ fn compute_summary(steps: &[ReplayStep]) -> ReplaySummary {
     let mut peak_value = start_value.amount();
     let mut peak_date = steps[0].date;
     let mut max_dd = 0.0_f64;
+    let mut max_dd_peak_value = peak_value;
     let mut max_dd_peak_date = steps[0].date;
     let mut max_dd_trough_date = steps[0].date;
 
@@ -624,13 +625,17 @@ fn compute_summary(steps: &[ReplayStep]) -> ReplaySummary {
         let dd = peak_value - val;
         if dd > max_dd {
             max_dd = dd;
+            max_dd_peak_value = peak_value;
             max_dd_peak_date = peak_date;
             max_dd_trough_date = step.date;
         }
     }
 
-    let max_drawdown_pct = if peak_value.abs() > f64::EPSILON {
-        max_dd / peak_value.abs()
+    // Percentage drawdown is relative to the peak the drawdown fell from,
+    // not the final global high-water mark: a later, higher peak must not
+    // shrink the reported percentage.
+    let max_drawdown_pct = if max_dd_peak_value.abs() > f64::EPSILON {
+        max_dd / max_dd_peak_value.abs()
     } else {
         0.0
     };
@@ -673,6 +678,30 @@ mod tests {
             cumulative_pnl: None,
             attribution: None,
         }
+    }
+
+    /// The percentage drawdown must be measured against the peak the
+    /// drawdown fell from, not the final global high-water mark. With a
+    /// higher peak *after* the trough, dividing by the global peak
+    /// understates the drawdown (Bacon, *Practical Portfolio Performance
+    /// Measurement*, drawdown is peak-relative).
+    #[test]
+    fn drawdown_pct_uses_contemporaneous_peak_not_final_global_peak() {
+        let steps = vec![
+            synthetic_step(date!(2024 - 01 - 01), 100.0),
+            synthetic_step(date!(2024 - 01 - 02), 50.0),
+            synthetic_step(date!(2024 - 01 - 03), 200.0),
+            synthetic_step(date!(2024 - 01 - 04), 190.0),
+        ];
+
+        let summary = compute_summary(&steps);
+
+        // Largest dollar decline is 100 -> 50 = 50.
+        assert_eq!(summary.max_drawdown.amount(), 50.0);
+        // Its percentage is 50/100 = 50%, NOT 50/200 = 25%.
+        assert_eq!(summary.max_drawdown_pct, 0.5);
+        assert_eq!(summary.max_drawdown_peak_date, date!(2024 - 01 - 01));
+        assert_eq!(summary.max_drawdown_trough_date, date!(2024 - 01 - 02));
     }
 
     #[test]

@@ -52,6 +52,15 @@ pub struct PortfolioLossConfig {
 }
 
 /// Portfolio credit-loss distribution and tail statistics.
+///
+/// # Sign convention
+///
+/// These are quantiles of a **loss distribution** (`L >= 0`), so `var` and
+/// `expected_shortfall` are loss-positive by definition. This deliberately
+/// differs from the workspace P&L convention (where VaR/ES follow the P&L
+/// sign and losses are negative, e.g. `metrics::risk::VarResult` and the
+/// portfolio risk engines): here the random variable is the loss itself,
+/// not a P&L.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct PortfolioLossResult {
     /// Loss for each path in ascending path-index order.

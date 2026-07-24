@@ -325,3 +325,48 @@ fn large_balance_sheet_within_relative_tolerance_passes() {
         result.findings
     );
 }
+
+#[test]
+fn nan_operand_warns_instead_of_silently_passing() {
+    // A NaN operand makes the imbalance NaN, and `NaN > tolerance` is false:
+    // without a guard, a genuinely broken balance sheet silently passes. The
+    // check must treat a non-finite operand like a missing one - warn and
+    // skip the period.
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..Q1", None)
+        .unwrap()
+        .value("total_assets", &[(q(1), AmountOrScalar::scalar(1000.0))])
+        .value(
+            "total_liabilities",
+            &[(q(1), AmountOrScalar::scalar(600.0))],
+        )
+        .value("total_equity", &[(q(1), AmountOrScalar::scalar(400.0))])
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let mut results = evaluator.evaluate(&model).unwrap();
+    results
+        .nodes
+        .entry("total_assets".to_string())
+        .or_default()
+        .insert(q(1), f64::NAN);
+
+    let check = BalanceSheetArticulation {
+        assets_nodes: vec![NodeId::new("total_assets")],
+        liabilities_nodes: vec![NodeId::new("total_liabilities")],
+        equity_nodes: vec![NodeId::new("total_equity")],
+        tolerance: None,
+    };
+
+    let ctx = CheckContext::new(&model, &results);
+    let result = check.execute(&ctx).unwrap();
+
+    assert!(
+        result.findings.iter().any(|f| f.severity
+            == finstack_quant_statements::checks::Severity::Warning
+            && f.message.contains("total_assets")),
+        "a NaN operand must produce a warning naming the node, not a silent pass: {:?}",
+        result.findings
+    );
+}

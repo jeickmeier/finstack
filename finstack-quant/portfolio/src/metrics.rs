@@ -333,9 +333,9 @@ pub fn aggregate_metrics(
 
 /// Compute the FX conversion factor from a position's native currency to base currency.
 ///
-/// Attempts to derive the rate from the position's valuation (value_base / value_native)
-/// when the native PV is large enough for a reliable ratio. Falls back to the FX matrix
-/// for positions with near-zero PV to avoid amplifying numerical noise.
+/// Uses the market FX-matrix spot when available; falls back to the rate implied
+/// by the position's valuation (value_base / value_native) when the matrix or the
+/// pair is missing and the native PV is large enough for a reliable ratio.
 fn fx_rate_for_position(
     position_value: &crate::valuation::PositionValue,
     base_ccy: Currency,
@@ -348,29 +348,30 @@ fn fx_rate_for_position(
         return Ok(1.0);
     }
 
-    // Use a conservative threshold to avoid distorted implied FX rates when
-    // native PV is near zero (e.g., expired instruments).  Positions with
-    // |native_amount| < 1e-6 fall through to the FX matrix lookup.
+    // Prefer the market spot: the PV-implied ratio `value_base / value_native`
+    // carries base-currency quantization noise from the valuation step
+    // (value_base was rounded to currency decimals), and that noise would
+    // scale every summable risk metric (DV01, CS01, deltas).
+    if let Some(fx_matrix) = market.fx() {
+        if let Ok(rate_result) = fx_matrix.rate(FxQuery::new(native_ccy, base_ccy, as_of)) {
+            return Ok(rate_result.rate);
+        }
+    }
+
+    // Fallback: the PV-implied ratio, so aggregation still works from
+    // valuation output alone when the matrix (or the pair) is unavailable.
+    // A conservative threshold avoids distorted implied rates when native PV
+    // is near zero (e.g., expired instruments).
     let native_amount = position_value.value_native.amount();
     if native_amount.abs() > 1e-6 {
         let base_amount = position_value.value_base.amount();
         return Ok(base_amount / native_amount);
     }
 
-    let fx_matrix = market.fx().ok_or_else(|| {
-        crate::error::Error::MissingMarketData(
-            "FX matrix not available for metric FX conversion".to_string(),
-        )
-    })?;
-    let query = FxQuery::new(native_ccy, base_ccy, as_of);
-    let rate_result =
-        fx_matrix
-            .rate(query)
-            .map_err(|_| crate::error::Error::FxConversionFailed {
-                from: native_ccy,
-                to: base_ccy,
-            })?;
-    Ok(rate_result.rate)
+    Err(crate::error::Error::FxConversionFailed {
+        from: native_ccy,
+        to: base_ccy,
+    })
 }
 
 fn scale_position_metric(metric_id: &str, value: f64, metric_scale: f64) -> f64 {
@@ -652,6 +653,66 @@ mod tests {
             .get_position_metrics("POS_001")
             .expect("position metrics should be present");
         assert_eq!(position_metrics.currency, Currency::USD);
+    }
+
+    /// Risk metrics must be converted at the market spot, not at the
+    /// PV-implied ratio `value_base / value_native`: `value_base` was
+    /// quantized to base-currency decimals when the valuation ran, so the
+    /// implied ratio carries rounding noise that would scale every summable
+    /// metric (DV01, CS01, deltas). Here the implied ratio is
+    /// 3.60 / 3.33 ≈ 1.0811 while the true spot is 1.08.
+    #[test]
+    fn fx_rate_for_position_prefers_matrix_spot_over_pv_implied_ratio() {
+        let as_of = date!(2024 - 01 - 01);
+        let position_value = PositionValue {
+            position_id: PositionId::from("EUR_POS".to_string()),
+            entity_id: EntityId::from("ENTITY".to_string()),
+            value_native: Money::new(3.33, Currency::EUR),
+            // Quantized during valuation: 3.33 * 1.08 = 3.5964 -> 3.60 USD.
+            value_base: Money::new(3.60, Currency::USD),
+            metric_scale: 1.0,
+            risk_metrics_complete: true,
+            risk_error: None,
+            valuation_result: None,
+        };
+
+        let provider = Arc::new(SimpleFxProvider::new());
+        provider
+            .set_quotes(&[(Currency::EUR, Currency::USD, 1.08)])
+            .expect("quote should set");
+        let market = MarketContext::new().insert_fx(FxMatrix::new(provider));
+
+        let rate = fx_rate_for_position(&position_value, Currency::USD, &market, as_of)
+            .expect("rate should resolve");
+        assert!(
+            (rate - 1.08).abs() < 1e-12,
+            "expected the matrix spot 1.08, got the implied ratio {rate}"
+        );
+    }
+
+    /// Without an FX matrix the PV-implied ratio remains the fallback so
+    /// metric aggregation still works on valuation output alone.
+    #[test]
+    fn fx_rate_for_position_falls_back_to_implied_ratio_without_matrix() {
+        let as_of = date!(2024 - 01 - 01);
+        let position_value = PositionValue {
+            position_id: PositionId::from("EUR_POS".to_string()),
+            entity_id: EntityId::from("ENTITY".to_string()),
+            value_native: Money::new(100.0, Currency::EUR),
+            value_base: Money::new(108.0, Currency::USD),
+            metric_scale: 1.0,
+            risk_metrics_complete: true,
+            risk_error: None,
+            valuation_result: None,
+        };
+
+        let market = MarketContext::new();
+        let rate = fx_rate_for_position(&position_value, Currency::USD, &market, as_of)
+            .expect("implied fallback should resolve");
+        assert!(
+            (rate - 1.08).abs() < 1e-12,
+            "implied ratio expected: {rate}"
+        );
     }
 
     #[test]

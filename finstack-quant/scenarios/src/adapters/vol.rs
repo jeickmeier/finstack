@@ -74,6 +74,16 @@ impl std::fmt::Display for ArbitrageViolation {
 }
 
 /// Check a vol surface grid for arbitrage violations.
+///
+/// # Fixed-strike limitation
+///
+/// The calendar-spread test requires total variance `σ²(K, T)·T` to be
+/// non-decreasing in expiry **per fixed strike** `K`. The theoretically exact
+/// condition holds at fixed *moneyness* `K/F(T)` (see Gatheral, *The
+/// Volatility Surface*, 2006, §4): on surfaces with pronounced forward drift
+/// the fixed-strike check can flag a spurious violation, or miss a genuine
+/// one at constant moneyness. Treat calendar-spread results as a heuristic
+/// screen, not a proof of arbitrage.
 pub fn check_arbitrage(
     expiries: &[f64],
     strikes: &[f64],
@@ -143,20 +153,39 @@ fn surface_grid(surface: &VolSurface) -> Result<Vec<Vec<f64>>> {
         .collect()
 }
 
+/// Validate a post-shock surface preview: calendar-spread violations become
+/// warnings, but any non-positive vol is a hard error. This mirrors the
+/// VolIndex positivity guard — a zeroed or negative vol point produces
+/// `d1 = ±inf`/NaN in every Black-Scholes consumer downstream, which is too
+/// severe to surface as a warning-and-apply.
 fn arbitrage_warnings_for_surface(
     surface_id: &CurveId,
     surface: &VolSurface,
 ) -> Result<Vec<Warning>> {
     let vols = surface_grid(surface)?;
-    Ok(
-        check_arbitrage(surface.expiries(), surface.strikes(), &vols)
-            .into_iter()
-            .map(|violation| Warning::VolSurfaceArbitrage {
-                surface_id: surface_id.as_str().to_string(),
-                detail: violation.to_string(),
-            })
-            .collect(),
-    )
+    let mut warnings = Vec::new();
+    for violation in check_arbitrage(surface.expiries(), surface.strikes(), &vols) {
+        match violation {
+            ArbitrageViolation::NonPositiveVol {
+                expiry,
+                strike,
+                vol,
+            } => {
+                return Err(crate::error::Error::Validation(format!(
+                    "Vol surface '{surface_id}' shock would produce non-positive vol \
+                     ({vol:.6}) at expiry={expiry:.4}Y, strike={strike:.2}; volatility \
+                     must stay positive. Reduce the shock magnitude."
+                )));
+            }
+            calendar @ ArbitrageViolation::CalendarSpread { .. } => {
+                warnings.push(Warning::VolSurfaceArbitrage {
+                    surface_id: surface_id.as_str().to_string(),
+                    detail: calendar.to_string(),
+                });
+            }
+        }
+    }
+    Ok(warnings)
 }
 
 /// Generate effects for a parallel vol-surface percent shock.
@@ -421,6 +450,71 @@ mod tests {
         let v_10 = bumped.value_checked(1.0, 100.0)?;
         assert!((v_05 - 0.22).abs() < 1e-10);
         assert!((v_10 - 0.242).abs() < 1e-10);
+        Ok(())
+    }
+
+    /// A parallel shock that drives every vol to zero (or below) must be
+    /// rejected outright, mirroring the VolIndex positivity guard: a zeroed
+    /// surface produces `d1 = ±inf`/NaN in any Black-Scholes consumer, and a
+    /// warning is too quiet for that failure mode.
+    #[test]
+    fn parallel_shock_to_non_positive_vol_is_rejected() -> crate::error::Result<()> {
+        let surface = VolSurface::builder("VOL")
+            .expiries(&[0.5, 1.0])
+            .strikes(&[100.0])
+            .row(&[0.20])
+            .row(&[0.22])
+            .build()?;
+        let mut market = MarketContext::new().insert_surface(surface);
+        let mut model = finstack_quant_statements::FinancialModelSpec::new("test", vec![]);
+        let ctx = ExecutionContext {
+            market: &mut market,
+            model: Some(&mut model),
+            instruments: None,
+            rate_bindings: None,
+            calendar: None,
+            as_of: date!(2025 - 01 - 01),
+        };
+
+        let surface_id = CurveId::from("VOL");
+        let err = vol_parallel_effects(&surface_id, -100.0, &ctx)
+            .expect_err("a -100% vol shock must be rejected, not warned");
+        assert!(
+            err.to_string().contains("non-positive"),
+            "error should name the non-positive vol condition: {err}"
+        );
+        Ok(())
+    }
+
+    /// A bucket shock that pushes a low-vol point non-positive must also be
+    /// rejected; other buckets staying positive does not make the surface
+    /// usable.
+    #[test]
+    fn bucket_shock_to_non_positive_vol_is_rejected() -> crate::error::Result<()> {
+        let surface = VolSurface::builder("VOL")
+            .expiries(&[0.5, 1.0])
+            .strikes(&[100.0])
+            .row(&[0.20])
+            .row(&[0.22])
+            .build()?;
+        let mut market = MarketContext::new().insert_surface(surface);
+        let mut model = finstack_quant_statements::FinancialModelSpec::new("test", vec![]);
+        let ctx = ExecutionContext {
+            market: &mut market,
+            model: Some(&mut model),
+            instruments: None,
+            rate_bindings: None,
+            calendar: None,
+            as_of: date!(2025 - 01 - 01),
+        };
+
+        let surface_id = CurveId::from("VOL");
+        let err = vol_bucket_effects(&surface_id, Some(&["6M".to_string()]), None, -100.0, &ctx)
+            .expect_err("a bucket shock zeroing a vol point must be rejected");
+        assert!(
+            err.to_string().contains("non-positive"),
+            "error should name the non-positive vol condition: {err}"
+        );
         Ok(())
     }
 

@@ -251,10 +251,14 @@ fn test_candidate_batching() -> Result<(), Box<dyn std::error::Error>> {
         .as_of(as_of)
         .build()?;
 
+    // The objective is incidental — this test exercises candidate batch
+    // valuation. PvBase is rejected in aggregated expressions when
+    // candidates are in scope (their pv_base = 0 would be silently
+    // ignored), so use a candidate-safe constant metric.
     let mut problem = PortfolioOptimizationProblem::new(
         portfolio,
         Objective::Maximize(MetricExpr::WeightedSum {
-            metric: PerPositionMetric::PvBase,
+            metric: PerPositionMetric::Constant(1.0),
             filter: None,
         }),
     );

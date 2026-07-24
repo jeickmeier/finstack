@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{get_node_value, sum_nodes};
+use super::{get_finite_node_value, sum_nodes};
 use crate::checks::types::effective_tolerance;
 use crate::checks::{
     Check, CheckCategory, CheckContext, CheckFinding, CheckResult, Materiality, Severity,
@@ -60,17 +60,19 @@ impl Check for BalanceSheetArticulation {
         for period in &context.model.periods {
             let pid = &period.id;
 
-            // Missing operands must not be coerced to zero: a misspelled node
-            // silently understates one side and can flip a real imbalance into
-            // a false pass (or fabricate a false failure). Skip the period
-            // with a visible warning instead, mirroring the missing-input
-            // handling in cash reconciliation and retained earnings.
+            // Unresolvable operands must not flow into the identity: a
+            // misspelled node silently understates one side (missing sums to
+            // zero), and a NaN/Inf value makes the imbalance NaN, where
+            // `NaN > tolerance` is false — either way a real imbalance can
+            // flip to a false pass. Skip the period with a visible warning
+            // instead, mirroring the missing-input handling in cash
+            // reconciliation and retained earnings.
             let missing: Vec<String> = self
                 .assets_nodes
                 .iter()
                 .chain(&self.liabilities_nodes)
                 .chain(&self.equity_nodes)
-                .filter(|n| get_node_value(context.results, n, pid).is_none())
+                .filter(|n| get_finite_node_value(context.results, n, pid).is_none())
                 .map(|n| n.to_string())
                 .collect();
             if !missing.is_empty() {
@@ -78,8 +80,8 @@ impl Check for BalanceSheetArticulation {
                     check_id: self.id().to_string(),
                     severity: Severity::Warning,
                     message: format!(
-                        "Balance sheet articulation skipped for {pid}: missing inputs [{}]. \
-                         The identity cannot be evaluated with unresolved operands.",
+                        "Balance sheet articulation skipped for {pid}: missing or non-finite \
+                         inputs [{}]. The identity cannot be evaluated with unresolved operands.",
                         missing.join(", ")
                     ),
                     period: Some(*pid),

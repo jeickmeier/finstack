@@ -41,7 +41,7 @@ fn descending_progression(start: f64, step: f64, n: usize) -> Vec<f64> {
 /// `pnl[1] = -990`, ... all losses.
 ///
 /// type-7: `h = (n - 1) * p = 89 * 0.01 = 0.89`, `lo = 0`, `frac = 0.89`.
-///   VaR quantile Q(p) = -1000 + 0.89 * 10 = -991.1  => VaR = 991.1
+///   VaR quantile Q(p) = -1000 + 0.89 * 10 = -991.1  => VaR = -991.1 (loss-signed)
 /// The tail `[0, p]` lies inside the first segment (knot at 1/89 ~= 0.01124),
 /// so ES is one trapezoid:
 ///   ES = pnl[0] + (h / 2) * d = -1000 + 0.445 * 10 = -995.55  => ES = 995.55
@@ -57,8 +57,8 @@ fn historical_var_single_segment_linear_interpolation() {
 
     assert_eq!(result.num_scenarios, 90);
 
-    let expected_var = 991.1;
-    let expected_es = 995.55;
+    let expected_var = -991.1;
+    let expected_es = -995.55;
 
     assert!(
         (result.var - expected_var).abs() < 1e-9,
@@ -75,10 +75,10 @@ fn historical_var_single_segment_linear_interpolation() {
 
     // VaR and ES are derived from one quantile definition: ES is the mean of
     // the quantile function over [0, p] and VaR is its least-extreme endpoint
-    // Q(p), so ES >= VaR holds exactly.
+    // Q(p), so as signed P&L numbers ES <= VaR holds exactly.
     assert!(
-        result.expected_shortfall >= result.var,
-        "ES ({}) must be >= VaR ({})",
+        result.expected_shortfall <= result.var,
+        "ES ({}) must lie at or beyond VaR ({}) in the loss tail",
         result.expected_shortfall,
         result.var,
     );
@@ -92,7 +92,7 @@ fn historical_var_single_segment_linear_interpolation() {
 ///
 /// type-7: `h = (n - 1) * p = 149 * 0.01 = 1.49`, `lo = 1`, `frac = 0.49`.
 ///   VaR quantile Q(p) = pnl[1] + 0.49 * (pnl[2] - pnl[1])
-///                     = -990 + 0.49 * 10 = -985.1            => VaR = 985.1
+///                     = -990 + 0.49 * 10 = -985.1            => VaR = -985.1 (loss-signed)
 /// The tail `[0, p]` crosses the knot at `u = 1/149 ~= 0.006711`, so the ES
 /// integral spans two linear pieces of Q; for the uniform progression this
 /// still evaluates to the closed form
@@ -110,8 +110,8 @@ fn historical_var_two_segment_interpolation_with_nonextreme_ceil_index() {
 
     assert_eq!(result.num_scenarios, 150);
 
-    let expected_var = 985.1;
-    let expected_es = 992.55;
+    let expected_var = -985.1;
+    let expected_es = -992.55;
 
     assert!(
         (result.var - expected_var).abs() < 1e-9,
@@ -127,8 +127,8 @@ fn historical_var_two_segment_interpolation_with_nonextreme_ceil_index() {
     );
 
     assert!(
-        result.expected_shortfall >= result.var,
-        "ES ({}) must be >= VaR ({})",
+        result.expected_shortfall <= result.var,
+        "ES ({}) must lie at or beyond VaR ({}) in the loss tail",
         result.expected_shortfall,
         result.var,
     );
@@ -162,13 +162,14 @@ fn historical_var_es_uses_same_quantile_as_var() {
         sorted[lo] + frac * (sorted[lo + 1] - sorted[lo])
     };
 
-    // The VaR the engine reports is exactly Q(p) under this quantile function.
+    // The VaR the engine reports is exactly Q(p) under this quantile
+    // function (losses-negative convention: the signed P&L quantile).
     let q_p = quantile_at(p);
     assert!(
-        (result.var - (-q_p)).abs() < 1e-9,
-        "engine VaR ({}) must equal -Q(p) of the type-7 quantile ({})",
+        (result.var - q_p).abs() < 1e-9,
+        "engine VaR ({}) must equal Q(p) of the type-7 quantile ({})",
         result.var,
-        -q_p,
+        q_p,
     );
 
     // ES = mean of the SAME Q over [0, p]. Approximate the tail integral with
@@ -182,7 +183,7 @@ fn historical_var_es_uses_same_quantile_as_var() {
         let u1 = (k + 1) as f64 * du;
         integral += 0.5 * (quantile_at(u0) + quantile_at(u1)) * du;
     }
-    let es_reconstructed = -(integral / p);
+    let es_reconstructed = integral / p;
 
     assert!(
         (result.expected_shortfall - es_reconstructed).abs() < 1e-4,
@@ -192,10 +193,10 @@ fn historical_var_es_uses_same_quantile_as_var() {
     );
 
     // And the tail-count consistency check: ES averages strictly more of the
-    // loss distribution than the single VaR point, so ES is at least as
-    // extreme as VaR.
+    // loss distribution than the single VaR point, so as signed P&L it lies
+    // at or beyond VaR in the loss tail.
     assert!(
-        result.expected_shortfall >= result.var,
+        result.expected_shortfall <= result.var,
         "ES ({}) >= VaR ({}) under one consistent quantile definition",
         result.expected_shortfall,
         result.var,
