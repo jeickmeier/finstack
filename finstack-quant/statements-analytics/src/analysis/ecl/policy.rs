@@ -129,6 +129,8 @@ struct StagingPolicyRecord {
     pd_delta_absolute: f64,
     pd_delta_relative: f64,
     rating_downgrade_notches: u32,
+    #[serde(default)]
+    rating_scale_labels: Option<Vec<String>>,
     dpd_stage2_threshold: u32,
     dpd_stage3_threshold: u32,
     qualitative_triggers_enabled: bool,
@@ -149,6 +151,7 @@ impl StagingPolicyRecord {
             pd_delta_absolute: self.pd_delta_absolute,
             pd_delta_relative: self.pd_delta_relative,
             rating_downgrade_notches: self.rating_downgrade_notches,
+            rating_scale_labels: self.rating_scale_labels.clone(),
             dpd_stage2_threshold: self.dpd_stage2_threshold,
             dpd_stage3_threshold: self.dpd_stage3_threshold,
             qualitative_triggers_enabled: self.qualitative_triggers_enabled,

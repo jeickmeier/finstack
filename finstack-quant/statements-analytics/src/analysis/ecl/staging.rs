@@ -9,7 +9,9 @@
 //! 2. Stage 3 qualitative default evidence (IFRS 9 B5.5.37 "unlikely to
 //!    pay"): bankruptcy / distressed modification / cross-default / user-
 //!    supplied default-evidence flags.
-//! 3. Stage 2 quantitative: PD delta exceeds thresholds (absolute OR relative)
+//! 3. Stage 2 quantitative: PD delta exceeds thresholds (absolute OR relative),
+//!    OR rating downgrade exceeds the configured notch threshold (IFRS 9
+//!    B5.5.17(f))
 //! 4. Stage 2 qualitative SICR flags (IFRS 9 B5.5.17)
 //! 5. Stage 2 DPD backstop: DPD > `dpd_stage2_threshold` (rebuttable presumption)
 //! 6. Curing: If previously Stage 2/3 and now meets cure criteria, allow step-down
@@ -31,6 +33,7 @@
 //! - IFRS 9 B5.5.19 -- 30 days past due rebuttable presumption
 //! - IFRS 9 B5.5.37 -- 90 days past due default presumption
 
+use finstack_quant_core::credit::migration::RatingScale;
 use finstack_quant_core::Result;
 use serde::{Deserialize, Serialize};
 
@@ -83,12 +86,13 @@ pub enum StagingTrigger {
         /// Configured threshold.
         threshold: f64,
     },
-    /// Rating downgraded by N or more notches.
+    /// Rating downgraded by N or more notches (IFRS 9 B5.5.17(f): external
+    /// credit rating downgrade as a SICR indicator).
     ///
-    /// **Not yet implemented**: [`classify_stage`] never emits this trigger
-    /// because the staging engine has no rating-scale notion to count
-    /// notches with. The variant is retained for serde wire stability and
-    /// for callers that construct audit trails externally.
+    /// Notches are counted as `position(current) - position(origination)`
+    /// on the configured rating scale (see
+    /// [`StagingConfig::rating_scale_labels`]); a value of `notches >=
+    /// threshold` fires this trigger.
     RatingDowngrade {
         /// Actual downgrade notches.
         notches: u32,
@@ -146,16 +150,22 @@ pub struct StagingConfig {
     /// Applied as: current_pd / origination_pd > threshold.
     pub pd_delta_relative: f64,
 
-    /// Rating downgrade notches that trigger Stage 2.
-    /// Example: 3 means a 3-notch downgrade from origination triggers SICR.
+    /// Rating downgrade notches that trigger Stage 2 (IFRS 9 B5.5.17(f):
+    /// external credit rating downgrade as a SICR indicator).
     ///
-    /// **Not yet implemented**: [`classify_stage`] does not evaluate this
-    /// threshold (it has no rating-scale notion to count notches with), so
-    /// the [`StagingTrigger::RatingDowngrade`] trigger never fires. The
-    /// field is retained for serde wire stability; SICR on rating migration
-    /// is captured indirectly via the PD-delta triggers, which compare the
-    /// PD curves of the origination and current ratings.
+    /// [`classify_stage`] fires [`StagingTrigger::RatingDowngrade`] when
+    /// `position(current) - position(origination) >= rating_downgrade_notches`
+    /// on the configured scale (see [`Self::rating_scale_labels`]). Example:
+    /// 3 means a 3-notch downgrade from origination triggers SICR. A `0`
+    /// threshold disables the trigger entirely.
     pub rating_downgrade_notches: u32,
+
+    /// Ordered rating-scale labels (best -> worst) used to count downgrade
+    /// notches for the `rating_downgrade_notches` trigger. When `None`, the
+    /// core 10-state S&P/Fitch scale (AAA, AA, A, BBB, BB, B, CCC, CC, C, D)
+    /// is used. Ratings not present on the scale never fire the trigger.
+    #[serde(default)]
+    pub rating_scale_labels: Option<Vec<String>>,
 
     /// DPD threshold for Stage 2 backstop (IFRS 9 B5.5.19 rebuttable
     /// presumption). Default: 30.
@@ -201,6 +211,26 @@ impl Default for StagingConfig {
     }
 }
 
+/// Count downgrade notches between two rating labels on the configured scale.
+///
+/// Returns `None` when either label is absent from the scale (the trigger is
+/// skipped rather than erroring, so custom label sets remain usable without a
+/// configured scale) or when the move is not a downgrade. The default scale
+/// is core's 10-state S&P/Fitch [`RatingScale::standard`] label list.
+fn rating_downgrade_notches(orig: &str, curr: &str, config: &StagingConfig) -> Option<u32> {
+    let default_labels;
+    let labels: &[String] = match &config.rating_scale_labels {
+        Some(labels) => labels.as_slice(),
+        None => {
+            default_labels = RatingScale::standard().labels().to_vec();
+            &default_labels
+        }
+    };
+    let orig_idx = labels.iter().position(|l| l == orig)?;
+    let curr_idx = labels.iter().position(|l| l == curr)?;
+    (curr_idx > orig_idx).then(|| (curr_idx - orig_idx) as u32)
+}
+
 // ---------------------------------------------------------------------------
 // Classification logic
 // ---------------------------------------------------------------------------
@@ -210,7 +240,9 @@ impl Default for StagingConfig {
 /// The classification waterfall evaluates triggers in priority order:
 ///
 /// 1. **Stage 3 backstop**: DPD exceeds `dpd_stage3_threshold` (non-rebuttable)
-/// 2. **Stage 2 quantitative**: PD delta exceeds absolute OR relative threshold
+/// 2. **Stage 2 quantitative**: PD delta exceeds absolute OR relative
+///    threshold, or a rating downgrade exceeds `rating_downgrade_notches`
+///    (IFRS 9 B5.5.17(f))
 /// 3. **Stage 2 qualitative**: Any qualitative flag is active (if enabled)
 /// 4. **Stage 2 DPD backstop**: DPD exceeds `dpd_stage2_threshold`
 /// 5. **Curing**: Previous stage was higher, sufficient performing periods
@@ -295,6 +327,19 @@ pub fn classify_stage(
                     ratio,
                     threshold: config.pd_delta_relative,
                 });
+            }
+        }
+
+        // 3b. Stage 2 quantitative: rating downgrade in notches
+        //     (IFRS 9 B5.5.17(f)). A zero threshold disables the trigger.
+        if config.rating_downgrade_notches > 0 {
+            if let Some(notches) = rating_downgrade_notches(orig_rating, curr_rating, config) {
+                if notches >= config.rating_downgrade_notches {
+                    triggers.push(StagingTrigger::RatingDowngrade {
+                        notches,
+                        threshold: config.rating_downgrade_notches,
+                    });
+                }
             }
         }
     }
@@ -408,6 +453,10 @@ mod tests {
                     "BB".to_string(),
                     vec![(0.0, 0.0), (1.0, 0.05), (5.0, 0.20), (10.0, 0.40)],
                 ),
+                (
+                    "B".to_string(),
+                    vec![(0.0, 0.0), (1.0, 0.08), (5.0, 0.30), (10.0, 0.55)],
+                ),
             ],
         }
     }
@@ -447,6 +496,143 @@ mod tests {
             previous_stage: None,
             ead_schedule: None,
         }
+    }
+
+    /// Config that disables PD-delta triggers so only the rating-downgrade
+    /// trigger can fire.
+    fn downgrade_only_config(notches: u32) -> StagingConfig {
+        StagingConfig {
+            pd_delta_absolute: 10.0, // unreachable (cum PDs are <= 1)
+            pd_delta_relative: 1e12, // unreachable
+            rating_downgrade_notches: notches,
+            ..StagingConfig::default()
+        }
+    }
+
+    #[test]
+    fn rating_downgrade_at_threshold_triggers_stage2() {
+        // Standard 10-state scale: A (index 2) -> B (index 5) = 3 notches.
+        // Threshold 3 -> trigger fires -> Stage 2.
+        let mut exposure = base_exposure();
+        exposure.origination_rating = Some("A".to_string());
+        exposure.current_rating = Some("B".to_string());
+
+        let result = classify_stage(
+            &exposure,
+            &make_multi_rating_curves(),
+            &downgrade_only_config(3),
+        )
+        .unwrap();
+
+        assert_eq!(result.stage, Stage::Stage2);
+        assert!(result.triggers.iter().any(|t| matches!(
+            t,
+            StagingTrigger::RatingDowngrade {
+                notches: 3,
+                threshold: 3
+            }
+        )));
+    }
+
+    #[test]
+    fn rating_downgrade_below_threshold_does_not_trigger() {
+        // BBB (3) -> B (5) = 2 notches < 3 -> no trigger -> Stage 1.
+        let mut exposure = base_exposure();
+        exposure.origination_rating = Some("BBB".to_string());
+        exposure.current_rating = Some("B".to_string());
+
+        let result = classify_stage(
+            &exposure,
+            &make_multi_rating_curves(),
+            &downgrade_only_config(3),
+        )
+        .unwrap();
+        assert_eq!(result.stage, Stage::Stage1);
+
+        // Upgrades never trigger.
+        let mut upgraded = base_exposure();
+        upgraded.origination_rating = Some("BB".to_string());
+        upgraded.current_rating = Some("A".to_string());
+        let result = classify_stage(
+            &upgraded,
+            &make_multi_rating_curves(),
+            &downgrade_only_config(1),
+        )
+        .unwrap();
+        assert_eq!(result.stage, Stage::Stage1);
+    }
+
+    #[test]
+    fn rating_downgrade_custom_scale() {
+        // Custom internal scale, 2-notch threshold: Strong (0) -> Weak (2) = 2.
+        let mut config = downgrade_only_config(2);
+        config.rating_scale_labels = Some(vec![
+            "Strong".to_string(),
+            "Medium".to_string(),
+            "Weak".to_string(),
+        ]);
+
+        let mut exposure = base_exposure();
+        exposure.origination_rating = Some("Strong".to_string());
+        exposure.current_rating = Some("Weak".to_string());
+
+        // PD-delta comparison needs curves for the custom labels: reuse the "A"
+        // and "BB" knots under the custom names.
+        let pd = MultiRatingCurve {
+            curves: vec![
+                (
+                    "Strong".to_string(),
+                    vec![(0.0, 0.0), (1.0, 0.005), (10.0, 0.06)],
+                ),
+                (
+                    "Weak".to_string(),
+                    vec![(0.0, 0.0), (1.0, 0.05), (10.0, 0.40)],
+                ),
+            ],
+        };
+        let result = classify_stage(&exposure, &pd, &config).unwrap();
+        assert_eq!(result.stage, Stage::Stage2);
+        assert!(result.triggers.iter().any(|t| matches!(
+            t,
+            StagingTrigger::RatingDowngrade {
+                notches: 2,
+                threshold: 2
+            }
+        )));
+    }
+
+    #[test]
+    fn rating_downgrade_skips_unknown_labels_and_zero_threshold() {
+        // Notched label "BBB+" is not on the default 10-state scale: no trigger,
+        // no error (preserves pre-change behavior for unmatched labels).
+        let mut exposure = base_exposure();
+        exposure.origination_rating = Some("BBB".to_string());
+        exposure.current_rating = Some("BBB".to_string());
+        let pd = make_multi_rating_curves();
+        let mut config = downgrade_only_config(0); // threshold 0 must never fire
+        let result = classify_stage(&exposure, &pd, &config).unwrap();
+        assert_eq!(result.stage, Stage::Stage1);
+
+        config = downgrade_only_config(3);
+        config.rating_scale_labels = Some(vec!["AAA".to_string(), "D".to_string()]);
+        // Ratings absent from the configured scale: skipped.
+        let result = classify_stage(&exposure, &pd, &config).unwrap();
+        assert_eq!(result.stage, Stage::Stage1);
+    }
+
+    #[test]
+    fn staging_config_serde_is_additive() {
+        // Pre-change StagingConfig JSON (no rating_scale_labels) must still parse
+        // under deny_unknown_fields.
+        let json = r#"{
+            "pd_delta_absolute": 0.01, "pd_delta_relative": 2.0,
+            "rating_downgrade_notches": 3, "dpd_stage2_threshold": 30,
+            "dpd_stage3_threshold": 90, "qualitative_triggers_enabled": true,
+            "stage3_qualitative_triggers_enabled": true,
+            "cure_periods_stage2_to_1": 3, "cure_periods_stage3_to_2": 12
+        }"#;
+        let parsed: StagingConfig = serde_json::from_str(json).unwrap();
+        assert!(parsed.rating_scale_labels.is_none());
     }
 
     #[test]
