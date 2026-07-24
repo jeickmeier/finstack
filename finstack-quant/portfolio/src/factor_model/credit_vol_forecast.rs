@@ -20,7 +20,7 @@
 //!
 //! # PR-6 scope
 //!
-//! Only the [`FactorVolModel::Sample`] variant is supported. `OneStep` and
+//! The [`FactorVolModel::Sample`] and [`FactorVolModel::Ewma`] variants are supported. `OneStep` and
 //! `Unconditional` map to the calibrated annualized variance unchanged;
 //! `NSteps(n)` means `n` annualized model periods and multiplies variance by
 //! `n`; fractional calendar horizons use `Years(y)` or parser input
@@ -70,10 +70,11 @@ pub enum VolHorizon {
     /// Fractional-year horizon. For example, 10 trading days from annualized
     /// variances should use `Years(10.0 / 252.0)` rather than `NSteps(10)`.
     Years(f64),
-    /// Long-run / unconditional horizon. For a [`FactorVolModel::Sample`]
-    /// model the long-run variance is the sample variance, so this is
-    /// numerically identical to [`Self::OneStep`] in PR-6. The variant is
-    /// kept distinct so future GARCH / EWMA wiring can override the
+    /// Long-run / unconditional horizon. For both [`FactorVolModel::Sample`]
+    /// and [`FactorVolModel::Ewma`] (a martingale variance forecast) the
+    /// long-run variance equals the calibrated variance, so this is
+    /// numerically identical to [`Self::OneStep`]. The variant is kept
+    /// distinct so future mean-reverting estimators can override the
     /// behaviour without breaking existing call sites.
     Unconditional,
 }
@@ -224,7 +225,12 @@ impl<'a> FactorCovarianceForecast<'a> {
                 )))
             })?;
             let variance = match vol_model {
-                FactorVolModel::Sample { variance } => horizon.scale_sample_variance(*variance),
+                // Both Sample and Ewma (martingale variance forecast with flat
+                // horizon term structure) use the same horizon scaling
+                // (Longerstaey & Spencer 1996, §5.3).
+                FactorVolModel::Sample { variance } | FactorVolModel::Ewma { variance, .. } => {
+                    horizon.scale_sample_variance(*variance)
+                }
                 _ => {
                     return Err(ValuationsError::Core(
                         finstack_quant_core::Error::Validation(format!(
@@ -282,7 +288,12 @@ impl<'a> FactorCovarianceForecast<'a> {
                 )))
             })?;
         let variance = match model {
-            IdiosyncraticVolModel::Sample { variance } => horizon.scale_sample_variance(*variance),
+            // Both Sample and Ewma use the same horizon scaling
+            // (see covariance_at for rationale).
+            IdiosyncraticVolModel::Sample { variance }
+            | IdiosyncraticVolModel::Ewma { variance, .. } => {
+                horizon.scale_sample_variance(*variance)
+            }
             _ => {
                 return Err(ValuationsError::Core(
                     finstack_quant_core::Error::Validation(format!(
@@ -1074,5 +1085,50 @@ mod tests {
         let expected_pos1 = -10.0 * (4.0 / 9.0);
         assert!((pos1.idiosyncratic - expected_pos1).abs() < 1e-9);
         assert!((pos1.total - (pos1.factor_total + pos1.idiosyncratic)).abs() < 1e-12);
+    }
+
+    /// EWMA vol-state entries forecast identically to Sample with the same
+    /// variance: the EWMA variance forecast is a martingale (flat horizon
+    /// term structure), so `scale_sample_variance` applies unchanged.
+    #[test]
+    fn covariance_at_supports_ewma_vol_models() {
+        let mut model = two_factor_model();
+        let keys: Vec<_> = model.vol_state.factors.keys().cloned().collect();
+        for key in keys {
+            model.vol_state.factors.insert(
+                key,
+                FactorVolModel::Ewma {
+                    lambda: 0.94,
+                    variance: 0.04,
+                },
+            );
+        }
+        let forecast = FactorCovarianceForecast::new(&model);
+        let cov = forecast
+            .covariance_at(VolHorizon::OneStep)
+            .expect("EWMA vol models must be supported");
+        let rates = FactorId::new("Rates");
+        let credit = FactorId::new("Credit");
+        // Same numbers as the Sample fixture: σ² = 0.04, ρ = 0.5 → cov 0.02.
+        assert!((cov.variance(&rates) - 0.04).abs() < 1e-12);
+        assert!((cov.covariance(&rates, &credit) - 0.02).abs() < 1e-12);
+    }
+
+    #[test]
+    fn idiosyncratic_vol_supports_ewma_vol_models() {
+        let mut model = two_factor_model();
+        let issuer = IssuerId::new("ISSUER-X");
+        model.vol_state.idiosyncratic.insert(
+            issuer.clone(),
+            IdiosyncraticVolModel::Ewma {
+                lambda: 0.94,
+                variance: 0.09,
+            },
+        );
+        let forecast = FactorCovarianceForecast::new(&model);
+        let vol = forecast
+            .idiosyncratic_vol(&issuer, VolHorizon::OneStep)
+            .expect("EWMA idiosyncratic vol must be supported");
+        assert!((vol - 0.3).abs() < 1e-12);
     }
 }
