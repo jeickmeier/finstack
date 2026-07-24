@@ -218,10 +218,10 @@ impl RiemannLiouvilleVolterra {
     ///
     /// `normals` must have length `2·num_steps`; the returned vector has
     /// length `num_steps`.
-///
-/// # Arguments
-///
-/// * `normals` - Normals supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `normals` - Normals supplied by the caller for this operation
     pub fn driving_normals(&self, normals: &[f64]) -> Vec<f64> {
         debug_assert_eq!(normals.len(), 2 * self.num_steps);
         (0..self.num_steps).map(|k| normals[2 * k]).collect()

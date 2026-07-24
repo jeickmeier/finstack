@@ -194,10 +194,10 @@ impl Rate {
     ///
     /// Returns `Error::Input(InputError::NonFiniteValue { .. })` when `decimal`
     /// is NaN or infinite.
-///
-/// # Arguments
-///
-/// * `decimal` - Decimal supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `decimal` - Decimal supplied by the caller for this operation
     pub fn try_from_decimal(decimal: f64) -> Result<Self> {
         if !decimal.is_finite() {
             return Err(InputError::NonFiniteValue {
@@ -228,10 +228,10 @@ impl Rate {
     ///
     /// Returns `Error::Input(InputError::NonFiniteValue { .. })` when
     /// `percent` is NaN or infinite.
-///
-/// # Arguments
-///
-/// * `percent` - Percent supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `percent` - Percent supplied by the caller for this operation
     pub fn try_from_percent(percent: f64) -> Result<Self> {
         Self::try_from_decimal(percent / 100.0)
     }
@@ -716,10 +716,10 @@ impl Percentage {
     ///
     /// Returns `Error::Input(InputError::NonFiniteValue { .. })` when `pct`
     /// is NaN or infinite.
-///
-/// # Arguments
-///
-/// * `pct` - Pct supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `pct` - Pct supplied by the caller for this operation
     pub fn try_new(pct: f64) -> Result<Self> {
         if !pct.is_finite() {
             return Err(InputError::NonFiniteValue {

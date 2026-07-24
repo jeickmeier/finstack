@@ -96,16 +96,16 @@ pub struct HestonParams {
 
 impl HestonParams {
     /// Create new Heston model parameters
-///
-/// # Arguments
-///
-/// * `r` - Continuously compounded risk-free rate in decimal annual units
-/// * `q` - Continuous dividend yield in decimal annual units
-/// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
-/// * `theta` - Long-run mean level of the mean-reverting stochastic factor
-/// * `sigma_v` - Volatility-of-variance parameter for the Heston-style variance process
-/// * `rho` - Instantaneous correlation between Brownian drivers, in `[-1, 1]`
-/// * `v0` - Initial variance level for the stochastic volatility process at time zero
+    ///
+    /// # Arguments
+    ///
+    /// * `r` - Continuously compounded risk-free rate in decimal annual units
+    /// * `q` - Continuous dividend yield in decimal annual units
+    /// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
+    /// * `theta` - Long-run mean level of the mean-reverting stochastic factor
+    /// * `sigma_v` - Volatility-of-variance parameter for the Heston-style variance process
+    /// * `rho` - Instantaneous correlation between Brownian drivers, in `[-1, 1]`
+    /// * `v0` - Initial variance level for the stochastic volatility process at time zero
     pub fn new(
         r: f64,
         q: f64,
@@ -365,10 +365,10 @@ impl HestonFourierSettings {
     /// (20% vol). For low-variance regimes prefer
     /// [`HestonFourierSettings::for_maturity_with_variance`], which widens
     /// `u_max` when `v0` is small.
-///
-/// # Arguments
-///
-/// * `time` - Time supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - Time supplied by the caller for this operation
     #[must_use]
     pub fn for_maturity(time: f64) -> Self {
         Self::for_maturity_with_variance(time, HESTON_REFERENCE_V0)
@@ -384,11 +384,11 @@ impl HestonFourierSettings {
     /// scales `u_max` (and `panels`, to preserve node density) by
     /// `√(v0_ref / v0)`, capped to keep the grid bounded; the existing tail
     /// diagnostic remains as a safety net.
-///
-/// # Arguments
-///
-/// * `time` - Time supplied by the caller for this operation
-/// * `v0` - Initial variance level for the stochastic volatility process at time zero
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - Time supplied by the caller for this operation
+    /// * `v0` - Initial variance level for the stochastic volatility process at time zero
     #[must_use]
     pub fn for_maturity_with_variance(time: f64, v0: f64) -> Self {
         let mut settings = if time < 0.05 {

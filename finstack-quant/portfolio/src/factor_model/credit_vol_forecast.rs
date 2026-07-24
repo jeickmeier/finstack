@@ -186,10 +186,10 @@ impl<'a> FactorCovarianceForecast<'a> {
     /// - any computed σ² is negative (data error in the artifact),
     /// - the resulting matrix fails PSD validation in
     ///   [`FactorCovarianceMatrix::new`].
-///
-/// # Arguments
-///
-/// * `horizon` - Horizon supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `horizon` - Horizon supplied by the caller for this operation
     pub fn covariance_at(
         &self,
         horizon: VolHorizon,

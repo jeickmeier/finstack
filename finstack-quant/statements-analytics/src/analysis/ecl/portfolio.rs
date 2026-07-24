@@ -56,10 +56,10 @@ pub struct PortfolioEclResult {
 
 impl PortfolioEclResult {
     /// Construct from individual exposure results.
-///
-/// # Arguments
-///
-/// * `results` - Results supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `results` - Results supplied by the caller for this operation
     pub fn from_results(results: Vec<ExposureEclResult>) -> Self {
         let mut total_ecl = 0.0;
         let mut ecl_by_stage: IndexMap<Stage, f64> = IndexMap::new();
@@ -99,11 +99,11 @@ impl PortfolioEclResult {
 
     /// Construct from exposure results with access to the original exposures
     /// for segment and migration data.
-///
-/// # Arguments
-///
-/// * `results` - Results supplied by the caller for this operation
-/// * `exposures` - Exposures supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `results` - Results supplied by the caller for this operation
+    /// * `exposures` - Exposures supplied by the caller for this operation
     pub fn from_results_with_exposures(
         results: Vec<ExposureEclResult>,
         exposures: &[super::types::Exposure],

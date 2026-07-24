@@ -37,10 +37,10 @@ impl BasisKind {
     ///
     /// Returns a message listing the accepted basis names when `name` is not a
     /// known alias.
-///
-/// # Arguments
-///
-/// * `name` - Human-readable name used for registry lookup or diagnostic messages
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Human-readable name used for registry lookup or diagnostic messages
     pub fn parse(name: &str) -> Result<Self, String> {
         match name.to_ascii_lowercase().as_str() {
             "laguerre" => Ok(Self::Laguerre),

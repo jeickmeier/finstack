@@ -213,11 +213,11 @@ impl FxMatrix {
     /// Returns a validation error when `config.cache_capacity` is zero. No
     /// provider lookup is performed during construction, so provider failures
     /// surface only on a later [`rate`](Self::rate) request.
-///
-/// # Arguments
-///
-/// * `provider` - FX or market-data provider used to resolve missing direct quotes
-/// * `config` - Configuration object controlling validation, rounding, or solver behavior
+    ///
+    /// # Arguments
+    ///
+    /// * `provider` - FX or market-data provider used to resolve missing direct quotes
+    /// * `config` - Configuration object controlling validation, rounding, or solver behavior
     pub fn try_with_config(provider: Arc<dyn FxProvider>, config: FxConfig) -> crate::Result<Self> {
         if config.cache_capacity == 0 {
             return Err(crate::Error::Validation(
@@ -294,10 +294,10 @@ impl FxMatrix {
     /// disabled or cannot construct both pivot legs, or when any direct,
     /// reciprocal, provider, or triangulated rate is non-finite or non-positive.
     /// Identity conversion returns exactly `1.0` without querying the provider.
-///
-/// # Arguments
-///
-/// * `query` - Query supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `query` - Query supplied by the caller for this operation
     pub fn rate(&self, query: FxQuery) -> crate::Result<FxRateResult> {
         let from = query.from;
         let to = query.to;
@@ -444,12 +444,12 @@ impl FxMatrix {
     /// Returns an error if `rate` is non-finite or not strictly positive. The
     /// existing quote remains unchanged on error; no reciprocal quote is
     /// inserted automatically.
-///
-/// # Arguments
-///
-/// * `from` - Source currency or start identifier for the conversion or transition
-/// * `to` - Destination currency or end identifier for the conversion or transition
-/// * `rate` - Rate supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - Source currency or start identifier for the conversion or transition
+    /// * `to` - Destination currency or end identifier for the conversion or transition
+    /// * `rate` - Rate supplied by the caller for this operation
     pub fn set_quote(&self, from: Currency, to: Currency, rate: f64) -> crate::Result<()> {
         let rate = validate_fx_rate(from, to, rate)?;
         self.insert_quote(from, to, rate);
@@ -482,14 +482,14 @@ impl FxMatrix {
     /// Returns an error if `rate` is non-finite or not strictly positive. The
     /// existing pinned fixing for this exact pair/date/policy key is unchanged
     /// on error; reciprocal lookup is derived on demand rather than stored.
-///
-/// # Arguments
-///
-/// * `from` - Source currency or start identifier for the conversion or transition
-/// * `to` - Destination currency or end identifier for the conversion or transition
-/// * `on` - On supplied by the caller for this operation
-/// * `policy` - Policy enum controlling error handling, unmatched keys, or fallbacks
-/// * `rate` - Rate supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - Source currency or start identifier for the conversion or transition
+    /// * `to` - Destination currency or end identifier for the conversion or transition
+    /// * `on` - On supplied by the caller for this operation
+    /// * `policy` - Policy enum controlling error handling, unmatched keys, or fallbacks
+    /// * `rate` - Rate supplied by the caller for this operation
     pub fn set_quote_on(
         &self,
         from: Currency,
@@ -683,10 +683,10 @@ impl FxMatrix {
     /// failure in a later pinned fixing leaves successfully restored earlier
     /// quotes/fixings in place; create a fresh matrix when all-or-nothing
     /// restoration is required.
-///
-/// # Arguments
-///
-/// * `state` - State supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - State supplied by the caller for this operation
     pub fn load_from_state(&self, state: &FxMatrixState) -> crate::Result<()> {
         self.set_quotes(&state.quotes)?;
         // Restore pinned (date/policy-scoped) fixings so they keep outranking

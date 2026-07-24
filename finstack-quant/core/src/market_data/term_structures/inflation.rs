@@ -249,10 +249,10 @@ impl InflationCurve {
     }
 
     /// CPI level at time `t` (years), without indexation lag.
-///
-/// # Arguments
-///
-/// * `t` - Year-fraction time from the curve or surface base date to the query point
+    ///
+    /// # Arguments
+    ///
+    /// * `t` - Year-fraction time from the curve or surface base date to the query point
     #[must_use]
     pub fn cpi(&self, t: f64) -> f64 {
         if t <= 0.0 {
@@ -375,11 +375,11 @@ impl InflationCurve {
     /// This correctly compounds and matches QuantLib/Bloomberg conventions.
     /// For short periods (< 1 year), this equals `(I2/I1)^(1/dt) - 1`
     /// rather than the simple linear approximation `(I2/I1 - 1) / dt`.
-///
-/// # Arguments
-///
-/// * `t1` - Start year-fraction of the forward or rate interval being queried
-/// * `t2` - End year-fraction of the forward or rate interval being queried
+    ///
+    /// # Arguments
+    ///
+    /// * `t1` - Start year-fraction of the forward or rate interval being queried
+    /// * `t2` - End year-fraction of the forward or rate interval being queried
     #[must_use]
     pub fn inflation_rate(&self, t1: f64, t2: f64) -> f64 {
         debug_assert!(

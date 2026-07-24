@@ -506,10 +506,10 @@ impl ScheduleImCalculator {
     }
 
     /// Canonical schedule IM breakdown key for NGR-reduced netting-set results.
-///
-/// # Arguments
-///
-/// * `asset_class` - Asset class supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_class` - Asset class supplied by the caller for this operation
     #[must_use]
     pub fn ngr_breakdown_key(asset_class: &ScheduleAssetClass) -> String {
         format!("{asset_class}_ngr")

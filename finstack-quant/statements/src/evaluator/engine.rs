@@ -418,10 +418,10 @@ impl Evaluator {
     /// dependencies cannot be resolved, or the dependency graph contains a
     /// cycle. A successful plan is structural only and performs no period
     /// evaluation.
-///
-/// # Arguments
-///
-/// * `model` - Model supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `model` - Model supplied by the caller for this operation
     pub fn prepare(&mut self, model: &FinancialModelSpec) -> Result<PreparedEvaluation> {
         self.init_eval_plan(model)
     }
@@ -444,11 +444,11 @@ impl Evaluator {
     /// errors for missing inputs, failed forecasts, formulas, and final checks.
     /// Callers must rebuild after formula changes as well: the plan deliberately
     /// reuses the compiled expressions captured at preparation time.
-///
-/// # Arguments
-///
-/// * `model` - Model supplied by the caller for this operation
-/// * `prepared` - Prepared supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `model` - Model supplied by the caller for this operation
+    /// * `prepared` - Prepared supplied by the caller for this operation
     pub fn evaluate_prepared(
         &mut self,
         model: &FinancialModelSpec,

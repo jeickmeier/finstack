@@ -87,11 +87,11 @@ impl CorrelationStructure {
     }
 
     /// Create a flat correlation structure and validate supplied values.
-///
-/// # Arguments
-///
-/// * `asset_correlation` - Asset correlation supplied by the caller for this operation
-/// * `prepay_default_correlation` - Prepay default correlation supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `asset_correlation` - Asset correlation supplied by the caller for this operation
+    /// * `prepay_default_correlation` - Prepay default correlation supplied by the caller for this operation
     pub fn try_flat(
         asset_correlation: f64,
         prepay_default_correlation: f64,
@@ -114,12 +114,12 @@ impl CorrelationStructure {
     }
 
     /// Create a sectored correlation structure and validate supplied values.
-///
-/// # Arguments
-///
-/// * `intra_sector` - Intra sector supplied by the caller for this operation
-/// * `inter_sector` - Inter sector supplied by the caller for this operation
-/// * `prepay_default` - Prepay default supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `intra_sector` - Intra sector supplied by the caller for this operation
+    /// * `inter_sector` - Inter sector supplied by the caller for this operation
+    /// * `prepay_default` - Prepay default supplied by the caller for this operation
     pub fn try_sectored(
         intra_sector: f64,
         inter_sector: f64,
@@ -142,11 +142,11 @@ impl CorrelationStructure {
     }
 
     /// Create a custom matrix correlation structure and validate supplied values.
-///
-/// # Arguments
-///
-/// * `correlations` - Correlations supplied by the caller for this operation
-/// * `labels` - Labels supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `correlations` - Correlations supplied by the caller for this operation
+    /// * `labels` - Labels supplied by the caller for this operation
     pub fn try_matrix(correlations: Vec<f64>, labels: Vec<String>) -> Result<Self, String> {
         let structure = Self::matrix(correlations, labels);
         structure.validate()?;
@@ -348,10 +348,10 @@ impl CorrelationStructure {
     /// `(new_structure, clamp_info)`. `clamp_info` is `Some` iff at least one
     /// underlying field required clamping; the string describes which field(s)
     /// were clamped and to what value.
-///
-/// # Arguments
-///
-/// * `delta` - FX option delta in decimal form used to locate the smile point
+    ///
+    /// # Arguments
+    ///
+    /// * `delta` - FX option delta in decimal form used to locate the smile point
     pub fn bump_asset_with_clamp_info(&self, delta: f64) -> (Self, Option<String>) {
         const LO: f64 = 0.0;
         const HI: f64 = 0.99;

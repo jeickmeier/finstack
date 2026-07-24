@@ -155,10 +155,10 @@ impl NormalizationConfig {
     /// Returns an invalid-input error if another adjustment already uses
     /// `adjustment.id`. It does not validate the referenced nodes or cap
     /// economics; those are checked while normalization runs against results.
-///
-/// # Arguments
-///
-/// * `adjustment` - Adjustment supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `adjustment` - Adjustment supplied by the caller for this operation
     pub fn add_adjustment(mut self, adjustment: Adjustment) -> crate::error::Result<Self> {
         if self.adjustments.iter().any(|a| a.id == adjustment.id) {
             return Err(crate::error::Error::invalid_input(format!(

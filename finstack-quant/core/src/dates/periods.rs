@@ -271,11 +271,11 @@ impl PeriodId {
     /// # Errors
     ///
     /// Returns `InputError::Invalid` when `ordinal` is not valid for `year`.
-///
-/// # Arguments
-///
-/// * `year` - Year supplied by the caller for this operation
-/// * `ordinal` - Ordinal supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `year` - Year supplied by the caller for this operation
+    /// * `ordinal` - Ordinal supplied by the caller for this operation
     pub fn try_day(year: i32, ordinal: u16) -> crate::Result<Self> {
         Self::try_new(year, ordinal, PeriodKind::Daily, days_in_year(year))
     }
@@ -299,11 +299,11 @@ impl PeriodId {
     /// # Errors
     ///
     /// Returns `InputError::Invalid` when `q` is outside `1..=4`.
-///
-/// # Arguments
-///
-/// * `year` - Year supplied by the caller for this operation
-/// * `q` - Continuous dividend yield in decimal annual units
+    ///
+    /// # Arguments
+    ///
+    /// * `year` - Year supplied by the caller for this operation
+    /// * `q` - Continuous dividend yield in decimal annual units
     pub fn try_quarter(year: i32, q: u8) -> crate::Result<Self> {
         Self::try_new(year, u16::from(q), PeriodKind::Quarterly, 4)
     }
@@ -327,11 +327,11 @@ impl PeriodId {
     /// # Errors
     ///
     /// Returns `InputError::Invalid` when `m` is outside `1..=12`.
-///
-/// # Arguments
-///
-/// * `year` - Year supplied by the caller for this operation
-/// * `m` - M supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `year` - Year supplied by the caller for this operation
+    /// * `m` - M supplied by the caller for this operation
     pub fn try_month(year: i32, m: u8) -> crate::Result<Self> {
         Self::try_new(year, u16::from(m), PeriodKind::Monthly, 12)
     }
@@ -362,11 +362,11 @@ impl PeriodId {
     ///
     /// Returns `InputError::Invalid` when `w` is not a valid ISO week number
     /// for `year`.
-///
-/// # Arguments
-///
-/// * `year` - Year supplied by the caller for this operation
-/// * `w` - W supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `year` - Year supplied by the caller for this operation
+    /// * `w` - W supplied by the caller for this operation
     pub fn try_week(year: i32, w: u8) -> crate::Result<Self> {
         Self::try_new(
             year,
@@ -395,11 +395,11 @@ impl PeriodId {
     /// # Errors
     ///
     /// Returns `InputError::Invalid` when `h` is outside `1..=2`.
-///
-/// # Arguments
-///
-/// * `year` - Year supplied by the caller for this operation
-/// * `h` - H supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `year` - Year supplied by the caller for this operation
+    /// * `h` - H supplied by the caller for this operation
     pub fn try_half(year: i32, h: u8) -> crate::Result<Self> {
         Self::try_new(year, u16::from(h), PeriodKind::SemiAnnual, 2)
     }
@@ -530,10 +530,10 @@ impl PeriodId {
     ///
     /// Returns an error when `config` has an invalid fiscal start date or the
     /// next fiscal-year boundary cannot be represented by `time::Date`.
-///
-/// # Arguments
-///
-/// * `config` - Configuration object controlling validation, rounding, or solver behavior
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Configuration object controlling validation, rounding, or solver behavior
     pub fn next_fiscal(self, config: FiscalConfig) -> crate::Result<Self> {
         let mut next = step_with_calendar(self, &FiscalCalendar { config }, true)?;
         next.fiscal = true;
@@ -548,10 +548,10 @@ impl PeriodId {
     ///
     /// Returns an error when `config` has an invalid fiscal start date or the
     /// preceding fiscal-year boundary cannot be represented by `time::Date`.
-///
-/// # Arguments
-///
-/// * `config` - Configuration object controlling validation, rounding, or solver behavior
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Configuration object controlling validation, rounding, or solver behavior
     pub fn prev_fiscal(self, config: FiscalConfig) -> crate::Result<Self> {
         let mut prev = step_with_calendar(self, &FiscalCalendar { config }, false)?;
         prev.fiscal = true;

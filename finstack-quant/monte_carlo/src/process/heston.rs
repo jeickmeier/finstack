@@ -251,10 +251,10 @@ impl HestonProcess {
     /// This constructor accepts already validated parameters and does not
     /// enforce the Feller condition; use [`HestonParams::new`] or
     /// [`Self::with_params`] when constructing raw numeric inputs.
-///
-/// # Arguments
-///
-/// * `params` - Params supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - Params supplied by the caller for this operation
     pub fn new(params: HestonParams) -> Self {
         // Warn when Feller condition is violated (variance may hit zero)
         if !params.satisfies_feller() {
@@ -284,16 +284,16 @@ impl HestonProcess {
     ///
     /// Returns the validation errors from [`HestonParams::new`] for non-finite
     /// rates, invalid variance parameters, or an out-of-range correlation.
-///
-/// # Arguments
-///
-/// * `r` - Continuously compounded risk-free rate in decimal annual units
-/// * `q` - Continuous dividend yield in decimal annual units
-/// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
-/// * `theta` - Long-run mean level of the mean-reverting stochastic factor
-/// * `sigma_v` - Volatility-of-variance parameter for the Heston-style variance process
-/// * `rho` - Instantaneous correlation between Brownian drivers, in `[-1, 1]`
-/// * `v0` - Initial variance level for the stochastic volatility process at time zero
+    ///
+    /// # Arguments
+    ///
+    /// * `r` - Continuously compounded risk-free rate in decimal annual units
+    /// * `q` - Continuous dividend yield in decimal annual units
+    /// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
+    /// * `theta` - Long-run mean level of the mean-reverting stochastic factor
+    /// * `sigma_v` - Volatility-of-variance parameter for the Heston-style variance process
+    /// * `rho` - Instantaneous correlation between Brownian drivers, in `[-1, 1]`
+    /// * `v0` - Initial variance level for the stochastic volatility process at time zero
     pub fn with_params(
         r: f64,
         q: f64,

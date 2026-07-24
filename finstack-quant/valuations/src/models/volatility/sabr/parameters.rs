@@ -83,14 +83,14 @@ impl SABRParameters {
     ///
     /// Same validation as `new()` plus shift validation:
     /// - shift > 0: Shift must be positive for negative rate support
-///
-/// # Arguments
-///
-/// * `alpha` - SABR or SVI alpha parameter controlling the overall volatility level
-/// * `beta` - SABR beta CEV exponent controlling the backbone between 0 and 1
-/// * `nu` - SABR vol-of-vol parameter controlling smile wing curvature
-/// * `rho` - Instantaneous correlation between Brownian drivers, in `[-1, 1]`
-/// * `shift` - Displacement shift applied to forward/strike for negative-rate SABR
+    ///
+    /// # Arguments
+    ///
+    /// * `alpha` - SABR or SVI alpha parameter controlling the overall volatility level
+    /// * `beta` - SABR beta CEV exponent controlling the backbone between 0 and 1
+    /// * `nu` - SABR vol-of-vol parameter controlling smile wing curvature
+    /// * `rho` - Instantaneous correlation between Brownian drivers, in `[-1, 1]`
+    /// * `shift` - Displacement shift applied to forward/strike for negative-rate SABR
     pub fn new_with_shift(alpha: f64, beta: f64, nu: f64, rho: f64, shift: f64) -> Result<Self> {
         // Validate base parameters via new(), then set shift
         let mut params = Self::new(alpha, beta, nu, rho)?;

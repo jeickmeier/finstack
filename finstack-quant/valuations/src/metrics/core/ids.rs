@@ -79,10 +79,10 @@ impl MetricId {
     /// historical wire format has no explicit whole-component marker. Use
     /// [`Self::decode_series_components`] when decoding multiple keys; it
     /// resolves decoded-coordinate collisions without dropping entries.
-///
-/// # Arguments
-///
-/// * `base` - Base date or base currency anchoring relative quotes and curves
+    ///
+    /// # Arguments
+    ///
+    /// * `base` - Base date or base currency anchoring relative quotes and curves
     pub fn decode_components(&self, base: &MetricId) -> Option<Vec<String>> {
         let suffix = self
             .as_str()
@@ -102,11 +102,11 @@ impl MetricId {
     /// fixed point because a literal fallback can collide with another key's
     /// decoded coordinates. This preserves all values and their insertion
     /// order without rewriting persisted keys or inventing a new wire marker.
-///
-/// # Arguments
-///
-/// * `base` - Base date or base currency anchoring relative quotes and curves
-/// * `metrics` - Metrics supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `base` - Base date or base currency anchoring relative quotes and curves
+    /// * `metrics` - Metrics supplied by the caller for this operation
     pub fn decode_series_components<'a>(
         base: &MetricId,
         metrics: impl IntoIterator<Item = &'a MetricId>,

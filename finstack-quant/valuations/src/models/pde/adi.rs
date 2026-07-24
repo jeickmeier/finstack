@@ -279,16 +279,16 @@ impl CraigSneydStepper {
     /// Returns a [`StepperError`] if the step cannot be taken reliably — a
     /// non-positive `dt`, a convection-dominated grid outside the MCS
     /// stable regime, or a degenerate tridiagonal solve.
-///
-/// # Arguments
-///
-/// * `problem` - Problem supplied by the caller for this operation
-/// * `grid` - Grid supplied by the caller for this operation
-/// * `u_full` - U full supplied by the caller for this operation
-/// * `u_int` - U int supplied by the caller for this operation
-/// * `t_from` - T from supplied by the caller for this operation
-/// * `t_to` - T to supplied by the caller for this operation
-/// * `step_index` - Step index supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `problem` - Problem supplied by the caller for this operation
+    /// * `grid` - Grid supplied by the caller for this operation
+    /// * `u_full` - U full supplied by the caller for this operation
+    /// * `u_int` - U int supplied by the caller for this operation
+    /// * `t_from` - T from supplied by the caller for this operation
+    /// * `t_to` - T to supplied by the caller for this operation
+    /// * `step_index` - Step index supplied by the caller for this operation
     #[allow(clippy::too_many_arguments)]
     pub fn step(
         &self,
@@ -315,17 +315,17 @@ impl CraigSneydStepper {
 
     /// Like [`CraigSneydStepper::step`], but reuses caller-owned scratch
     /// buffers instead of allocating fresh `Vec`s on every call.
-///
-/// # Arguments
-///
-/// * `problem` - Problem supplied by the caller for this operation
-/// * `grid` - Grid supplied by the caller for this operation
-/// * `u_full` - U full supplied by the caller for this operation
-/// * `u_int` - U int supplied by the caller for this operation
-/// * `t_from` - T from supplied by the caller for this operation
-/// * `t_to` - T to supplied by the caller for this operation
-/// * `step_index` - Step index supplied by the caller for this operation
-/// * `buffers` - Buffers supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `problem` - Problem supplied by the caller for this operation
+    /// * `grid` - Grid supplied by the caller for this operation
+    /// * `u_full` - U full supplied by the caller for this operation
+    /// * `u_int` - U int supplied by the caller for this operation
+    /// * `t_from` - T from supplied by the caller for this operation
+    /// * `t_to` - T to supplied by the caller for this operation
+    /// * `step_index` - Step index supplied by the caller for this operation
+    /// * `buffers` - Buffers supplied by the caller for this operation
     #[allow(clippy::too_many_arguments)]
     pub fn step_with_buffers(
         &self,

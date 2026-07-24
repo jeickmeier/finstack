@@ -254,13 +254,13 @@ impl<'a> CosPricer<'a> {
     ///   term. Any dividend yield is already part of the CF's drift and does
     ///   not appear here — the COS method computes the risk-neutral expectation
     ///   directly from `phi_Y`.
-///
-/// # Arguments
-///
-/// * `spot` - Spot price or FX rate used to convert delta quotes into absolute strikes
-/// * `strike` - Option strike in the surface's quote units (absolute or relative)
-/// * `r` - Continuously compounded risk-free rate in decimal annual units
-/// * `t` - Year-fraction time from the curve or surface base date to the query point
+    ///
+    /// # Arguments
+    ///
+    /// * `spot` - Spot price or FX rate used to convert delta quotes into absolute strikes
+    /// * `strike` - Option strike in the surface's quote units (absolute or relative)
+    /// * `r` - Continuously compounded risk-free rate in decimal annual units
+    /// * `t` - Year-fraction time from the curve or surface base date to the query point
     pub fn price_call(
         &self,
         spot: f64,

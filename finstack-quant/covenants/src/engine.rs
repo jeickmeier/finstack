@@ -846,11 +846,11 @@ impl CovenantEngine {
     /// specifications have duplicate instance keys, the metric source cannot
     /// provide a required input, a custom metric or custom evaluator fails, or
     /// a covenant cannot compute its test value from the supplied metrics.
-///
-/// # Arguments
-///
-/// * `context` - Context supplied by the caller for this operation
-/// * `test_date` - Test date supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `context` - Context supplied by the caller for this operation
+    /// * `test_date` - Test date supplied by the caller for this operation
     pub fn evaluate(
         &self,
         context: &mut dyn CovenantMetricSource,
@@ -979,12 +979,12 @@ impl CovenantEngine {
     /// Returns the same configuration, duplicate-instance-key, metric-source,
     /// custom-evaluator, and calculation errors as [`evaluate`](Self::evaluate)
     /// for the filtered set of covenants.
-///
-/// # Arguments
-///
-/// * `context` - Context supplied by the caller for this operation
-/// * `test_date` - Test date supplied by the caller for this operation
-/// * `trigger` - Trigger supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `context` - Context supplied by the caller for this operation
+    /// * `test_date` - Test date supplied by the caller for this operation
+    /// * `trigger` - Trigger supplied by the caller for this operation
     pub fn evaluate_for_trigger(
         &self,
         context: &mut dyn CovenantMetricSource,
@@ -1022,11 +1022,11 @@ impl CovenantEngine {
     /// Returns the same errors as [`evaluate`](Self::evaluate). On error, no
     /// breach-history update occurs because evaluation completes before the
     /// mutation phase begins.
-///
-/// # Arguments
-///
-/// * `context` - Context supplied by the caller for this operation
-/// * `test_date` - Test date supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `context` - Context supplied by the caller for this operation
+    /// * `test_date` - Test date supplied by the caller for this operation
     pub fn evaluate_and_track(
         &mut self,
         context: &mut dyn CovenantMetricSource,
@@ -1131,12 +1131,12 @@ impl CovenantEngine {
     /// from the [`InstrumentMutator`] while applying a configured consequence;
     /// callers should treat a returned error as a potentially partial mutation
     /// and reconcile the instrument before retrying.
-///
-/// # Arguments
-///
-/// * `instrument` - Instrument supplied by the caller for this operation
-/// * `breaches` - Breaches supplied by the caller for this operation
-/// * `as_of` - Valuation or observation date that anchors discounting and schedule logic
+    ///
+    /// # Arguments
+    ///
+    /// * `instrument` - Instrument supplied by the caller for this operation
+    /// * `breaches` - Breaches supplied by the caller for this operation
+    /// * `as_of` - Valuation or observation date that anchors discounting and schedule logic
     pub fn apply_consequences<T>(
         &mut self,
         instrument: &mut T,

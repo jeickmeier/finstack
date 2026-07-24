@@ -136,11 +136,11 @@ impl BetaRecovery {
     /// - `mean` is not in (0, 1) exclusive
     /// - `std_dev <= 0`
     /// - `std_dev^2 >= mean * (1 - mean)` (Beta shape parameters would be non-positive)
-///
-/// # Arguments
-///
-/// * `mean` - Mean supplied by the caller for this operation
-/// * `std_dev` - Std dev supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `mean` - Mean supplied by the caller for this operation
+    /// * `std_dev` - Std dev supplied by the caller for this operation
     pub fn new(mean: f64, std_dev: f64) -> Result<Self> {
         if !mean.is_finite() || mean <= 0.0 || mean >= 1.0 {
             return Err(InputError::Invalid.into());
@@ -206,10 +206,10 @@ impl BetaRecovery {
     /// mean (). With the shape
     /// parameters validated by [`BetaRecovery::new`] this is near-unreachable,
     /// but a silent mean fallback would corrupt tail statistics undetected.
-///
-/// # Arguments
-///
-/// * `rng` - Random-number generator supplying uniform or Gaussian draws for simulation
+    ///
+    /// # Arguments
+    ///
+    /// * `rng` - Random-number generator supplying uniform or Gaussian draws for simulation
     pub fn sample(&self, rng: &mut dyn crate::math::RandomNumberGenerator) -> Result<f64> {
         crate::math::distributions::sample_beta(rng, self.alpha, self.beta_param)
     }
@@ -254,10 +254,10 @@ impl BetaRecovery {
     /// [`BetaRecovery::new`]); it previously fell back silently to the mean,
     /// which would corrupt quantile-based tail measures undetected
     /// ().
-///
-/// # Arguments
-///
-/// * `p` - P supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `p` - P supplied by the caller for this operation
     pub fn quantile(&self, p: f64) -> Result<f64> {
         use statrs::distribution::{Beta, ContinuousCDF};
         if !p.is_finite() || !(0.0..=1.0).contains(&p) {
@@ -307,10 +307,10 @@ impl SeniorityCalibration {
     ///
     /// # Errors
     /// Returns a validation error for unknown agencies.
-///
-/// # Arguments
-///
-/// * `agency` - Agency supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `agency` - Agency supplied by the caller for this operation
     pub fn from_agency(agency: &str) -> Result<Self> {
         let norm = agency.trim().to_ascii_lowercase().replace(['&', '.'], "");
         match norm.as_str() {

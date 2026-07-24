@@ -109,13 +109,13 @@ impl FractionalRiccatiSolver {
     /// - a = −½(u² + iu)
     /// - b = iuρσ − κ
     /// - c = ½σ²
-///
-/// # Arguments
-///
-/// * `u` - U supplied by the caller for this operation
-/// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
-/// * `sigma` - Diffusion volatility of the process in decimal annual units
-/// * `rho` - Instantaneous correlation between Brownian drivers, in `[-1, 1]`
+    ///
+    /// # Arguments
+    ///
+    /// * `u` - U supplied by the caller for this operation
+    /// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
+    /// * `sigma` - Diffusion volatility of the process in decimal annual units
+    /// * `rho` - Instantaneous correlation between Brownian drivers, in `[-1, 1]`
     pub fn solve_d(&self, u: Complex64, kappa: f64, sigma: f64, rho: f64) -> Vec<Complex64> {
         let n = self.num_steps;
         let h = self.step_size;

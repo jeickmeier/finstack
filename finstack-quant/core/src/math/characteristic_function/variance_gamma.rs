@@ -56,14 +56,14 @@ impl VarianceGammaCf {
     /// convexity-correction argument `1 - theta*nu - 0.5*sigma^2*nu`
     /// is not strictly positive. The last condition would otherwise
     /// produce a complex (or NaN) `omega`.
-///
-/// # Arguments
-///
-/// * `r` - Continuously compounded risk-free rate in decimal annual units
-/// * `q` - Continuous dividend yield in decimal annual units
-/// * `sigma` - Diffusion volatility of the process in decimal annual units
-/// * `nu` - SABR vol-of-vol parameter controlling smile wing curvature
-/// * `theta` - Long-run mean level of the mean-reverting stochastic factor
+    ///
+    /// # Arguments
+    ///
+    /// * `r` - Continuously compounded risk-free rate in decimal annual units
+    /// * `q` - Continuous dividend yield in decimal annual units
+    /// * `sigma` - Diffusion volatility of the process in decimal annual units
+    /// * `nu` - SABR vol-of-vol parameter controlling smile wing curvature
+    /// * `theta` - Long-run mean level of the mean-reverting stochastic factor
     pub fn new(r: f64, q: f64, sigma: f64, nu: f64, theta: f64) -> Result<Self, String> {
         let candidate = Self {
             r,

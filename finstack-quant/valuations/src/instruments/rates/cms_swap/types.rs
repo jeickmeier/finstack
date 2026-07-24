@@ -278,23 +278,23 @@ impl CmsSwap {
     ///
     /// Generates fixing/payment dates for both legs from start, end, and
     /// frequency. Calendar and reset lag come from `swap_convention`.
-///
-/// # Arguments
-///
-/// * `id` - Stable string identifier used for lookup and serialization of this object
-/// * `start_date` - Inclusive schedule or accrual start date in the instrument calendar
-/// * `maturity` - Final payment or expiry date of the instrument being constructed
-/// * `cms_frequency` - Cms frequency supplied by the caller for this operation
-/// * `cms_tenor` - Cms tenor supplied by the caller for this operation
-/// * `cms_spread` - Cms spread supplied by the caller for this operation
-/// * `funding_leg` - Funding leg supplied by the caller for this operation
-/// * `notional` - Trade notional amount in the instrument currency's major units
-/// * `cms_day_count` - Cms day count supplied by the caller for this operation
-/// * `swap_convention` - Swap convention supplied by the caller for this operation
-/// * `side` - Trade side (buy/sell or pay/receive) controlling sign conventions
-/// * `discount_curve_id` - Discount curve id supplied by the caller for this operation
-/// * `forward_curve_id` - Forward curve id supplied by the caller for this operation
-/// * `vol_surface_id` - Vol surface id supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Stable string identifier used for lookup and serialization of this object
+    /// * `start_date` - Inclusive schedule or accrual start date in the instrument calendar
+    /// * `maturity` - Final payment or expiry date of the instrument being constructed
+    /// * `cms_frequency` - Cms frequency supplied by the caller for this operation
+    /// * `cms_tenor` - Cms tenor supplied by the caller for this operation
+    /// * `cms_spread` - Cms spread supplied by the caller for this operation
+    /// * `funding_leg` - Funding leg supplied by the caller for this operation
+    /// * `notional` - Trade notional amount in the instrument currency's major units
+    /// * `cms_day_count` - Cms day count supplied by the caller for this operation
+    /// * `swap_convention` - Swap convention supplied by the caller for this operation
+    /// * `side` - Trade side (buy/sell or pay/receive) controlling sign conventions
+    /// * `discount_curve_id` - Discount curve id supplied by the caller for this operation
+    /// * `forward_curve_id` - Forward curve id supplied by the caller for this operation
+    /// * `vol_surface_id` - Vol surface id supplied by the caller for this operation
     #[allow(clippy::too_many_arguments)]
     pub fn from_schedule(
         id: impl Into<InstrumentId>,

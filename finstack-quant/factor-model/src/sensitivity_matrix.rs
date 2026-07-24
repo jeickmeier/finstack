@@ -60,11 +60,11 @@ impl SensitivityMatrix {
     /// asserts (not `debug_assert!`): with row-major storage an
     /// out-of-range `factor_idx` can land inside another position's row,
     /// and a silent wrong read in release builds is a risk bug.
-///
-/// # Arguments
-///
-/// * `position_idx` - Position idx supplied by the caller for this operation
-/// * `factor_idx` - Factor idx supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `position_idx` - Position idx supplied by the caller for this operation
+    /// * `factor_idx` - Factor idx supplied by the caller for this operation
     pub fn delta(&self, position_idx: usize, factor_idx: usize) -> f64 {
         assert!(
             position_idx < self.n_positions(),

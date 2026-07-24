@@ -233,10 +233,10 @@ impl MertonModel {
     /// A higher DD indicates a lower probability of default.
     /// Returns `f64::INFINITY` when `horizon <= 0` (no time = infinite DD,
     /// yielding PD = N(-∞) = 0).
-///
-/// # Arguments
-///
-/// * `horizon` - Horizon supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `horizon` - Horizon supplied by the caller for this operation
     #[inline]
     pub fn distance_to_default(&self, horizon: f64) -> f64 {
         if horizon <= 0.0 {
@@ -356,11 +356,11 @@ impl MertonModel {
     /// Returns a validation error if `horizon <= 0` (the spread is undefined
     /// at zero horizon) or `recovery` is outside `[0, 1]` (an out-of-range
     /// recovery can make `1 - PD·LGD` non-positive, yielding NaN).
-///
-/// # Arguments
-///
-/// * `horizon` - Horizon supplied by the caller for this operation
-/// * `recovery` - Recovery supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `horizon` - Horizon supplied by the caller for this operation
+    /// * `recovery` - Recovery supplied by the caller for this operation
     #[inline]
     pub fn implied_spread(&self, horizon: f64, recovery: f64) -> Result<f64> {
         if !(horizon.is_finite() && horizon > 0.0) {

@@ -155,10 +155,10 @@ impl Money {
     /// Canonical formatter. Prefer this over [`Money::format`] /
     /// [`Money::format_with_separators`] / [`Money::format_with_config`] —
     /// those methods delegate here.
-///
-/// # Arguments
-///
-/// * `opts` - Opts supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `opts` - Opts supplied by the caller for this operation
     pub fn format_with(&self, opts: FormatOpts) -> String {
         use super::rounding::round_decimal;
         let dp = opts
@@ -201,10 +201,10 @@ impl Money {
     /// let formatted = amount.format_with_separators(2);
     /// assert_eq!(formatted, "USD 1,042,315.67");
     /// ```
-///
-/// # Arguments
-///
-/// * `decimals` - Number of fractional digits to show when formatting the money amount
+    ///
+    /// # Arguments
+    ///
+    /// * `decimals` - Number of fractional digits to show when formatting the money amount
     pub fn format_with_separators(&self, decimals: usize) -> String {
         self.format_with(FormatOpts {
             decimals: Some(decimals),
@@ -230,11 +230,11 @@ impl Money {
     /// let amt = Money::new(10.0, Currency::USD);
     /// assert_eq!(format!("{}", amt), "USD 10.00");
     /// ```
-///
-/// # Arguments
-///
-/// * `amount` - Finite monetary quantity in major currency units before rounding
-/// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - Finite monetary quantity in major currency units before rounding
+    /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
     #[inline]
     #[allow(clippy::expect_used)] // Compatibility constructor is documented to panic.
     pub fn new(amount: f64, currency: Currency) -> Self {
@@ -249,12 +249,12 @@ impl Money {
     /// Panics if `amount` is not finite (NaN or infinity) or cannot be
     /// represented by the internal Decimal type. Use
     /// [`Money::try_new_with_config`] for a fallible constructor.
-///
-/// # Arguments
-///
-/// * `amount` - Finite monetary quantity in major currency units before rounding
-/// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
-/// * `cfg` - Finstack configuration controlling rounding policy and money tolerances
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - Finite monetary quantity in major currency units before rounding
+    /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
+    /// * `cfg` - Finstack configuration controlling rounding policy and money tolerances
     #[allow(clippy::expect_used)] // Compatibility constructor is documented to panic.
     pub fn new_with_config(amount: f64, currency: Currency, cfg: &FinstackConfig) -> Self {
         Self::try_new_with_config(amount, currency, cfg)
@@ -272,11 +272,11 @@ impl Money {
     /// Returns `InputError::NonFiniteValue` for NaN or infinity, or
     /// `InputError::ConversionOverflow` when the finite amount cannot be
     /// represented by the internal Decimal type.
-///
-/// # Arguments
-///
-/// * `amount` - Finite monetary quantity in major currency units before rounding
-/// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - Finite monetary quantity in major currency units before rounding
+    /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
     pub fn try_new(amount: f64, currency: Currency) -> Result<Self, Error> {
         Self::try_new_impl(amount, currency, None)
     }
@@ -297,11 +297,11 @@ impl Money {
     ///
     /// Returns `InputError::ConversionOverflow` when the Decimal cannot be
     /// converted to the finite `f64` view used by [`Self::amount`].
-///
-/// # Arguments
-///
-/// * `amount` - Finite monetary quantity in major currency units before rounding
-/// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - Finite monetary quantity in major currency units before rounding
+    /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
     pub fn from_decimal(amount: rust_decimal::Decimal, currency: Currency) -> Result<Self, Error> {
         // rust_decimal::Decimal models a fixed-precision number with no
         // NaN/Infinity representation, so finiteness is structural. The
@@ -324,12 +324,12 @@ impl Money {
     /// Returns `InputError::NonFiniteValue` for NaN or infinity, or
     /// `InputError::ConversionOverflow` when rounding or conversion cannot
     /// produce a representable Decimal amount.
-///
-/// # Arguments
-///
-/// * `amount` - Finite monetary quantity in major currency units before rounding
-/// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
-/// * `cfg` - Finstack configuration controlling rounding policy and money tolerances
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - Finite monetary quantity in major currency units before rounding
+    /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
+    /// * `cfg` - Finstack configuration controlling rounding policy and money tolerances
     pub fn try_new_with_config(
         amount: f64,
         currency: Currency,
@@ -474,10 +474,10 @@ impl Money {
     ///
     /// Returns `Error::CurrencyMismatch` when the currencies differ, or
     /// `InputError::ConversionOverflow` when the Decimal sum is out of range.
-///
-/// # Arguments
-///
-/// * `rhs` - Rhs supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - Rhs supplied by the caller for this operation
     #[must_use = "returns new Money if currencies match"]
     #[inline]
     pub fn checked_add(self, rhs: Self) -> Result<Self, Error> {
@@ -513,10 +513,10 @@ impl Money {
     /// Returns `Error::CurrencyMismatch` when the currencies differ, or
     /// `InputError::ConversionOverflow` when the Decimal difference is out of
     /// range.
-///
-/// # Arguments
-///
-/// * `rhs` - Rhs supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - Rhs supplied by the caller for this operation
     #[must_use = "returns new Money if currencies match"]
     #[inline]
     pub fn checked_sub(self, rhs: Self) -> Result<Self, Error> {
@@ -553,10 +553,10 @@ impl Money {
     /// Returns `InputError::NonFiniteValue` for a NaN or infinite scalar, or
     /// `InputError::ConversionOverflow` when the scalar or product is outside
     /// the Decimal representation range.
-///
-/// # Arguments
-///
-/// * `rhs` - Rhs supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - Rhs supplied by the caller for this operation
     #[must_use = "returns new Money on success"]
     #[inline]
     pub fn checked_mul_f64(self, rhs: f64) -> Result<Self, Error> {
@@ -593,10 +593,10 @@ impl Money {
     /// Returns `InputError::Invalid` for a zero scalar,
     /// `InputError::NonFiniteValue` for NaN or infinity, or
     /// `InputError::ConversionOverflow` when the quotient is out of range.
-///
-/// # Arguments
-///
-/// * `rhs` - Rhs supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - Rhs supplied by the caller for this operation
     #[must_use = "returns new Money on success"]
     #[inline]
     pub fn checked_div_f64(self, rhs: f64) -> Result<Self, Error> {
@@ -728,10 +728,10 @@ impl Money {
     ///     .insert(Currency::USD, 4);
     /// assert_eq!(amt.format_with_config(&cfg), "USD 10.0000");
     /// ```
-///
-/// # Arguments
-///
-/// * `cfg` - Finstack configuration controlling rounding policy and money tolerances
+    ///
+    /// # Arguments
+    ///
+    /// * `cfg` - Finstack configuration controlling rounding policy and money tolerances
     pub fn format_with_config(&self, cfg: &FinstackConfig) -> String {
         self.format_with(FormatOpts {
             decimals: Some(cfg.output_scale(self.currency) as usize),

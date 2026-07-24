@@ -1126,10 +1126,10 @@ impl HullWhiteTree {
     /// Returns a validation error when no grid point matches — i.e. the time
     /// was not supplied as a mandatory time during calibration and does not
     /// happen to coincide with the grid.
-///
-/// # Arguments
-///
-/// * `time` - Time supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - Time supplied by the caller for this operation
     pub fn step_at_time(&self, time: f64) -> Result<usize> {
         let step = self.time_to_step(time);
         let grid_time = self.time_at_step(step);

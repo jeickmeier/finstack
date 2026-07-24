@@ -1405,12 +1405,12 @@ impl Swaption {
     ///   - `ParYield`: Closed-form approximation (fast, less accurate for steep curves)
     ///   - `IsdaParPar`: Actual swap annuity from discount curve (ISDA compliant)
     ///   - `ZeroCoupon`: Single discount to swap maturity (rarely used)
-///
-/// # Arguments
-///
-/// * `disc` - Discounting callback or curve used to present-value path cashflows
-/// * `as_of` - Valuation or observation date that anchors discounting and schedule logic
-/// * `forward_rate` - Forward rate supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `disc` - Discounting callback or curve used to present-value path cashflows
+    /// * `as_of` - Valuation or observation date that anchors discounting and schedule logic
+    /// * `forward_rate` - Forward rate supplied by the caller for this operation
     pub fn annuity(&self, disc: &dyn Discounting, as_of: Date, forward_rate: f64) -> Result<f64> {
         match self.settlement {
             SwaptionSettlement::Physical => self.swap_annuity(disc, as_of),

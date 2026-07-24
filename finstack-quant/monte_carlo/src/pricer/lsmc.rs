@@ -636,16 +636,16 @@ impl LsmcPricer {
     /// # Errors
     ///
     /// Returns an error when path generation or any regression solve fails.
-///
-/// # Arguments
-///
-/// * `process` - Stochastic process driving the simulated state variables over the grid
-/// * `initial_spot` - Initial spot supplied by the caller for this operation
-/// * `time_to_maturity` - Time to maturity supplied by the caller for this operation
-/// * `num_steps` - Num steps supplied by the caller for this operation
-/// * `exercise` - Exercise supplied by the caller for this operation
-/// * `basis` - Basis supplied by the caller for this operation
-/// * `discount_rate` - Discount rate supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `process` - Stochastic process driving the simulated state variables over the grid
+    /// * `initial_spot` - Initial spot supplied by the caller for this operation
+    /// * `time_to_maturity` - Time to maturity supplied by the caller for this operation
+    /// * `num_steps` - Num steps supplied by the caller for this operation
+    /// * `exercise` - Exercise supplied by the caller for this operation
+    /// * `basis` - Basis supplied by the caller for this operation
+    /// * `discount_rate` - Discount rate supplied by the caller for this operation
     #[allow(clippy::too_many_arguments)]
     pub fn fit_exercise_policy<E, B>(
         &self,
@@ -686,19 +686,19 @@ impl LsmcPricer {
     ///
     /// Returns an error if `num_steps` or basis size disagree with the policy
     /// or if path generation fails.
-///
-/// # Arguments
-///
-/// * `process` - Stochastic process driving the simulated state variables over the grid
-/// * `initial_spot` - Initial spot supplied by the caller for this operation
-/// * `time_to_maturity` - Time to maturity supplied by the caller for this operation
-/// * `num_steps` - Num steps supplied by the caller for this operation
-/// * `exercise` - Exercise supplied by the caller for this operation
-/// * `basis` - Basis supplied by the caller for this operation
-/// * `policy` - Policy enum controlling error handling, unmatched keys, or fallbacks
-/// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
-/// * `discount_rate` - Discount rate supplied by the caller for this operation
-/// * `pricing_seed` - Pricing seed supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `process` - Stochastic process driving the simulated state variables over the grid
+    /// * `initial_spot` - Initial spot supplied by the caller for this operation
+    /// * `time_to_maturity` - Time to maturity supplied by the caller for this operation
+    /// * `num_steps` - Num steps supplied by the caller for this operation
+    /// * `exercise` - Exercise supplied by the caller for this operation
+    /// * `basis` - Basis supplied by the caller for this operation
+    /// * `policy` - Policy enum controlling error handling, unmatched keys, or fallbacks
+    /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
+    /// * `discount_rate` - Discount rate supplied by the caller for this operation
+    /// * `pricing_seed` - Pricing seed supplied by the caller for this operation
     #[allow(clippy::too_many_arguments)]
     pub fn price_with_policy<E, B>(
         &self,
@@ -779,18 +779,18 @@ impl LsmcPricer {
     /// Returns an error if `pricing_seed == self.config.seed` (the two passes
     /// would share paths and the result would be biased), or if either pass
     /// fails.
-///
-/// # Arguments
-///
-/// * `process` - Stochastic process driving the simulated state variables over the grid
-/// * `initial_spot` - Initial spot supplied by the caller for this operation
-/// * `time_to_maturity` - Time to maturity supplied by the caller for this operation
-/// * `num_steps` - Num steps supplied by the caller for this operation
-/// * `exercise` - Exercise supplied by the caller for this operation
-/// * `basis` - Basis supplied by the caller for this operation
-/// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
-/// * `discount_rate` - Discount rate supplied by the caller for this operation
-/// * `pricing_seed` - Pricing seed supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `process` - Stochastic process driving the simulated state variables over the grid
+    /// * `initial_spot` - Initial spot supplied by the caller for this operation
+    /// * `time_to_maturity` - Time to maturity supplied by the caller for this operation
+    /// * `num_steps` - Num steps supplied by the caller for this operation
+    /// * `exercise` - Exercise supplied by the caller for this operation
+    /// * `basis` - Basis supplied by the caller for this operation
+    /// * `currency` - ISO-4217 currency that defines scale, rounding, and display units
+    /// * `discount_rate` - Discount rate supplied by the caller for this operation
+    /// * `pricing_seed` - Pricing seed supplied by the caller for this operation
     #[allow(clippy::too_many_arguments)]
     pub fn price_unbiased<E, B>(
         &self,

@@ -81,10 +81,10 @@ impl YieldPanel {
     /// # Errors
     /// - Yield-change rows are empty or ragged
     /// - The reconstructed panel violates [`Self::new`] invariants
-///
-/// # Arguments
-///
-/// * `yield_changes` - Yield changes supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `yield_changes` - Yield changes supplied by the caller for this operation
     pub fn from_yield_changes(yield_changes: Vec<Vec<f64>>) -> crate::Result<Self> {
         let changes = rows_to_dmatrix(&yield_changes, "yield_changes")?;
         let n = changes.ncols();
@@ -108,12 +108,12 @@ impl YieldPanel {
     /// - Yield matrix column count does not match tenor grid length
     /// - Fewer than 2 observations (rows)
     /// - Any yield value is non-finite
-///
-/// # Arguments
-///
-/// * `yields` - Yields supplied by the caller for this operation
-/// * `tenors` - Tenors supplied by the caller for this operation
-/// * `dates` - Ascending observation dates aligned with the series or panel rows
+    ///
+    /// # Arguments
+    ///
+    /// * `yields` - Yields supplied by the caller for this operation
+    /// * `tenors` - Tenors supplied by the caller for this operation
+    /// * `dates` - Ascending observation dates aligned with the series or panel rows
     pub fn new(
         yields: DMatrix<f64>,
         tenors: Vec<f64>,

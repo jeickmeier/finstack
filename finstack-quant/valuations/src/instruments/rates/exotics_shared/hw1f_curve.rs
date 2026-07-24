@@ -332,11 +332,11 @@ impl<'a> Hw1fTermForward<'a> {
     /// at `fixing_t` (years from `as_of`) and *accrues* for `tau` years.
     ///
     /// The simple forward applies to the bond `P(fixing_t, fixing_t + tau)`.
-///
-/// # Arguments
-///
-/// * `fixing_t` - Fixing t supplied by the caller for this operation
-/// * `tau` - Tau supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `fixing_t` - Fixing t supplied by the caller for this operation
+    /// * `tau` - Tau supplied by the caller for this operation
     #[must_use]
     pub fn period_coeffs(&self, fixing_t: f64, tau: f64) -> PeriodForwardCoeffs {
         let t = fixing_t.max(0.0);

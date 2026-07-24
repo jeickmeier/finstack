@@ -32,10 +32,10 @@ impl HierarchyBuilder {
     /// Start or switch to a node at the given `/`-separated path.
     /// Creates intermediate nodes as needed.
     ///
-///
-/// # Arguments
-///
-/// * `path` - Path supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path supplied by the caller for this operation
     pub fn add_node(mut self, path: &str) -> Self {
         let segments = match parse_path(path) {
             Ok(segments) => segments,

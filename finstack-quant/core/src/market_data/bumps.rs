@@ -275,12 +275,12 @@ impl BumpSpec {
     /// // First bucket at 3M, next bucket at 6M, 1bp shock.
     /// let first = BumpSpec::triangular_key_rate_first_bp(0.25, 0.5, 1.0);
     /// ```
-///
-/// # Arguments
-///
-/// * `target_bucket` - Target bucket supplied by the caller for this operation
-/// * `next_bucket` - Next bucket supplied by the caller for this operation
-/// * `bump_bp` - Bump bp supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `target_bucket` - Target bucket supplied by the caller for this operation
+    /// * `next_bucket` - Next bucket supplied by the caller for this operation
+    /// * `bump_bp` - Bump bp supplied by the caller for this operation
     pub fn triangular_key_rate_first_bp(
         target_bucket: f64,
         next_bucket: f64,
@@ -310,12 +310,12 @@ impl BumpSpec {
     /// // Last bucket at 30Y with previous neighbour at 20Y.
     /// let last = BumpSpec::triangular_key_rate_last_bp(20.0, 30.0, 1.0);
     /// ```
-///
-/// # Arguments
-///
-/// * `prev_bucket` - Prev bucket supplied by the caller for this operation
-/// * `target_bucket` - Target bucket supplied by the caller for this operation
-/// * `bump_bp` - Bump bp supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `prev_bucket` - Prev bucket supplied by the caller for this operation
+    /// * `target_bucket` - Target bucket supplied by the caller for this operation
+    /// * `bump_bp` - Bump bp supplied by the caller for this operation
     pub fn triangular_key_rate_last_bp(prev_bucket: f64, target_bucket: f64, bump_bp: f64) -> Self {
         Self {
             mode: BumpMode::Additive,

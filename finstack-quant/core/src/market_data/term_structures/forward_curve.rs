@@ -299,10 +299,10 @@ impl ForwardCurve {
     }
 
     /// Forward rate starting at time `t` (in years) for the curve’s tenor.
-///
-/// # Arguments
-///
-/// * `t` - Year-fraction time from the curve or surface base date to the query point
+    ///
+    /// # Arguments
+    ///
+    /// * `t` - Year-fraction time from the curve or surface base date to the query point
     #[inline]
     #[must_use]
     pub fn rate(&self, t: f64) -> f64 {
@@ -325,11 +325,11 @@ impl ForwardCurve {
     ///
     /// Returns an error when either time is non-finite, `t2 <= t1`, or an
     /// implied projection discount factor cannot be calculated.
-///
-/// # Arguments
-///
-/// * `t1` - Start year-fraction of the forward or rate interval being queried
-/// * `t2` - End year-fraction of the forward or rate interval being queried
+    ///
+    /// # Arguments
+    ///
+    /// * `t1` - Start year-fraction of the forward or rate interval being queried
+    /// * `t2` - End year-fraction of the forward or rate interval being queried
     #[must_use = "computed forward rate should not be discarded"]
     pub fn rate_between(&self, t1: f64, t2: f64) -> crate::Result<f64> {
         if !(t1.is_finite() && t2.is_finite()) {
@@ -460,11 +460,11 @@ impl ForwardCurve {
     /// would be too breaking. A `debug_assert` fires in debug builds and a
     /// `tracing` warning is emitted in release builds; callers must be
     /// prepared for NaN to propagate if they pass misordered times.
-///
-/// # Arguments
-///
-/// * `t1` - Start year-fraction of the forward or rate interval being queried
-/// * `t2` - End year-fraction of the forward or rate interval being queried
+    ///
+    /// # Arguments
+    ///
+    /// * `t1` - Start year-fraction of the forward or rate interval being queried
+    /// * `t2` - End year-fraction of the forward or rate interval being queried
     #[inline]
     #[must_use]
     pub fn rate_period(&self, t1: f64, t2: f64) -> f64 {
@@ -598,10 +598,10 @@ impl ForwardCurve {
     /// Returns an error when `t` is non-finite or negative, the stored tenor
     /// is invalid, a projection step cannot produce a finite positive discount
     /// factor, or the final exponentiation is non-finite or non-positive.
-///
-/// # Arguments
-///
-/// * `t` - Year-fraction time from the curve or surface base date to the query point
+    ///
+    /// # Arguments
+    ///
+    /// * `t` - Year-fraction time from the curve or surface base date to the query point
     #[must_use = "computed discount factor should not be discarded"]
     pub fn df(&self, t: f64) -> crate::Result<f64> {
         let df = self.projection_log_df(t)?.exp();
@@ -976,20 +976,20 @@ impl ForwardCurveBuilder {
         self
     }
     /// Override the **reset lag** (fixing → spot) in business days.
-///
-/// # Arguments
-///
-/// * `lag` - Lag supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `lag` - Lag supplied by the caller for this operation
     pub fn reset_lag(mut self, lag: i32) -> Self {
         self.reset_lag = lag;
         self
     }
 
     /// Choose the **day-count** convention.
-///
-/// # Arguments
-///
-/// * `dc` - Dc supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `dc` - Dc supplied by the caller for this operation
     pub fn day_count(mut self, dc: DayCount) -> Self {
         self.day_count = dc;
         self
@@ -1030,10 +1030,10 @@ impl ForwardCurveBuilder {
     }
 
     /// Enforce a minimum forward rate across the provided knot points.
-///
-/// # Arguments
-///
-/// * `min_rate` - Min rate supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `min_rate` - Min rate supplied by the caller for this operation
     pub fn min_forward_rate(mut self, min_rate: f64) -> Self {
         self.min_forward_rate = Some(min_rate);
         self

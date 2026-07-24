@@ -274,13 +274,13 @@ impl CashFlowSchedule {
     ///
     /// Flows are sorted into deterministic schedule order. Call [`Self::validate`]
     /// when accepting untrusted or externally supplied economic state.
-///
-/// # Arguments
-///
-/// * `flows` - Flows supplied by the caller for this operation
-/// * `notional` - Trade notional amount in the instrument currency's major units
-/// * `day_count` - Day-count convention converting date pairs into year fractions
-/// * `meta` - Meta supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `flows` - Flows supplied by the caller for this operation
+    /// * `notional` - Trade notional amount in the instrument currency's major units
+    /// * `day_count` - Day-count convention converting date pairs into year fractions
+    /// * `meta` - Meta supplied by the caller for this operation
     pub fn from_parts(
         flows: Vec<CashFlow>,
         notional: Notional,
@@ -311,13 +311,13 @@ impl CashFlowSchedule {
     /// Returns an error if the notional or a cashflow is invalid, flow dates
     /// are not in canonical order after construction, or the schedule violates
     /// its economic funding, balance, or currency invariants.
-///
-/// # Arguments
-///
-/// * `flows` - Flows supplied by the caller for this operation
-/// * `notional` - Trade notional amount in the instrument currency's major units
-/// * `day_count` - Day-count convention converting date pairs into year fractions
-/// * `meta` - Meta supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `flows` - Flows supplied by the caller for this operation
+    /// * `notional` - Trade notional amount in the instrument currency's major units
+    /// * `day_count` - Day-count convention converting date pairs into year fractions
+    /// * `meta` - Meta supplied by the caller for this operation
     pub fn try_from_parts(
         flows: Vec<CashFlow>,
         notional: Notional,
@@ -360,10 +360,10 @@ impl CashFlowSchedule {
     }
 
     /// Update cashflows in place and restore canonical ordering afterward.
-///
-/// # Arguments
-///
-/// * `update` - Update supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `update` - Update supplied by the caller for this operation
     pub fn update_flows(&mut self, mut update: impl FnMut(&mut CashFlow)) {
         for flow in &mut self.flows {
             update(flow);

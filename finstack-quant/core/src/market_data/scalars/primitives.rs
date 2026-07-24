@@ -285,10 +285,10 @@ impl ScalarTimeSeries {
     /// let linear = series.clone().with_interpolation(SeriesInterpolation::Linear);
     /// assert!(linear.value_on(jan).expect("Value lookup should succeed") > 10.0);
     /// ```
-///
-/// # Arguments
-///
-/// * `date` - Calendar date in the instrument or market convention for the operation
+    ///
+    /// # Arguments
+    ///
+    /// * `date` - Calendar date in the instrument or market convention for the operation
     pub fn value_on(&self, date: Date) -> Result<f64> {
         self.value_at_day(to_days(date))
     }
@@ -371,10 +371,10 @@ impl ScalarTimeSeries {
     /// Unlike [`Self::value_on`], this does **not** interpolate or carry values forward.
     /// It is intended for market fixings where missing observations must be treated
     /// as an error (e.g., RFR overnight fixings).
-///
-/// # Arguments
-///
-/// * `date` - Calendar date in the instrument or market convention for the operation
+    ///
+    /// # Arguments
+    ///
+    /// * `date` - Calendar date in the instrument or market convention for the operation
     pub fn value_on_exact(&self, date: Date) -> Result<f64> {
         use crate::error::InputError;
 

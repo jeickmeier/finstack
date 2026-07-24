@@ -178,10 +178,10 @@ impl CompiledExpr {
     /// `Ytd`, etc.); those will fail at `eval()` time with a typed validation
     /// error. Callers that know they are operating on a scalar evaluator may
     /// prefer [`Self::try_new_scalar`] to fail fast at compile time.
-///
-/// # Arguments
-///
-/// * `ast` - Ast supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `ast` - Ast supplied by the caller for this operation
     pub fn new(ast: Expr) -> Self {
         Self {
             ast,
@@ -205,10 +205,10 @@ impl CompiledExpr {
     /// period-aware operation that the scalar evaluator cannot execute. It
     /// does not validate column names or data shapes; those are checked by
     /// [`Self::eval`].
-///
-/// # Arguments
-///
-/// * `ast` - Ast supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `ast` - Ast supplied by the caller for this operation
     pub fn try_new_scalar(ast: Expr) -> crate::Result<Self> {
         super::ast_walk::ensure_scalar_evaluable(&ast)?;
         Ok(Self::new(ast))
@@ -249,10 +249,10 @@ impl CompiledExpr {
     /// same-length data (see ,
     /// ). Within one `eval()` call each deduplicated DAG node is
     /// already evaluated exactly once.
-///
-/// # Arguments
-///
-/// * `_budget_mb` - Budget mb supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `_budget_mb` - Budget mb supplied by the caller for this operation
     pub fn with_cache(self, _budget_mb: usize) -> Self {
         self
     }
@@ -295,12 +295,12 @@ impl CompiledExpr {
     /// would overflow or exceed `opts.max_arena_bytes`. A zero arena limit
     /// disables only the configured size limit, not arithmetic-overflow
     /// protection.
-///
-/// # Arguments
-///
-/// * `ctx` - Ctx supplied by the caller for this operation
-/// * `cols` - Cols supplied by the caller for this operation
-/// * `opts` - Opts supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Ctx supplied by the caller for this operation
+    /// * `cols` - Cols supplied by the caller for this operation
+    /// * `opts` - Opts supplied by the caller for this operation
     pub fn eval(
         &self,
         ctx: &SimpleContext,

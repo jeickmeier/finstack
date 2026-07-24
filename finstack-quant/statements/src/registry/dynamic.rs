@@ -181,10 +181,10 @@ impl Registry {
     /// an invalid ID, name, or DSL formula, the document contains a dependency
     /// cycle, or a fully-qualified metric ID already exists. On error, `self`
     /// retains its exact prior metrics and namespace set.
-///
-/// # Arguments
-///
-/// * `registry` - Registry supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `registry` - Registry supplied by the caller for this operation
     pub fn load_registry(&mut self, registry: MetricRegistry) -> Result<()> {
         let namespace = registry.namespace.clone();
 

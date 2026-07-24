@@ -570,14 +570,14 @@ impl TryFrom<CapFloorQuoteRaw> for CapFloorQuote {
 
 impl CapFloorQuote {
     /// Construct a validated cap/floor market quote.
-///
-/// # Arguments
-///
-/// * `maturity` - Final payment or expiry date of the instrument being constructed
-/// * `strike` - Option strike in the surface's quote units (absolute or relative)
-/// * `volatility` - Volatility supplied by the caller for this operation
-/// * `is_cap` - Is cap supplied by the caller for this operation
-/// * `is_normal_vol` - Is normal vol supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `maturity` - Final payment or expiry date of the instrument being constructed
+    /// * `strike` - Option strike in the surface's quote units (absolute or relative)
+    /// * `volatility` - Volatility supplied by the caller for this operation
+    /// * `is_cap` - Is cap supplied by the caller for this operation
+    /// * `is_normal_vol` - Is normal vol supplied by the caller for this operation
     pub fn try_new(
         maturity: f64,
         strike: f64,
@@ -610,13 +610,13 @@ pub struct CapFloorCalibrationConfig {
 
 impl SwaptionQuote {
     /// Construct a validated swaption market quote.
-///
-/// # Arguments
-///
-/// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
-/// * `tenor` - Market tenor label or period length used to locate the quote or rate
-/// * `volatility` - Volatility supplied by the caller for this operation
-/// * `is_normal_vol` - Is normal vol supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
+    /// * `tenor` - Market tenor label or period length used to locate the quote or rate
+    /// * `volatility` - Volatility supplied by the caller for this operation
+    /// * `is_normal_vol` - Is normal vol supplied by the caller for this operation
     pub fn try_new(
         expiry: f64,
         tenor: f64,

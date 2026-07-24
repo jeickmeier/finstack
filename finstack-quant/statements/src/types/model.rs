@@ -61,10 +61,10 @@ impl FinancialModelSpec {
     /// This is the preferred entry point for staged model creation. The
     /// returned builder uses typestate to require `.periods()` before node
     /// definitions can be added.
-///
-/// # Arguments
-///
-/// * `id` - Stable string identifier used for lookup and serialization of this object
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Stable string identifier used for lookup and serialization of this object
     #[must_use]
     pub fn builder(
         id: impl Into<String>,

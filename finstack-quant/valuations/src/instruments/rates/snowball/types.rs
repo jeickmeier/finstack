@@ -246,11 +246,11 @@ impl Snowball {
     /// For inverse floater: c_i = max(fixed_rate - leverage * floating, floor)
     ///
     /// Applies optional cap after floor.
-///
-/// # Arguments
-///
-/// * `floating_rate` - Floating rate supplied by the caller for this operation
-/// * `prev_coupon` - Prev coupon supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `floating_rate` - Floating rate supplied by the caller for this operation
+    /// * `prev_coupon` - Prev coupon supplied by the caller for this operation
     pub fn compute_coupon(&self, floating_rate: f64, prev_coupon: f64) -> f64 {
         let raw = match self.variant {
             SnowballVariant::Snowball => prev_coupon + self.fixed_rate - floating_rate,

@@ -505,20 +505,20 @@ impl ValuationResult {
     }
 
     /// Attach rich model-specific valuation details.
-///
-/// # Arguments
-///
-/// * `details` - Details supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `details` - Details supplied by the caller for this operation
     pub fn with_details(mut self, details: ValuationDetails) -> Self {
         self.details = Some(details);
         self
     }
 
     /// Get a metric by `MetricId`.
-///
-/// # Arguments
-///
-/// * `id` - Stable string identifier used for lookup and serialization of this object
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Stable string identifier used for lookup and serialization of this object
     pub fn metric(&self, id: MetricId) -> Option<f64> {
         self.measures.get(&id).copied()
     }

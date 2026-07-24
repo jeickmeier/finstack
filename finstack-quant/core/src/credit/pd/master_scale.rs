@@ -86,10 +86,10 @@ impl MasterScale {
     /// - [`PdCalibrationError::EmptyInput`] if grades are empty.
     /// - [`PdCalibrationError::GradesNotSorted`] if grades are not in ascending order.
     /// - [`PdCalibrationError::ValueOutOfRange`] if any PD value is invalid.
-///
-/// # Arguments
-///
-/// * `grades` - Grades supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `grades` - Grades supplied by the caller for this operation
     pub fn new(grades: Vec<MasterScaleGrade>) -> Result<Self, PdCalibrationError> {
         if grades.is_empty() {
             return Err(PdCalibrationError::EmptyInput);
@@ -133,10 +133,10 @@ impl MasterScale {
     /// Returns [`PdCalibrationError::NonFiniteValue`] if `pd` is NaN or
     /// infinite (NaN previously fell through
     /// every comparison and silently mapped to the worst grade).
-///
-/// # Arguments
-///
-/// * `pd` - Pd supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `pd` - Pd supplied by the caller for this operation
     pub fn map_pd(&self, pd: f64) -> Result<MasterScaleResult, PdCalibrationError> {
         if !pd.is_finite() {
             return Err(PdCalibrationError::NonFiniteValue { value: pd });

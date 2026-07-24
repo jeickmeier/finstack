@@ -230,11 +230,11 @@ impl Tenor {
     /// Returns `InputError::InvalidTenor` when `count` is zero, exceeds the
     /// supported range for `unit`, or cannot be converted safely between weeks
     /// and days or years and months.
-///
-/// # Arguments
-///
-/// * `count` - Count supplied by the caller for this operation
-/// * `unit` - Unit enum selecting the interpretation of the numeric magnitude
+    ///
+    /// # Arguments
+    ///
+    /// * `count` - Count supplied by the caller for this operation
+    /// * `unit` - Unit enum selecting the interpretation of the numeric magnitude
     pub fn try_new(count: u32, unit: TenorUnit) -> crate::Result<Self> {
         let max_count = match unit {
             TenorUnit::Days => MAX_TENOR_DAYS,

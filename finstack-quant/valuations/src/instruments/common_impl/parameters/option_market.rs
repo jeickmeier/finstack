@@ -30,16 +30,16 @@ impl OptionMarketParams {
     /// Validation is provided separately by [`OptionMarketParams::validate`]
     /// so this constructor's signature stays infallible; callers that price
     /// off these parameters should call `validate` first.
-///
-/// # Arguments
-///
-/// * `spot` - Spot price or FX rate used to convert delta quotes into absolute strikes
-/// * `strike` - Option strike in the surface's quote units (absolute or relative)
-/// * `rate` - Rate supplied by the caller for this operation
-/// * `volatility` - Volatility supplied by the caller for this operation
-/// * `time_to_expiry` - Time to expiry supplied by the caller for this operation
-/// * `dividend_yield` - Dividend yield supplied by the caller for this operation
-/// * `option_type` - Option type supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `spot` - Spot price or FX rate used to convert delta quotes into absolute strikes
+    /// * `strike` - Option strike in the surface's quote units (absolute or relative)
+    /// * `rate` - Rate supplied by the caller for this operation
+    /// * `volatility` - Volatility supplied by the caller for this operation
+    /// * `time_to_expiry` - Time to expiry supplied by the caller for this operation
+    /// * `dividend_yield` - Dividend yield supplied by the caller for this operation
+    /// * `option_type` - Option type supplied by the caller for this operation
     pub fn new(
         spot: f64,
         strike: f64,

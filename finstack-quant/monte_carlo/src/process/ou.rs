@@ -58,12 +58,12 @@ pub struct HullWhite1FParams {
 
 impl HullWhite1FParams {
     /// Create new Hull-White 1F parameters with constant θ.
-///
-/// # Arguments
-///
-/// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
-/// * `sigma` - Diffusion volatility of the process in decimal annual units
-/// * `theta` - Long-run mean level of the mean-reverting stochastic factor
+    ///
+    /// # Arguments
+    ///
+    /// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
+    /// * `sigma` - Diffusion volatility of the process in decimal annual units
+    /// * `theta` - Long-run mean level of the mean-reverting stochastic factor
     pub fn new(kappa: f64, sigma: f64, theta: f64) -> Self {
         Self {
             kappa,
@@ -200,11 +200,11 @@ impl HullWhite1FParams {
     /// O(dt) local bias whenever a simulation step straddles a θ knot (e.g.
     /// on event-aligned grids whose nodes are not θ breakpoints); using the
     /// step-average reduces this to O(dt²).
-///
-/// # Arguments
-///
-/// * `t` - Year-fraction time from the curve or surface base date to the query point
-/// * `dt` - Dt supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `t` - Year-fraction time from the curve or surface base date to the query point
+    /// * `dt` - Dt supplied by the caller for this operation
     pub fn theta_average(&self, t: f64, dt: f64) -> f64 {
         if dt <= 0.0 {
             return self.theta_at_time(t);
@@ -259,12 +259,12 @@ impl HullWhite1FProcess {
     }
 
     /// Create with constant θ (Vasicek model).
-///
-/// # Arguments
-///
-/// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
-/// * `theta` - Long-run mean level of the mean-reverting stochastic factor
-/// * `sigma` - Diffusion volatility of the process in decimal annual units
+    ///
+    /// # Arguments
+    ///
+    /// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
+    /// * `theta` - Long-run mean level of the mean-reverting stochastic factor
+    /// * `sigma` - Diffusion volatility of the process in decimal annual units
     pub fn vasicek(kappa: f64, theta: f64, sigma: f64) -> Self {
         Self::new(HullWhite1FParams::new(kappa, sigma, theta))
     }

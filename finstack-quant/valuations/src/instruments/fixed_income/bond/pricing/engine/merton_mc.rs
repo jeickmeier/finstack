@@ -336,10 +336,10 @@ impl MertonMcConfig {
     }
 
     /// Set the market-calibration specification.
-///
-/// # Arguments
-///
-/// * `c` - C supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `c` - C supplied by the caller for this operation
     #[must_use]
     pub fn calibration(mut self, c: MertonMcCalibrationSpec) -> Self {
         self.calibration = Some(c);

@@ -613,11 +613,11 @@ impl DiscountCurve {
     /// # Ok(())
     /// # }
     /// ```
-///
-/// # Arguments
-///
-/// * `t1` - Start year-fraction of the forward or rate interval being queried
-/// * `t2` - End year-fraction of the forward or rate interval being queried
+    ///
+    /// # Arguments
+    ///
+    /// * `t1` - Start year-fraction of the forward or rate interval being queried
+    /// * `t2` - End year-fraction of the forward or rate interval being queried
     #[inline]
     #[must_use = "computed forward rate should not be discarded"]
     pub fn forward(&self, t1: f64, t2: f64) -> crate::Result<f64> {
@@ -1528,10 +1528,10 @@ impl DiscountCurveBuilder {
         self
     }
     /// Choose the day-count basis for discount time mapping.
-///
-/// # Arguments
-///
-/// * `dc` - Dc supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `dc` - Dc supplied by the caller for this operation
     pub fn day_count(mut self, dc: DayCount) -> Self {
         self.day_count = dc;
         self
@@ -1558,10 +1558,10 @@ impl DiscountCurveBuilder {
     }
 
     /// Select the validation policy for the curve.
-///
-/// # Arguments
-///
-/// * `mode` - Mode supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `mode` - Mode supplied by the caller for this operation
     pub fn validation(mut self, mode: ValidationMode) -> Self {
         match mode {
             ValidationMode::MarketStandard => {
@@ -1613,10 +1613,10 @@ impl DiscountCurveBuilder {
     /// # Ok(())
     /// # }
     /// ```
-///
-/// # Arguments
-///
-/// * `tenor` - Market tenor label or period length used to locate the quote or rate
+    ///
+    /// # Arguments
+    ///
+    /// * `tenor` - Market tenor label or period length used to locate the quote or rate
     pub fn min_forward_tenor(mut self, tenor: f64) -> Self {
         self.min_forward_tenor = tenor;
         self

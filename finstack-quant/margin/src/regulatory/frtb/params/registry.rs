@@ -241,10 +241,10 @@ impl FrtbParams {
     /// [`MarginError::Validation`] on a malformed JSON shape or any
     /// validation failure (negative risk weight, correlation outside
     /// `[-1, 1]`, etc.).
-///
-/// # Arguments
-///
-/// * `overlay` - Overlay supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `overlay` - Overlay supplied by the caller for this operation
     pub fn from_json_overlay(overlay: &serde_json::Value) -> Result<Self, MarginError> {
         let defaults = serde_json::to_value(Self::d457()).map_err(|e| {
             MarginError::Validation(format!("internal: failed to serialize d457 defaults: {e}"))

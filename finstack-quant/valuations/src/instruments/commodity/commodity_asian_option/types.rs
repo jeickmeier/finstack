@@ -212,10 +212,10 @@ impl CommodityAsianOption {
     /// - any scheduled `fixing_date <= as_of` has no realized fixing — a
     ///   missing past fixing silently deflates `hist_sum` and inflates the
     ///   seasoned effective strike.
-///
-/// # Arguments
-///
-/// * `as_of` - Valuation or observation date that anchors discounting and schedule logic
+    ///
+    /// # Arguments
+    ///
+    /// * `as_of` - Valuation or observation date that anchors discounting and schedule logic
     pub fn validate_realized_fixings(&self, as_of: Date) -> finstack_quant_core::Result<()> {
         self.validate_structure()?;
         let mut seen: std::collections::BTreeSet<Date> = std::collections::BTreeSet::new();
@@ -269,10 +269,10 @@ impl CommodityAsianOption {
     /// Call [`Self::validate_realized_fixings`] first. Geometric averaging
     /// requires strictly positive values, so this function never needs to
     /// encode an invalid observation as a sentinel.
-///
-/// # Arguments
-///
-/// * `as_of` - Valuation or observation date that anchors discounting and schedule logic
+    ///
+    /// # Arguments
+    ///
+    /// * `as_of` - Valuation or observation date that anchors discounting and schedule logic
     pub fn accumulated_state(&self, as_of: Date) -> (f64, f64, usize) {
         let mut sum = 0.0;
         let mut product_log = 0.0;

@@ -547,14 +547,14 @@ impl InflationLinkedBond {
     ///     "UK-RPI",
     /// );
     /// ```
-///
-/// # Arguments
-///
-/// * `id` - Stable string identifier used for lookup and serialization of this object
-/// * `bond_params` - Bond params supplied by the caller for this operation
-/// * `base_date` - Base date supplied by the caller for this operation
-/// * `discount_curve_id` - Discount curve id supplied by the caller for this operation
-/// * `inflation_index_id` - Inflation index id supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Stable string identifier used for lookup and serialization of this object
+    /// * `bond_params` - Bond params supplied by the caller for this operation
+    /// * `base_date` - Base date supplied by the caller for this operation
+    /// * `discount_curve_id` - Discount curve id supplied by the caller for this operation
+    /// * `inflation_index_id` - Inflation index id supplied by the caller for this operation
     pub fn new_uk_linker(
         id: impl Into<InstrumentId>,
         bond_params: &InflationLinkedBondParams,
@@ -650,13 +650,13 @@ impl InflationLinkedBond {
     /// When pricing modern UK gilts, ensure the inflation index provided uses
     /// **linear interpolation** (daily), not step interpolation. The pricer will
     /// validate this at runtime.
-///
-/// # Arguments
-///
-/// * `id` - Stable string identifier used for lookup and serialization of this object
-/// * `bond_params` - Bond params supplied by the caller for this operation
-/// * `discount_curve_id` - Discount curve id supplied by the caller for this operation
-/// * `inflation_index_id` - Inflation index id supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Stable string identifier used for lookup and serialization of this object
+    /// * `bond_params` - Bond params supplied by the caller for this operation
+    /// * `discount_curve_id` - Discount curve id supplied by the caller for this operation
+    /// * `inflation_index_id` - Inflation index id supplied by the caller for this operation
     pub fn new_uk_linker_modern(
         id: impl Into<InstrumentId>,
         bond_params: &InflationLinkedBondParams,

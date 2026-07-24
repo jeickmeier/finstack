@@ -957,10 +957,10 @@ impl ScenarioEngine {
     /// Returns a validation error if composition contains multiple time-roll
     /// operations. Other conflicts remain in the composed spec and are
     /// validated when [`Self::apply`] is called.
-///
-/// # Arguments
-///
-/// * `scenarios` - Scenarios supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `scenarios` - Scenarios supplied by the caller for this operation
     pub fn try_compose(
         &self,
         scenarios: Vec<ScenarioSpec>,
@@ -1015,11 +1015,11 @@ impl ScenarioEngine {
     /// data, missing market objects, or hierarchy-targeted operations without
     /// an attached hierarchy. Because execution is not atomic, an error can
     /// follow successful mutation by earlier operations.
-///
-/// # Arguments
-///
-/// * `spec` - Spec supplied by the caller for this operation
-/// * `ctx` - Ctx supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `spec` - Spec supplied by the caller for this operation
+    /// * `ctx` - Ctx supplied by the caller for this operation
     #[tracing::instrument(skip_all, fields(scenario_id = %spec.id))]
     pub fn apply(
         &self,

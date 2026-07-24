@@ -405,10 +405,10 @@ impl CashFlowBuilder {
     /// failure. In particular, a floating spec with the default error fallback
     /// fails when its required market data is unavailable.
     ///
-///
-/// # Arguments
-///
-/// * `curves` - Curves supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `curves` - Curves supplied by the caller for this operation
     pub fn build(
         &self,
         curves: Option<&finstack_quant_core::market_data::context::MarketContext>,

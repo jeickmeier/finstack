@@ -1252,10 +1252,10 @@ impl MarketContext {
     ///     .expect("surface should exist");
     /// assert_eq!(surf.id().as_str(), "EURUSD-DELTA-VOL");
     /// ```
-///
-/// # Arguments
-///
-/// * `id` - Stable string identifier used for lookup and serialization of this object
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Stable string identifier used for lookup and serialization of this object
     pub fn get_fx_delta_vol_surface(&self, id: impl AsRef<str>) -> Result<Arc<FxDeltaVolSurface>> {
         self.get_cloned(&self.fx_delta_vol_surfaces, id.as_ref())
     }
@@ -1416,10 +1416,10 @@ impl MarketContext {
     /// This is primarily intended for downstream crates that operate on heterogeneous
     /// curve types (e.g., calibration pipelines) and want to update the context
     /// without matching on concrete curve variants.
-///
-/// # Arguments
-///
-/// * `curve` - Curve supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `curve` - Curve supplied by the caller for this operation
     pub fn insert<C>(mut self, curve: C) -> Self
     where
         C: Into<CurveStorage>,
@@ -1463,10 +1463,10 @@ impl MarketContext {
     /// let shared = Arc::new(surface2);
     /// let ctx2 = MarketContext::new().insert_surface(Arc::clone(&shared));
     /// ```
-///
-/// # Arguments
-///
-/// * `surface` - Surface supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `surface` - Surface supplied by the caller for this operation
     pub fn insert_surface(mut self, surface: impl Into<Arc<VolSurface>>) -> Self {
         self.insert_surface_mut(surface);
         self
@@ -1494,10 +1494,10 @@ impl MarketContext {
     /// let ctx = MarketContext::new().insert_fx_delta_vol_surface(surface);
     /// assert!(ctx.get_fx_delta_vol_surface("EURUSD-DELTA-VOL").is_ok());
     /// ```
-///
-/// # Arguments
-///
-/// * `surface` - Surface supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `surface` - Surface supplied by the caller for this operation
     pub fn insert_fx_delta_vol_surface(
         mut self,
         surface: impl Into<Arc<FxDeltaVolSurface>>,
@@ -1513,10 +1513,10 @@ impl MarketContext {
     ///
     /// # Parameters
     /// - `cube`: a [`VolCube`] or `Arc<VolCube>`
-///
-/// # Arguments
-///
-/// * `cube` - Cube supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `cube` - Cube supplied by the caller for this operation
     pub fn insert_vol_cube(mut self, cube: impl Into<Arc<VolCube>>) -> Self {
         self.insert_vol_cube_mut(cube);
         self
@@ -1529,10 +1529,10 @@ impl MarketContext {
     ///
     /// # Parameters
     /// - `schedule`: a [`DividendSchedule`] or `Arc<DividendSchedule>` built via its builder
-///
-/// # Arguments
-///
-/// * `schedule` - Schedule supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `schedule` - Schedule supplied by the caller for this operation
     pub fn insert_dividends(mut self, schedule: impl Into<Arc<DividendSchedule>>) -> Self {
         self.insert_dividends_mut(schedule);
         self
@@ -1542,11 +1542,11 @@ impl MarketContext {
     /// # Parameters
     /// - `id`: identifier (string-like) stored as [`CurveId`]
     /// - `price`: scalar value to store
-///
-/// # Arguments
-///
-/// * `id` - Stable string identifier used for lookup and serialization of this object
-/// * `price` - Price supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Stable string identifier used for lookup and serialization of this object
+    /// * `price` - Price supplied by the caller for this operation
     pub fn insert_price(mut self, id: impl AsRef<str>, price: MarketScalar) -> Self {
         self.insert_price_mut(id, price);
         self
@@ -1555,10 +1555,10 @@ impl MarketContext {
     ///
     /// # Parameters
     /// - `series`: [`ScalarTimeSeries`] to store
-///
-/// # Arguments
-///
-/// * `series` - Time-ordered numeric samples for a single risk factor or price series
+    ///
+    /// # Arguments
+    ///
+    /// * `series` - Time-ordered numeric samples for a single risk factor or price series
     pub fn insert_series(mut self, series: ScalarTimeSeries) -> Self {
         self.insert_series_mut(series);
         self
@@ -1602,11 +1602,11 @@ impl MarketContext {
     /// let shared = Arc::new(index2);
     /// let ctx2 = MarketContext::new().insert_inflation_index("EU-HICP", Arc::clone(&shared));
     /// ```
-///
-/// # Arguments
-///
-/// * `id` - Stable string identifier used for lookup and serialization of this object
-/// * `index` - Zero-based index selecting an entry from the ordered collection
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Stable string identifier used for lookup and serialization of this object
+    /// * `index` - Zero-based index selecting an entry from the ordered collection
     pub fn insert_inflation_index(
         mut self,
         id: impl AsRef<str>,
@@ -1648,11 +1648,11 @@ impl MarketContext {
     /// let ctx = MarketContext::new().insert_credit_index("CDX-IG", data);
     /// assert!(ctx.get_credit_index("CDX-IG").is_ok());
     /// ```
-///
-/// # Arguments
-///
-/// * `id` - Stable string identifier used for lookup and serialization of this object
-/// * `data` - Data supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Stable string identifier used for lookup and serialization of this object
+    /// * `data` - Data supplied by the caller for this operation
     pub fn insert_credit_index(mut self, id: impl AsRef<str>, data: CreditIndexData) -> Self {
         self.insert_credit_index_mut(id, data);
         self
@@ -1701,10 +1701,10 @@ impl MarketContext {
     /// let shared_fx = Arc::new(FxMatrix::new(Arc::new(StaticFx2)));
     /// let ctx2 = MarketContext::new().insert_fx(Arc::clone(&shared_fx));
     /// ```
-///
-/// # Arguments
-///
-/// * `fx` - FX matrix or provider used to convert cashflows into reporting currency
+    ///
+    /// # Arguments
+    ///
+    /// * `fx` - FX matrix or provider used to convert cashflows into reporting currency
     pub fn insert_fx(mut self, fx: impl Into<Arc<FxMatrix>>) -> Self {
         self.insert_fx_mut(fx);
         self
@@ -1761,11 +1761,11 @@ impl MarketContext {
     ///     .map_collateral("USD-CSA", CurveId::from("USD-OIS"));
     /// assert!(ctx.get_collateral("USD-CSA").is_ok());
     /// ```
-///
-/// # Arguments
-///
-/// * `csa_code` - Csa code supplied by the caller for this operation
-/// * `discount_id` - Discount id supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `csa_code` - Csa code supplied by the caller for this operation
+    /// * `discount_id` - Discount id supplied by the caller for this operation
     pub fn map_collateral(mut self, csa_code: impl Into<String>, discount_id: CurveId) -> Self {
         self.map_collateral_mut(csa_code, discount_id);
         self

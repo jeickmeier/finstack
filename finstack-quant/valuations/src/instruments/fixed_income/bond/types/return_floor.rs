@@ -362,10 +362,10 @@ impl ReturnFloorSpec {
     /// # Returns
     ///
     /// `self` with `window` updated (fluent builder).
-///
-/// # Arguments
-///
-/// * `window` - Window supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `window` - Window supplied by the caller for this operation
     #[must_use]
     pub fn window(mut self, window: ProtectionWindow) -> Self {
         self.window = window;
@@ -379,10 +379,10 @@ impl ReturnFloorSpec {
     /// # Returns
     ///
     /// `self` with `day_count` updated (fluent builder).
-///
-/// # Arguments
-///
-/// * `dc` - Dc supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `dc` - Dc supplied by the caller for this operation
     #[must_use]
     pub fn day_count(mut self, dc: DayCount) -> Self {
         self.day_count = Some(dc);

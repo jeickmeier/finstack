@@ -120,10 +120,10 @@ impl ReplayTimeline {
     ///
     /// Returns [`Error::InvalidInput`] for an empty timeline or dates that are
     /// not strictly ascending.
-///
-/// # Arguments
-///
-/// * `snapshots` - Snapshots supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `snapshots` - Snapshots supplied by the caller for this operation
     pub fn new(snapshots: Vec<(Date, MarketContext)>) -> Result<Self> {
         if snapshots.is_empty() {
             return Err(Error::InvalidInput(

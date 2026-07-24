@@ -191,10 +191,10 @@ impl CreditIndexDataBuilder {
     }
 
     /// Set issuer-specific credit curves for heterogeneous portfolio modeling.
-///
-/// # Arguments
-///
-/// * `curves` - Curves supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `curves` - Curves supplied by the caller for this operation
     pub fn issuer_curves(mut self, curves: HashMap<String, Arc<HazardCurve>>) -> Self {
         self.issuer_credit_curves = Some(curves);
         self

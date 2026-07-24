@@ -436,10 +436,10 @@ impl VolSurface {
     /// Use [`VolInterpolationMode::TotalVariance`] when the surface should
     /// interpolate linearly in total variance rather than directly in implied
     /// volatility.
-///
-/// # Arguments
-///
-/// * `interpolation_mode` - Interpolation mode supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `interpolation_mode` - Interpolation mode supplied by the caller for this operation
     #[must_use]
     pub fn with_interpolation_mode(mut self, interpolation_mode: VolInterpolationMode) -> Self {
         self.interpolation_mode = interpolation_mode;
@@ -474,10 +474,10 @@ impl VolSurface {
     ///
     /// Returns `Error::Validation` when this surface's quote convention differs
     /// from `expected`.
-///
-/// # Arguments
-///
-/// * `expected` - Expected supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `expected` - Expected supplied by the caller for this operation
     pub fn require_quote_type(&self, expected: VolQuoteType) -> crate::Result<()> {
         if self.quote_type == expected {
             return Ok(());
@@ -612,12 +612,12 @@ impl VolSurface {
     }
 
     /// Restore a grid point to a previously saved vol value.
-///
-/// # Arguments
-///
-/// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
-/// * `strike` - Option strike in the surface's quote units (absolute or relative)
-/// * `original_vol` - Original vol supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `expiry` - Option expiry date or year-fraction used to locate the volatility point
+    /// * `strike` - Option strike in the surface's quote units (absolute or relative)
+    /// * `original_vol` - Original vol supplied by the caller for this operation
     pub fn unbump_point_in_place(&mut self, expiry: f64, strike: f64, original_vol: f64) {
         let clamped_expiry = match (self.expiries.first(), self.expiries.last()) {
             (Some(&min), Some(&max)) => expiry.clamp(min, max),
@@ -1081,14 +1081,14 @@ impl VolSurface {
     /// `InputError::DimensionMismatch` when the flat grid has the wrong size,
     /// an input-validation error for non-monotone or non-finite axes, and an
     /// error for non-finite or negative volatility values.
-///
-/// # Arguments
-///
-/// * `id` - Stable string identifier used for lookup and serialization of this object
-/// * `expiries` - Expiries supplied by the caller for this operation
-/// * `strikes` - Strikes supplied by the caller for this operation
-/// * `vols_row_major` - Vols row major supplied by the caller for this operation
-/// * `opts` - Opts supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Stable string identifier used for lookup and serialization of this object
+    /// * `expiries` - Expiries supplied by the caller for this operation
+    /// * `strikes` - Strikes supplied by the caller for this operation
+    /// * `vols_row_major` - Vols row major supplied by the caller for this operation
+    /// * `opts` - Opts supplied by the caller for this operation
     pub fn from_grid_opts(
         id: impl AsRef<str>,
         expiries: &[f64],
@@ -1133,13 +1133,13 @@ impl VolSurface {
     ///
     /// Propagates the grid-shape, axis, and volatility validation errors from
     /// [`Self::from_grid_opts`].
-///
-/// # Arguments
-///
-/// * `id` - Stable string identifier used for lookup and serialization of this object
-/// * `expiries` - Expiries supplied by the caller for this operation
-/// * `strikes` - Strikes supplied by the caller for this operation
-/// * `vols_row_major` - Vols row major supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Stable string identifier used for lookup and serialization of this object
+    /// * `expiries` - Expiries supplied by the caller for this operation
+    /// * `strikes` - Strikes supplied by the caller for this operation
+    /// * `vols_row_major` - Vols row major supplied by the caller for this operation
     pub fn from_grid(
         id: impl AsRef<str>,
         expiries: &[f64],

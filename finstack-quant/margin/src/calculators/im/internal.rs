@@ -68,10 +68,10 @@ impl InternalModelImCalculator {
     }
 
     /// Attach an internal-model input source.
-///
-/// # Arguments
-///
-/// * `source` - Source supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `source` - Source supplied by the caller for this operation
     #[must_use]
     pub fn with_input_source(mut self, source: Arc<dyn super::ExternalImSource>) -> Self {
         self.input_source = Some(source);
@@ -86,10 +86,10 @@ impl InternalModelImCalculator {
     /// finite value in `[0, 1]` — a negative or NaN rate would silently
     /// produce a negative or non-finite IM, which would in turn corrupt
     /// any downstream margin call.
-///
-/// # Arguments
-///
-/// * `rate` - Rate supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `rate` - Rate supplied by the caller for this operation
     pub fn with_conservative_rate(mut self, rate: f64) -> Result<Self> {
         if !rate.is_finite() || !(0.0..=1.0).contains(&rate) {
             return Err(finstack_quant_core::Error::Validation(format!(
@@ -101,10 +101,10 @@ impl InternalModelImCalculator {
     }
 
     /// Override the MPOR in days.
-///
-/// # Arguments
-///
-/// * `days` - Days supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `days` - Days supplied by the caller for this operation
     #[must_use]
     pub fn with_mpor_days(mut self, days: u32) -> Self {
         self.mpor_days = days;

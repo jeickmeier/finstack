@@ -21,12 +21,12 @@ impl Grid1D {
     /// # Panics
     ///
     /// Returns an error if `n < 3` or `x_min >= x_max`.
-///
-/// # Arguments
-///
-/// * `x_min` - X min supplied by the caller for this operation
-/// * `x_max` - X max supplied by the caller for this operation
-/// * `n` - Count of elements, paths, or periods requested by the caller
+    ///
+    /// # Arguments
+    ///
+    /// * `x_min` - X min supplied by the caller for this operation
+    /// * `x_max` - X max supplied by the caller for this operation
+    /// * `n` - Count of elements, paths, or periods requested by the caller
     pub fn uniform(x_min: f64, x_max: f64, n: usize) -> Result<Self, PdeGridError> {
         if n < 3 {
             return Err(PdeGridError::TooFewPoints { n, min: 3 });

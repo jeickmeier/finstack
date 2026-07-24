@@ -66,12 +66,12 @@ impl KyleLambdaModel {
     ///
     /// Returns `None` when the inputs are empty, mismatched in length, otherwise
     /// invalid, or when `reference_price` is non-positive/non-finite.
-///
-/// # Arguments
-///
-/// * `volumes` - Volumes supplied by the caller for this operation
-/// * `returns` - Returns supplied by the caller for this operation
-/// * `reference_price` - Reference price supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `volumes` - Volumes supplied by the caller for this operation
+    /// * `returns` - Returns supplied by the caller for this operation
+    /// * `reference_price` - Reference price supplied by the caller for this operation
     pub fn lambda_from_series_with_mid(
         volumes: &[f64],
         returns: &[f64],

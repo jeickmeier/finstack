@@ -29,11 +29,11 @@ impl NormalizationEngine {
     /// referenced or cap-base node is missing, a percentage source lacks a
     /// value for a target period, or a cap is negative. Results are returned
     /// only after all periods are processed and are sorted chronologically.
-///
-/// # Arguments
-///
-/// * `results` - Results supplied by the caller for this operation
-/// * `config` - Configuration object controlling validation, rounding, or solver behavior
+    ///
+    /// # Arguments
+    ///
+    /// * `results` - Results supplied by the caller for this operation
+    /// * `config` - Configuration object controlling validation, rounding, or solver behavior
     pub fn normalize(
         results: &StatementResult,
         config: &NormalizationConfig,

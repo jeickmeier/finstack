@@ -46,12 +46,12 @@ impl CirParams {
     /// - `kappa <= 0` or non-finite
     /// - `theta < 0` or non-finite
     /// - `sigma <= 0` or non-finite
-///
-/// # Arguments
-///
-/// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
-/// * `theta` - Long-run mean level of the mean-reverting stochastic factor
-/// * `sigma` - Diffusion volatility of the process in decimal annual units
+    ///
+    /// # Arguments
+    ///
+    /// * `kappa` - Mean-reversion speed of the stochastic volatility or short-rate factor
+    /// * `theta` - Long-run mean level of the mean-reverting stochastic factor
+    /// * `sigma` - Diffusion volatility of the process in decimal annual units
     pub fn new(kappa: f64, theta: f64, sigma: f64) -> finstack_quant_core::Result<Self> {
         if !kappa.is_finite() || kappa <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(format!(

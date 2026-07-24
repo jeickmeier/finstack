@@ -181,10 +181,10 @@ impl SobolRng {
     ///
     /// Writes `min(buf.len(), dimension)` values into `buf`. Advances the
     /// sequence index by one regardless of buffer length.
-///
-/// # Arguments
-///
-/// * `buf` - Buf supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - Buf supplied by the caller for this operation
     pub fn fill_point(&mut self, buf: &mut [f64]) {
         for (d, slot) in buf.iter_mut().enumerate().take(self.dimension) {
             let value = self.sobol_value(d);
@@ -333,10 +333,10 @@ impl SobolRng {
     /// ~1.16e-10 rather than exactly 0. This keeps the inverse normal CDF
     /// finite without the ~37-sigma outlier that `f64::MIN_POSITIVE` would
     /// produce as a clamp lower bound.
-///
-/// # Arguments
-///
-/// * `out` - Out supplied by the caller for this operation
+    ///
+    /// # Arguments
+    ///
+    /// * `out` - Out supplied by the caller for this operation
     pub fn fill_std_normals(&mut self, out: &mut [f64]) {
         // Pre-fill with raw u32 Sobol integers (we need integer k before
         // converting to uniform) — but fill_u01 already converts. Instead
