@@ -1,6 +1,12 @@
-//! Internal model IM calculator.
+//! Internal model IM calculator — **conservative proxy, not a VaR/ES model**.
 //!
-//! Stub implementation for bank internal models (VaR/ES-based).
+//! A bank internal model (VaR/ES) is NOT implemented; conservative proxy
+//! only. This calculator either passes through an externally supplied
+//! internal-model margin amount ([`ExternalImSource`](super::ExternalImSource)),
+//! or falls back to a conservative `|exposure_base| × rate` proxy. Results
+//! produced by the proxy path carry `ImResult::approximation == true` and
+//! emit a `tracing::warn!`. For production margin reconciliation, attach an
+//! external source fed by the bank's actual internal model.
 
 use crate::calculators::traits::{ImCalculator, ImResult};
 use crate::traits::Marginable;
@@ -12,7 +18,7 @@ use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
 use std::sync::Arc;
 
-/// Internal model IM calculator.
+/// Internal model IM calculator — a conservative proxy, not a VaR/ES model.
 ///
 /// Fields are private; use the builder methods ([`Self::new`],
 /// [`Self::with_conservative_rate`], [`Self::with_mpor_days`],
@@ -146,33 +152,47 @@ impl ImCalculator for InternalModelImCalculator {
         let mut mpor_days = self.mpor_days;
         let mut label = "internal_model".to_string();
 
-        let im_amount = if let Some(source) = &self.input_source {
+        let (im_amount, approximation) = if let Some(source) = &self.input_source {
             if let Some(override_mpor) = source.external_mpor_days() {
                 mpor_days = override_mpor;
             }
             if let Some(name) = source.external_model_name() {
                 label = name;
             }
-            source
-                .external_initial_margin(instrument, context, as_of)
-                .map_or_else(
-                    || self.conservative_fallback(instrument, context, as_of),
-                    Ok,
-                )?
+            match source.external_initial_margin(instrument, context, as_of) {
+                Some(amount) => (amount, false),
+                None => (
+                    self.conservative_fallback(instrument, context, as_of)?,
+                    true,
+                ),
+            }
         } else {
-            self.conservative_fallback(instrument, context, as_of)?
+            (
+                self.conservative_fallback(instrument, context, as_of)?,
+                true,
+            )
         };
+
+        if approximation {
+            tracing::warn!(
+                instrument = instrument.id(),
+                "internal-model IM computed via conservative proxy (|exposure_base| x rate); \
+                 this is NOT a VaR/ES internal model"
+            );
+        }
 
         let mut breakdown = HashMap::default();
         breakdown.insert(label, im_amount);
 
-        Ok(ImResult::with_breakdown(
+        let mut result = ImResult::with_breakdown(
             im_amount,
             ImMethodology::InternalModel,
             as_of,
             mpor_days,
             breakdown,
-        ))
+        );
+        result.approximation = approximation;
+        Ok(result)
     }
 
     fn methodology(&self) -> ImMethodology {
@@ -191,6 +211,7 @@ mod tests {
     struct TestInstrument {
         id: String,
         value: Money,
+        exposure_base: Option<Money>,
     }
 
     impl TestInstrument {
@@ -198,6 +219,7 @@ mod tests {
             Self {
                 id: "TEST-INST".to_string(),
                 value,
+                exposure_base: None,
             }
         }
     }
@@ -225,6 +247,10 @@ mod tests {
 
         fn mtm_for_vm(&self, _market: &MarketContext, _as_of: Date) -> Result<Money> {
             Ok(self.value)
+        }
+
+        fn im_exposure_base(&self, _market: &MarketContext, _as_of: Date) -> Result<Option<Money>> {
+            Ok(self.exposure_base)
         }
     }
 
@@ -269,6 +295,24 @@ mod tests {
 
         assert_eq!(result.amount.amount(), 2_500_000.0);
         assert!(result.breakdown.contains_key("internal_var"));
+        assert!(!result.approximation);
+    }
+
+    #[test]
+    fn conservative_internal_model_marked_approximation() {
+        let calc = InternalModelImCalculator::default();
+        let notional = Money::new(100_000_000.0, Currency::USD);
+        let mut inst = TestInstrument::new(notional);
+        inst.exposure_base = Some(notional);
+        let market = MarketContext::new();
+        let as_of = Date::from_calendar_date(2024, time::Month::January, 1).expect("valid date");
+
+        let im = calc.calculate(&inst, &market, as_of).expect("im");
+        assert!(
+            im.approximation,
+            "conservative proxy must set approximation = true"
+        );
+        assert_eq!(im.amount.amount(), 5_000_000.0); // 5% of 100mm
     }
 
     #[test]

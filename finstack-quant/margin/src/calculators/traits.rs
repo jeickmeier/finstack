@@ -31,6 +31,17 @@ pub struct ImResult {
     /// Keys are risk class names (e.g., "interest_rate", "credit", "equity")
     /// Values are IM amounts for that risk class
     pub breakdown: finstack_quant_core::HashMap<String, Money>,
+
+    /// Whether the amount is a conservative approximation (proxy) rather than
+    /// an exact computation under the named methodology.
+    ///
+    /// Set to `true` by the clearing-house and internal-model calculators when
+    /// they fall back to `|exposure_base| x conservative_rate` because no
+    /// [`ExternalImSource`](crate::calculators::im::ExternalImSource) supplied
+    /// a real margin amount. Portfolio-level consumers should surface this
+    /// flag: an approximated IM is suitable for indicative funding/capacity
+    /// analysis, not for reconciling actual CCP margin calls.
+    pub approximation: bool,
 }
 
 impl ImResult {
@@ -43,6 +54,7 @@ impl ImResult {
             as_of,
             mpor_days,
             breakdown: finstack_quant_core::HashMap::default(),
+            approximation: false,
         }
     }
 
@@ -61,6 +73,7 @@ impl ImResult {
             as_of,
             mpor_days,
             breakdown,
+            approximation: false,
         }
     }
 }
