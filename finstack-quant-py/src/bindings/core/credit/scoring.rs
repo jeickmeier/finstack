@@ -1,8 +1,7 @@
 //! Python bindings for `finstack_quant_core::credit::scoring`.
 
 use finstack_quant_core::credit::scoring::{
-    altman_em_score as core_altman_em_score,
-    altman_z_double_prime as core_altman_z_double_prime,
+    altman_em_score as core_altman_em_score, altman_z_double_prime as core_altman_z_double_prime,
     altman_z_double_prime_with_pd as core_altman_z_double_prime_with_pd,
     altman_z_prime as core_altman_z_prime, altman_z_prime_with_pd as core_altman_z_prime_with_pd,
     altman_z_score as core_altman_z_score, altman_z_score_with_pd as core_altman_z_score_with_pd,
