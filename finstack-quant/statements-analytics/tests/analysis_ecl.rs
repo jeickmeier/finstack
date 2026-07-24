@@ -172,24 +172,18 @@ fn cecl_engine_rejects_invalid_pd_source_weights() {
 }
 
 #[test]
-fn cecl_engine_rejects_unimplemented_methodologies() {
-    let curve = bbb_curve();
-    let scenario = MacroScenario {
-        id: "base".to_string(),
-        weight: 1.0,
-        lgd_override: None,
-    };
-    let methodology = CeclMethodology::Warm;
+fn cecl_warm_end_to_end() {
+    // 0.5% annual loss rate × 1,000,000 EAD × 5y = 25,000 (undiscounted).
     let config = CeclConfig {
-        methodology,
+        methodology: CeclMethodology::Warm,
+        warm_annual_loss_rate: Some(0.005),
         ..CeclConfig::default()
     };
-    let pd_sources: Vec<(&MacroScenario, &dyn PdTermStructure)> =
-        vec![(&scenario, &curve as &dyn PdTermStructure)];
-    assert!(
-        CeclEngine::new(config, pd_sources).is_err(),
-        "{methodology:?} must be rejected rather than silently no-op"
-    );
+    let engine = CeclEngine::new(config, vec![]).expect("warm engine needs no PD sources");
+    let result = engine
+        .compute_cecl(&exposure("warm-001"))
+        .expect("warm ecl");
+    assert!((result.ecl - 25_000.0).abs() < 1e-9);
 }
 
 #[test]

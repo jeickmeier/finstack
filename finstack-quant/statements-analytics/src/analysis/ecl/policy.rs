@@ -350,6 +350,7 @@ fn cecl_config_from_policy(policy: &CeclPolicyRecord) -> CeclConfig {
             lgd_override: policy.base_scenario_lgd_override,
         }],
         methodology: policy.methodology,
+        warm_annual_loss_rate: None,
     }
 }
 

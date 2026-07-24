@@ -58,11 +58,23 @@ pub enum ReversionMethod {
 pub enum CeclMethodology {
     /// PD-LGD-EAD approach (same formula as IFRS 9, always lifetime).
     PdLgdEad,
-    /// Weighted Average Remaining Maturity method.
+    /// Weighted-Average Remaining Maturity (WARM) loss-rate method.
     ///
-    /// **Not yet implemented** — [`CeclEngine::new`] returns a validation
-    /// error. (A real WARM implementation must not reuse the EIR
-    /// discounting of the PD-LGD-EAD path.)
+    /// `ECL = warm_annual_loss_rate × Σ EAD(t_mid) × Δt` — the average annual
+    /// charge-off rate applied to the amortization-adjusted exposure-years
+    /// over the remaining contractual life (`Exposure::ead_at` over
+    /// `remaining_maturity_years`). Undiscounted; PD term structures,
+    /// scenarios, LGD, and EIR are not used. Credit-impaired exposures
+    /// requiring individual assessment should use
+    /// [`CeclMethodology::PdLgdEad`].
+    ///
+    /// # References
+    ///
+    /// - ASC 326-20-30-3 (methodology flexibility); FASB Staff Q&A (2019),
+    ///   "Whether the WARM Method Is Acceptable" — WARM is an acceptable
+    ///   CECL loss-rate method for less complex pools.
+    /// - Fed/FASB/SEC interagency webinar (April 2019): "CECL:
+    ///   Weighted-Average Remaining Maturity (WARM) Method."
     Warm,
 }
 
@@ -110,6 +122,11 @@ pub struct CeclConfig {
 
     /// CECL methodology selection.
     pub methodology: CeclMethodology,
+
+    /// Average annual net charge-off rate (decimal) for the WARM method.
+    /// Required when `methodology == CeclMethodology::Warm`; rejected otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warm_annual_loss_rate: Option<f64>,
 }
 
 fn default_impaired_dpd_threshold() -> u32 {
@@ -182,6 +199,29 @@ impl CeclConfig {
                 ));
             }
         }
+        match self.methodology {
+            CeclMethodology::Warm => {
+                let rate = self.warm_annual_loss_rate.ok_or_else(|| {
+                    Error::Validation(
+                        "CECL WARM methodology requires warm_annual_loss_rate".to_string(),
+                    )
+                })?;
+                if !rate.is_finite() || !(0.0..=1.0).contains(&rate) {
+                    return Err(Error::Validation(format!(
+                        "warm_annual_loss_rate must be a finite value in [0, 1], got {rate}"
+                    )));
+                }
+            }
+            CeclMethodology::PdLgdEad => {
+                if self.warm_annual_loss_rate.is_some() {
+                    return Err(Error::Validation(
+                        "warm_annual_loss_rate is only valid with the Warm methodology; \
+                         remove it or select CeclMethodology::Warm"
+                            .to_string(),
+                    ));
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -216,13 +256,14 @@ pub struct CeclEngine<'a> {
 impl<'a> CeclEngine<'a> {
     /// Create a new CECL engine.
     ///
+    /// `pd_sources` requirements apply only to [`CeclMethodology::PdLgdEad`];
+    /// the [`CeclMethodology::Warm`] path ignores PD sources entirely.
+    ///
     /// # Errors
     ///
-    /// Returns [`Error::Validation`] when the configuration is invalid, when
-    /// `pd_sources` is empty, when the `pd_sources` scenario weights are not
-    /// finite, non-negative, and summing to 1.0, or when the configured
-    /// methodology is not [`CeclMethodology::PdLgdEad`] (the only one
-    /// implemented).
+    /// Returns [`Error::Validation`] when the configuration is invalid, or,
+    /// for [`CeclMethodology::PdLgdEad`], when `pd_sources` is empty or its
+    /// scenario weights are not finite, non-negative, and summing to 1.0.
     ///
     /// # Arguments
     ///
@@ -233,18 +274,16 @@ impl<'a> CeclEngine<'a> {
         pd_sources: Vec<(&'a MacroScenario, &'a dyn PdTermStructure)>,
     ) -> Result<Self> {
         config.validate()?;
-        if config.methodology != CeclMethodology::PdLgdEad {
-            return Err(Error::Validation(format!(
-                "CECL methodology {:?} is not implemented; only PdLgdEad is supported",
-                config.methodology
-            )));
+        if config.methodology == CeclMethodology::PdLgdEad {
+            if pd_sources.is_empty() {
+                return Err(Error::Validation(
+                    "At least one PD source is required for CeclEngine".to_string(),
+                ));
+            }
+            super::engine::validate_scenario_weights(
+                pd_sources.iter().map(|(scenario, _)| *scenario),
+            )?;
         }
-        if pd_sources.is_empty() {
-            return Err(Error::Validation(
-                "At least one PD source is required for CeclEngine".to_string(),
-            ));
-        }
-        super::engine::validate_scenario_weights(pd_sources.iter().map(|(scenario, _)| *scenario))?;
         Ok(Self { config, pd_sources })
     }
 
@@ -267,6 +306,9 @@ impl<'a> CeclEngine<'a> {
     /// before calculating lifetime loss.
     pub fn compute_cecl(&self, exposure: &Exposure) -> Result<CeclResult> {
         exposure.validate()?;
+        if self.config.methodology == CeclMethodology::Warm {
+            return self.compute_warm(exposure);
+        }
         let horizon = exposure.remaining_maturity_years;
         let rating = exposure.current_rating.as_deref().unwrap_or("NR");
         let dt = self.config.bucket_width_years;
@@ -328,6 +370,36 @@ impl<'a> CeclEngine<'a> {
             ecl: weighted_ecl,
             horizon,
             methodology: self.config.methodology,
+        })
+    }
+
+    /// WARM loss-rate ECL: `rate × Σ EAD(t_mid) × Δt` over the remaining life.
+    ///
+    /// Undiscounted by design (loss-rate method); see
+    /// [`CeclMethodology::Warm`] for methodology references.
+    fn compute_warm(&self, exposure: &Exposure) -> Result<CeclResult> {
+        let rate = self.config.warm_annual_loss_rate.ok_or_else(|| {
+            // Unreachable after validate(), but fail closed for direct
+            // struct-literal configs.
+            Error::Validation("CECL WARM methodology requires warm_annual_loss_rate".to_string())
+        })?;
+        let horizon = exposure.remaining_maturity_years;
+        let dt = self.config.bucket_width_years;
+        let n_buckets = ((horizon / dt).ceil() as usize).max(1);
+
+        let mut exposure_years = 0.0_f64;
+        for i in 0..n_buckets {
+            let t_start = i as f64 * dt;
+            let t_end = ((i + 1) as f64 * dt).min(horizon);
+            let t_mid = (t_start + t_end) / 2.0;
+            exposure_years += exposure.ead_at(t_mid) * (t_end - t_start);
+        }
+
+        Ok(CeclResult {
+            exposure_id: exposure.id.clone(),
+            ecl: rate * exposure_years,
+            horizon,
+            methodology: CeclMethodology::Warm,
         })
     }
 
@@ -664,5 +736,86 @@ mod tests {
         // anywhere.
         let parsed: std::result::Result<CeclMethodology, _> = serde_json::from_str("\"Vintage\"");
         assert!(parsed.is_err(), "removed variant must not deserialize");
+    }
+
+    #[test]
+    fn warm_constant_ead_golden() {
+        // WARM = rate × Σ EAD(t_mid) × Δt.
+        // Constant EAD 1,000,000 over 5.0y with 0.25y buckets:
+        //   Σ EAD × Δt = 1,000,000 × 5.0 = 5,000,000 exposure-years.
+        // rate 0.005 → ECL = 0.005 × 5,000,000 = 25,000. Undiscounted (eir ignored).
+        let config = CeclConfig {
+            methodology: CeclMethodology::Warm,
+            warm_annual_loss_rate: Some(0.005),
+            ..CeclConfig::default()
+        };
+        let engine = CeclEngine::new(config, vec![]).unwrap();
+        let exposure = make_exposure(); // ead 1_000_000, maturity 5.0, eir 0.05
+        let result = engine.compute_cecl(&exposure).unwrap();
+        assert!((result.ecl - 25_000.0).abs() < 1e-9, "got {}", result.ecl);
+        assert_eq!(result.methodology, CeclMethodology::Warm);
+        assert!((result.horizon - 5.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn warm_amortizing_ead_golden() {
+        // Linear amortization 1,000,000 → 0 over 5y. Midpoint-rule sum is exact
+        // for a linear profile: ∫₀⁵ EAD(t) dt = 1,000,000 × 5 / 2 = 2,500,000.
+        // rate 0.005 → ECL = 12,500.
+        let config = CeclConfig {
+            methodology: CeclMethodology::Warm,
+            warm_annual_loss_rate: Some(0.005),
+            ..CeclConfig::default()
+        };
+        let engine = CeclEngine::new(config, vec![]).unwrap();
+        let mut exposure = make_exposure();
+        exposure.ead_schedule = Some(vec![(0.0, 1_000_000.0), (5.0, 0.0)]);
+        let result = engine.compute_cecl(&exposure).unwrap();
+        assert!((result.ecl - 12_500.0).abs() < 1e-9, "got {}", result.ecl);
+    }
+
+    #[test]
+    fn warm_requires_loss_rate_and_rejects_it_under_pdlgdead() {
+        // Warm without a rate must fail closed.
+        let missing = CeclConfig {
+            methodology: CeclMethodology::Warm,
+            warm_annual_loss_rate: None,
+            ..CeclConfig::default()
+        };
+        assert!(missing.validate().is_err());
+
+        // Out-of-range rate rejected.
+        for bad in [-0.01, 1.5, f64::NAN, f64::INFINITY] {
+            let config = CeclConfig {
+                methodology: CeclMethodology::Warm,
+                warm_annual_loss_rate: Some(bad),
+                ..CeclConfig::default()
+            };
+            assert!(
+                config.validate().is_err(),
+                "rate {bad} must fail validation"
+            );
+        }
+
+        // Symmetric inert-config guard: a WARM knob under PdLgdEad is exactly the
+        // silently-ignored-config pattern this change removes. Reject it.
+        let inert = CeclConfig {
+            methodology: CeclMethodology::PdLgdEad,
+            warm_annual_loss_rate: Some(0.005),
+            ..CeclConfig::default()
+        };
+        assert!(inert.validate().is_err());
+    }
+
+    #[test]
+    fn warm_config_serde_is_additive() {
+        // Pre-change CeclConfig JSON (no warm_annual_loss_rate) must still parse.
+        let json = serde_json::to_string(&CeclConfig::default()).unwrap();
+        assert!(
+            !json.contains("warm_annual_loss_rate"),
+            "None must be skipped on the wire"
+        );
+        let parsed: CeclConfig = serde_json::from_str(&json).unwrap();
+        assert!(parsed.warm_annual_loss_rate.is_none());
     }
 }
