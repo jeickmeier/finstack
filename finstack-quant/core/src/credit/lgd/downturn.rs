@@ -132,11 +132,11 @@ impl DownturnLgd {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - `FryeJacobs`: `asset_correlation` is not finite and in (0, 1),
-    ///   `lgd_sensitivity` is not finite and non-negative, or
-    ///   `stress_quantile` is not finite and in (0, 1)
-    /// - `RegulatoryFloor`: `add_on` is not finite and non-negative, or
-    ///   `floor` is not finite and in \[0, 1\]
+    /// - `FryeJacobs`: `asset_correlation` is not finite or not in (0, 1),
+    ///   `lgd_sensitivity` is not finite or negative, or
+    ///   `stress_quantile` is not finite or not in (0, 1)
+    /// - `RegulatoryFloor`: `add_on` is not finite or negative, or
+    ///   `floor` is not finite or not in \[0, 1\]
     pub fn validate(&self) -> Result<()> {
         match self.method {
             DownturnMethod::FryeJacobs {
