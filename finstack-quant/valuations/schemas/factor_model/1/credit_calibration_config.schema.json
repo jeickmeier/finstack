@@ -165,7 +165,11 @@
             }
           }
         },
-        { "const": "full_sample_repaired", "description": "Full sample covariance with PSD repair." }
+        { "const": "full_sample_repaired", "description": "Full sample covariance with PSD repair." },
+        {
+          "const": "ledoit_wolf",
+          "description": "Ledoit-Wolf (2004) identity-target shrinkage over complete-case observations."
+        }
       ]
     },
     "BetaShrinkage": {

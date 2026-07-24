@@ -539,6 +539,17 @@ risk calculation with a standard reference.
 - J.P. Morgan/Reuters. *RiskMetrics Technical Document* (4th ed.). Canonical
   practitioner reference for parametric Value-at-Risk conventions.
 
+<a id="ledoitwolf2004"></a>
+
+### Ledoit Wolf 2004
+
+- Ledoit, O., & Wolf, M. (2004). "A well-conditioned estimator for
+  large-dimensional covariance matrices." *Journal of Multivariate Analysis*,
+  88(2), 365–411. Canonical reference for identity-target covariance
+  shrinkage with analytic optimal intensity, implemented in
+  `finstack_quant_core::math::linalg::ledoit_wolf_shrinkage` and consumed by
+  `CovarianceStrategy::LedoitWolf` in the credit factor-model calibrator.
+
 <a id="artzner1999CoherentRisk"></a>
 
 ### Artzner 1999 Coherent Risk

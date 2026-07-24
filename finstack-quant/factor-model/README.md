@@ -100,6 +100,8 @@ per-issuer overrides.
    - `Ridge { alpha }` — sample ρ (PSD-repaired if needed), `Σ = D·ρ·D + α·I`.
    - `FullSampleRepaired` — sample ρ repaired via nearest-correlation
      projection, `Σ = D·ρ_repaired·D`.
+   - `LedoitWolf` — Ledoit-Wolf (2004) identity-target shrinkage; Σ and ρ
+     both come from the shrunk estimator over complete-case dates.
 10. Bundle a [`CreditFactorModel`] and run its `validate()`.
 
 ```rust

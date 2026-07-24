@@ -751,6 +751,44 @@ fn ewma_vol_model_calibrates_and_persists_estimator() {
     }
 }
 
+/// Ledoit-Wolf covariance strategy calibrates end-to-end: positive diagonal,
+/// Cauchy-Schwarz-consistent off-diagonals, and a PSD matrix (enforced by
+/// FactorCovarianceMatrix::new inside the calibrator).
+#[test]
+fn ledoit_wolf_covariance_accepted() {
+    let cfg = CreditCalibrationConfig {
+        covariance_strategy: CovarianceStrategy::LedoitWolf,
+        min_bucket_size_per_level: BucketSizeThresholds { per_level: vec![1] },
+        ..config_with(
+            IssuerBetaPolicy::GloballyOff,
+            vec![HierarchyDimension::Rating],
+        )
+    };
+    let model = CreditCalibrator::new(cfg)
+        .calibrate(fixture_panel().into_inputs())
+        .expect("Ledoit-Wolf calibration succeeds");
+
+    let cov = &model.config.covariance;
+    let ids = cov.factor_ids().to_vec();
+    assert!(
+        ids.len() >= 2,
+        "expected generic + bucket factors, got {}",
+        ids.len()
+    );
+    for i in &ids {
+        assert!(cov.variance(i) > 0.0, "diagonal must be positive for {i}");
+    }
+    for i in &ids {
+        for j in &ids {
+            let bound = (cov.variance(i) * cov.variance(j)).sqrt();
+            assert!(
+                cov.covariance(i, j).abs() <= bound + 1e-12,
+                "|Σ({i},{j})| must satisfy the Cauchy-Schwarz bound"
+            );
+        }
+    }
+}
+
 /// Out-of-range lambda is rejected before any estimation runs.
 #[test]
 fn ewma_lambda_out_of_range_rejected_by_calibrate() {

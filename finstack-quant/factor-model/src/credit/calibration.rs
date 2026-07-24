@@ -24,7 +24,8 @@
 //!    [`CovarianceStrategy`][crate::credit::calibration::CovarianceStrategy]:
 //!    `Diagonal` → identity ρ, Σ = diag(σ²); `Ridge` → sample ρ (PSD-repaired
 //!    if needed), Σ = D·ρ·D + α·I; `FullSampleRepaired` → sample ρ repaired
-//!    to PSD, Σ = D·ρ_repaired·D.
+//!    to PSD, Σ = D·ρ_repaired·D; `LedoitWolf` → Σ and ρ from the Ledoit-Wolf
+//!    identity-target shrinkage estimator over complete-case observations.
 //! 10. Assemble [`crate::FactorModelConfig`] with `MatchingConfig::CreditHierarchical`.
 //! 11. Build [`CalibrationDiagnostics`][crate::credit::hierarchy::CalibrationDiagnostics]
 //!     from the bookkeeping above.
@@ -141,6 +142,19 @@ pub enum CovarianceStrategy {
     /// Full sample covariance with PSD repair via nearest-correlation projection:
     /// Σ = D·ρ_repaired·D. See design spec §4.1.
     FullSampleRepaired,
+    /// Ledoit-Wolf (2004) identity-target shrinkage over complete-case
+    /// observations: `Σ = annualization_factor · (δ*·μ·I + (1 − δ*)·S)` with
+    /// the analytic optimal intensity `δ*`, and `ρ` derived from `Σ`.
+    ///
+    /// Only dates where **every** factor is observed enter the estimate;
+    /// calibration fails with a validation error when fewer than 2 such dates
+    /// exist (use [`CovarianceStrategy::Ridge`] or
+    /// [`CovarianceStrategy::FullSampleRepaired`] for very sparse panels).
+    ///
+    /// Reference: Ledoit, O., & Wolf, M. (2004). "A well-conditioned estimator
+    /// for large-dimensional covariance matrices." *Journal of Multivariate
+    /// Analysis*, 88(2), 365–411.
+    LedoitWolf,
 }
 
 /// OLS β shrinkage rule.
@@ -492,6 +506,7 @@ impl CreditCalibrator {
             &self.config.hierarchy,
             &issuer_betas,
             self.config.covariance_strategy,
+            self.config.annualization_factor,
         )?;
 
         // -- 11. Diagnostics. -----------------------------------------------
@@ -1603,6 +1618,7 @@ fn assemble_factor_model_config(
     hierarchy: &CreditHierarchySpec,
     issuer_betas: &[IssuerBetaRow],
     strategy: CovarianceStrategy,
+    annualization_factor: f64,
 ) -> Result<(FactorCorrelationMatrix, FactorModelConfig)> {
     // Build factor definitions (every factor is Credit / CurveParallel placeholder).
     let mut factors = Vec::with_capacity(factor_id_order.len());
@@ -1697,6 +1713,22 @@ fn assemble_factor_model_config(
                 })?;
             let data = d_rho_d(&stds, &rho_repaired, n);
             (corr, data)
+        }
+        CovarianceStrategy::LedoitWolf => {
+            // Ledoit-Wolf shrinkage over complete-case observations. Unlike
+            // Ridge/FullSampleRepaired, both ρ and the covariance diagonal
+            // come from the shrunk estimator; `vol_state` keeps the
+            // vol-model variances (precedent: Ridge already stores a Σ whose
+            // diagonal differs from vol_state by α).
+            let (corr_rows, cov_ann) =
+                ledoit_wolf_cov_and_corr(factor_id_order, factor_returns, annualization_factor)?;
+            let corr =
+                FactorCorrelationMatrix::new(factor_id_order.to_vec(), corr_rows).map_err(|e| {
+                    validation_err(format!(
+                        "LedoitWolf: derived correlation is not a valid correlation matrix: {e}"
+                    ))
+                })?;
+            (corr, cov_ann)
         }
     };
 
@@ -1842,6 +1874,92 @@ fn d_rho_d(stds: &[f64], rho_flat: &[f64], n: usize) -> Vec<f64> {
     out
 }
 
+/// Ledoit-Wolf covariance/correlation assembly over the complete-case rows of
+/// the sparse factor-return panel.
+///
+/// Builds the row-major `T_c × n` observation matrix from dates where every
+/// factor in `factor_id_order` is observed, delegates to
+/// [`finstack_quant_core::math::linalg::ledoit_wolf_shrinkage`], annualizes
+/// the shrunk covariance, and derives the (scale-invariant) correlation
+/// `ρ_ij = Σ*_ij / √(Σ*_ii · Σ*_jj)`.
+///
+/// Returns `(correlation_rows, annualized_covariance_flat)`.
+///
+/// # Errors
+///
+/// Returns [`finstack_quant_core::Error::Validation`] when fewer than 2
+/// complete observations exist or the core shrinkage routine rejects the
+/// panel.
+fn ledoit_wolf_cov_and_corr(
+    factor_id_order: &[FactorId],
+    factor_returns: &BTreeMap<FactorId, Vec<Option<f64>>>,
+    annualization_factor: f64,
+) -> Result<(Vec<Vec<f64>>, Vec<f64>)> {
+    let n = factor_id_order.len();
+    let empty: Vec<Option<f64>> = vec![];
+    let series: Vec<&Vec<Option<f64>>> = factor_id_order
+        .iter()
+        .map(|fid| factor_returns.get(fid).unwrap_or(&empty))
+        .collect();
+    let t_max = series.iter().map(|s| s.len()).max().unwrap_or(0);
+
+    // Complete-case rows: dates where every factor is observed.
+    let mut rows: Vec<f64> = Vec::new();
+    let mut t_complete = 0usize;
+    for date_idx in 0..t_max {
+        let mut row = Vec::with_capacity(n);
+        let mut complete = true;
+        for s in &series {
+            match s.get(date_idx).copied().flatten() {
+                Some(v) => row.push(v),
+                None => {
+                    complete = false;
+                    break;
+                }
+            }
+        }
+        if complete {
+            rows.extend_from_slice(&row);
+            t_complete += 1;
+        }
+    }
+    if t_complete < 2 {
+        return Err(validation_err(format!(
+            "LedoitWolf: only {t_complete} complete observation(s) across all {n} factor(s); \
+             need at least 2. Use Ridge or FullSampleRepaired for sparse panels."
+        )));
+    }
+
+    let lw = finstack_quant_core::math::linalg::ledoit_wolf_shrinkage(&rows, t_complete, n)
+        .map_err(|e| validation_err(format!("LedoitWolf: shrinkage failed: {e}")))?;
+
+    let mut cov_ann = lw.covariance.clone();
+    for v in &mut cov_ann {
+        *v *= annualization_factor;
+    }
+
+    let mut corr_rows: Vec<Vec<f64>> = Vec::with_capacity(n);
+    for i in 0..n {
+        let mut row = Vec::with_capacity(n);
+        for j in 0..n {
+            if i == j {
+                row.push(1.0);
+                continue;
+            }
+            let var_i = lw.covariance[i * n + i];
+            let var_j = lw.covariance[j * n + j];
+            if var_i > 0.0 && var_j > 0.0 {
+                row.push((lw.covariance[i * n + j] / (var_i * var_j).sqrt()).clamp(-1.0, 1.0));
+            } else {
+                row.push(0.0);
+            }
+        }
+        corr_rows.push(row);
+    }
+
+    Ok((corr_rows, cov_ann))
+}
+
 fn build_factor_histories(
     dates: &[Date],
     space: &PanelSpace,
@@ -1966,7 +2084,10 @@ fn build_diagnostics(
 
 #[cfg(test)]
 mod calibration_estimator_tests {
-    use super::{ewma_variance, factor_variances, sample_correlation_flat, VolModelChoice};
+    use super::{
+        ewma_variance, factor_variances, ledoit_wolf_cov_and_corr, sample_correlation_flat,
+        VolModelChoice,
+    };
     use crate::FactorId;
     use std::collections::BTreeMap;
 
@@ -2088,6 +2209,63 @@ mod calibration_estimator_tests {
         assert_eq!(ewma_variance(&[Some(5.0)], 0.94, 12.0), 0.0);
         assert_eq!(ewma_variance(&[None, None], 0.94, 12.0), 0.0);
     }
+
+    /// Golden Ledoit-Wolf adapter test — same panel as the hand-worked example
+    /// in `core::math::linalg::ledoit_wolf_shrinkage`:
+    ///   per-period Σ* = [[2.5, −1/12], [−1/12, 2.5]], δ* = 17/18.
+    /// With annualization_factor = 12 the stored covariance is
+    ///   Σ_ann = [[30, −1], [−1, 30]],
+    /// and the (scale-invariant) correlation is −(1/12)/2.5 = −1/30.
+    #[test]
+    fn ledoit_wolf_adapter_matches_hand_worked_example() {
+        let a = FactorId::new("credit::generic");
+        let b = FactorId::new("credit::bucket::IG");
+        let mut returns: BTreeMap<FactorId, Vec<Option<f64>>> = BTreeMap::new();
+        returns.insert(
+            a.clone(),
+            vec![Some(1.0), Some(-1.0), Some(2.0), Some(-2.0)],
+        );
+        returns.insert(
+            b.clone(),
+            vec![Some(1.0), Some(-1.0), Some(-2.0), Some(2.0)],
+        );
+        let order = vec![a, b];
+
+        let (corr, cov) = ledoit_wolf_cov_and_corr(&order, &returns, 12.0).expect("dense panel");
+
+        // Row-major flat covariance [aa, ab, ba, bb].
+        assert!((cov[0] - 30.0).abs() < 1e-12, "cov[0] = {}", cov[0]);
+        assert!((cov[3] - 30.0).abs() < 1e-12, "cov[3] = {}", cov[3]);
+        assert!((cov[1] - (-1.0)).abs() < 1e-12, "cov[1] = {}", cov[1]);
+        assert!((cov[2] - (-1.0)).abs() < 1e-12, "cov[2] = {}", cov[2]);
+
+        assert!((corr[0][0] - 1.0).abs() < 1e-15);
+        assert!((corr[1][1] - 1.0).abs() < 1e-15);
+        assert!(
+            (corr[0][1] - (-1.0 / 30.0)).abs() < 1e-12,
+            "rho = {}",
+            corr[0][1]
+        );
+        assert!((corr[1][0] - (-1.0 / 30.0)).abs() < 1e-12);
+    }
+
+    /// Complete-case construction: with no date where both factors are
+    /// observed, Ledoit-Wolf must fail with a clean validation error rather
+    /// than silently imputing.
+    #[test]
+    fn ledoit_wolf_adapter_rejects_sparse_overlap() {
+        let a = FactorId::new("credit::generic");
+        let b = FactorId::new("credit::bucket::IG");
+        let mut returns: BTreeMap<FactorId, Vec<Option<f64>>> = BTreeMap::new();
+        returns.insert(a.clone(), vec![Some(1.0), Some(-1.0), None, None]);
+        returns.insert(b.clone(), vec![None, None, Some(1.0), Some(-1.0)]);
+        let err = ledoit_wolf_cov_and_corr(&[a, b], &returns, 12.0)
+            .expect_err("no complete observations");
+        assert!(
+            err.to_string().contains("complete observation"),
+            "unexpected error: {err}"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -2174,11 +2352,16 @@ mod calibration_config_tests {
             CovarianceStrategy::Diagonal,
             CovarianceStrategy::Ridge { alpha: 0.05 },
             CovarianceStrategy::FullSampleRepaired,
+            CovarianceStrategy::LedoitWolf,
         ] {
             let json = serde_json::to_string(&variant).unwrap();
             let back: CovarianceStrategy = serde_json::from_str(&json).unwrap();
             assert_eq!(variant, back);
         }
+        assert_eq!(
+            serde_json::to_string(&CovarianceStrategy::LedoitWolf).unwrap(),
+            r#""ledoit_wolf""#
+        );
     }
 
     #[test]
