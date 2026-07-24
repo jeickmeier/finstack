@@ -978,6 +978,48 @@ class scoring:
         ...
 
     @staticmethod
+    def altman_em_score(
+        working_capital_to_total_assets: float,
+        retained_earnings_to_total_assets: float,
+        ebit_to_total_assets: float,
+        book_equity_to_total_liabilities: float,
+    ) -> tuple[float, str, float | None]:
+        """
+        Compute the Altman EM-Score for emerging-market corporates.
+
+        EM = 3.25 + Z''. Zone cutoffs: EM > 5.85 Safe, 4.35 <= EM <= 5.85 Grey,
+        EM < 4.35 Distress (Altman, Hartzell & Peck 1995).
+
+        Parameters
+        ----------
+        working_capital_to_total_assets : float
+            Working capital divided by total assets (Altman X1).
+        retained_earnings_to_total_assets : float
+            Cumulative retained earnings divided by total assets (X2).
+        ebit_to_total_assets : float
+            Earnings before interest and tax divided by total assets (X3).
+        book_equity_to_total_liabilities : float
+            Book value of equity divided by total liabilities (X4).
+
+        Returns
+        -------
+        tuple[float, str, float | None]
+            ``(score, zone, implied_pd)``; ``implied_pd`` is always ``None``.
+
+        Raises
+        ------
+        ValueError
+            If any ratio is non-finite.
+
+        Examples
+        --------
+        >>> score, zone, pd = scoring.altman_em_score(0.2, 0.3, 0.15, 1.2)
+        >>> round(score, 3), zone
+        (7.808, 'safe')
+        """
+        ...
+
+    @staticmethod
     def ohlson_o_score(
         log_total_assets_adjusted: float,
         total_liabilities_to_total_assets: float,

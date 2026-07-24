@@ -1,6 +1,7 @@
 //! Python bindings for `finstack_quant_core::credit::scoring`.
 
 use finstack_quant_core::credit::scoring::{
+    altman_em_score as core_altman_em_score,
     altman_z_double_prime as core_altman_z_double_prime,
     altman_z_double_prime_with_pd as core_altman_z_double_prime_with_pd,
     altman_z_prime as core_altman_z_prime, altman_z_prime_with_pd as core_altman_z_prime_with_pd,
@@ -158,6 +159,34 @@ fn altman_z_double_prime(
     Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
 }
 
+/// Compute the Altman EM-Score for emerging-market corporates.
+///
+/// EM = 3.25 + Z'' = 3.25 + 6.56 * X1 + 3.26 * X2 + 6.72 * X3 + 1.05 * X4
+///
+/// Zone cutoffs: EM > 5.85 Safe, 4.35 <= EM <= 5.85 Grey, EM < 4.35 Distress
+/// (Altman, Hartzell & Peck 1995; Altman 2005, Emerging Markets Review 6(4)).
+///
+/// Returns a tuple ``(score, zone, implied_pd)``; ``implied_pd`` is always ``None``.
+#[pyfunction]
+#[pyo3(
+    text_signature = "(working_capital_to_total_assets, retained_earnings_to_total_assets, ebit_to_total_assets, book_equity_to_total_liabilities)"
+)]
+fn altman_em_score(
+    working_capital_to_total_assets: f64,
+    retained_earnings_to_total_assets: f64,
+    ebit_to_total_assets: f64,
+    book_equity_to_total_liabilities: f64,
+) -> PyResult<(f64, String, Option<f64>)> {
+    let input = AltmanZDoublePrimeInput {
+        working_capital_to_total_assets,
+        retained_earnings_to_total_assets,
+        ebit_to_total_assets,
+        book_equity_to_total_liabilities,
+    };
+    let r = core_altman_em_score(&input).map_err(display_to_py)?;
+    Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
+}
+
 // ---------------------------------------------------------------------------
 // Ohlson O-Score
 // ---------------------------------------------------------------------------
@@ -249,6 +278,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(altman_z_score, &m)?)?;
     m.add_function(wrap_pyfunction!(altman_z_prime, &m)?)?;
     m.add_function(wrap_pyfunction!(altman_z_double_prime, &m)?)?;
+    m.add_function(wrap_pyfunction!(altman_em_score, &m)?)?;
     m.add_function(wrap_pyfunction!(ohlson_o_score, &m)?)?;
     m.add_function(wrap_pyfunction!(zmijewski_score, &m)?)?;
 
@@ -259,6 +289,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "altman_z_score",
             "altman_z_prime",
             "altman_z_double_prime",
+            "altman_em_score",
             "ohlson_o_score",
             "zmijewski_score",
         ],
