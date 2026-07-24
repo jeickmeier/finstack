@@ -16,6 +16,12 @@ stability contract and schema-version policy.
   to support it, so the variant was unimplemented. Inbound JSON carrying
   `"methodology": "Vintage"` now fails to parse instead of silently selecting
   an unimplemented path; migrate persisted configs to `PdLgdEad` or `Warm`.
+- **`VolModelChoice::Garch` and `VolModelChoice::Egarch` removed** from the
+  credit factor-model calibration config. Inbound JSON `"garch"`/`"egarch"`
+  now fails to deserialize with an unknown-variant error. These variants
+  parsed and validated but were never implemented (the calibrator always
+  rejected them at runtime). Migrate to `sample` or the newly-implemented
+  `ewma`.
 
 ### Changed
 - **`CovenantForecastConfig` stochastic forecasting now does what it says.**
@@ -42,6 +48,25 @@ stability contract and schema-version policy.
 - **`ImResult.approximation`**: CCP and internal-model initial-margin proxy
   calculators now flag their output as a conservative approximation rather
   than an exact model result.
+- **`VolModelChoice::Ewma { lambda }`** now calibrates: RiskMetrics finite-window
+  exponentially weighted variance for factor and idiosyncratic vols
+  (Longerstaey & Spencer 1996). Lambda validated in (0, 1).
+- **`FactorVolModel::Ewma { lambda, variance }` and
+  `IdiosyncraticVolModel::Ewma { lambda, variance }`** persist the estimator
+  and its state in the calibrated artifact.
+- **`CovarianceStrategy::LedoitWolf`** — data-driven optimal shrinkage toward
+  a scaled identity target (Ledoit & Wolf 2004), computed over complete-case
+  observations of the factor-return panel.
+- **`finstack_quant_core::math::linalg::ledoit_wolf_shrinkage`** — public
+  Ledoit-Wolf estimator with analytic optimal shrinkage intensity.
+- **`FactorCovarianceForecast`** (portfolio) now forecasts EWMA vol-state
+  variants.
+
+### Fixed
+- Python bindings failed to compile after `StagingConfig` gained
+  `rating_scale_labels`; the ECL binding call site now passes the field
+  explicitly. (`mise run rust-lint` excludes the binding crates, so the
+  workspace lint gate did not catch it.)
 
 ## [0.6.0] - 2026-07-23
 
