@@ -16,6 +16,8 @@
 //!   variable order.
 //! - **Correlation application**: Transform independent normals to correlated via L
 //! - **Matrix validation**: Check positive-definiteness and correlation properties
+//! - **Ledoit-Wolf shrinkage**: Well-conditioned covariance estimation via [`ledoit_wolf_shrinkage`]
+//!   (Ledoit & Wolf 2004, identity-scaled target, analytic optimal intensity)
 //!
 //! # Use Cases
 //!
@@ -1003,6 +1005,172 @@ pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<()> {
     }
 }
 
+/// Result of Ledoit-Wolf covariance shrinkage.
+///
+/// See [`ledoit_wolf_shrinkage`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct LedoitWolfResult {
+    /// Row-major `n × n` shrunk covariance matrix `Σ* = δ*·μ·I + (1 − δ*)·S`.
+    pub covariance: Vec<f64>,
+    /// Optimal shrinkage intensity `δ* ∈ [0, 1]`.
+    pub shrinkage: f64,
+}
+
+/// Ledoit-Wolf (2004) shrinkage of a sample covariance matrix toward a scaled
+/// identity target, with the analytic optimal shrinkage intensity.
+///
+/// Given `t` observations of `n` variables (row-major `observations`, one
+/// observation per row), columns are demeaned, the sample covariance
+/// `S = XᵀX/T` is formed, and the estimator
+///
+/// ```text
+/// Σ* = δ*·μ·I + (1 − δ*)·S
+///
+/// μ   = tr(S)/n                       (⟨S, I⟩ under ⟨A,B⟩ = tr(ABᵀ)/n)
+/// d²  = ‖S − μI‖²                     (‖A‖² = tr(AAᵀ)/n)
+/// b̄²  = (1/T²)·Σ_t ‖x_t x_tᵀ − S‖²
+/// b²  = min(b̄², d²)
+/// δ*  = b²/d²                          (δ* = 0 when d² = 0, i.e. S = μI)
+/// ```
+///
+/// is returned. `Σ*` is a convex combination of the PSD `S` and the PSD `μI`,
+/// hence always positive semi-definite and well-conditioned for `δ* > 0`.
+/// The computation is a deterministic serial fold: identical inputs produce
+/// bit-identical outputs. Complexity: O(t·n²) time, O(t·n + n²) space.
+///
+/// # Arguments
+///
+/// * `observations` - Row-major `t × n` observation matrix (row = one date)
+/// * `t` - Number of observations (rows); must be ≥ 2
+/// * `n` - Number of variables (columns); must be ≥ 1
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Validation`] when `t < 2`, `n == 0`, or any entry
+/// is non-finite, and [`crate::InputError::DimensionMismatch`] when
+/// `observations.len() != t * n`.
+///
+/// # Examples
+///
+/// ```
+/// use finstack_quant_core::math::linalg::ledoit_wolf_shrinkage;
+///
+/// // 4 observations of 2 zero-mean variables (row-major).
+/// let x = [1.0, 1.0, -1.0, -1.0, 2.0, -2.0, -2.0, 2.0];
+/// let result = ledoit_wolf_shrinkage(&x, 4, 2).unwrap();
+/// assert!((result.shrinkage - 17.0 / 18.0).abs() < 1e-14);
+/// assert!((result.covariance[1] - (-1.0 / 12.0)).abs() < 1e-13);
+/// ```
+///
+/// # References
+///
+/// - Ledoit, O., & Wolf, M. (2004). "A well-conditioned estimator for
+///   large-dimensional covariance matrices." *Journal of Multivariate
+///   Analysis*, 88(2), 365–411. Lemmas 3.2–3.4.
+pub fn ledoit_wolf_shrinkage(
+    observations: &[f64],
+    t: usize,
+    n: usize,
+) -> crate::Result<LedoitWolfResult> {
+    if n == 0 {
+        return Err(crate::Error::Validation(
+            "ledoit_wolf_shrinkage: n must be >= 1".to_owned(),
+        ));
+    }
+    if t < 2 {
+        return Err(crate::Error::Validation(format!(
+            "ledoit_wolf_shrinkage: need at least 2 observations, got {t}"
+        )));
+    }
+    if observations.len() != t * n {
+        return Err(crate::InputError::DimensionMismatch.into());
+    }
+    if let Some(bad) = observations.iter().find(|v| !v.is_finite()) {
+        return Err(crate::Error::Validation(format!(
+            "ledoit_wolf_shrinkage: non-finite observation {bad}"
+        )));
+    }
+
+    let tf = t as f64;
+    let nf = n as f64;
+
+    // Demean columns.
+    let mut means = vec![0.0_f64; n];
+    for row in 0..t {
+        for col in 0..n {
+            means[col] += observations[row * n + col];
+        }
+    }
+    for mean in &mut means {
+        *mean /= tf;
+    }
+    let mut x = vec![0.0_f64; t * n];
+    for row in 0..t {
+        for col in 0..n {
+            x[row * n + col] = observations[row * n + col] - means[col];
+        }
+    }
+
+    // S = XᵀX / T (row-major, symmetric by construction).
+    let mut s = vec![0.0_f64; n * n];
+    for i in 0..n {
+        for j in i..n {
+            let mut acc = 0.0_f64;
+            for row in 0..t {
+                acc += x[row * n + i] * x[row * n + j];
+            }
+            let value = acc / tf;
+            s[i * n + j] = value;
+            s[j * n + i] = value;
+        }
+    }
+
+    // μ = tr(S)/n.
+    let mu = (0..n).map(|i| s[i * n + i]).sum::<f64>() / nf;
+
+    // d² = ‖S − μI‖² with ‖A‖² = Σ a_ij² / n.
+    let mut d2 = 0.0_f64;
+    for i in 0..n {
+        for j in 0..n {
+            let target = if i == j { mu } else { 0.0 };
+            let dev = s[i * n + j] - target;
+            d2 += dev * dev;
+        }
+    }
+    d2 /= nf;
+
+    // b̄² = (1/T²) Σ_t ‖x_t x_tᵀ − S‖².
+    let mut b_bar2 = 0.0_f64;
+    for row in 0..t {
+        let xr = &x[row * n..(row + 1) * n];
+        let mut norm = 0.0_f64;
+        for i in 0..n {
+            for j in 0..n {
+                let dev = xr[i] * xr[j] - s[i * n + j];
+                norm += dev * dev;
+            }
+        }
+        b_bar2 += norm / nf;
+    }
+    b_bar2 /= tf * tf;
+
+    let b2 = b_bar2.min(d2);
+    let shrinkage = if d2 > 0.0 { b2 / d2 } else { 0.0 };
+
+    let mut covariance = vec![0.0_f64; n * n];
+    for i in 0..n {
+        for j in 0..n {
+            let target = if i == j { mu } else { 0.0 };
+            covariance[i * n + j] = shrinkage * target + (1.0 - shrinkage) * s[i * n + j];
+        }
+    }
+
+    Ok(LedoitWolfResult {
+        covariance,
+        shrinkage,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1567,5 +1735,86 @@ mod tests {
     fn apply_lower_triangular_handles_empty_input() {
         let out = apply_lower_triangular(&[], 0, &[]).expect("empty dimensions are consistent");
         assert!(out.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod ledoit_wolf_tests {
+    use super::ledoit_wolf_shrinkage;
+
+    /// Hand-worked golden example (arithmetic reproduced in the rustdoc).
+    ///
+    /// T = 4 observations of N = 2 zero-mean factors, row-major:
+    ///   X = [(1, 1), (−1, −1), (2, −2), (−2, 2)]
+    ///
+    ///   S    = XᵀX/T = [[2.5, −1.5], [−1.5, 2.5]]
+    ///   μ    = tr(S)/N = 2.5
+    ///   d²   = ‖S − μI‖² = (0² + 1.5² + 1.5² + 0²)/2 = 2.25
+    ///   per-observation norms ‖x_t x_tᵀ − S‖²:
+    ///     t1/t2: outer = [[1,1],[1,1]],  diff = [[−1.5,2.5],[2.5,−1.5]],
+    ///            Σ(entries²)/2 = (2·2.25 + 2·6.25)/2 = 8.5
+    ///     t3/t4: outer = [[4,−4],[−4,4]], diff = [[1.5,−2.5],[−2.5,1.5]],
+    ///            Σ(entries²)/2 = 8.5
+    ///   b̄²   = (1/T²)·Σ_t ‖x_t x_tᵀ − S‖² = (4 · 8.5)/16 = 2.125
+    ///   b²   = min(b̄², d²) = 2.125  ⇒  δ* = b²/d² = 2.125/2.25 = 17/18
+    ///   Σ*   = δ*·μ·I + (1 − δ*)·S
+    ///        = [[2.5, −1.5/18], [−1.5/18, 2.5]] = [[2.5, −1/12], [−1/12, 2.5]]
+    #[test]
+    fn ledoit_wolf_matches_hand_worked_two_factor_example() {
+        let observations = [1.0, 1.0, -1.0, -1.0, 2.0, -2.0, -2.0, 2.0];
+        let result = ledoit_wolf_shrinkage(&observations, 4, 2).unwrap();
+        assert!(
+            (result.shrinkage - 17.0 / 18.0).abs() < 1e-14,
+            "delta* must be 17/18, got {}",
+            result.shrinkage
+        );
+        let expected = [2.5, -1.0 / 12.0, -1.0 / 12.0, 2.5];
+        for (idx, (got, want)) in result.covariance.iter().zip(expected.iter()).enumerate() {
+            assert!(
+                (got - want).abs() < 1e-13,
+                "covariance[{idx}]: expected {want}, got {got}"
+            );
+        }
+    }
+
+    /// Demeaning: adding a constant to a column must not change the estimate.
+    #[test]
+    fn ledoit_wolf_is_invariant_to_column_shifts() {
+        let base = [1.0, 1.0, -1.0, -1.0, 2.0, -2.0, -2.0, 2.0];
+        // Column 0 shifted by +10; column 1 unchanged.
+        let shifted = [11.0, 1.0, 9.0, -1.0, 12.0, -2.0, 8.0, 2.0];
+        let a = ledoit_wolf_shrinkage(&base, 4, 2).unwrap();
+        let b = ledoit_wolf_shrinkage(&shifted, 4, 2).unwrap();
+        assert!((a.shrinkage - b.shrinkage).abs() < 1e-12);
+        for (x, y) in a.covariance.iter().zip(b.covariance.iter()) {
+            assert!((x - y).abs() < 1e-12);
+        }
+    }
+
+    /// Degenerate case d² = 0 (S is already a multiple of the identity):
+    /// return S unchanged with shrinkage 0.
+    ///
+    /// X = [(1, 1), (1, −1), (−1, 1), (−1, −1)] → S = I, μ = 1, d² = 0.
+    #[test]
+    fn ledoit_wolf_degenerate_identity_sample_returns_s() {
+        let observations = [1.0, 1.0, 1.0, -1.0, -1.0, 1.0, -1.0, -1.0];
+        let result = ledoit_wolf_shrinkage(&observations, 4, 2).unwrap();
+        assert!(result.shrinkage.abs() < 1e-14);
+        let expected = [1.0, 0.0, 0.0, 1.0];
+        for (got, want) in result.covariance.iter().zip(expected.iter()) {
+            assert!((got - want).abs() < 1e-14);
+        }
+    }
+
+    #[test]
+    fn ledoit_wolf_rejects_bad_input() {
+        // t < 2
+        assert!(ledoit_wolf_shrinkage(&[1.0, 2.0], 1, 2).is_err());
+        // n == 0
+        assert!(ledoit_wolf_shrinkage(&[], 2, 0).is_err());
+        // len mismatch
+        assert!(ledoit_wolf_shrinkage(&[1.0, 2.0, 3.0], 2, 2).is_err());
+        // non-finite
+        assert!(ledoit_wolf_shrinkage(&[1.0, f64::NAN, 2.0, 3.0], 2, 2).is_err());
     }
 }
