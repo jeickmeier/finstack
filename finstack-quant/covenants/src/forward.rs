@@ -11,26 +11,45 @@ use crate::engine::{
 };
 use finstack_quant_core::dates::{Date, PeriodId};
 use finstack_quant_core::math::norm_cdf;
+use finstack_quant_core::math::random::{Pcg64Rng, RandomNumberGenerator};
 use finstack_quant_core::Error;
 use finstack_quant_core::InputError;
 use finstack_quant_core::Result;
 use serde::{Deserialize, Serialize};
 
+/// Default RNG seed used when `random_seed` is `None` in Monte Carlo mode.
+pub const DEFAULT_MC_SEED: u64 = 0;
+
 /// Covenant forecast configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CovenantForecastConfig {
-    /// Whether to use analytic stochastic probabilities (vs deterministic projection).
+    /// Whether to use stochastic (as opposed to deterministic) breach probabilities.
     pub stochastic: bool,
-    /// Reserved path-count field for future path-consistent simulation.
+    /// Selects the stochastic sub-mode: closed-form analytic vs. Monte Carlo.
     ///
-    /// Must be non-zero when `stochastic` is true.
+    /// `0` (the default) uses the closed-form analytic lognormal
+    /// probabilities via [`norm_cdf`]. A value greater than `0` switches to
+    /// path-consistent Monte Carlo simulation with that many paths; with
+    /// `antithetic` enabled, paths are simulated in `(Z, -Z)` pairs and this
+    /// count is rounded up to a whole number of pairs. Ignored when
+    /// `stochastic` is `false`.
     pub num_paths: usize,
     /// Volatility for stochastic scenarios (annualized).
     pub volatility: Option<f64>,
-    /// Reserved random seed for future path-consistent simulation.
+    /// RNG seed for Monte Carlo mode (`num_paths > 0`).
+    ///
+    /// `None` uses [`DEFAULT_MC_SEED`]. Ignored in analytic mode
+    /// (`num_paths == 0`) and when `stochastic` is `false`.
     pub random_seed: Option<u64>,
-    /// Reserved antithetic flag for future path-consistent simulation.
+    /// Enables antithetic variate pairing in Monte Carlo mode.
+    ///
+    /// Each simulated unit draws `Z` and reuses `-Z` as a paired path,
+    /// halving the number of independent RNG draws and reducing estimator
+    /// variance for payoffs that are monotone in `Z` (Glasserman 2003,
+    /// *Monte Carlo Methods in Financial Engineering*, §4.1). Only
+    /// meaningful when `num_paths > 0`; `antithetic == true` with
+    /// `num_paths == 0` is rejected during validation as an inert flag.
     #[serde(default)]
     pub antithetic: bool,
     /// Reference date for time-scaling lognormal shocks. When set, shocks scale with
@@ -191,9 +210,22 @@ pub trait ModelTimeSeries: Send + Sync {
 ///
 /// With `config.stochastic == false`, probabilities are deterministic: `0.0`
 /// for pass and `1.0` for breach. With stochastic mode enabled, the function
-/// computes an analytic lognormal overlay using `volatility` and calendar time
-/// from the reference date. It falls back to the deterministic convention for
-/// a non-positive or non-finite metric because a multiplicative lognormal
+/// applies a lognormal GBM overlay using `volatility` and calendar time from
+/// the reference date, in one of two sub-modes selected by `config.num_paths`:
+///
+/// - `num_paths == 0`: closed-form analytic probabilities via [`norm_cdf`].
+///   `breach_probability_stderr` is `0.0` (no estimator error).
+/// - `num_paths > 0`: path-consistent Monte Carlo simulation. Each simulated
+///   path draws from an independent [`Pcg64Rng`] stream keyed by
+///   `(random_seed.unwrap_or(DEFAULT_MC_SEED), path_index)`, so results are
+///   deterministic and independent of evaluation order. With
+///   `config.antithetic` enabled, paths are simulated in `(Z, -Z)` pairs,
+///   which cannot increase variance for a payoff monotone in `Z` (Glasserman
+///   2003, *Monte Carlo Methods in Financial Engineering*, §4.1).
+///   `breach_probability_stderr` carries the Monte Carlo standard error.
+///
+/// Both sub-modes fall back to the deterministic convention for a
+/// non-positive or non-finite metric because a multiplicative lognormal
 /// shock is not meaningful in that regime. A `NaN` metric is treated as an
 /// indeterminate breach, matching point-in-time engine evaluation.
 ///
@@ -319,13 +351,12 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
     }
 
     let mut breach_probability = deterministic_breach_prob.clone();
+    let mut breach_probability_stderr = vec![0.0_f64; values.len()];
 
-    let breach_probability_stderr_analytic = vec![0.0f64; values.len()];
-
-    // Analytic lognormal overlay: GBM shock scaled by time horizon.
-    // shock = exp(-0.5 * sigma^2 * T + sigma * sqrt(T) * Z)
-    // where T = year-fraction from reference date to test date.
-
+    // Stochastic overlay: GBM shock scaled by time horizon,
+    //   V(T) = base · exp(-0.5·σ²·T + σ·√T·Z),  T = years from ref date.
+    // num_paths == 0 → closed-form probabilities via norm_cdf;
+    // num_paths > 0  → path-consistent Monte Carlo with identical dynamics.
     if config.stochastic {
         let sigma = config.volatility.ok_or_else(|| {
             finstack_quant_core::Error::Validation(
@@ -334,7 +365,8 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
         })?;
         tracing::debug!(
             sigma,
-            "starting analytic lognormal breach probability calculation"
+            num_paths = config.num_paths,
+            "starting stochastic breach probability calculation"
         );
 
         let ref_date = config.reference_date.unwrap_or_else(|| {
@@ -345,6 +377,11 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
                 .unwrap_or(test_dates[0])
         });
 
+        // Classify each date: deterministic convention, or eligible for the
+        // lognormal overlay (analytic or MC). The conventions are identical
+        // in both stochastic sub-modes.
+        let mut eligible: Vec<usize> = Vec::new();
+        let mut horizons: Vec<f64> = Vec::new();
         for i in 0..values.len() {
             if !activation_flags[i] {
                 breach_probability[i] = 0.0;
@@ -378,8 +415,31 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
                     };
                 continue;
             }
-            breach_probability[i] =
-                lognormal_breach_probability(bound_kind, base, thr, sigma, t_years);
+
+            if config.num_paths == 0 {
+                breach_probability[i] =
+                    lognormal_breach_probability(bound_kind, base, thr, sigma, t_years);
+            } else {
+                eligible.push(i);
+                horizons.push(t_years);
+            }
+        }
+
+        if !eligible.is_empty() {
+            let bases: Vec<f64> = eligible.iter().map(|&i| values[i]).collect();
+            let thrs: Vec<f64> = eligible.iter().map(|&i| thresholds[i]).collect();
+            let (probs, stderrs) = mc_breach_probabilities(
+                &covenant.covenant.covenant_type,
+                &bases,
+                &thrs,
+                &horizons,
+                sigma,
+                &config,
+            );
+            for (k, &i) in eligible.iter().enumerate() {
+                breach_probability[i] = probs[k];
+                breach_probability_stderr[i] = stderrs[k];
+            }
         }
     }
 
@@ -404,12 +464,6 @@ pub fn forecast_covenant_generic<MTS: ModelTimeSeries>(
     });
 
     let comparator = bound_kind;
-
-    let breach_probability_stderr = if config.stochastic {
-        breach_probability_stderr_analytic
-    } else {
-        vec![0.0; breach_probability.len()]
-    };
 
     let projected_values = values.iter().map(|v| v.is_finite().then_some(*v)).collect();
 
@@ -583,9 +637,11 @@ fn validate_config(config: &CovenantForecastConfig) -> Result<()> {
                     .to_string(),
             ));
         }
-        if config.num_paths == 0 {
+        if config.antithetic && config.num_paths == 0 {
             return Err(Error::Validation(
-                "stochastic covenant forecasts require num_paths > 0".to_string(),
+                "antithetic pairing requires num_paths > 0 (num_paths == 0 selects \
+                 the closed-form analytic mode)"
+                    .to_string(),
             ));
         }
     }
@@ -611,6 +667,96 @@ fn lognormal_breach_probability(
             }
         }
     }
+}
+
+/// Path-consistent Monte Carlo breach probabilities for the eligible dates.
+///
+/// Simulates GBM terminal values of the covenant metric under the same
+/// drift/vol assumptions as [`lognormal_breach_probability`]:
+///
+/// ```text
+/// W(T_k) = Σ_{j<=k} sqrt(T_j - T_{j-1}) · Z_j        (T_0 = 0)
+/// V_k    = base_k · exp(-0.5·σ²·T_k + σ·W(T_k))
+/// ```
+///
+/// The marginal law of `W(T_k)` is `N(0, T_k)`, so each date's estimator
+/// converges to the analytic closed form while paths stay jointly consistent
+/// across test dates. Deterministic: path `p` draws from
+/// `Pcg64Rng::new_with_stream(seed, p)`, so results are reproducible and
+/// independent of evaluation order. With `antithetic`, `(Z, -Z)` pairs are
+/// simulated and `num_paths` is rounded up to a whole number of pairs
+/// (Glasserman 2003, *Monte Carlo Methods in Financial Engineering*, §4.1).
+///
+/// Returns `(probabilities, standard_errors)` aligned with the input slices.
+fn mc_breach_probabilities(
+    covenant_type: &CovenantType,
+    bases: &[f64],
+    thresholds: &[f64],
+    horizons: &[f64],
+    sigma: f64,
+    config: &CovenantForecastConfig,
+) -> (Vec<f64>, Vec<f64>) {
+    let n_dates = bases.len();
+    let seed = config.random_seed.unwrap_or(DEFAULT_MC_SEED);
+    let n_units = if config.antithetic {
+        config.num_paths.div_ceil(2)
+    } else {
+        config.num_paths
+    };
+
+    let mut sum = vec![0.0_f64; n_dates];
+    let mut sum_sq = vec![0.0_f64; n_dates];
+
+    for unit in 0..n_units {
+        let mut rng = Pcg64Rng::new_with_stream(seed, unit as u64);
+        let mut w_pos = 0.0_f64;
+        let mut w_neg = 0.0_f64;
+        let mut t_prev = 0.0_f64;
+
+        for k in 0..n_dates {
+            let dt = (horizons[k] - t_prev).max(0.0);
+            let step = dt.sqrt() * rng.normal(0.0, 1.0);
+            w_pos += step;
+            w_neg -= step;
+            t_prev = horizons[k];
+
+            let drift = -0.5 * sigma * sigma * horizons[k];
+            let value_pos = bases[k] * (drift + sigma * w_pos).exp();
+            let hit_pos = f64::from(is_covenant_breached(
+                covenant_type,
+                value_pos,
+                thresholds[k],
+            ));
+            let unit_value = if config.antithetic {
+                let value_neg = bases[k] * (drift + sigma * w_neg).exp();
+                let hit_neg = f64::from(is_covenant_breached(
+                    covenant_type,
+                    value_neg,
+                    thresholds[k],
+                ));
+                0.5 * (hit_pos + hit_neg)
+            } else {
+                hit_pos
+            };
+            sum[k] += unit_value;
+            sum_sq[k] += unit_value * unit_value;
+        }
+    }
+
+    let n = n_units as f64;
+    let mut probs = Vec::with_capacity(n_dates);
+    let mut stderrs = Vec::with_capacity(n_dates);
+    for k in 0..n_dates {
+        let mean = sum[k] / n;
+        let variance = if n_units > 1 {
+            ((sum_sq[k] - n * mean * mean) / (n - 1.0)).max(0.0)
+        } else {
+            0.0
+        };
+        probs.push(mean);
+        stderrs.push((variance / n).sqrt());
+    }
+    (probs, stderrs)
 }
 
 fn springing_condition_active<MTS: ModelTimeSeries>(
@@ -973,5 +1119,137 @@ mod tests {
         assert_eq!(breaches[0].covenant_id, "max_debt_ebitda");
         assert_eq!(breaches[0].covenant_description, "Debt/EBITDA <= 3.00x");
         assert_eq!(breaches[0].projected_value, Some(3.5));
+    }
+
+    fn atm_spec_and_model() -> (CovenantSpec, MockTs, Vec<PeriodId>) {
+        // MaxDebtToEBITDA <= 1.0 (AtMost bound), base exactly 1.0.
+        let spec = CovenantSpec::with_metric(
+            crate::engine::Covenant::new(
+                CovenantType::MaxDebtToEBITDA { threshold: 1.0 },
+                finstack_quant_core::dates::Tenor::quarterly(),
+            ),
+            "debt_to_ebitda",
+        );
+        let periods = vec![q(2025, 1)];
+        let mts = MockTs::new().with("debt_to_ebitda", periods[0], 1.0);
+        (spec, mts, periods)
+    }
+
+    fn mc_config(num_paths: usize, antithetic: bool, seed: u64) -> CovenantForecastConfig {
+        CovenantForecastConfig {
+            stochastic: true,
+            num_paths,
+            volatility: Some(0.25),
+            random_seed: Some(seed),
+            antithetic,
+            // Pin the horizon: 2024-12-30 -> 2025-03-30 = 90 days,
+            // T = 90 / 365.25 = 0.2464065708...
+            reference_date: Some(
+                Date::from_calendar_date(2024, Month::December, 30).expect("valid date"),
+            ),
+            breach_probability_threshold: default_breach_probability_threshold(),
+        }
+    }
+
+    #[test]
+    fn num_paths_zero_selects_analytic_mode() {
+        // Hand calculation of the analytic answer:
+        //   T = 90/365.25 = 0.2464066, sigma = 0.25, base = thr = 1.0
+        //   z = (ln(thr/base) + 0.5*sigma^2*T) / (sigma*sqrt(T))
+        //     = 0.5 * 0.25 * sqrt(0.2464066) = 0.0620492
+        //   p = 1 - Phi(0.0620492) ≈ 0.47526
+        let (spec, mts, periods) = atm_spec_and_model();
+        let fc = forecast_covenant_generic(&spec, &mts, &periods, mc_config(0, false, 42))
+            .expect("num_paths = 0 must select analytic mode, not error");
+        let p = fc.breach_probability[0];
+        assert!((p - 0.47526).abs() < 1e-3, "analytic p = {p}");
+        assert_eq!(fc.breach_probability_stderr[0], 0.0);
+    }
+
+    #[test]
+    fn mc_converges_to_analytic_lognormal_probability() {
+        // THE key test: same drift/vol assumptions => MC must converge to the
+        // closed-form answer. Fixed seed => fully deterministic assertion.
+        let (spec, mts, periods) = atm_spec_and_model();
+
+        let analytic = forecast_covenant_generic(&spec, &mts, &periods, mc_config(0, false, 42))
+            .expect("analytic");
+        let mc = forecast_covenant_generic(&spec, &mts, &periods, mc_config(200_000, true, 42))
+            .expect("mc");
+
+        let p_analytic = analytic.breach_probability[0];
+        let p_mc = mc.breach_probability[0];
+        let se = mc.breach_probability_stderr[0];
+
+        assert!(se > 0.0, "MC mode must report a standard error");
+        assert!(
+            (p_mc - p_analytic).abs() < 5e-3,
+            "MC {p_mc} vs analytic {p_analytic} (se {se})"
+        );
+    }
+
+    #[test]
+    fn mc_is_deterministic_for_a_fixed_seed() {
+        let (spec, mts, periods) = atm_spec_and_model();
+        let a = forecast_covenant_generic(&spec, &mts, &periods, mc_config(10_000, true, 42))
+            .expect("run a");
+        let b = forecast_covenant_generic(&spec, &mts, &periods, mc_config(10_000, true, 42))
+            .expect("run b");
+        assert_eq!(a.breach_probability, b.breach_probability);
+        assert_eq!(a.breach_probability_stderr, b.breach_probability_stderr);
+
+        let c = forecast_covenant_generic(&spec, &mts, &periods, mc_config(10_000, true, 43))
+            .expect("run c");
+        assert_ne!(
+            a.breach_probability, c.breach_probability,
+            "different seeds must produce different estimates"
+        );
+    }
+
+    #[test]
+    fn antithetic_reduces_standard_error_here() {
+        // The breach indicator is monotone in Z for a lognormal metric, so
+        // antithetic pairing cannot increase variance; assert it helps on
+        // this fixture (fixed seed => deterministic assertion).
+        let (spec, mts, periods) = atm_spec_and_model();
+        let plain = forecast_covenant_generic(&spec, &mts, &periods, mc_config(20_000, false, 42))
+            .expect("plain");
+        let anti = forecast_covenant_generic(&spec, &mts, &periods, mc_config(20_000, true, 42))
+            .expect("antithetic");
+        assert!(
+            anti.breach_probability_stderr[0] <= plain.breach_probability_stderr[0],
+            "antithetic se {} > plain se {}",
+            anti.breach_probability_stderr[0],
+            plain.breach_probability_stderr[0]
+        );
+    }
+
+    #[test]
+    fn antithetic_without_paths_is_rejected() {
+        let (spec, mts, periods) = atm_spec_and_model();
+        let mut cfg = mc_config(0, true, 42);
+        cfg.antithetic = true;
+        assert!(
+            forecast_covenant_generic(&spec, &mts, &periods, cfg).is_err(),
+            "antithetic with num_paths = 0 is an inert flag and must be rejected"
+        );
+    }
+
+    #[test]
+    fn mc_keeps_deterministic_conventions_for_degenerate_bases() {
+        // NaN base => breached with probability 1 in MC mode too.
+        let spec = CovenantSpec::with_metric(
+            crate::engine::Covenant::new(
+                CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+                finstack_quant_core::dates::Tenor::quarterly(),
+            ),
+            "debt_to_ebitda",
+        );
+        let periods = vec![q(2025, 1)];
+        let mts = MockTs::new().with("debt_to_ebitda", periods[0], f64::NAN);
+        let fc = forecast_covenant_generic(&spec, &mts, &periods, mc_config(1_000, false, 42))
+            .expect("forecast");
+        assert_eq!(fc.breach_probability[0], 1.0);
+        assert_eq!(fc.breach_probability_stderr[0], 0.0);
     }
 }
