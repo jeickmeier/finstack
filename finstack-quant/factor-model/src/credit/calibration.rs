@@ -641,6 +641,25 @@ fn validate_calibration_config(config: &CreditCalibrationConfig) -> Result<()> {
         }
     }
 
+    // The zero-mean EWMA estimator computes the exponentially weighted
+    // mean-square of the panel it is given, with no demeaning step. Over a
+    // levels panel (e.g. spreads around 150bp) that mean-square is dominated
+    // by the squared level itself, not its dispersion, overstating variance
+    // by orders of magnitude while parsing and validating cleanly. `Sample`
+    // does not have this problem because it demeans before squaring.
+    if matches!(config.vol_model, VolModelChoice::Ewma { .. })
+        && config.use_returns_or_levels == PanelSpace::Levels
+    {
+        return Err(validation_err(
+            "CreditCalibrator: vol_model = Ewma cannot be combined with \
+             use_returns_or_levels = Levels; the zero-mean EWMA estimator computes the \
+             exponentially weighted mean-square of raw levels, not their dispersion, which \
+             silently overstates variance by orders of magnitude; use vol_model = Sample for a \
+             levels panel, or set use_returns_or_levels = Returns"
+                .to_owned(),
+        ));
+    }
+
     // Custom dimension keys join into dotted dimension paths inside factor
     // IDs; a '.' inside the key would mis-segment those paths the same way a
     // dotted tag value would.
@@ -2352,6 +2371,38 @@ mod calibration_config_tests {
             ..CreditCalibrationConfig::default()
         };
         assert!(validate_calibration_config(&good).is_ok());
+    }
+
+    #[test]
+    fn ewma_vol_model_rejected_for_levels_panel() {
+        let config = CreditCalibrationConfig {
+            vol_model: VolModelChoice::Ewma { lambda: 0.94 },
+            use_returns_or_levels: PanelSpace::Levels,
+            ..CreditCalibrationConfig::default()
+        };
+        let err = validate_calibration_config(&config)
+            .expect_err("Ewma + Levels must be rejected as fail-closed");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Ewma") && msg.contains("Levels"),
+            "error message must name both offending settings, got: {msg}"
+        );
+
+        // Sample vol model remains accepted for a levels panel (it demeans).
+        let sample_config = CreditCalibrationConfig {
+            vol_model: VolModelChoice::Sample,
+            use_returns_or_levels: PanelSpace::Levels,
+            ..CreditCalibrationConfig::default()
+        };
+        assert!(validate_calibration_config(&sample_config).is_ok());
+
+        // Ewma remains accepted for a returns panel.
+        let returns_config = CreditCalibrationConfig {
+            vol_model: VolModelChoice::Ewma { lambda: 0.94 },
+            use_returns_or_levels: PanelSpace::Returns,
+            ..CreditCalibrationConfig::default()
+        };
+        assert!(validate_calibration_config(&returns_config).is_ok());
     }
 
     #[test]
