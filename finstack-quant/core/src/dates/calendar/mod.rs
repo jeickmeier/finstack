@@ -6,7 +6,9 @@
 //!
 //! # Features
 //!
-//! - **100+ market calendars**: Major exchanges, central banks, and settlement systems
+//! - **21 built-in market calendars**: major exchanges, central banks, and
+//!   settlement systems, generated at build time from `data/calendars/*.json`
+//!   (see [`available_calendars`] for the exact identifier list)
 //! - **Rule-based definitions**: JSON-defined rules for transparency and auditability
 //! - **Rule evaluation**: [`is_holiday`](HolidayCalendar::is_holiday) checks a
 //!   date against the calendar's `&'static` rule set (a short linear scan;

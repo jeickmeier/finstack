@@ -186,6 +186,22 @@ fn test_available_calendars() {
     assert!(calendars.contains(&"target2"));
 }
 
+#[test]
+fn available_calendars_count_matches_module_docs() {
+    // The module docs at src/dates/calendar/mod.rs ("21 built-in market
+    // calendars") state the exact number of built-in calendars, generated at
+    // build time from core/data/calendars/*.json. If you add or remove a
+    // calendar JSON file, update BOTH the doc line and this constant in the
+    // same commit — this test exists so the docs cannot drift again.
+    const DOCUMENTED_CALENDAR_COUNT: usize = 21;
+    assert_eq!(
+        available_calendars().len(),
+        DOCUMENTED_CALENDAR_COUNT,
+        "calendar count changed: update src/dates/calendar/mod.rs module docs \
+         and DOCUMENTED_CALENDAR_COUNT together"
+    );
+}
+
 // ============================================
 // Infinite Loop Guard
 // ============================================
