@@ -551,3 +551,65 @@ mod zmijewski_tests {
         assert!(matches!(err, CreditScoringError::NonFiniteInput { .. }));
     }
 }
+
+#[cfg(test)]
+mod em_score_tests {
+    use crate::credit::scoring::{altman_em_score, AltmanZDoublePrimeInput, ScoringZone};
+
+    #[test]
+    fn em_score_is_z_double_prime_plus_constant() {
+        // X1=0.20, X2=0.30, X3=0.15, X4=1.20
+        // Z'' = 6.56*0.20 + 3.26*0.30 + 6.72*0.15 + 1.05*1.20
+        //     = 1.312 + 0.978 + 1.008 + 1.260 = 4.558
+        // EM  = 3.25 + 4.558 = 7.808  ->  Safe (> 5.85)
+        let input = AltmanZDoublePrimeInput {
+            working_capital_to_total_assets: 0.20,
+            retained_earnings_to_total_assets: 0.30,
+            ebit_to_total_assets: 0.15,
+            book_equity_to_total_liabilities: 1.20,
+        };
+        let result = altman_em_score(&input).unwrap();
+        assert!((result.score - 7.808).abs() < 1e-12, "got {}", result.score);
+        assert_eq!(result.zone, ScoringZone::Safe);
+        assert_eq!(result.implied_pd, None);
+        assert_eq!(result.model, "Altman EM-Score (1995)");
+    }
+
+    #[test]
+    fn em_score_grey_and_distress_zones() {
+        // Grey: X1=0.05, X2=0.10, X3=0.05, X4=0.50
+        // Z'' = 0.328 + 0.326 + 0.336 + 0.525 = 1.515; EM = 4.765 in [4.35, 5.85]
+        let grey = AltmanZDoublePrimeInput {
+            working_capital_to_total_assets: 0.05,
+            retained_earnings_to_total_assets: 0.10,
+            ebit_to_total_assets: 0.05,
+            book_equity_to_total_liabilities: 0.50,
+        };
+        let r = altman_em_score(&grey).unwrap();
+        assert!((r.score - 4.765).abs() < 1e-12, "got {}", r.score);
+        assert_eq!(r.zone, ScoringZone::Grey);
+
+        // Distress: X1=-0.10, X2=-0.20, X3=-0.05, X4=0.30
+        // Z'' = -0.656 - 0.652 - 0.336 + 0.315 = -1.329; EM = 1.921 < 4.35
+        let bad = AltmanZDoublePrimeInput {
+            working_capital_to_total_assets: -0.10,
+            retained_earnings_to_total_assets: -0.20,
+            ebit_to_total_assets: -0.05,
+            book_equity_to_total_liabilities: 0.30,
+        };
+        let r = altman_em_score(&bad).unwrap();
+        assert!((r.score - 1.921).abs() < 1e-12, "got {}", r.score);
+        assert_eq!(r.zone, ScoringZone::Distress);
+    }
+
+    #[test]
+    fn em_score_rejects_non_finite_inputs() {
+        let input = AltmanZDoublePrimeInput {
+            working_capital_to_total_assets: f64::NAN,
+            retained_earnings_to_total_assets: 0.1,
+            ebit_to_total_assets: 0.1,
+            book_equity_to_total_liabilities: 0.5,
+        };
+        assert!(altman_em_score(&input).is_err());
+    }
+}

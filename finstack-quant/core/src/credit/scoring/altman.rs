@@ -1,6 +1,6 @@
 //! Altman Z-Score family: original (1968), Z'-Score (private firms),
-//! and Z''-Score (non-manufacturing firms; the emerging-market EM-Score
-//! variant with the +3.25 constant is not implemented).
+//! Z''-Score (non-manufacturing firms), and EM-Score (emerging markets variant
+//! with +3.25 constant; see [`altman_em_score`]).
 //!
 //! # References
 //!
@@ -72,9 +72,9 @@ pub struct AltmanZPrimeInput {
 
 /// Input ratios for the Altman Z''-Score (non-manufacturing firms).
 ///
-/// Drops the Sales/Total Assets ratio to remove industry bias. The
-/// implemented model is the constant-free non-EM Z''; the emerging-market
-/// "EM-Score" (+3.25 constant, cutoffs 5.85/4.35) is not implemented.
+/// Drops the Sales/Total Assets ratio to remove industry bias. Used for both
+/// the constant-free Z'' model and the emerging-market EM-Score variant
+/// (see [`altman_em_score`]).
 ///
 /// # References
 ///
@@ -82,7 +82,7 @@ pub struct AltmanZPrimeInput {
 ///   Wiley. (Four-variable Z'' for non-manufacturers.)
 /// - Altman, E. I. (2005). "An Emerging Market Credit Scoring System for
 ///   Corporate Bonds." *Emerging Markets Review*, 6(4), 311-323. (EM-Score
-///   variant, not implemented.)
+///   variant with +3.25 constant.)
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AltmanZDoublePrimeInput {
     /// X1: Working Capital / Total Assets.
@@ -306,7 +306,7 @@ pub fn altman_z_prime_with_pd(
 /// Altman, Hartzell & Peck 1995), whose 2.60 / 1.10 zone cutoffs are
 /// defined on the constant-free scale. The emerging-market "EM-Score"
 /// variant, which adds a +3.25 constant and uses cutoffs
-/// Safe > 5.85 / Distress < 4.35, is *not* implemented.
+/// Safe > 5.85 / Distress < 4.35, is provided by [`altman_em_score`].
 ///
 /// # Errors
 ///
@@ -354,7 +354,7 @@ pub fn altman_z_double_prime(
     )?;
 
     // Non-EM Z'' has no constant term; the +3.25 constant belongs to the
-    // EM-Score variant with cutoffs 5.85/4.35 (see 2026-06-09 quant review).
+    // EM-Score variant with cutoffs 5.85/4.35 (implemented in altman_em_score).
     let z = 6.56 * input.working_capital_to_total_assets
         + 3.26 * input.retained_earnings_to_total_assets
         + 6.72 * input.ebit_to_total_assets
@@ -384,6 +384,96 @@ pub fn altman_z_double_prime_with_pd(
     let mut result = altman_z_double_prime(input)?;
     result.implied_pd = Some(calibration.map(result.score, 2.60, 1.10));
     Ok(result)
+}
+
+// ---------------------------------------------------------------------------
+// EM-Score (emerging markets)
+// ---------------------------------------------------------------------------
+
+/// Constant added to the Z''-Score to obtain the EM-Score.
+///
+/// Altman, Hartzell & Peck (1995) add +3.25 so that a defaulted (D-rated)
+/// issuer maps to an EM-Score near zero.
+pub const EM_SCORE_CONSTANT: f64 = 3.25;
+/// EM-Score above this value is Safe (US bond-rating equivalent ~BBB and above).
+pub const EM_SCORE_SAFE_THRESHOLD: f64 = 5.85;
+/// EM-Score below this value is Distress (US bond-rating equivalent ~BB- and below).
+pub const EM_SCORE_DISTRESS_THRESHOLD: f64 = 4.35;
+
+/// Compute the Altman EM-Score for emerging-market corporates.
+///
+/// ```text
+/// EM = 3.25 + Z'' = 3.25 + 6.56*X1 + 3.26*X2 + 6.72*X3 + 1.05*X4
+/// ```
+///
+/// Zone cutoffs (on the EM scale, i.e. Z'' cutoffs shifted by +3.25):
+/// - EM > 5.85: Safe
+/// - 4.35 <= EM <= 5.85: Grey
+/// - EM < 4.35: Distress
+///
+/// # US bond rating equivalents (Altman, Hartzell & Peck 1995)
+///
+/// | EM-Score >= | Rating equivalent | EM-Score >= | Rating equivalent |
+/// |-------------|-------------------|-------------|-------------------|
+/// | 8.15        | AAA               | 5.25        | BB+               |
+/// | 7.60        | AA+               | 4.95        | BB                |
+/// | 7.30        | AA                | 4.75        | BB-               |
+/// | 7.00        | AA-               | 4.50        | B+                |
+/// | 6.85        | A+                | 4.15        | B                 |
+/// | 6.65        | A                 | 3.75        | B-                |
+/// | 6.40        | A-                | 3.20        | CCC+              |
+/// | 6.25        | BBB+              | 2.50        | CCC               |
+/// | 5.85        | BBB               | 1.75        | CCC-              |
+/// | 5.65        | BBB-              | < 1.75      | D                 |
+///
+/// `implied_pd` is always `None`: the versioned [`AltmanPdCalibration`]
+/// heuristics are defined on the Z-score cutoffs and are not extended here.
+///
+/// # Errors
+///
+/// Returns [`CreditScoringError::NonFiniteInput`] if any input ratio is NaN or
+/// infinite (delegated to [`altman_z_double_prime`]).
+///
+/// # Examples
+///
+/// ```
+/// use finstack_quant_core::credit::scoring::{altman_em_score, AltmanZDoublePrimeInput, ScoringZone};
+///
+/// let healthy = AltmanZDoublePrimeInput {
+///     working_capital_to_total_assets: 0.20,
+///     retained_earnings_to_total_assets: 0.30,
+///     ebit_to_total_assets: 0.15,
+///     book_equity_to_total_liabilities: 1.20,
+/// };
+/// let result = altman_em_score(&healthy)?;
+/// assert!((result.score - 7.808).abs() < 1e-12);
+/// assert_eq!(result.zone, ScoringZone::Safe);
+/// # Ok::<_, finstack_quant_core::credit::scoring::CreditScoringError>(())
+/// ```
+///
+/// # References
+///
+/// - Altman, E. I., Hartzell, J., & Peck, M. (1995). "Emerging Markets
+///   Corporate Bonds: A Scoring System." Salomon Brothers.
+/// - Altman, E. I. (2005). "An Emerging Market Credit Scoring System for
+///   Corporate Bonds." *Emerging Markets Review*, 6(4), 311-323.
+///
+/// # Arguments
+///
+/// * `input` - Finite accounting ratios for the four-factor Z'' model; the
+///   EM-Score uses book equity in X4.
+pub fn altman_em_score(
+    input: &AltmanZDoublePrimeInput,
+) -> Result<ScoringResult, CreditScoringError> {
+    let base = altman_z_double_prime(input)?;
+    let em = EM_SCORE_CONSTANT + base.score;
+    let zone = z_score_zone(em, EM_SCORE_SAFE_THRESHOLD, EM_SCORE_DISTRESS_THRESHOLD);
+    Ok(ScoringResult {
+        score: em,
+        zone,
+        implied_pd: None,
+        model: "Altman EM-Score (1995)",
+    })
 }
 
 // ---------------------------------------------------------------------------
