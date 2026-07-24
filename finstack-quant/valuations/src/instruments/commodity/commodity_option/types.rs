@@ -1087,8 +1087,12 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for Commodity
         let pv_dn_up = pv_with_bumps(-fwd_bump_pct, vol_bump)?;
         let pv_dn_dn = pv_with_bumps(-fwd_bump_pct, -vol_bump)?;
 
+        // Report vanna per **vol point** on the σ axis (consistent with vega
+        // and `MetricId::Vanna`): the vol-axis width is the bump expressed in
+        // vol points; the forward axis is unchanged.
+        let width_vol_points = vol_bump * crate::metrics::VOL_POINTS_PER_ABSOLUTE_VOL;
         Ok(Some(
-            (pv_up_up - pv_up_dn - pv_dn_up + pv_dn_dn) / (4.0 * fwd_bump_size * vol_bump),
+            (pv_up_up - pv_up_dn - pv_dn_up + pv_dn_dn) / (4.0 * fwd_bump_size * width_vol_points),
         ))
     }
 

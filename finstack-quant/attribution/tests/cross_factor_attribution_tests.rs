@@ -7,6 +7,7 @@ use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{DateExt, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
@@ -104,6 +105,137 @@ impl Instrument for RatesCreditInteractionInstrument {
         let hazard = market.get_hazard("ACME-HAZ")?.hazard_rate(1.0);
         Ok(Money::new(1_000_000.0 * rate * hazard, Currency::USD))
     }
+}
+
+/// Bilinear credit×vol instrument (the convertible shape): V = k·h·σ.
+/// Used to verify the default parallel cross-pair set extracts the
+/// Credit×Vol interaction instead of leaving it in the residual.
+#[derive(Clone)]
+struct CreditVolInteractionInstrument {
+    id: String,
+}
+
+finstack_quant_valuations::impl_empty_cashflow_provider!(
+    CreditVolInteractionInstrument,
+    finstack_quant_cashflows::builder::CashflowRepresentation::NoResidual
+);
+
+impl CreditVolInteractionInstrument {
+    fn new(id: &str) -> Self {
+        Self { id: id.to_string() }
+    }
+}
+
+impl Instrument for CreditVolInteractionInstrument {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn key(&self) -> InstrumentType {
+        InstrumentType::Convertible
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn attributes(&self) -> &Attributes {
+        static ATTRS: OnceLock<Attributes> = OnceLock::new();
+        ATTRS.get_or_init(Attributes::default)
+    }
+
+    fn attributes_mut(&mut self) -> &mut Attributes {
+        unreachable!("test instrument attributes_mut should not be called")
+    }
+
+    fn clone_box(&self) -> Box<dyn Instrument> {
+        Box::new(self.clone())
+    }
+
+    fn market_dependencies(&self) -> finstack_quant_core::Result<MarketDependencies> {
+        let mut deps = MarketDependencies::new();
+        deps.add_credit_curve(CurveId::new("ACME-HAZ"));
+        deps.add_volatility_dependency(
+            finstack_quant_valuations::instruments::VolatilityDependency::new(
+                CurveId::new("EQ-VOL"),
+                None,
+                None,
+            ),
+        );
+        Ok(deps)
+    }
+
+    fn base_value(&self, market: &MarketContext, _as_of: Date) -> Result<Money> {
+        let hazard = market.get_hazard("ACME-HAZ")?.hazard_rate(1.0);
+        let vol = market.get_surface("EQ-VOL")?.value_checked(1.0, 100.0)?;
+        Ok(Money::new(1_000_000.0 * hazard * vol, Currency::USD))
+    }
+}
+
+fn build_vol_surface(id: &str, vol: f64) -> VolSurface {
+    VolSurface::builder(id)
+        .expiries(&[1.0])
+        .strikes(&[100.0])
+        .row(&[vol])
+        .build()
+        .expect("vol surface should build")
+}
+
+/// Audit fix: the default parallel cross-pair set must include Credit×Vol —
+/// a convertible-shaped instrument's credit-vol interaction previously flowed
+/// into the residual under the default six pairs.
+#[test]
+fn synthetic_parallel_instrument_surfaces_credit_vol_cross_factor() {
+    let as_of_t0 = date!(2025 - 01 - 15);
+    let as_of_t1 = date!(2025 - 01 - 16);
+    let market_t0 = MarketContext::new()
+        .insert(build_hazard_curve("ACME-HAZ", as_of_t0, 0.01))
+        .insert_surface(build_vol_surface("EQ-VOL", 0.20));
+    let market_t1 = MarketContext::new()
+        .insert(build_hazard_curve("ACME-HAZ", as_of_t1, 0.02))
+        .insert_surface(build_vol_surface("EQ-VOL", 0.30));
+
+    let instrument =
+        Arc::new(CreditVolInteractionInstrument::new("CREDIT-VOL-XFACTOR")) as Arc<dyn Instrument>;
+
+    let parallel = attribute_pnl_parallel(
+        &instrument,
+        &market_t0,
+        &market_t1,
+        as_of_t0,
+        as_of_t1,
+        &FinstackConfig::default(),
+        ExecutionPolicy::Parallel,
+    )
+    .expect("parallel attribution should succeed");
+
+    let detail = parallel
+        .cross_factor_detail
+        .as_ref()
+        .expect("parallel cross-factor detail should be present");
+    assert!(
+        detail.by_pair.contains_key("Credit×Vol"),
+        "default cross-pair set must include Credit×Vol; got pairs {:?}",
+        detail.by_pair.keys().collect::<Vec<_>>()
+    );
+
+    // V = k·h·σ with both factors moving up: the additive cross term is
+    // −k·(h1−h0)·(σ1−σ0) < 0, and with it extracted the purely bilinear
+    // two-factor instrument reconciles exactly.
+    assert!(
+        parallel.cross_factor_pnl.amount() < 0.0,
+        "additive Credit×Vol term should be negative for an up-up co-movement, got {}",
+        parallel.cross_factor_pnl.amount()
+    );
+    assert!(
+        parallel.residual.amount().abs() < 1e-6,
+        "residual should be ~0 once the Credit×Vol term is extracted, got {}",
+        parallel.residual.amount()
+    );
 }
 
 #[test]

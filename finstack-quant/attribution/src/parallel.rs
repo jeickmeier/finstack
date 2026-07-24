@@ -1158,7 +1158,7 @@ fn attribute_pnl_parallel_impl(
             Option<Money>,
             Option<Money>,
         );
-        let cross_specs: [CrossSpec<'_>; 6] = [
+        let cross_specs: [CrossSpec<'_>; 7] = [
             (
                 "Rates×Credit",
                 MarketRestoreFlags::RATES,
@@ -1200,6 +1200,17 @@ fn attribute_pnl_parallel_impl(
                 MarketRestoreFlags::FX,
                 val_with_t0_fx,
                 val_with_t0_rates,
+            ),
+            // Audit fix: Credit×Vol — material for convertibles (equity vol
+            // drives the conversion option while the credit curve discounts
+            // the bond floor). Appended after the historical six pairs so the
+            // reduction order of existing books is unchanged.
+            (
+                "Credit×Vol",
+                MarketRestoreFlags::CREDIT,
+                MarketRestoreFlags::VOL,
+                val_with_t0_credit,
+                val_with_t0_vol,
             ),
         ];
 

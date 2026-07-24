@@ -40,7 +40,7 @@ use pyo3::prelude::*;
 ///     Optional attribution config overrides (tolerance, metrics, bump sizes).
 /// full_cross_attribution : bool, optional
 ///     When true, the parallel method evaluates every pairwise cross-factor
-///     interaction (full cross matrix) instead of the default six economic
+///     interaction (full cross matrix) instead of the default seven economic
 ///     pairs. More repricings, smaller residual.
 ///
 /// Returns

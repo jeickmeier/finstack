@@ -193,6 +193,19 @@ fn test_vanna_computable() {
         analytical_vanna
     );
 
+    // Pin the per-vol-point convention: vanna is reported per 1 vol point
+    // (0.01 absolute vol) on the σ axis, consistent with Vega. This value is
+    // the deterministic analytic result for `CmsOption::example()` under the
+    // standard market; the pre-convention (per decimal vol) value was 100x
+    // larger (-2_389_204.95261703).
+    let expected_vanna = -23_892.049_526_170_3;
+    assert!(
+        (analytical_vanna - expected_vanna).abs() < 1e-6 * expected_vanna.abs(),
+        "Vanna should be per vol point: expected {}, got {}",
+        expected_vanna,
+        analytical_vanna
+    );
+
     // Vega should be positive for a cap
     assert!(
         vega > 0.0,

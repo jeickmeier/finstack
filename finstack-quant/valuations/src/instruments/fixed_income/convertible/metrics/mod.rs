@@ -106,6 +106,15 @@ pub(crate) fn register_convertible_metrics(registry: &mut MetricRegistry) {
         &[InstrumentType::Convertible],
     );
     registry.register_metric(
+        MetricId::CrossGammaCreditVol,
+        Arc::new(CrossFactorCalculator::new(
+            CrossFactorPair::CreditVol,
+            make_credit_bumper,
+            make_vol_bumper,
+        )),
+        &[InstrumentType::Convertible],
+    );
+    registry.register_metric(
         MetricId::custom("bond_floor"),
         Arc::new(bond_floor::BondFloorCalculator),
         &[InstrumentType::Convertible],

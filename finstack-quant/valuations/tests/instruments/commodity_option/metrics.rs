@@ -266,12 +266,14 @@ fn test_forward_based_greeks_with_both_spot_and_price_curve() -> finstack_quant_
     let pv_down_up = option.value(&market_down_vol_up, as_of)?.amount();
     let pv_down_down = option.value(&market_down_vol_down, as_of)?.amount();
 
+    // Vanna is reported per **vol point** on the σ axis (consistent with
+    // Vega), so the vol-axis width is the bump expressed in vol points.
     let ref_vanna =
-        (pv_up_up - pv_up_down - pv_down_up + pv_down_down) / (4.0 * bump_size * vol_bump);
+        (pv_up_up - pv_up_down - pv_down_up + pv_down_down) / (4.0 * bump_size * vol_bump * 100.0);
 
     // Validate that computed Greeks match reference within tolerance
     let gamma_tol = 1e-6;
-    let vanna_tol = 1e-6;
+    let vanna_tol = 1e-8;
 
     assert!(
         (gamma - ref_gamma).abs() < gamma_tol,

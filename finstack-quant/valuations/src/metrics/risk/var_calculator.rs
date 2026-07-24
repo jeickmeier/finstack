@@ -164,6 +164,19 @@ pub struct VarResult {
 
     /// Confidence level used
     pub confidence_level: f64,
+
+    /// True when the Taylor approximation skipped one or more FX-spot shocks
+    /// (no FX-delta Taylor term exists). The FX component of those scenarios
+    /// is excluded, so VaR/ES understate FX risk; prefer full revaluation for
+    /// FX-exposed portfolios. Always false for full revaluation.
+    pub skipped_fx: bool,
+
+    /// True when the Taylor approximation skipped one or more `ImpliedVol`
+    /// point shocks for a vol-exposed instrument (only aggregate Vega is
+    /// available, not bucketed vol). The vega component of those scenarios is
+    /// excluded, so VaR/ES understate vol risk. Always false for full
+    /// revaluation.
+    pub skipped_vol: bool,
 }
 
 impl VarResult {
@@ -198,6 +211,8 @@ impl VarResult {
                 pnl_distribution,
                 num_scenarios,
                 confidence_level,
+                skipped_fx: false,
+                skipped_vol: false,
             });
         }
 
@@ -240,7 +255,16 @@ impl VarResult {
             pnl_distribution,
             num_scenarios,
             confidence_level,
+            skipped_fx: false,
+            skipped_vol: false,
         })
+    }
+
+    /// Stamp Taylor-approximation skip flags onto this result.
+    fn with_taylor_skips(mut self, skipped: TaylorSkipFlags) -> Self {
+        self.skipped_fx = skipped.skipped_fx;
+        self.skipped_vol = skipped.skipped_vol;
+        self
     }
 }
 
@@ -793,11 +817,13 @@ fn calculate_var_taylor_approximation(
         pnls.push(converted);
     }
 
-    // Surface (once) any factors the Taylor approximation had to skip rather
-    // than hard-failing the job.
+    // Surface any factors the Taylor approximation had to skip rather than
+    // hard-failing the job: once in the logs, and durably on the result so
+    // callers (including bindings) can see the degradation.
     skipped.warn_if_any("historical_var.taylor.single");
 
     VarResult::from_distribution(pnls, config.confidence_level)
+        .map(|result| result.with_taylor_skips(skipped))
 }
 
 fn compute_taylor_sensitivities(
@@ -951,9 +977,11 @@ fn taylor_pnl_for_scenario(
     // shifts match it (within tolerance), i.e. the move is a parallel shift.
     let mut first_rate_shift_bp = 0.0;
     let mut rate_shifts_parallel = true;
-    // Sum of squared bucket shifts (bp²): used to apply the aggregate
-    // convexity term on non-parallel scenarios via a mean-square shift.
-    let mut sum_rate_shift_sq = 0.0_f64;
+    // Sum of squared bucket shifts in DECIMAL-rate units: `ir_convexity` is
+    // d²PV/dr² per (decimal rate)² (see `IrConvexityCalculator`, which divides
+    // by h² with h in decimals), so the second-order term must square the
+    // decimal shift. Squaring the bp shift would overstate it by 10⁸.
+    let mut sum_rate_shift_sq_dec = 0.0_f64;
 
     for shift in &scenario.shifts {
         match &shift.factor {
@@ -974,7 +1002,7 @@ fn taylor_pnl_for_scenario(
                     })?;
                 let shift_bp = shift.shift * 10_000.0;
                 pnl += dv01 * shift_bp;
-                sum_rate_shift_sq += shift_bp * shift_bp;
+                sum_rate_shift_sq_dec += shift.shift * shift.shift;
                 if rate_shift_count == 0 {
                     first_rate_shift_bp = shift_bp;
                 } else if (shift_bp - first_rate_shift_bp).abs() > PARALLEL_SHIFT_TOLERANCE_BP {
@@ -1053,12 +1081,15 @@ fn taylor_pnl_for_scenario(
     //     approximation of the unavailable per-bucket sum, but a conservative,
     //     non-zero one — far better than dropping the term.
     if sensitivities.ir_convexity.abs() > 0.0 && rate_shift_count > 0 {
-        let shift_sq = if rate_shifts_parallel {
-            first_rate_shift_bp * first_rate_shift_bp
+        // `ir_convexity` is per (decimal rate)², so the squared shift must be
+        // in decimal² units (1bp = 1e-4 decimal).
+        let first_rate_shift_dec = first_rate_shift_bp * 1e-4;
+        let shift_sq_dec = if rate_shifts_parallel {
+            first_rate_shift_dec * first_rate_shift_dec
         } else {
-            sum_rate_shift_sq / rate_shift_count as f64
+            sum_rate_shift_sq_dec / f64::from(rate_shift_count)
         };
-        pnl += 0.5 * sensitivities.ir_convexity * shift_sq;
+        pnl += 0.5 * sensitivities.ir_convexity * shift_sq_dec;
     }
 
     Ok(pnl)
@@ -1143,6 +1174,8 @@ fn calculate_portfolio_var_taylor(
             pnl_distribution: vec![],
             confidence_level: config.confidence_level,
             num_scenarios: 0,
+            skipped_fx: false,
+            skipped_vol: false,
         });
     }
 
@@ -1217,10 +1250,12 @@ fn calculate_portfolio_var_taylor(
     }
 
     // A single FX/vol-exposed instrument no longer kills the whole portfolio's
-    // VaR job — its unsupported factors are skipped and surfaced here.
+    // VaR job — its unsupported factors are skipped, logged here, and stamped
+    // on the result so callers can see the degradation.
     skipped.warn_if_any("historical_var.taylor.portfolio");
 
     VarResult::from_distribution(pnls, config.confidence_level)
+        .map(|result| result.with_taylor_skips(skipped))
 }
 
 #[cfg(test)]
@@ -1879,11 +1914,10 @@ mod tests {
     /// AND the aggregate-convexity second-order term must still be applied
     /// (via the mean-square bucket shift) rather than silently dropped.
     ///
-    /// Re-blessed (self-calculated regression): the previous test asserted the
-    /// convexity term was OMITTED on a steepener (P&L == 800). Audit item #2
-    /// shows that dropping convexity on every non-parallel scenario makes
-    /// Taylor VaR optimistic; the fix applies `0.5·C·⟨Δr²⟩`. New expected P&L:
-    /// `800 + 0.5·5000·100 = 250_800`.
+    /// Re-blessed twice: (1) the convexity term must be applied on
+    /// non-parallel scenarios via the mean-square shift rather than dropped;
+    /// (2) `ir_convexity` is per (decimal rate)², so the squared shift is in
+    /// decimal² units — the earlier bp² expectation overstated the term 10⁸×.
     #[test]
     fn test_taylor_steepener_reflects_first_order_and_convexity() {
         let as_of = sample_as_of();
@@ -1896,14 +1930,15 @@ mod tests {
         dv01_by_curve.insert("USD-OIS".to_string(), dv01_buckets);
 
         // Non-zero aggregate convexity: contributes via the mean-square shift
-        // even for a steepener.
+        // even for a steepener. Units are currency per (decimal rate)²:
+        // 5e9 ≡ 50 per bp².
         let sensitivities = TaylorSensitivities {
             currency: Currency::USD,
             dv01: BucketedSeries {
                 per_curve: dv01_by_curve,
                 fallback: HashMap::default(),
             },
-            ir_convexity: 5_000.0,
+            ir_convexity: 5.0e9,
             ..Default::default()
         };
 
@@ -1939,12 +1974,13 @@ mod tests {
         .expect("steepener Taylor P&L should compute");
 
         // First-order: (-40 * 10bp) + (-120 * -10bp) = -400 + 1200 = 800.
-        // Convexity (mean-square): 0.5 * 5000 * (⟨Δr²⟩ = (100+100)/2 = 100)
-        //   = 250_000. Total = 250_800.
+        // Convexity (mean-square, decimal units):
+        //   0.5 * 5e9 * (⟨Δr²⟩ = ((1e-3)² + (1e-3)²)/2 = 1e-6) = 2_500.
+        // Total = 3_300.
         assert!(
-            (pnl - 250_800.0).abs() < 1e-6,
+            (pnl - 3_300.0).abs() < 1e-6,
             "steepener Taylor P&L should be first-order DV01 (800) plus the \
-             mean-square convexity term (250_000) = 250_800, got {pnl}"
+             mean-square convexity term (2_500) = 3_300, got {pnl}"
         );
         assert!(
             pnl.abs() > 1.0,
@@ -1980,10 +2016,131 @@ mod tests {
         )
         .expect("parallel Taylor P&L should compute");
         // First-order: (-40 - 120) * 10bp = -1600.
-        // Convexity: 0.5 * 5000 * 10^2 = 250000.
+        // Convexity (decimal units): 0.5 * 5e9 * (1e-3)² = 2_500.
         assert!(
-            (parallel_pnl - (-1600.0 + 250_000.0)).abs() < 1e-6,
+            (parallel_pnl - (-1600.0 + 2_500.0)).abs() < 1e-6,
             "parallel shift should include the convexity term, got {parallel_pnl}"
+        );
+    }
+
+    /// Degradation visibility: when the Taylor method skips an FX-spot shock
+    /// (no FX-delta term), the resulting `VarResult` must carry the skip flag
+    /// so callers (including bindings, which see only the result payload) know
+    /// the VaR understates FX risk. Full revaluation must report no skips.
+    #[test]
+    fn test_taylor_var_result_carries_skip_flags() -> Result<()> {
+        let as_of = sample_as_of();
+        let bond = standard_bond("SKIP-FLAG-BOND", as_of, date!(2029 - 01 - 01));
+        // Full revaluation applies the FX shock to the market, so the base
+        // market needs an FX matrix even though the bond itself is USD-only.
+        let provider = finstack_quant_core::money::fx::SimpleFxProvider::new();
+        provider
+            .set_quote(Currency::EUR, Currency::USD, 1.10)
+            .expect("valid rate");
+        let base_market = usd_ois_market(as_of)?.insert_fx(
+            finstack_quant_core::money::fx::FxMatrix::new(Arc::new(provider)),
+        );
+
+        // One scenario mixing a rate shift (supported) with an FX shock
+        // (unsupported by the Taylor expansion).
+        let scenario = MarketScenario::new(
+            as_of,
+            vec![
+                RiskFactorShift {
+                    factor: RiskFactorType::DiscountRate {
+                        curve_id: CurveId::new("USD-OIS"),
+                        tenor_years: 5.0,
+                    },
+                    shift: 0.0005,
+                },
+                RiskFactorShift {
+                    factor: RiskFactorType::FxSpot {
+                        base: Currency::EUR,
+                        quote: Currency::USD,
+                    },
+                    shift: 0.05,
+                },
+            ],
+        );
+        let history = MarketHistory::new(as_of, 1, vec![scenario]);
+
+        let taylor = calculate_var(
+            &[&bond],
+            &base_market,
+            &history,
+            as_of,
+            &VarConfig::var_95().with_method(VarMethod::TaylorApproximation),
+        )?;
+        assert!(
+            taylor.skipped_fx,
+            "Taylor VaR must flag the skipped FX-spot factor on the result"
+        );
+        assert!(!taylor.skipped_vol, "no vol factor was present");
+
+        let full = calculate_var(
+            &[&bond],
+            &base_market,
+            &history,
+            as_of,
+            &VarConfig::var_95(),
+        )?;
+        assert!(
+            !full.skipped_fx && !full.skipped_vol,
+            "full revaluation skips nothing"
+        );
+        Ok(())
+    }
+
+    /// Units regression: `ir_convexity` is produced per (decimal rate)² —
+    /// `IrConvexityCalculator` divides by `h²` with `h = bump_bp * 1e-4` — so
+    /// the Taylor second-order term must square the DECIMAL shift, not the
+    /// bp shift. Squaring the bp shift overstates the term by (10⁴)² = 10⁸.
+    #[test]
+    fn test_taylor_convexity_term_uses_decimal_rate_units() {
+        let as_of = sample_as_of();
+        let mut dv01_buckets = HashMap::default();
+        dv01_buckets.insert("5y".to_string(), -100.0);
+        let mut dv01_by_curve = HashMap::default();
+        dv01_by_curve.insert("USD-OIS".to_string(), dv01_buckets);
+
+        // Convexity in currency per (decimal rate)²: 2e8 ≡ 2.0 per bp².
+        let sensitivities = TaylorSensitivities {
+            currency: Currency::USD,
+            dv01: BucketedSeries {
+                per_curve: dv01_by_curve,
+                fallback: HashMap::default(),
+            },
+            ir_convexity: 2.0e8,
+            ..Default::default()
+        };
+
+        // Single 10bp (0.0010 decimal) parallel shift at one bucket.
+        let scenario = MarketScenario::new(
+            as_of,
+            vec![RiskFactorShift {
+                factor: RiskFactorType::DiscountRate {
+                    curve_id: CurveId::new("USD-OIS"),
+                    tenor_years: 5.0,
+                },
+                shift: 0.0010,
+            }],
+        );
+
+        let pnl = taylor_pnl_for_scenario(
+            &sensitivities,
+            &MarketContext::new(),
+            &scenario,
+            &mut HashMap::default(),
+            &mut TaylorSkipFlags::default(),
+        )
+        .expect("Taylor P&L should compute");
+
+        // First-order: -100 per bp × 10bp = -1000.
+        // Second-order: 0.5 × 2e8 × (0.0010)² = 100.
+        // A bp² squaring bug would instead add 0.5 × 2e8 × 10² = 1e10.
+        assert!(
+            (pnl - (-900.0)).abs() < 1e-6,
+            "convexity term must use decimal-rate units: expected -900, got {pnl}"
         );
     }
 

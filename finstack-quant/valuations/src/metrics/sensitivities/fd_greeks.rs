@@ -892,7 +892,12 @@ where
             Ok((v_pp, v_pm, v_mp, v_mm))
         })?;
 
-        let vanna = (v_pp - v_pm - v_mp + v_mm) / (4.0 * h_abs * k_abs);
+        // Report vanna per **vol point** on the σ axis (consistent with vega
+        // and `MetricId::Vanna`). The mixed difference is taken in absolute-vol
+        // units, so the vol-axis width is the bump expressed in vol points
+        // (`k_abs * VOL_POINTS_PER_ABSOLUTE_VOL`); the spot axis is unchanged.
+        let vanna =
+            (v_pp - v_pm - v_mp + v_mm) / (4.0 * h_abs * k_abs * VOL_POINTS_PER_ABSOLUTE_VOL);
 
         ensure_finite(vanna, "fd_vanna")
     }
@@ -1865,6 +1870,10 @@ mod tests {
             .compute(&[MetricId::Vanna], &mut ctx)
             .expect("vanna");
         let vanna = result[&MetricId::Vanna];
-        assert!((vanna - first_slope - second_slope).abs() < 1e-9);
+        // PV couples spot with Σ slope·σ, so ∂²V/∂S∂σ = Σ slope per decimal
+        // vol. Vanna is reported per **vol point** (0.01 absolute vol),
+        // consistent with Vega: expected = Σ slope × 0.01.
+        let expected = (first_slope + second_slope) * 0.01;
+        assert!((vanna - expected).abs() < 1e-9);
     }
 }

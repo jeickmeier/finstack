@@ -884,6 +884,21 @@ pub fn attribute_pnl_metrics_based(
                  (theta_period override) to the {time_period_days}-day attribution window"
             ));
         }
+    } else if time_period_days > 1.0
+        && (val_t0.measures.get(MetricId::CarryTotal.as_str()).is_some()
+            || val_t0.measures.get(MetricId::Theta.as_str()).is_some())
+    {
+        // Audit fix: without a ThetaPeriodDays stamp the carry metrics are
+        // linearly extrapolated across the window from an assumed 1-day
+        // producer horizon — including any discrete coupon component. The
+        // operator must be able to distinguish "true period carry" from
+        // "1-day carry × N" (the residual silently absorbs the difference).
+        attribution.meta.notes.push(format!(
+            "Carry metrics scaled linearly ×{time_period_days} from an \
+             assumed 1-day producer horizon (no theta_period_days stamp); \
+             discrete cashflows and carry convexity inside the window are \
+             extrapolated, not observed"
+        ));
     }
 
     if let Some(carry_total) = val_t0.measures.get(MetricId::CarryTotal.as_str()) {
@@ -1582,10 +1597,11 @@ pub fn attribute_pnl_metrics_based(
 
         // Cross-factor terms (audit rec #5).
         //
-        // Same six pairs as the parallel attribution (see
+        // Same seven pairs as the parallel attribution (see
         // [`crate::parallel::attribute_pnl_parallel_with_credit_model`]
         // for the economic justification of the selection): Rates×Credit,
-        // Rates×Vol, Spot×Vol, Spot×Credit, FX×Vol, FX×Rates. Each multiplies a
+        // Rates×Vol, Spot×Vol, Spot×Credit, FX×Vol, FX×Rates and Credit×Vol
+        // (the convertible pair). Each multiplies a
         // mixed second-partial (`CrossGamma_X_Y` metric) by the two observed
         // moves; the result enters `cross_factor_pnl` instead of either
         // factor's univariate P&L. Pairs not listed flow into the residual
@@ -1604,10 +1620,11 @@ pub fn attribute_pnl_metrics_based(
         // (basis points) — each matching its cross-gamma metric's convention.
         //
         // WARNING: Do NOT substitute `MetricId::Vanna` here as a fallback for
-        // `CrossGammaSpotVol`.  `Vanna` is defined as ∂²V/(∂S_abs × ∂σ_decimal)
-        // — per unit spot, per decimal vol — and differs from
-        // `CrossGammaSpotVol` by a factor of S₀ / 10_000.  Using `Vanna` with
-        // percentage-point moves would mis-scale the cross P&L by 10_000/S₀.
+        // `CrossGammaSpotVol`.  `Vanna` is defined as ∂²V/(∂S_abs × ∂σ)
+        // — per unit spot, per vol point — and differs from
+        // `CrossGammaSpotVol` by a factor of S₀ / 100 (the spot axes differ:
+        // per unit spot vs per 1 pct-pt spot move).  Using `Vanna` with
+        // percentage-point moves would mis-scale the cross P&L by 100/S₀.
         //
         // TWIST LIMITATION: the rate/credit cross terms below multiply the
         // mixed second-partial by the *signed average* shifts
@@ -1728,6 +1745,30 @@ pub fn attribute_pnl_metrics_based(
                 &mut cross_total,
                 "FX×Rates",
                 cross_gamma * fx_shift * rate_shift,
+                currency,
+                &mut attribution.meta.notes,
+                &mut non_finite_detected,
+            );
+        }
+
+        // Credit×Vol (audit fix): material for convertibles, whose equity vol
+        // feeds the conversion option while the credit curve discounts the
+        // bond floor. `CrossGammaCreditVol` is $ per bp-credit per vol-point,
+        // pairing with `avg_credit_shift_bp` (bp) × `avg_vol_shift_abs`
+        // (vol points).
+        if let (Some(cross_gamma), Some(credit_shift), Some(vol_shift)) = (
+            val_t0
+                .measures
+                .get(MetricId::CrossGammaCreditVol.as_str())
+                .copied(),
+            avg_credit_shift_bp,
+            avg_vol_shift_abs,
+        ) {
+            add_cross_factor_term(
+                &mut cross_by_pair,
+                &mut cross_total,
+                "Credit×Vol",
+                cross_gamma * credit_shift * vol_shift,
                 currency,
                 &mut attribution.meta.notes,
                 &mut non_finite_detected,
@@ -2055,6 +2096,98 @@ mod tests {
         assert!((attribution.carry.amount() + 5.0).abs() < 1e-9);
         assert!((attribution.total_pnl.amount() + 5.0).abs() < 1e-9);
         assert!(attribution.residual_within_tolerance(0.01, 0.01));
+    }
+
+    /// Audit fix: a multi-day window whose carry metrics carry no
+    /// `ThetaPeriodDays` stamp is linearly extrapolated from an assumed 1-day
+    /// producer horizon — the operator must be able to distinguish "true
+    /// period carry" from "1-day carry × N", so a note is required.
+    #[test]
+    fn metrics_based_carry_without_horizon_stamp_notes_linear_scaling() {
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 20); // 5-day window
+        let meta = finstack_quant_core::config::results_meta(&FinstackConfig::default());
+
+        let instrument: Arc<dyn Instrument> = Arc::new(TestInstrument::new(
+            "TEST-CARRY-NO-HORIZON",
+            Money::new(1_000.0, Currency::USD),
+        ));
+
+        // CarryTotal without ThetaPeriodDays: scaled by the full 5-day window.
+        let mut measures_t0 = IndexMap::new();
+        measures_t0.insert(MetricId::CarryTotal, -5.0);
+
+        let val_t0 = ValuationResult::stamped_with_meta(
+            "TEST-CARRY-NO-HORIZON",
+            as_of_t0,
+            Money::new(1_000.0, Currency::USD),
+            meta.clone(),
+        )
+        .with_measures(measures_t0);
+        let val_t1 = ValuationResult::stamped_with_meta(
+            "TEST-CARRY-NO-HORIZON",
+            as_of_t1,
+            Money::new(975.0, Currency::USD),
+            meta,
+        );
+
+        let attribution = attribute_pnl_metrics_based(
+            &instrument,
+            &MarketContext::new(),
+            &MarketContext::new(),
+            &val_t0,
+            &val_t1,
+            as_of_t0,
+            as_of_t1,
+        )
+        .expect("metrics-based attribution should succeed");
+
+        assert!((attribution.carry.amount() + 25.0).abs() < 1e-9);
+        assert!(
+            attribution
+                .meta
+                .notes
+                .iter()
+                .any(|n| n.contains("assumed 1-day producer horizon")),
+            "multi-day carry scaling without a ThetaPeriodDays stamp must be noted; notes: {:?}",
+            attribution.meta.notes
+        );
+
+        // A 1-day window scales by 1 — no distortion, no note.
+        let meta2 = finstack_quant_core::config::results_meta(&FinstackConfig::default());
+        let mut measures_1d = IndexMap::new();
+        measures_1d.insert(MetricId::CarryTotal, -5.0);
+        let val_t0_1d = ValuationResult::stamped_with_meta(
+            "TEST-CARRY-NO-HORIZON",
+            as_of_t0,
+            Money::new(1_000.0, Currency::USD),
+            meta2.clone(),
+        )
+        .with_measures(measures_1d);
+        let val_t1_1d = ValuationResult::stamped_with_meta(
+            "TEST-CARRY-NO-HORIZON",
+            date!(2025 - 01 - 16),
+            Money::new(995.0, Currency::USD),
+            meta2,
+        );
+        let attribution_1d = attribute_pnl_metrics_based(
+            &instrument,
+            &MarketContext::new(),
+            &MarketContext::new(),
+            &val_t0_1d,
+            &val_t1_1d,
+            as_of_t0,
+            date!(2025 - 01 - 16),
+        )
+        .expect("metrics-based attribution should succeed");
+        assert!(
+            !attribution_1d
+                .meta
+                .notes
+                .iter()
+                .any(|n| n.contains("assumed 1-day producer horizon")),
+            "a 1-day window has no scaling distortion and must not be noted"
+        );
     }
 
     #[test]
@@ -2431,9 +2564,9 @@ mod tests {
         assert_eq!(bucketed.get(&CurveId::new("USD-SOFR")), None);
     }
 
-    /// `Vanna` (∂²V/∂S_abs∂σ_decimal) must NOT be used as a fallback for
-    /// `CrossGammaSpotVol` in attribution because their unit conventions differ
-    /// by a factor of S₀ / 10_000.  When only `Vanna` is present (no
+    /// `Vanna` (∂²V/∂S_abs∂σ, per unit spot per vol point) must NOT be used as
+    /// a fallback for `CrossGammaSpotVol` in attribution because their unit
+    /// conventions differ by a factor of S₀ / 100.  When only `Vanna` is present (no
     /// `CrossGammaSpotVol`), the Spot×Vol cross P&L must be zero (goes to
     /// residual) rather than silently mis-scaled.
     #[test]
@@ -2703,6 +2836,205 @@ mod tests {
             (spot_vol_entry.amount() - expected_cross_pnl).abs() < 1e-9,
             "Spot×Vol detail should be {expected_cross_pnl}; got {}",
             spot_vol_entry.amount()
+        );
+    }
+
+    /// Test instrument exposing a credit-curve dependency and a vol-surface
+    /// dependency (the convertible shape) so the Credit×Vol cross term can be
+    /// exercised without a full convertible pricer.
+    #[derive(Clone)]
+    struct CreditVolTestInstrument {
+        id: String,
+        value: Money,
+    }
+
+    finstack_quant_valuations::impl_empty_cashflow_provider!(
+        CreditVolTestInstrument,
+        finstack_quant_cashflows::builder::CashflowRepresentation::NoResidual
+    );
+
+    impl CreditVolTestInstrument {
+        fn new(id: &str, value: Money) -> Self {
+            Self {
+                id: id.to_string(),
+                value,
+            }
+        }
+    }
+
+    impl Instrument for CreditVolTestInstrument {
+        fn id(&self) -> &str {
+            &self.id
+        }
+
+        fn key(&self) -> finstack_quant_valuations::pricer::InstrumentType {
+            finstack_quant_valuations::pricer::InstrumentType::Convertible
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+
+        fn attributes(&self) -> &finstack_quant_valuations::instruments::Attributes {
+            static ATTRS: OnceLock<finstack_quant_valuations::instruments::Attributes> =
+                OnceLock::new();
+            ATTRS.get_or_init(finstack_quant_valuations::instruments::Attributes::default)
+        }
+
+        fn attributes_mut(&mut self) -> &mut finstack_quant_valuations::instruments::Attributes {
+            unreachable!("CreditVolTestInstrument::attributes_mut should not be called")
+        }
+
+        fn clone_box(&self) -> Box<dyn Instrument> {
+            Box::new(self.clone())
+        }
+
+        fn market_dependencies(
+            &self,
+        ) -> finstack_quant_core::Result<finstack_quant_valuations::instruments::MarketDependencies>
+        {
+            let mut deps = finstack_quant_valuations::instruments::MarketDependencies::new();
+            deps.add_credit_curve(finstack_quant_core::types::CurveId::new("ACME-HAZ"));
+            deps.add_volatility_dependency(
+                finstack_quant_valuations::instruments::VolatilityDependency::new(
+                    finstack_quant_core::types::CurveId::new("TEST-VOL"),
+                    None,
+                    None,
+                ),
+            );
+            Ok(deps)
+        }
+
+        fn base_value(&self, _market: &MarketContext, _as_of: Date) -> Result<Money> {
+            Ok(self.value)
+        }
+
+        fn price_with_metrics(
+            &self,
+            market: &MarketContext,
+            as_of: Date,
+            _metrics: &[MetricId],
+            _options: finstack_quant_valuations::instruments::PricingOptions,
+        ) -> Result<ValuationResult> {
+            Ok(ValuationResult::stamped(
+                self.id(),
+                as_of,
+                self.value(market, as_of)?,
+            ))
+        }
+    }
+
+    /// Audit fix: `CrossGammaCreditVol` (bp-credit × vol-point units) must be
+    /// consumed by the cross-factor block — a convertible's credit-vol
+    /// cross-gamma previously flowed silently into the residual.
+    ///
+    /// Setup:
+    ///   hazard 0.02 → 0.03 (par-spread move measured by
+    ///   `measure_credit_curve_shift`, same value asserted here)
+    ///   σ 0.20 → 0.21 → avg_vol_shift_abs = 1.0 vol-pt
+    ///   CrossGammaCreditVol = 0.005 ($ per bp-credit per vol-pt)
+    #[test]
+    fn test_cross_gamma_credit_vol_pairs_bp_and_vol_points() {
+        use finstack_quant_core::market_data::term_structures::HazardCurve;
+
+        let as_of_t0 = date!(2025 - 01 - 15);
+        let as_of_t1 = date!(2025 - 01 - 16);
+        let meta = finstack_quant_core::config::results_meta(&FinstackConfig::default());
+
+        let instrument: Arc<dyn Instrument> = Arc::new(CreditVolTestInstrument::new(
+            "TEST-CREDIT-VOL-CGAMMA",
+            Money::new(100.0, Currency::USD),
+        ));
+
+        let hazard = |as_of: Date, h: f64| {
+            HazardCurve::builder("ACME-HAZ")
+                .base_date(as_of)
+                .day_count(finstack_quant_core::dates::DayCount::Act365F)
+                .recovery_rate(0.4)
+                .knots([(0.0, h), (5.0, h)])
+                .build()
+                .expect("hazard curve should build")
+        };
+        let surface = |vol: f64| {
+            VolSurface::builder("TEST-VOL")
+                .expiries(&[1.0])
+                .strikes(&[100.0])
+                .row(&[vol])
+                .build()
+                .expect("test vol surface should build")
+        };
+
+        let market_t0 = MarketContext::new()
+            .insert(hazard(as_of_t0, 0.02))
+            .insert_surface(surface(0.20));
+        let market_t1 = MarketContext::new()
+            .insert(hazard(as_of_t1, 0.03))
+            .insert_surface(surface(0.21));
+
+        // The same signed par-spread move the attribution preamble measures.
+        let credit_shift_bp = measure_credit_curve_shift(
+            "ACME-HAZ",
+            &market_t0,
+            &market_t1,
+            TenorSamplingMethod::Standard,
+        )
+        .expect("credit curve shift should be measurable");
+        assert!(
+            credit_shift_bp > 0.0,
+            "hazard widening must produce a positive par-spread move"
+        );
+
+        let cross_gamma_credit_vol = 0.005_f64; // $ per bp-credit per vol-pt
+        let mut measures_t0 = IndexMap::new();
+        measures_t0.insert(MetricId::CrossGammaCreditVol, cross_gamma_credit_vol);
+
+        let val_t0 = ValuationResult::stamped_with_meta(
+            "TEST-CREDIT-VOL-CGAMMA",
+            as_of_t0,
+            Money::new(100.0, Currency::USD),
+            meta.clone(),
+        )
+        .with_measures(measures_t0);
+        let val_t1 = ValuationResult::stamped_with_meta(
+            "TEST-CREDIT-VOL-CGAMMA",
+            as_of_t1,
+            Money::new(101.0, Currency::USD),
+            meta,
+        );
+
+        let attribution = attribute_pnl_metrics_based(
+            &instrument,
+            &market_t0,
+            &market_t1,
+            &val_t0,
+            &val_t1,
+            as_of_t0,
+            as_of_t1,
+        )
+        .expect("metrics-based attribution should succeed");
+
+        // avg_vol_shift_abs = (0.21 − 0.20) × 100 = 1.0 vol-pt
+        let expected_cross_pnl = cross_gamma_credit_vol * credit_shift_bp * 1.0;
+        let detail = attribution
+            .cross_factor_detail
+            .expect("cross factor detail should be populated");
+        let credit_vol_entry = detail
+            .by_pair
+            .get("Credit×Vol")
+            .expect("Credit×Vol entry should be present");
+        assert!(
+            (credit_vol_entry.amount() - expected_cross_pnl).abs() < 1e-9,
+            "Credit×Vol detail should be {expected_cross_pnl}; got {}",
+            credit_vol_entry.amount()
+        );
+        assert!(
+            (attribution.cross_factor_pnl.amount() - expected_cross_pnl).abs() < 1e-9,
+            "cross P&L total should equal the Credit×Vol term; got {}",
+            attribution.cross_factor_pnl.amount()
         );
     }
 

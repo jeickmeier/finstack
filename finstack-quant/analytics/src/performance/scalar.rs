@@ -105,11 +105,19 @@ impl Performance {
     ///
     /// # Returns
     ///
-    /// One Sharpe ratio per ticker. Returns `0.0` for tickers with zero volatility.
+    /// One Sharpe ratio per ticker. Returns `±∞` for tickers with zero
+    /// volatility and nonzero excess return, `0.0` when both are zero, and
+    /// [`f64::NAN`] when the active window has fewer than 2 observations
+    /// (volatility is not estimable, so the ratio is undefined rather than
+    /// a plausible-looking `±∞`).
     pub fn sharpe(&self, risk_free_rate: f64) -> Vec<f64> {
         let ann = self.ann();
         self.map_tickers(|i| {
-            let (m, v) = risk_metrics::mean_vol_annualized(self.active_returns(i), ann);
+            let r = self.active_returns(i);
+            if r.len() < 2 {
+                return f64::NAN;
+            }
+            let (m, v) = risk_metrics::mean_vol_annualized(r, ann);
             risk_metrics::sharpe(m, v, risk_free_rate)
         })
     }
@@ -132,8 +140,16 @@ impl Performance {
     ///
     /// One Sortino ratio per ticker in column order. May return `±∞` for
     /// tickers with zero downside deviation and nonzero mean return.
+    /// Returns [`f64::NAN`] when the active window has fewer than 2
+    /// observations (downside deviation is not estimable from one point).
     pub fn sortino(&self, mar: f64) -> Vec<f64> {
-        self.map_tickers(|i| risk_metrics::sortino(self.active_returns(i), true, self.ann(), mar))
+        self.map_tickers(|i| {
+            let r = self.active_returns(i);
+            if r.len() < 2 {
+                return f64::NAN;
+            }
+            risk_metrics::sortino(r, true, self.ann(), mar)
+        })
     }
 
     /// Calmar ratio for each ticker.

@@ -69,6 +69,16 @@ impl MarketScenario {
         // shift-by-shift loop.
         let mut bumps: Vec<MarketBump> = Vec::with_capacity(self.shifts.len());
 
+        // `ImpliedVol` shocks carry (expiry, strike) point coordinates, but the
+        // bump machinery here supports only whole-surface parallel additive
+        // bumps. Applying each point shock as its own parallel bump would
+        // COMPOUND N point shocks into an N-fold surface move (the deferred
+        // rounds below re-apply same-id curve bumps, which is correct for
+        // key-rate shifts at different tenors but not for repeated parallel
+        // surface bumps). Approximate instead with ONE parallel bump per
+        // surface equal to the MEAN of that surface's point shifts.
+        let mut vol_shifts_by_surface: Vec<(CurveId, Vec<f64>)> = Vec::new();
+
         for shift in &self.shifts {
             let bump = match &shift.factor {
                 RiskFactorType::DiscountRate {
@@ -96,18 +106,43 @@ impl MarketScenario {
                     pct: shift.shift * 100.0,
                     as_of: self.date,
                 },
-                RiskFactorType::ImpliedVol { surface_id, .. } => MarketBump::Curve {
-                    id: surface_id.clone(),
-                    spec: BumpSpec {
-                        mode: BumpMode::Additive,
-                        units: BumpUnits::Fraction,
-                        value: shift.shift,
-                        bump_type: BumpType::Parallel,
-                    },
-                },
+                RiskFactorType::ImpliedVol { surface_id, .. } => {
+                    match vol_shifts_by_surface
+                        .iter_mut()
+                        .find(|(id, _)| id == surface_id)
+                    {
+                        Some((_, shifts)) => shifts.push(shift.shift),
+                        None => vol_shifts_by_surface.push((surface_id.clone(), vec![shift.shift])),
+                    }
+                    continue;
+                }
             };
 
             bumps.push(bump);
+        }
+
+        for (surface_id, shifts) in vol_shifts_by_surface {
+            let count = shifts.len();
+            let mean_shift = shifts.iter().sum::<f64>() / count as f64;
+            if count > 1 {
+                tracing::warn!(
+                    surface_id = surface_id.as_str(),
+                    point_shocks = count,
+                    mean_shift,
+                    "scenario carries multiple ImpliedVol point shocks for one \
+                     surface; approximating with a single mean parallel bump \
+                     (point-level surface bumps are not supported here)"
+                );
+            }
+            bumps.push(MarketBump::Curve {
+                id: surface_id,
+                spec: BumpSpec {
+                    mode: BumpMode::Additive,
+                    units: BumpUnits::Fraction,
+                    value: mean_shift,
+                    bump_type: BumpType::Parallel,
+                },
+            });
         }
 
         // `MarketContext::bump` classifies curve bumps into a `HashMap` keyed
@@ -496,6 +531,114 @@ mod tests {
 
         assert!((rate - 1.32).abs() < 1e-12);
 
+        Ok(())
+    }
+
+    /// Multiple `ImpliedVol` point shocks on the SAME surface must not
+    /// compound into repeated full-surface parallel bumps (the deferred-round
+    /// mechanism exists for same-curve KEY-RATE shifts, which legitimately
+    /// stack at different tenors — not for whole-surface vol bumps). A
+    /// scenario with per-point vol changes is approximated by ONE parallel
+    /// bump equal to the mean point shift.
+    #[test]
+    fn test_same_surface_vol_points_average_not_compound() -> Result<()> {
+        use finstack_quant_core::market_data::surfaces::VolSurface;
+
+        let surface = VolSurface::builder("EQ-VOL")
+            .expiries(&[0.5, 1.0])
+            .strikes(&[100.0, 110.0])
+            .row(&[0.20, 0.20])
+            .row(&[0.20, 0.20])
+            .build()?;
+        let base_market = MarketContext::new().insert_surface(surface);
+
+        let scenario = MarketScenario::new(
+            date!(2024 - 01 - 02),
+            vec![
+                RiskFactorShift {
+                    factor: RiskFactorType::ImpliedVol {
+                        surface_id: CurveId::from("EQ-VOL"),
+                        expiry_years: 0.5,
+                        strike: 100.0,
+                    },
+                    shift: 0.02,
+                },
+                RiskFactorShift {
+                    factor: RiskFactorType::ImpliedVol {
+                        surface_id: CurveId::from("EQ-VOL"),
+                        expiry_years: 1.0,
+                        strike: 110.0,
+                    },
+                    shift: 0.04,
+                },
+            ],
+        );
+
+        let bumped = scenario.apply(&base_market)?;
+        let vol = bumped
+            .get_surface("EQ-VOL")?
+            .value_checked(0.5, 100.0)
+            .expect("grid point lookup should succeed");
+
+        // Mean of (+2, +4) vol points = +3 vol points, NOT the compounded +6.
+        assert!(
+            (vol - 0.23).abs() < 1e-9,
+            "same-surface vol point shocks must average into one parallel bump \
+             (expected 0.23), got {vol}"
+        );
+        Ok(())
+    }
+
+    /// Vol shocks on DIFFERENT surfaces stay independent.
+    #[test]
+    fn test_distinct_surface_vol_shifts_stay_independent() -> Result<()> {
+        use finstack_quant_core::market_data::surfaces::VolSurface;
+
+        let eq = VolSurface::builder("EQ-VOL")
+            .expiries(&[1.0])
+            .strikes(&[100.0])
+            .row(&[0.20])
+            .build()?;
+        let fx = VolSurface::builder("FX-VOL")
+            .expiries(&[1.0])
+            .strikes(&[1.10])
+            .row(&[0.10])
+            .build()?;
+        let base_market = MarketContext::new().insert_surface(eq).insert_surface(fx);
+
+        let scenario = MarketScenario::new(
+            date!(2024 - 01 - 02),
+            vec![
+                RiskFactorShift {
+                    factor: RiskFactorType::ImpliedVol {
+                        surface_id: CurveId::from("EQ-VOL"),
+                        expiry_years: 1.0,
+                        strike: 100.0,
+                    },
+                    shift: 0.02,
+                },
+                RiskFactorShift {
+                    factor: RiskFactorType::ImpliedVol {
+                        surface_id: CurveId::from("FX-VOL"),
+                        expiry_years: 1.0,
+                        strike: 1.10,
+                    },
+                    shift: -0.01,
+                },
+            ],
+        );
+
+        let bumped = scenario.apply(&base_market)?;
+        let eq_vol = bumped
+            .get_surface("EQ-VOL")?
+            .value_checked(1.0, 100.0)
+            .expect("grid point");
+        let fx_vol = bumped
+            .get_surface("FX-VOL")?
+            .value_checked(1.0, 1.10)
+            .expect("grid point");
+        assert!((eq_vol - 0.22).abs() < 1e-9, "EQ surface: got {eq_vol}");
+        assert!((fx_vol - 0.09).abs() < 1e-9, "FX surface: got {fx_vol}");
         Ok(())
     }
 

@@ -612,7 +612,11 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for EquityOpt
             .amount();
         let delta_dn = (pv_su - pv_sd) / (2.0 * spot_bump_abs);
 
-        Ok(Some((delta_up - delta_dn) / (2.0 * vol_bump_abs)))
+        // Report vanna per **vol point** on the σ axis (consistent with vega
+        // and `MetricId::Vanna`): normalize by the bump width expressed in
+        // vol points.
+        let width = 2.0 * vol_bump_abs * crate::metrics::VOL_POINTS_PER_ABSOLUTE_VOL;
+        Ok(Some((delta_up - delta_dn) / width))
     }
 
     fn option_volga(

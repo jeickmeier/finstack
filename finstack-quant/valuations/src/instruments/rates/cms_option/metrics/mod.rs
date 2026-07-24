@@ -263,7 +263,10 @@ impl MetricCalculator for VannaCalculator {
             total_vanna += period_vanna;
         }
 
-        Ok(total_vanna * inst.notional.amount())
+        // The Black-76 vanna above is per unit (decimal) vol; report per
+        // **vol point** on the σ axis (consistent with vega and
+        // `MetricId::Vanna`).
+        Ok(total_vanna * inst.notional.amount() / VOL_POINTS_PER_ABSOLUTE_VOL)
     }
 }
 

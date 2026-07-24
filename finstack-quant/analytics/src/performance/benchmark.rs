@@ -21,11 +21,16 @@ impl Performance {
     /// # Returns
     ///
     /// One Treynor ratio per ticker in column order, using the active
-    /// benchmark to estimate beta.
+    /// benchmark to estimate beta. Returns [`f64::NAN`] when the overlapping
+    /// ticker/benchmark window has fewer than 2 observations (beta is not
+    /// estimable from one point).
     pub fn treynor(&self, risk_free_rate: f64) -> Vec<f64> {
         let ann = self.ann();
         self.map_tickers(|i| {
             let (r, bench) = self.active_pair_returns(i);
+            if r.len().min(bench.len()) < 2 {
+                return f64::NAN;
+            }
             let ann_ret = risk_metrics::mean_return(r, true, ann);
             let beta = beta_only(r, bench);
             treynor(ann_ret, risk_free_rate, beta)
@@ -65,9 +70,16 @@ impl Performance {
     }
 
     /// Annualized information ratio for each ticker versus the active benchmark.
+    ///
+    /// Returns [`f64::NAN`] when the overlapping ticker/benchmark window has
+    /// fewer than 2 observations (tracking error is not estimable from one
+    /// point, so the ratio is undefined rather than a plausible `±∞`).
     pub fn information_ratio(&self) -> Vec<f64> {
         self.map_tickers(|i| {
             let (r, bench) = self.active_pair_returns(i);
+            if r.len().min(bench.len()) < 2 {
+                return f64::NAN;
+            }
             information_ratio(r, bench, true, self.ann())
         })
     }

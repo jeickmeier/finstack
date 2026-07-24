@@ -381,6 +381,9 @@ pub fn beta(portfolio: &[f64], benchmark: &[f64]) -> BetaResult {
 
     let var_bench = oc.variance_y();
     let resid_var = residual_stats.variance();
+    // SE(β) = s / √SXX with s² = SSR/(n−2). `resid_var` carries an (n−1)
+    // denominator and `var_bench` = SXX/(n−1); the two (n−1) factors cancel,
+    // so resid_var / ((n−2)·var_bench) = [SSR/(n−2)] / SXX exactly.
     let se = if var_bench > 0.0 {
         (resid_var / ((n - 2) as f64 * var_bench)).sqrt()
     } else {
@@ -1638,7 +1641,11 @@ mod tests {
 ///
 /// # Returns
 ///
-/// The Treynor ratio. Returns `0.0` if beta is zero.
+/// The Treynor ratio. When `|beta| < 1e-10`: returns `+∞` if the excess
+/// return is positive, `−∞` if negative, and `0.0` only when the excess
+/// return is also zero (matching the [`sharpe`](crate::risk_metrics) /
+/// `information_ratio` zero-denominator convention). A `NaN` beta (e.g.
+/// from a zero-variance benchmark) propagates to a `NaN` ratio.
 ///
 /// # Examples
 ///

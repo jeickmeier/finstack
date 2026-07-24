@@ -599,7 +599,11 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxOption 
         let delta_up = self.greeks_internal(&curves_up, as_of)?.delta;
         let delta_dn = self.greeks_internal(&curves_dn, as_of)?.delta;
 
-        Ok(Some((delta_up - delta_dn) / (2.0 * delta_sigma)))
+        // Report vanna per **vol point** on the σ axis (consistent with vega
+        // and `MetricId::Vanna`): normalize by the bump width expressed in
+        // vol points.
+        let width = 2.0 * delta_sigma * crate::metrics::VOL_POINTS_PER_ABSOLUTE_VOL;
+        Ok(Some((delta_up - delta_dn) / width))
     }
 
     fn option_volga(

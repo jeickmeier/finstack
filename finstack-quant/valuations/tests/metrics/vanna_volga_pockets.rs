@@ -145,7 +145,9 @@ fn equity_vanna_and_volga_match_reference_fd() -> finstack_quant_core::Result<()
     let spot_bump_pct = SPOT_BUMP_PCT;
     let delta_up = equity_delta_fd(&opt, &curves_vol_up, as_of, spot_bump_pct)?;
     let delta_dn = equity_delta_fd(&opt, &curves_vol_dn, as_of, spot_bump_pct)?;
-    let vanna_ref = (delta_up - delta_dn) / (2.0 * delta_sigma);
+    // Vanna is reported per **vol point** on the σ axis (consistent with
+    // Vega), so normalize by the bump width expressed in vol points.
+    let vanna_ref = (delta_up - delta_dn) / (2.0 * delta_sigma * 100.0);
 
     let pv_up = opt.value(&curves_vol_up, as_of)?.amount();
     let pv_0 = opt.value(&market, as_of)?.amount();
@@ -156,7 +158,7 @@ fn equity_vanna_and_volga_match_reference_fd() -> finstack_quant_core::Result<()
     let volga_ref = (pv_up - 2.0 * pv_0 + pv_dn) / (volga_width * volga_width);
 
     // Tolerances: these are FD-vs-FD comparisons, so keep them tight but not brittle.
-    approx_eq(vanna, vanna_ref, 5e-6);
+    approx_eq(vanna, vanna_ref, 5e-8);
     approx_eq(volga, volga_ref, 5e-4);
     Ok(())
 }
@@ -296,7 +298,9 @@ fn fx_vanna_and_volga_match_reference_fd() -> finstack_quant_core::Result<()> {
     )?;
     let delta_up = result_up.measures[&MetricId::Delta];
     let delta_dn = result_dn.measures[&MetricId::Delta];
-    let vanna_ref = (delta_up - delta_dn) / (2.0 * delta_sigma);
+    // Vanna is reported per **vol point** on the σ axis (consistent with
+    // Vega), so scale the per-decimal-vol difference quotient by 0.01.
+    let vanna_ref = (delta_up - delta_dn) / (2.0 * delta_sigma) * 0.01;
 
     let vega_up = result_up.measures[&MetricId::Vega];
     let vega_dn = result_dn.measures[&MetricId::Vega];

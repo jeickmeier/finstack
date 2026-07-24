@@ -588,7 +588,11 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for QuantoOpt
         let pv_dn = self.value(&dn, as_of)?.amount();
         let delta_dn = (pv_up - pv_dn) / (2.0 * spot_bump);
 
-        Ok(Some((delta_up - delta_dn) / (2.0 * vol_bump)))
+        // Report vanna per **vol point** on the σ axis (consistent with vega
+        // and `MetricId::Vanna`): normalize by the bump width expressed in
+        // vol points.
+        let width = 2.0 * vol_bump * crate::metrics::VOL_POINTS_PER_ABSOLUTE_VOL;
+        Ok(Some((delta_up - delta_dn) / width))
     }
 
     fn option_volga(

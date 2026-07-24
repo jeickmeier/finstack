@@ -451,8 +451,11 @@ pub(crate) fn parametric_var(returns: &[f64], confidence: f64, ann_factor: Optio
 ///
 /// * `returns`    - Slice of period simple returns.
 /// * `confidence` - Confidence level in `(0, 1)`, e.g. `0.95`.
-/// * `ann_factor` - If `Some(f)`, scales the mean term by `f` and the
-///   volatility term by `sqrt(f)`.
+/// * `ann_factor` - If `Some(f)`, scales the mean term by `f`, the
+///   volatility term by `sqrt(f)`, and the shape moments per i.i.d.
+///   aggregation: skewness by `1/sqrt(f)` and excess kurtosis by `1/f`
+///   (the central-limit decay rates), so the horizon-`f` quantile uses
+///   the horizon-`f` distribution rather than per-period tail shape.
 ///
 /// # Returns
 ///
@@ -504,6 +507,15 @@ pub(crate) fn cornish_fisher_var(returns: &[f64], confidence: f64, ann_factor: O
         return f64::NAN;
     }
     let (m, vol, s, k) = moments4(returns);
+    // Scale the shape moments to the aggregation horizon before building the
+    // expansion: under i.i.d. aggregation of h periods, skewness decays as
+    // S/√h and excess kurtosis as K/h (CLT). Evaluating z_cf with the raw
+    // per-period moments while scaling mean/vol to the horizon would
+    // overstate the non-normality adjustment by up to √h / h.
+    let (s, k) = match ann_factor {
+        Some(af) => (s / af.sqrt(), k / af),
+        None => (s, k),
+    };
     let z = crate::math::special_functions::standard_normal_inv_cdf(1.0 - confidence);
     let z2 = z * z;
     let z3 = z2 * z;
@@ -784,15 +796,16 @@ mod tests {
     }
 
     #[test]
-    fn cornish_fisher_var_scales_mean_and_vol_by_horizon() {
+    fn cornish_fisher_var_scales_mean_vol_and_moments_by_horizon() {
         let returns = [
             0.05, -0.10, 0.03, -0.15, 0.07, -0.02, 0.01, -0.08, -0.05, 0.02,
         ];
-        let ann_factor = 12.0;
+        let ann_factor = 12.0_f64;
         let m = mean(&returns);
         let vol = variance(&returns).sqrt();
-        let s = skewness(&returns);
-        let k = kurtosis(&returns);
+        // Under i.i.d. aggregation over h periods, S_h = S/√h and K_h = K/h.
+        let s = skewness(&returns) / ann_factor.sqrt();
+        let k = kurtosis(&returns) / ann_factor;
         let z = crate::math::special_functions::standard_normal_inv_cdf(0.05);
         let z2 = z * z;
         let z3 = z2 * z;
@@ -801,6 +814,26 @@ mod tests {
         let expected = m * ann_factor + z_cf * vol * ann_factor.sqrt();
         let actual = cornish_fisher_var(&returns, 0.95, Some(ann_factor));
         assert!((actual - expected).abs() < 1e-14, "{actual} vs {expected}");
+    }
+
+    #[test]
+    fn cornish_fisher_var_converges_to_parametric_at_long_horizons() {
+        // Central-limit behavior: as the aggregation horizon grows the
+        // scaled moments vanish, so CF-VaR must approach Gaussian VaR
+        // relative to the (growing) scale of the annualized quantities.
+        let returns = [
+            0.05, -0.10, 0.03, -0.15, 0.07, -0.02, 0.01, -0.08, -0.05, 0.02,
+        ];
+        let cf_1 = cornish_fisher_var(&returns, 0.99, Some(1.0));
+        let p_1 = parametric_var(&returns, 0.99, Some(1.0));
+        let cf_252 = cornish_fisher_var(&returns, 0.99, Some(252.0));
+        let p_252 = parametric_var(&returns, 0.99, Some(252.0));
+        let rel_gap_1 = (cf_1 - p_1).abs() / p_1.abs();
+        let rel_gap_252 = (cf_252 - p_252).abs() / p_252.abs();
+        assert!(
+            rel_gap_252 < rel_gap_1,
+            "relative CF adjustment must shrink with horizon: {rel_gap_252} vs {rel_gap_1}"
+        );
     }
 
     // ─── Moved from tests/api_invariants.rs::tail_risk_api ───────────────────

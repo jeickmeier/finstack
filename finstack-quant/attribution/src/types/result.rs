@@ -1032,6 +1032,7 @@ impl AttributionMethod {
                 MetricId::CrossGammaSpotCredit,
                 MetricId::CrossGammaFxVol,
                 MetricId::CrossGammaFxRates,
+                MetricId::CrossGammaCreditVol,
                 MetricId::CsGamma,
                 MetricId::InflationConvexity,
             ],

@@ -74,6 +74,12 @@ fn return_contribution_groups_factors_and_brinson_reconcile() {
 
     let relative = &result["benchmark_relative"];
     assert!(!relative.is_null());
+    // Audit fix: the Brinson output must record which group dimension the
+    // decomposition collapsed to (multi-dimensional inputs pick one).
+    assert_eq!(
+        relative["group_dimension"], "sector",
+        "benchmark_relative must record the Brinson group dimension"
+    );
     let active = relative["active_return"].as_f64().expect("active_return");
     let reconstructed = relative["allocation_effect"].as_f64().expect("allocation")
         + relative["selection_effect"].as_f64().expect("selection")
@@ -112,4 +118,53 @@ fn return_contribution_rejects_zero_portfolio_weight_for_benchmark_relative() {
     let err = attribute_return_contribution(&spec.to_string())
         .expect_err("benchmark-relative attribution requires normalized portfolio weights");
     assert!(err.to_string().contains("portfolio weights"));
+}
+
+/// Audit fix: `net_market_value` weighting on a near-flat long/short book
+/// produces highly leveraged weights (tiny denominator). The result must
+/// carry a warning so the consumer knows the weights are leveraged rather
+/// than discovering it from a 2000× contribution row.
+#[test]
+fn return_contribution_warns_on_near_zero_net_market_value() {
+    let spec = json!({
+        "as_of": "2026-01-02",
+        "weighting": "net_market_value",
+        "positions": [
+            {"id": "LONG", "market_value": 1000.0, "return": 0.01},
+            {"id": "SHORT", "market_value": -999.5, "return": 0.02}
+        ]
+    });
+
+    let out = attribute_return_contribution(&spec.to_string()).expect("valid spec");
+    let result: Value = serde_json::from_str(&out).expect("json result");
+
+    let warnings = result["warnings"].as_array().expect("warnings array");
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.as_str().is_some_and(|s| s.contains("net market value"))),
+        "near-zero net MV must produce a leveraged-weights warning; got {warnings:?}"
+    );
+}
+
+/// The warning must NOT fire for an ordinary net book — the field is then
+/// omitted from the JSON entirely (additive schema).
+#[test]
+fn return_contribution_no_warning_for_ordinary_net_book() {
+    let spec = json!({
+        "as_of": "2026-01-02",
+        "weighting": "net_market_value",
+        "positions": [
+            {"id": "A", "market_value": 6000.0, "return": 0.01},
+            {"id": "B", "market_value": 4000.0, "return": 0.02}
+        ]
+    });
+
+    let out = attribute_return_contribution(&spec.to_string()).expect("valid spec");
+    let result: Value = serde_json::from_str(&out).expect("json result");
+    assert!(
+        result.get("warnings").is_none(),
+        "ordinary net book must not carry warnings; got {:?}",
+        result["warnings"]
+    );
 }

@@ -67,7 +67,12 @@ impl Performance {
     /// Pearson correlation matrix of all tickers.
     ///
     /// Computes pairwise correlations over the active date window.
-    /// The diagonal is always `1.0`.
+    /// The diagonal is always `1.0`. Degenerate pairs — fewer than 2
+    /// overlapping observations, or a zero-variance series — are reported
+    /// as [`f64::NAN`] ("correlation undefined") rather than `0.0`
+    /// ("uncorrelated"), matching the `NaN` sentinel used by
+    /// [`Performance::beta`](crate::Performance::beta) for unidentifiable
+    /// regressions.
     pub fn correlation_matrix(&self) -> Vec<Vec<f64>> {
         let n = self.ticker_names().len();
         let mut matrix = vec![vec![0.0; n]; n];
@@ -83,7 +88,7 @@ impl Performance {
                 let j = i + 1 + offset;
                 let (lhs, rhs) = self.active_two_ticker_returns(i, j);
                 let corr = if lhs.len() < 2 {
-                    0.0
+                    f64::NAN
                 } else {
                     correlation(lhs, rhs)
                 };

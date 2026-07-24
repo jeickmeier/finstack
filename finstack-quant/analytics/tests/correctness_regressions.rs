@@ -547,3 +547,77 @@ fn performance_new_rejects_non_finite_price_domain_in_simple_return_mode() {
         "non-finite prices should be rejected even when the derived return would look finite"
     );
 }
+
+#[test]
+fn single_observation_windows_surface_nan_not_signed_infinity() {
+    // A window with one return cannot estimate a volatility, downside
+    // deviation, tracking error, or beta: the ratio metrics built on them
+    // must surface NaN ("do not use this point"), not a plausible ±∞
+    // driven purely by the sign of the single excess return.
+    let dates = vec![
+        d(2024, Month::January, 1),
+        d(2024, Month::January, 2),
+        d(2024, Month::January, 3),
+    ];
+    let returns = vec![vec![0.01, 0.02, 0.03], vec![0.005, 0.01, 0.015]];
+    let mut perf = Performance::from_returns(
+        dates,
+        returns,
+        vec!["PORT".to_string(), "BENCH".to_string()],
+        Some("BENCH"),
+        PeriodKind::Daily,
+    )
+    .expect("performance should build");
+
+    // Narrow the active window to a single observation.
+    perf.reset_date_range(d(2024, Month::January, 2), d(2024, Month::January, 2));
+
+    assert!(perf.sharpe(0.02)[0].is_nan(), "sharpe on 1 obs must be NaN");
+    assert!(
+        perf.sortino(0.0)[0].is_nan(),
+        "sortino on 1 obs must be NaN"
+    );
+    assert!(
+        perf.information_ratio()[0].is_nan(),
+        "information ratio on 1 obs must be NaN"
+    );
+    assert!(
+        perf.treynor(0.02)[0].is_nan(),
+        "treynor on 1 obs must be NaN"
+    );
+}
+
+#[test]
+fn correlation_matrix_uses_nan_for_degenerate_pairs() {
+    // Two tickers with non-overlapping finite spans: correlation is
+    // undefined (fewer than 2 paired observations) and must surface as NaN,
+    // matching the NaN produced for zero-variance pairs — not a
+    // plausible-looking 0.0.
+    let dates = vec![
+        d(2024, Month::January, 1),
+        d(2024, Month::January, 2),
+        d(2024, Month::January, 3),
+    ];
+    let returns = vec![
+        vec![0.01, 0.02, f64::NAN],     // finite span: rows 0..=1
+        vec![f64::NAN, f64::NAN, 0.03], // finite span: row 2 only
+    ];
+    let perf = Performance::from_returns(
+        dates,
+        returns,
+        vec!["A".to_string(), "B".to_string()],
+        None,
+        PeriodKind::Daily,
+    )
+    .expect("performance should build");
+
+    let m = perf.correlation_matrix();
+    assert_eq!(m[0][0], 1.0);
+    assert_eq!(m[1][1], 1.0);
+    assert!(
+        m[0][1].is_nan() && m[1][0].is_nan(),
+        "non-overlapping pair must be NaN, got {} / {}",
+        m[0][1],
+        m[1][0]
+    );
+}

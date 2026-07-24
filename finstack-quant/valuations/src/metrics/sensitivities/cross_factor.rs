@@ -33,6 +33,8 @@ pub enum CrossFactorPair {
     FxVol,
     /// FX spot against parallel interest-rate shifts.
     FxRates,
+    /// Parallel credit spreads against parallel volatility shifts.
+    CreditVol,
 }
 
 impl CrossFactorPair {
@@ -44,6 +46,7 @@ impl CrossFactorPair {
         Self::SpotCredit,
         Self::FxVol,
         Self::FxRates,
+        Self::CreditVol,
     ];
 
     /// Returns the standard `MetricId` associated with this pair.
@@ -55,6 +58,7 @@ impl CrossFactorPair {
             Self::SpotCredit => MetricId::CrossGammaSpotCredit,
             Self::FxVol => MetricId::CrossGammaFxVol,
             Self::FxRates => MetricId::CrossGammaFxRates,
+            Self::CreditVol => MetricId::CrossGammaCreditVol,
         }
     }
 
@@ -67,6 +71,7 @@ impl CrossFactorPair {
             Self::SpotCredit => "Spot×Credit",
             Self::FxVol => "FX×Vol",
             Self::FxRates => "FX×Rates",
+            Self::CreditVol => "Credit×Vol",
         }
     }
 }
@@ -362,10 +367,10 @@ impl MetricCalculator for CrossFactorCalculator {
         // NOTE: There is deliberately NO short-circuit here that returns a
         // pre-computed `Vanna` metric in place of `CrossGammaSpotVol`.
         //
-        // `Vanna` is defined as ∂²V/(∂S_abs × ∂σ_decimal) — per unit spot, per
-        // decimal vol. `CrossGammaSpotVol` (computed below via four-corner FD) is
+        // `Vanna` is defined as ∂²V/(∂S_abs × ∂σ) — per unit spot, per vol
+        // point. `CrossGammaSpotVol` (computed below via four-corner FD) is
         // normalised by percentage-point moves in both factors (per 1 pct-pt spot,
-        // per 1 pct-pt vol), which differs by a factor of S₀ / 10_000.  Returning
+        // per 1 pct-pt vol), which differs by a factor of S₀ / 100.  Returning
         // `Vanna` directly would silently mis-scale every cross-gamma attribution
         // that uses `CrossGammaSpotVol × avg_spot_shift_pct × avg_vol_shift_pct`.
         let Some(bumper_a) = (self.factory_a)(context)? else {
@@ -482,6 +487,7 @@ mod tests {
             (CrossFactorPair::SpotCredit, MetricId::CrossGammaSpotCredit),
             (CrossFactorPair::FxVol, MetricId::CrossGammaFxVol),
             (CrossFactorPair::FxRates, MetricId::CrossGammaFxRates),
+            (CrossFactorPair::CreditVol, MetricId::CrossGammaCreditVol),
         ];
 
         for (pair, metric_id) in expected {

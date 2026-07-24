@@ -782,12 +782,12 @@ impl MetricId {
     /// Commonly interpreted as `d²PV / (dS dσ)` under the instrument's bump
     /// convention.
     ///
-    /// Units: currency per unit-underlying per **unit (decimal) volatility**
-    /// (i.e. per 1.00 change in σ, not per vol point). All producers — the
-    /// analytic FX/equity/quanto/FX-barrier providers and `GenericFdVanna` —
-    /// normalize by the absolute vol bump, so vanna is per decimal vol while
-    /// `Volga` is per vol-point squared; the two second-order vol Greeks
-    /// intentionally use different vol-axis units.
+    /// Units: currency per unit-underlying per **vol point** (0.01 absolute
+    /// vol), consistent with `Vega` (per vol point) and `Volga` (per
+    /// vol-point squared). All producers — the analytic
+    /// FX/equity/quanto/FX-barrier/commodity/CMS providers and
+    /// `GenericFdVanna` — normalize the σ axis in vol points; the spot axis
+    /// is per unit underlying.
     pub const Vanna: Self = Self(Cow::Borrowed("vanna"));
 
     /// Volga, the second-order sensitivity to volatility.
@@ -847,7 +847,8 @@ impl MetricId {
     /// the cross P&L.
     ///
     /// **Do NOT confuse with `Vanna`**, which is expressed per unit-spot per
-    /// decimal-vol and differs by a factor of S₀ / 10_000.
+    /// vol-point and differs by a factor of S₀ / 100 (the spot axes differ:
+    /// per unit spot vs per 1 pct-pt spot move).
     pub const CrossGammaSpotVol: Self = Self(Cow::Borrowed("cross_gamma_spot_vol"));
 
     /// Cross-gamma between spot price and credit spreads.
@@ -875,6 +876,25 @@ impl MetricId {
     ///
     /// Mixed second derivative: ∂²V / (∂FX × ∂r).
     pub const CrossGammaFxRates: Self = Self(Cow::Borrowed("cross_gamma_fx_rates"));
+
+    /// Cross-gamma between credit spreads and implied volatility.
+    ///
+    /// Mixed second derivative ∂²V / (∂s × ∂σ), normalised to
+    /// **basis-point** credit spread moves and **vol-point** volatility moves.
+    ///
+    /// Produced by `CrossFactorCalculator` (CreditVol pair) via a four-corner
+    /// central finite difference whose denominators are:
+    /// - credit: `credit_bump_bp`   (e.g. 1.0 per 1 bp credit move)
+    /// - vol: `vol_bump_abs × 100`  (e.g. 1.0 per 1 vol-point move)
+    ///
+    /// Units: currency per (1 bp credit spread move) per (1 vol-point move).
+    ///
+    /// **Attribution contract**: multiply by `avg_credit_shift_bp` (bp credit
+    /// spread change) and `avg_vol_shift_abs` (vol-point change) to obtain the
+    /// cross P&L. Material for convertibles, whose credit-vol cross-gamma is
+    /// non-trivial (equity vol feeds the conversion option while the credit
+    /// curve discounts the bond floor).
+    pub const CrossGammaCreditVol: Self = Self(Cow::Borrowed("cross_gamma_credit_vol"));
 
     /// Credit spread gamma, the second derivative with respect to spreads.
     ///
@@ -1436,6 +1456,7 @@ impl MetricId {
         MetricId::CrossGammaSpotCredit,
         MetricId::CrossGammaFxVol,
         MetricId::CrossGammaFxRates,
+        MetricId::CrossGammaCreditVol,
         MetricId::ThetaGamma,
         MetricId::VarianceVega,
         // -- Credit --
@@ -1953,6 +1974,7 @@ mod tests {
             (MetricId::CrossGammaSpotCredit, "cross_gamma_spot_credit"),
             (MetricId::CrossGammaFxVol, "cross_gamma_fx_vol"),
             (MetricId::CrossGammaFxRates, "cross_gamma_fx_rates"),
+            (MetricId::CrossGammaCreditVol, "cross_gamma_credit_vol"),
         ];
         for (id, expected_str) in &pairs {
             assert_eq!(id.as_str(), *expected_str);

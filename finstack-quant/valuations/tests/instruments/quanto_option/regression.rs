@@ -252,3 +252,61 @@ fn standard_quanto_metrics_are_finite() {
 // rejects DF > 1 outright (a useful input-validation defence). The contract
 // "no silent zero on lambda^2 < 0" is pinned at the unit-test level inside
 // `fx_touch_option/pricer.rs` via direct `price_touch` invocation.
+
+/// Pins the vanna unit convention: vanna is reported per **vol point**
+/// (0.01 absolute vol) on the σ axis, consistent with Vega, not per unit
+/// (decimal) vol. The reference replicates the calculator's own stencil
+/// (±1 vol-point parallel equity-vol bump, ±1% spot bump) and normalizes the
+/// vol axis in vol points.
+#[test]
+fn vanna_is_reported_per_vol_point() {
+    let option = build_option(-0.2);
+    let equity_vol = 0.20;
+    let fx_vol = 0.10;
+    let market = build_market(equity_vol, fx_vol);
+
+    let result = option
+        .price_with_metrics(
+            &market,
+            AS_OF,
+            &[MetricId::Vanna],
+            PricingOptions::default(),
+        )
+        .expect("price with Vanna");
+    let vanna = result
+        .measures
+        .get(&MetricId::Vanna)
+        .copied()
+        .expect("Vanna in measures");
+
+    let spot = 35_000.0;
+    let spot_bump_pct = 0.01;
+    let vol_bump_abs = 0.01;
+
+    // Flat surfaces: rebuilding at `equity_vol ± bump` equals a parallel
+    // absolute surface bump.
+    let delta_at = |vol_level: f64| -> f64 {
+        let base = build_market(vol_level, fx_vol);
+        let up = base.clone().insert_price(
+            "NKY-SPOT",
+            MarketScalar::Unitless(spot * (1.0 + spot_bump_pct)),
+        );
+        let dn = base.insert_price(
+            "NKY-SPOT",
+            MarketScalar::Unitless(spot * (1.0 - spot_bump_pct)),
+        );
+        let pv_up = option.value(&up, AS_OF).expect("pv spot up").amount();
+        let pv_dn = option.value(&dn, AS_OF).expect("pv spot dn").amount();
+        (pv_up - pv_dn) / (2.0 * spot * spot_bump_pct)
+    };
+
+    let delta_up = delta_at(equity_vol + vol_bump_abs);
+    let delta_dn = delta_at(equity_vol - vol_bump_abs);
+    // Vol-axis width expressed in vol points: 2 × 0.01 × 100 = 2.
+    let vanna_ref = (delta_up - delta_dn) / (2.0 * vol_bump_abs * 100.0);
+
+    assert!(
+        (vanna - vanna_ref).abs() <= 1e-9 * vanna_ref.abs().max(1.0),
+        "quanto vanna must be per vol point: expected {vanna_ref}, got {vanna}"
+    );
+}

@@ -7,6 +7,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const WEIGHT_TOLERANCE: f64 = 1e-9;
 
+/// Fraction of gross market value below which a signed net-MV weighting
+/// denominator is considered near-flat: the resulting weights are highly
+/// leveraged (|weight| ≫ 1) and a diagnostic warning is emitted.
+const NET_MV_LEVERAGE_WARN_FRACTION: f64 = 0.01;
+
 /// Input weighting mode for market-value positions.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -82,6 +87,10 @@ pub struct ReturnContributionResult {
     pub factor_contribution: Vec<FactorContribution>,
     /// Benchmark-relative attribution, when benchmark fields are supplied.
     pub benchmark_relative: Option<BenchmarkRelativeContribution>,
+    /// Diagnostic warnings (e.g. leveraged weights from a near-flat net-MV
+    /// book). Omitted from JSON when empty (additive schema).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 /// Per-instrument contribution output row.
@@ -138,6 +147,13 @@ pub struct BenchmarkRelativeContribution {
     pub interaction_effect: f64,
     /// Difference between active return and reconstructed Brinson effects.
     pub residual: f64,
+    /// Group dimension the Brinson decomposition collapsed to.
+    ///
+    /// Multi-dimensional inputs pick one dimension (`sector` when present,
+    /// else the first dimension name alphabetically); `None` when positions
+    /// carry no groups at all (a single `all` bucket).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_dimension: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -196,7 +212,8 @@ fn parse_return_contribution_spec(spec_json: &str) -> Result<ReturnContributionS
 impl ReturnContributionSpec {
     fn execute(&self) -> Result<ReturnContributionResult> {
         self.validate_shape()?;
-        let weighted = self.weighted_positions()?;
+        let mut warnings = Vec::new();
+        let weighted = self.weighted_positions(&mut warnings)?;
         let benchmark_mode = self.validate_benchmark_mode()?;
 
         let mut portfolio_return = NeumaierAccumulator::new();
@@ -227,6 +244,7 @@ impl ReturnContributionSpec {
             } else {
                 None
             },
+            warnings,
         })
     }
 
@@ -327,7 +345,7 @@ impl ReturnContributionSpec {
         Ok(())
     }
 
-    fn weighted_positions(&self) -> Result<Vec<WeightedPosition<'_>>> {
+    fn weighted_positions(&self, warnings: &mut Vec<String>) -> Result<Vec<WeightedPosition<'_>>> {
         let weights = if self
             .positions
             .iter()
@@ -335,7 +353,7 @@ impl ReturnContributionSpec {
         {
             explicit_weights(&self.positions)?
         } else {
-            market_value_weights(&self.positions, self.weighting)?
+            market_value_weights(&self.positions, self.weighting, warnings)?
         };
 
         Ok(self
@@ -382,12 +400,15 @@ fn explicit_weights(positions: &[ReturnContributionPosition]) -> Result<Vec<f64>
 fn market_value_weights(
     positions: &[ReturnContributionPosition],
     weighting: ReturnContributionWeighting,
+    warnings: &mut Vec<String>,
 ) -> Result<Vec<f64>> {
     let mut denominator = NeumaierAccumulator::new();
+    let mut gross = NeumaierAccumulator::new();
     for position in positions {
         let market_value = position.market_value.ok_or_else(|| {
             Error::Internal("market value mode encountered missing market_value".to_string())
         })?;
+        gross.add(market_value.abs());
         match weighting {
             ReturnContributionWeighting::Gross => denominator.add(market_value.abs()),
             ReturnContributionWeighting::NetMarketValue => denominator.add(market_value),
@@ -397,6 +418,21 @@ fn market_value_weights(
     let denominator = denominator.total();
     if denominator.abs() <= WEIGHT_TOLERANCE {
         return Ok(vec![0.0; positions.len()]);
+    }
+
+    // Audit fix: a small-but-nonzero net on a long/short book divides every
+    // position by a tiny denominator, producing highly leveraged weights
+    // (|weight| ≫ 1). Mathematically correct, but the consumer must be told.
+    let gross = gross.total();
+    if matches!(weighting, ReturnContributionWeighting::NetMarketValue)
+        && denominator.abs() < NET_MV_LEVERAGE_WARN_FRACTION * gross
+    {
+        warnings.push(format!(
+            "net market value ({denominator:.4}) is below {:.0}% of gross ({gross:.4}); \
+             net-MV weights are highly leveraged — consider gross weighting for \
+             near-flat long/short books",
+            NET_MV_LEVERAGE_WARN_FRACTION * 100.0
+        ));
     }
 
     positions
@@ -580,6 +616,7 @@ fn benchmark_relative(
         selection_effect,
         interaction_effect,
         residual,
+        group_dimension,
     })
 }
 
