@@ -13,7 +13,8 @@ use finstack_quant_factor_model::credit::calibration::{
 };
 use finstack_quant_factor_model::credit::hierarchy::{
     AdderVolSource, CreditFactorModel, CreditHierarchySpec, FactorVolModel, GenericFactorSpec,
-    HierarchyDimension, IssuerBetaMode, IssuerBetaOverride, IssuerBetaPolicy, IssuerTags,
+    HierarchyDimension, IdiosyncraticVolModel, IssuerBetaMode, IssuerBetaOverride,
+    IssuerBetaPolicy, IssuerTags,
 };
 use time::Month;
 
@@ -693,6 +694,49 @@ fn ewma_vol_model_calibrates_and_persists_estimator() {
         else {
             panic!(
                 "round-tripped factor {fid} must persist the EWMA estimator, got {back_vol_model:?}"
+            );
+        };
+        assert_eq!(
+            orig_lambda, back_lambda,
+            "lambda is an echoed input and must round-trip exactly"
+        );
+        let rel_diff = (orig_variance - back_variance).abs() / orig_variance.abs().max(1e-300);
+        assert!(
+            rel_diff < 1e-9,
+            "round-tripped EWMA variance drifted beyond tolerance: {orig_variance} vs {back_variance}"
+        );
+    }
+
+    // Verify idiosyncratic vol_state round-trip. Cascade-assigned idiosyncratic
+    // vols must also be stamped Ewma when configured; this block mirrors the
+    // factors verification above.
+    assert_eq!(
+        model.vol_state.idiosyncratic.len(),
+        back.vol_state.idiosyncratic.len(),
+        "round-trip must preserve the same number of idiosyncratic vol entries"
+    );
+    for (issuer_id, orig_vol_model) in &model.vol_state.idiosyncratic {
+        let back_vol_model = back
+            .vol_state
+            .idiosyncratic
+            .get(issuer_id)
+            .unwrap_or_else(|| {
+                panic!("round-tripped vol_state missing idiosyncratic for issuer {issuer_id}")
+            });
+        let IdiosyncraticVolModel::Ewma {
+            lambda: orig_lambda,
+            variance: orig_variance,
+        } = orig_vol_model
+        else {
+            panic!("issuer {issuer_id} must persist the EWMA estimator, got {orig_vol_model:?}");
+        };
+        let IdiosyncraticVolModel::Ewma {
+            lambda: back_lambda,
+            variance: back_variance,
+        } = back_vol_model
+        else {
+            panic!(
+                "round-tripped idiosyncratic {issuer_id} must persist the EWMA estimator, got {back_vol_model:?}"
             );
         };
         assert_eq!(
