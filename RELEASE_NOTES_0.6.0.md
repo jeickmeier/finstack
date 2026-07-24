@@ -1,7 +1,7 @@
 # Finstack Quant 0.6.0
 
-**Release Date**: 2026-07-23  
-**Bump type**: minor (pre-1.0; includes intentional breaking wire/API changes)  
+**Release Date**: 2026-07-23
+**Bump type**: minor (pre-1.0; includes intentional breaking wire/API changes)
 **Status**: Ready to commit and tag after `mise run all-ci` / user approval
 
 ## Executive Summary
