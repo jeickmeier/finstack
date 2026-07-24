@@ -1600,6 +1600,23 @@ class ImResult:
         ...
 
     @property
+    def approximation(self) -> bool:
+        """
+        True when the amount is a conservative proxy, not an exact methodology result.
+
+        Returns
+        -------
+        bool
+            Whether the amount is a conservative approximation (proxy) rather
+            than an exact computation under the named methodology.
+
+        Examples
+        --------
+        >>> # Instance field
+        """
+        ...
+
+    @property
     def as_of(self) -> str:
         """
         Calculation date as an ISO 8601 string.

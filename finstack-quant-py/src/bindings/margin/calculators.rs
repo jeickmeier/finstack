@@ -178,6 +178,13 @@ impl PyImResult {
         self.inner.mpor_days
     }
 
+    /// Whether the amount is a conservative approximation (proxy) rather than
+    /// an exact computation under the named methodology.
+    #[getter]
+    fn approximation(&self) -> bool {
+        self.inner.approximation
+    }
+
     /// Calculation date as an ISO 8601 string.
     #[getter]
     fn as_of(&self) -> String {
@@ -196,10 +203,11 @@ impl PyImResult {
 
     fn __repr__(&self) -> String {
         format!(
-            "ImResult(amount={:.2}, methodology={}, mpor={}d)",
+            "ImResult(amount={:.2}, methodology={}, mpor={}d, approximation={})",
             self.inner.amount.amount(),
             self.inner.methodology,
-            self.inner.mpor_days
+            self.inner.mpor_days,
+            self.inner.approximation
         )
     }
 }
