@@ -22,7 +22,7 @@ indexmap = { workspace = true, features = ["serde"] }
 smallvec = { version = "1.15", default-features = false, features = ["serde"] }
 rayon = "1.11"
 serde = { workspace = true }
-serde_json = { workspace = true, features = ["raw_value", "float_roundtrip"] }
+serde_json = { workspace = true, features = ["raw_value"] }
 time = { workspace = true }
 rust_decimal = { workspace = true }
 schemars = { workspace = true }

@@ -657,10 +657,54 @@ fn ewma_vol_model_calibrates_and_persists_estimator() {
         assert!(variance.is_finite() && *variance >= 0.0);
     }
 
-    // JSON round-trip preserves the EWMA vol state byte-for-byte.
+    // JSON round-trip preserves the EWMA vol state. Compared field-wise
+    // (rather than via the derived `PartialEq` on the whole `vol_state`)
+    // because serde_json's default f64 parser does not guarantee a
+    // bit-exact round trip; that guarantee is only available behind the
+    // opt-in `float_roundtrip` feature, which this crate deliberately does
+    // not enable (see .claude/rules/rust/testing-standards.md on documented
+    // float tolerances). `lambda` is an input value echoed straight through,
+    // so it must match exactly; `variance` is a computed quantity and is
+    // compared with a tight relative tolerance instead.
     let json = serde_json::to_string(&model).expect("serialize");
     let back: CreditFactorModel = serde_json::from_str(&json).expect("deserialize");
-    assert_eq!(model.vol_state, back.vol_state);
+    assert_eq!(
+        model.vol_state.factors.len(),
+        back.vol_state.factors.len(),
+        "round-trip must preserve the same number of factor vol entries"
+    );
+    for (fid, orig_vol_model) in &model.vol_state.factors {
+        let back_vol_model = back
+            .vol_state
+            .factors
+            .get(fid)
+            .unwrap_or_else(|| panic!("round-tripped vol_state missing factor {fid}"));
+        let FactorVolModel::Ewma {
+            lambda: orig_lambda,
+            variance: orig_variance,
+        } = orig_vol_model
+        else {
+            panic!("factor {fid} must persist the EWMA estimator, got {orig_vol_model:?}");
+        };
+        let FactorVolModel::Ewma {
+            lambda: back_lambda,
+            variance: back_variance,
+        } = back_vol_model
+        else {
+            panic!(
+                "round-tripped factor {fid} must persist the EWMA estimator, got {back_vol_model:?}"
+            );
+        };
+        assert_eq!(
+            orig_lambda, back_lambda,
+            "lambda is an echoed input and must round-trip exactly"
+        );
+        let rel_diff = (orig_variance - back_variance).abs() / orig_variance.abs().max(1e-300);
+        assert!(
+            rel_diff < 1e-9,
+            "round-tripped EWMA variance drifted beyond tolerance: {orig_variance} vs {back_variance}"
+        );
+    }
 }
 
 /// Out-of-range lambda is rejected before any estimation runs.
