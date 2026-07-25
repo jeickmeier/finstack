@@ -1001,7 +1001,8 @@ impl PyCDSTrancheBuilder {
     /// Parameters
     /// ----------
     /// value : float
-    ///     Attachment point as a fraction (e.g. ``0.0`` for equity).
+    ///     Attachment point quoted in percent (e.g. ``0.0`` for equity;
+    ///     ``3.0`` for a tranche attaching at 3%).
     ///
     /// Returns
     /// -------
@@ -1019,7 +1020,8 @@ impl PyCDSTrancheBuilder {
     /// Parameters
     /// ----------
     /// value : float
-    ///     Detachment point as a fraction (e.g. ``0.03`` for a 0-3% tranche).
+    ///     Detachment point quoted in percent (e.g. ``3.0`` for a 0-3%
+    ///     tranche).
     ///
     /// Returns
     /// -------

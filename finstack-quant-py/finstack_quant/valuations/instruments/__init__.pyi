@@ -5523,7 +5523,19 @@ def validate_instrument_json(json: str) -> str:
     ...
 
 def price_instrument(
-    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor | CreditDefaultSwap | CDSIndex,
+    instrument_json: str
+    | Bond
+    | TermLoan
+    | InterestRateSwap
+    | Swaption
+    | CapFloor
+    | CreditDefaultSwap
+    | CDSIndex
+    | FxForward
+    | FxOption
+    | CDSTranche
+    | ConvertibleBond
+    | EquityOption,
     market: MarketContext | str,
     as_of: str,
     model: str = "default",
@@ -5569,7 +5581,19 @@ def price_instrument(
     ...
 
 def price_instrument_with_metrics(
-    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor | CreditDefaultSwap | CDSIndex,
+    instrument_json: str
+    | Bond
+    | TermLoan
+    | InterestRateSwap
+    | Swaption
+    | CapFloor
+    | CreditDefaultSwap
+    | CDSIndex
+    | FxForward
+    | FxOption
+    | CDSTranche
+    | ConvertibleBond
+    | EquityOption,
     market: MarketContext | str,
     as_of: str,
     model: str = "default",
@@ -5623,7 +5647,19 @@ def price_instrument_with_metrics(
     ...
 
 def instrument_cashflows_json(
-    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor | CreditDefaultSwap | CDSIndex,
+    instrument_json: str
+    | Bond
+    | TermLoan
+    | InterestRateSwap
+    | Swaption
+    | CapFloor
+    | CreditDefaultSwap
+    | CDSIndex
+    | FxForward
+    | FxOption
+    | CDSTranche
+    | ConvertibleBond
+    | EquityOption,
     market: MarketContext | str,
     as_of: str,
     model: str,
