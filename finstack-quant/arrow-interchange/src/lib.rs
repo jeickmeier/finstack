@@ -41,11 +41,15 @@
 #![doc(test(attr(allow(clippy::unwrap_used))))]
 
 use std::collections::HashMap;
+use std::io::Cursor;
 use std::sync::Arc;
 
 use arrow::array::{Array, ArrayRef, Float64Array, Int64Array, StringArray, UInt32Array};
+use arrow::compute::concat_batches;
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::error::ArrowError;
+use arrow::ipc::reader::StreamReader;
+use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use finstack_quant_core::table::{TableColumn, TableColumnData, TableColumnRole, TableEnvelope};
 use finstack_quant_core::{Error, Result};
@@ -316,6 +320,81 @@ pub fn from_record_batch(batch: &RecordBatch) -> Result<TableEnvelope> {
     TableEnvelope::new_with_metadata(columns, metadata)
 }
 
+/// Serialize a [`TableEnvelope`] as Arrow IPC **stream-format** bytes.
+///
+/// The output contains a single record batch and the full schema (including
+/// `finstack:*` metadata), suitable for `pyarrow.ipc.open_stream`, DuckDB,
+/// or any Arrow IPC consumer.
+///
+/// # Errors
+///
+/// Returns [`Error::Validation`] if conversion or IPC encoding fails.
+///
+/// # Examples
+/// ```rust
+/// use finstack_quant_core::table::{TableColumn, TableColumnData, TableEnvelope};
+/// use finstack_quant_arrow::{from_ipc_bytes, to_ipc_bytes};
+///
+/// let table = TableEnvelope::new(vec![TableColumn::new(
+///     "pv",
+///     TableColumnData::Float64(vec![1.0]),
+/// )])
+/// .unwrap();
+/// let bytes = to_ipc_bytes(&table).unwrap();
+/// assert_eq!(from_ipc_bytes(&bytes).unwrap(), table);
+/// ```
+pub fn to_ipc_bytes(table: &TableEnvelope) -> Result<Vec<u8>> {
+    let batch = to_record_batch(table)?;
+    let schema = batch.schema();
+    let mut writer = StreamWriter::try_new(Vec::new(), schema.as_ref())
+        .map_err(|e| arrow_err("ipc writer creation", &e))?;
+    writer
+        .write(&batch)
+        .map_err(|e| arrow_err("ipc write", &e))?;
+    writer.finish().map_err(|e| arrow_err("ipc finish", &e))?;
+    writer
+        .into_inner()
+        .map_err(|e| arrow_err("ipc buffer recovery", &e))
+}
+
+/// Deserialize Arrow IPC **stream-format** bytes into a [`TableEnvelope`].
+///
+/// Multiple batches in the stream are concatenated into a single table
+/// (column-wise `concat`), preserving schema metadata. This is a deliberate
+/// choice over rejecting multi-batch input or silently returning only the
+/// first batch: [`arrow::ipc::writer::StreamWriter`] readily produces
+/// multi-batch streams (e.g. chunked writers), and concatenation is the
+/// behavior a caller reading "the table" from a stream would expect.
+///
+/// # Errors
+///
+/// Returns [`Error::Validation`] on malformed IPC bytes, unsupported column
+/// types, or envelope validation failures.
+///
+/// # Examples
+/// ```rust
+/// use finstack_quant_core::table::{TableColumn, TableColumnData, TableEnvelope};
+/// use finstack_quant_arrow::{from_ipc_bytes, to_ipc_bytes};
+///
+/// let table = TableEnvelope::new(vec![TableColumn::new(
+///     "id",
+///     TableColumnData::String(vec!["x".into()]),
+/// )])
+/// .unwrap();
+/// let restored = from_ipc_bytes(&to_ipc_bytes(&table).unwrap()).unwrap();
+/// assert_eq!(restored, table);
+/// ```
+pub fn from_ipc_bytes(bytes: &[u8]) -> Result<TableEnvelope> {
+    let reader = StreamReader::try_new(Cursor::new(bytes), None)
+        .map_err(|e| arrow_err("ipc reader creation", &e))?;
+    let schema = reader.schema();
+    let batches = reader
+        .collect::<std::result::Result<Vec<RecordBatch>, ArrowError>>()
+        .map_err(|e| arrow_err("ipc read", &e))?;
+    let batch = concat_batches(&schema, &batches).map_err(|e| arrow_err("ipc batch concat", &e))?;
+    from_record_batch(&batch)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{from_record_batch, to_record_batch, METADATA_KEY, ROLE_METADATA_KEY};
@@ -486,11 +565,23 @@ mod tests {
         let table = TableEnvelope::new(vec![
             TableColumn::new(
                 "pv",
-                TableColumnData::Float64(vec![f64::NAN, f64::INFINITY, f64::NEG_INFINITY]),
+                TableColumnData::Float64(vec![
+                    f64::NAN,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    0.0,
+                    0.0,
+                ]),
             ),
             TableColumn::new(
                 "pv_opt",
-                TableColumnData::NullableFloat64(vec![Some(f64::NAN), None, Some(1.25)]),
+                TableColumnData::NullableFloat64(vec![
+                    Some(f64::NAN),
+                    None,
+                    Some(1.25),
+                    Some(f64::INFINITY),
+                    Some(f64::NEG_INFINITY),
+                ]),
             ),
         ])
         .unwrap();
@@ -512,8 +603,86 @@ mod tests {
                 assert!(values[0].is_some_and(|v| v.is_nan()));
                 assert_eq!(values[1], None);
                 assert_eq!(values[2], Some(1.25));
+                assert!(values[3].is_some_and(|v| v.is_infinite() && v.is_sign_positive()));
+                assert!(values[4].is_some_and(|v| v.is_infinite() && v.is_sign_negative()));
             }
             other => panic!("expected NullableFloat64, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn ipc_round_trip_is_semantically_lossless() {
+        // Deliberately NOT a byte-golden: Arrow IPC encoding is not guaranteed
+        // byte-stable across arrow-rs versions (padding/flatbuffer layout), so
+        // we assert semantic equality of the round-tripped envelope instead.
+        let table = full_envelope();
+        let bytes = super::to_ipc_bytes(&table).unwrap();
+        assert_eq!(super::from_ipc_bytes(&bytes).unwrap(), table);
+    }
+
+    #[test]
+    fn ipc_round_trip_empty_envelope() {
+        let table = TableEnvelope::new(vec![]).unwrap();
+        let bytes = super::to_ipc_bytes(&table).unwrap();
+        assert_eq!(super::from_ipc_bytes(&bytes).unwrap(), table);
+    }
+
+    /// Zero rows but non-zero columns: a distinct edge case from the
+    /// zero-column empty envelope above (exercises schema/type round-trip
+    /// with no data to carry it).
+    #[test]
+    fn ipc_round_trip_zero_rows_with_columns() {
+        let table = TableEnvelope::new(vec![
+            TableColumn::new("id", TableColumnData::String(vec![])),
+            TableColumn::new("pv", TableColumnData::Float64(vec![])),
+        ])
+        .unwrap();
+        let bytes = super::to_ipc_bytes(&table).unwrap();
+        let restored = super::from_ipc_bytes(&bytes).unwrap();
+        assert_eq!(restored, table);
+        assert_eq!(restored.row_count, 0);
+    }
+
+    /// A truncated (but not entirely garbage) IPC stream — the schema
+    /// message is present but the body is cut off — must also error
+    /// cleanly rather than panic.
+    #[test]
+    fn truncated_ipc_bytes_error_cleanly() {
+        let table = full_envelope();
+        let bytes = super::to_ipc_bytes(&table).unwrap();
+        let truncated = &bytes[..bytes.len() / 2];
+        assert!(super::from_ipc_bytes(truncated).is_err());
+    }
+
+    #[test]
+    fn multi_batch_ipc_input_is_concatenated() {
+        use arrow::ipc::writer::StreamWriter;
+        let t1 = TableEnvelope::new(vec![TableColumn::new(
+            "v",
+            TableColumnData::Int64(vec![1, 2]),
+        )])
+        .unwrap();
+        let t2 = TableEnvelope::new(vec![TableColumn::new("v", TableColumnData::Int64(vec![3]))])
+            .unwrap();
+        let b1 = to_record_batch(&t1).unwrap();
+        let b2 = to_record_batch(&t2).unwrap();
+        let schema = b1.schema();
+        let mut writer = StreamWriter::try_new(Vec::new(), schema.as_ref()).unwrap();
+        writer.write(&b1).unwrap();
+        writer.write(&b2).unwrap();
+        writer.finish().unwrap();
+        let bytes = writer.into_inner().unwrap();
+
+        let merged = super::from_ipc_bytes(&bytes).unwrap();
+        assert_eq!(merged.row_count, 3);
+        assert_eq!(
+            merged.column("v").unwrap().as_i64(),
+            Some([1, 2, 3].as_slice())
+        );
+    }
+
+    #[test]
+    fn garbage_ipc_bytes_error_cleanly() {
+        assert!(super::from_ipc_bytes(&[0x00, 0x01, 0x02]).is_err());
     }
 }
