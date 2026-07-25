@@ -241,16 +241,16 @@ impl PyAccrualIndex {
     ///     flows, or carries a non-finite accrual factor.
     #[classmethod]
     #[pyo3(
-        signature = (cls_schedule, config=None),
+        signature = (schedule, config=None),
         text_signature = "(cls, schedule, config=None)"
     )]
     fn build(
         _cls: &Bound<'_, PyType>,
         py: Python<'_>,
-        cls_schedule: PyRef<'_, PyCashFlowSchedule>,
+        schedule: PyRef<'_, PyCashFlowSchedule>,
         config: Option<PyRef<'_, PyAccrualConfig>>,
     ) -> PyResult<Self> {
-        let schedule = cls_schedule.inner.clone();
+        let schedule = schedule.inner.clone();
         let cfg = config.map_or_else(AccrualConfig::default, |c| c.inner.clone());
         py.detach(move || AccrualIndex::build(&schedule, &cfg))
             .map(|inner| Self { inner })

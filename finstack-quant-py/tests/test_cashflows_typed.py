@@ -475,6 +475,26 @@ class TestAccrual:
         for as_of in (dt.date(2025, 2, 1), dt.date(2025, 4, 15), dt.date(2025, 9, 1)):
             assert index.accrued_at(as_of) == pytest.approx(accrued_interest_amount(schedule, as_of, cfg), abs=1e-12)
 
+    def test_accrual_index_build_keyword_args(self) -> None:
+        """Regression test: AccrualIndex.build accepts 'schedule=' keyword argument.
+
+        This ensures the parameter name matches the advertised text_signature and .pyi.
+        """
+        from finstack_quant.cashflows.accrual import AccrualConfig, AccrualIndex, AccrualMethod
+
+        schedule = self._semiannual_bond()
+        cfg = AccrualConfig(method=AccrualMethod.LINEAR)
+
+        # Test keyword form (regression test for signature/text_signature mismatch)
+        index_kw = AccrualIndex.build(schedule=schedule, config=cfg)
+
+        # Test positional form still works
+        index_pos = AccrualIndex.build(schedule, cfg)
+
+        # Both forms produce equivalent results
+        as_of = dt.date(2025, 4, 15)
+        assert index_kw.accrued_at(as_of) == pytest.approx(index_pos.accrued_at(as_of))
+
     def test_ex_coupon_rule(self) -> None:
         from finstack_quant.cashflows.accrual import ExCouponRule
 
