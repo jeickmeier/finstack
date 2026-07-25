@@ -199,6 +199,17 @@ class TestBuilderSpecs:
         fields omitted from the wire payload) and assert the results are
         byte-for-byte identical, so a future change to a Rust default either
         flows through automatically or fails here.
+
+        The 13-month horizon (2025-01-15 -> 2026-02-15) is deliberately not
+        an exact multiple of the 3M frequency, so the default `stub`
+        (ShortFront) actually produces a short front period instead of an
+        exact grid -- a 12-month horizon would make the stub default inert.
+        The quarterly anchors this produces (2025-02-15, 2025-11-15,
+        2026-02-15) land on a Saturday/Saturday/Sunday, so the default
+        `bdc` (ModifiedFollowing) actually rolls those payment dates
+        forward -- an all-weekday horizon would make `bdc` (and, since
+        `adjust_accrual_dates` defaults to `false`, the fact that accrual
+        boundaries stay unadjusted while payment dates roll) inert too.
         """
         from decimal import Decimal
         import json
@@ -211,10 +222,13 @@ class TestBuilderSpecs:
         )
         from finstack_quant.core.dates import DayCount
 
+        issue = dt.date(2025, 1, 15)
+        maturity = dt.date(2026, 2, 15)
+
         typed_schedule = (
             CashFlowSchedule
             .builder()
-            .principal(Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2026, 1, 15))
+            .principal(Money(1_000_000.0, "USD"), issue, maturity)
             .fixed_cf(
                 FixedCouponSpec(
                     rate=Decimal("0.05"),
@@ -227,7 +241,7 @@ class TestBuilderSpecs:
         json_spec = json.dumps({
             "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "None"},
             "issue": "2025-01-15",
-            "maturity": "2026-01-15",
+            "maturity": "2026-02-15",
             "coupon_program": [
                 {
                     "kind": "fixed",
@@ -242,15 +256,34 @@ class TestBuilderSpecs:
         })
         json_schedule = build_cashflow_schedule_json(json_spec)
 
+        # Sanity check that this fixture genuinely exercises the defaults it
+        # claims to: a short front stub (5 coupons, not the 4 an exact
+        # 12-month/3M grid would produce) and at least one payment date
+        # rolled off a weekend by the default ModifiedFollowing bdc.
+        typed_coupons = typed_schedule.coupons()
+        assert len(typed_coupons) == 5  # stub + 4 regular quarters
+        coupon_dates = [cf.date for cf in typed_coupons]
+        assert dt.date(2025, 2, 17) in coupon_dates  # rolled off Sat 2025-02-15
+        assert dt.date(2025, 2, 15) not in coupon_dates
+
         assert json.loads(typed_schedule.to_json()) == json.loads(json_schedule)
 
     def test_floating_rate_spec_defaults_match_json(self) -> None:
         """Pin `FloatingRateSpec.new` defaults against the JSON path.
 
         It re-encodes private Rust defaults (gearing, reset_lag_days,
-        gearing_includes_spread, overnight index constraint application,
-        fallback); build the same spec through both paths with the same
-        optional fields omitted and assert byte-for-byte equality.
+        gearing_includes_spread, fallback); build the same spec through both
+        paths with the same optional fields omitted and assert byte-for-byte
+        equality.
+
+        This is a term-rate leg (no `overnight_compounding`), so the
+        `overnight_index_constraints` default is inert here -- it only
+        affects overnight-compounded legs. See
+        `test_overnight_index_constraints_default_matches_json` below, which
+        pins that default on a leg where it changes the result. Likewise,
+        `fallback` never triggers here because `market` supplies the curve;
+        see `test_floating_rate_fallback_default_matches_json_on_missing_curve`
+        for a pinning of `fallback = Error` via a shared failure mode.
         """
         from decimal import Decimal
         import json
@@ -315,6 +348,174 @@ class TestBuilderSpecs:
         json_schedule = build_cashflow_schedule_json(json_spec, market.to_json())
 
         assert json.loads(typed_schedule.to_json()) == json.loads(json_schedule)
+
+    def test_overnight_index_constraints_default_matches_json(self) -> None:
+        """Pin `FloatingRateSpec.overnight_index_constraints` (default: Daily).
+
+        `overnight_index_constraints` only affects the result on an
+        overnight-*compounded* leg (`overnight_compounding` set) with an
+        `index_floor_bp`/`index_cap_bp`: `Daily` clamps each sampled daily
+        fixing before compounding, `Period` compounds the raw daily fixings
+        first and clamps once at the end. The two only diverge when the
+        curve varies enough within a period that some days breach the floor
+        while the period-average does not, so the forward curve here is a
+        near step function (near-zero for the first ~18 days of the first
+        accrual period, then a high flat rate) that crosses a 3% floor
+        partway through -- a flat or slowly-varying curve would make this
+        default inert, as it is in `test_floating_rate_spec_defaults_match_json`.
+        """
+        from decimal import Decimal
+        import json
+
+        from finstack_quant.cashflows import build_cashflow_schedule_json
+        from finstack_quant.cashflows.builder import (
+            CashFlowSchedule,
+            FloatingCouponSpec,
+            FloatingRateSpec,
+            OvernightCompoundingMethod,
+            OvernightIndexConstraintApplication,
+            ScheduleParams,
+        )
+        from finstack_quant.core.dates import DayCount
+        from finstack_quant.core.market_data import ForwardCurve, MarketContext
+
+        curve = ForwardCurve(
+            id="USD-SOFR-3M",
+            tenor=0.25,
+            knots=[(0.0, 0.001), (0.05, 0.001), (0.06, 0.30), (1.0, 0.30)],
+            base_date=dt.date(2025, 1, 1),
+        )
+        market = MarketContext().insert(curve)
+
+        def build_schedule(overnight_index_constraints: object | None) -> CashFlowSchedule:
+            kwargs = {}
+            if overnight_index_constraints is not None:
+                kwargs["overnight_index_constraints"] = overnight_index_constraints
+            rate_spec = FloatingRateSpec(
+                index_id="USD-SOFR-3M",
+                spread_bp=Decimal("0"),
+                reset_freq="3M",
+                index_floor_bp=Decimal("300"),
+                overnight_compounding=OvernightCompoundingMethod.COMPOUNDED_IN_ARREARS,
+                **kwargs,
+            )
+            return (
+                CashFlowSchedule
+                .builder()
+                .principal(Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2026, 1, 15))
+                .floating_cf(
+                    FloatingCouponSpec(
+                        rate_spec=rate_spec,
+                        schedule=ScheduleParams(freq="3M", dc=DayCount.ACT_360, calendar_id="weekends_only"),
+                    )
+                )
+                .build(market)
+            )
+
+        typed_schedule = build_schedule(None)
+
+        json_spec = json.dumps({
+            "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "None"},
+            "issue": "2025-01-15",
+            "maturity": "2026-01-15",
+            "coupon_program": [
+                {
+                    "kind": "floating",
+                    "spec": {
+                        "rate_spec": {
+                            "index_id": "USD-SOFR-3M",
+                            "spread_bp": "0",
+                            "reset_freq": {"count": 3, "unit": "months"},
+                            "index_floor_bp": "300",
+                            "overnight_compounding": "CompoundedInArrears",
+                        },
+                        "freq": {"count": 3, "unit": "months"},
+                        "dc": "Act360",
+                        "calendar_id": "weekends_only",
+                    },
+                }
+            ],
+        })
+        json_schedule = build_cashflow_schedule_json(json_spec, market.to_json())
+
+        # Sanity check that this fixture genuinely exercises the default:
+        # explicitly requesting the non-default `Period` application must
+        # change the first coupon's rate relative to the omitted-field
+        # (Daily) build, or this fixture would not be able to catch a
+        # `FloatingRateSpec.new` binding that hardcoded the wrong default.
+        period_schedule = build_schedule(OvernightIndexConstraintApplication.PERIOD)
+        daily_schedule = build_schedule(OvernightIndexConstraintApplication.DAILY)
+        assert json.loads(typed_schedule.to_json()) == json.loads(daily_schedule.to_json())
+        assert json.loads(typed_schedule.to_json()) != json.loads(period_schedule.to_json())
+
+        assert json.loads(typed_schedule.to_json()) == json.loads(json_schedule)
+
+    def test_floating_rate_fallback_default_matches_json_on_missing_curve(self) -> None:
+        """Pin `FloatingRateSpec.fallback` (default: Error) via a shared failure.
+
+        `test_floating_rate_spec_defaults_match_json` always supplies a
+        market with the requested curve, so the `fallback` default never
+        triggers there. Build the same floating spec through the typed and
+        JSON paths with no market context at all and assert both fail with
+        the same exception type and message, pinning `fallback = Error`
+        (rather than e.g. `SpreadOnly`, which would build successfully
+        instead of raising).
+        """
+        from decimal import Decimal
+        import json
+
+        from finstack_quant.cashflows import build_cashflow_schedule_json
+        from finstack_quant.cashflows.builder import (
+            CashFlowSchedule,
+            FloatingCouponSpec,
+            FloatingRateSpec,
+            ScheduleParams,
+        )
+        from finstack_quant.core.dates import DayCount
+
+        typed_builder = (
+            CashFlowSchedule
+            .builder()
+            .principal(Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2026, 1, 15))
+            .floating_cf(
+                FloatingCouponSpec(
+                    rate_spec=FloatingRateSpec(
+                        index_id="USD-SOFR-3M",
+                        spread_bp=Decimal("150"),
+                        reset_freq="3M",
+                    ),
+                    schedule=ScheduleParams(freq="3M", dc=DayCount.ACT_360, calendar_id="weekends_only"),
+                )
+            )
+        )
+        with pytest.raises(KeyError) as typed_exc:
+            typed_builder.build(None)
+
+        json_spec = json.dumps({
+            "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "None"},
+            "issue": "2025-01-15",
+            "maturity": "2026-01-15",
+            "coupon_program": [
+                {
+                    "kind": "floating",
+                    "spec": {
+                        "rate_spec": {
+                            "index_id": "USD-SOFR-3M",
+                            "spread_bp": "150",
+                            "reset_freq": {"count": 3, "unit": "months"},
+                        },
+                        "freq": {"count": 3, "unit": "months"},
+                        "dc": "Act360",
+                        "calendar_id": "weekends_only",
+                    },
+                }
+            ],
+        })
+        with pytest.raises(KeyError) as json_exc:
+            build_cashflow_schedule_json(json_spec)
+
+        assert type(typed_exc.value) is type(json_exc.value)
+        assert str(typed_exc.value) == str(json_exc.value)
 
     def test_credit_model_specs(self) -> None:
         from finstack_quant.cashflows.builder import (
