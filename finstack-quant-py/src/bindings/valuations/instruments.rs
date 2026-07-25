@@ -28,18 +28,16 @@ fn parse_tagged(json: &str) -> PyResult<InstrumentJson> {
 // Shared helpers for typed instrument builders (bond/term_loan today; every
 // later typed-instrument task reuses these three).
 //
-// `#[allow(dead_code)]`: none of the 8 typed-instrument tasks that consume
-// these helpers has landed yet, so `clippy --all-targets -D warnings` flags
-// all three as unused. Remove each `#[allow(dead_code)]` the moment its
-// helper gets a first call site (expected: task 2, the first rates
-// instrument).
+// `#[allow(dead_code)]`: `json_field` has no consumer yet (nested-spec
+// setters land in a later typed-instrument task), so
+// `clippy --all-targets -D warnings` flags it as unused. Remove the
+// `#[allow(dead_code)]` the moment it gets a first call site.
 // ---------------------------------------------------------------------------
 
 /// Parse a serde-tagged unit-enum value from its snake_case string form.
 ///
 /// Used by typed builders so Python passes plain strings (typed as
 /// ``Literal[...]`` in the stubs) for Rust enums like ``PayReceive``.
-#[allow(dead_code)]
 pub(crate) fn enum_from_str<T: serde::de::DeserializeOwned>(
     value: &str,
     what: &str,
@@ -49,7 +47,6 @@ pub(crate) fn enum_from_str<T: serde::de::DeserializeOwned>(
 }
 
 /// Convert a Python float to `Decimal`, rejecting non-finite values.
-#[allow(dead_code)]
 pub(crate) fn decimal_from_f64(value: f64, what: &str) -> PyResult<rust_decimal::Decimal> {
     rust_decimal::Decimal::try_from(value)
         .map_err(|err| crate::errors::value_error(format!("invalid {what}: {err}")))

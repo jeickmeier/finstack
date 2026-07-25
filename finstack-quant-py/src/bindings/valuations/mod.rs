@@ -14,6 +14,8 @@ pub(crate) mod instruments;
 mod pricing;
 mod sabr;
 mod structured_credit;
+mod typed_legs;
+pub(crate) mod typed_rates;
 
 use crate::bindings::pandas_utils::dict_to_dataframe;
 use crate::errors::display_to_py;
@@ -261,10 +263,16 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
     m.getattr("bond_from_cashflows_json")?
         .setattr("__module__", "finstack_quant.valuations.instruments")?;
     instruments::register(py, &m)?;
+    typed_legs::register(py, &m)?;
+    typed_rates::register(py, &m)?;
     pricing::register(py, &m)?;
     structured_credit::register(&m)?;
     let mut exports = vec![
         "Bond",
+        "FixedLegSpec",
+        "FloatLegSpec",
+        "InterestRateSwap",
+        "InterestRateSwapBuilder",
         "TermLoan",
         "bond_from_cashflows_json",
         "instrument_cashflows_json",

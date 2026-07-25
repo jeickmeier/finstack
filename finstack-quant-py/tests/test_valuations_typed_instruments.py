@@ -179,5 +179,5 @@ class TestTermLoanTyped:
 
 class TestUnionExtraction:
     def test_non_string_non_instrument_raises_type_error(self) -> None:
-        with pytest.raises(TypeError, match="Bond / TermLoan"):
+        with pytest.raises(TypeError, match="typed instrument instance"):
             price_instrument(12345, _market_json(), "2024-06-30")

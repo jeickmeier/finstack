@@ -18,6 +18,7 @@ use crate::bindings::portfolio::types::{PyPortfolio, PyPortfolioResult, PyPortfo
 use crate::bindings::statements::evaluator::PyStatementResult;
 use crate::bindings::statements::types::PyFinancialModelSpec;
 use crate::bindings::valuations::instruments::{PyBond, PyTermLoan};
+use crate::bindings::valuations::typed_rates::PyInterestRateSwap;
 use crate::errors::{display_to_py as to_py, portfolio_to_py};
 
 // ---------------------------------------------------------------------------
@@ -42,7 +43,7 @@ use crate::errors::{display_to_py as to_py, portfolio_to_py};
 /// funnel through this one function. Update the fallback error message
 /// below to name each newly landed class so the message stays accurate.
 ///
-/// Currently wired: `Bond`, `TermLoan`.
+/// Currently wired: `Bond`, `TermLoan`, `InterestRateSwap`.
 pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     if let Ok(bond) = obj.cast::<PyBond>() {
         return bond.borrow().tagged_json();
@@ -50,9 +51,12 @@ pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     if let Ok(loan) = obj.cast::<PyTermLoan>() {
         return loan.borrow().tagged_json();
     }
+    if let Ok(swap) = obj.cast::<PyInterestRateSwap>() {
+        return swap.borrow().tagged_json();
+    }
     obj.extract::<String>().map_err(|_| {
         pyo3::exceptions::PyTypeError::new_err(
-            "expected tagged instrument JSON (str) or a typed Bond / TermLoan instance",
+            "expected tagged instrument JSON (str) or a typed instrument instance",
         )
     })
 }

@@ -11,6 +11,7 @@ Examples
 from __future__ import annotations
 
 import datetime
+from typing import Literal
 
 from finstack_quant.core.dates import DayCount, Tenor
 from finstack_quant.core.market_data import MarketContext
@@ -19,6 +20,10 @@ from finstack_quant.core.types import Bps, Rate
 
 __all__ = [
     "Bond",
+    "FixedLegSpec",
+    "FloatLegSpec",
+    "InterestRateSwap",
+    "InterestRateSwapBuilder",
     "TermLoan",
     "bond_from_cashflows_json",
     "instrument_cashflows_json",
@@ -319,6 +324,467 @@ class TermLoan:
         """
         ...
 
+class FixedLegSpec:
+    """
+    Fixed leg of an interest-rate swap.
+
+    Thin typed wrapper for the canonical Rust ``FixedLegSpec``. Used to build
+    the fixed leg of an :class:`InterestRateSwap` via
+    :meth:`InterestRateSwapBuilder.fixed`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import DayCount, Tenor
+    >>> from finstack_quant.valuations.instruments import FixedLegSpec
+    >>> leg = FixedLegSpec(
+    ...     "USD-OIS",
+    ...     0.04,
+    ...     Tenor.semi_annual(),
+    ...     DayCount.THIRTY_360,
+    ...     datetime.date(2024, 1, 15),
+    ...     datetime.date(2029, 1, 15),
+    ... )
+    >>> "0.04" in repr(leg)
+    True
+    """
+
+    def __init__(
+        self,
+        discount_curve_id: str,
+        rate: float,
+        frequency: Tenor,
+        day_count: DayCount,
+        start: datetime.date,
+        end: datetime.date,
+        *,
+        bdc: Literal[
+            "following", "modified_following", "preceding", "modified_preceding", "none"
+        ] = "modified_following",
+        calendar_id: str | None = None,
+        stub: Literal["ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
+        compounding_simple: bool = False,
+        payment_lag_days: int = 0,
+        end_of_month: bool = False,
+    ) -> None:
+        """
+        Construct a fixed leg specification.
+
+        Parameters
+        ----------
+        discount_curve_id : str
+            Discount curve identifier for pricing this leg.
+        rate : float
+            Fixed rate as a decimal (0.04 = 4%).
+        frequency : Tenor
+            Payment frequency.
+        day_count : DayCount
+            Day count convention for accrual.
+        start : datetime.date
+            Start date of the fixed leg.
+        end : datetime.date
+            End date of the fixed leg.
+        bdc : {"following", "modified_following", "preceding", "modified_preceding", "none"}, default "modified_following"
+            Business day convention for payment dates.
+        calendar_id : str, optional
+            Calendar used for business day adjustments.
+        stub : {"ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
+            Stub period handling rule.
+        compounding_simple : bool, default False
+            If true, use simple interest on the accrual fraction.
+        payment_lag_days : int, default 0
+            Payment lag in business days after period end.
+        end_of_month : bool, default False
+            End-of-month roll convention.
+
+        Raises
+        ------
+        ValueError
+            If an enum value is invalid or the accrual period is malformed
+            (``start >= end``).
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FixedLegSpec
+        >>> callable(FixedLegSpec)
+        True
+        """
+        ...
+
+class FloatLegSpec:
+    """
+    Floating leg of an interest-rate swap.
+
+    Thin typed wrapper for the canonical Rust ``FloatLegSpec``. Used to build
+    the floating leg of an :class:`InterestRateSwap` via
+    :meth:`InterestRateSwapBuilder.float`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import DayCount, Tenor
+    >>> from finstack_quant.valuations.instruments import FloatLegSpec
+    >>> leg = FloatLegSpec(
+    ...     "USD-OIS",
+    ...     "USD-SOFR-3M",
+    ...     0.0,
+    ...     Tenor.quarterly(),
+    ...     DayCount.ACT_360,
+    ...     datetime.date(2024, 1, 15),
+    ...     datetime.date(2029, 1, 15),
+    ... )
+    >>> "spread_bp=0" in repr(leg)
+    True
+    """
+
+    def __init__(
+        self,
+        discount_curve_id: str,
+        forward_curve_id: str,
+        spread_bp: float,
+        frequency: Tenor,
+        day_count: DayCount,
+        start: datetime.date,
+        end: datetime.date,
+        *,
+        bdc: Literal[
+            "following", "modified_following", "preceding", "modified_preceding", "none"
+        ] = "modified_following",
+        calendar_id: str | None = None,
+        stub: Literal["ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
+        reset_lag_days: int = -1,
+        fixing_calendar_id: str | None = None,
+        payment_lag_days: int = 0,
+        end_of_month: bool = False,
+    ) -> None:
+        """
+        Construct a floating leg specification.
+
+        Parameters
+        ----------
+        discount_curve_id : str
+            Discount curve identifier for pricing this leg.
+        forward_curve_id : str
+            Forward curve identifier for rate projections.
+        spread_bp : float
+            Spread over the index in basis points.
+        frequency : Tenor
+            Payment frequency.
+        day_count : DayCount
+            Day count convention for accrual.
+        start : datetime.date
+            Start date of the floating leg.
+        end : datetime.date
+            End date of the floating leg.
+        bdc : {"following", "modified_following", "preceding", "modified_preceding", "none"}, default "modified_following"
+            Business day convention for payment dates.
+        calendar_id : str, optional
+            Calendar used for business day adjustments.
+        stub : {"ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
+            Stub period handling rule.
+        reset_lag_days : int, default -1
+            Reset lag in business days for the floating rate fixing.
+            ``-1`` is a sentinel meaning "use the convention default".
+        fixing_calendar_id : str, optional
+            Calendar used for rate fixing (reset lag).
+        payment_lag_days : int, default 0
+            Payment lag in business days after period end.
+        end_of_month : bool, default False
+            End-of-month roll convention.
+
+        Raises
+        ------
+        ValueError
+            If an enum value is invalid or the accrual period is malformed
+            (``start >= end``).
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FloatLegSpec
+        >>> callable(FloatLegSpec)
+        True
+        """
+        ...
+
+class InterestRateSwap:
+    """
+    Typed wrapper for the canonical Rust ``InterestRateSwap``.
+
+    Build with :meth:`InterestRateSwap.builder`; instances are accepted
+    directly by :func:`price_instrument`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import DayCount, Tenor
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import (
+    ...     FixedLegSpec,
+    ...     FloatLegSpec,
+    ...     InterestRateSwap,
+    ... )
+    >>> start = datetime.date(2024, 1, 15)
+    >>> end = datetime.date(2029, 1, 15)
+    >>> swap = (
+    ...     InterestRateSwap
+    ...     .builder()
+    ...     .id("IRS-1")
+    ...     .notional(Money(10_000_000.0, Currency("USD")))
+    ...     .side("pay")
+    ...     .fixed(FixedLegSpec("USD-OIS", 0.04, Tenor.semi_annual(), DayCount.THIRTY_360, start, end))
+    ...     .float(FloatLegSpec("USD-OIS", "USD-SOFR-3M", 0.0, Tenor.quarterly(), DayCount.ACT_360, start, end))
+    ...     .build()
+    ... )
+    >>> swap.id
+    'IRS-1'
+    """
+
+    @property
+    def id(self) -> str:
+        """
+        Instrument identifier.
+
+        Returns
+        -------
+        str
+            The unique instrument identifier.
+        """
+        ...
+
+    @staticmethod
+    def builder() -> InterestRateSwapBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``InterestRateSwap::builder()``).
+
+        Returns
+        -------
+        InterestRateSwapBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import InterestRateSwap
+        >>> callable(InterestRateSwap.builder)
+        True
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> InterestRateSwap:
+        """
+        Deserialize from tagged instrument JSON.
+
+        Parameters
+        ----------
+        json : str
+            Tagged instrument JSON with type ``"interest_rate_swap"``
+            (``{"type": "interest_rate_swap", "spec": {...}}``).
+
+        Returns
+        -------
+        InterestRateSwap
+            The validated swap.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed, has a different instrument type, or
+            fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import InterestRateSwap
+        >>> callable(InterestRateSwap.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to tagged instrument JSON.
+
+        Returns
+        -------
+        str
+            ``{"type": "interest_rate_swap", "spec": ...}`` JSON accepted by
+            :func:`price_instrument` and :meth:`InterestRateSwap.from_json`.
+        """
+        ...
+
+class InterestRateSwapBuilder:
+    """
+    Fluent builder returned by :meth:`InterestRateSwap.builder`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import InterestRateSwap
+    >>> isinstance(InterestRateSwap.builder(), InterestRateSwap.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> InterestRateSwapBuilder:
+        """
+        Set the instrument identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the swap.
+
+        Returns
+        -------
+        InterestRateSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`InterestRateSwapBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import InterestRateSwap
+        >>> callable(InterestRateSwap.builder().id)
+        True
+        """
+        ...
+
+    def notional(self, value: Money) -> InterestRateSwapBuilder:
+        """
+        Set the notional (both legs).
+
+        Parameters
+        ----------
+        value : Money
+            Notional amount shared by both legs.
+
+        Returns
+        -------
+        InterestRateSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`InterestRateSwapBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import InterestRateSwap
+        >>> callable(InterestRateSwap.builder().notional)
+        True
+        """
+        ...
+
+    def side(self, value: Literal["pay", "receive"]) -> InterestRateSwapBuilder:
+        """
+        Set the swap direction: ``"pay"`` or ``"receive"`` (fixed leg).
+
+        Parameters
+        ----------
+        value : {"pay", "receive"}
+            ``"pay"`` to pay fixed/receive floating, ``"receive"`` for the
+            opposite.
+
+        Returns
+        -------
+        InterestRateSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized side.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import InterestRateSwap
+        >>> callable(InterestRateSwap.builder().side)
+        True
+        """
+        ...
+
+    def fixed(self, value: FixedLegSpec) -> InterestRateSwapBuilder:
+        """
+        Set the fixed leg specification.
+
+        Parameters
+        ----------
+        value : FixedLegSpec
+            Fixed leg specification.
+
+        Returns
+        -------
+        InterestRateSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`InterestRateSwapBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import InterestRateSwap
+        >>> callable(InterestRateSwap.builder().fixed)
+        True
+        """
+        ...
+
+    def float(self, value: FloatLegSpec) -> InterestRateSwapBuilder:
+        """
+        Set the floating leg specification.
+
+        Parameters
+        ----------
+        value : FloatLegSpec
+            Floating leg specification.
+
+        Returns
+        -------
+        InterestRateSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`InterestRateSwapBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import InterestRateSwap
+        >>> callable(InterestRateSwap.builder().float)
+        True
+        """
+        ...
+
+    def build(self) -> InterestRateSwap:
+        """
+        Build the validated swap.
+
+        Returns
+        -------
+        InterestRateSwap
+            The validated swap.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing or Rust validation fails.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import InterestRateSwap
+        >>> callable(InterestRateSwap.builder().build)
+        True
+        """
+        ...
+
 def bond_from_cashflows_json(
     instrument_id: str,
     schedule_json: str,
@@ -386,7 +852,7 @@ def validate_instrument_json(json: str) -> str:
     ...
 
 def price_instrument(
-    instrument_json: str | Bond | TermLoan,
+    instrument_json: str | Bond | TermLoan | InterestRateSwap,
     market: MarketContext | str,
     as_of: str,
     model: str = "default",
@@ -396,7 +862,7 @@ def price_instrument(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan
+    instrument_json : str or Bond or TermLoan or InterestRateSwap
         Tagged instrument JSON accepted by
         :func:`validate_instrument_json`, or a typed :class:`Bond` /
         :class:`TermLoan` instance.
@@ -430,7 +896,7 @@ def price_instrument(
     ...
 
 def price_instrument_with_metrics(
-    instrument_json: str | Bond | TermLoan,
+    instrument_json: str | Bond | TermLoan | InterestRateSwap,
     market: MarketContext | str,
     as_of: str,
     model: str = "default",
@@ -443,7 +909,7 @@ def price_instrument_with_metrics(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan
+    instrument_json : str or Bond or TermLoan or InterestRateSwap
         Tagged instrument JSON, or a typed :class:`Bond` /
         :class:`TermLoan` instance.
     market : MarketContext or str
@@ -482,7 +948,7 @@ def price_instrument_with_metrics(
     ...
 
 def instrument_cashflows_json(
-    instrument_json: str | Bond | TermLoan,
+    instrument_json: str | Bond | TermLoan | InterestRateSwap,
     market: MarketContext | str,
     as_of: str,
     model: str,
@@ -492,7 +958,7 @@ def instrument_cashflows_json(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan
+    instrument_json : str or Bond or TermLoan or InterestRateSwap
         Tagged instrument JSON, or a typed :class:`Bond` /
         :class:`TermLoan` instance.
     market : MarketContext or str
