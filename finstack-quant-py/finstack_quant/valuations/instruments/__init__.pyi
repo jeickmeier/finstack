@@ -359,7 +359,7 @@ class FixedLegSpec:
         end: datetime.date,
         *,
         bdc: Literal[
-            "following", "modified_following", "preceding", "modified_preceding", "none"
+            "unadjusted", "following", "modified_following", "preceding", "modified_preceding"
         ] = "modified_following",
         calendar_id: str | None = None,
         stub: Literal["ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
@@ -384,7 +384,7 @@ class FixedLegSpec:
             Start date of the fixed leg.
         end : datetime.date
             End date of the fixed leg.
-        bdc : {"following", "modified_following", "preceding", "modified_preceding", "none"}, default "modified_following"
+        bdc : {"unadjusted", "following", "modified_following", "preceding", "modified_preceding"}, default "modified_following"
             Business day convention for payment dates.
         calendar_id : str, optional
             Calendar used for business day adjustments.
@@ -448,7 +448,7 @@ class FloatLegSpec:
         end: datetime.date,
         *,
         bdc: Literal[
-            "following", "modified_following", "preceding", "modified_preceding", "none"
+            "unadjusted", "following", "modified_following", "preceding", "modified_preceding"
         ] = "modified_following",
         calendar_id: str | None = None,
         stub: Literal["ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
@@ -476,7 +476,7 @@ class FloatLegSpec:
             Start date of the floating leg.
         end : datetime.date
             End date of the floating leg.
-        bdc : {"following", "modified_following", "preceding", "modified_preceding", "none"}, default "modified_following"
+        bdc : {"unadjusted", "following", "modified_following", "preceding", "modified_preceding"}, default "modified_following"
             Business day convention for payment dates.
         calendar_id : str, optional
             Calendar used for business day adjustments.

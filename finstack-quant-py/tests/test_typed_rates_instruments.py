@@ -18,6 +18,19 @@ from finstack_quant.valuations.instruments import (
     price_instrument,
 )
 
+# Every serde wire value of the Rust `BusinessDayConvention` enum
+# (`#[serde(rename_all = "snake_case")]` over Unadjusted/Following/
+# ModifiedFollowing/Preceding/ModifiedPreceding). Kept in sync manually with
+# `finstack-quant/core/src/dates/calendar/business_days.rs`; a stub `Literal`
+# that drifts from this set is exactly the bug this test guards against.
+_VALID_BDC_VALUES = (
+    "unadjusted",
+    "following",
+    "modified_following",
+    "preceding",
+    "modified_preceding",
+)
+
 
 def _market_json() -> str:
     return json.dumps({
@@ -155,8 +168,38 @@ class TestFixedLegSpecTyped:
         )
         assert "0.04" in repr(leg)
 
+    @pytest.mark.parametrize("bdc", _VALID_BDC_VALUES)
+    def test_every_bdc_literal_value_accepted(self, bdc: str) -> None:
+        """Every value in the `bdc` stub Literal must be a real accepted wire value."""
+        leg = FixedLegSpec(
+            "USD-OIS",
+            0.04,
+            Tenor.semi_annual(),
+            DayCount.THIRTY_360,
+            datetime.date(2024, 1, 15),
+            datetime.date(2029, 1, 15),
+            bdc=bdc,
+            compounding_simple=False,
+        )
+        assert "0.04" in repr(leg)
+
 
 class TestFloatLegSpecTyped:
+    @pytest.mark.parametrize("bdc", _VALID_BDC_VALUES)
+    def test_every_bdc_literal_value_accepted(self, bdc: str) -> None:
+        """Every value in the `bdc` stub Literal must be a real accepted wire value."""
+        leg = FloatLegSpec(
+            "USD-OIS",
+            "USD-SOFR-3M",
+            0.0,
+            Tenor.quarterly(),
+            DayCount.ACT_360,
+            datetime.date(2024, 1, 15),
+            datetime.date(2029, 1, 15),
+            bdc=bdc,
+        )
+        assert "spread_bp=0" in repr(leg)
+
     def test_keyword_arguments(self) -> None:
         """Every keyword-only parameter name must match its text_signature."""
         leg = FloatLegSpec(
