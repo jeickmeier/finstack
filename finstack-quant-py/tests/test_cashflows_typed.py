@@ -425,3 +425,62 @@ class TestCashFlowSchedule:
         assert len(merged.get_flows()) == 12
         total = sum(f.amount.amount for f in merged.get_flows())
         assert total == pytest.approx(0.0, abs=1e-9)
+
+
+class TestAccrual:
+    @staticmethod
+    def _semiannual_bond() -> CashFlowSchedule:
+        from decimal import Decimal
+
+        from finstack_quant.cashflows.builder import (
+            CashFlowSchedule,
+            FixedCouponSpec,
+            ScheduleParams,
+        )
+
+        return (
+            CashFlowSchedule
+            .builder()
+            .principal(Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2026, 1, 15))
+            .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.semiannual_30360()))
+            .build(None)
+        )
+
+    def test_accrued_interest_golden(self) -> None:
+        from finstack_quant.cashflows.accrual import accrued_interest_amount
+
+        schedule = self._semiannual_bond()
+        # Hand-computed: coupon 25,000 per period; 30/360 elapsed 90/360 = 0.25 of a
+        # 0.5-year period -> 25,000 * 0.5 = 12,500.00 exactly (see plan Task 5).
+        accrued = accrued_interest_amount(schedule, dt.date(2025, 4, 15))
+        assert accrued == pytest.approx(12_500.0, abs=1e-6)
+
+    def test_accrued_zero_outside_periods(self) -> None:
+        from finstack_quant.cashflows.accrual import accrued_interest_amount
+
+        schedule = self._semiannual_bond()
+        assert accrued_interest_amount(schedule, dt.date(2024, 12, 31)) == pytest.approx(0.0)
+
+    def test_accrual_index_matches_one_shot(self) -> None:
+        from finstack_quant.cashflows.accrual import (
+            AccrualConfig,
+            AccrualIndex,
+            AccrualMethod,
+            accrued_interest_amount,
+        )
+
+        schedule = self._semiannual_bond()
+        cfg = AccrualConfig(method=AccrualMethod.LINEAR)
+        index = AccrualIndex.build(schedule, cfg)
+        for as_of in (dt.date(2025, 2, 1), dt.date(2025, 4, 15), dt.date(2025, 9, 1)):
+            assert index.accrued_at(as_of) == pytest.approx(accrued_interest_amount(schedule, as_of, cfg), abs=1e-12)
+
+    def test_ex_coupon_rule(self) -> None:
+        from finstack_quant.cashflows.accrual import ExCouponRule
+
+        rule = ExCouponRule(days_before_coupon=7)
+        assert rule.ex_date(dt.date(2025, 7, 15)) == dt.date(2025, 7, 8)
+        assert rule.days_before_coupon == 7
+        assert rule.calendar_id is None
+        with pytest.raises(ValueError, match="exceeds the maximum"):
+            ExCouponRule(days_before_coupon=400).ex_date(dt.date(2025, 7, 15))

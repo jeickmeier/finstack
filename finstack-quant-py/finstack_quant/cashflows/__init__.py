@@ -15,8 +15,10 @@ from finstack_quant.finstack_quant import cashflows as _cashflows
 
 primitives = _cashflows.primitives
 builder = _cashflows.builder
+accrual = _cashflows.accrual
 
 _submodules = {
+    "accrual": accrual,
     "builder": builder,
     "primitives": primitives,
 }
@@ -40,6 +42,7 @@ for _fn in (
     globals()[_fn].__module__ = __name__
 
 __all__: list[str] = [
+    "accrual",
     "accrued_interest_json",
     "build_cashflow_schedule_json",
     "builder",

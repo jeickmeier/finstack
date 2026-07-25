@@ -14,10 +14,12 @@ Examples
 
 from __future__ import annotations
 
+from finstack_quant.cashflows import accrual as accrual
 from finstack_quant.cashflows import builder as builder
 from finstack_quant.cashflows import primitives as primitives
 
 __all__ = [
+    "accrual",
     "accrued_interest_json",
     "build_cashflow_schedule_json",
     "builder",
