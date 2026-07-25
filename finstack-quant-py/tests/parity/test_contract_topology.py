@@ -424,18 +424,22 @@ def test_wasm_cashflows_root_exports_are_triplet_accounted_for() -> None:
 
 
 def test_python_cashflows_surface_matches_contract() -> None:
-    """`finstack_quant.cashflows` __all__ must equal the pinned python triplet names."""
+    """`finstack_quant.cashflows` __all__ = JSON triplet names + python_only submodules."""
     block = CONTRACT["wasm_cashflows_subset"]
     module = importlib.import_module("finstack_quant.cashflows")
-    expected = set(block["python_js_map"])
+    json_names = set(block["python_js_map"])
+    typed_submodules = set(block.get("python_only", []))
+    expected = json_names | typed_submodules
     actual = set(module.__all__)
     assert actual == expected, (
-        f"finstack_quant.cashflows __all__ diverged from contract python_js_map keys.\n"
+        f"finstack_quant.cashflows __all__ diverged from contract.\n"
         f"  missing from Python: {sorted(expected - actual)}\n"
         f"  unlisted in contract: {sorted(actual - expected)}"
     )
-    missing = [name for name in expected if not callable(getattr(module, name, None))]
+    missing = [name for name in json_names if not callable(getattr(module, name, None))]
     assert not missing, f"finstack_quant.cashflows symbols not callable: {missing}"
+    not_modules = [name for name in typed_submodules if not inspect.ismodule(getattr(module, name, None))]
+    assert not not_modules, f"finstack_quant.cashflows entries not modules: {not_modules}"
 
 
 def test_cashflows_has_no_cross_crate_symbols() -> None:

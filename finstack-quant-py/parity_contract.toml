@@ -234,8 +234,12 @@ json        = { python = "finstack_quant.cashflows",             status = "exist
 accrual     = { python = "finstack_quant.cashflows.accrual",     status = "missing", note = "Accrual engine reachable only via accrued_interest_json on the JSON bridge" }
 aggregation = { python = "finstack_quant.cashflows.aggregation", status = "missing", note = "Period aggregation not yet bound; use the JSON bridge schedule output" }
 builder     = { python = "finstack_quant.cashflows.builder",     status = "missing", note = "Every public coupon and payment-program builder instruction travels through the canonical JSON program; no typed Python surface" }
-primitives  = { python = "finstack_quant.cashflows.primitives",  status = "missing", note = "CashFlow/CFKind primitives travel as JSON; no typed Python surface yet" }
+primitives  = { python = "finstack_quant.cashflows.primitives",  status = "exists", note = "Typed CashFlow/CFKind primitives; CashFlow rows also travel inside schedule JSON" }
 traits      = { python = "finstack_quant.cashflows.traits",      status = "missing", note = "Rust-side trait surface; not meaningful as a Python module" }
+
+[crates.cashflows.module_symbols.primitives]
+python_package = "finstack_quant.cashflows.primitives"
+public = ["CFKind", "CashFlow", "is_cash_settlement_kind"]
 
 # ---------------------------------------------------------------------------
 # WASM cashflows facade subset + symbol-level triplet pinning.
@@ -250,6 +254,10 @@ root_exports = [
     "buildCashflowScheduleJson",
     "datedFlowsJson",
     "validateCashflowScheduleJson",
+]
+# Python-only typed cashflows surface; WASM stays JSON-only by design.
+python_only = [
+    "primitives",
 ]
 
 [wasm_cashflows_subset.python_js_map]

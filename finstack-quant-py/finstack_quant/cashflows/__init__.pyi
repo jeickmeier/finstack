@@ -14,10 +14,13 @@ Examples
 
 from __future__ import annotations
 
+from finstack_quant.cashflows import primitives as primitives
+
 __all__ = [
     "accrued_interest_json",
     "build_cashflow_schedule_json",
     "dated_flows_json",
+    "primitives",
     "validate_cashflow_schedule_json",
 ]
 
