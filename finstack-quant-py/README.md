@@ -147,6 +147,7 @@ Behavioral parity (e.g. `tests/test_core_parity.py`) compares Rust-backed result
 | Cashflow schedules | `finstack_quant.cashflows` | `build_cashflow_schedule_json`, `validate_cashflow_schedule_json` |
 | Pricing | `finstack_quant.valuations` | `price_instrument`, instrument types under `valuations.instruments` |
 | Performance / risk | `finstack_quant.analytics` | `Performance` (methods: `value_at_risk`, drawdowns, rolling metrics, …) |
+| Arrow interchange | `finstack_quant.core.table` | `ArrowTable` (produced by `to_arrow_long`/`to_arrow_wide`/`to_arrow_positions`; consume via `pyarrow.table(...)`, `polars.DataFrame(...)`) |
 
 Full surface: `finstack-quant-py/finstack_quant/**/*.pyi`.
 

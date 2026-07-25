@@ -685,4 +685,108 @@ mod tests {
     fn garbage_ipc_bytes_error_cleanly() {
         assert!(super::from_ipc_bytes(&[0x00, 0x01, 0x02]).is_err());
     }
+
+    /// Closes a task-8 reviewer gap: `multi_batch_ipc_input_is_concatenated`
+    /// only checked row values after concatenation. Two single-row batches
+    /// sharing an identical schema (same roles, per-column metadata, and
+    /// table-level metadata) must retain all of that metadata after the
+    /// `concat_batches` merge, not just the numeric payload.
+    #[test]
+    fn multi_batch_ipc_concat_preserves_roles_and_metadata() {
+        let mut column_meta = IndexMap::new();
+        column_meta.insert("unit".to_string(), json!("USD"));
+
+        let mut table_meta = IndexMap::new();
+        table_meta.insert("kind".to_string(), json!("multi_batch_test"));
+
+        let make = |id: &str, pv: f64| {
+            TableEnvelope::new_with_metadata(
+                vec![
+                    TableColumn::new("id", TableColumnData::String(vec![id.to_string()]))
+                        .with_role(TableColumnRole::Dimension),
+                    TableColumn::new("pv", TableColumnData::Float64(vec![pv]))
+                        .with_role(TableColumnRole::Measure)
+                        .with_metadata(column_meta.clone()),
+                ],
+                table_meta.clone(),
+            )
+            .unwrap()
+        };
+
+        let b1 = to_record_batch(&make("a", 1.5)).unwrap();
+        let b2 = to_record_batch(&make("b", 2.5)).unwrap();
+        let schema = b1.schema();
+        let mut writer =
+            arrow::ipc::writer::StreamWriter::try_new(Vec::new(), schema.as_ref()).unwrap();
+        writer.write(&b1).unwrap();
+        writer.write(&b2).unwrap();
+        writer.finish().unwrap();
+        let bytes = writer.into_inner().unwrap();
+
+        let merged = super::from_ipc_bytes(&bytes).unwrap();
+        assert_eq!(merged.row_count, 2);
+        assert_eq!(merged.metadata, table_meta, "table-level metadata");
+
+        let id_col = merged.column("id").unwrap();
+        assert_eq!(id_col.role, Some(TableColumnRole::Dimension));
+        assert_eq!(
+            id_col.as_strings(),
+            Some(["a".to_string(), "b".to_string()].as_slice())
+        );
+
+        let pv_col = merged.column("pv").unwrap();
+        assert_eq!(pv_col.role, Some(TableColumnRole::Measure));
+        assert_eq!(pv_col.metadata, column_meta, "column-level metadata");
+        assert_eq!(pv_col.as_f64(), Some([1.5, 2.5].as_slice()));
+    }
+
+    /// A writer that calls `.finish()` without ever calling `.write()` is a
+    /// legal Arrow IPC stream: schema message present, zero record-batch
+    /// messages. `concat_batches` must handle an empty batch list cleanly
+    /// (producing a zero-row table) rather than panicking or erroring.
+    #[test]
+    fn zero_batch_ipc_stream_produces_empty_table() {
+        let table = TableEnvelope::new(vec![TableColumn::new(
+            "id",
+            TableColumnData::String(vec!["placeholder".into()]),
+        )])
+        .unwrap();
+        let batch = to_record_batch(&table).unwrap();
+        let schema = batch.schema();
+
+        let mut writer =
+            arrow::ipc::writer::StreamWriter::try_new(Vec::new(), schema.as_ref()).unwrap();
+        // Deliberately no `.write()` call before `.finish()`.
+        writer.finish().unwrap();
+        let bytes = writer.into_inner().unwrap();
+
+        let restored = super::from_ipc_bytes(&bytes).unwrap();
+        assert_eq!(restored.row_count, 0);
+        assert_eq!(restored.columns.len(), 1);
+        assert_eq!(restored.columns[0].name, "id");
+        assert_eq!(restored.columns[0].data, TableColumnData::String(vec![]));
+    }
+
+    /// Closes a task-8 reviewer gap: the direct `from_record_batch` path
+    /// already proved a nullable field with zero actual nulls stays the
+    /// `NullableFloat64` envelope variant (schema-driven, not data-driven),
+    /// but that discrimination was never exercised through the IPC
+    /// serialize/deserialize path specifically.
+    #[test]
+    fn ipc_round_trip_preserves_nullable_variant_with_zero_nulls() {
+        let table = TableEnvelope::new(vec![TableColumn::new(
+            "x",
+            TableColumnData::NullableFloat64(vec![Some(1.0), Some(2.0)]),
+        )])
+        .unwrap();
+        let bytes = super::to_ipc_bytes(&table).unwrap();
+        let restored = super::from_ipc_bytes(&bytes).unwrap();
+        assert_eq!(restored, table);
+        match &restored.columns[0].data {
+            TableColumnData::NullableFloat64(values) => {
+                assert_eq!(values, &vec![Some(1.0), Some(2.0)]);
+            }
+            other => panic!("expected NullableFloat64, got {other:?}"),
+        }
+    }
 }

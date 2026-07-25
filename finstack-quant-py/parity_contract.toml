@@ -41,7 +41,7 @@ math          = { python = "finstack_quant.core.math",          status = "exists
 money         = { python = "finstack_quant.core.money",         status = "exists" }
 prelude       = { python = "finstack_quant.core.prelude",       status = "missing" }
 rating_scales = { python = "finstack_quant.core.rating_scales", status = "exists" }
-table         = { python = "finstack_quant.core.table",         status = "exists" }
+table         = { python = "finstack_quant.core.table",         status = "exists", note = "Arrow interchange surface. `ArrowTable` is a binding-level host-interop type backed by the supporting crate finstack-quant-arrow (not umbrella re-exported); exempt from strict crate mirroring like `reporting`. Intentionally NO WASM parity: arrow-rs is not built for wasm32." }
 types         = { python = "finstack_quant.core.types",         status = "exists" }
 validation    = { python = "finstack_quant.core.validation",    status = "missing" }
 # golden is feature-gated test-only — excluded (see [exclusions])
@@ -1419,6 +1419,7 @@ excluded = [
     "explain",       # Trace/audit helpers are server/notebook-side concerns
     "prelude",       # Re-export bag; no host-language meaning
     "rating_scales", # Rating-scale registry is config-driven / Python-only for now
+    "table",         # Arrow interchange: arrow-rs is not built for wasm32, Python-only
     "validation",    # Internal validation helpers
 ]
 
