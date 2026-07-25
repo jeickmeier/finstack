@@ -42,9 +42,11 @@ __all__ = [
     "FxOptionBuilder",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
+    "OasResult",
     "PremiumLegSpec",
     "ProtectionLegSpec",
     "RepLine",
+    "ScenarioTable",
     "StructuredCredit",
     "StructuredCreditBuilder",
     "Swaption",
@@ -52,6 +54,7 @@ __all__ = [
     "TermLoan",
     "Tranche",
     "TrancheBuilder",
+    "TrancheMetrics",
     "TrancheStructure",
     "bond_from_cashflows_json",
     "instrument_cashflows_json",
@@ -7097,8 +7100,417 @@ def list_standard_metrics_grouped() -> dict[str, list[str]]:
     """
     ...
 
+class OasResult:
+    """
+    Result of an option-adjusted-spread calculation for a structured-credit
+    tranche (``structured_credit_tranche_oas``'s decoded return value).
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.valuations.instruments import OasResult
+    >>> payload = json.dumps({
+    ...     "oas": 0.0125,
+    ...     "model_price": 99.5,
+    ...     "market_price": 98.75,
+    ...     "num_paths": 256,
+    ...     "price_std_error": 0.05,
+    ... })
+    >>> result = OasResult.from_json(payload)
+    >>> result.oas
+    0.0125
+    """
+
+    @staticmethod
+    def from_json(json: str) -> OasResult:
+        """
+        Deserialize from the JSON returned by ``structured_credit_tranche_oas``.
+
+        Parameters
+        ----------
+        json : str
+            JSON-encoded ``OasResult``.
+
+        Returns
+        -------
+        OasResult
+            The decoded result.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is not valid JSON for the ``OasResult`` shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import OasResult
+        >>> callable(OasResult.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize back to the same JSON shape ``from_json`` accepts.
+
+        Returns
+        -------
+        str
+            JSON-encoded ``OasResult``.
+        """
+        ...
+
+    @property
+    def oas(self) -> float:
+        """
+        Option-adjusted spread, as an annual decimal (``0.01`` = 100 bp).
+
+        Returns
+        -------
+        float
+            The option-adjusted spread.
+        """
+        ...
+
+    @property
+    def model_price(self) -> float:
+        """
+        Model price at the solved OAS, as a percentage of original balance.
+
+        Returns
+        -------
+        float
+            The model price.
+        """
+        ...
+
+    @property
+    def market_price(self) -> float:
+        """
+        Target market price, as a percentage of original balance.
+
+        Returns
+        -------
+        float
+            The target market price.
+        """
+        ...
+
+    @property
+    def num_paths(self) -> int:
+        """
+        Number of Monte-Carlo scenarios used.
+
+        Returns
+        -------
+        int
+            The scenario count.
+        """
+        ...
+
+    @property
+    def price_std_error(self) -> float:
+        """
+        Monte-Carlo standard error of the mean price, as a percentage of
+        original balance.
+
+        Returns
+        -------
+        float
+            The standard error.
+        """
+        ...
+
+class TrancheMetrics:
+    """
+    Summary risk/pricing metrics for a structured-credit tranche
+    (``structured_credit_tranche_metrics``'s decoded return value).
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.valuations.instruments import TrancheMetrics
+    >>> payload = json.dumps({
+    ...     "tranche_id": "A",
+    ...     "currency": "USD",
+    ...     "pv": 1000.0,
+    ...     "price_pct": 100.0,
+    ...     "wal": 3.0,
+    ...     "z_spread_bp": 0.0,
+    ...     "cs01": -1.0,
+    ...     "spread_duration": 3.0,
+    ...     "modified_duration": 3.0,
+    ...     "convexity": 12.0,
+    ...     "target_price_pct": 100.0,
+    ... })
+    >>> metrics = TrancheMetrics.from_json(payload)
+    >>> metrics.tranche_id
+    'A'
+    """
+
+    @staticmethod
+    def from_json(json: str) -> TrancheMetrics:
+        """
+        Deserialize from the JSON returned by
+        ``structured_credit_tranche_metrics``.
+
+        Parameters
+        ----------
+        json : str
+            JSON-encoded ``TrancheMetrics``.
+
+        Returns
+        -------
+        TrancheMetrics
+            The decoded metrics bundle.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is not valid JSON for the ``TrancheMetrics`` shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import TrancheMetrics
+        >>> callable(TrancheMetrics.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize back to the same JSON shape ``from_json`` accepts.
+
+        Returns
+        -------
+        str
+            JSON-encoded ``TrancheMetrics``.
+        """
+        ...
+
+    @property
+    def tranche_id(self) -> str:
+        """
+        Identifier of the tranche.
+
+        Returns
+        -------
+        str
+            The tranche identifier.
+        """
+        ...
+
+    @property
+    def currency(self) -> str:
+        """
+        ISO-4217 code of the currency ``pv`` and ``cs01`` are denominated in.
+        Empty when decoded from a legacy payload that predates this field.
+
+        Returns
+        -------
+        str
+            The ISO-4217 currency code, or an empty string for legacy payloads.
+        """
+        ...
+
+    @property
+    def pv(self) -> float:
+        """
+        Present value of the tranche, in ``currency`` units.
+
+        Returns
+        -------
+        float
+            The present value.
+        """
+        ...
+
+    @property
+    def price_pct(self) -> float:
+        """
+        Model price, as a percentage of original balance.
+
+        Returns
+        -------
+        float
+            The model price.
+        """
+        ...
+
+    @property
+    def wal(self) -> float:
+        """
+        Weighted-average life, in years.
+
+        Returns
+        -------
+        float
+            The weighted-average life.
+        """
+        ...
+
+    @property
+    def z_spread_bp(self) -> float:
+        """
+        Z-spread to ``target_price_pct``, in basis points.
+
+        Returns
+        -------
+        float
+            The z-spread in basis points.
+        """
+        ...
+
+    @property
+    def cs01(self) -> float:
+        """
+        Credit-spread DV01 -- currency change for a +1 bp z-spread shock, in
+        ``currency`` units. Negative for a long tranche.
+
+        Returns
+        -------
+        float
+            The credit-spread DV01.
+        """
+        ...
+
+    @property
+    def spread_duration(self) -> float:
+        """
+        Spread duration, in years (``-cs01 / (pv * 1bp)``).
+
+        Returns
+        -------
+        float
+            The spread duration.
+        """
+        ...
+
+    @property
+    def modified_duration(self) -> float:
+        """
+        Modified (rate) duration of the projected cashflows, in years.
+
+        Returns
+        -------
+        float
+            The modified duration.
+        """
+        ...
+
+    @property
+    def convexity(self) -> float:
+        """
+        Modified convexity of the projected cashflows, in years squared.
+
+        Returns
+        -------
+        float
+            The modified convexity.
+        """
+        ...
+
+    @property
+    def target_price_pct(self) -> float:
+        """
+        Price the z-spread/CS01 were solved against, as a percentage of
+        original balance.
+
+        Returns
+        -------
+        float
+            The target price.
+        """
+        ...
+
+class ScenarioTable:
+    """
+    Scenario/yield table for a single structured-credit tranche
+    (``structured_credit_tranche_scenario_table``'s decoded return value).
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.valuations.instruments import ScenarioTable
+    >>> payload = json.dumps({
+    ...     "tranche_id": "A",
+    ...     "cells": [{"cpr": 0.06, "cdr": 0.02, "severity": 0.6, "price": 98.2, "wal": 4.1, "writedown": 0.0}],
+    ... })
+    >>> table = ScenarioTable.from_json(payload)
+    >>> table.tranche_id
+    'A'
+    """
+
+    @staticmethod
+    def from_json(json: str) -> ScenarioTable:
+        """
+        Deserialize from the JSON returned by
+        ``structured_credit_tranche_scenario_table``.
+
+        Parameters
+        ----------
+        json : str
+            JSON-encoded ``ScenarioTable``.
+
+        Returns
+        -------
+        ScenarioTable
+            The decoded scenario table.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is not valid JSON for the ``ScenarioTable`` shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ScenarioTable
+        >>> callable(ScenarioTable.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize back to the same JSON shape ``from_json`` accepts.
+
+        Returns
+        -------
+        str
+            JSON-encoded ``ScenarioTable``.
+        """
+        ...
+
+    @property
+    def tranche_id(self) -> str:
+        """
+        Identifier of the tranche evaluated.
+
+        Returns
+        -------
+        str
+            The tranche identifier.
+        """
+        ...
+
+    def cells(self) -> list[dict[str, float]]:
+        """
+        Evaluated cells, in CPR-major, then CDR, then severity order.
+
+        Each cell is a dict with keys ``cpr`` (annual decimal), ``cdr``
+        (annual decimal), ``severity`` (decimal), ``price`` (percentage of
+        original balance), ``wal`` (years), and ``writedown`` (currency
+        units).
+
+        Returns
+        -------
+        list[dict[str, float]]
+            One dict per evaluated scenario cell.
+        """
+        ...
+
 def structured_credit_tranche_discount_margin(
-    instrument_json: str,
+    instrument_json: str | StructuredCredit,
     tranche_id: str,
     market: MarketContext | str,
     as_of: str,
@@ -7114,8 +7526,9 @@ def structured_credit_tranche_discount_margin(
 
     Parameters
     ----------
-    instrument_json : str
-        Tagged JSON for a ``StructuredCredit`` deal.
+    instrument_json : str or StructuredCredit
+        Tagged JSON for a ``StructuredCredit`` deal, or a typed
+        ``StructuredCredit`` instance.
     tranche_id : str
         Identifier of the floating-rate tranche whose contractual cashflows
         are spread-discounted.
@@ -7152,7 +7565,7 @@ def structured_credit_tranche_discount_margin(
     ...
 
 def structured_credit_tranche_breakeven_cdr(
-    instrument_json: str,
+    instrument_json: str | StructuredCredit,
     tranche_id: str,
     market: MarketContext | str,
     as_of: str,
@@ -7161,8 +7574,9 @@ def structured_credit_tranche_breakeven_cdr(
 
     Parameters
     ----------
-    instrument_json : str
-        Tagged JSON for a ``StructuredCredit`` deal.
+    instrument_json : str or StructuredCredit
+        Tagged JSON for a ``StructuredCredit`` deal, or a typed
+        ``StructuredCredit`` instance.
     tranche_id : str
         Identifier of the tranche within the deal.
     market : MarketContext or str
@@ -7191,7 +7605,7 @@ def structured_credit_tranche_breakeven_cdr(
     ...
 
 def structured_credit_tranche_oas(
-    instrument_json: str,
+    instrument_json: str | StructuredCredit,
     tranche_id: str,
     market_price_pct: float,
     market: MarketContext | str,
@@ -7202,8 +7616,9 @@ def structured_credit_tranche_oas(
 
     Parameters
     ----------
-    instrument_json : str
-        Tagged JSON for a ``StructuredCredit`` deal.
+    instrument_json : str or StructuredCredit
+        Tagged JSON for a ``StructuredCredit`` deal, or a typed
+        ``StructuredCredit`` instance.
     tranche_id : str
         Identifier of the tranche within the deal.
     market_price_pct : float
@@ -7236,7 +7651,7 @@ def structured_credit_tranche_oas(
     ...
 
 def structured_credit_tranche_metrics(
-    instrument_json: str,
+    instrument_json: str | StructuredCredit,
     tranche_id: str,
     market: MarketContext | str,
     as_of: str,
@@ -7246,8 +7661,9 @@ def structured_credit_tranche_metrics(
 
     Parameters
     ----------
-    instrument_json : str
-        Tagged JSON for a ``StructuredCredit`` deal.
+    instrument_json : str or StructuredCredit
+        Tagged JSON for a ``StructuredCredit`` deal, or a typed
+        ``StructuredCredit`` instance.
     tranche_id : str
         Identifier of the tranche within the deal.
     market : MarketContext or str
@@ -7279,7 +7695,7 @@ def structured_credit_tranche_metrics(
     ...
 
 def structured_credit_tranche_scenario_table(
-    instrument_json: str,
+    instrument_json: str | StructuredCredit,
     tranche_id: str,
     market: MarketContext | str,
     as_of: str,
@@ -7289,8 +7705,9 @@ def structured_credit_tranche_scenario_table(
 
     Parameters
     ----------
-    instrument_json : str
-        Tagged JSON for a ``StructuredCredit`` deal.
+    instrument_json : str or StructuredCredit
+        Tagged JSON for a ``StructuredCredit`` deal, or a typed
+        ``StructuredCredit`` instance.
     tranche_id : str
         Identifier of the tranche within the deal.
     market : MarketContext or str

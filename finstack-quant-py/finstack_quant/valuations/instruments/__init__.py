@@ -36,9 +36,11 @@ FxOption = _valuations.instruments.FxOption
 FxOptionBuilder = _valuations.instruments.FxOptionBuilder
 InterestRateSwap = _valuations.instruments.InterestRateSwap
 InterestRateSwapBuilder = _valuations.instruments.InterestRateSwapBuilder
+OasResult = _valuations.instruments.OasResult
 PremiumLegSpec = _valuations.instruments.PremiumLegSpec
 ProtectionLegSpec = _valuations.instruments.ProtectionLegSpec
 RepLine = _valuations.instruments.RepLine
+ScenarioTable = _valuations.instruments.ScenarioTable
 StructuredCredit = _valuations.instruments.StructuredCredit
 StructuredCreditBuilder = _valuations.instruments.StructuredCreditBuilder
 Swaption = _valuations.instruments.Swaption
@@ -46,6 +48,7 @@ SwaptionBuilder = _valuations.instruments.SwaptionBuilder
 TermLoan = _valuations.instruments.TermLoan
 Tranche = _valuations.instruments.Tranche
 TrancheBuilder = _valuations.instruments.TrancheBuilder
+TrancheMetrics = _valuations.instruments.TrancheMetrics
 TrancheStructure = _valuations.instruments.TrancheStructure
 validate_instrument_json = _valuations.instruments.validate_instrument_json
 bond_from_cashflows_json = _valuations.instruments.bond_from_cashflows_json
@@ -87,9 +90,11 @@ __all__: list[str] = [
     "FxOptionBuilder",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
+    "OasResult",
     "PremiumLegSpec",
     "ProtectionLegSpec",
     "RepLine",
+    "ScenarioTable",
     "StructuredCredit",
     "StructuredCreditBuilder",
     "Swaption",
@@ -97,6 +102,7 @@ __all__: list[str] = [
     "TermLoan",
     "Tranche",
     "TrancheBuilder",
+    "TrancheMetrics",
     "TrancheStructure",
     "bond_from_cashflows_json",
     "instrument_cashflows_json",
