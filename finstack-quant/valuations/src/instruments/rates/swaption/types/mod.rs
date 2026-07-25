@@ -19,6 +19,6 @@ pub use definitions::{
     BermudanSchedule, BermudanType, CashSettlementMethod, SABRParameters, SwaptionExercise,
     SwaptionSettlement, VolatilityModel,
 };
-pub use swaption::{GreekInputs, Swaption};
+pub use swaption::{GreekInputs, Swaption, SwaptionBuilder};
 
 pub(crate) use bermudan::{lognormal_to_normal_vol, lognormal_to_normal_vol_jacobian};

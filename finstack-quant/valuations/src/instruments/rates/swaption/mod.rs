@@ -135,7 +135,8 @@ pub use pricer::SimpleSwaptionBlackPricer;
 pub use pricing::BermudanSwaptionTreeValuator;
 pub use types::{
     BermudanSchedule, BermudanSwaption, BermudanType, CashSettlementMethod, GreekInputs,
-    SABRParameters, Swaption, SwaptionExercise, SwaptionSettlement, VolatilityModel,
+    SABRParameters, Swaption, SwaptionBuilder, SwaptionExercise, SwaptionSettlement,
+    VolatilityModel,
 };
 
 /// Build the HW1F surface-calibration input from the normalized fixed-leg tenor.

@@ -25,6 +25,87 @@ fn parse_tagged(json: &str) -> PyResult<InstrumentJson> {
 }
 
 // ---------------------------------------------------------------------------
+// Shared helpers for typed instrument builders (bond/term_loan today; every
+// later typed-instrument task reuses these three).
+//
+// `#[allow(dead_code)]`: none of the 8 typed-instrument tasks that consume
+// these helpers has landed yet, so `clippy --all-targets -D warnings` flags
+// all three as unused. Remove each `#[allow(dead_code)]` the moment its
+// helper gets a first call site (expected: task 2, the first rates
+// instrument).
+// ---------------------------------------------------------------------------
+
+/// Parse a serde-tagged unit-enum value from its snake_case string form.
+///
+/// Used by typed builders so Python passes plain strings (typed as
+/// ``Literal[...]`` in the stubs) for Rust enums like ``PayReceive``.
+#[allow(dead_code)]
+pub(crate) fn enum_from_str<T: serde::de::DeserializeOwned>(
+    value: &str,
+    what: &str,
+) -> PyResult<T> {
+    serde_json::from_value(serde_json::Value::String(value.to_string()))
+        .map_err(|err| crate::errors::value_error(format!("invalid {what}: {err}")))
+}
+
+/// Convert a Python float to `Decimal`, rejecting non-finite values.
+#[allow(dead_code)]
+pub(crate) fn decimal_from_f64(value: f64, what: &str) -> PyResult<rust_decimal::Decimal> {
+    rust_decimal::Decimal::try_from(value)
+        .map_err(|err| crate::errors::value_error(format!("invalid {what}: {err}")))
+}
+
+/// Parse a JSON sub-field string into a typed Rust spec value.
+///
+/// Used by ``*_json`` builder setters for deep nested config (margin specs,
+/// waterfall rules, conversion terms) per the nested-spec rule in the plan.
+#[allow(dead_code)]
+pub(crate) fn json_field<T: serde::de::DeserializeOwned>(json: &str, what: &str) -> PyResult<T> {
+    serde_json::from_str(json)
+        .map_err(|err| crate::errors::serde_json_to_py(err, &format!("invalid {what} JSON")))
+}
+
+#[cfg(test)]
+mod helper_tests {
+    use super::*;
+
+    #[test]
+    fn enum_from_str_parses_pay_receive() {
+        let side: finstack_quant_valuations::instruments::PayReceive =
+            enum_from_str("pay", "side").expect("parses");
+        assert!(matches!(
+            side,
+            finstack_quant_valuations::instruments::PayReceive::Pay
+        ));
+    }
+
+    #[test]
+    fn enum_from_str_rejects_unknown_variant() {
+        let err =
+            enum_from_str::<finstack_quant_valuations::instruments::PayReceive>("sideways", "side")
+                .unwrap_err();
+        // `cargo test` on this crate runs outside a Python process, so the
+        // interpreter is not yet attached; inspecting `PyErr`'s value (or its
+        // `Display`/`Debug` impls, which also call `Python::attach`
+        // internally) requires initializing it first. `Python::initialize`
+        // does not require the `auto-initialize` feature (unlike the
+        // deprecated `prepare_freethreaded_python`), and this crate cannot
+        // enable that feature because it conflicts with `extension-module`,
+        // which the published wheel requires.
+        pyo3::Python::initialize();
+        pyo3::Python::attach(|py| {
+            assert!(err.value(py).to_string().contains("invalid side"));
+        });
+    }
+
+    #[test]
+    fn decimal_from_f64_rejects_nan() {
+        assert!(decimal_from_f64(f64::NAN, "strike").is_err());
+        assert!(decimal_from_f64(0.05, "strike").is_ok());
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Bond
 // ---------------------------------------------------------------------------
 

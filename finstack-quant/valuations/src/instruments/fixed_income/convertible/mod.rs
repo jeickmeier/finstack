@@ -53,7 +53,7 @@ mod types;
 
 pub use types::{
     AntiDilutionPolicy, ConversionEvent, ConversionPolicy, ConversionSpec, ConvertibleBond,
-    ConvertibleGreeks, DilutionEvent, DividendAdjustment, SoftCallTrigger,
+    ConvertibleBondBuilder, ConvertibleGreeks, DilutionEvent, DividendAdjustment, SoftCallTrigger,
 };
 
 // Re-export pricing helpers for benches/tools.

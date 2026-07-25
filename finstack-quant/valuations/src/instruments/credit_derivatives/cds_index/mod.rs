@@ -96,6 +96,6 @@ mod types;
 
 pub use parameters::CDSIndexParams;
 pub use types::{
-    CDSIndex, CDSIndexConstituent, ConstituentResult, IndexParSpreadResult, IndexPricing,
-    IndexResult, ParSpreadMethod,
+    CDSIndex, CDSIndexBuilder, CDSIndexConstituent, ConstituentResult, IndexParSpreadResult,
+    IndexPricing, IndexResult, ParSpreadMethod,
 };

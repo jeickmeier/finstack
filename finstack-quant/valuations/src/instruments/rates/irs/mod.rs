@@ -101,6 +101,6 @@ mod types;
 
 pub use compounding::FloatingLegCompounding;
 pub use types::{
-    ConventionSwapParams, FixedLegSpec, FloatLegSpec, InterestRateSwap, IrsLegConventions,
-    ParRateMethod, PayReceive,
+    ConventionSwapParams, FixedLegSpec, FloatLegSpec, InterestRateSwap, InterestRateSwapBuilder,
+    IrsLegConventions, ParRateMethod, PayReceive,
 };

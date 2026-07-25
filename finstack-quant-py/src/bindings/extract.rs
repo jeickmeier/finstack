@@ -24,12 +24,25 @@ use crate::errors::{display_to_py as to_py, portfolio_to_py};
 // Instrument — typed-or-JSON extraction to tagged instrument JSON
 // ---------------------------------------------------------------------------
 
-/// Extract tagged instrument JSON from a typed `Bond` / `TermLoan` object
-/// (fast path) or a pre-serialized JSON string (fallback).
+/// Extract tagged instrument JSON from a typed instrument object (fast path)
+/// or a pre-serialized JSON string (fallback).
 ///
 /// Typed instances serialize through the same tagged union
 /// (`InstrumentJson`) the JSON loader parses, so downstream pricing observes
 /// identical payloads for both input forms.
+///
+/// # Extending this function
+///
+/// Every typed instrument class added to
+/// `finstack-quant-py/src/bindings/valuations/instruments.rs` is wired in
+/// here by adding exactly **one** cast arm (`obj.cast::<PyNewType>()` ->
+/// `.tagged_json()`), ordered before the final `str` fallback. Nothing else
+/// in the pricing pipeline (`pricing.rs`, `price_instrument`, etc.) needs to
+/// change — callers already accept `instrument_json: &Bound<'_, PyAny>` and
+/// funnel through this one function. Update the fallback error message
+/// below to name each newly landed class so the message stays accurate.
+///
+/// Currently wired: `Bond`, `TermLoan`.
 pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     if let Ok(bond) = obj.cast::<PyBond>() {
         return bond.borrow().tagged_json();

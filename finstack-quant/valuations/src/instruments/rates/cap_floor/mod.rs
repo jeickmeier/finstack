@@ -94,6 +94,6 @@ mod types;
 
 pub use parameters::CapFloorParams;
 pub use types::{
-    CapFloor, CapFloorVolType, OvernightCouponConvention, OvernightSpreadCompounding,
-    RateOptionType,
+    CapFloor, CapFloorBuilder, CapFloorVolType, OvernightCouponConvention,
+    OvernightSpreadCompounding, RateOptionType,
 };

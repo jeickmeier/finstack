@@ -91,7 +91,7 @@ mod types;
 pub use crate::correlation::copula::CopulaSpec;
 pub use crate::correlation::recovery::RecoverySpec;
 pub use parameters::CDSTrancheParams;
-pub use types::{CDSTranche, TrancheSide};
+pub use types::{CDSTranche, CDSTrancheBuilder, TrancheSide};
 
 // Re-export pricer for calibration/bench tooling.
 pub use pricer::{CDSTranchePricer, CDSTranchePricerConfig, HeteroMethod};

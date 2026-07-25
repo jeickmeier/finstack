@@ -93,6 +93,7 @@ pub use types::{
     StochasticPrepaySpec,
     // Main instrument
     StructuredCredit,
+    StructuredCreditBuilder,
     Tranche,
     TrancheBehaviorType,
     TrancheBuilder,
