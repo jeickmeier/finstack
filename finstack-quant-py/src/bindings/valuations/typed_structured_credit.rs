@@ -10,11 +10,10 @@
 //!
 //! `DealType` and `TrancheSeniority` have no `#[serde(rename_all)]` in Rust —
 //! their wire representation is PascalCase/acronym (`"ABS"`, `"CLO"`,
-//! `"Senior"`, ...). This binding accepts lowercase, snake_case-style strings
-//! (`"abs"`, `"senior"`, ...) at the Python surface for ergonomics and maps
-//! them explicitly via [`deal_type_from_str`] / [`seniority_from_str`] —
-//! deliberately *not* the generic [`enum_from_str`] helper, which would
-//! require the exact Rust wire casing.
+//! `"Senior"`, ...). This binding accepts exactly that wire casing at the
+//! Python surface, routed through the generic [`enum_from_str`] helper like
+//! every other typed instrument on this branch, so `to_json()` output round-
+//! trips directly back into these constructors without any translation.
 
 use pyo3::prelude::*;
 use pyo3::types::PyType;
@@ -40,45 +39,6 @@ type TrancheBuilderInner =
     finstack_quant_valuations::instruments::fixed_income::structured_credit::TrancheBuilder;
 type StructuredCreditBuilderInner =
     finstack_quant_valuations::instruments::fixed_income::structured_credit::StructuredCreditBuilder;
-
-/// Map a Python-facing lowercase deal-type string to the Rust `DealType`.
-///
-/// `DealType` has no `#[serde(rename_all)]`, so its wire form is the exact
-/// PascalCase/acronym variant name (`"ABS"`, `"CLO"`, `"CMBS"`, `"RMBS"`,
-/// plus `"CBO"`, `"Auto"`, `"Card"`, which this typed surface does not
-/// expose — use JSON for those). Accepting lowercase here keeps the typed
-/// constructors ergonomic without changing the wire format produced by
-/// `to_json()`.
-fn deal_type_from_str(value: &str) -> PyResult<DealType> {
-    match value {
-        "abs" => Ok(DealType::ABS),
-        "clo" => Ok(DealType::CLO),
-        "cmbs" => Ok(DealType::CMBS),
-        "rmbs" => Ok(DealType::RMBS),
-        other => Err(value_error(format!(
-            "invalid deal_type: {other:?} (expected one of \"abs\", \"clo\", \"cmbs\", \"rmbs\")"
-        ))),
-    }
-}
-
-/// Map a Python-facing lowercase seniority string to the Rust `TrancheSeniority`.
-///
-/// `TrancheSeniority` has no `#[serde(rename_all)]`, so its wire form is
-/// `"Senior"` / `"Mezzanine"` / `"Subordinated"` / `"Equity"`. See
-/// [`deal_type_from_str`] for why this is a hand-written mapping rather than
-/// the generic `enum_from_str`.
-fn seniority_from_str(value: &str) -> PyResult<TrancheSeniority> {
-    match value {
-        "senior" => Ok(TrancheSeniority::Senior),
-        "mezzanine" => Ok(TrancheSeniority::Mezzanine),
-        "subordinated" => Ok(TrancheSeniority::Subordinated),
-        "equity" => Ok(TrancheSeniority::Equity),
-        other => Err(value_error(format!(
-            "invalid seniority: {other:?} (expected one of \"senior\", \"mezzanine\", \
-             \"subordinated\", \"equity\")"
-        ))),
-    }
-}
 
 // ---------------------------------------------------------------------------
 // RepLine
@@ -235,7 +195,7 @@ impl PyAssetPool {
     /// ----------
     /// id : str
     ///     Pool identifier.
-    /// deal_type : {"abs", "clo", "cmbs", "rmbs"}
+    /// deal_type : {"CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"}
     ///     Deal classification for pool-level assumptions.
     /// base_currency : Currency
     ///     Base currency for every asset and pool-level account.
@@ -255,13 +215,13 @@ impl PyAssetPool {
     /// --------
     /// >>> from finstack_quant.core.currency import Currency
     /// >>> from finstack_quant.valuations.instruments import AssetPool
-    /// >>> pool = AssetPool("POOL-1", "abs", Currency("USD"))
+    /// >>> pool = AssetPool("POOL-1", "ABS", Currency("USD"))
     /// >>> "POOL-1" in repr(pool)
     /// True
     #[new]
     #[pyo3(text_signature = "(id, deal_type, base_currency)")]
     fn new(id: &str, deal_type: &str, base_currency: PyRef<'_, PyCurrency>) -> PyResult<Self> {
-        let deal_type = deal_type_from_str(deal_type)?;
+        let deal_type: DealType = enum_from_str(deal_type, "deal_type")?;
         let inner = AssetPool::new(id, deal_type, base_currency.inner);
         Ok(Self { inner })
     }
@@ -291,7 +251,7 @@ impl PyAssetPool {
     /// >>> from finstack_quant.core.dates import DayCount
     /// >>> from finstack_quant.core.money import Money
     /// >>> from finstack_quant.valuations.instruments import AssetPool, RepLine
-    /// >>> pool = AssetPool("POOL-1", "abs", Currency("USD")).with_rep_lines([
+    /// >>> pool = AssetPool("POOL-1", "ABS", Currency("USD")).with_rep_lines([
     /// ...     RepLine(
     /// ...         "LINE-1", Money(80_000_000.0, Currency("USD")), 0.07,
     /// ...         datetime.date(2031, 1, 15), 12, DayCount.ACT_360,
@@ -512,7 +472,7 @@ impl PyTrancheBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"senior", "mezzanine", "subordinated", "equity"}
+    /// value : {"Senior", "Mezzanine", "Subordinated", "Equity"}
     ///     Structural seniority of the tranche.
     ///
     /// Returns
@@ -526,7 +486,7 @@ impl PyTrancheBuilder {
     ///     If ``value`` is not a recognized seniority.
     #[pyo3(text_signature = "($self, value)")]
     fn seniority<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyResult<PyRefMut<'py, Self>> {
-        let seniority = seniority_from_str(value)?;
+        let seniority: TrancheSeniority = enum_from_str(value, "seniority")?;
         let b = take_tranche(&mut slf)?;
         slf.inner = Some(b.seniority(seniority));
         Ok(slf)
@@ -779,7 +739,7 @@ impl PyTrancheStructure {
     /// ...     .id("A")
     /// ...     .attachment_point(10.0)
     /// ...     .detachment_point(100.0)
-    /// ...     .seniority("senior")
+    /// ...     .seniority("Senior")
     /// ...     .original_balance(Money(72_000_000.0, Currency("USD")))
     /// ...     .coupon_fixed(0.05)
     /// ...     .maturity(datetime.date(2031, 1, 15))
@@ -790,7 +750,7 @@ impl PyTrancheStructure {
     /// ...     .id("E")
     /// ...     .attachment_point(0.0)
     /// ...     .detachment_point(10.0)
-    /// ...     .seniority("equity")
+    /// ...     .seniority("Equity")
     /// ...     .original_balance(Money(8_000_000.0, Currency("USD")))
     /// ...     .coupon_fixed(0.0)
     /// ...     .maturity(datetime.date(2031, 1, 15))
@@ -918,7 +878,7 @@ impl PyStructuredCredit {
     /// >>> from finstack_quant.valuations.instruments import (
     /// ...     AssetPool, RepLine, StructuredCredit, Tranche, TrancheStructure,
     /// ... )
-    /// >>> pool = AssetPool("POOL-1", "abs", Currency("USD")).with_rep_lines([
+    /// >>> pool = AssetPool("POOL-1", "ABS", Currency("USD")).with_rep_lines([
     /// ...     RepLine(
     /// ...         "LINE-1", Money(80_000_000.0, Currency("USD")), 0.07,
     /// ...         datetime.date(2031, 1, 15), 12, DayCount.ACT_360,
@@ -926,12 +886,12 @@ impl PyStructuredCredit {
     /// ... ])
     /// >>> senior = (
     /// ...     Tranche.builder().id("A").attachment_point(10.0).detachment_point(100.0)
-    /// ...     .seniority("senior").original_balance(Money(72_000_000.0, Currency("USD")))
+    /// ...     .seniority("Senior").original_balance(Money(72_000_000.0, Currency("USD")))
     /// ...     .coupon_fixed(0.05).maturity(datetime.date(2031, 1, 15)).build()
     /// ... )
     /// >>> equity = (
     /// ...     Tranche.builder().id("E").attachment_point(0.0).detachment_point(10.0)
-    /// ...     .seniority("equity").original_balance(Money(8_000_000.0, Currency("USD")))
+    /// ...     .seniority("Equity").original_balance(Money(8_000_000.0, Currency("USD")))
     /// ...     .coupon_fixed(0.0).maturity(datetime.date(2031, 1, 15)).build()
     /// ... )
     /// >>> deal = StructuredCredit.new_abs(
@@ -1156,7 +1116,7 @@ impl PyStructuredCreditBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"abs", "clo", "cmbs", "rmbs"}
+    /// value : {"CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"}
     ///     Deal classification.
     ///
     /// Returns
@@ -1170,7 +1130,7 @@ impl PyStructuredCreditBuilder {
     ///     If ``value`` is not a recognized deal type.
     #[pyo3(text_signature = "($self, value)")]
     fn deal_type<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyResult<PyRefMut<'py, Self>> {
-        let deal_type = deal_type_from_str(value)?;
+        let deal_type: DealType = enum_from_str(value, "deal_type")?;
         let b = take_sc(&mut slf)?;
         slf.inner = Some(b.deal_type(deal_type));
         Ok(slf)

@@ -5579,7 +5579,7 @@ class AssetPool:
     --------
     >>> from finstack_quant.core.currency import Currency
     >>> from finstack_quant.valuations.instruments import AssetPool
-    >>> pool = AssetPool("POOL-1", "abs", Currency("USD"))
+    >>> pool = AssetPool("POOL-1", "ABS", Currency("USD"))
     >>> "POOL-1" in repr(pool)
     True
     """
@@ -5587,7 +5587,7 @@ class AssetPool:
     def __init__(
         self,
         id: str,
-        deal_type: Literal["abs", "clo", "cmbs", "rmbs"],
+        deal_type: Literal["CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"],
         base_currency: Currency,
     ) -> None:
         """
@@ -5597,7 +5597,7 @@ class AssetPool:
         ----------
         id : str
             Pool identifier.
-        deal_type : {"abs", "clo", "cmbs", "rmbs"}
+        deal_type : {"CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"}
             Deal classification for pool-level assumptions.
         base_currency : Currency
             Base currency for every asset and pool-level account.
@@ -5617,7 +5617,7 @@ class AssetPool:
         --------
         >>> from finstack_quant.core.currency import Currency
         >>> from finstack_quant.valuations.instruments import AssetPool
-        >>> pool = AssetPool("POOL-1", "abs", Currency("USD"))
+        >>> pool = AssetPool("POOL-1", "ABS", Currency("USD"))
         >>> "POOL-1" in repr(pool)
         True
         """
@@ -5650,7 +5650,7 @@ class AssetPool:
         >>> from finstack_quant.core.dates import DayCount
         >>> from finstack_quant.core.money import Money
         >>> from finstack_quant.valuations.instruments import AssetPool, RepLine
-        >>> pool = AssetPool("POOL-1", "abs", Currency("USD")).with_rep_lines([
+        >>> pool = AssetPool("POOL-1", "ABS", Currency("USD")).with_rep_lines([
         ...     RepLine(
         ...         "LINE-1",
         ...         Money(80_000_000.0, Currency("USD")),
@@ -5803,13 +5803,13 @@ class TrancheBuilder:
         """
         ...
 
-    def seniority(self, value: Literal["senior", "mezzanine", "subordinated", "equity"]) -> TrancheBuilder:
+    def seniority(self, value: Literal["Senior", "Mezzanine", "Subordinated", "Equity"]) -> TrancheBuilder:
         """
         Set the tranche seniority.
 
         Parameters
         ----------
-        value : {"senior", "mezzanine", "subordinated", "equity"}
+        value : {"Senior", "Mezzanine", "Subordinated", "Equity"}
             Structural seniority of the tranche.
 
         Returns
@@ -6031,7 +6031,7 @@ class TrancheStructure:
         ...     .id("A")
         ...     .attachment_point(10.0)
         ...     .detachment_point(100.0)
-        ...     .seniority("senior")
+        ...     .seniority("Senior")
         ...     .original_balance(Money(72_000_000.0, Currency("USD")))
         ...     .coupon_fixed(0.05)
         ...     .maturity(datetime.date(2031, 1, 15))
@@ -6043,7 +6043,7 @@ class TrancheStructure:
         ...     .id("E")
         ...     .attachment_point(0.0)
         ...     .detachment_point(10.0)
-        ...     .seniority("equity")
+        ...     .seniority("Equity")
         ...     .original_balance(Money(8_000_000.0, Currency("USD")))
         ...     .coupon_fixed(0.0)
         ...     .maturity(datetime.date(2031, 1, 15))
@@ -6142,7 +6142,7 @@ class StructuredCredit:
         ...     Tranche,
         ...     TrancheStructure,
         ... )
-        >>> pool = AssetPool("POOL-1", "abs", Currency("USD")).with_rep_lines([
+        >>> pool = AssetPool("POOL-1", "ABS", Currency("USD")).with_rep_lines([
         ...     RepLine(
         ...         "LINE-1",
         ...         Money(80_000_000.0, Currency("USD")),
@@ -6158,7 +6158,7 @@ class StructuredCredit:
         ...     .id("A")
         ...     .attachment_point(10.0)
         ...     .detachment_point(100.0)
-        ...     .seniority("senior")
+        ...     .seniority("Senior")
         ...     .original_balance(Money(72_000_000.0, Currency("USD")))
         ...     .coupon_fixed(0.05)
         ...     .maturity(datetime.date(2031, 1, 15))
@@ -6170,7 +6170,7 @@ class StructuredCredit:
         ...     .id("E")
         ...     .attachment_point(0.0)
         ...     .detachment_point(10.0)
-        ...     .seniority("equity")
+        ...     .seniority("Equity")
         ...     .original_balance(Money(8_000_000.0, Currency("USD")))
         ...     .coupon_fixed(0.0)
         ...     .maturity(datetime.date(2031, 1, 15))
@@ -6419,13 +6419,13 @@ class StructuredCreditBuilder:
         """
         ...
 
-    def deal_type(self, value: Literal["abs", "clo", "cmbs", "rmbs"]) -> StructuredCreditBuilder:
+    def deal_type(self, value: Literal["CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"]) -> StructuredCreditBuilder:
         """
         Set the deal-type classification.
 
         Parameters
         ----------
-        value : {"abs", "clo", "cmbs", "rmbs"}
+        value : {"CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"}
             Deal classification.
 
         Returns
