@@ -289,7 +289,9 @@ fn column_from_arrow(field: &Field, array: &ArrayRef) -> Result<TableColumn> {
 /// # Errors
 ///
 /// Returns [`Error::Validation`] for unsupported Arrow types, nulls in a
-/// non-nullable field, unknown role values, malformed metadata JSON, or
+/// non-nullable field, unknown role values, malformed metadata JSON, a
+/// zero-column batch with a nonzero row count (not representable, since
+/// [`TableEnvelope`] derives `row_count` from its first column), or
 /// envelope validation failures (duplicate names, mismatched lengths).
 ///
 /// # Examples
@@ -306,6 +308,14 @@ fn column_from_arrow(field: &Field, array: &ArrayRef) -> Result<TableColumn> {
 /// assert_eq!(from_record_batch(&batch).unwrap(), table);
 /// ```
 pub fn from_record_batch(batch: &RecordBatch) -> Result<TableEnvelope> {
+    if batch.num_columns() == 0 && batch.num_rows() != 0 {
+        return Err(Error::Validation(format!(
+            "record batch has 0 columns but {} rows; TableEnvelope cannot \
+             represent a column-less table with rows (row_count is derived \
+             from the first column)",
+            batch.num_rows()
+        )));
+    }
     let schema = batch.schema();
     let mut columns = Vec::with_capacity(batch.num_columns());
     for (field, array) in schema.fields().iter().zip(batch.columns()) {
@@ -509,6 +519,50 @@ mod tests {
         let table = TableEnvelope::new(vec![]).unwrap();
         let restored = from_record_batch(&to_record_batch(&table).unwrap()).unwrap();
         assert_eq!(restored, table);
+    }
+
+    /// A zero-column Arrow `RecordBatch` carrying a nonzero row count is
+    /// legal Arrow (constructible via `RecordBatchOptions::with_row_count`)
+    /// but not representable as a `TableEnvelope`, which derives `row_count`
+    /// from its first column. This must be rejected, not silently truncated
+    /// to `row_count = 0`.
+    #[test]
+    fn zero_column_batch_with_nonzero_row_count_is_rejected() {
+        use arrow::datatypes::Schema;
+        use arrow::record_batch::{RecordBatch, RecordBatchOptions};
+        use std::sync::Arc;
+
+        let schema = Arc::new(Schema::empty());
+        let options = RecordBatchOptions::new().with_row_count(Some(5));
+        let batch = RecordBatch::try_new_with_options(schema, vec![], &options).unwrap();
+        assert_eq!(batch.num_columns(), 0);
+        assert_eq!(batch.num_rows(), 5);
+
+        let err = from_record_batch(&batch).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains('5'), "error should name the row count: {msg}");
+        assert!(
+            msg.contains("column-less") || msg.contains("0 columns"),
+            "error should explain the column-less constraint: {msg}"
+        );
+    }
+
+    /// The genuinely-empty case (0 columns AND 0 rows) is representable and
+    /// must keep succeeding.
+    #[test]
+    fn zero_column_zero_row_batch_still_succeeds() {
+        use arrow::datatypes::Schema;
+        use arrow::record_batch::RecordBatch;
+        use std::sync::Arc;
+
+        let schema = Arc::new(Schema::empty());
+        let batch = RecordBatch::new_empty(schema);
+        assert_eq!(batch.num_columns(), 0);
+        assert_eq!(batch.num_rows(), 0);
+
+        let table = from_record_batch(&batch).unwrap();
+        assert_eq!(table.row_count, 0);
+        assert!(table.columns.is_empty());
     }
 
     #[test]

@@ -2004,9 +2004,11 @@ class StatementResult:
 
         Returns an `ArrowTable` implementing ``__arrow_c_stream__``; pass it
         to ``pyarrow.table(...)``, ``polars.DataFrame(...)``, or DuckDB.
-        Columns and monetary-mirror semantics match `to_pandas_long`, plus
-        column roles and table metadata are preserved as Arrow field/schema
-        metadata.
+        Column values and monetary-mirror semantics match `to_pandas_long`,
+        plus column roles and table metadata are preserved as Arrow
+        field/schema metadata. One column name differs: the period column
+        here is ``period_id`` (the table envelope's native name), whereas
+        `to_pandas_long` renames it to ``period``.
 
         Returns
         -------

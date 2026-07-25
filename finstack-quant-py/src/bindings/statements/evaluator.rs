@@ -211,9 +211,12 @@ impl PyStatementResult {
     ///
     /// Returns an :class:`finstack_quant.core.table.ArrowTable` implementing
     /// ``__arrow_c_stream__``; pass it to ``pyarrow.table(...)``,
-    /// ``polars.DataFrame(...)``, or DuckDB. Columns and monetary-mirror
-    /// semantics match :meth:`to_pandas_long`, plus column roles and table
-    /// metadata are preserved as Arrow field/schema metadata.
+    /// ``polars.DataFrame(...)``, or DuckDB. Column values and
+    /// monetary-mirror semantics match :meth:`to_pandas_long`, plus column
+    /// roles and table metadata are preserved as Arrow field/schema
+    /// metadata. One column name differs: the period column here is
+    /// ``period_id`` (the table envelope's native name), whereas
+    /// :meth:`to_pandas_long` renames it to ``period``.
     #[pyo3(text_signature = "($self)")]
     fn to_arrow_long(&self) -> PyResult<crate::bindings::core::table::PyArrowTable> {
         let table = self.inner.to_table_long().map_err(statements_to_py)?;
