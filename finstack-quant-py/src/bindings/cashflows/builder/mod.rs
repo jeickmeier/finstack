@@ -10,6 +10,7 @@ pub(crate) mod specs;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
+use pyo3::wrap_pyfunction;
 
 /// Register the `finstack_quant.cashflows.builder` submodule.
 pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -22,13 +23,19 @@ pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult
     specs::add_classes(&module)?;
     module.add_class::<orchestrator::PyCashFlowBuilder>()?;
     module.add_class::<orchestrator::PyPrincipalEvent>()?;
+    module.add_class::<schedule::PyCashFlowMeta>()?;
     module.add_class::<schedule::PyCashFlowSchedule>()?;
+    module.add_function(wrap_pyfunction!(
+        schedule::py_merge_cashflow_schedules,
+        &module
+    )?)?;
 
     let all = PyList::new(
         py,
         [
             "AmortizationSpec",
             "CashFlowBuilder",
+            "CashFlowMeta",
             "CashFlowSchedule",
             "CouponType",
             "DefaultModelSpec",
@@ -48,6 +55,7 @@ pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult
             "RollRule",
             "ScheduleParams",
             "StepUpCouponSpec",
+            "merge_cashflow_schedules",
         ],
     )?;
     module.setattr("__all__", all)?;

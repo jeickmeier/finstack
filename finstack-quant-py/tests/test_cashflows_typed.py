@@ -328,3 +328,100 @@ class TestCashFlowBuilder:
         floats = [f for f in schedule.get_flows() if f.kind == CFKind.FLOAT_RESET]
         assert len(floats) == 4
         assert all(f.amount.amount > 0.0 for f in floats)
+
+
+class TestCashFlowSchedule:
+    @staticmethod
+    def _bond() -> CashFlowSchedule:
+        return TestCashFlowBuilder._quarterly_bond()
+
+    def test_accessors(self) -> None:
+        from finstack_quant.core.dates import DayCount
+
+        schedule = self._bond()
+        assert len(schedule.coupons()) == 4
+        assert schedule.dates()[0] == dt.date(2025, 1, 15)
+        assert schedule.get_notional().initial.amount == pytest.approx(1_000_000.0)
+        assert schedule.get_day_count() == DayCount.ACT_360
+        meta = schedule.get_meta()
+        assert meta.issue_date == dt.date(2025, 1, 15)
+        assert meta.maturity_date == dt.date(2026, 1, 15)
+        assert "weekends_only" in meta.calendar_ids
+        schedule.validate()
+
+    def test_scale_amounts_flips_direction(self) -> None:
+        schedule = self._bond()
+        flipped = schedule.scale_amounts(-1.0)
+        # Original untouched; new schedule has negated amounts.
+        assert schedule.get_flows()[0].amount.amount == pytest.approx(-1_000_000.0)
+        total_orig = sum(f.amount.amount for f in schedule.get_flows())
+        total_flip = sum(f.amount.amount for f in flipped.get_flows())
+        assert total_flip == pytest.approx(-total_orig, abs=1e-9)
+        with pytest.raises(ValueError, match="finite"):
+            schedule.scale_amounts(float("nan"))
+
+    def test_weighted_average_life_bullet(self) -> None:
+        schedule = self._bond()
+        # Single 1MM principal repayment exactly one non-leap year out: Act/365F WAL = 1.0.
+        wal = schedule.weighted_average_life(dt.date(2025, 1, 15))
+        assert wal == pytest.approx(1.0, abs=1e-12)
+
+    def test_outstanding_by_date(self) -> None:
+        schedule = self._bond()
+        path = schedule.outstanding_by_date()
+        first_date, first_balance = path[0]
+        last_date, last_balance = path[-1]
+        assert first_date == dt.date(2025, 1, 15)
+        assert first_balance.amount == pytest.approx(1_000_000.0)
+        assert last_date == dt.date(2026, 1, 15)
+        assert last_balance.amount == pytest.approx(0.0, abs=1e-9)
+
+    def test_pv_by_period_zero_rate_equals_nominal(self) -> None:
+        from finstack_quant.core.dates import build_periods
+        from finstack_quant.core.market_data import DiscountCurve, MarketContext
+
+        schedule = self._bond()
+        periods = build_periods("2025Q1..2026Q1").periods
+        market = MarketContext().insert(DiscountCurve.flat("USD-OIS", dt.date(2025, 1, 15), 0.0))
+        pv = schedule.pv_by_period(
+            periods=periods,
+            market=market,
+            disc_curve_id="USD-OIS",
+            base=dt.date(2025, 1, 15),
+        )
+        # Zero rate: PV == nominal sum per period. 2025Q2 holds the 90-day coupon.
+        assert pv["2025Q2"]["USD"].amount == pytest.approx(12_500.0, abs=1e-6)
+
+    def test_to_dataframe(self) -> None:
+        pd = pytest.importorskip("pandas")
+
+        schedule = self._bond()
+        df = schedule.to_dataframe()
+        assert list(df.columns) == ["date", "kind", "amount", "currency"]
+        assert len(df) == 6
+        assert set(df["kind"]) == {"fixed", "notional"}
+        assert set(df["currency"]) == {"USD"}
+        assert df["amount"].sum() == pytest.approx(sum(f.amount.amount for f in schedule.get_flows()), abs=1e-9)
+        assert isinstance(df, pd.DataFrame)
+
+    def test_json_round_trip_matches_json_bridge(self) -> None:
+        from finstack_quant.cashflows import validate_cashflow_schedule_json
+        from finstack_quant.cashflows.builder import CashFlowSchedule
+
+        schedule = self._bond()
+        payload = schedule.to_json()
+        # The typed schedule serializes to the same canonical JSON the bridge accepts.
+        canonical = validate_cashflow_schedule_json(payload)
+        round_tripped = CashFlowSchedule.from_json(canonical)
+        assert len(round_tripped.get_flows()) == len(schedule.get_flows())
+
+    def test_merge_cashflow_schedules(self) -> None:
+        from finstack_quant.cashflows.builder import Notional, merge_cashflow_schedules
+        from finstack_quant.core.dates import DayCount
+
+        a = self._bond()
+        b = self._bond().scale_amounts(-1.0)
+        merged = merge_cashflow_schedules([a, b], Notional.par(1_000_000.0, "USD"), DayCount.ACT_360)
+        assert len(merged.get_flows()) == 12
+        total = sum(f.amount.amount for f in merged.get_flows())
+        assert total == pytest.approx(0.0, abs=1e-9)

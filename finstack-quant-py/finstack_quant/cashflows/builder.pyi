@@ -25,15 +25,18 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 
+import pandas as pd
+
 from finstack_quant.cashflows.primitives import CashFlow, CFKind
 from finstack_quant.core.currency import Currency
-from finstack_quant.core.dates import BusinessDayConvention, DayCount, StubKind, Tenor
+from finstack_quant.core.dates import BusinessDayConvention, DayCount, Period, StubKind, Tenor
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
 
 __all__ = [
     "AmortizationSpec",
     "CashFlowBuilder",
+    "CashFlowMeta",
     "CashFlowSchedule",
     "CouponType",
     "DefaultModelSpec",
@@ -53,6 +56,7 @@ __all__ = [
     "RollRule",
     "ScheduleParams",
     "StepUpCouponSpec",
+    "merge_cashflow_schedules",
 ]
 
 class AmortizationSpec:
@@ -578,13 +582,102 @@ class CashFlowBuilder:
 
     def __repr__(self) -> str: ...
 
+class CashFlowMeta:
+    """
+    Metadata shared by an entire cashflow schedule.
+
+    Tracks the schedule's representation label, referenced calendar IDs,
+    optional facility limit, and instrument issue/maturity dates. Obtained
+    via :meth:`CashFlowSchedule.get_meta`; there is no public constructor.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from decimal import Decimal
+    >>> from finstack_quant.cashflows.builder import CashFlowSchedule, FixedCouponSpec, ScheduleParams
+    >>> from finstack_quant.core.money import Money
+    >>> schedule = (
+    ...     CashFlowSchedule
+    ...     .builder()
+    ...     .principal(Money(1_000_000.0, "USD"), datetime.date(2025, 1, 15), datetime.date(2026, 1, 15))
+    ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.quarterly_act360()))
+    ...     .build()
+    ... )
+    >>> schedule.get_meta().issue_date
+    datetime.date(2025, 1, 15)
+    """
+
+    @property
+    def representation(self) -> str:
+        """
+        Schedule representation label.
+
+        Returns
+        -------
+        str
+            One of ``"contractual"``, ``"projected"``, ``"placeholder"``,
+            or ``"no_residual"``, describing the schedule's meaning
+            relative to waterfall policy.
+        """
+        ...
+
+    @property
+    def calendar_ids(self) -> list[str]:
+        """
+        Holiday calendar identifiers used by the schedule.
+
+        Returns
+        -------
+        list[str]
+            Calendar ids referenced while generating schedule dates.
+        """
+        ...
+
+    @property
+    def facility_limit(self) -> Money | None:
+        """
+        Optional facility limit / commitment.
+
+        Returns
+        -------
+        Money, optional
+            The facility limit for instruments like RCFs, or ``None`` when
+            not applicable.
+        """
+        ...
+
+    @property
+    def issue_date(self) -> datetime.date | None:
+        """
+        Instrument issue date, when known.
+
+        Returns
+        -------
+        datetime.date, optional
+            The issue date used by the accrual engine to establish the
+            first coupon period start, or ``None`` when unset.
+        """
+        ...
+
+    @property
+    def maturity_date(self) -> datetime.date | None:
+        """
+        Contractual maturity date, when known.
+
+        Returns
+        -------
+        datetime.date, optional
+            The final maturity date, or ``None`` when unset.
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
 class CashFlowSchedule:
     """
     Canonical, deterministically ordered cashflow schedule.
 
     The output of :meth:`builder`, which is the only construction path.
-    This task exposes the minimal accessor :meth:`get_flows`; notional,
-    day-count, and metadata accessors are added in a later task.
 
     Examples
     --------
@@ -630,6 +723,258 @@ class CashFlowSchedule:
         list[CashFlow]
             All cashflows in the schedule (coupons, principal payments,
             fees) sorted into deterministic schedule order.
+        """
+        ...
+
+    def coupons(self) -> list[CashFlow]:
+        """
+        Interest-like coupon cashflows.
+
+        Returns
+        -------
+        list[CashFlow]
+            Flows whose kind is Fixed, FloatReset, InflationCoupon, or
+            Stub, in schedule order.
+        """
+        ...
+
+    def dates(self) -> list[datetime.date]:
+        """
+        Return the list of dates for all flows in schedule order.
+
+        Returns
+        -------
+        list[datetime.date]
+            One date per flow, matching the order of :meth:`get_flows`.
+        """
+        ...
+
+    def get_notional(self) -> Notional:
+        """
+        Return the schedule notional.
+
+        Returns
+        -------
+        Notional
+            The representative notional amount and amortization rule.
+        """
+        ...
+
+    def get_day_count(self) -> DayCount:
+        """
+        Return the representative day-count convention.
+
+        Returns
+        -------
+        DayCount
+            The day-count convention recorded on the schedule.
+        """
+        ...
+
+    def get_meta(self) -> CashFlowMeta:
+        """
+        Return schedule-level metadata.
+
+        Returns
+        -------
+        CashFlowMeta
+            The representation label, calendar ids, facility limit, and
+            issue/maturity dates recorded on the schedule.
+        """
+        ...
+
+    def validate(self) -> None:
+        """
+        Validate all schedule-level and per-flow invariants.
+
+        Checks the representative notional, each flow, nondecreasing flow
+        dates, and cross-flow economic invariants reconciling funding,
+        outstanding balances, currencies, and recorded metadata.
+
+        Raises
+        ------
+        ValueError
+            If the notional, any flow, the date ordering, or a cross-flow
+            economic invariant is violated.
+        """
+        ...
+
+    def scale_amounts(self, scale: float) -> CashFlowSchedule:
+        """
+        Return a new schedule with every amount scaled by ``scale``.
+
+        Parameters
+        ----------
+        scale : float
+            Multiplier applied to every flow amount; a negative value
+            reverses the cashflow direction.
+
+        Returns
+        -------
+        CashFlowSchedule
+            A new schedule with scaled amounts; the representative
+            notional and flow classification/date metadata are unchanged.
+
+        Raises
+        ------
+        ValueError
+            If *scale* is NaN or infinite.
+        """
+        ...
+
+    def weighted_average_life(self, as_of: datetime.date) -> float:
+        """
+        Weighted Average Life (WAL) in years from ``as_of``.
+
+        Computed on an Act/365F basis regardless of the schedule's accrual
+        day count, matching conventional desk reporting.
+
+        Parameters
+        ----------
+        as_of : datetime.date
+            Valuation date from which the WAL is measured.
+
+        Returns
+        -------
+        float
+            The weighted average life in years; ``0.0`` if there are no
+            future principal flows.
+
+        Raises
+        ------
+        ValueError
+            If the day-count year-fraction calculation fails.
+        """
+        ...
+
+    def outstanding_by_date(self) -> list[tuple[datetime.date, Money]]:
+        """
+        Outstanding principal balance path over the schedule's life.
+
+        Returns
+        -------
+        list[tuple[datetime.date, Money]]
+            ``(date, outstanding_balance)`` pairs in schedule order, one
+            per distinct flow date.
+
+        Raises
+        ------
+        ValueError
+            If ``meta.issue_date`` is unset, or a currency mismatch is
+            found between flows and the notional.
+        """
+        ...
+
+    def pv_by_period(
+        self,
+        periods: list[Period],
+        market: MarketContext,
+        disc_curve_id: str,
+        base: datetime.date,
+        dc: DayCount | None = None,
+        hazard_curve_id: str | None = None,
+    ) -> dict[str, dict[str, Money]]:
+        """
+        Periodized present values resolved from a market context.
+
+        Parameters
+        ----------
+        periods : list[Period]
+            Reporting periods that define the output buckets (half-open
+            boundaries).
+        market : MarketContext
+            Market context containing the required discount (and optional
+            hazard) curves.
+        disc_curve_id : str
+            Discount curve identifier.
+        base : datetime.date
+            Valuation date used to convert cashflow dates into discount
+            times.
+        dc : DayCount, optional
+            Day-count convention for discount times (default Act/365F).
+        hazard_curve_id : str, optional
+            Hazard curve identifier for credit-adjusted present value.
+
+        Returns
+        -------
+        dict[str, dict[str, Money]]
+            Mapping from period id label (e.g. ``"2025Q1"``) to a mapping
+            of currency code to the present-value total for that period
+            and currency; periods with no flows are omitted.
+
+        Raises
+        ------
+        KeyError
+            If the discount or hazard curve id cannot be found in *market*.
+        ValueError
+            If day-count conversion fails or credit-adjusted inputs are
+            internally inconsistent.
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize the canonical schedule to JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON encoding of the schedule, compatible with
+            :func:`finstack_quant.cashflows.validate_cashflow_schedule_json`
+            and other JSON-bridge functions on
+            ``finstack_quant.cashflows``.
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> CashFlowSchedule:
+        """
+        Deserialize a schedule from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON-encoded ``CashFlowSchedule`` with strict field names.
+
+        Returns
+        -------
+        CashFlowSchedule
+            The deserialized schedule.
+
+        Raises
+        ------
+        ValueError
+            If *json* is not valid JSON or does not match the canonical
+            ``CashFlowSchedule`` schema (unknown fields are rejected).
+
+        Examples
+        --------
+        >>> import datetime
+        >>> from decimal import Decimal
+        >>> from finstack_quant.cashflows.builder import CashFlowSchedule, FixedCouponSpec, ScheduleParams
+        >>> from finstack_quant.core.money import Money
+        >>> schedule = (
+        ...     CashFlowSchedule
+        ...     .builder()
+        ...     .principal(Money(1_000_000.0, "USD"), datetime.date(2025, 1, 15), datetime.date(2026, 1, 15))
+        ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.quarterly_act360()))
+        ...     .build()
+        ... )
+        >>> round_tripped = CashFlowSchedule.from_json(schedule.to_json())
+        >>> len(round_tripped.get_flows())
+        6
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Flows as a pandas DataFrame.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One row per flow with columns ``date``, ``kind``, ``amount``,
+            ``currency``, in schedule order.
         """
         ...
 
@@ -2269,3 +2614,63 @@ class StepUpCouponSpec:
             If the step schedule dates are not strictly increasing.
         """
         ...
+
+def merge_cashflow_schedules(
+    schedules: list[CashFlowSchedule],
+    notional: Notional,
+    day_count: DayCount,
+) -> CashFlowSchedule:
+    """
+    Merge multiple schedules into one deterministic composite schedule.
+
+    Parameters
+    ----------
+    schedules : list[CashFlowSchedule]
+        Schedules to combine.
+    notional : Notional
+        Representative notional stamped on the merged schedule.
+    day_count : DayCount
+        Day-count convention attached to the merged schedule.
+
+    Returns
+    -------
+    CashFlowSchedule
+        The merged schedule. Flows from all inputs are combined and
+        re-sorted into canonical order. Metadata is merged: ``representation``
+        takes the most conservative value across inputs (``Projected``
+        dominates, then ``Placeholder``, ``Contractual``, ``NoResidual``);
+        ``calendar_ids`` is the sorted, deduplicated union; ``facility_limit``
+        and ``issue_date`` are kept only when every input agrees, otherwise
+        ``None``. Empty input yields an empty schedule with default metadata.
+
+    Raises
+    ------
+    TypeError
+        If an element of *schedules* is not a ``CashFlowSchedule``, or
+        *notional* / *day_count* are not the expected types.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from decimal import Decimal
+    >>> from finstack_quant.cashflows.builder import (
+    ...     CashFlowSchedule,
+    ...     FixedCouponSpec,
+    ...     Notional,
+    ...     ScheduleParams,
+    ...     merge_cashflow_schedules,
+    ... )
+    >>> from finstack_quant.core.dates import DayCount
+    >>> from finstack_quant.core.money import Money
+    >>> schedule = (
+    ...     CashFlowSchedule
+    ...     .builder()
+    ...     .principal(Money(1_000_000.0, "USD"), datetime.date(2025, 1, 15), datetime.date(2026, 1, 15))
+    ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.quarterly_act360()))
+    ...     .build()
+    ... )
+    >>> merged = merge_cashflow_schedules([schedule], Notional.par(1_000_000.0, "USD"), DayCount.ACT_360)
+    >>> len(merged.get_flows())
+    6
+    """
+    ...

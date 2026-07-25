@@ -864,7 +864,6 @@ pub struct PyNotional {
 
 impl PyNotional {
     /// Build from an existing Rust [`Notional`].
-    #[allow(dead_code)]
     pub(crate) fn from_inner(inner: Notional) -> Self {
         Self { inner }
     }
