@@ -309,8 +309,8 @@ class CashFlowBuilder:
         self,
         date: datetime.date,
         delta: Money,
+        kind: CFKind | str,
         cash: Money | None = None,
-        kind: CFKind | str = CFKind.NOTIONAL,
     ) -> CashFlowBuilder:
         """
         Add a single principal event (draw, repayment, or exchange).
@@ -322,12 +322,12 @@ class CashFlowBuilder:
         delta : Money
             Outstanding delta; sign convention depends on *kind* (e.g.
             ``CFKind.NOTIONAL`` draws require ``delta >= 0``).
+        kind : CFKind | str
+            Classification for the emitted cashflow. Required; matches the
+            Rust API, which has no default.
         cash : Money, optional
             Cash leg paid or received, when it differs from *delta*
             (default: equal to *delta*).
-        kind : CFKind | str
-            Classification for the emitted cashflow (default
-            ``CFKind.NOTIONAL``).
 
         Returns
         -------

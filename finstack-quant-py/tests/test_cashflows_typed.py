@@ -329,6 +329,33 @@ class TestCashFlowBuilder:
         assert len(floats) == 4
         assert all(f.amount.amount > 0.0 for f in floats)
 
+    def test_add_principal_event_requires_kind(self) -> None:
+        from finstack_quant.cashflows.builder import CashFlowSchedule
+
+        builder = CashFlowSchedule.builder().principal(
+            Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2026, 1, 15)
+        )
+        # `kind` has no default in Rust (builder/principal.rs) or in the JSON
+        # spec (PrincipalEventSpec in json.rs); the binding must not invent one.
+        with pytest.raises(TypeError):
+            builder.add_principal_event(dt.date(2025, 6, 15), Money(-100_000.0, "USD"))
+
+    def test_add_principal_event_repayment_with_explicit_kind(self) -> None:
+        from finstack_quant.cashflows.builder import CashFlowSchedule
+        from finstack_quant.cashflows.primitives import CFKind
+
+        schedule = (
+            CashFlowSchedule
+            .builder()
+            .principal(Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2026, 1, 15))
+            .add_principal_event(dt.date(2025, 6, 15), Money(-100_000.0, "USD"), CFKind.AMORTIZATION)
+            .build(None)
+        )
+        flows = schedule.get_flows()
+        repayment = next(f for f in flows if f.date == dt.date(2025, 6, 15))
+        assert repayment.kind == CFKind.AMORTIZATION
+        assert repayment.amount.amount == pytest.approx(100_000.0)
+
 
 class TestCashFlowSchedule:
     @staticmethod

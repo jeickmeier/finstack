@@ -1,7 +1,6 @@
 //! Python bindings for `CashFlowBuilder` and `PrincipalEvent`.
 
 use finstack_quant_cashflows::builder::{CashFlowBuilder, PrincipalEvent};
-use finstack_quant_cashflows::primitives::CFKind;
 use pyo3::prelude::*;
 
 use crate::bindings::cashflows::primitives::{extract_cf_kind, PyCFKind};
@@ -148,21 +147,18 @@ impl PyCashFlowBuilder {
 
     /// Add a single principal event (draw/repay).
     #[pyo3(
-        signature = (date, delta, cash=None, kind=None),
-        text_signature = "(self, date, delta, cash=None, kind=None)"
+        signature = (date, delta, kind, cash=None),
+        text_signature = "(self, date, delta, kind, cash=None)"
     )]
     fn add_principal_event<'py>(
         mut slf: PyRefMut<'py, Self>,
         date: &Bound<'py, PyAny>,
         delta: PyMoney,
+        kind: &Bound<'py, PyAny>,
         cash: Option<PyMoney>,
-        kind: Option<&Bound<'py, PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let date = py_to_date(date)?;
-        let kind = match kind {
-            Some(obj) => extract_cf_kind(obj)?,
-            None => CFKind::Notional,
-        };
+        let kind = extract_cf_kind(kind)?;
         let _ = slf
             .inner
             .add_principal_event(date, delta.inner, cash.map(|c| c.inner), kind);
