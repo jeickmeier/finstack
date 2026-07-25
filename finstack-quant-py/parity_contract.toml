@@ -41,6 +41,7 @@ math          = { python = "finstack_quant.core.math",          status = "exists
 money         = { python = "finstack_quant.core.money",         status = "exists" }
 prelude       = { python = "finstack_quant.core.prelude",       status = "missing" }
 rating_scales = { python = "finstack_quant.core.rating_scales", status = "exists" }
+table         = { python = "finstack_quant.core.table",         status = "exists" }
 types         = { python = "finstack_quant.core.types",         status = "exists" }
 validation    = { python = "finstack_quant.core.validation",    status = "missing" }
 # golden is feature-gated test-only — excluded (see [exclusions])
@@ -157,6 +158,12 @@ python_package = "finstack_quant.core.rating_scales"
 public = [
     "UnknownScalePolicy", "RatingLevel", "ScorecardScale", "RatingScaleRegistry",
     "embedded_registry", "registry_from_config", "RATING_SCALES_EXTENSION_KEY",
+]
+
+[crates.core.module_symbols.table]
+python_package = "finstack_quant.core.table"
+public = [
+    "ArrowTable",
 ]
 
 # ---------------------------------------------------------------------------

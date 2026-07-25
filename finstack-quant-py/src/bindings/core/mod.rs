@@ -8,6 +8,7 @@ pub mod market_data;
 mod math;
 pub(crate) mod money;
 mod rating_scales;
+pub(crate) mod table;
 pub(crate) mod types;
 
 use pyo3::prelude::*;
@@ -28,6 +29,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     market_data::register(py, &m)?;
     credit::register(py, &m)?;
     rating_scales::register(py, &m)?;
+    table::register(py, &m)?;
 
     let all = PyList::new(
         py,
@@ -41,6 +43,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "market_data",
             "credit",
             "rating_scales",
+            "table",
         ],
     )?;
     m.setattr("__all__", all)?;

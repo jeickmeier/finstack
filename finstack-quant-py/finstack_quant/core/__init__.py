@@ -24,6 +24,7 @@ math = _core.math
 market_data = _core.market_data
 credit = _core.credit
 rating_scales = _core.rating_scales
+table = _core.table
 
 _submodules = {
     "currency": currency,
@@ -41,6 +42,7 @@ _submodules = {
     "credit.recovery_waterfall": credit.recovery_waterfall,
     "credit.liability_management": credit.liability_management,
     "rating_scales": rating_scales,
+    "table": table,
 }
 
 for _name, _mod in _submodules.items():
@@ -57,5 +59,6 @@ __all__: list[str] = [
     "math",
     "money",
     "rating_scales",
+    "table",
     "types",
 ]

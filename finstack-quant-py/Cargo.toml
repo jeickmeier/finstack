@@ -36,6 +36,8 @@ finstack-quant-statements = { path = "../finstack-quant/statements", version = "
 finstack-quant-statements-analytics = { path = "../finstack-quant/statements-analytics", version = "0.6.0" }
 finstack-quant-scenarios = { path = "../finstack-quant/scenarios", version = "0.6.0" }
 finstack-quant-portfolio = { path = "../finstack-quant/portfolio", version = "0.6.0" }
+finstack-quant-arrow = { path = "../finstack-quant/arrow-interchange", version = "0.6.0" }
+arrow = { workspace = true, features = ["ffi"] }
 nalgebra = "0.34"
 numpy = "0.29"
 pyo3 = { version = "0.29", features = ["multiple-pymethods"] }

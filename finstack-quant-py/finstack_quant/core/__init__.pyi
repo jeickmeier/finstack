@@ -21,6 +21,7 @@ from finstack_quant.core import market_data as market_data
 from finstack_quant.core import math as math
 from finstack_quant.core import money as money
 from finstack_quant.core import rating_scales as rating_scales
+from finstack_quant.core import table as table
 from finstack_quant.core import types as types
 
 __all__ = [
@@ -32,5 +33,6 @@ __all__ = [
     "math",
     "money",
     "rating_scales",
+    "table",
     "types",
 ]
