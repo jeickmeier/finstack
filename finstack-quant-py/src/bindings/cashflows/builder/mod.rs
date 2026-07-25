@@ -4,6 +4,8 @@
 //! `builder` re-export surface: spec types, the fluent `CashFlowBuilder`, and
 //! `CashFlowSchedule`.
 
+pub(crate) mod orchestrator;
+pub(crate) mod schedule;
 pub(crate) mod specs;
 
 use pyo3::prelude::*;
@@ -18,11 +20,16 @@ pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult
     )?;
 
     specs::add_classes(&module)?;
+    module.add_class::<orchestrator::PyCashFlowBuilder>()?;
+    module.add_class::<orchestrator::PyPrincipalEvent>()?;
+    module.add_class::<schedule::PyCashFlowSchedule>()?;
 
     let all = PyList::new(
         py,
         [
             "AmortizationSpec",
+            "CashFlowBuilder",
+            "CashFlowSchedule",
             "CouponType",
             "DefaultModelSpec",
             "FeeAccrualBasis",
@@ -36,6 +43,7 @@ pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult
             "OvernightCompoundingMethod",
             "OvernightIndexConstraintApplication",
             "PrepaymentModelSpec",
+            "PrincipalEvent",
             "RecoveryModelSpec",
             "RollRule",
             "ScheduleParams",

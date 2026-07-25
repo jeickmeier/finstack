@@ -5,10 +5,13 @@ Typed bindings for the spec types under ``finstack_quant_cashflows::builder``:
 schedule generation parameters, fixed/floating/step-up coupon specs,
 amortization and notional rules, fee specs, and the credit behavior models
 (prepayment, default, recovery) used by structured/private-credit cashflow
-programs. The fluent ``CashFlowBuilder`` and ``CashFlowSchedule`` types are
-added in a later task; the canonical JSON program bridge on
-``finstack_quant.cashflows`` remains available for the full build pipeline
-today.
+programs. ``CashFlowSchedule.builder()`` is the fluent entry point into
+``CashFlowBuilder``, whose chained methods assemble a principal, coupon
+legs, fees, and principal events into a canonical ``CashFlowSchedule``.
+Fuller schedule accessors (notional, day count, metadata, validation) are
+added in a later task; ``get_flows()`` is available today. The canonical
+JSON program bridge on ``finstack_quant.cashflows`` remains available for
+the full build pipeline as well.
 
 Examples
 --------
@@ -22,12 +25,16 @@ from __future__ import annotations
 import datetime
 from decimal import Decimal
 
+from finstack_quant.cashflows.primitives import CashFlow, CFKind
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.dates import BusinessDayConvention, DayCount, StubKind, Tenor
+from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
 
 __all__ = [
     "AmortizationSpec",
+    "CashFlowBuilder",
+    "CashFlowSchedule",
     "CouponType",
     "DefaultModelSpec",
     "FeeAccrualBasis",
@@ -41,6 +48,7 @@ __all__ = [
     "OvernightCompoundingMethod",
     "OvernightIndexConstraintApplication",
     "PrepaymentModelSpec",
+    "PrincipalEvent",
     "RecoveryModelSpec",
     "RollRule",
     "ScheduleParams",
@@ -211,6 +219,421 @@ class AmortizationSpec:
         True
         """
         ...
+
+class CashFlowBuilder:
+    """
+    Fluent builder assembling a principal, coupon legs, fees, and principal
+    events into a :class:`CashFlowSchedule`.
+
+    Created only via :meth:`CashFlowSchedule.builder`; there is no direct
+    constructor. Every chaining method mutates the builder in place and
+    returns that same instance, matching the Rust ``&mut self`` fluent API.
+    Configuration errors on individual calls (e.g. an invalid principal
+    event sign) are deferred and surfaced from :meth:`build`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from decimal import Decimal
+    >>> from finstack_quant.cashflows.builder import CashFlowSchedule, FixedCouponSpec, ScheduleParams
+    >>> from finstack_quant.core.money import Money
+    >>> schedule = (
+    ...     CashFlowSchedule
+    ...     .builder()
+    ...     .principal(Money(1_000_000.0, "USD"), datetime.date(2025, 1, 15), datetime.date(2026, 1, 15))
+    ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.quarterly_act360()))
+    ...     .build()
+    ... )
+    >>> len(schedule.get_flows())
+    6
+    """
+
+    def principal(
+        self,
+        initial: Money,
+        issue_date: datetime.date,
+        maturity: datetime.date,
+    ) -> CashFlowBuilder:
+        """
+        Set the principal amount and instrument horizon.
+
+        Parameters
+        ----------
+        initial : Money
+            Initial notional amount outstanding at issue.
+        issue_date : datetime.date
+            Issue date; also the date of the initial funding cashflow.
+        maturity : datetime.date
+            Final maturity date of the instrument.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If *issue_date* is not strictly before *maturity*, or a date
+            cannot be converted from the supplied value.
+        """
+        ...
+
+    def amortization(self, spec: AmortizationSpec) -> CashFlowBuilder:
+        """
+        Configure amortization for the instrument notional.
+
+        Parameters
+        ----------
+        spec : AmortizationSpec
+            Amortization rule applied to the principal over the schedule.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If the amortization schedule is inconsistent with the
+            principal set via :meth:`principal`.
+        """
+        ...
+
+    def add_principal_event(
+        self,
+        date: datetime.date,
+        delta: Money,
+        cash: Money | None = None,
+        kind: CFKind | str = CFKind.NOTIONAL,
+    ) -> CashFlowBuilder:
+        """
+        Add a single principal event (draw, repayment, or exchange).
+
+        Parameters
+        ----------
+        date : datetime.date
+            Event date.
+        delta : Money
+            Outstanding delta; sign convention depends on *kind* (e.g.
+            ``CFKind.NOTIONAL`` draws require ``delta >= 0``).
+        cash : Money, optional
+            Cash leg paid or received, when it differs from *delta*
+            (default: equal to *delta*).
+        kind : CFKind | str
+            Classification for the emitted cashflow (default
+            ``CFKind.NOTIONAL``).
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If *delta* violates the sign convention for *kind*, or *cash*
+            is supplied in a different currency than *delta*. The error is
+            deferred and raised from :meth:`build`.
+        """
+        ...
+
+    def fixed_cf(self, spec: FixedCouponSpec) -> CashFlowBuilder:
+        """
+        Add a full-horizon fixed-rate coupon leg.
+
+        Parameters
+        ----------
+        spec : FixedCouponSpec
+            Fixed coupon rate, settlement, and schedule conventions.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If the coupon schedule cannot be generated between the
+            principal's issue and maturity dates. The error is deferred
+            and raised from :meth:`build`.
+        """
+        ...
+
+    def floating_cf(self, spec: FloatingCouponSpec) -> CashFlowBuilder:
+        """
+        Add a full-horizon floating-rate coupon leg.
+
+        Parameters
+        ----------
+        spec : FloatingCouponSpec
+            Floating rate index, settlement, and schedule conventions.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If the coupon schedule cannot be generated between the
+            principal's issue and maturity dates. The error is deferred
+            and raised from :meth:`build`.
+        """
+        ...
+
+    def step_up_cf(self, spec: StepUpCouponSpec) -> CashFlowBuilder:
+        """
+        Add a full-horizon step-up/step-down coupon leg.
+
+        Parameters
+        ----------
+        spec : StepUpCouponSpec
+            Initial rate, step schedule, and schedule conventions.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If the coupon schedule cannot be generated between the
+            principal's issue and maturity dates. The error is deferred
+            and raised from :meth:`build`.
+        """
+        ...
+
+    def fee(self, spec: FeeSpec) -> CashFlowBuilder:
+        """
+        Add a fee specification (one-time fixed or periodic basis-point).
+
+        Parameters
+        ----------
+        spec : FeeSpec
+            Fixed or periodic basis-point fee specification.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If a periodic fee's schedule cannot be generated. The error is
+            deferred and raised from :meth:`build`.
+        """
+        ...
+
+    def add_fixed_window(
+        self,
+        start: datetime.date,
+        end: datetime.date,
+        spec: FixedCouponSpec,
+    ) -> CashFlowBuilder:
+        """
+        Add a fixed-rate coupon over the half-open window ``[start, end)``.
+
+        Parameters
+        ----------
+        start : datetime.date
+            Window start date (inclusive).
+        end : datetime.date
+            Window end date (exclusive).
+        spec : FixedCouponSpec
+            Fixed coupon rate, settlement, and schedule conventions applied
+            within the window.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If *start* is not strictly before *end*, or the coupon
+            schedule cannot be generated over the window.
+        """
+        ...
+
+    def add_floating_window(
+        self,
+        start: datetime.date,
+        end: datetime.date,
+        spec: FloatingCouponSpec,
+    ) -> CashFlowBuilder:
+        """
+        Add a floating-rate coupon over the half-open window ``[start, end)``.
+
+        Parameters
+        ----------
+        start : datetime.date
+            Window start date (inclusive).
+        end : datetime.date
+            Window end date (exclusive).
+        spec : FloatingCouponSpec
+            Floating rate index, settlement, and schedule conventions
+            applied within the window.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If *start* is not strictly before *end*, or the coupon
+            schedule cannot be generated over the window.
+        """
+        ...
+
+    def add_payment_window(
+        self,
+        start: datetime.date,
+        end: datetime.date,
+        split: CouponType,
+    ) -> CashFlowBuilder:
+        """
+        Set the payment split (cash/PIK/split) over ``[start, end)``.
+
+        Parameters
+        ----------
+        start : datetime.date
+            Window start date (inclusive).
+        end : datetime.date
+            Window end date (exclusive).
+        split : CouponType
+            Settlement split applied to coupons accruing within the window.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If *start* is not strictly before *end*.
+        """
+        ...
+
+    def payment_split_program(
+        self,
+        steps: list[tuple[datetime.date, CouponType]],
+    ) -> CashFlowBuilder:
+        """
+        Configure a payment split program from ordered boundary dates.
+
+        Parameters
+        ----------
+        steps : list[tuple[datetime.date, CouponType]]
+            Ordered ``(effective_date, split)`` pairs describing successive
+            cash/PIK toggle windows.
+
+        Returns
+        -------
+        CashFlowBuilder
+            This same builder, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If the step dates are not strictly increasing.
+        """
+        ...
+
+    def build(self, market: MarketContext | None = None) -> CashFlowSchedule:
+        """
+        Compile the configured legs into a canonical cashflow schedule.
+
+        Parameters
+        ----------
+        market : MarketContext, optional
+            Market context supplying forward curves for floating-rate
+            projection. Fixed coupons and deterministic fees do not
+            require one.
+
+        Returns
+        -------
+        CashFlowSchedule
+            The compiled, deterministically ordered cashflow schedule.
+
+        Raises
+        ------
+        KeyError
+            If required inputs are missing, such as an unset principal.
+        ValueError
+            If a spec or date validation fails, including any deferred
+            error recorded by an earlier fluent call, or a floating-rate
+            projection fails and its fallback policy does not resolve it.
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+class CashFlowSchedule:
+    """
+    Canonical, deterministically ordered cashflow schedule.
+
+    The output of :meth:`builder`, which is the only construction path.
+    This task exposes the minimal accessor :meth:`get_flows`; notional,
+    day-count, and metadata accessors are added in a later task.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from decimal import Decimal
+    >>> from finstack_quant.cashflows.builder import CashFlowSchedule, FixedCouponSpec, ScheduleParams
+    >>> from finstack_quant.core.money import Money
+    >>> schedule = (
+    ...     CashFlowSchedule
+    ...     .builder()
+    ...     .principal(Money(1_000_000.0, "USD"), datetime.date(2025, 1, 15), datetime.date(2026, 1, 15))
+    ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.quarterly_act360()))
+    ...     .build()
+    ... )
+    >>> len(schedule.get_flows())
+    6
+    """
+
+    @staticmethod
+    def builder() -> CashFlowBuilder:
+        """
+        Create a new fluent cashflow builder (the only builder entry point).
+
+        Returns
+        -------
+        CashFlowBuilder
+            A fresh, empty builder ready for chained configuration.
+
+        Examples
+        --------
+        >>> from finstack_quant.cashflows.builder import CashFlowSchedule
+        >>> CashFlowSchedule.builder() is not None
+        True
+        """
+        ...
+
+    def get_flows(self) -> list[CashFlow]:
+        """
+        Return the canonical, deterministically ordered cashflows.
+
+        Returns
+        -------
+        list[CashFlow]
+            All cashflows in the schedule (coupons, principal payments,
+            fees) sorted into deterministic schedule order.
+        """
+        ...
+
+    def __repr__(self) -> str: ...
 
 class CouponType:
     """
@@ -1272,6 +1695,109 @@ class PrepaymentModelSpec:
             negative PSA speed multiplier.
         """
         ...
+
+class PrincipalEvent:
+    """
+    Principal event applied during schedule build (a draw or a repayment).
+
+    Constructed directly or emitted internally by :meth:`CashFlowBuilder.principal`
+    and :meth:`CashFlowBuilder.add_principal_event`; ``delta`` is the source
+    of truth for outstanding-balance movement, while ``cash`` is the
+    settled cash leg (which can differ for OID/fee-adjusted draws).
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.cashflows.builder import PrincipalEvent
+    >>> from finstack_quant.cashflows.primitives import CFKind
+    >>> from finstack_quant.core.money import Money
+    >>> event = PrincipalEvent(
+    ...     datetime.date(2025, 1, 15), Money(1_000_000.0, "USD"), Money(1_000_000.0, "USD"), CFKind.NOTIONAL
+    ... )
+    >>> event.kind == CFKind.NOTIONAL
+    True
+    """
+
+    def __init__(
+        self,
+        date: datetime.date,
+        delta: Money,
+        cash: Money,
+        kind: CFKind | str,
+    ) -> None:
+        """
+        Construct a principal event.
+
+        Parameters
+        ----------
+        date : datetime.date
+            Event date.
+        delta : Money
+            Outstanding delta (positive increases the balance, negative
+            repays it).
+        cash : Money
+            Cash leg paid or received; may differ from *delta* for
+            OID/fee-adjusted draws.
+        kind : CFKind | str
+            Classification for the emitted cashflow.
+
+        Raises
+        ------
+        ValueError
+            If a date cannot be converted from the supplied value, or
+            *kind* is not a recognized ``CFKind`` label.
+        """
+        ...
+
+    @property
+    def date(self) -> datetime.date:
+        """
+        Date on which this principal event occurs.
+
+        Returns
+        -------
+        datetime.date
+            The date on which this principal event occurs.
+        """
+        ...
+
+    @property
+    def delta(self) -> Money:
+        """
+        Outstanding delta.
+
+        Returns
+        -------
+        Money
+            The balance movement (positive increases, negative repays).
+        """
+        ...
+
+    @property
+    def cash(self) -> Money:
+        """
+        Cash leg paid or received.
+
+        Returns
+        -------
+        Money
+            The settled cash amount, which may differ from *delta*.
+        """
+        ...
+
+    @property
+    def kind(self) -> CFKind:
+        """
+        Emitted cashflow classification.
+
+        Returns
+        -------
+        CFKind
+            The classification recorded on the emitted cashflow.
+        """
+        ...
+
+    def __repr__(self) -> str: ...
 
 class RecoveryModelSpec:
     """

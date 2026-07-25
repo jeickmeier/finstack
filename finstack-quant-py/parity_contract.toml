@@ -244,11 +244,12 @@ public = ["CFKind", "CashFlow", "is_cash_settlement_kind"]
 [crates.cashflows.module_symbols.builder]
 python_package = "finstack_quant.cashflows.builder"
 public = [
-    "AmortizationSpec", "CouponType", "DefaultModelSpec", "FeeAccrualBasis", "FeeBase",
+    "AmortizationSpec", "CashFlowBuilder", "CashFlowSchedule", "CouponType",
+    "DefaultModelSpec", "FeeAccrualBasis", "FeeBase",
     "FeeSpec", "FixedCouponSpec", "FloatingCouponSpec", "FloatingRateFallback",
     "FloatingRateSpec", "Notional", "OvernightCompoundingMethod",
-    "OvernightIndexConstraintApplication", "PrepaymentModelSpec", "RecoveryModelSpec",
-    "RollRule", "ScheduleParams", "StepUpCouponSpec",
+    "OvernightIndexConstraintApplication", "PrepaymentModelSpec", "PrincipalEvent",
+    "RecoveryModelSpec", "RollRule", "ScheduleParams", "StepUpCouponSpec",
 ]
 
 # ---------------------------------------------------------------------------

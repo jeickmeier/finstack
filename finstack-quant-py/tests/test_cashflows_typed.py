@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import datetime as dt
+from typing import TYPE_CHECKING
 
 import pytest
 
 from finstack_quant.core.money import Money
+
+if TYPE_CHECKING:
+    from finstack_quant.cashflows.builder import CashFlowSchedule
 
 
 class TestPrimitives:
@@ -196,3 +200,131 @@ class TestBuilderSpecs:
         assert rec.recovery_lag == 12
         with pytest.raises(ValueError, match="must be in"):
             RecoveryModelSpec(rate=1.5, recovery_lag=0).validate()
+
+
+class TestCashFlowBuilder:
+    @staticmethod
+    def _quarterly_bond() -> CashFlowSchedule:
+        from decimal import Decimal
+
+        from finstack_quant.cashflows.builder import (
+            CashFlowSchedule,
+            FixedCouponSpec,
+            ScheduleParams,
+        )
+
+        return (
+            CashFlowSchedule
+            .builder()
+            .principal(Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2026, 1, 15))
+            .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.quarterly_act360()))
+            .build(None)
+        )
+
+    def test_fixed_quarterly_bond_flows(self) -> None:
+        from finstack_quant.cashflows.primitives import CFKind
+
+        schedule = self._quarterly_bond()
+        flows = schedule.get_flows()
+        assert len(flows) == 6
+
+        # Initial funding: -1MM notional at issue.
+        assert flows[0].date == dt.date(2025, 1, 15)
+        assert flows[0].kind == CFKind.NOTIONAL
+        assert flows[0].amount.amount == pytest.approx(-1_000_000.0)
+
+        # Four Act/360 coupons: 90/91/92/92 day accrual periods.
+        expected_coupons = [
+            (dt.date(2025, 4, 15), 1_000_000.0 * 0.05 * 90 / 360),
+            (dt.date(2025, 7, 15), 1_000_000.0 * 0.05 * 91 / 360),
+            (dt.date(2025, 10, 15), 1_000_000.0 * 0.05 * 92 / 360),
+            (dt.date(2026, 1, 15), 1_000_000.0 * 0.05 * 92 / 360),
+        ]
+        coupon_flows = [f for f in flows if f.kind == CFKind.FIXED]
+        assert len(coupon_flows) == 4
+        for flow, (date, amount) in zip(coupon_flows, expected_coupons, strict=True):
+            assert flow.date == date
+            assert flow.amount.amount == pytest.approx(amount, abs=1e-6)
+            assert flow.amount.currency.code == "USD"
+            assert flow.rate == pytest.approx(0.05)
+
+        # Redemption at maturity, after the same-date final coupon.
+        assert flows[5].date == dt.date(2026, 1, 15)
+        assert flows[5].kind == CFKind.NOTIONAL
+        assert flows[5].amount.amount == pytest.approx(1_000_000.0)
+
+    def test_build_requires_principal(self) -> None:
+        from decimal import Decimal
+
+        from finstack_quant.cashflows.builder import (
+            CashFlowSchedule,
+            FixedCouponSpec,
+            ScheduleParams,
+        )
+
+        builder = CashFlowSchedule.builder().fixed_cf(
+            FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.quarterly_act360())
+        )
+        with pytest.raises(KeyError):
+            # Missing principal maps to InputError::NotFound -> KeyError.
+            builder.build(None)
+
+    def test_floating_without_curve_raises(self) -> None:
+        from decimal import Decimal
+
+        from finstack_quant.cashflows.builder import (
+            CashFlowSchedule,
+            FloatingCouponSpec,
+            FloatingRateSpec,
+            ScheduleParams,
+        )
+
+        spec = FloatingCouponSpec(
+            rate_spec=FloatingRateSpec(index_id="USD-SOFR-3M", spread_bp=Decimal("200"), reset_freq="3M"),
+            schedule=ScheduleParams.quarterly_act360(),
+        )
+        builder = (
+            CashFlowSchedule
+            .builder()
+            .principal(Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2026, 1, 15))
+            .floating_cf(spec)
+        )
+        # Default FloatingRateFallback.ERROR: missing curve must fail the build.
+        with pytest.raises((KeyError, ValueError)):
+            builder.build(None)
+
+    def test_floating_with_market_context_builds(self) -> None:
+        from decimal import Decimal
+
+        from finstack_quant.cashflows.builder import (
+            CashFlowSchedule,
+            FloatingCouponSpec,
+            FloatingRateSpec,
+            ScheduleParams,
+        )
+        from finstack_quant.cashflows.primitives import CFKind
+        from finstack_quant.core.market_data import ForwardCurve, MarketContext
+
+        # base_date must be on/before every reset date; the first reset
+        # trails the issue date by the default 2-business-day reset lag.
+        curve = ForwardCurve(
+            id="USD-SOFR-3M",
+            tenor=0.25,
+            knots=[(0.0, 0.04), (2.0, 0.04)],
+            base_date=dt.date(2025, 1, 1),
+        )
+        market = MarketContext().insert(curve)
+        spec = FloatingCouponSpec(
+            rate_spec=FloatingRateSpec(index_id="USD-SOFR-3M", spread_bp=Decimal("0"), reset_freq="3M"),
+            schedule=ScheduleParams.quarterly_act360(),
+        )
+        schedule = (
+            CashFlowSchedule
+            .builder()
+            .principal(Money(1_000_000.0, "USD"), dt.date(2025, 1, 15), dt.date(2026, 1, 15))
+            .floating_cf(spec)
+            .build(market)
+        )
+        floats = [f for f in schedule.get_flows() if f.kind == CFKind.FLOAT_RESET]
+        assert len(floats) == 4
+        assert all(f.amount.amount > 0.0 for f in floats)
