@@ -98,6 +98,59 @@ def _payer_swap() -> InterestRateSwap:
     )
 
 
+def _payer_swap_hand_written_json() -> str:
+    """Hand-authored tagged JSON for the same economic swap as `_payer_swap`.
+
+    Deliberately NOT derived from `InterestRateSwap.to_json()` — this is the
+    independent side of the typed-vs-JSON golden. If Rust's ``tagged_json()``
+    serializer ever mis-maps a field, this literal (built directly from the
+    canonical `FixedLegSpec`/`FloatLegSpec`/`InterestRateSwap` struct
+    definitions and their serde wire names) will diverge from the typed path
+    instead of silently matching it.
+    """
+    return json.dumps({
+        "type": "interest_rate_swap",
+        "spec": {
+            "id": "IRS-1",
+            "notional": {"amount": "10000000", "currency": "USD"},
+            "side": "pay",
+            "fixed": {
+                "discount_curve_id": "USD-OIS",
+                "rate": "0.04",
+                "frequency": {"count": 6, "unit": "months"},
+                "day_count": "Thirty360",
+                "bdc": "modified_following",
+                "calendar_id": None,
+                "stub": "ShortFront",
+                "start": "2024-01-15",
+                "end": "2029-01-15",
+                "par_method": None,
+                "compounding_simple": False,
+                "payment_lag_days": 0,
+                "end_of_month": False,
+            },
+            "float": {
+                "discount_curve_id": "USD-OIS",
+                "forward_curve_id": "USD-SOFR-3M",
+                "spread_bp": "0",
+                "frequency": {"count": 3, "unit": "months"},
+                "day_count": "Act360",
+                "bdc": "modified_following",
+                "calendar_id": None,
+                "stub": "ShortFront",
+                "reset_lag_days": -1,
+                "fixing_calendar_id": None,
+                "start": "2024-01-15",
+                "end": "2029-01-15",
+                "compounding": "Simple",
+                "payment_lag_days": 0,
+                "end_of_month": False,
+            },
+            "attributes": {},
+        },
+    })
+
+
 def _without_timestamp(result_json: str) -> dict[str, object]:
     parsed = json.loads(result_json)
     parsed["meta"].pop("timestamp", None)
@@ -132,10 +185,16 @@ class TestInterestRateSwapTyped:
             InterestRateSwap.builder().side("sideways")
 
     def test_golden_typed_pv_equals_json_pv(self) -> None:
-        """Payer IRS: typed path and JSON path produce identical ValuationResult."""
+        """Payer IRS: typed path and an independently hand-written JSON payload produce identical ValuationResult.
+
+        The JSON side is NOT derived from ``swap.to_json()`` (that would make
+        both sides call the same Rust serializer, so a bug inside
+        `tagged_json()`'s own field mapping would be identically wrong on
+        both sides and pass). See `_payer_swap_hand_written_json`.
+        """
         swap = _payer_swap()
         typed = price_instrument(swap, _market_json(), "2024-01-01", "discounting")
-        via_json = price_instrument(swap.to_json(), _market_json(), "2024-01-01", "discounting")
+        via_json = price_instrument(_payer_swap_hand_written_json(), _market_json(), "2024-01-01", "discounting")
         assert _without_timestamp(typed) == _without_timestamp(via_json)
 
     def test_builder_setters_accept_keyword_value(self) -> None:
