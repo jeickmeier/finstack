@@ -166,16 +166,29 @@ impl PyAccrualConfig {
     /// Parameters
     /// ----------
     /// method : AccrualMethod, optional
-    ///     Linear (default; ICMA 251.1) or compounded accrual (not
-    ///     ICMA-compliant — see :class:`AccrualMethod`).
+    ///     Accrual method. When omitted, follows the Rust
+    ///     `AccrualConfig::default().method` (currently
+    ///     :attr:`AccrualMethod.LINEAR`, ICMA 251.1; illustrative only —
+    ///     see :class:`AccrualMethod` and the Rust `Default` impl for the
+    ///     authoritative value). The alternative, compounded accrual, is
+    ///     not ICMA-compliant.
     /// ex_coupon : ExCouponRule, optional
     ///     Ex-coupon window rule.
-    /// include_pik : bool, default True
-    ///     Include PIK interest in the accrued amount.
+    /// include_pik : bool, optional
+    ///     Whether to include PIK interest in the accrued amount. When
+    ///     omitted, follows the Rust `AccrualConfig::default().include_pik`
+    ///     value (currently ``True``; illustrative only — see the Rust
+    ///     `Default` impl for the authoritative value).
     /// frequency : Tenor or str, optional
     ///     Coupon frequency — required for ACT/ACT ISMA day count.
     #[new]
     #[pyo3(
+        // NOTE: `include_pik`'s default in `signature` is derived from
+        // `AccrualConfig::default()` so it always tracks the Rust default at
+        // call time. `text_signature` is a static string PyO3 requires for
+        // `help()`/introspection and cannot reference a Rust expression;
+        // keep the literal below in sync with `AccrualConfig::default()`
+        // whenever that default changes (it currently evaluates to `true`).
         signature = (method=None, ex_coupon=None, include_pik=AccrualConfig::default().include_pik, frequency=None),
         text_signature = "(method=None, ex_coupon=None, include_pik=True, frequency=None)"
     )]
