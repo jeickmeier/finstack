@@ -395,7 +395,7 @@ class FixedLegSpec:
             "unadjusted", "following", "modified_following", "preceding", "modified_preceding"
         ] = "modified_following",
         calendar_id: str | None = None,
-        stub: Literal["ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
+        stub: Literal["None", "ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
         payment_lag_days: int = 0,
         end_of_month: bool = False,
     ) -> None:
@@ -423,7 +423,7 @@ class FixedLegSpec:
             Business day convention for payment dates.
         calendar_id : str, optional
             Calendar used for business day adjustments.
-        stub : {"ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
+        stub : {"None", "ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
             Stub period handling rule.
         payment_lag_days : int, default 0
             Payment lag in business days after period end.
@@ -484,7 +484,7 @@ class FloatLegSpec:
             "unadjusted", "following", "modified_following", "preceding", "modified_preceding"
         ] = "modified_following",
         calendar_id: str | None = None,
-        stub: Literal["ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
+        stub: Literal["None", "ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
         reset_lag_days: int = -1,
         fixing_calendar_id: str | None = None,
         payment_lag_days: int = 0,
@@ -513,7 +513,7 @@ class FloatLegSpec:
             Business day convention for payment dates.
         calendar_id : str, optional
             Calendar used for business day adjustments.
-        stub : {"ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
+        stub : {"None", "ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
             Stub period handling rule.
         reset_lag_days : int, default -1
             Reset lag in business days for the floating rate fixing.
@@ -574,7 +574,7 @@ class PremiumLegSpec:
         spread_bp: float,
         discount_curve_id: str,
         *,
-        stub: Literal["ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
+        stub: Literal["None", "ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
         bdc: Literal[
             "unadjusted", "following", "modified_following", "preceding", "modified_preceding"
         ] = "modified_following",
@@ -597,7 +597,7 @@ class PremiumLegSpec:
             Fixed running spread in basis points (e.g. 100.0 = 100bp = 1%).
         discount_curve_id : str
             Discount curve identifier for pricing this leg.
-        stub : {"ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
+        stub : {"None", "ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
             Stub period handling rule.
         bdc : {"unadjusted", "following", "modified_following", "preceding", "modified_preceding"}, default "modified_following"
             Business day convention for payment dates.

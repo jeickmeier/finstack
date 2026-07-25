@@ -395,7 +395,7 @@ impl PyCDSIndex {
     ///
     /// The builder pre-seeds an empty ``constituents`` list (the Rust field
     /// has no default) so ``build()`` succeeds without calling
-    /// ``constituents_json`` when the index is priced in ``"single_curve"``
+    /// ``constituents_json`` when the index is priced in ``"SingleCurve"``
     /// mode.
     ///
     /// Returns

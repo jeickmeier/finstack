@@ -32,6 +32,19 @@ _VALID_BDC_VALUES = (
     "modified_preceding",
 )
 
+# Every serde wire value of the Rust `StubKind` enum (no `rename_all`, so the
+# wire name is the bare variant name: None/ShortFront/ShortBack/LongFront/
+# LongBack). Kept in sync manually with
+# `finstack-quant/core/src/dates/schedule_iter.rs`; a stub `Literal` that
+# drifts from this set is exactly the bug this test guards against.
+_VALID_STUB_VALUES = (
+    "None",
+    "ShortFront",
+    "ShortBack",
+    "LongFront",
+    "LongBack",
+)
+
 
 def _market_json() -> str:
     return json.dumps({
@@ -234,6 +247,21 @@ class TestFixedLegSpecTyped:
         )
         assert "0.04" in repr(leg)
 
+    @pytest.mark.parametrize("stub", _VALID_STUB_VALUES)
+    def test_every_stub_literal_value_accepted(self, stub: str) -> None:
+        """Every value in the `stub` Literal (including `"None"`) must be a real accepted wire value."""
+        leg = FixedLegSpec(
+            "USD-OIS",
+            0.04,
+            Tenor.semi_annual(),
+            DayCount.THIRTY_360,
+            datetime.date(2024, 1, 15),
+            datetime.date(2029, 1, 15),
+            stub=stub,
+            compounding_simple=False,
+        )
+        assert "0.04" in repr(leg)
+
 
 class TestFloatLegSpecTyped:
     @pytest.mark.parametrize("bdc", _VALID_BDC_VALUES)
@@ -248,6 +276,21 @@ class TestFloatLegSpecTyped:
             datetime.date(2024, 1, 15),
             datetime.date(2029, 1, 15),
             bdc=bdc,
+        )
+        assert "spread_bp=0" in repr(leg)
+
+    @pytest.mark.parametrize("stub", _VALID_STUB_VALUES)
+    def test_every_stub_literal_value_accepted(self, stub: str) -> None:
+        """Every value in the `stub` Literal (including `"None"`) must be a real accepted wire value."""
+        leg = FloatLegSpec(
+            "USD-OIS",
+            "USD-SOFR-3M",
+            0.0,
+            Tenor.quarterly(),
+            DayCount.ACT_360,
+            datetime.date(2024, 1, 15),
+            datetime.date(2029, 1, 15),
+            stub=stub,
         )
         assert "spread_bp=0" in repr(leg)
 

@@ -8,9 +8,18 @@ import json
 import pytest
 
 from finstack_quant.core.currency import Currency
+from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
-from finstack_quant.valuations.instruments import FxForward, FxOption
+from finstack_quant.valuations import ValuationResult
+from finstack_quant.valuations.instruments import FxForward, FxOption, price_instrument
+from tests.golden.conftest import fixture_path
+from tests.golden.schema import GoldenFixture
 from tests.tests_typed_helpers import build_fx_forward as _forward
+
+# The typed-vs-JSON-loader NPV gap observed for this fixture is ~3.6e-11
+# (float64 JSON round-trip noise on the same Rust pricing engine, not a
+# model difference) -- see TestFxForwardTyped.test_matches_quantlib_golden_npv.
+_TYPED_GOLDEN_NPV_ABS_TOLERANCE = 1e-6
 
 
 class TestFxForwardTyped:
@@ -33,6 +42,48 @@ class TestFxForwardTyped:
                 .foreign_discount_curve_id("USD-OIS")
                 .build()
             )
+
+    def test_matches_quantlib_golden_npv(self) -> None:
+        """A typed FxForward reproduces the checked-in QuantLib golden NPV.
+
+        Builds the instrument via the typed `FxForward.builder()` (not the
+        JSON loader the `tests/golden` runners use) but prices it against
+        the exact same market snapshot, valuation date, and model recorded
+        in the `eurusd_1y_forward_quantlib` fixture, per the market-setup
+        convention in `tests/golden/runners/pricing_common.py`.
+
+        The tolerance is far tighter than the fixture's own QuantLib-vs-Finstack
+        tolerance (`abs=0.01`, for cross-library agreement): both this test and
+        the golden runner exercise the same Rust discounting engine, just via a
+        different instrument-construction path (typed builder -> tagged JSON
+        vs. JSON loader), so the two NPVs are expected to agree to within
+        float64 JSON round-trip noise (empirically ~3.6e-11), not model-level
+        tolerance.
+        """
+        fixture = GoldenFixture.from_path(fixture_path("pricing/quantlib/fx_forward/eurusd_1y_forward_quantlib.json"))
+        spec = fixture.body["instrument"]["spec"]
+        market = MarketContext.from_json(json.dumps(fixture.body["market"]["data"]))
+
+        forward = (
+            FxForward
+            .builder()
+            .id(spec["id"])
+            .base_currency(Currency(spec["base_currency"]))
+            .quote_currency(Currency(spec["quote_currency"]))
+            .maturity(datetime.date.fromisoformat(spec["maturity"]))
+            .notional(Money(float(spec["notional"]["amount"]), Currency(spec["notional"]["currency"])))
+            .contract_rate(spec["contract_rate"])
+            .domestic_discount_curve_id(spec["domestic_discount_curve_id"])
+            .foreign_discount_curve_id(spec["foreign_discount_curve_id"])
+            .build()
+        )
+
+        result = ValuationResult.from_json(
+            price_instrument(forward, market, fixture.metadata.valuation_date, model=fixture.body["model"])
+        )
+        actual_npv = float(result.price)
+        expected_npv = fixture.expected["npv"]
+        assert actual_npv == pytest.approx(expected_npv, abs=_TYPED_GOLDEN_NPV_ABS_TOLERANCE)
 
 
 class TestFxOptionTyped:

@@ -8,15 +8,29 @@ import json
 import pytest
 
 from finstack_quant.core.currency import Currency
+from finstack_quant.core.dates import DayCount, Tenor
 from finstack_quant.core.money import Money
 from finstack_quant.valuations.instruments import (
     CDSIndex,
     CreditDefaultSwap,
+    PremiumLegSpec,
     ProtectionLegSpec,
     TermLoan,
     price_instrument,
 )
 from tests.tests_typed_helpers import build_cds as _cds, cds_legs as _legs
+
+# Every serde wire value of the Rust `StubKind` enum (no `rename_all`, so the
+# wire name is the bare variant name). Kept in sync manually with
+# `finstack-quant/core/src/dates/schedule_iter.rs`; a stub `Literal` that
+# drifts from this set is exactly the bug this test guards against.
+_VALID_STUB_VALUES = (
+    "None",
+    "ShortFront",
+    "ShortBack",
+    "LongFront",
+    "LongBack",
+)
 
 
 def _market_json() -> str:
@@ -262,6 +276,22 @@ class TestCreditDefaultSwapTyped:
         typed = price_instrument(cds, _market_json(), "2024-01-01", "hazard_rate")
         via_json = price_instrument(_cds_hand_written_json(), _market_json(), "2024-01-01", "hazard_rate")
         assert _without_timestamp(typed) == _without_timestamp(via_json)
+
+
+class TestPremiumLegSpecTyped:
+    @pytest.mark.parametrize("stub", _VALID_STUB_VALUES)
+    def test_every_stub_literal_value_accepted(self, stub: str) -> None:
+        """Every value in the `stub` Literal (including `"None"`) must be a real accepted wire value."""
+        leg = PremiumLegSpec(
+            datetime.date(2024, 3, 20),
+            datetime.date(2029, 6, 20),
+            Tenor.quarterly(),
+            DayCount.ACT_360,
+            100.0,
+            "USD-OIS",
+            stub=stub,
+        )
+        assert "spread_bp=100" in repr(leg)
 
 
 class TestCDSIndexTyped:
