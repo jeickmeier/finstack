@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from finstack_quant.finstack_quant import valuations as _valuations
 
+AssetPool = _valuations.instruments.AssetPool
 Bond = _valuations.instruments.Bond
 CDSIndex = _valuations.instruments.CDSIndex
 CDSIndexBuilder = _valuations.instruments.CDSIndexBuilder
@@ -37,9 +38,15 @@ InterestRateSwap = _valuations.instruments.InterestRateSwap
 InterestRateSwapBuilder = _valuations.instruments.InterestRateSwapBuilder
 PremiumLegSpec = _valuations.instruments.PremiumLegSpec
 ProtectionLegSpec = _valuations.instruments.ProtectionLegSpec
+RepLine = _valuations.instruments.RepLine
+StructuredCredit = _valuations.instruments.StructuredCredit
+StructuredCreditBuilder = _valuations.instruments.StructuredCreditBuilder
 Swaption = _valuations.instruments.Swaption
 SwaptionBuilder = _valuations.instruments.SwaptionBuilder
 TermLoan = _valuations.instruments.TermLoan
+Tranche = _valuations.instruments.Tranche
+TrancheBuilder = _valuations.instruments.TrancheBuilder
+TrancheStructure = _valuations.instruments.TrancheStructure
 validate_instrument_json = _valuations.instruments.validate_instrument_json
 bond_from_cashflows_json = _valuations.instruments.bond_from_cashflows_json
 price_instrument = _valuations.instruments.price_instrument
@@ -58,6 +65,7 @@ structured_credit_tranche_metrics = _valuations.instruments.structured_credit_tr
 structured_credit_tranche_scenario_table = _valuations.instruments.structured_credit_tranche_scenario_table
 
 __all__: list[str] = [
+    "AssetPool",
     "Bond",
     "CDSIndex",
     "CDSIndexBuilder",
@@ -81,9 +89,15 @@ __all__: list[str] = [
     "InterestRateSwapBuilder",
     "PremiumLegSpec",
     "ProtectionLegSpec",
+    "RepLine",
+    "StructuredCredit",
+    "StructuredCreditBuilder",
     "Swaption",
     "SwaptionBuilder",
     "TermLoan",
+    "Tranche",
+    "TrancheBuilder",
+    "TrancheStructure",
     "bond_from_cashflows_json",
     "instrument_cashflows_json",
     "list_models",

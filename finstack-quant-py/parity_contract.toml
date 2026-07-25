@@ -524,6 +524,7 @@ public = [
 [crates.valuations.instruments]
 python_package = "finstack_quant.valuations.instruments"
 public = [
+    "AssetPool",
     "Bond",
     "CDSIndex",
     "CDSIndexBuilder",
@@ -547,9 +548,15 @@ public = [
     "InterestRateSwapBuilder",
     "PremiumLegSpec",
     "ProtectionLegSpec",
+    "RepLine",
+    "StructuredCredit",
+    "StructuredCreditBuilder",
     "Swaption",
     "SwaptionBuilder",
     "TermLoan",
+    "Tranche",
+    "TrancheBuilder",
+    "TrancheStructure",
     "bond_from_cashflows_json",
     "instrument_cashflows_json",
     "list_models",

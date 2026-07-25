@@ -19,6 +19,7 @@ pub(crate) mod typed_equity;
 pub(crate) mod typed_fx;
 mod typed_legs;
 pub(crate) mod typed_rates;
+pub(crate) mod typed_structured_credit;
 
 use crate::bindings::pandas_utils::dict_to_dataframe;
 use crate::errors::display_to_py;
@@ -271,9 +272,11 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
     typed_credit::register(py, &m)?;
     typed_equity::register(py, &m)?;
     typed_fx::register(py, &m)?;
+    typed_structured_credit::register(py, &m)?;
     pricing::register(py, &m)?;
     structured_credit::register(&m)?;
     let mut exports = vec![
+        "AssetPool",
         "Bond",
         "CDSIndex",
         "CDSIndexBuilder",
@@ -297,9 +300,15 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
         "InterestRateSwapBuilder",
         "PremiumLegSpec",
         "ProtectionLegSpec",
+        "RepLine",
+        "StructuredCredit",
+        "StructuredCreditBuilder",
         "Swaption",
         "SwaptionBuilder",
         "TermLoan",
+        "Tranche",
+        "TrancheBuilder",
+        "TrancheStructure",
         "bond_from_cashflows_json",
         "instrument_cashflows_json",
         "list_models",

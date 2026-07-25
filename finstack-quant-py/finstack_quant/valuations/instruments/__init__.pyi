@@ -20,6 +20,7 @@ from finstack_quant.core.money import Money
 from finstack_quant.core.types import Bps, Rate
 
 __all__ = [
+    "AssetPool",
     "Bond",
     "CDSIndex",
     "CDSIndexBuilder",
@@ -43,9 +44,15 @@ __all__ = [
     "InterestRateSwapBuilder",
     "PremiumLegSpec",
     "ProtectionLegSpec",
+    "RepLine",
+    "StructuredCredit",
+    "StructuredCreditBuilder",
     "Swaption",
     "SwaptionBuilder",
     "TermLoan",
+    "Tranche",
+    "TrancheBuilder",
+    "TrancheStructure",
     "bond_from_cashflows_json",
     "instrument_cashflows_json",
     "list_models",
@@ -5456,6 +5463,1316 @@ class EquityOptionBuilder:
         """
         ...
 
+class RepLine:
+    """
+    Aggregated representative line for pool modeling.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import DayCount
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import RepLine
+    >>> line = RepLine(
+    ...     "LINE-1",
+    ...     Money(80_000_000.0, Currency("USD")),
+    ...     0.07,
+    ...     datetime.date(2031, 1, 15),
+    ...     12,
+    ...     DayCount.ACT_360,
+    ...     cpr=0.10,
+    ...     cdr=0.02,
+    ...     recovery_rate=0.45,
+    ... )
+    >>> "LINE-1" in repr(line)
+    True
+    """
+
+    def __init__(
+        self,
+        id: str,
+        balance: Money,
+        rate: float,
+        maturity: datetime.date,
+        seasoning_months: int,
+        day_count: DayCount,
+        *,
+        spread_bps: float | None = None,
+        index_id: str | None = None,
+        cpr: float | None = None,
+        cdr: float | None = None,
+        recovery_rate: float | None = None,
+    ) -> None:
+        """
+        Aggregated representative line for pool modeling.
+
+        Parameters
+        ----------
+        id : str
+            Unique identifier for the rep line.
+        balance : Money
+            Aggregated balance.
+        rate : float
+            Weighted average coupon as an annual decimal rate (e.g. ``0.07``
+            = 7%).
+        maturity : datetime.date
+            Weighted average maturity date.
+        seasoning_months : int
+            Weighted average seasoning in months.
+        day_count : DayCount
+            Day count convention.
+        spread_bps : float, optional
+            Weighted average spread over the reference index, in basis
+            points (e.g. ``150.0`` = 150bp), for floating-rate lines.
+        index_id : str, optional
+            Reference index identifier, if floating.
+        cpr : float, optional
+            Constant prepayment rate override, as an annual decimal (e.g.
+            ``0.10`` = 10% CPR).
+        cdr : float, optional
+            Constant default rate override, as an annual decimal (e.g.
+            ``0.02`` = 2% CDR).
+        recovery_rate : float, optional
+            Recovery rate override, as a decimal fraction (e.g. ``0.45`` =
+            45%).
+
+        Returns
+        -------
+        RepLine
+            The rep line.
+
+        Raises
+        ------
+        TypeError
+            If ``maturity`` is not a date-like object (``datetime.date``,
+            ``datetime.datetime``, or ``pandas.Timestamp``).
+
+        Examples
+        --------
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.dates import DayCount
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.valuations.instruments import RepLine
+        >>> line = RepLine(
+        ...     "LINE-1",
+        ...     Money(80_000_000.0, Currency("USD")),
+        ...     0.07,
+        ...     datetime.date(2031, 1, 15),
+        ...     12,
+        ...     DayCount.ACT_360,
+        ...     cpr=0.10,
+        ...     cdr=0.02,
+        ...     recovery_rate=0.45,
+        ... )
+        >>> "LINE-1" in repr(line)
+        True
+        """
+        ...
+
+class AssetPool:
+    """
+    Structured-credit collateral pool.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.valuations.instruments import AssetPool
+    >>> pool = AssetPool("POOL-1", "abs", Currency("USD"))
+    >>> "POOL-1" in repr(pool)
+    True
+    """
+
+    def __init__(
+        self,
+        id: str,
+        deal_type: Literal["abs", "clo", "cmbs", "rmbs"],
+        base_currency: Currency,
+    ) -> None:
+        """
+        Structured-credit collateral pool.
+
+        Parameters
+        ----------
+        id : str
+            Pool identifier.
+        deal_type : {"abs", "clo", "cmbs", "rmbs"}
+            Deal classification for pool-level assumptions.
+        base_currency : Currency
+            Base currency for every asset and pool-level account.
+
+        Returns
+        -------
+        AssetPool
+            A new, empty asset pool. Use :meth:`with_rep_lines` and/or
+            :meth:`assets_json` to attach collateral.
+
+        Raises
+        ------
+        ValueError
+            If ``deal_type`` is not a recognized deal type.
+
+        Examples
+        --------
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.valuations.instruments import AssetPool
+        >>> pool = AssetPool("POOL-1", "abs", Currency("USD"))
+        >>> "POOL-1" in repr(pool)
+        True
+        """
+        ...
+
+    def with_rep_lines(self, rep_lines: list[RepLine]) -> AssetPool:
+        """
+        Attach representative pool lines, returning a new pool.
+
+        Parameters
+        ----------
+        rep_lines : list[RepLine]
+            Aggregated representative lines the pricing engine will use
+            instead of individual assets.
+
+        Returns
+        -------
+        AssetPool
+            A new pool with ``rep_lines`` set (the original is unchanged).
+
+        Raises
+        ------
+        TypeError
+            If an element of ``rep_lines`` is not a ``RepLine``.
+
+        Examples
+        --------
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.dates import DayCount
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.valuations.instruments import AssetPool, RepLine
+        >>> pool = AssetPool("POOL-1", "abs", Currency("USD")).with_rep_lines([
+        ...     RepLine(
+        ...         "LINE-1",
+        ...         Money(80_000_000.0, Currency("USD")),
+        ...         0.07,
+        ...         datetime.date(2031, 1, 15),
+        ...         12,
+        ...         DayCount.ACT_360,
+        ...     )
+        ... ])
+        >>> "POOL-1" in repr(pool)
+        True
+        """
+        ...
+
+    def assets_json(self, value: str) -> AssetPool:
+        """
+        Attach loan-level assets from a JSON array, returning a new pool.
+
+        Loan-level ``PoolAsset`` records carry ~30 fields and stay JSON per
+        the nested-spec rule; use :meth:`with_rep_lines` for the typed,
+        aggregated path.
+
+        Parameters
+        ----------
+        value : str
+            JSON array of ``PoolAsset`` objects.
+
+        Returns
+        -------
+        AssetPool
+            A new pool with ``assets`` set (the original is unchanged).
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the ``PoolAsset`` list shape.
+        """
+        ...
+
+class Tranche:
+    """
+    Structured-credit tranche with attachment/detachment points.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import Tranche
+    >>> callable(Tranche.builder)
+    True
+    """
+
+    @staticmethod
+    def builder() -> TrancheBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``Tranche::builder()``).
+
+        Returns
+        -------
+        TrancheBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Tranche
+        >>> callable(Tranche.builder)
+        True
+        """
+        ...
+
+class TrancheBuilder:
+    """
+    Fluent builder returned by :meth:`Tranche.builder`.
+
+    ``attachment_point`` and ``detachment_point`` are tracked separately from
+    the wrapped Rust builder (which only exposes a combined
+    ``attachment_detachment(a, d)`` setter) and applied together on
+    :meth:`build`, so either call order works.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import Tranche
+    >>> isinstance(Tranche.builder(), Tranche.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> TrancheBuilder:
+        """
+        Set the tranche identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the tranche.
+
+        Returns
+        -------
+        TrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`TrancheBuilder.build`.
+        """
+        ...
+
+    def attachment_point(self, value: float) -> TrancheBuilder:
+        """
+        Set the attachment point.
+
+        Parameters
+        ----------
+        value : float
+            Attachment point quoted in percent on a 0-100 scale (e.g. ``0.0``
+            for equity, ``10.0`` for a tranche attaching at 10%).
+
+        Returns
+        -------
+        TrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`TrancheBuilder.build`.
+        """
+        ...
+
+    def detachment_point(self, value: float) -> TrancheBuilder:
+        """
+        Set the detachment point.
+
+        Parameters
+        ----------
+        value : float
+            Detachment point quoted in percent on a 0-100 scale (e.g.
+            ``100.0`` for the most senior tranche).
+
+        Returns
+        -------
+        TrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`TrancheBuilder.build`.
+        """
+        ...
+
+    def seniority(self, value: Literal["senior", "mezzanine", "subordinated", "equity"]) -> TrancheBuilder:
+        """
+        Set the tranche seniority.
+
+        Parameters
+        ----------
+        value : {"senior", "mezzanine", "subordinated", "equity"}
+            Structural seniority of the tranche.
+
+        Returns
+        -------
+        TrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized seniority.
+        """
+        ...
+
+    def original_balance(self, value: Money) -> TrancheBuilder:
+        """
+        Set the original tranche balance.
+
+        Maps to the Rust ``TrancheBuilder::balance`` setter; named
+        ``original_balance`` here to match the ``Tranche.original_balance``
+        field it populates.
+
+        Parameters
+        ----------
+        value : Money
+            Original tranche balance. Must be positive.
+
+        Returns
+        -------
+        TrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`TrancheBuilder.build`.
+        """
+        ...
+
+    def coupon_fixed(self, rate: float) -> TrancheBuilder:
+        """
+        Set a fixed-rate coupon.
+
+        Parameters
+        ----------
+        rate : float
+            Fixed interest rate as an annual decimal (e.g. ``0.05`` = 5%).
+
+        Returns
+        -------
+        TrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`TrancheBuilder.build`.
+        """
+        ...
+
+    def coupon_floating_json(self, value: str) -> TrancheBuilder:
+        """
+        Set a floating-rate coupon from a JSON ``TrancheCoupon::Floating`` payload.
+
+        The floating-rate spec (``FloatingRateSpec``: index, spread, gearing,
+        floors/caps, reset conventions) stays JSON per the nested-spec rule —
+        the typed cashflows plan owns that shape.
+
+        Parameters
+        ----------
+        value : str
+            JSON-encoded, externally-tagged ``TrancheCoupon`` value, e.g.
+            ``{"Floating": {...FloatingRateSpec fields...}}``.
+
+        Returns
+        -------
+        TrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the ``TrancheCoupon`` shape.
+        """
+        ...
+
+    def maturity(self, value: datetime.date) -> TrancheBuilder:
+        """
+        Set the legal final maturity date.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Legal final maturity date.
+
+        Returns
+        -------
+        TrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`TrancheBuilder.build`.
+        """
+        ...
+
+    def frequency(self, value: Tenor) -> TrancheBuilder:
+        """
+        Set the payment frequency.
+
+        Parameters
+        ----------
+        value : Tenor
+            Payment frequency. Defaults to quarterly when never set.
+
+        Returns
+        -------
+        TrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`TrancheBuilder.build`.
+        """
+        ...
+
+    def day_count(self, value: DayCount) -> TrancheBuilder:
+        """
+        Set the day count convention for interest accrual.
+
+        Parameters
+        ----------
+        value : DayCount
+            Day count convention. Defaults to Act/360 when never set.
+
+        Returns
+        -------
+        TrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`TrancheBuilder.build`.
+        """
+        ...
+
+    def build(self) -> Tranche:
+        """
+        Build the validated tranche.
+
+        Returns
+        -------
+        Tranche
+            The validated tranche.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing, or attachment/detachment points
+            are invalid (negative, out of the ``[0, 100]`` range, or
+            detachment not strictly above attachment).
+        """
+        ...
+
+class TrancheStructure:
+    """
+    Capital structure formed from a list of tranches.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import TrancheStructure
+    >>> TrancheStructure.__name__
+    'TrancheStructure'
+    """
+
+    def __init__(self, tranches: list[Tranche]) -> None:
+        """
+        Capital structure formed from a list of tranches.
+
+        Validates that attachment/detachment points tile ``[0, 100]`` without
+        gaps or overlaps, that every tranche shares one currency, and assigns
+        each tranche a distinct, strictly-increasing ``payment_priority``
+        ranked by seniority.
+
+        Parameters
+        ----------
+        tranches : list[Tranche]
+            Tranches forming the capital structure.
+
+        Returns
+        -------
+        TrancheStructure
+            The validated tranche structure.
+
+        Raises
+        ------
+        ValueError
+            If ``tranches`` is empty, has non-finite attachment/detachment
+            points, leaves a gap/overlap, doesn't tile to 100%, or mixes
+            currencies.
+
+        Examples
+        --------
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.valuations.instruments import Tranche, TrancheStructure
+        >>> senior = (
+        ...     Tranche
+        ...     .builder()
+        ...     .id("A")
+        ...     .attachment_point(10.0)
+        ...     .detachment_point(100.0)
+        ...     .seniority("senior")
+        ...     .original_balance(Money(72_000_000.0, Currency("USD")))
+        ...     .coupon_fixed(0.05)
+        ...     .maturity(datetime.date(2031, 1, 15))
+        ...     .build()
+        ... )
+        >>> equity = (
+        ...     Tranche
+        ...     .builder()
+        ...     .id("E")
+        ...     .attachment_point(0.0)
+        ...     .detachment_point(10.0)
+        ...     .seniority("equity")
+        ...     .original_balance(Money(8_000_000.0, Currency("USD")))
+        ...     .coupon_fixed(0.0)
+        ...     .maturity(datetime.date(2031, 1, 15))
+        ...     .build()
+        ... )
+        >>> structure = TrancheStructure([senior, equity])
+        >>> "tranches=2" in repr(structure)
+        True
+        """
+        ...
+
+class StructuredCredit:
+    """
+    Structured-credit deal (ABS/CLO/CMBS/RMBS) with pool, tranches, and waterfall.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import StructuredCredit
+    >>> callable(StructuredCredit.builder)
+    True
+    """
+
+    @staticmethod
+    def builder() -> StructuredCreditBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``StructuredCredit::builder()``).
+
+        The builder pre-seeds ``market_conditions``, ``credit_factors``,
+        ``deal_metadata``, ``behavior_overrides``, ``default_assumptions``,
+        and ``hedge_swaps`` with their Rust ``Default`` values (the Rust
+        builder fields have no default), which the corresponding ``*_json``
+        setters can override. Prefer :meth:`new_abs` / :meth:`new_clo` /
+        :meth:`new_cmbs` / :meth:`new_rmbs` for registry-calibrated deal-type
+        defaults; use this builder for full manual control.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import StructuredCredit
+        >>> callable(StructuredCredit.builder)
+        True
+        """
+        ...
+
+    @staticmethod
+    def new_abs(
+        id: str,
+        pool: AssetPool,
+        tranches: TrancheStructure,
+        closing_date: datetime.date,
+        maturity: datetime.date,
+        discount_curve_id: str,
+    ) -> StructuredCredit:
+        """
+        Create a new ABS deal with registry-calibrated defaults.
+
+        Parameters
+        ----------
+        id : str
+            Unique instrument identifier.
+        pool : AssetPool
+            Asset pool definition.
+        tranches : TrancheStructure
+            Tranche capital structure.
+        closing_date : datetime.date
+            Deal closing date (issuance).
+        maturity : datetime.date
+            Legal final maturity date.
+        discount_curve_id : str
+            Discount curve identifier for valuation.
+
+        Returns
+        -------
+        StructuredCredit
+            The validated ABS deal.
+
+        Raises
+        ------
+        ValueError
+            If the deal fails pricing validation.
+
+        Examples
+        --------
+        >>> import datetime
+        >>> from finstack_quant.core.currency import Currency
+        >>> from finstack_quant.core.dates import DayCount
+        >>> from finstack_quant.core.money import Money
+        >>> from finstack_quant.valuations.instruments import (
+        ...     AssetPool,
+        ...     RepLine,
+        ...     StructuredCredit,
+        ...     Tranche,
+        ...     TrancheStructure,
+        ... )
+        >>> pool = AssetPool("POOL-1", "abs", Currency("USD")).with_rep_lines([
+        ...     RepLine(
+        ...         "LINE-1",
+        ...         Money(80_000_000.0, Currency("USD")),
+        ...         0.07,
+        ...         datetime.date(2031, 1, 15),
+        ...         12,
+        ...         DayCount.ACT_360,
+        ...     )
+        ... ])
+        >>> senior = (
+        ...     Tranche
+        ...     .builder()
+        ...     .id("A")
+        ...     .attachment_point(10.0)
+        ...     .detachment_point(100.0)
+        ...     .seniority("senior")
+        ...     .original_balance(Money(72_000_000.0, Currency("USD")))
+        ...     .coupon_fixed(0.05)
+        ...     .maturity(datetime.date(2031, 1, 15))
+        ...     .build()
+        ... )
+        >>> equity = (
+        ...     Tranche
+        ...     .builder()
+        ...     .id("E")
+        ...     .attachment_point(0.0)
+        ...     .detachment_point(10.0)
+        ...     .seniority("equity")
+        ...     .original_balance(Money(8_000_000.0, Currency("USD")))
+        ...     .coupon_fixed(0.0)
+        ...     .maturity(datetime.date(2031, 1, 15))
+        ...     .build()
+        ... )
+        >>> deal = StructuredCredit.new_abs(
+        ...     "ABS-1",
+        ...     pool,
+        ...     TrancheStructure([senior, equity]),
+        ...     datetime.date(2024, 1, 15),
+        ...     datetime.date(2031, 1, 15),
+        ...     "USD-SOFR-DISC",
+        ... )
+        >>> "ABS-1" in repr(deal)
+        True
+        """
+        ...
+
+    @staticmethod
+    def new_clo(
+        id: str,
+        pool: AssetPool,
+        tranches: TrancheStructure,
+        closing_date: datetime.date,
+        maturity: datetime.date,
+        discount_curve_id: str,
+    ) -> StructuredCredit:
+        """
+        Create a new CLO deal with registry-calibrated defaults.
+
+        Same signature as :meth:`new_abs`; only the deal-type calibration
+        (prepayment/default/recovery specs, frequency, fees) differs.
+
+        Parameters
+        ----------
+        id : str
+            Unique instrument identifier.
+        pool : AssetPool
+            Asset pool definition.
+        tranches : TrancheStructure
+            Tranche capital structure.
+        closing_date : datetime.date
+            Deal closing date (issuance).
+        maturity : datetime.date
+            Legal final maturity date.
+        discount_curve_id : str
+            Discount curve identifier for valuation.
+
+        Returns
+        -------
+        StructuredCredit
+            The validated CLO deal.
+
+        Raises
+        ------
+        ValueError
+            If the deal fails pricing validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import StructuredCredit
+        >>> callable(StructuredCredit.new_clo)
+        True
+        """
+        ...
+
+    @staticmethod
+    def new_cmbs(
+        id: str,
+        pool: AssetPool,
+        tranches: TrancheStructure,
+        closing_date: datetime.date,
+        maturity: datetime.date,
+        discount_curve_id: str,
+    ) -> StructuredCredit:
+        """
+        Create a new CMBS deal with registry-calibrated defaults.
+
+        Same signature as :meth:`new_abs`; only the deal-type calibration
+        (prepayment/default/recovery specs, frequency, fees) differs.
+
+        Parameters
+        ----------
+        id : str
+            Unique instrument identifier.
+        pool : AssetPool
+            Asset pool definition.
+        tranches : TrancheStructure
+            Tranche capital structure.
+        closing_date : datetime.date
+            Deal closing date (issuance).
+        maturity : datetime.date
+            Legal final maturity date.
+        discount_curve_id : str
+            Discount curve identifier for valuation.
+
+        Returns
+        -------
+        StructuredCredit
+            The validated CMBS deal.
+
+        Raises
+        ------
+        ValueError
+            If the deal fails pricing validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import StructuredCredit
+        >>> callable(StructuredCredit.new_cmbs)
+        True
+        """
+        ...
+
+    @staticmethod
+    def new_rmbs(
+        id: str,
+        pool: AssetPool,
+        tranches: TrancheStructure,
+        closing_date: datetime.date,
+        maturity: datetime.date,
+        discount_curve_id: str,
+    ) -> StructuredCredit:
+        """
+        Create a new RMBS deal with registry-calibrated defaults.
+
+        Same signature as :meth:`new_abs`; only the deal-type calibration
+        (prepayment/default/recovery specs, frequency, fees) differs.
+
+        Parameters
+        ----------
+        id : str
+            Unique instrument identifier.
+        pool : AssetPool
+            Asset pool definition.
+        tranches : TrancheStructure
+            Tranche capital structure.
+        closing_date : datetime.date
+            Deal closing date (issuance).
+        maturity : datetime.date
+            Legal final maturity date.
+        discount_curve_id : str
+            Discount curve identifier for valuation.
+
+        Returns
+        -------
+        StructuredCredit
+            The validated RMBS deal.
+
+        Raises
+        ------
+        ValueError
+            If the deal fails pricing validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import StructuredCredit
+        >>> callable(StructuredCredit.new_rmbs)
+        True
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> StructuredCredit:
+        """
+        Deserialize from tagged instrument JSON (``{"type": "structured_credit", ...}``).
+
+        Parameters
+        ----------
+        json : str
+            Tagged instrument JSON with type ``"structured_credit"``.
+
+        Returns
+        -------
+        StructuredCredit
+            The validated deal.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed, has a different instrument type, or
+            fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import StructuredCredit
+        >>> callable(StructuredCredit.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to tagged instrument JSON.
+
+        Returns
+        -------
+        str
+            ``{"type": "structured_credit", "spec": ...}`` JSON accepted by
+            :func:`price_instrument` and :meth:`StructuredCredit.from_json`.
+        """
+        ...
+
+    @property
+    def id(self) -> str:
+        """
+        Instrument identifier.
+
+        Returns
+        -------
+        str
+            The unique instrument identifier.
+        """
+        ...
+
+class StructuredCreditBuilder:
+    """
+    Fluent builder returned by :meth:`StructuredCredit.builder`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import StructuredCredit
+    >>> isinstance(StructuredCredit.builder(), StructuredCredit.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> StructuredCreditBuilder:
+        """
+        Set the instrument identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the deal.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`StructuredCreditBuilder.build`.
+        """
+        ...
+
+    def deal_type(self, value: Literal["abs", "clo", "cmbs", "rmbs"]) -> StructuredCreditBuilder:
+        """
+        Set the deal-type classification.
+
+        Parameters
+        ----------
+        value : {"abs", "clo", "cmbs", "rmbs"}
+            Deal classification.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized deal type.
+        """
+        ...
+
+    def pool(self, value: AssetPool) -> StructuredCreditBuilder:
+        """
+        Set the asset pool.
+
+        Parameters
+        ----------
+        value : AssetPool
+            Asset pool definition.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`StructuredCreditBuilder.build`.
+        """
+        ...
+
+    def tranches(self, value: TrancheStructure) -> StructuredCreditBuilder:
+        """
+        Set the tranche capital structure.
+
+        Parameters
+        ----------
+        value : TrancheStructure
+            Tranche capital structure.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`StructuredCreditBuilder.build`.
+        """
+        ...
+
+    def closing_date(self, value: datetime.date) -> StructuredCreditBuilder:
+        """
+        Set the deal closing (issuance) date.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Deal closing date.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`StructuredCreditBuilder.build`.
+        """
+        ...
+
+    def first_payment_date(self, value: datetime.date) -> StructuredCreditBuilder:
+        """
+        Set the first payment date to tranches.
+
+        Parameters
+        ----------
+        value : datetime.date
+            First payment date.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`StructuredCreditBuilder.build`.
+        """
+        ...
+
+    def reinvestment_end_date(self, value: datetime.date) -> StructuredCreditBuilder:
+        """
+        Set the end of the reinvestment period.
+
+        Parameters
+        ----------
+        value : datetime.date
+            End date of the reinvestment period. Optional; when never set,
+            the deal has no reinvestment period.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`StructuredCreditBuilder.build`.
+        """
+        ...
+
+    def maturity(self, value: datetime.date) -> StructuredCreditBuilder:
+        """
+        Set the legal final maturity date.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Legal final maturity date.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`StructuredCreditBuilder.build`.
+        """
+        ...
+
+    def frequency(self, value: Tenor) -> StructuredCreditBuilder:
+        """
+        Set the payment frequency for the structure.
+
+        Parameters
+        ----------
+        value : Tenor
+            Payment frequency.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`StructuredCreditBuilder.build`.
+        """
+        ...
+
+    def payment_calendar_id(self, value: str) -> StructuredCreditBuilder:
+        """
+        Set the payment calendar identifier for schedule adjustments.
+
+        Parameters
+        ----------
+        value : str
+            Holiday calendar identifier (e.g. ``"nyse"``). Required for
+            accurate schedule generation.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`StructuredCreditBuilder.build`.
+        """
+        ...
+
+    def payment_bdc(self, value: str) -> StructuredCreditBuilder:
+        """
+        Set the business day convention for tranche payments.
+
+        Parameters
+        ----------
+        value : str
+            Business day convention (e.g. ``"following"``,
+            ``"modified_following"``). Defaults to ``"following"`` when
+            never set.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized business day convention.
+        """
+        ...
+
+    def discount_curve_id(self, value: str) -> StructuredCreditBuilder:
+        """
+        Set the discount curve identifier for valuation.
+
+        Parameters
+        ----------
+        value : str
+            Discount curve identifier.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`StructuredCreditBuilder.build`.
+        """
+        ...
+
+    def market_conditions_json(self, value: str) -> StructuredCreditBuilder:
+        """
+        Set market conditions from a JSON object.
+
+        Parameters
+        ----------
+        value : str
+            JSON-encoded ``MarketConditions`` object (refinancing rate, home
+            price appreciation, unemployment, seasonal factor, custom
+            factors). :meth:`StructuredCredit.builder` pre-seeds the registry
+            default, which this overrides.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the ``MarketConditions`` shape.
+        """
+        ...
+
+    def credit_factors_json(self, value: str) -> StructuredCreditBuilder:
+        """
+        Set credit factors from a JSON object.
+
+        Parameters
+        ----------
+        value : str
+            JSON-encoded ``CreditFactors`` object (credit score, DTI, LTV,
+            delinquency, unemployment, CMBS NOI/debt-service, custom
+            factors). :meth:`StructuredCredit.builder` pre-seeds
+            ``CreditFactors``'s default, which this overrides.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the ``CreditFactors`` shape.
+        """
+        ...
+
+    def waterfall_rules_json(self, value: str) -> StructuredCreditBuilder:
+        """
+        Set declarative waterfall rules from a JSON object.
+
+        Parameters
+        ----------
+        value : str
+            JSON-encoded ``WaterfallRules`` object (available-funds caps,
+            step-down, shifting interest, controlled accumulation), layered
+            onto the base waterfall.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the ``WaterfallRules`` shape.
+        """
+        ...
+
+    def fees_json(self, value: str) -> StructuredCreditBuilder:
+        """
+        Set senior transaction fees from a JSON object.
+
+        Parameters
+        ----------
+        value : str
+            JSON-encoded ``DealFees`` object (trustee, senior management,
+            servicing, and optional master/special servicer fees), paid
+            ahead of every note. Skipped (``None``) by default.
+
+        Returns
+        -------
+        StructuredCreditBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the ``DealFees`` shape.
+        """
+        ...
+
+    def build(self) -> StructuredCredit:
+        """
+        Build the validated structured-credit deal.
+
+        Returns
+        -------
+        StructuredCredit
+            The validated deal.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing or Rust validation fails.
+        """
+        ...
+
 def bond_from_cashflows_json(
     instrument_id: str,
     schedule_json: str,
@@ -5535,7 +6852,8 @@ def price_instrument(
     | FxOption
     | CDSTranche
     | ConvertibleBond
-    | EquityOption,
+    | EquityOption
+    | StructuredCredit,
     market: MarketContext | str,
     as_of: str,
     model: str = "default",
@@ -5593,7 +6911,8 @@ def price_instrument_with_metrics(
     | FxOption
     | CDSTranche
     | ConvertibleBond
-    | EquityOption,
+    | EquityOption
+    | StructuredCredit,
     market: MarketContext | str,
     as_of: str,
     model: str = "default",
@@ -5659,7 +6978,8 @@ def instrument_cashflows_json(
     | FxOption
     | CDSTranche
     | ConvertibleBond
-    | EquityOption,
+    | EquityOption
+    | StructuredCredit,
     market: MarketContext | str,
     as_of: str,
     model: str,

@@ -24,6 +24,7 @@ use crate::bindings::valuations::typed_credit::{
 use crate::bindings::valuations::typed_equity::PyEquityOption;
 use crate::bindings::valuations::typed_fx::{PyFxForward, PyFxOption};
 use crate::bindings::valuations::typed_rates::{PyCapFloor, PyInterestRateSwap, PySwaption};
+use crate::bindings::valuations::typed_structured_credit::PyStructuredCredit;
 use crate::errors::{display_to_py as to_py, portfolio_to_py};
 
 // ---------------------------------------------------------------------------
@@ -50,7 +51,7 @@ use crate::errors::{display_to_py as to_py, portfolio_to_py};
 ///
 /// Currently wired: `Bond`, `TermLoan`, `InterestRateSwap`, `Swaption`,
 /// `CapFloor`, `CreditDefaultSwap`, `CDSIndex`, `FxForward`, `FxOption`,
-/// `CDSTranche`, `ConvertibleBond`, `EquityOption`.
+/// `CDSTranche`, `ConvertibleBond`, `EquityOption`, `StructuredCredit`.
 pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     if let Ok(bond) = obj.cast::<PyBond>() {
         return bond.borrow().tagged_json();
@@ -87,6 +88,9 @@ pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     }
     if let Ok(equity_option) = obj.cast::<PyEquityOption>() {
         return equity_option.borrow().tagged_json();
+    }
+    if let Ok(structured_credit) = obj.cast::<PyStructuredCredit>() {
+        return structured_credit.borrow().tagged_json();
     }
     obj.extract::<String>().map_err(|_| {
         pyo3::exceptions::PyTypeError::new_err(
