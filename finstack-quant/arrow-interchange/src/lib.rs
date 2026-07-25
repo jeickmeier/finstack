@@ -43,12 +43,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use arrow::array::{ArrayRef, Float64Array, Int64Array, StringArray, UInt32Array};
+use arrow::array::{Array, ArrayRef, Float64Array, Int64Array, StringArray, UInt32Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::error::ArrowError;
 use arrow::record_batch::{RecordBatch, RecordBatchOptions};
 use finstack_quant_core::table::{TableColumn, TableColumnData, TableColumnRole, TableEnvelope};
 use finstack_quant_core::{Error, Result};
+use indexmap::IndexMap;
 
 /// Metadata key carrying a column's semantic role on an Arrow field.
 pub const ROLE_METADATA_KEY: &str = "finstack:role";
@@ -184,71 +185,146 @@ pub fn to_record_batch(table: &TableEnvelope) -> Result<RecordBatch> {
         .map_err(|e| arrow_err("record batch construction", &e))
 }
 
-/// Convert an Arrow [`RecordBatch`] into a [`TableEnvelope`].
+/// Parse a serde snake_case role name back into [`TableColumnRole`].
+fn role_from_str(value: &str) -> Result<TableColumnRole> {
+    match value {
+        "dimension" => Ok(TableColumnRole::Dimension),
+        "index" => Ok(TableColumnRole::Index),
+        "measure" => Ok(TableColumnRole::Measure),
+        "attribute" => Ok(TableColumnRole::Attribute),
+        other => Err(Error::Validation(format!(
+            "unknown '{ROLE_METADATA_KEY}' value '{other}' \
+             (expected dimension|index|measure|attribute)"
+        ))),
+    }
+}
+
+/// Downcast an Arrow array to a concrete type with a contextual error.
+fn downcast<'a, T: 'static>(name: &str, array: &'a ArrayRef) -> Result<&'a T> {
+    array.as_any().downcast_ref::<T>().ok_or_else(|| {
+        Error::Validation(format!(
+            "column '{name}': array does not match its declared data type"
+        ))
+    })
+}
+
+/// Rebuild one envelope column from an Arrow field + array.
+fn column_from_arrow(field: &Field, array: &ArrayRef) -> Result<TableColumn> {
+    let name = field.name().clone();
+    let nullable = field.is_nullable();
+    if !nullable && array.null_count() > 0 {
+        return Err(Error::Validation(format!(
+            "column '{name}': declared non-nullable but contains {} null value(s)",
+            array.null_count()
+        )));
+    }
+
+    let data = match (field.data_type(), nullable) {
+        (DataType::Utf8, false) => TableColumnData::String(
+            downcast::<StringArray>(&name, array)?
+                .iter()
+                .flatten()
+                .map(str::to_owned)
+                .collect(),
+        ),
+        (DataType::Utf8, true) => TableColumnData::NullableString(
+            downcast::<StringArray>(&name, array)?
+                .iter()
+                .map(|v| v.map(str::to_owned))
+                .collect(),
+        ),
+        (DataType::Float64, false) => {
+            TableColumnData::Float64(downcast::<Float64Array>(&name, array)?.values().to_vec())
+        }
+        (DataType::Float64, true) => TableColumnData::NullableFloat64(
+            downcast::<Float64Array>(&name, array)?.iter().collect(),
+        ),
+        (DataType::UInt32, false) => {
+            TableColumnData::UInt32(downcast::<UInt32Array>(&name, array)?.values().to_vec())
+        }
+        (DataType::UInt32, true) => {
+            TableColumnData::NullableUInt32(downcast::<UInt32Array>(&name, array)?.iter().collect())
+        }
+        (DataType::Int64, false) => {
+            TableColumnData::Int64(downcast::<Int64Array>(&name, array)?.values().to_vec())
+        }
+        (DataType::Int64, true) => {
+            TableColumnData::NullableInt64(downcast::<Int64Array>(&name, array)?.iter().collect())
+        }
+        (other, _) => {
+            return Err(Error::Validation(format!(
+                "column '{name}': unsupported Arrow type {other}; \
+                 supported types are Utf8, Float64, UInt32, Int64"
+            )));
+        }
+    };
+
+    let mut column = TableColumn::new(name, data);
+    if let Some(role) = field.metadata().get(ROLE_METADATA_KEY) {
+        column = column.with_role(role_from_str(role)?);
+    }
+    if let Some(meta_json) = field.metadata().get(METADATA_KEY) {
+        let metadata: IndexMap<String, serde_json::Value> = serde_json::from_str(meta_json)
+            .map_err(|e| {
+                Error::Validation(format!(
+                    "column '{}': metadata deserialization failed: {e}",
+                    column.name
+                ))
+            })?;
+        column = column.with_metadata(metadata);
+    }
+    Ok(column)
+}
+
+/// Convert an Arrow [`RecordBatch`] back into a [`TableEnvelope`].
 ///
-/// This is the inverse of [`to_record_batch`]: role and metadata annotations
-/// stored in Arrow field/schema metadata are restored onto the resulting
-/// [`TableEnvelope`].
+/// The inverse of [`to_record_batch`]. The field's `nullable` flag selects
+/// the nullable vs non-nullable envelope variant; `finstack:role` and
+/// `finstack:metadata` field/schema metadata are restored.
 ///
 /// # Errors
 ///
-/// Returns [`Error::Internal`] for any batch this crate cannot yet convert.
-/// The full column-type mapping lands in a follow-up task; today every call
-/// fails.
+/// Returns [`Error::Validation`] for unsupported Arrow types, nulls in a
+/// non-nullable field, unknown role values, malformed metadata JSON, or
+/// envelope validation failures (duplicate names, mismatched lengths).
 ///
 /// # Examples
+/// ```rust
+/// use finstack_quant_core::table::{TableColumn, TableColumnData, TableEnvelope};
+/// use finstack_quant_arrow::{from_record_batch, to_record_batch};
 ///
-/// ```should_panic
-/// use arrow::array::Float64Array;
-/// use arrow::datatypes::{DataType, Field, Schema};
-/// use arrow::record_batch::RecordBatch;
-/// use finstack_quant_arrow::from_record_batch;
-/// use std::sync::Arc;
-///
-/// let schema = Arc::new(Schema::new(vec![Field::new("pv", DataType::Float64, false)]));
-/// let batch = RecordBatch::try_new(
-///     schema,
-///     vec![Arc::new(Float64Array::from(vec![101.5, 99.25]))],
-/// )
+/// let table = TableEnvelope::new(vec![TableColumn::new(
+///     "qty",
+///     TableColumnData::Int64(vec![1, 2, 3]),
+/// )])
 /// .unwrap();
-/// // Not yet implemented in this crate version.
-/// let _table = from_record_batch(&batch).unwrap();
+/// let batch = to_record_batch(&table).unwrap();
+/// assert_eq!(from_record_batch(&batch).unwrap(), table);
 /// ```
-pub fn from_record_batch(_batch: &RecordBatch) -> Result<TableEnvelope> {
-    Err(Error::Internal("unimplemented".into()))
+pub fn from_record_batch(batch: &RecordBatch) -> Result<TableEnvelope> {
+    let schema = batch.schema();
+    let mut columns = Vec::with_capacity(batch.num_columns());
+    for (field, array) in schema.fields().iter().zip(batch.columns()) {
+        columns.push(column_from_arrow(field, array)?);
+    }
+    let metadata = match schema.metadata().get(METADATA_KEY) {
+        Some(json) => serde_json::from_str(json).map_err(|e| {
+            Error::Validation(format!("table metadata deserialization failed: {e}"))
+        })?,
+        None => IndexMap::new(),
+    };
+    TableEnvelope::new_with_metadata(columns, metadata)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{from_record_batch, to_record_batch, Error, METADATA_KEY, ROLE_METADATA_KEY};
-    use arrow::array::Float64Array;
-    use arrow::datatypes::{DataType, Field, Schema};
-    use arrow::record_batch::RecordBatch;
+    use super::{from_record_batch, to_record_batch, METADATA_KEY, ROLE_METADATA_KEY};
+    use arrow::datatypes::DataType;
     use finstack_quant_core::table::{
         TableColumn, TableColumnData, TableColumnRole, TableEnvelope,
     };
     use indexmap::IndexMap;
     use serde_json::json;
-    use std::sync::Arc;
-
-    fn sample_batch() -> RecordBatch {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "pv",
-            DataType::Float64,
-            false,
-        )]));
-        RecordBatch::try_new(
-            schema,
-            vec![Arc::new(Float64Array::from(vec![101.5, 99.25]))],
-        )
-        .unwrap()
-    }
-
-    #[test]
-    fn from_record_batch_is_unimplemented_stub() {
-        let err = from_record_batch(&sample_batch()).unwrap_err();
-        assert!(matches!(err, Error::Internal(_)));
-    }
 
     /// Envelope exercising all eight column variants, roles, and metadata.
     fn full_envelope() -> TableEnvelope {
@@ -340,5 +416,104 @@ mod tests {
         let batch = to_record_batch(&table).unwrap();
         assert_eq!(batch.num_rows(), 0);
         assert_eq!(batch.num_columns(), 0);
+    }
+
+    #[test]
+    fn record_batch_round_trip_is_lossless() {
+        let table = full_envelope();
+        let restored = from_record_batch(&to_record_batch(&table).unwrap()).unwrap();
+        assert_eq!(restored, table);
+    }
+
+    #[test]
+    fn empty_envelope_round_trips() {
+        let table = TableEnvelope::new(vec![]).unwrap();
+        let restored = from_record_batch(&to_record_batch(&table).unwrap()).unwrap();
+        assert_eq!(restored, table);
+    }
+
+    #[test]
+    fn nullable_field_without_nulls_stays_nullable_variant() {
+        let table = TableEnvelope::new(vec![TableColumn::new(
+            "x",
+            TableColumnData::NullableFloat64(vec![Some(1.0), Some(2.0)]),
+        )])
+        .unwrap();
+        let restored = from_record_batch(&to_record_batch(&table).unwrap()).unwrap();
+        assert_eq!(restored, table); // nullability is schema-driven
+    }
+
+    #[test]
+    fn unsupported_arrow_type_is_rejected() {
+        use arrow::array::Date32Array;
+        let field = arrow::datatypes::Field::new("d", DataType::Date32, false);
+        let schema = std::sync::Arc::new(arrow::datatypes::Schema::new(vec![field]));
+        let batch = arrow::record_batch::RecordBatch::try_new(
+            schema,
+            vec![std::sync::Arc::new(Date32Array::from(vec![0, 1]))],
+        )
+        .unwrap();
+        let err = from_record_batch(&batch).unwrap_err();
+        assert!(err.to_string().contains("unsupported Arrow type"));
+    }
+
+    #[test]
+    fn unknown_role_metadata_is_rejected() {
+        let mut batch = to_record_batch(&full_envelope()).unwrap();
+        // Rebuild schema with a bogus role on field 0.
+        let schema = batch.schema();
+        let mut fields: Vec<arrow::datatypes::Field> =
+            schema.fields().iter().map(|f| f.as_ref().clone()).collect();
+        let mut md = fields[0].metadata().clone();
+        md.insert(ROLE_METADATA_KEY.to_string(), "bogus".to_string());
+        fields[0] = fields[0].clone().with_metadata(md);
+        let new_schema = std::sync::Arc::new(arrow::datatypes::Schema::new_with_metadata(
+            fields,
+            schema.metadata().clone(),
+        ));
+        batch = arrow::record_batch::RecordBatch::try_new(new_schema, batch.columns().to_vec())
+            .unwrap();
+        assert!(from_record_batch(&batch).is_err());
+    }
+
+    /// Closes the reviewer gap from task 2: `to_record_batch` tests checked
+    /// types/nullability/metadata but not actual non-null values, and neither
+    /// covered non-finite floats. NaN fails `PartialEq` against itself, so
+    /// this compares field-by-field instead of a blanket `assert_eq!` on the
+    /// whole envelope, using `is_nan()`/`is_infinite()` for the special float.
+    #[test]
+    fn non_finite_float_values_round_trip() {
+        let table = TableEnvelope::new(vec![
+            TableColumn::new(
+                "pv",
+                TableColumnData::Float64(vec![f64::NAN, f64::INFINITY, f64::NEG_INFINITY]),
+            ),
+            TableColumn::new(
+                "pv_opt",
+                TableColumnData::NullableFloat64(vec![Some(f64::NAN), None, Some(1.25)]),
+            ),
+        ])
+        .unwrap();
+        let restored = from_record_batch(&to_record_batch(&table).unwrap()).unwrap();
+
+        assert_eq!(restored.row_count, table.row_count);
+        assert_eq!(restored.columns.len(), table.columns.len());
+
+        match &restored.columns[0].data {
+            TableColumnData::Float64(values) => {
+                assert!(values[0].is_nan());
+                assert!(values[1].is_infinite() && values[1].is_sign_positive());
+                assert!(values[2].is_infinite() && values[2].is_sign_negative());
+            }
+            other => panic!("expected Float64, got {other:?}"),
+        }
+        match &restored.columns[1].data {
+            TableColumnData::NullableFloat64(values) => {
+                assert!(values[0].is_some_and(|v| v.is_nan()));
+                assert_eq!(values[1], None);
+                assert_eq!(values[2], Some(1.25));
+            }
+            other => panic!("expected NullableFloat64, got {other:?}"),
+        }
     }
 }
