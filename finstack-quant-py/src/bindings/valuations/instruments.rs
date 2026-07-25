@@ -27,11 +27,6 @@ fn parse_tagged(json: &str) -> PyResult<InstrumentJson> {
 // ---------------------------------------------------------------------------
 // Shared helpers for typed instrument builders (bond/term_loan today; every
 // later typed-instrument task reuses these three).
-//
-// `#[allow(dead_code)]`: `json_field` has no consumer yet (nested-spec
-// setters land in a later typed-instrument task), so
-// `clippy --all-targets -D warnings` flags it as unused. Remove the
-// `#[allow(dead_code)]` the moment it gets a first call site.
 // ---------------------------------------------------------------------------
 
 /// Parse a serde-tagged unit-enum value from its snake_case string form.
@@ -56,7 +51,6 @@ pub(crate) fn decimal_from_f64(value: f64, what: &str) -> PyResult<rust_decimal:
 ///
 /// Used by ``*_json`` builder setters for deep nested config (margin specs,
 /// waterfall rules, conversion terms) per the nested-spec rule in the plan.
-#[allow(dead_code)]
 pub(crate) fn json_field<T: serde::de::DeserializeOwned>(json: &str, what: &str) -> PyResult<T> {
     serde_json::from_str(json)
         .map_err(|err| crate::errors::serde_json_to_py(err, &format!("invalid {what} JSON")))

@@ -14,6 +14,7 @@ pub(crate) mod instruments;
 mod pricing;
 mod sabr;
 mod structured_credit;
+pub(crate) mod typed_credit;
 mod typed_legs;
 pub(crate) mod typed_rates;
 
@@ -265,16 +266,23 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
     instruments::register(py, &m)?;
     typed_legs::register(py, &m)?;
     typed_rates::register(py, &m)?;
+    typed_credit::register(py, &m)?;
     pricing::register(py, &m)?;
     structured_credit::register(&m)?;
     let mut exports = vec![
         "Bond",
+        "CDSIndex",
+        "CDSIndexBuilder",
         "CapFloor",
         "CapFloorBuilder",
+        "CreditDefaultSwap",
+        "CreditDefaultSwapBuilder",
         "FixedLegSpec",
         "FloatLegSpec",
         "InterestRateSwap",
         "InterestRateSwapBuilder",
+        "PremiumLegSpec",
+        "ProtectionLegSpec",
         "Swaption",
         "SwaptionBuilder",
         "TermLoan",

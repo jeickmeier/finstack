@@ -267,9 +267,183 @@ reset_lag_days=-1, fixing_calendar_id=None, payment_lag_days=0, end_of_month=Fal
     }
 }
 
+/// Typed wrapper for the Rust `PremiumLegSpec` (CDS/CDS-index premium leg).
+#[pyclass(
+    module = "finstack_quant.valuations.instruments",
+    name = "PremiumLegSpec",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyPremiumLegSpec {
+    /// Inner canonical Rust premium-leg spec.
+    pub(crate) inner: finstack_quant_valuations::instruments::PremiumLegSpec,
+}
+
+#[pymethods]
+impl PyPremiumLegSpec {
+    /// Premium (fixed coupon) leg of a CDS or CDS index.
+    ///
+    /// Parameters
+    /// ----------
+    /// start : datetime.date
+    ///     Start date of protection / premium accrual.
+    /// end : datetime.date
+    ///     End date of protection / premium accrual.
+    /// frequency : Tenor
+    ///     Payment frequency.
+    /// day_count : DayCount
+    ///     Day count convention for accrual.
+    /// spread_bp : float
+    ///     Fixed running spread in basis points (e.g. 100.0 = 100bp = 1%).
+    /// discount_curve_id : str
+    ///     Discount curve identifier for pricing this leg.
+    /// stub : str, default "ShortFront"
+    ///     Stub period handling rule.
+    /// bdc : str, default "modified_following"
+    ///     Business day convention for payment dates.
+    /// calendar_id : str, optional
+    ///     Calendar used for business day adjustments.
+    ///
+    /// Returns
+    /// -------
+    /// PremiumLegSpec
+    ///     The premium-leg specification.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an enum value is invalid.
+    ///
+    /// Examples
+    /// --------
+    /// >>> import datetime
+    /// >>> from finstack_quant.core.dates import DayCount, Tenor
+    /// >>> from finstack_quant.valuations.instruments import PremiumLegSpec
+    /// >>> leg = PremiumLegSpec(
+    /// ...     datetime.date(2024, 3, 20),
+    /// ...     datetime.date(2029, 6, 20),
+    /// ...     Tenor.quarterly(),
+    /// ...     DayCount.ACT_360,
+    /// ...     100.0,
+    /// ...     "USD-OIS",
+    /// ... )
+    /// >>> "spread_bp=100" in repr(leg)
+    /// True
+    #[new]
+    #[pyo3(signature = (start, end, frequency, day_count, spread_bp, discount_curve_id, *,
+                        stub = "ShortFront", bdc = "modified_following", calendar_id = None))]
+    #[pyo3(
+        text_signature = "(start, end, frequency, day_count, spread_bp, discount_curve_id, *, \
+stub='ShortFront', bdc='modified_following', calendar_id=None)"
+    )]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        start: &Bound<'_, PyAny>,
+        end: &Bound<'_, PyAny>,
+        frequency: PyRef<'_, PyTenor>,
+        day_count: PyRef<'_, PyDayCount>,
+        spread_bp: f64,
+        discount_curve_id: &str,
+        stub: &str,
+        bdc: &str,
+        calendar_id: Option<String>,
+    ) -> PyResult<Self> {
+        let inner = finstack_quant_valuations::instruments::PremiumLegSpec {
+            start: py_to_date(start)?,
+            end: py_to_date(end)?,
+            frequency: frequency.inner,
+            stub: enum_from_str(stub, "stub")?,
+            bdc: enum_from_str(bdc, "bdc")?,
+            calendar_id,
+            day_count: day_count.inner,
+            spread_bp: decimal_from_f64(spread_bp, "spread_bp")?,
+            discount_curve_id: finstack_quant_core::types::CurveId::new(
+                discount_curve_id.to_string(),
+            ),
+        };
+        Ok(Self { inner })
+    }
+
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!(
+            "PremiumLegSpec(spread_bp={}, start={}, end={})",
+            self.inner.spread_bp, self.inner.start, self.inner.end
+        )
+    }
+}
+
+/// Typed wrapper for the Rust `ProtectionLegSpec` (CDS/CDS-index protection leg).
+#[pyclass(
+    module = "finstack_quant.valuations.instruments",
+    name = "ProtectionLegSpec",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyProtectionLegSpec {
+    /// Inner canonical Rust protection-leg spec.
+    pub(crate) inner: finstack_quant_valuations::instruments::ProtectionLegSpec,
+}
+
+#[pymethods]
+impl PyProtectionLegSpec {
+    /// Protection (default-contingent) leg of a CDS or CDS index.
+    ///
+    /// Parameters
+    /// ----------
+    /// credit_curve_id : str
+    ///     Hazard/credit curve identifier for default probabilities.
+    /// recovery_rate : float
+    ///     Recovery rate in ``[0.0, 1.0]`` (e.g. 0.4 = 40%).
+    /// settlement_delay : int, default 3
+    ///     Settlement delay in business days.
+    ///
+    /// Returns
+    /// -------
+    /// ProtectionLegSpec
+    ///     The validated protection-leg specification.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``recovery_rate`` is outside ``[0.0, 1.0]``.
+    ///
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.valuations.instruments import ProtectionLegSpec
+    /// >>> leg = ProtectionLegSpec("ACME-CDS", 0.4, 3)
+    /// >>> "recovery_rate=0.4" in repr(leg)
+    /// True
+    #[new]
+    #[pyo3(signature = (credit_curve_id, recovery_rate, settlement_delay = 3))]
+    #[pyo3(text_signature = "(credit_curve_id, recovery_rate, settlement_delay=3)")]
+    fn new(credit_curve_id: &str, recovery_rate: f64, settlement_delay: u16) -> PyResult<Self> {
+        let inner = finstack_quant_valuations::instruments::ProtectionLegSpec::new(
+            credit_curve_id.to_string(),
+            recovery_rate,
+            settlement_delay,
+        )
+        .map_err(core_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!(
+            "ProtectionLegSpec(credit_curve_id={:?}, recovery_rate={})",
+            self.inner.credit_curve_id.as_str(),
+            self.inner.recovery_rate
+        )
+    }
+}
+
 /// Register the leg-spec classes on the instruments submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFixedLegSpec>()?;
     m.add_class::<PyFloatLegSpec>()?;
+    m.add_class::<PyPremiumLegSpec>()?;
+    m.add_class::<PyProtectionLegSpec>()?;
     Ok(())
 }

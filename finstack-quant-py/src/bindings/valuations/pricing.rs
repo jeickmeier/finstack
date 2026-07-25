@@ -25,9 +25,11 @@ fn validate_pricing_instrument_json(
 ///
 /// Parameters
 /// ----------
-/// instrument_json : str | Bond | TermLoan | InterestRateSwap
+/// instrument_json : str | Bond | TermLoan | InterestRateSwap | Swaption |
+///     CapFloor | CreditDefaultSwap | CDSIndex
 ///     Tagged instrument JSON (``{"type": "bond", ...}``) or a typed
-///     ``Bond`` / ``TermLoan`` / ``InterestRateSwap`` instance.
+///     ``Bond`` / ``TermLoan`` / ``InterestRateSwap`` / ``Swaption`` /
+///     ``CapFloor`` / ``CreditDefaultSwap`` / ``CDSIndex`` instance.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
 /// as_of : str
@@ -72,9 +74,11 @@ fn price_instrument(
 ///
 /// Parameters
 /// ----------
-/// instrument_json : str | Bond | TermLoan | InterestRateSwap
+/// instrument_json : str | Bond | TermLoan | InterestRateSwap | Swaption |
+///     CapFloor | CreditDefaultSwap | CDSIndex
 ///     Tagged instrument JSON or a typed ``Bond`` / ``TermLoan`` /
-///     ``InterestRateSwap`` instance.
+///     ``InterestRateSwap`` / ``Swaption`` / ``CapFloor`` /
+///     ``CreditDefaultSwap`` / ``CDSIndex`` instance.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
 /// as_of : str
@@ -204,9 +208,11 @@ fn list_models_grouped() -> std::collections::BTreeMap<String, Vec<String>> {
 ///
 /// Parameters
 /// ----------
-/// instrument_json : str | Bond | TermLoan | InterestRateSwap
+/// instrument_json : str | Bond | TermLoan | InterestRateSwap | Swaption |
+///     CapFloor | CreditDefaultSwap | CDSIndex
 ///     Tagged instrument JSON or a typed ``Bond`` / ``TermLoan`` /
-///     ``InterestRateSwap`` instance.
+///     ``InterestRateSwap`` / ``Swaption`` / ``CapFloor`` /
+///     ``CreditDefaultSwap`` / ``CDSIndex`` instance.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
 /// as_of : str

@@ -525,12 +525,18 @@ public = [
 python_package = "finstack_quant.valuations.instruments"
 public = [
     "Bond",
+    "CDSIndex",
+    "CDSIndexBuilder",
     "CapFloor",
     "CapFloorBuilder",
+    "CreditDefaultSwap",
+    "CreditDefaultSwapBuilder",
     "FixedLegSpec",
     "FloatLegSpec",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
+    "PremiumLegSpec",
+    "ProtectionLegSpec",
     "Swaption",
     "SwaptionBuilder",
     "TermLoan",

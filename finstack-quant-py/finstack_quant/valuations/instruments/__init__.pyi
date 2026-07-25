@@ -20,12 +20,18 @@ from finstack_quant.core.types import Bps, Rate
 
 __all__ = [
     "Bond",
+    "CDSIndex",
+    "CDSIndexBuilder",
     "CapFloor",
     "CapFloorBuilder",
+    "CreditDefaultSwap",
+    "CreditDefaultSwapBuilder",
     "FixedLegSpec",
     "FloatLegSpec",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
+    "PremiumLegSpec",
+    "ProtectionLegSpec",
     "Swaption",
     "SwaptionBuilder",
     "TermLoan",
@@ -508,6 +514,132 @@ class FloatLegSpec:
         --------
         >>> from finstack_quant.valuations.instruments import FloatLegSpec
         >>> callable(FloatLegSpec)
+        True
+        """
+        ...
+
+class PremiumLegSpec:
+    """
+    Premium (fixed coupon) leg of a CDS or CDS index.
+
+    Thin typed wrapper for the canonical Rust ``PremiumLegSpec``. Used to
+    build the premium leg of a :class:`CreditDefaultSwap` or :class:`CDSIndex`
+    via :meth:`CreditDefaultSwapBuilder.premium` or
+    :meth:`CDSIndexBuilder.premium`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.dates import DayCount, Tenor
+    >>> from finstack_quant.valuations.instruments import PremiumLegSpec
+    >>> leg = PremiumLegSpec(
+    ...     datetime.date(2024, 3, 20),
+    ...     datetime.date(2029, 6, 20),
+    ...     Tenor.quarterly(),
+    ...     DayCount.ACT_360,
+    ...     100.0,
+    ...     "USD-OIS",
+    ... )
+    >>> "spread_bp=100" in repr(leg)
+    True
+    """
+
+    def __init__(
+        self,
+        start: datetime.date,
+        end: datetime.date,
+        frequency: Tenor,
+        day_count: DayCount,
+        spread_bp: float,
+        discount_curve_id: str,
+        *,
+        stub: Literal["ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
+        bdc: Literal[
+            "unadjusted", "following", "modified_following", "preceding", "modified_preceding"
+        ] = "modified_following",
+        calendar_id: str | None = None,
+    ) -> None:
+        """
+        Construct a premium leg specification.
+
+        Parameters
+        ----------
+        start : datetime.date
+            Start date of protection / premium accrual.
+        end : datetime.date
+            End date of protection / premium accrual.
+        frequency : Tenor
+            Payment frequency.
+        day_count : DayCount
+            Day count convention for accrual.
+        spread_bp : float
+            Fixed running spread in basis points (e.g. 100.0 = 100bp = 1%).
+        discount_curve_id : str
+            Discount curve identifier for pricing this leg.
+        stub : {"ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
+            Stub period handling rule.
+        bdc : {"unadjusted", "following", "modified_following", "preceding", "modified_preceding"}, default "modified_following"
+            Business day convention for payment dates.
+        calendar_id : str, optional
+            Calendar used for business day adjustments.
+
+        Raises
+        ------
+        ValueError
+            If an enum value is invalid.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import PremiumLegSpec
+        >>> callable(PremiumLegSpec)
+        True
+        """
+        ...
+
+class ProtectionLegSpec:
+    """
+    Protection (default-contingent) leg of a CDS or CDS index.
+
+    Thin typed wrapper for the canonical Rust ``ProtectionLegSpec``. Used to
+    build the protection leg of a :class:`CreditDefaultSwap` or
+    :class:`CDSIndex` via :meth:`CreditDefaultSwapBuilder.protection` or
+    :meth:`CDSIndexBuilder.protection`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import ProtectionLegSpec
+    >>> leg = ProtectionLegSpec("ACME-CDS", 0.4, 3)
+    >>> "recovery_rate=0.4" in repr(leg)
+    True
+    """
+
+    def __init__(
+        self,
+        credit_curve_id: str,
+        recovery_rate: float,
+        settlement_delay: int = 3,
+    ) -> None:
+        """
+        Construct a protection leg specification.
+
+        Parameters
+        ----------
+        credit_curve_id : str
+            Hazard/credit curve identifier for default probabilities.
+        recovery_rate : float
+            Recovery rate in ``[0.0, 1.0]`` (e.g. 0.4 = 40%).
+        settlement_delay : int, default 3
+            Settlement delay in business days.
+
+        Raises
+        ------
+        ValueError
+            If ``recovery_rate`` is outside ``[0.0, 1.0]``.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ProtectionLegSpec
+        >>> callable(ProtectionLegSpec)
         True
         """
         ...
@@ -1844,6 +1976,904 @@ class CapFloorBuilder:
         """
         ...
 
+class CreditDefaultSwap:
+    """
+    Typed wrapper for the canonical Rust ``CreditDefaultSwap`` instrument.
+
+    Build with :meth:`CreditDefaultSwap.builder`; instances are accepted
+    directly by :func:`price_instrument`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import DayCount, Tenor
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import (
+    ...     CreditDefaultSwap,
+    ...     PremiumLegSpec,
+    ...     ProtectionLegSpec,
+    ... )
+    >>> premium = PremiumLegSpec(
+    ...     datetime.date(2024, 3, 20),
+    ...     datetime.date(2029, 6, 20),
+    ...     Tenor.quarterly(),
+    ...     DayCount.ACT_360,
+    ...     100.0,
+    ...     "USD-OIS",
+    ... )
+    >>> protection = ProtectionLegSpec("ACME-CDS", 0.4, 3)
+    >>> cds = (
+    ...     CreditDefaultSwap
+    ...     .builder()
+    ...     .id("CDS-1")
+    ...     .notional(Money(10_000_000.0, Currency("USD")))
+    ...     .side("pay")
+    ...     .convention("isda_na")
+    ...     .premium(premium)
+    ...     .protection(protection)
+    ...     .build()
+    ... )
+    >>> cds.id
+    'CDS-1'
+    """
+
+    @property
+    def id(self) -> str:
+        """
+        Instrument identifier.
+
+        Returns
+        -------
+        str
+            The unique instrument identifier.
+        """
+        ...
+
+    @staticmethod
+    def builder() -> CreditDefaultSwapBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``CreditDefaultSwap::builder()``).
+
+        Returns
+        -------
+        CreditDefaultSwapBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+        >>> callable(CreditDefaultSwap.builder)
+        True
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> CreditDefaultSwap:
+        """
+        Deserialize from tagged instrument JSON.
+
+        Parameters
+        ----------
+        json : str
+            Tagged instrument JSON with type ``"credit_default_swap"``
+            (``{"type": "credit_default_swap", "spec": {...}}``).
+
+        Returns
+        -------
+        CreditDefaultSwap
+            The validated CDS.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed, has a different instrument type, or
+            fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+        >>> callable(CreditDefaultSwap.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to tagged instrument JSON.
+
+        Returns
+        -------
+        str
+            ``{"type": "credit_default_swap", "spec": ...}`` JSON accepted by
+            :func:`price_instrument` and :meth:`CreditDefaultSwap.from_json`.
+        """
+        ...
+
+class CreditDefaultSwapBuilder:
+    """
+    Fluent builder returned by :meth:`CreditDefaultSwap.builder`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+    >>> isinstance(CreditDefaultSwap.builder(), CreditDefaultSwap.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> CreditDefaultSwapBuilder:
+        """
+        Set the instrument identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the CDS.
+
+        Returns
+        -------
+        CreditDefaultSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CreditDefaultSwapBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+        >>> callable(CreditDefaultSwap.builder().id)
+        True
+        """
+        ...
+
+    def notional(self, value: Money) -> CreditDefaultSwapBuilder:
+        """
+        Set the notional amount.
+
+        Parameters
+        ----------
+        value : Money
+            Notional amount of protection.
+
+        Returns
+        -------
+        CreditDefaultSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CreditDefaultSwapBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+        >>> callable(CreditDefaultSwap.builder().notional)
+        True
+        """
+        ...
+
+    def side(self, value: Literal["pay", "receive"]) -> CreditDefaultSwapBuilder:
+        """
+        Set the protection buyer/seller perspective.
+
+        Parameters
+        ----------
+        value : {"pay", "receive"}
+            ``"pay"`` to buy protection (pay premium), ``"receive"`` to sell
+            protection (receive premium).
+
+        Returns
+        -------
+        CreditDefaultSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized side.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+        >>> callable(CreditDefaultSwap.builder().side)
+        True
+        """
+        ...
+
+    def convention(self, value: Literal["isda_na", "isda_eu", "isda_as"]) -> CreditDefaultSwapBuilder:
+        """
+        Set the ISDA regional convention.
+
+        Parameters
+        ----------
+        value : {"isda_na", "isda_eu", "isda_as"}
+            ISDA CDS convention (North American, European, or Asian).
+
+        Returns
+        -------
+        CreditDefaultSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized convention.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+        >>> callable(CreditDefaultSwap.builder().convention)
+        True
+        """
+        ...
+
+    def premium(self, value: PremiumLegSpec) -> CreditDefaultSwapBuilder:
+        """
+        Set the premium leg specification.
+
+        Parameters
+        ----------
+        value : PremiumLegSpec
+            Premium leg specification.
+
+        Returns
+        -------
+        CreditDefaultSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CreditDefaultSwapBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+        >>> callable(CreditDefaultSwap.builder().premium)
+        True
+        """
+        ...
+
+    def protection(self, value: ProtectionLegSpec) -> CreditDefaultSwapBuilder:
+        """
+        Set the protection leg specification.
+
+        Parameters
+        ----------
+        value : ProtectionLegSpec
+            Protection leg specification.
+
+        Returns
+        -------
+        CreditDefaultSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CreditDefaultSwapBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+        >>> callable(CreditDefaultSwap.builder().protection)
+        True
+        """
+        ...
+
+    def doc_clause(self, value: Literal["cr14", "mr14", "mm14", "xr14"]) -> CreditDefaultSwapBuilder:
+        """
+        Set the ISDA documentation clause for restructuring credit events.
+
+        Parameters
+        ----------
+        value : {"cr14", "mr14", "mm14", "xr14"}
+            Restructuring documentation clause. If never set, the effective
+            clause is derived from the CDS convention.
+
+        Returns
+        -------
+        CreditDefaultSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized documentation clause.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+        >>> callable(CreditDefaultSwap.builder().doc_clause)
+        True
+        """
+        ...
+
+    def protection_effective_date(self, value: datetime.date) -> CreditDefaultSwapBuilder:
+        """
+        Set the protection effective date for a forward-starting CDS.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Date on which credit protection begins. Must satisfy
+            ``premium.start <= value <= premium.end``. When never set,
+            protection starts on the premium leg start date.
+
+        Returns
+        -------
+        CreditDefaultSwapBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CreditDefaultSwapBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+        >>> callable(CreditDefaultSwap.builder().protection_effective_date)
+        True
+        """
+        ...
+
+    def build(self) -> CreditDefaultSwap:
+        """
+        Build the validated CDS.
+
+        Returns
+        -------
+        CreditDefaultSwap
+            The validated CDS.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing or Rust validation fails.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CreditDefaultSwap
+        >>> callable(CreditDefaultSwap.builder().build)
+        True
+        """
+        ...
+
+class CDSIndex:
+    """
+    Typed wrapper for the canonical Rust ``CDSIndex`` instrument.
+
+    Build with :meth:`CDSIndex.builder`; instances are accepted directly by
+    :func:`price_instrument`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import DayCount, Tenor
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import (
+    ...     CDSIndex,
+    ...     PremiumLegSpec,
+    ...     ProtectionLegSpec,
+    ... )
+    >>> premium = PremiumLegSpec(
+    ...     datetime.date(2024, 3, 20),
+    ...     datetime.date(2029, 12, 20),
+    ...     Tenor.quarterly(),
+    ...     DayCount.ACT_360,
+    ...     60.0,
+    ...     "USD-OIS",
+    ... )
+    >>> protection = ProtectionLegSpec("CDX.NA.IG.HAZARD", 0.4, 3)
+    >>> index = (
+    ...     CDSIndex
+    ...     .builder()
+    ...     .id("CDX-IG-42")
+    ...     .index_name("CDX.NA.IG")
+    ...     .series(42)
+    ...     .version(1)
+    ...     .notional(Money(10_000_000.0, Currency("USD")))
+    ...     .index_factor(1.0)
+    ...     .side("pay")
+    ...     .convention("isda_na")
+    ...     .premium(premium)
+    ...     .protection(protection)
+    ...     .pricing("SingleCurve")
+    ...     .num_constituents(125)
+    ...     .build()
+    ... )
+    >>> index.id
+    'CDX-IG-42'
+    """
+
+    @property
+    def id(self) -> str:
+        """
+        Instrument identifier.
+
+        Returns
+        -------
+        str
+            The unique instrument identifier.
+        """
+        ...
+
+    @staticmethod
+    def builder() -> CDSIndexBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``CDSIndex::builder()``).
+
+        The builder pre-seeds an empty ``constituents`` list (the Rust field
+        has no default) so ``build()`` succeeds without calling
+        :meth:`CDSIndexBuilder.constituents_json` when the index is priced in
+        ``"SingleCurve"`` mode.
+
+        Returns
+        -------
+        CDSIndexBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder)
+        True
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> CDSIndex:
+        """
+        Deserialize from tagged instrument JSON.
+
+        Parameters
+        ----------
+        json : str
+            Tagged instrument JSON with type ``"cds_index"``
+            (``{"type": "cds_index", "spec": {...}}``).
+
+        Returns
+        -------
+        CDSIndex
+            The validated CDS index.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed, has a different instrument type, or
+            fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to tagged instrument JSON.
+
+        Returns
+        -------
+        str
+            ``{"type": "cds_index", "spec": ...}`` JSON accepted by
+            :func:`price_instrument` and :meth:`CDSIndex.from_json`.
+        """
+        ...
+
+class CDSIndexBuilder:
+    """
+    Fluent builder returned by :meth:`CDSIndex.builder`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import CDSIndex
+    >>> isinstance(CDSIndex.builder(), CDSIndex.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> CDSIndexBuilder:
+        """
+        Set the instrument identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the index trade.
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSIndexBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().id)
+        True
+        """
+        ...
+
+    def index_name(self, value: str) -> CDSIndexBuilder:
+        """
+        Set the index name.
+
+        Parameters
+        ----------
+        value : str
+            Index name, e.g. ``"CDX.NA.IG"``, ``"CDX.NA.HY"``, ``"iTraxx Europe"``.
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSIndexBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().index_name)
+        True
+        """
+        ...
+
+    def series(self, value: int) -> CDSIndexBuilder:
+        """
+        Set the series number.
+
+        Parameters
+        ----------
+        value : int
+            Series number, e.g. ``42``.
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSIndexBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().series)
+        True
+        """
+        ...
+
+    def version(self, value: int) -> CDSIndexBuilder:
+        """
+        Set the version number within the series.
+
+        Parameters
+        ----------
+        value : int
+            Version number, e.g. ``1``.
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSIndexBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().version)
+        True
+        """
+        ...
+
+    def notional(self, value: Money) -> CDSIndexBuilder:
+        """
+        Set the notional amount of the index.
+
+        Parameters
+        ----------
+        value : Money
+            Notional amount of the index.
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSIndexBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().notional)
+        True
+        """
+        ...
+
+    def index_factor(self, value: float) -> CDSIndexBuilder:
+        """
+        Set the index factor (fraction of surviving notional).
+
+        Parameters
+        ----------
+        value : float
+            Index factor in ``[0.0, 1.0]``. ``1.0`` means no constituent has
+            defaulted since series inception.
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSIndexBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().index_factor)
+        True
+        """
+        ...
+
+    def side(self, value: Literal["pay", "receive"]) -> CDSIndexBuilder:
+        """
+        Set the protection buyer/seller perspective.
+
+        Parameters
+        ----------
+        value : {"pay", "receive"}
+            ``"pay"`` to buy protection (pay premium), ``"receive"`` to sell
+            protection (receive premium).
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized side.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().side)
+        True
+        """
+        ...
+
+    def convention(self, value: Literal["isda_na", "isda_eu", "isda_as"]) -> CDSIndexBuilder:
+        """
+        Set the ISDA regional convention.
+
+        Parameters
+        ----------
+        value : {"isda_na", "isda_eu", "isda_as"}
+            ISDA CDS convention (North American, European, or Asian).
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized convention.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().convention)
+        True
+        """
+        ...
+
+    def premium(self, value: PremiumLegSpec) -> CDSIndexBuilder:
+        """
+        Set the premium leg specification.
+
+        Parameters
+        ----------
+        value : PremiumLegSpec
+            Premium leg specification (coupon schedule and discounting).
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSIndexBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().premium)
+        True
+        """
+        ...
+
+    def protection(self, value: ProtectionLegSpec) -> CDSIndexBuilder:
+        """
+        Set the protection leg specification.
+
+        Parameters
+        ----------
+        value : ProtectionLegSpec
+            Protection leg specification (credit curve and settlement).
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSIndexBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().protection)
+        True
+        """
+        ...
+
+    def pricing(self, value: Literal["SingleCurve", "Constituents"]) -> CDSIndexBuilder:
+        """
+        Set the pricing aggregation mode.
+
+        Parameters
+        ----------
+        value : {"SingleCurve", "Constituents"}
+            ``"SingleCurve"`` prices the index against a single index hazard
+            curve (synthetic CDS). ``"Constituents"`` prices each issuer
+            separately and aggregates by weight; requires
+            :meth:`CDSIndexBuilder.constituents_json` to be set.
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized pricing mode.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().pricing)
+        True
+        """
+        ...
+
+    def constituents_json(self, value: str) -> CDSIndexBuilder:
+        """
+        Set the index constituents from a JSON array.
+
+        Parameters
+        ----------
+        value : str
+            JSON array of ``CDSIndexConstituent`` objects (``credit``,
+            ``weight``, and optional ``defaulted``).
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the constituent-list shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().constituents_json)
+        True
+        """
+        ...
+
+    def num_constituents(self, value: int) -> CDSIndexBuilder:
+        """
+        Set the number of reference entities in the index pool.
+
+        Parameters
+        ----------
+        value : int
+            Number of names in the index pool, e.g. ``125`` for CDX.NA.IG.
+            Required for portfolio-level analytics (e.g. jump-to-default)
+            when ``constituents`` is empty.
+
+        Returns
+        -------
+        CDSIndexBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSIndexBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().num_constituents)
+        True
+        """
+        ...
+
+    def build(self) -> CDSIndex:
+        """
+        Build the validated CDS index.
+
+        Returns
+        -------
+        CDSIndex
+            The validated CDS index.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing or Rust validation fails.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSIndex
+        >>> callable(CDSIndex.builder().build)
+        True
+        """
+        ...
+
 def bond_from_cashflows_json(
     instrument_id: str,
     schedule_json: str,
@@ -1911,7 +2941,7 @@ def validate_instrument_json(json: str) -> str:
     ...
 
 def price_instrument(
-    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor,
+    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor | CreditDefaultSwap | CDSIndex,
     market: MarketContext | str,
     as_of: str,
     model: str = "default",
@@ -1921,11 +2951,12 @@ def price_instrument(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor
+    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex
         Tagged instrument JSON accepted by
         :func:`validate_instrument_json`, or a typed :class:`Bond` /
         :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
-        :class:`CapFloor` instance.
+        :class:`CapFloor` / :class:`CreditDefaultSwap` /
+        :class:`CDSIndex` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
     as_of : str
@@ -1956,7 +2987,7 @@ def price_instrument(
     ...
 
 def price_instrument_with_metrics(
-    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor,
+    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor | CreditDefaultSwap | CDSIndex,
     market: MarketContext | str,
     as_of: str,
     model: str = "default",
@@ -1969,10 +3000,11 @@ def price_instrument_with_metrics(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor
+    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex
         Tagged instrument JSON, or a typed :class:`Bond` /
         :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
-        :class:`CapFloor` instance.
+        :class:`CapFloor` / :class:`CreditDefaultSwap` /
+        :class:`CDSIndex` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
     as_of : str
@@ -2009,7 +3041,7 @@ def price_instrument_with_metrics(
     ...
 
 def instrument_cashflows_json(
-    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor,
+    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor | CreditDefaultSwap | CDSIndex,
     market: MarketContext | str,
     as_of: str,
     model: str,
@@ -2019,10 +3051,11 @@ def instrument_cashflows_json(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor
+    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex
         Tagged instrument JSON, or a typed :class:`Bond` /
         :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
-        :class:`CapFloor` instance.
+        :class:`CapFloor` / :class:`CreditDefaultSwap` /
+        :class:`CDSIndex` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
     as_of : str

@@ -15,12 +15,18 @@ from __future__ import annotations
 from finstack_quant.finstack_quant import valuations as _valuations
 
 Bond = _valuations.instruments.Bond
+CDSIndex = _valuations.instruments.CDSIndex
+CDSIndexBuilder = _valuations.instruments.CDSIndexBuilder
 CapFloor = _valuations.instruments.CapFloor
 CapFloorBuilder = _valuations.instruments.CapFloorBuilder
+CreditDefaultSwap = _valuations.instruments.CreditDefaultSwap
+CreditDefaultSwapBuilder = _valuations.instruments.CreditDefaultSwapBuilder
 FixedLegSpec = _valuations.instruments.FixedLegSpec
 FloatLegSpec = _valuations.instruments.FloatLegSpec
 InterestRateSwap = _valuations.instruments.InterestRateSwap
 InterestRateSwapBuilder = _valuations.instruments.InterestRateSwapBuilder
+PremiumLegSpec = _valuations.instruments.PremiumLegSpec
+ProtectionLegSpec = _valuations.instruments.ProtectionLegSpec
 Swaption = _valuations.instruments.Swaption
 SwaptionBuilder = _valuations.instruments.SwaptionBuilder
 TermLoan = _valuations.instruments.TermLoan
@@ -43,12 +49,18 @@ structured_credit_tranche_scenario_table = _valuations.instruments.structured_cr
 
 __all__: list[str] = [
     "Bond",
+    "CDSIndex",
+    "CDSIndexBuilder",
     "CapFloor",
     "CapFloorBuilder",
+    "CreditDefaultSwap",
+    "CreditDefaultSwapBuilder",
     "FixedLegSpec",
     "FloatLegSpec",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
+    "PremiumLegSpec",
+    "ProtectionLegSpec",
     "Swaption",
     "SwaptionBuilder",
     "TermLoan",
