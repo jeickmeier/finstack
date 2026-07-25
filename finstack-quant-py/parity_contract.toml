@@ -227,7 +227,7 @@ rust_lib   = "finstack-quant/cashflows/src/lib.rs"
 python_package = "finstack_quant.cashflows"
 visibility = "pub"
 status = "exists"
-note = "JSON-only schedule build, validation, dated-flow, and accrual surface."
+note = "Typed submodules (primitives/builder/accrual/aggregation) plus the JSON schedule bridge."
 
 [crates.cashflows.modules]
 json        = { python = "finstack_quant.cashflows",             status = "exists", note = "JSON bridge exposes the canonical coupon_program and payment_program builder surface" }

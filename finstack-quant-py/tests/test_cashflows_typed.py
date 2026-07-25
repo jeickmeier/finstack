@@ -565,3 +565,26 @@ class TestAggregation:
         flows = [(dt.date(2025, 1, 15), Money(50_000.0, "USD"))]
         total = aggregate_cashflows_checked(flows=flows, target="USD")
         assert total.amount == pytest.approx(50_000.0)
+
+
+class TestTypedJsonEquivalence:
+    def test_typed_accrual_matches_json_bridge(self) -> None:
+        from finstack_quant.cashflows import accrued_interest_json
+        from finstack_quant.cashflows.accrual import accrued_interest_amount
+
+        schedule = TestAccrual._semiannual_bond()
+        typed = accrued_interest_amount(schedule, dt.date(2025, 4, 15))
+        via_json = accrued_interest_json(schedule.to_json(), "2025-04-15")
+        assert typed == pytest.approx(via_json, abs=1e-9)
+        assert typed == pytest.approx(12_500.0, abs=1e-6)
+
+    def test_typed_flows_match_dated_flows_json(self) -> None:
+        import json
+
+        from finstack_quant.cashflows import dated_flows_json
+        from finstack_quant.cashflows.primitives import is_cash_settlement_kind
+
+        schedule = TestCashFlowBuilder._quarterly_bond()
+        bridge_rows = json.loads(dated_flows_json(schedule.to_json()))
+        typed_cash = [f for f in schedule.get_flows() if is_cash_settlement_kind(f.kind)]
+        assert len(bridge_rows) == len(typed_cash)
