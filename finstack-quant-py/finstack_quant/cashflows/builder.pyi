@@ -63,34 +63,19 @@ class AmortizationSpec:
     """
     Amortization rule for principal over the life of a cashflow leg.
 
-    Immutable, hashable value type constructed only through its named
-    factory functions; each factory mirrors one Rust ``AmortizationSpec``
-    variant.
+    Immutable, hashable value type. ``NONE`` is a class-attribute singleton
+    for the fieldless variant; the remaining factory functions each
+    construct a data-carrying Rust ``AmortizationSpec`` variant.
 
     Examples
     --------
     >>> from finstack_quant.cashflows.builder import AmortizationSpec
-    >>> AmortizationSpec.none() is not None
+    >>> AmortizationSpec.NONE is not None
     True
     """
 
-    @staticmethod
-    def none() -> AmortizationSpec:
-        """
-        No amortization; principal remains constant until final redemption.
-
-        Returns
-        -------
-        AmortizationSpec
-            A bullet (non-amortising) amortization rule.
-
-        Examples
-        --------
-        >>> from finstack_quant.cashflows.builder import AmortizationSpec
-        >>> AmortizationSpec.none() is not None
-        True
-        """
-        ...
+    NONE: AmortizationSpec
+    """No amortization; principal remains constant until final redemption."""
 
     @staticmethod
     def linear_to(final_notional: Money) -> AmortizationSpec:
@@ -1181,33 +1166,18 @@ class FeeBase:
     """
     Economic balance used as the base for a periodic basis-point fee.
 
-    Constructed via :meth:`drawn` or :meth:`undrawn`, mirroring the Rust
-    ``FeeBase`` variants.
+    ``DRAWN`` is a class-attribute singleton for the fieldless variant;
+    :meth:`undrawn` constructs the data-carrying ``Undrawn`` variant.
 
     Examples
     --------
     >>> from finstack_quant.cashflows.builder import FeeBase
-    >>> FeeBase.drawn() is not None
+    >>> FeeBase.DRAWN is not None
     True
     """
 
-    @staticmethod
-    def drawn() -> FeeBase:
-        """
-        Fee accrues on the drawn outstanding balance.
-
-        Returns
-        -------
-        FeeBase
-            A fee base tied to the drawn balance.
-
-        Examples
-        --------
-        >>> from finstack_quant.cashflows.builder import FeeBase
-        >>> FeeBase.drawn() is not None
-        True
-        """
-        ...
+    DRAWN: FeeBase
+    """Fee accrues on the drawn outstanding balance."""
 
     @staticmethod
     def undrawn(facility_limit: Money) -> FeeBase:

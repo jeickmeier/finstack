@@ -129,6 +129,9 @@ class TestBuilderSpecs:
     def test_amortization_and_notional(self) -> None:
         from finstack_quant.cashflows.builder import AmortizationSpec, Notional
 
+        # Fieldless variant: class-attribute singleton (consistent with
+        # RollRule.NONE / CouponType.CASH), not a snake_case staticmethod.
+        assert AmortizationSpec.NONE is not None
         n = Notional.par(1_000_000.0, "USD")
         assert n.initial.amount == pytest.approx(1_000_000.0)
         assert n.currency().code == "USD"
@@ -147,6 +150,9 @@ class TestBuilderSpecs:
         from finstack_quant.cashflows.builder import FeeAccrualBasis, FeeBase, FeeSpec
         from finstack_quant.core.dates import DayCount, Tenor
 
+        # Fieldless variant: class-attribute singleton (consistent with
+        # RollRule.NONE / CouponType.CASH), not a snake_case staticmethod.
+        assert FeeBase.DRAWN is not None
         fixed = FeeSpec.fixed(dt.date(2025, 1, 15), Money(-5_000.0, "USD"))
         assert fixed is not None
         periodic = FeeSpec.periodic_bps(

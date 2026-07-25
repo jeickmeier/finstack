@@ -793,9 +793,9 @@ pub struct PyAmortizationSpec {
 #[pymethods]
 impl PyAmortizationSpec {
     /// No amortization (bullet).
-    #[staticmethod]
-    #[pyo3(text_signature = "()")]
-    fn none() -> Self {
+    #[allow(non_snake_case)]
+    #[classattr]
+    fn NONE() -> Self {
         Self {
             inner: AmortizationSpec::None,
         }
@@ -995,9 +995,9 @@ pub struct PyFeeBase {
 #[pymethods]
 impl PyFeeBase {
     /// Fee accrues on the drawn outstanding balance.
-    #[staticmethod]
-    #[pyo3(text_signature = "()")]
-    fn drawn() -> Self {
+    #[allow(non_snake_case)]
+    #[classattr]
+    fn DRAWN() -> Self {
         Self {
             inner: FeeBase::Drawn,
         }
