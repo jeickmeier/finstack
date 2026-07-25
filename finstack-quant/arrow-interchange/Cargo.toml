@@ -1,0 +1,18 @@
+[package]
+name = "finstack-quant-arrow"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Apache Arrow interchange adapters for finstack-quant tabular outputs (TableEnvelope <-> RecordBatch / IPC stream bytes)"
+
+[dependencies]
+finstack-quant-core = { path = "../core", version = "0.6.0" }
+arrow = { workspace = true }
+serde_json = { workspace = true }
+indexmap = { workspace = true }
+
+[lints]
+workspace = true

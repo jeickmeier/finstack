@@ -36,7 +36,17 @@ allow = [
     "Unicode-3.0",
 ]
 confidence-threshold = 0.8
-exceptions = []
+# tiny-keccak (CC0-1.0) is reachable only through arrow-array's wasm32-only
+# `ahash/compile-time-rng` feature (every other target uses `runtime-rng`,
+# which never pulls in tiny-keccak). `cargo tree -e normal -i tiny-keccak`
+# finds no edge into the host dependency graph, so it never compiles into
+# anything this workspace actually builds. Cargo.lock/cargo-deny resolve
+# target-cfg'd deps unconditionally (this workspace also builds
+# finstack-quant-wasm for wasm32), which is why it surfaces here at all.
+# Scoped to this one crate; CC0-1.0 stays disallowed globally.
+exceptions = [
+    { allow = ["CC0-1.0"], name = "tiny-keccak" },
+]
 
 [[licenses.clarify]]
 name = "ring"

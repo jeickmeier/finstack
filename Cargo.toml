@@ -24,6 +24,7 @@ members = [
     "finstack-quant/portfolio",
     "finstack-quant/scenarios",
     "finstack-quant/test-utils",
+    "finstack-quant/arrow-interchange",
     "finstack-quant-py",
     "finstack-quant-wasm",
     "finstack-quant"
@@ -46,6 +47,7 @@ default-members = [
     "finstack-quant/features",
     "finstack-quant/portfolio",
     "finstack-quant/scenarios",
+    "finstack-quant/arrow-interchange",
     "finstack-quant"
 ]
 
@@ -68,6 +70,7 @@ criterion = { version = "0.8", features = ["html_reports"] }
 strum = "0.28"
 strum_macros = "0.28"
 rustc-hash = "2.1"
+arrow = { version = "57", default-features = false, features = ["ipc"] }
 
 # Build profiles
 [profile.dev]
