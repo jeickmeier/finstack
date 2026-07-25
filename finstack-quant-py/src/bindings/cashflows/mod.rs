@@ -1,5 +1,6 @@
 //! Python bindings for the `finstack-quant-cashflows` crate.
 
+pub(crate) mod builder;
 pub(crate) mod primitives;
 
 use pyo3::prelude::*;
@@ -120,6 +121,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     m.setattr("__package__", "finstack_quant.cashflows")?;
 
     primitives::register(py, &m)?;
+    builder::register(py, &m)?;
 
     m.add_function(wrap_pyfunction!(accrued_interest_json, &m)?)?;
     m.add_function(wrap_pyfunction!(build_cashflow_schedule_json, &m)?)?;
@@ -141,6 +143,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         [
             "accrued_interest_json",
             "build_cashflow_schedule_json",
+            "builder",
             "dated_flows_json",
             "primitives",
             "validate_cashflow_schedule_json",

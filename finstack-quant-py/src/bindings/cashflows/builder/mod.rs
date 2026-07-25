@@ -1,0 +1,56 @@
+//! Python bindings for `finstack_quant_cashflows::builder`.
+//!
+//! One Python module (`finstack_quant.cashflows.builder`) mirrors the Rust
+//! `builder` re-export surface: spec types, the fluent `CashFlowBuilder`, and
+//! `CashFlowSchedule`.
+
+pub(crate) mod specs;
+
+use pyo3::prelude::*;
+use pyo3::types::{PyList, PyModule};
+
+/// Register the `finstack_quant.cashflows.builder` submodule.
+pub(crate) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
+    let module = PyModule::new(py, "builder")?;
+    module.setattr(
+        "__doc__",
+        "Composable cashflow builder: coupon/fee/amortization specs, CashFlowBuilder, CashFlowSchedule.",
+    )?;
+
+    specs::add_classes(&module)?;
+
+    let all = PyList::new(
+        py,
+        [
+            "AmortizationSpec",
+            "CouponType",
+            "DefaultModelSpec",
+            "FeeAccrualBasis",
+            "FeeBase",
+            "FeeSpec",
+            "FixedCouponSpec",
+            "FloatingCouponSpec",
+            "FloatingRateFallback",
+            "FloatingRateSpec",
+            "Notional",
+            "OvernightCompoundingMethod",
+            "OvernightIndexConstraintApplication",
+            "PrepaymentModelSpec",
+            "RecoveryModelSpec",
+            "RollRule",
+            "ScheduleParams",
+            "StepUpCouponSpec",
+        ],
+    )?;
+    module.setattr("__all__", all)?;
+
+    crate::bindings::module_utils::register_submodule(
+        py,
+        parent,
+        &module,
+        "builder",
+        "finstack_quant.cashflows",
+        crate::bindings::module_utils::ParentNameSource::Package,
+    )?;
+    Ok(())
+}
