@@ -344,6 +344,7 @@ class FixedLegSpec:
     ...     DayCount.THIRTY_360,
     ...     datetime.date(2024, 1, 15),
     ...     datetime.date(2029, 1, 15),
+    ...     compounding_simple=False,
     ... )
     >>> "0.04" in repr(leg)
     True
@@ -358,12 +359,12 @@ class FixedLegSpec:
         start: datetime.date,
         end: datetime.date,
         *,
+        compounding_simple: bool,
         bdc: Literal[
             "unadjusted", "following", "modified_following", "preceding", "modified_preceding"
         ] = "modified_following",
         calendar_id: str | None = None,
         stub: Literal["ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
-        compounding_simple: bool = False,
         payment_lag_days: int = 0,
         end_of_month: bool = False,
     ) -> None:
@@ -384,14 +385,15 @@ class FixedLegSpec:
             Start date of the fixed leg.
         end : datetime.date
             End date of the fixed leg.
+        compounding_simple : bool
+            If true, use simple interest on the accrual fraction. Required:
+            the canonical Rust ``FixedLegSpec`` field has no default.
         bdc : {"unadjusted", "following", "modified_following", "preceding", "modified_preceding"}, default "modified_following"
             Business day convention for payment dates.
         calendar_id : str, optional
             Calendar used for business day adjustments.
         stub : {"ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
             Stub period handling rule.
-        compounding_simple : bool, default False
-            If true, use simple interest on the accrual fraction.
         payment_lag_days : int, default 0
             Payment lag in business days after period end.
         end_of_month : bool, default False

@@ -50,8 +50,9 @@ impl PyFixedLegSpec {
     ///     Calendar used for business day adjustments.
     /// stub : str, default "ShortFront"
     ///     Stub period handling rule.
-    /// compounding_simple : bool, default False
-    ///     If true, use simple interest on the accrual fraction.
+    /// compounding_simple : bool
+    ///     If true, use simple interest on the accrual fraction. Required:
+    ///     the canonical Rust ``FixedLegSpec`` field has no default.
     /// payment_lag_days : int, default 0
     ///     Payment lag in business days after period end.
     /// end_of_month : bool, default False
@@ -76,16 +77,17 @@ impl PyFixedLegSpec {
     /// >>> leg = FixedLegSpec(
     /// ...     "USD-OIS", 0.04, Tenor.semi_annual(), DayCount.THIRTY_360,
     /// ...     datetime.date(2024, 1, 15), datetime.date(2029, 1, 15),
+    /// ...     compounding_simple=False,
     /// ... )
     /// >>> "0.04" in repr(leg)
     /// True
     #[new]
     #[pyo3(signature = (discount_curve_id, rate, frequency, day_count, start, end, *,
-                        bdc = "modified_following", calendar_id = None, stub = "ShortFront",
-                        compounding_simple = false, payment_lag_days = 0, end_of_month = false))]
+                        compounding_simple, bdc = "modified_following", calendar_id = None,
+                        stub = "ShortFront", payment_lag_days = 0, end_of_month = false))]
     #[pyo3(
         text_signature = "(discount_curve_id, rate, frequency, day_count, start, end, *, \
-bdc='modified_following', calendar_id=None, stub='ShortFront', compounding_simple=False, \
+compounding_simple, bdc='modified_following', calendar_id=None, stub='ShortFront', \
 payment_lag_days=0, end_of_month=False)"
     )]
     #[allow(clippy::too_many_arguments)]
@@ -96,10 +98,10 @@ payment_lag_days=0, end_of_month=False)"
         day_count: PyRef<'_, PyDayCount>,
         start: &Bound<'_, PyAny>,
         end: &Bound<'_, PyAny>,
+        compounding_simple: bool,
         bdc: &str,
         calendar_id: Option<String>,
         stub: &str,
-        compounding_simple: bool,
         payment_lag_days: i32,
         end_of_month: bool,
     ) -> PyResult<Self> {

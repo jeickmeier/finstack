@@ -76,7 +76,15 @@ def _market_json() -> str:
 def _payer_swap() -> InterestRateSwap:
     start = datetime.date(2024, 1, 15)
     end = datetime.date(2029, 1, 15)
-    fixed = FixedLegSpec("USD-OIS", 0.04, Tenor.semi_annual(), DayCount.THIRTY_360, start, end)
+    fixed = FixedLegSpec(
+        "USD-OIS",
+        0.04,
+        Tenor.semi_annual(),
+        DayCount.THIRTY_360,
+        start,
+        end,
+        compounding_simple=False,
+    )
     float_leg = FloatLegSpec("USD-OIS", "USD-SOFR-3M", 0.0, Tenor.quarterly(), DayCount.ACT_360, start, end)
     return (
         InterestRateSwap
@@ -134,7 +142,15 @@ class TestInterestRateSwapTyped:
         """Every builder setter's `value` parameter name must match its text_signature."""
         start = datetime.date(2024, 1, 15)
         end = datetime.date(2029, 1, 15)
-        fixed = FixedLegSpec("USD-OIS", 0.04, Tenor.semi_annual(), DayCount.THIRTY_360, start, end)
+        fixed = FixedLegSpec(
+            "USD-OIS",
+            0.04,
+            Tenor.semi_annual(),
+            DayCount.THIRTY_360,
+            start,
+            end,
+            compounding_simple=False,
+        )
         float_leg = FloatLegSpec("USD-OIS", "USD-SOFR-3M", 0.0, Tenor.quarterly(), DayCount.ACT_360, start, end)
         swap = (
             InterestRateSwap
