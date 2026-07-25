@@ -176,7 +176,7 @@ impl PyAccrualConfig {
     ///     Coupon frequency — required for ACT/ACT ISMA day count.
     #[new]
     #[pyo3(
-        signature = (method=None, ex_coupon=None, include_pik=true, frequency=None),
+        signature = (method=None, ex_coupon=None, include_pik=AccrualConfig::default().include_pik, frequency=None),
         text_signature = "(method=None, ex_coupon=None, include_pik=True, frequency=None)"
     )]
     fn new(
@@ -185,9 +185,13 @@ impl PyAccrualConfig {
         include_pik: bool,
         frequency: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
+        // Fall back to `AccrualConfig::default()` rather than re-encoding
+        // Rust's defaults here, so a future change to the Rust default
+        // flows through automatically.
+        let default = AccrualConfig::default();
         Ok(Self {
             inner: AccrualConfig {
-                method: method.map_or(AccrualMethod::Linear, |m| m.inner.clone()),
+                method: method.map_or(default.method, |m| m.inner.clone()),
                 ex_coupon: ex_coupon.map(|r| r.inner.clone()),
                 include_pik,
                 frequency: frequency.map(extract_tenor).transpose()?,
