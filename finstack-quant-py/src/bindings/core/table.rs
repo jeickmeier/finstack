@@ -22,10 +22,6 @@ pub struct PyArrowTable {
 
 impl PyArrowTable {
     /// Convert a core table envelope into an Arrow-backed Python table.
-    ///
-    /// Not yet called: producer `to_arrow_*` methods that invoke this land in
-    /// a follow-up task.
-    #[allow(dead_code)]
     pub(crate) fn from_envelope(table: &TableEnvelope) -> PyResult<Self> {
         let batch =
             finstack_quant_arrow::to_record_batch(table).map_err(crate::errors::core_to_py)?;

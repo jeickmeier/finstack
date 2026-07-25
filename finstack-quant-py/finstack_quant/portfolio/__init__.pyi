@@ -18,6 +18,7 @@ import pandas as pd
 
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
+from finstack_quant.core.table import ArrowTable
 from finstack_quant.factor_model.credit import CreditFactorModel
 
 __all__ = [
@@ -577,6 +578,21 @@ class PortfolioValuation:
         -------
         str
             The as of exposed by this `PortfolioValuation`.
+        """
+        ...
+
+    def to_arrow_positions(self) -> ArrowTable:
+        """
+        Export per-position values via Arrow (zero-copy for consumers).
+
+        Columns: ``position_id``, ``entity_id``, ``value_native``,
+        ``value_base``, ``currency_native``, ``currency_base`` (see
+        ``finstack_quant_portfolio::positions_to_table``).
+
+        Returns
+        -------
+        ArrowTable
+            Arrow table with one row per valued position.
         """
         ...
 

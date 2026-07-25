@@ -21,6 +21,7 @@ import pandas as pd
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
+from finstack_quant.core.table import ArrowTable
 
 __all__ = [
     "ForecastMethod",
@@ -1994,6 +1995,37 @@ class StatementResult:
         -------
         pd.DataFrame
             Wide-format frame with node ids as index.
+        """
+        ...
+
+    def to_arrow_long(self) -> ArrowTable:
+        """
+        Export the long-format table via Arrow (zero-copy for consumers).
+
+        Returns an `ArrowTable` implementing ``__arrow_c_stream__``; pass it
+        to ``pyarrow.table(...)``, ``polars.DataFrame(...)``, or DuckDB.
+        Columns and monetary-mirror semantics match `to_pandas_long`, plus
+        column roles and table metadata are preserved as Arrow field/schema
+        metadata.
+
+        Returns
+        -------
+        ArrowTable
+            Long-format Arrow table with one row per (node, period) pair.
+        """
+        ...
+
+    def to_arrow_wide(self) -> ArrowTable:
+        """
+        Export the wide-format table via Arrow (zero-copy for consumers).
+
+        Rows are periods (column ``period_id``), one ``float64`` column per
+        node, matching `to_pandas_wide` before its transpose.
+
+        Returns
+        -------
+        ArrowTable
+            Wide-format Arrow table with one row per period.
         """
         ...
 

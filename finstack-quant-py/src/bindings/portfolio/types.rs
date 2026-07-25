@@ -171,6 +171,19 @@ impl PyPortfolioValuation {
         self.inner.as_of.to_string()
     }
 
+    /// Export per-position values via Arrow (zero-copy for consumers).
+    ///
+    /// Columns: ``position_id``, ``entity_id``, ``value_native``,
+    /// ``value_base``, ``currency_native``, ``currency_base`` (see
+    /// ``finstack_quant_portfolio::positions_to_table``). Returns an
+    /// :class:`finstack_quant.core.table.ArrowTable`.
+    #[pyo3(text_signature = "($self)")]
+    fn to_arrow_positions(&self) -> PyResult<crate::bindings::core::table::PyArrowTable> {
+        let table = finstack_quant_portfolio::positions_to_table(&self.inner)
+            .map_err(crate::errors::core_to_py)?;
+        crate::bindings::core::table::PyArrowTable::from_envelope(&table)
+    }
+
     /// Number of position valuations in the result.
     fn __len__(&self) -> usize {
         self.inner.position_values.len()

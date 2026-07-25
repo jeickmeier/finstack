@@ -207,6 +207,29 @@ impl PyStatementResult {
         df.call_method1("set_index", ("period_id",))?.getattr("T")
     }
 
+    /// Export the long-format table via Arrow (zero-copy for consumers).
+    ///
+    /// Returns an :class:`finstack_quant.core.table.ArrowTable` implementing
+    /// ``__arrow_c_stream__``; pass it to ``pyarrow.table(...)``,
+    /// ``polars.DataFrame(...)``, or DuckDB. Columns and monetary-mirror
+    /// semantics match :meth:`to_pandas_long`, plus column roles and table
+    /// metadata are preserved as Arrow field/schema metadata.
+    #[pyo3(text_signature = "($self)")]
+    fn to_arrow_long(&self) -> PyResult<crate::bindings::core::table::PyArrowTable> {
+        let table = self.inner.to_table_long().map_err(statements_to_py)?;
+        crate::bindings::core::table::PyArrowTable::from_envelope(&table)
+    }
+
+    /// Export the wide-format table via Arrow (zero-copy for consumers).
+    ///
+    /// Rows are periods (column ``period_id``), one ``float64`` column per
+    /// node, matching :meth:`to_pandas_wide` before its transpose.
+    #[pyo3(text_signature = "($self)")]
+    fn to_arrow_wide(&self) -> PyResult<crate::bindings::core::table::PyArrowTable> {
+        let table = self.inner.to_table_wide().map_err(statements_to_py)?;
+        crate::bindings::core::table::PyArrowTable::from_envelope(&table)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "StatementResult(nodes={}, periods={})",
