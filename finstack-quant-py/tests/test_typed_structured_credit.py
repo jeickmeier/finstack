@@ -9,7 +9,6 @@ from pathlib import Path
 import pytest
 
 from finstack_quant.core.currency import Currency
-from finstack_quant.core.dates import DayCount
 from finstack_quant.core.market_data import (
     DiscountCurve,
     ForwardCurve,
@@ -19,11 +18,10 @@ from finstack_quant.core.market_data import (
 from finstack_quant.core.money import Money
 from finstack_quant.valuations.instruments import (
     AssetPool,
-    RepLine,
     StructuredCredit,
     Tranche,
-    TrancheStructure,
 )
+from tests.tests_typed_helpers import structured_credit_pool as _pool, structured_credit_tranches as _tranches
 
 # Fixture path + helpers copied from test_structured_credit_bindings.py so the
 # typed golden below exercises the exact same deal/market fixtures as the
@@ -80,51 +78,6 @@ def _market() -> MarketContext:
     )
     market.insert_series(ScalarTimeSeries("FIXING:SOFR-3M", [(datetime.date(2023, 12, 28), 0.04)]))
     return market
-
-
-def _pool() -> AssetPool:
-    pool = AssetPool("POOL-1", "ABS", Currency("USD"))
-    return pool.with_rep_lines([
-        RepLine(
-            "LINE-1",
-            Money(80_000_000.0, Currency("USD")),
-            0.07,
-            datetime.date(2031, 1, 15),
-            12,
-            DayCount.ACT_360,
-            cpr=0.10,
-            cdr=0.02,
-            recovery_rate=0.45,
-        )
-    ])
-
-
-def _tranches() -> TrancheStructure:
-    senior = (
-        Tranche
-        .builder()
-        .id("A")
-        .attachment_point(10.0)
-        .detachment_point(100.0)
-        .seniority("Senior")
-        .original_balance(Money(72_000_000.0, Currency("USD")))
-        .coupon_fixed(0.05)
-        .maturity(datetime.date(2031, 1, 15))
-        .build()
-    )
-    equity = (
-        Tranche
-        .builder()
-        .id("E")
-        .attachment_point(0.0)
-        .detachment_point(10.0)
-        .seniority("Equity")
-        .original_balance(Money(8_000_000.0, Currency("USD")))
-        .coupon_fixed(0.0)
-        .maturity(datetime.date(2031, 1, 15))
-        .build()
-    )
-    return TrancheStructure([senior, equity])
 
 
 class TestStructuredCreditTyped:

@@ -8,16 +8,15 @@ import json
 import pytest
 
 from finstack_quant.core.currency import Currency
-from finstack_quant.core.dates import DayCount, Tenor
 from finstack_quant.core.money import Money
 from finstack_quant.valuations.instruments import (
     CDSIndex,
     CreditDefaultSwap,
-    PremiumLegSpec,
     ProtectionLegSpec,
     TermLoan,
     price_instrument,
 )
+from tests.tests_typed_helpers import build_cds as _cds, cds_legs as _legs
 
 
 def _market_json() -> str:
@@ -60,35 +59,6 @@ def _market_json() -> str:
         "vol_cubes": [],
         "collateral": {},
     })
-
-
-def _legs() -> tuple[PremiumLegSpec, ProtectionLegSpec]:
-    return (
-        PremiumLegSpec(
-            datetime.date(2024, 3, 20),
-            datetime.date(2029, 6, 20),
-            Tenor.quarterly(),
-            DayCount.ACT_360,
-            100.0,
-            "USD-OIS",
-        ),
-        ProtectionLegSpec("ACME-CDS", 0.4, 3),
-    )
-
-
-def _cds() -> CreditDefaultSwap:
-    premium, protection = _legs()
-    return (
-        CreditDefaultSwap
-        .builder()
-        .id("CDS-1")
-        .notional(Money(10_000_000.0, Currency("USD")))
-        .side("pay")
-        .convention("isda_na")
-        .premium(premium)
-        .protection(protection)
-        .build()
-    )
 
 
 def _cds_hand_written_json() -> str:
@@ -198,7 +168,7 @@ class TestCreditDefaultSwapTyped:
         )
         assert cds.id == "CDS-SIDE"
 
-    @pytest.mark.parametrize("value", ["isda_na", "isda_eu", "isda_as"])
+    @pytest.mark.parametrize("value", ["isda_na", "isda_eu", "isda_as", "custom"])
     def test_every_convention_literal_value_accepted(self, value: str) -> None:
         premium, protection = _legs()
         cds = (
@@ -214,7 +184,10 @@ class TestCreditDefaultSwapTyped:
         )
         assert cds.id == "CDS-CONV"
 
-    @pytest.mark.parametrize("value", ["cr14", "mr14", "mm14", "xr14"])
+    @pytest.mark.parametrize(
+        "value",
+        ["cr14", "mr14", "mm14", "xr14", "isda_na", "isda_eu", "isda_as", "isda_au", "isda_nz", "custom"],
+    )
     def test_every_doc_clause_literal_value_accepted(self, value: str) -> None:
         premium, protection = _legs()
         cds = (
@@ -235,6 +208,14 @@ class TestCreditDefaultSwapTyped:
     def test_invalid_doc_clause_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid doc_clause"):
             CreditDefaultSwap.builder().doc_clause("bespoke")
+
+    def test_doc_clause_wrong_case_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="invalid doc_clause"):
+            CreditDefaultSwap.builder().doc_clause("CR14")
+
+    def test_convention_wrong_case_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="invalid convention"):
+            CreditDefaultSwap.builder().convention("ISDA_NA")
 
     def test_protection_effective_date_setter(self) -> None:
         premium, protection = _legs()
@@ -306,6 +287,28 @@ class TestCDSIndexTyped:
         payload = json.loads(index.to_json())
         assert payload["type"] == "cds_index"
         assert CDSIndex.from_json(index.to_json()).id == "CDX-IG-42"
+
+    @pytest.mark.parametrize("value", ["isda_na", "isda_eu", "isda_as", "custom"])
+    def test_every_convention_literal_value_accepted(self, value: str) -> None:
+        premium, protection = _legs()
+        index = (
+            CDSIndex
+            .builder()
+            .id("CDX-CONV")
+            .index_name("CDX.NA.IG")
+            .series(42)
+            .version(1)
+            .notional(Money(10_000_000.0, Currency("USD")))
+            .index_factor(1.0)
+            .side("pay")
+            .convention(value)
+            .premium(premium)
+            .protection(protection)
+            .pricing("SingleCurve")
+            .num_constituents(125)
+            .build()
+        )
+        assert index.id == "CDX-CONV"
 
     @pytest.mark.parametrize("value", ["SingleCurve", "Constituents"])
     def test_every_pricing_literal_value_accepted(self, value: str) -> None:

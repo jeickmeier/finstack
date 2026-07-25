@@ -1610,6 +1610,19 @@ dry_run = "dryRun"
 "instruments.FxForward" = "FxForward"
 "instruments.FxOption" = "FxOption"
 
+# Explicit alias pins for `python_path_js_map` namespace resolution.
+#
+# Python's `instruments` namespace flattens WASM's more granular `fx`
+# nested facade (FxForward/FxOption live in WASM under `valuations.fx`, but
+# Python exposes them from `valuations.instruments`). Rather than searching
+# every `nested_exports` namespace for a match (which would silently accept
+# a `python_path_js_map` value parked under an unrelated namespace, e.g. a
+# name that only exists under `correlation`), each Python namespace here
+# pins the exact additional WASM namespaces its entries may resolve
+# against. A namespace with no genuine flatten is simply absent.
+[wasm_valuations_subset.python_path_alias_namespaces]
+instruments = ["fx"]
+
 # Nested facade exports pinned per namespace. These are intentional WASM
 # subsets; Python uses the consolidated JSON-first instrument API instead of
 # mirroring the WASM host wrappers class-for-class.

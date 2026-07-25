@@ -10,22 +10,7 @@ import pytest
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.money import Money
 from finstack_quant.valuations.instruments import FxForward, FxOption
-
-
-def _forward() -> FxForward:
-    return (
-        FxForward
-        .builder()
-        .id("EURUSD-FWD-6M")
-        .base_currency(Currency("EUR"))
-        .quote_currency(Currency("USD"))
-        .maturity(datetime.date(2025, 6, 15))
-        .notional(Money(1_000_000.0, Currency("EUR")))
-        .contract_rate(1.10)
-        .domestic_discount_curve_id("USD-OIS")
-        .foreign_discount_curve_id("EUR-OIS")
-        .build()
-    )
+from tests.tests_typed_helpers import build_fx_forward as _forward
 
 
 class TestFxForwardTyped:
@@ -74,3 +59,33 @@ class TestFxOptionTyped:
     def test_invalid_option_type_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid option_type"):
             FxOption.builder().option_type("straddle")
+
+    def test_exercise_style_wrong_case_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="invalid exercise_style"):
+            FxOption.builder().exercise_style("European")
+
+    @pytest.mark.parametrize("value", ["european", "american", "bermudan"])
+    def test_every_exercise_style_literal_value_accepted(self, value: str) -> None:
+        """Every value in the `exercise_style` stub Literal must be a real accepted wire value.
+
+        Only "european" is currently priceable (see
+        `finstack_quant_valuations::instruments::fx::fx_option::pricer::validate_exercise_style`);
+        "american"/"bermudan" are still accepted by the builder itself.
+        """
+        option = (
+            FxOption
+            .builder()
+            .id("EURUSD-EX")
+            .base_currency(Currency("EUR"))
+            .quote_currency(Currency("USD"))
+            .strike(1.12)
+            .option_type("call")
+            .exercise_style(value)
+            .expiry(datetime.date(2025, 12, 15))
+            .notional(Money(1_000_000.0, Currency("EUR")))
+            .domestic_discount_curve_id("USD-OIS")
+            .foreign_discount_curve_id("EUR-OIS")
+            .vol_surface_id("EURUSD-VOL")
+            .build()
+        )
+        assert option.id == "EURUSD-EX"

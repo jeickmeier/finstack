@@ -227,8 +227,9 @@ impl PyCreditDefaultSwapBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"isda_na", "isda_eu", "isda_as"}
-    ///     ISDA CDS convention (North American, European, or Asian).
+    /// value : {"isda_na", "isda_eu", "isda_as", "custom"}
+    ///     ISDA CDS convention (North American, European, or Asian), or
+    ///     ``"custom"`` for a manually configured convention.
     ///
     /// Returns
     /// -------
@@ -293,9 +294,13 @@ impl PyCreditDefaultSwapBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"cr14", "mr14", "mm14", "xr14"}
-    ///     Restructuring documentation clause. If never set, the effective
-    ///     clause is derived from the CDS convention (see Rust
+    /// value : {"cr14", "mr14", "mm14", "xr14", "isda_na", "isda_eu", "isda_as", "isda_au", "isda_nz", "custom"}
+    ///     Restructuring documentation clause: one of the four 2014 ISDA
+    ///     restructuring elections (``"cr14"``/``"mr14"``/``"mm14"``/
+    ///     ``"xr14"``), a regional ISDA corporate default (``"isda_na"``/
+    ///     ``"isda_eu"``/``"isda_as"``/``"isda_au"``/``"isda_nz"``), or
+    ///     ``"custom"``. If never set, the effective clause is derived from
+    ///     the CDS convention (see Rust
     ///     ``CreditDefaultSwap::doc_clause_effective``).
     ///
     /// Returns
@@ -641,8 +646,9 @@ impl PyCDSIndexBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"isda_na", "isda_eu", "isda_as"}
-    ///     ISDA CDS convention (North American, European, or Asian).
+    /// value : {"isda_na", "isda_eu", "isda_as", "custom"}
+    ///     ISDA CDS convention (North American, European, or Asian), or
+    ///     ``"custom"`` for a manually configured convention.
     ///
     /// Returns
     /// -------

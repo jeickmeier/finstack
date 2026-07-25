@@ -17,6 +17,7 @@ from finstack_quant.valuations.instruments import (
     TermLoan,
     price_instrument,
 )
+from tests.tests_typed_helpers import build_irs as _payer_swap
 
 # Every serde wire value of the Rust `BusinessDayConvention` enum
 # (`#[serde(rename_all = "snake_case")]` over Unadjusted/Following/
@@ -71,31 +72,6 @@ def _market_json() -> str:
         "vol_cubes": [],
         "collateral": {},
     })
-
-
-def _payer_swap() -> InterestRateSwap:
-    start = datetime.date(2024, 1, 15)
-    end = datetime.date(2029, 1, 15)
-    fixed = FixedLegSpec(
-        "USD-OIS",
-        0.04,
-        Tenor.semi_annual(),
-        DayCount.THIRTY_360,
-        start,
-        end,
-        compounding_simple=False,
-    )
-    float_leg = FloatLegSpec("USD-OIS", "USD-SOFR-3M", 0.0, Tenor.quarterly(), DayCount.ACT_360, start, end)
-    return (
-        InterestRateSwap
-        .builder()
-        .id("IRS-1")
-        .notional(Money(10_000_000.0, Currency("USD")))
-        .side("pay")
-        .fixed(fixed)
-        .float(float_leg)
-        .build()
-    )
 
 
 def _payer_swap_hand_written_json() -> str:

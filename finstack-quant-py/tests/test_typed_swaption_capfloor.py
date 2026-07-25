@@ -12,71 +12,10 @@ from finstack_quant.core.dates import DayCount, Tenor
 from finstack_quant.core.money import Money
 from finstack_quant.valuations.instruments import (
     CapFloor,
-    FixedLegSpec,
-    FloatLegSpec,
     Swaption,
     TermLoan,
 )
-
-
-def _legs() -> tuple[FixedLegSpec, FloatLegSpec]:
-    start = datetime.date(2025, 1, 15)
-    end = datetime.date(2030, 1, 15)
-    return (
-        FixedLegSpec("USD-OIS", 0.04, Tenor.semi_annual(), DayCount.THIRTY_360, start, end, compounding_simple=False),
-        FloatLegSpec("USD-OIS", "USD-SOFR-3M", 0.0, Tenor.quarterly(), DayCount.ACT_360, start, end),
-    )
-
-
-def _payer_swaption(
-    *,
-    option_type: str = "call",
-    exercise_style: str = "european",
-    settlement: str = "cash",
-    cash_settlement_method: str = "par_yield",
-    vol_model: str = "normal",
-) -> Swaption:
-    fixed, float_leg = _legs()
-    return (
-        Swaption
-        .builder()
-        .id("SWPT-1")
-        .option_type(option_type)
-        .notional(Money(10_000_000.0, Currency("USD")))
-        .expiry(datetime.date(2025, 1, 13))
-        .exercise_style(exercise_style)
-        .settlement(settlement)
-        .cash_settlement_method(cash_settlement_method)
-        .vol_model(vol_model)
-        .vol_surface_id("USD-SWPT-VOL")
-        .underlying_fixed_leg(fixed)
-        .underlying_float_leg(float_leg)
-        .build()
-    )
-
-
-def _cap(
-    *,
-    rate_option_type: str = "cap",
-    vol_type: str = "normal",
-) -> CapFloor:
-    return (
-        CapFloor
-        .builder()
-        .id("CAP-1")
-        .rate_option_type(rate_option_type)
-        .notional(Money(5_000_000.0, Currency("USD")))
-        .strike(0.05)
-        .start_date(datetime.date(2024, 1, 15))
-        .maturity(datetime.date(2027, 1, 15))
-        .frequency(Tenor.quarterly())
-        .day_count(DayCount.ACT_360)
-        .discount_curve_id("USD-OIS")
-        .forward_curve_id("USD-SOFR-3M")
-        .vol_surface_id("USD-CAP-VOL")
-        .vol_type(vol_type)
-        .build()
-    )
+from tests.tests_typed_helpers import build_capfloor as _cap, build_swaption as _payer_swaption, swaption_legs as _legs
 
 
 class TestSwaptionTyped:
@@ -183,11 +122,11 @@ class TestCapFloorTyped:
         assert payload["type"] == "cap_floor"
         assert CapFloor.from_json(cap.to_json()).id == "CAP-1"
 
-    @pytest.mark.parametrize("value", ["cap", "floor"])
+    @pytest.mark.parametrize("value", ["cap", "floor", "caplet", "floorlet"])
     def test_every_rate_option_type_literal_value_accepted(self, value: str) -> None:
         assert _cap(rate_option_type=value).id == "CAP-1"
 
-    @pytest.mark.parametrize("value", ["lognormal", "normal", "shifted_lognormal"])
+    @pytest.mark.parametrize("value", ["lognormal", "shifted_lognormal", "normal", "auto"])
     def test_every_vol_type_literal_value_accepted(self, value: str) -> None:
         assert _cap(vol_type=value).id == "CAP-1"
 
@@ -220,3 +159,11 @@ class TestCapFloorTyped:
     def test_missing_required_field_raises(self) -> None:
         with pytest.raises(ValueError, match="Invalid input data"):
             CapFloor.builder().id("CAP-BAD").build()
+
+    def test_rate_option_type_wrong_case_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="invalid rate_option_type"):
+            CapFloor.builder().rate_option_type("Cap")
+
+    def test_vol_type_wrong_case_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="invalid vol_type"):
+            CapFloor.builder().vol_type("Auto")

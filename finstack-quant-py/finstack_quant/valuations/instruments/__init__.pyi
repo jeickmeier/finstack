@@ -1586,14 +1586,16 @@ class CapFloorBuilder:
         """
         ...
 
-    def rate_option_type(self, value: Literal["cap", "floor"]) -> CapFloorBuilder:
+    def rate_option_type(self, value: Literal["cap", "floor", "caplet", "floorlet"]) -> CapFloorBuilder:
         """
         Set the option type.
 
         Parameters
         ----------
-        value : {"cap", "floor"}
-            Option type of the instrument.
+        value : {"cap", "floor", "caplet", "floorlet"}
+            Option type of the instrument: ``"cap"``/``"floor"`` for a
+            series of caplets/floorlets, or ``"caplet"``/``"floorlet"`` for
+            a single period.
 
         Returns
         -------
@@ -1919,15 +1921,19 @@ class CapFloorBuilder:
         """
         ...
 
-    def vol_type(self, value: Literal["lognormal", "normal", "shifted_lognormal"]) -> CapFloorBuilder:
+    def vol_type(self, value: Literal["lognormal", "shifted_lognormal", "normal", "auto"]) -> CapFloorBuilder:
         """
         Set the volatility type convention.
 
         Parameters
         ----------
-        value : {"lognormal", "normal", "shifted_lognormal"}
+        value : {"lognormal", "shifted_lognormal", "normal", "auto"}
             Volatility convention. Must match the convention of the
-            configured volatility surface.
+            configured volatility surface. ``"auto"`` resolves to
+            ``"lognormal"``, pricing each caplet with Black-76 where
+            well-defined and falling back to an equivalent Bachelier price
+            otherwise (e.g. a cap whose schedule crosses a zero forward
+            rate).
 
         Returns
         -------
@@ -2206,14 +2212,15 @@ class CreditDefaultSwapBuilder:
         """
         ...
 
-    def convention(self, value: Literal["isda_na", "isda_eu", "isda_as"]) -> CreditDefaultSwapBuilder:
+    def convention(self, value: Literal["isda_na", "isda_eu", "isda_as", "custom"]) -> CreditDefaultSwapBuilder:
         """
         Set the ISDA regional convention.
 
         Parameters
         ----------
-        value : {"isda_na", "isda_eu", "isda_as"}
-            ISDA CDS convention (North American, European, or Asian).
+        value : {"isda_na", "isda_eu", "isda_as", "custom"}
+            ISDA CDS convention (North American, European, or Asian), or
+            ``"custom"`` for a manually configured convention.
 
         Returns
         -------
@@ -2289,15 +2296,22 @@ class CreditDefaultSwapBuilder:
         """
         ...
 
-    def doc_clause(self, value: Literal["cr14", "mr14", "mm14", "xr14"]) -> CreditDefaultSwapBuilder:
+    def doc_clause(
+        self,
+        value: Literal["cr14", "mr14", "mm14", "xr14", "isda_na", "isda_eu", "isda_as", "isda_au", "isda_nz", "custom"],
+    ) -> CreditDefaultSwapBuilder:
         """
         Set the ISDA documentation clause for restructuring credit events.
 
         Parameters
         ----------
-        value : {"cr14", "mr14", "mm14", "xr14"}
-            Restructuring documentation clause. If never set, the effective
-            clause is derived from the CDS convention.
+        value : {"cr14", "mr14", "mm14", "xr14", "isda_na", "isda_eu", "isda_as", "isda_au", "isda_nz", "custom"}
+            Restructuring documentation clause: one of the four 2014 ISDA
+            restructuring elections (``"cr14"``/``"mr14"``/``"mm14"``/
+            ``"xr14"``), a regional ISDA corporate default (``"isda_na"``/
+            ``"isda_eu"``/``"isda_as"``/``"isda_au"``/``"isda_nz"``), or
+            ``"custom"``. If never set, the effective clause is derived from
+            the CDS convention.
 
         Returns
         -------
@@ -2702,14 +2716,15 @@ class CDSIndexBuilder:
         """
         ...
 
-    def convention(self, value: Literal["isda_na", "isda_eu", "isda_as"]) -> CDSIndexBuilder:
+    def convention(self, value: Literal["isda_na", "isda_eu", "isda_as", "custom"]) -> CDSIndexBuilder:
         """
         Set the ISDA regional convention.
 
         Parameters
         ----------
-        value : {"isda_na", "isda_eu", "isda_as"}
-            ISDA CDS convention (North American, European, or Asian).
+        value : {"isda_na", "isda_eu", "isda_as", "custom"}
+            ISDA CDS convention (North American, European, or Asian), or
+            ``"custom"`` for a manually configured convention.
 
         Returns
         -------
@@ -4773,14 +4788,17 @@ class FxOptionBuilder:
         """
         ...
 
-    def exercise_style(self, value: Literal["european", "american"]) -> FxOptionBuilder:
+    def exercise_style(self, value: Literal["european", "american", "bermudan"]) -> FxOptionBuilder:
         """
         Set the exercise style.
 
         Parameters
         ----------
-        value : {"european", "american"}
-            Exercise style of the FX option.
+        value : {"european", "american", "bermudan"}
+            Exercise style of the FX option. Only ``"european"`` is
+            currently priceable; ``"american"`` and ``"bermudan"`` are
+            accepted here but rejected with a ``ValueError`` at pricing
+            time (specialized pricers are not yet implemented).
 
         Returns
         -------
@@ -6866,12 +6884,14 @@ def price_instrument(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex
+    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex or FxForward or FxOption or CDSTranche or ConvertibleBond or EquityOption or StructuredCredit
         Tagged instrument JSON accepted by
         :func:`validate_instrument_json`, or a typed :class:`Bond` /
         :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
         :class:`CapFloor` / :class:`CreditDefaultSwap` /
-        :class:`CDSIndex` instance.
+        :class:`CDSIndex` / :class:`FxForward` / :class:`FxOption` /
+        :class:`CDSTranche` / :class:`ConvertibleBond` /
+        :class:`EquityOption` / :class:`StructuredCredit` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
     as_of : str
@@ -6928,11 +6948,13 @@ def price_instrument_with_metrics(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex
+    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex or FxForward or FxOption or CDSTranche or ConvertibleBond or EquityOption or StructuredCredit
         Tagged instrument JSON, or a typed :class:`Bond` /
         :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
         :class:`CapFloor` / :class:`CreditDefaultSwap` /
-        :class:`CDSIndex` instance.
+        :class:`CDSIndex` / :class:`FxForward` / :class:`FxOption` /
+        :class:`CDSTranche` / :class:`ConvertibleBond` /
+        :class:`EquityOption` / :class:`StructuredCredit` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
     as_of : str
@@ -6992,11 +7014,13 @@ def instrument_cashflows_json(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex
+    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex or FxForward or FxOption or CDSTranche or ConvertibleBond or EquityOption or StructuredCredit
         Tagged instrument JSON, or a typed :class:`Bond` /
         :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
         :class:`CapFloor` / :class:`CreditDefaultSwap` /
-        :class:`CDSIndex` instance.
+        :class:`CDSIndex` / :class:`FxForward` / :class:`FxOption` /
+        :class:`CDSTranche` / :class:`ConvertibleBond` /
+        :class:`EquityOption` / :class:`StructuredCredit` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
     as_of : str

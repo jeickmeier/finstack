@@ -15,24 +15,16 @@ from finstack_quant.valuations.instruments import (
     ConvertibleBond,
     EquityOption,
 )
+from tests.tests_typed_helpers import (
+    build_cds_tranche as _cds_tranche,
+    build_convertible as _convertible,
+    build_equity_option as _equity_option,
+)
 
 
 class TestEquityOptionTyped:
     def test_builder_round_trip(self) -> None:
-        option = (
-            EquityOption
-            .builder()
-            .id("AAPL-C-200")
-            .underlying_ticker("AAPL")
-            .strike(200.0)
-            .option_type("call")
-            .expiry(datetime.date(2025, 6, 20))
-            .notional(Money(100.0, Currency("USD")))
-            .discount_curve_id("USD-OIS")
-            .spot_id("AAPL")
-            .vol_surface_id("AAPL-VOL")
-            .build()
-        )
+        option = _equity_option()
         payload = json.loads(option.to_json())
         assert payload["type"] == "equity_option"
         assert EquityOption.from_json(option.to_json()).id == "AAPL-C-200"
@@ -90,24 +82,7 @@ class TestEquityOptionTyped:
 
 class TestCDSTrancheTyped:
     def test_builder_round_trip(self) -> None:
-        tranche = (
-            CDSTranche
-            .builder()
-            .id("CDX-IG-42-3-7")
-            .index_name("CDX.NA.IG")
-            .series(42)
-            .attach_pct(3.0)
-            .detach_pct(7.0)
-            .notional(Money(10_000_000.0, Currency("USD")))
-            .maturity(datetime.date(2029, 6, 20))
-            .running_coupon_bp(100.0)
-            .frequency(Tenor.quarterly())
-            .day_count(DayCount.ACT_360)
-            .discount_curve_id("USD-OIS")
-            .credit_index_id("CDX-IG-42-CURVE")
-            .side("buy_protection")
-            .build()
-        )
+        tranche = _cds_tranche()
         payload = json.loads(tranche.to_json())
         assert payload["type"] == "cds_tranche"
         assert CDSTranche.from_json(tranche.to_json()).id == "CDX-IG-42-3-7"
@@ -145,26 +120,7 @@ class TestCDSTrancheTyped:
 
 class TestConvertibleBondTyped:
     def test_builder_with_conversion_json_round_trips(self) -> None:
-        conversion = json.dumps({
-            "ratio": 20.0,
-            "price": None,
-            "policy": "Voluntary",
-            "anti_dilution": "FullRatchet",
-            "dividend_adjustment": "None",
-            "dilution_events": [],
-        })
-        bond = (
-            ConvertibleBond
-            .builder()
-            .id("CONV-1")
-            .notional(Money(1_000.0, Currency("USD")))
-            .issue_date(datetime.date(2024, 1, 15))
-            .maturity(datetime.date(2029, 1, 15))
-            .discount_curve_id("USD-OIS")
-            .conversion_json(conversion)
-            .underlying_equity_id("ACME")
-            .build()
-        )
+        bond = _convertible()
         payload = json.loads(bond.to_json())
         assert payload["type"] == "convertible_bond"
         assert ConvertibleBond.from_json(bond.to_json()).id == "CONV-1"

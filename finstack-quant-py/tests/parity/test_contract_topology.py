@@ -515,6 +515,34 @@ def test_wasm_valuations_nested_exports_match_contract() -> None:
         )
 
 
+def _python_path_js_map_violations(block: dict[str, Any]) -> list[str]:
+    """Return a description for each ``python_path_js_map`` entry that can't resolve.
+
+    An entry resolves if its JS name is a root export, appears in
+    ``nested_exports`` for its own Python namespace, or appears in
+    ``nested_exports`` for a namespace explicitly pinned via
+    ``python_path_alias_namespaces``. Unlike a "search every namespace"
+    fallback, an unpinned alias never resolves — a name parked under an
+    unrelated namespace (or under no namespace at all) is reported.
+    """
+    root_exports = set(block.get("root_exports", []))
+    nested_exports = block.get("nested_exports", {})
+    alias_namespaces = block.get("python_path_alias_namespaces", {})
+    violations: list[str] = []
+    for python_path, js_name in block.get("python_path_js_map", {}).items():
+        if js_name in root_exports:
+            continue
+        namespace = python_path.partition(".")[0]
+        allowed_namespaces = [namespace, *alias_namespaces.get(namespace, [])]
+        allowed_names = {name for ns in allowed_namespaces for name in nested_exports.get(ns, [])}
+        if js_name not in allowed_names:
+            violations.append(
+                f"python_path_js_map[{python_path!r}] -> {js_name!r} not in root_exports or "
+                f"nested_exports for namespace(s) {allowed_namespaces!r}"
+            )
+    return violations
+
+
 def test_wasm_valuations_python_js_map_matches_facade_exports() -> None:
     """Pinned Python-to-JS mappings must resolve at their declared facade level."""
     block = CONTRACT["wasm_valuations_subset"]
@@ -522,20 +550,46 @@ def test_wasm_valuations_python_js_map_matches_facade_exports() -> None:
     for python_name, js_name in block["python_js_map"].items():
         assert js_name in root_exports, f"python_js_map[{python_name!r}] -> {js_name!r} not in root_exports"
 
-    nested_exports = block.get("nested_exports", {})
-    for python_path, js_name in block.get("python_path_js_map", {}).items():
-        if js_name in root_exports:
-            continue
-        namespace = python_path.partition(".")[0]
-        if js_name in nested_exports.get(namespace, []):
-            continue
-        # Python may flatten a more granular WASM nested facade (e.g. `fx`)
-        # into a broader consolidated namespace (`instruments`); accept a
-        # match in any nested facade, not just the one sharing the Python
-        # namespace name.
-        assert any(js_name in names for names in nested_exports.values()), (
-            f"python_path_js_map[{python_path!r}] -> {js_name!r} not in root_exports or any nested_exports namespace"
-        )
+    violations = _python_path_js_map_violations(block)
+    assert not violations, "\n".join(violations)
+
+
+def test_wasm_valuations_python_js_map_rejects_name_in_no_namespace() -> None:
+    """Adversarial check: a name absent from every namespace must still fail.
+
+    Guards against a check that's specific enough to pin real flattens but
+    accidentally so loose it accepts anything.
+    """
+    block = {
+        "root_exports": [],
+        "nested_exports": {"instruments": ["Bond"], "fx": ["FxForward"]},
+        "python_path_alias_namespaces": {"instruments": ["fx"]},
+        "python_path_js_map": {"instruments.Ghost": "ghostFn"},
+    }
+    violations = _python_path_js_map_violations(block)
+    assert violations, "expected a violation for a name absent from every namespace"
+
+
+def test_wasm_valuations_python_js_map_rejects_wrong_namespace() -> None:
+    """Adversarial check: a real name parked under the wrong namespace must still fail.
+
+    ``creditGradesModelJson`` genuinely exists, but only under ``credit`` —
+    not under ``instruments`` or its pinned alias ``fx``. A "search any
+    namespace" fallback would incorrectly accept this; the alias-pinned
+    check must not.
+    """
+    block = {
+        "root_exports": [],
+        "nested_exports": {
+            "instruments": ["Bond"],
+            "fx": ["FxForward"],
+            "credit": ["creditGradesModelJson"],
+        },
+        "python_path_alias_namespaces": {"instruments": ["fx"]},
+        "python_path_js_map": {"instruments.creditGradesModelJson": "creditGradesModelJson"},
+    }
+    violations = _python_path_js_map_violations(block)
+    assert violations, "expected a violation for a name parked under an unrelated namespace"
 
 
 def test_wasm_valuations_python_twins_resolve() -> None:

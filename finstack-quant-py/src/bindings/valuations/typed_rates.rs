@@ -861,8 +861,10 @@ impl PyCapFloorBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"cap", "floor"}
-    ///     Option type of the instrument.
+    /// value : {"cap", "floor", "caplet", "floorlet"}
+    ///     Option type of the instrument: ``"cap"``/``"floor"`` for a series
+    ///     of caplets/floorlets, or ``"caplet"``/``"floorlet"`` for a single
+    ///     period.
     ///
     /// Returns
     /// -------
@@ -1127,9 +1129,13 @@ impl PyCapFloorBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"lognormal", "normal", "shifted_lognormal"}
+    /// value : {"lognormal", "shifted_lognormal", "normal", "auto"}
     ///     Volatility convention. Must match the convention of the
-    ///     configured volatility surface.
+    ///     configured volatility surface. ``"auto"`` resolves to
+    ///     ``"lognormal"``, pricing each caplet with Black-76 where
+    ///     well-defined and falling back to an equivalent Bachelier price
+    ///     otherwise (e.g. a cap whose schedule crosses a zero forward
+    ///     rate).
     ///
     /// Returns
     /// -------

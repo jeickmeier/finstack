@@ -640,8 +640,11 @@ impl PyFxOptionBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"european", "american"}
-    ///     Exercise style of the FX option.
+    /// value : {"european", "american", "bermudan"}
+    ///     Exercise style of the FX option. Only ``"european"`` is
+    ///     currently priceable; ``"american"`` and ``"bermudan"`` are
+    ///     accepted here but rejected with a ``ValueError`` at pricing time
+    ///     (specialized pricers are not yet implemented).
     ///
     /// Returns
     /// -------
