@@ -19,6 +19,7 @@ use crate::bindings::statements::evaluator::PyStatementResult;
 use crate::bindings::statements::types::PyFinancialModelSpec;
 use crate::bindings::valuations::instruments::{PyBond, PyTermLoan};
 use crate::bindings::valuations::typed_credit::{PyCDSIndex, PyCreditDefaultSwap};
+use crate::bindings::valuations::typed_fx::{PyFxForward, PyFxOption};
 use crate::bindings::valuations::typed_rates::{PyCapFloor, PyInterestRateSwap, PySwaption};
 use crate::errors::{display_to_py as to_py, portfolio_to_py};
 
@@ -45,7 +46,7 @@ use crate::errors::{display_to_py as to_py, portfolio_to_py};
 /// below to name each newly landed class so the message stays accurate.
 ///
 /// Currently wired: `Bond`, `TermLoan`, `InterestRateSwap`, `Swaption`,
-/// `CapFloor`, `CreditDefaultSwap`, `CDSIndex`.
+/// `CapFloor`, `CreditDefaultSwap`, `CDSIndex`, `FxForward`, `FxOption`.
 pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     if let Ok(bond) = obj.cast::<PyBond>() {
         return bond.borrow().tagged_json();
@@ -67,6 +68,12 @@ pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     }
     if let Ok(cds_index) = obj.cast::<PyCDSIndex>() {
         return cds_index.borrow().tagged_json();
+    }
+    if let Ok(fx_forward) = obj.cast::<PyFxForward>() {
+        return fx_forward.borrow().tagged_json();
+    }
+    if let Ok(fx_option) = obj.cast::<PyFxOption>() {
+        return fx_option.borrow().tagged_json();
     }
     obj.extract::<String>().map_err(|_| {
         pyo3::exceptions::PyTypeError::new_err(

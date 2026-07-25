@@ -527,8 +527,14 @@ def test_wasm_valuations_python_js_map_matches_facade_exports() -> None:
         if js_name in root_exports:
             continue
         namespace = python_path.partition(".")[0]
-        assert js_name in nested_exports.get(namespace, []), (
-            f"python_path_js_map[{python_path!r}] -> {js_name!r} not in root_exports or nested_exports[{namespace!r}]"
+        if js_name in nested_exports.get(namespace, []):
+            continue
+        # Python may flatten a more granular WASM nested facade (e.g. `fx`)
+        # into a broader consolidated namespace (`instruments`); accept a
+        # match in any nested facade, not just the one sharing the Python
+        # namespace name.
+        assert any(js_name in names for names in nested_exports.values()), (
+            f"python_path_js_map[{python_path!r}] -> {js_name!r} not in root_exports or any nested_exports namespace"
         )
 
 

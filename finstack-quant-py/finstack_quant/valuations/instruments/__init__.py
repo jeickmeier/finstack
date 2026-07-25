@@ -23,6 +23,10 @@ CreditDefaultSwap = _valuations.instruments.CreditDefaultSwap
 CreditDefaultSwapBuilder = _valuations.instruments.CreditDefaultSwapBuilder
 FixedLegSpec = _valuations.instruments.FixedLegSpec
 FloatLegSpec = _valuations.instruments.FloatLegSpec
+FxForward = _valuations.instruments.FxForward
+FxForwardBuilder = _valuations.instruments.FxForwardBuilder
+FxOption = _valuations.instruments.FxOption
+FxOptionBuilder = _valuations.instruments.FxOptionBuilder
 InterestRateSwap = _valuations.instruments.InterestRateSwap
 InterestRateSwapBuilder = _valuations.instruments.InterestRateSwapBuilder
 PremiumLegSpec = _valuations.instruments.PremiumLegSpec
@@ -57,6 +61,10 @@ __all__: list[str] = [
     "CreditDefaultSwapBuilder",
     "FixedLegSpec",
     "FloatLegSpec",
+    "FxForward",
+    "FxForwardBuilder",
+    "FxOption",
+    "FxOptionBuilder",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
     "PremiumLegSpec",

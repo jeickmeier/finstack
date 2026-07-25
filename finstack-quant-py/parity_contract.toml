@@ -533,6 +533,10 @@ public = [
     "CreditDefaultSwapBuilder",
     "FixedLegSpec",
     "FloatLegSpec",
+    "FxForward",
+    "FxForwardBuilder",
+    "FxOption",
+    "FxOptionBuilder",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
     "PremiumLegSpec",
@@ -1587,6 +1591,8 @@ dry_run = "dryRun"
 "instruments.TermLoan" = "TermLoan"
 "instruments.bond_from_cashflows_json" = "bondFromCashflowsJson"
 "instruments.instrument_cashflows_json" = "instrumentCashflowsJson"
+"instruments.FxForward" = "FxForward"
+"instruments.FxOption" = "FxOption"
 
 # Nested facade exports pinned per namespace. These are intentional WASM
 # subsets; Python uses the consolidated JSON-first instrument API instead of

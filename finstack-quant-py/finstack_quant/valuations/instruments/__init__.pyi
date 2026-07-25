@@ -13,6 +13,7 @@ from __future__ import annotations
 import datetime
 from typing import Literal
 
+from finstack_quant.core.currency import Currency
 from finstack_quant.core.dates import DayCount, Tenor
 from finstack_quant.core.market_data import MarketContext
 from finstack_quant.core.money import Money
@@ -28,6 +29,10 @@ __all__ = [
     "CreditDefaultSwapBuilder",
     "FixedLegSpec",
     "FloatLegSpec",
+    "FxForward",
+    "FxForwardBuilder",
+    "FxOption",
+    "FxOptionBuilder",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
     "PremiumLegSpec",
@@ -2870,6 +2875,898 @@ class CDSIndexBuilder:
         --------
         >>> from finstack_quant.valuations.instruments import CDSIndex
         >>> callable(CDSIndex.builder().build)
+        True
+        """
+        ...
+
+class FxForward:
+    """
+    Typed wrapper for the canonical Rust ``FxForward``.
+
+    Build with :meth:`FxForward.builder`; instances are accepted directly by
+    :func:`price_instrument`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import FxForward
+    >>> forward = (
+    ...     FxForward
+    ...     .builder()
+    ...     .id("EURUSD-FWD-6M")
+    ...     .base_currency(Currency("EUR"))
+    ...     .quote_currency(Currency("USD"))
+    ...     .maturity(datetime.date(2025, 6, 15))
+    ...     .notional(Money(1_000_000.0, Currency("EUR")))
+    ...     .contract_rate(1.10)
+    ...     .domestic_discount_curve_id("USD-OIS")
+    ...     .foreign_discount_curve_id("EUR-OIS")
+    ...     .build()
+    ... )
+    >>> forward.id
+    'EURUSD-FWD-6M'
+    """
+
+    @property
+    def id(self) -> str:
+        """
+        Instrument identifier.
+
+        Returns
+        -------
+        str
+            The unique instrument identifier.
+        """
+        ...
+
+    @staticmethod
+    def builder() -> FxForwardBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``FxForward::builder()``).
+
+        Returns
+        -------
+        FxForwardBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder)
+        True
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> FxForward:
+        """
+        Deserialize from tagged instrument JSON.
+
+        Parameters
+        ----------
+        json : str
+            Tagged instrument JSON with type ``"fx_forward"``
+            (``{"type": "fx_forward", "spec": {...}}``).
+
+        Returns
+        -------
+        FxForward
+            The validated FX forward.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed, has a different instrument type, or
+            fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to tagged instrument JSON.
+
+        Returns
+        -------
+        str
+            ``{"type": "fx_forward", "spec": ...}`` JSON accepted by
+            :func:`price_instrument` and :meth:`FxForward.from_json`.
+        """
+        ...
+
+class FxForwardBuilder:
+    """
+    Fluent builder returned by :meth:`FxForward.builder`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import FxForward
+    >>> isinstance(FxForward.builder(), FxForward.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> FxForwardBuilder:
+        """
+        Set the instrument identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the FX forward.
+
+        Returns
+        -------
+        FxForwardBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxForwardBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().id)
+        True
+        """
+        ...
+
+    def base_currency(self, value: Currency) -> FxForwardBuilder:
+        """
+        Set the base currency (foreign currency, numerator of the pair).
+
+        Parameters
+        ----------
+        value : Currency
+            Base (foreign) currency.
+
+        Returns
+        -------
+        FxForwardBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxForwardBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().base_currency)
+        True
+        """
+        ...
+
+    def quote_currency(self, value: Currency) -> FxForwardBuilder:
+        """
+        Set the quote currency (domestic currency, denominator of the pair).
+
+        Parameters
+        ----------
+        value : Currency
+            Quote (domestic) currency; also the PV currency.
+
+        Returns
+        -------
+        FxForwardBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxForwardBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().quote_currency)
+        True
+        """
+        ...
+
+    def maturity(self, value: datetime.date) -> FxForwardBuilder:
+        """
+        Set the maturity/settlement date.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Maturity/settlement date.
+
+        Returns
+        -------
+        FxForwardBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxForwardBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().maturity)
+        True
+        """
+        ...
+
+    def notional(self, value: Money) -> FxForwardBuilder:
+        """
+        Set the notional amount in base currency.
+
+        Parameters
+        ----------
+        value : Money
+            Notional amount, denominated in the base currency.
+
+        Returns
+        -------
+        FxForwardBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxForwardBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().notional)
+        True
+        """
+        ...
+
+    def contract_rate(self, value: float) -> FxForwardBuilder:
+        """
+        Set the contract forward rate (quote per base).
+
+        If not set, the forward is valued at-market (zero PV at inception).
+
+        Parameters
+        ----------
+        value : float
+            Contract forward rate, quote currency per unit of base currency.
+
+        Returns
+        -------
+        FxForwardBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxForwardBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().contract_rate)
+        True
+        """
+        ...
+
+    def domestic_discount_curve_id(self, value: str) -> FxForwardBuilder:
+        """
+        Set the domestic (quote currency) discount curve identifier.
+
+        Parameters
+        ----------
+        value : str
+            Domestic (quote currency) discount curve identifier.
+
+        Returns
+        -------
+        FxForwardBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxForwardBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().domestic_discount_curve_id)
+        True
+        """
+        ...
+
+    def foreign_discount_curve_id(self, value: str) -> FxForwardBuilder:
+        """
+        Set the foreign (base currency) discount curve identifier.
+
+        Parameters
+        ----------
+        value : str
+            Foreign (base currency) discount curve identifier.
+
+        Returns
+        -------
+        FxForwardBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxForwardBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().foreign_discount_curve_id)
+        True
+        """
+        ...
+
+    def spot_rate_override(self, value: float) -> FxForwardBuilder:
+        """
+        Set an explicit spot rate override (quote per base).
+
+        If not set, the spot rate is sourced from the market's FX matrix.
+
+        Parameters
+        ----------
+        value : float
+            Spot FX rate, quote currency per unit of base currency.
+
+        Returns
+        -------
+        FxForwardBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxForwardBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().spot_rate_override)
+        True
+        """
+        ...
+
+    def base_calendar_id(self, value: str) -> FxForwardBuilder:
+        """
+        Set the base currency calendar identifier for business day adjustment.
+
+        Parameters
+        ----------
+        value : str
+            Base currency holiday calendar identifier.
+
+        Returns
+        -------
+        FxForwardBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxForwardBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().base_calendar_id)
+        True
+        """
+        ...
+
+    def quote_calendar_id(self, value: str) -> FxForwardBuilder:
+        """
+        Set the quote currency calendar identifier for business day adjustment.
+
+        Parameters
+        ----------
+        value : str
+            Quote currency holiday calendar identifier.
+
+        Returns
+        -------
+        FxForwardBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxForwardBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().quote_calendar_id)
+        True
+        """
+        ...
+
+    def build(self) -> FxForward:
+        """
+        Build the validated FX forward.
+
+        Returns
+        -------
+        FxForward
+            The validated FX forward.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing or Rust validation fails (e.g.
+            ``base_currency`` equals ``quote_currency``).
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxForward
+        >>> callable(FxForward.builder().build)
+        True
+        """
+        ...
+
+class FxOption:
+    """
+    Typed wrapper for the canonical Rust ``FxOption``.
+
+    Build with :meth:`FxOption.builder`; instances are accepted directly by
+    :func:`price_instrument`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import FxOption
+    >>> option = (
+    ...     FxOption
+    ...     .builder()
+    ...     .id("EURUSD-CALL-1Y")
+    ...     .base_currency(Currency("EUR"))
+    ...     .quote_currency(Currency("USD"))
+    ...     .strike(1.12)
+    ...     .option_type("call")
+    ...     .expiry(datetime.date(2025, 12, 15))
+    ...     .notional(Money(1_000_000.0, Currency("EUR")))
+    ...     .domestic_discount_curve_id("USD-OIS")
+    ...     .foreign_discount_curve_id("EUR-OIS")
+    ...     .vol_surface_id("EURUSD-VOL")
+    ...     .build()
+    ... )
+    >>> option.id
+    'EURUSD-CALL-1Y'
+    """
+
+    @property
+    def id(self) -> str:
+        """
+        Instrument identifier.
+
+        Returns
+        -------
+        str
+            The unique instrument identifier.
+        """
+        ...
+
+    @staticmethod
+    def builder() -> FxOptionBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``FxOption::builder()``).
+
+        Returns
+        -------
+        FxOptionBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder)
+        True
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> FxOption:
+        """
+        Deserialize from tagged instrument JSON.
+
+        Parameters
+        ----------
+        json : str
+            Tagged instrument JSON with type ``"fx_option"``
+            (``{"type": "fx_option", "spec": {...}}``).
+
+        Returns
+        -------
+        FxOption
+            The validated FX option.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed, has a different instrument type, or
+            fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to tagged instrument JSON.
+
+        Returns
+        -------
+        str
+            ``{"type": "fx_option", "spec": ...}`` JSON accepted by
+            :func:`price_instrument` and :meth:`FxOption.from_json`.
+        """
+        ...
+
+class FxOptionBuilder:
+    """
+    Fluent builder returned by :meth:`FxOption.builder`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import FxOption
+    >>> isinstance(FxOption.builder(), FxOption.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> FxOptionBuilder:
+        """
+        Set the instrument identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the FX option.
+
+        Returns
+        -------
+        FxOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().id)
+        True
+        """
+        ...
+
+    def base_currency(self, value: Currency) -> FxOptionBuilder:
+        """
+        Set the base currency (foreign currency).
+
+        Parameters
+        ----------
+        value : Currency
+            Base (foreign) currency.
+
+        Returns
+        -------
+        FxOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().base_currency)
+        True
+        """
+        ...
+
+    def quote_currency(self, value: Currency) -> FxOptionBuilder:
+        """
+        Set the quote currency (domestic currency).
+
+        Parameters
+        ----------
+        value : Currency
+            Quote (domestic) currency.
+
+        Returns
+        -------
+        FxOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().quote_currency)
+        True
+        """
+        ...
+
+    def strike(self, value: float) -> FxOptionBuilder:
+        """
+        Set the strike exchange rate (quote per base).
+
+        Parameters
+        ----------
+        value : float
+            Strike exchange rate, quote currency per unit of base currency.
+
+        Returns
+        -------
+        FxOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().strike)
+        True
+        """
+        ...
+
+    def option_type(self, value: Literal["call", "put"]) -> FxOptionBuilder:
+        """
+        Set the option type: ``"call"`` or ``"put"`` on base currency.
+
+        Parameters
+        ----------
+        value : {"call", "put"}
+            Option type of the FX option.
+
+        Returns
+        -------
+        FxOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized option type.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().option_type)
+        True
+        """
+        ...
+
+    def exercise_style(self, value: Literal["european", "american"]) -> FxOptionBuilder:
+        """
+        Set the exercise style.
+
+        Parameters
+        ----------
+        value : {"european", "american"}
+            Exercise style of the FX option.
+
+        Returns
+        -------
+        FxOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized exercise style.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().exercise_style)
+        True
+        """
+        ...
+
+    def expiry(self, value: datetime.date) -> FxOptionBuilder:
+        """
+        Set the option expiry date.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Option expiry date.
+
+        Returns
+        -------
+        FxOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().expiry)
+        True
+        """
+        ...
+
+    def notional(self, value: Money) -> FxOptionBuilder:
+        """
+        Set the notional amount in base currency.
+
+        Parameters
+        ----------
+        value : Money
+            Notional amount, denominated in the base currency.
+
+        Returns
+        -------
+        FxOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().notional)
+        True
+        """
+        ...
+
+    def domestic_discount_curve_id(self, value: str) -> FxOptionBuilder:
+        """
+        Set the domestic currency discount curve identifier.
+
+        Parameters
+        ----------
+        value : str
+            Domestic currency discount curve identifier.
+
+        Returns
+        -------
+        FxOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().domestic_discount_curve_id)
+        True
+        """
+        ...
+
+    def foreign_discount_curve_id(self, value: str) -> FxOptionBuilder:
+        """
+        Set the foreign currency discount curve identifier.
+
+        Parameters
+        ----------
+        value : str
+            Foreign currency discount curve identifier.
+
+        Returns
+        -------
+        FxOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().foreign_discount_curve_id)
+        True
+        """
+        ...
+
+    def vol_surface_id(self, value: str) -> FxOptionBuilder:
+        """
+        Set the FX volatility surface identifier.
+
+        Parameters
+        ----------
+        value : str
+            FX volatility surface identifier for option pricing.
+
+        Returns
+        -------
+        FxOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`FxOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().vol_surface_id)
+        True
+        """
+        ...
+
+    def build(self) -> FxOption:
+        """
+        Build the validated FX option.
+
+        Returns
+        -------
+        FxOption
+            The validated FX option.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing or Rust validation fails (e.g.
+            ``base_currency`` equals ``quote_currency``).
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import FxOption
+        >>> callable(FxOption.builder().build)
         True
         """
         ...
