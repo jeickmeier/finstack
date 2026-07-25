@@ -20,10 +20,14 @@ from finstack_quant.core.types import Bps, Rate
 
 __all__ = [
     "Bond",
+    "CapFloor",
+    "CapFloorBuilder",
     "FixedLegSpec",
     "FloatLegSpec",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
+    "Swaption",
+    "SwaptionBuilder",
     "TermLoan",
     "bond_from_cashflows_json",
     "instrument_cashflows_json",
@@ -787,6 +791,1059 @@ class InterestRateSwapBuilder:
         """
         ...
 
+class Swaption:
+    """
+    Typed wrapper for the canonical Rust ``Swaption`` instrument.
+
+    Build with :meth:`Swaption.builder`; instances are accepted directly by
+    :func:`price_instrument`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import DayCount, Tenor
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import (
+    ...     FixedLegSpec,
+    ...     FloatLegSpec,
+    ...     Swaption,
+    ... )
+    >>> start = datetime.date(2025, 1, 15)
+    >>> end = datetime.date(2030, 1, 15)
+    >>> fixed = FixedLegSpec(
+    ...     "USD-OIS",
+    ...     0.04,
+    ...     Tenor.semi_annual(),
+    ...     DayCount.THIRTY_360,
+    ...     start,
+    ...     end,
+    ...     compounding_simple=False,
+    ... )
+    >>> floating = FloatLegSpec(
+    ...     "USD-OIS",
+    ...     "USD-SOFR-3M",
+    ...     0.0,
+    ...     Tenor.quarterly(),
+    ...     DayCount.ACT_360,
+    ...     start,
+    ...     end,
+    ... )
+    >>> swaption = (
+    ...     Swaption
+    ...     .builder()
+    ...     .id("SWPT-1")
+    ...     .option_type("call")
+    ...     .notional(Money(10_000_000.0, Currency("USD")))
+    ...     .expiry(datetime.date(2025, 1, 13))
+    ...     .exercise_style("european")
+    ...     .settlement("cash")
+    ...     .cash_settlement_method("par_yield")
+    ...     .vol_model("normal")
+    ...     .vol_surface_id("USD-SWPT-VOL")
+    ...     .underlying_fixed_leg(fixed)
+    ...     .underlying_float_leg(floating)
+    ...     .build()
+    ... )
+    >>> swaption.id
+    'SWPT-1'
+    """
+
+    @property
+    def id(self) -> str:
+        """
+        Instrument identifier.
+
+        Returns
+        -------
+        str
+            The unique instrument identifier.
+        """
+        ...
+
+    @staticmethod
+    def builder() -> SwaptionBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``Swaption::builder()``).
+
+        Returns
+        -------
+        SwaptionBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder)
+        True
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> Swaption:
+        """
+        Deserialize from tagged instrument JSON.
+
+        Parameters
+        ----------
+        json : str
+            Tagged instrument JSON with type ``"swaption"``
+            (``{"type": "swaption", "spec": {...}}``).
+
+        Returns
+        -------
+        Swaption
+            The validated swaption.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed, has a different instrument type, or
+            fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to tagged instrument JSON.
+
+        Returns
+        -------
+        str
+            ``{"type": "swaption", "spec": ...}`` JSON accepted by
+            :func:`price_instrument` and :meth:`Swaption.from_json`.
+        """
+        ...
+
+class SwaptionBuilder:
+    """
+    Fluent builder returned by :meth:`Swaption.builder`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import Swaption
+    >>> isinstance(Swaption.builder(), Swaption.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> SwaptionBuilder:
+        """
+        Set the instrument identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the swaption.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`SwaptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().id)
+        True
+        """
+        ...
+
+    def option_type(self, value: Literal["call", "put"]) -> SwaptionBuilder:
+        """
+        Set the option type: ``"call"`` (payer) or ``"put"`` (receiver).
+
+        Parameters
+        ----------
+        value : {"call", "put"}
+            Option type of the swaption.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized option type.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().option_type)
+        True
+        """
+        ...
+
+    def notional(self, value: Money) -> SwaptionBuilder:
+        """
+        Set the notional amount of the underlying swap.
+
+        Parameters
+        ----------
+        value : Money
+            Notional amount of the underlying swap.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`SwaptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().notional)
+        True
+        """
+        ...
+
+    def expiry(self, value: datetime.date) -> SwaptionBuilder:
+        """
+        Set the option expiry date.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Option expiry date.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`SwaptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().expiry)
+        True
+        """
+        ...
+
+    def exercise_style(self, value: Literal["european", "bermudan", "american"]) -> SwaptionBuilder:
+        """
+        Set the exercise style.
+
+        Parameters
+        ----------
+        value : {"european", "bermudan", "american"}
+            Exercise style of the swaption.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized exercise style.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().exercise_style)
+        True
+        """
+        ...
+
+    def settlement(self, value: Literal["physical", "cash"]) -> SwaptionBuilder:
+        """
+        Set the settlement method.
+
+        Parameters
+        ----------
+        value : {"physical", "cash"}
+            Settlement method of the swaption.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized settlement method.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().settlement)
+        True
+        """
+        ...
+
+    def cash_settlement_method(self, value: Literal["par_yield", "isda_par_par", "zero_coupon"]) -> SwaptionBuilder:
+        """
+        Set the cash settlement annuity method.
+
+        Only affects pricing when ``settlement`` is ``"cash"``.
+
+        Parameters
+        ----------
+        value : {"par_yield", "isda_par_par", "zero_coupon"}
+            Cash settlement annuity method.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized cash settlement method.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().cash_settlement_method)
+        True
+        """
+        ...
+
+    def vol_model(self, value: Literal["black", "normal"]) -> SwaptionBuilder:
+        """
+        Set the volatility model.
+
+        Parameters
+        ----------
+        value : {"black", "normal"}
+            Volatility model used for pricing.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized volatility model.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().vol_model)
+        True
+        """
+        ...
+
+    def vol_surface_id(self, value: str) -> SwaptionBuilder:
+        """
+        Set the volatility surface identifier.
+
+        Parameters
+        ----------
+        value : str
+            Volatility surface identifier for option pricing.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`SwaptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().vol_surface_id)
+        True
+        """
+        ...
+
+    def underlying_fixed_leg(self, value: FixedLegSpec) -> SwaptionBuilder:
+        """
+        Set the complete fixed leg of the underlying swap.
+
+        Parameters
+        ----------
+        value : FixedLegSpec
+            Fixed leg of the underlying swap.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`SwaptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().underlying_fixed_leg)
+        True
+        """
+        ...
+
+    def underlying_float_leg(self, value: FloatLegSpec) -> SwaptionBuilder:
+        """
+        Set the complete floating leg of the underlying swap.
+
+        Parameters
+        ----------
+        value : FloatLegSpec
+            Floating leg of the underlying swap.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`SwaptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().underlying_float_leg)
+        True
+        """
+        ...
+
+    def sabr_params_json(self, value: str) -> SwaptionBuilder:
+        """
+        Set the SABR volatility model parameters from a JSON object.
+
+        Parameters
+        ----------
+        value : str
+            JSON-encoded SABR parameters object with fields ``alpha``,
+            ``beta``, ``nu``, ``rho`` and optional ``shift``.
+
+        Returns
+        -------
+        SwaptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the SABR parameters shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().sabr_params_json)
+        True
+        """
+        ...
+
+    def build(self) -> Swaption:
+        """
+        Build the validated swaption.
+
+        Returns
+        -------
+        Swaption
+            The validated swaption.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing or Rust validation fails.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import Swaption
+        >>> callable(Swaption.builder().build)
+        True
+        """
+        ...
+
+class CapFloor:
+    """
+    Typed wrapper for the canonical Rust ``CapFloor`` instrument.
+
+    Build with :meth:`CapFloor.builder`; instances are accepted directly by
+    :func:`price_instrument`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import DayCount, Tenor
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import CapFloor
+    >>> cap = (
+    ...     CapFloor
+    ...     .builder()
+    ...     .id("CAP-1")
+    ...     .rate_option_type("cap")
+    ...     .notional(Money(5_000_000.0, Currency("USD")))
+    ...     .strike(0.05)
+    ...     .start_date(datetime.date(2024, 1, 15))
+    ...     .maturity(datetime.date(2027, 1, 15))
+    ...     .frequency(Tenor.quarterly())
+    ...     .day_count(DayCount.ACT_360)
+    ...     .discount_curve_id("USD-OIS")
+    ...     .forward_curve_id("USD-SOFR-3M")
+    ...     .vol_surface_id("USD-CAP-VOL")
+    ...     .vol_type("normal")
+    ...     .build()
+    ... )
+    >>> cap.id
+    'CAP-1'
+    """
+
+    @property
+    def id(self) -> str:
+        """
+        Instrument identifier.
+
+        Returns
+        -------
+        str
+            The unique instrument identifier.
+        """
+        ...
+
+    @staticmethod
+    def builder() -> CapFloorBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``CapFloor::builder()``).
+
+        Returns
+        -------
+        CapFloorBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder)
+        True
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> CapFloor:
+        """
+        Deserialize from tagged instrument JSON.
+
+        Parameters
+        ----------
+        json : str
+            Tagged instrument JSON with type ``"cap_floor"``
+            (``{"type": "cap_floor", "spec": {...}}``).
+
+        Returns
+        -------
+        CapFloor
+            The validated cap/floor.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed, has a different instrument type, or
+            fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to tagged instrument JSON.
+
+        Returns
+        -------
+        str
+            ``{"type": "cap_floor", "spec": ...}`` JSON accepted by
+            :func:`price_instrument` and :meth:`CapFloor.from_json`.
+        """
+        ...
+
+class CapFloorBuilder:
+    """
+    Fluent builder returned by :meth:`CapFloor.builder`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import CapFloor
+    >>> isinstance(CapFloor.builder(), CapFloor.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> CapFloorBuilder:
+        """
+        Set the instrument identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the cap/floor.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CapFloorBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().id)
+        True
+        """
+        ...
+
+    def rate_option_type(self, value: Literal["cap", "floor"]) -> CapFloorBuilder:
+        """
+        Set the option type.
+
+        Parameters
+        ----------
+        value : {"cap", "floor"}
+            Option type of the instrument.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized option type.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().rate_option_type)
+        True
+        """
+        ...
+
+    def notional(self, value: Money) -> CapFloorBuilder:
+        """
+        Set the notional amount of the cap or floor.
+
+        Parameters
+        ----------
+        value : Money
+            Notional amount.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CapFloorBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().notional)
+        True
+        """
+        ...
+
+    def strike(self, value: float) -> CapFloorBuilder:
+        """
+        Set the strike rate of the cap or floor.
+
+        Parameters
+        ----------
+        value : float
+            Strike as a decimal (0.05 = 5%).
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not finite.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().strike)
+        True
+        """
+        ...
+
+    def spread(self, value: float) -> CapFloorBuilder:
+        """
+        Set the contractual spread added to the referenced rate.
+
+        Parameters
+        ----------
+        value : float
+            Spread in decimal rate units, added after projecting the index.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not finite.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().spread)
+        True
+        """
+        ...
+
+    def start_date(self, value: datetime.date) -> CapFloorBuilder:
+        """
+        Set the start date of the underlying period.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Start date of the underlying period.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CapFloorBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().start_date)
+        True
+        """
+        ...
+
+    def maturity(self, value: datetime.date) -> CapFloorBuilder:
+        """
+        Set the end date of the underlying period.
+
+        Parameters
+        ----------
+        value : datetime.date
+            End date of the underlying period.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CapFloorBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().maturity)
+        True
+        """
+        ...
+
+    def frequency(self, value: Tenor) -> CapFloorBuilder:
+        """
+        Set the payment frequency.
+
+        Parameters
+        ----------
+        value : Tenor
+            Payment frequency for caps/floors.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CapFloorBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().frequency)
+        True
+        """
+        ...
+
+    def day_count(self, value: DayCount) -> CapFloorBuilder:
+        """
+        Set the day count convention.
+
+        Parameters
+        ----------
+        value : DayCount
+            Day count convention.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CapFloorBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().day_count)
+        True
+        """
+        ...
+
+    def calendar_id(self, value: str) -> CapFloorBuilder:
+        """
+        Set the holiday calendar identifier for schedule and roll conventions.
+
+        Parameters
+        ----------
+        value : str
+            Holiday calendar identifier.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CapFloorBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().calendar_id)
+        True
+        """
+        ...
+
+    def discount_curve_id(self, value: str) -> CapFloorBuilder:
+        """
+        Set the discount curve identifier.
+
+        Parameters
+        ----------
+        value : str
+            Discount curve identifier.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CapFloorBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().discount_curve_id)
+        True
+        """
+        ...
+
+    def forward_curve_id(self, value: str) -> CapFloorBuilder:
+        """
+        Set the forward curve identifier.
+
+        Parameters
+        ----------
+        value : str
+            Forward curve identifier.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CapFloorBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().forward_curve_id)
+        True
+        """
+        ...
+
+    def vol_surface_id(self, value: str) -> CapFloorBuilder:
+        """
+        Set the volatility surface identifier.
+
+        Parameters
+        ----------
+        value : str
+            Volatility surface identifier.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CapFloorBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().vol_surface_id)
+        True
+        """
+        ...
+
+    def vol_type(self, value: Literal["lognormal", "normal", "shifted_lognormal"]) -> CapFloorBuilder:
+        """
+        Set the volatility type convention.
+
+        Parameters
+        ----------
+        value : {"lognormal", "normal", "shifted_lognormal"}
+            Volatility convention. Must match the convention of the
+            configured volatility surface.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized volatility type.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().vol_type)
+        True
+        """
+        ...
+
+    def vol_shift(self, value: float) -> CapFloorBuilder:
+        """
+        Set the displacement shift used for shifted-lognormal pricing.
+
+        Parameters
+        ----------
+        value : float
+            Displacement added to forward and strike. Must be non-negative.
+
+        Returns
+        -------
+        CapFloorBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CapFloorBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().vol_shift)
+        True
+        """
+        ...
+
+    def build(self) -> CapFloor:
+        """
+        Build the validated cap/floor.
+
+        Returns
+        -------
+        CapFloor
+            The validated cap/floor.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing or Rust validation fails.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CapFloor
+        >>> callable(CapFloor.builder().build)
+        True
+        """
+        ...
+
 def bond_from_cashflows_json(
     instrument_id: str,
     schedule_json: str,
@@ -854,7 +1911,7 @@ def validate_instrument_json(json: str) -> str:
     ...
 
 def price_instrument(
-    instrument_json: str | Bond | TermLoan | InterestRateSwap,
+    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor,
     market: MarketContext | str,
     as_of: str,
     model: str = "default",
@@ -864,10 +1921,11 @@ def price_instrument(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan or InterestRateSwap
+    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor
         Tagged instrument JSON accepted by
         :func:`validate_instrument_json`, or a typed :class:`Bond` /
-        :class:`TermLoan` instance.
+        :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
+        :class:`CapFloor` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
     as_of : str
@@ -898,7 +1956,7 @@ def price_instrument(
     ...
 
 def price_instrument_with_metrics(
-    instrument_json: str | Bond | TermLoan | InterestRateSwap,
+    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor,
     market: MarketContext | str,
     as_of: str,
     model: str = "default",
@@ -911,9 +1969,10 @@ def price_instrument_with_metrics(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan or InterestRateSwap
+    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor
         Tagged instrument JSON, or a typed :class:`Bond` /
-        :class:`TermLoan` instance.
+        :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
+        :class:`CapFloor` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
     as_of : str
@@ -950,7 +2009,7 @@ def price_instrument_with_metrics(
     ...
 
 def instrument_cashflows_json(
-    instrument_json: str | Bond | TermLoan | InterestRateSwap,
+    instrument_json: str | Bond | TermLoan | InterestRateSwap | Swaption | CapFloor,
     market: MarketContext | str,
     as_of: str,
     model: str,
@@ -960,9 +2019,10 @@ def instrument_cashflows_json(
 
     Parameters
     ----------
-    instrument_json : str or Bond or TermLoan or InterestRateSwap
+    instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor
         Tagged instrument JSON, or a typed :class:`Bond` /
-        :class:`TermLoan` instance.
+        :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
+        :class:`CapFloor` instance.
     market : MarketContext or str
         Typed ``MarketContext`` or serialized market-context JSON.
     as_of : str

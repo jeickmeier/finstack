@@ -269,10 +269,14 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
     structured_credit::register(&m)?;
     let mut exports = vec![
         "Bond",
+        "CapFloor",
+        "CapFloorBuilder",
         "FixedLegSpec",
         "FloatLegSpec",
         "InterestRateSwap",
         "InterestRateSwapBuilder",
+        "Swaption",
+        "SwaptionBuilder",
         "TermLoan",
         "bond_from_cashflows_json",
         "instrument_cashflows_json",

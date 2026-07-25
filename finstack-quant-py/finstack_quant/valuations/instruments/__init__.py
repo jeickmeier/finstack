@@ -15,10 +15,14 @@ from __future__ import annotations
 from finstack_quant.finstack_quant import valuations as _valuations
 
 Bond = _valuations.instruments.Bond
+CapFloor = _valuations.instruments.CapFloor
+CapFloorBuilder = _valuations.instruments.CapFloorBuilder
 FixedLegSpec = _valuations.instruments.FixedLegSpec
 FloatLegSpec = _valuations.instruments.FloatLegSpec
 InterestRateSwap = _valuations.instruments.InterestRateSwap
 InterestRateSwapBuilder = _valuations.instruments.InterestRateSwapBuilder
+Swaption = _valuations.instruments.Swaption
+SwaptionBuilder = _valuations.instruments.SwaptionBuilder
 TermLoan = _valuations.instruments.TermLoan
 validate_instrument_json = _valuations.instruments.validate_instrument_json
 bond_from_cashflows_json = _valuations.instruments.bond_from_cashflows_json
@@ -39,10 +43,14 @@ structured_credit_tranche_scenario_table = _valuations.instruments.structured_cr
 
 __all__: list[str] = [
     "Bond",
+    "CapFloor",
+    "CapFloorBuilder",
     "FixedLegSpec",
     "FloatLegSpec",
     "InterestRateSwap",
     "InterestRateSwapBuilder",
+    "Swaption",
+    "SwaptionBuilder",
     "TermLoan",
     "bond_from_cashflows_json",
     "instrument_cashflows_json",
