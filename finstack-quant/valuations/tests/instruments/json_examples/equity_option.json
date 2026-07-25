@@ -5,14 +5,14 @@
     "spec": {
       "id": "SPX-CALL-4500",
       "underlying_ticker": "SPX",
-      "strike": {
-        "amount": "4500",
-        "currency": "USD"
-      },
+      "strike": 4500.0,
       "option_type": "call",
       "exercise_style": "european",
       "expiry": "2024-06-21",
-      "contract_size": 100.0,
+      "notional": {
+        "amount": "100",
+        "currency": "USD"
+      },
       "day_count": "Act365F",
       "settlement": "cash",
       "discount_curve_id": "USD-OIS",

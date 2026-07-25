@@ -47,7 +47,7 @@
         "stub": "ShortFront",
         "spread_bp": 10.0,
         "payment_lag_days": 0,
-        "calendar_id": "euta",
+        "calendar_id": "target2",
         "allow_calendar_fallback": false
       },
       "notional_exchange": "initial_and_final",

@@ -7,7 +7,7 @@
       "index_name": "CDX.NA.IG",
       "series": 42,
       "attach_pct": 0.0,
-      "detach_pct": 0.03,
+      "detach_pct": 3.0,
       "notional": {
         "amount": "10000000",
         "currency": "USD"
@@ -20,7 +20,7 @@
       "calendar_id": null,
       "discount_curve_id": "USD-OIS",
       "credit_index_id": "CDX.NA.IG.HAZARD",
-      "side": "BuyProtection",
+      "side": "buy_protection",
       "effective_date": null,
       "accumulated_loss": 0.0,
       "standard_imm_dates": false,

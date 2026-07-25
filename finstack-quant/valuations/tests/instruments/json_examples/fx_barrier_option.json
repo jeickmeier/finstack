@@ -4,20 +4,15 @@
     "type": "fx_barrier_option",
     "spec": {
       "id": "FXBAR-EURUSD-UO-CALL",
-      "strike": {
-        "amount": "1.10",
-        "currency": "USD"
-      },
-      "barrier": {
-        "amount": "1.20",
-        "currency": "USD"
-      },
+      "strike": 1.10,
+      "barrier": 1.20,
       "option_type": "call",
       "barrier_type": "UpAndOut",
       "expiry": "2024-12-20",
+      "monitoring_start_date": "2024-01-01",
       "notional": {
         "amount": "1000000",
-        "currency": "USD"
+        "currency": "EUR"
       },
       "quote_currency": "USD",
       "base_currency": "EUR",

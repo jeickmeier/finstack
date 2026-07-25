@@ -5,10 +5,7 @@
     "spec": {
       "id": "BAR-SPX-UO-CALL",
       "underlying_ticker": "SPX",
-      "strike": {
-        "amount": "4500",
-        "currency": "USD"
-      },
+      "strike": 4500.0,
       "barrier": {
         "amount": "5000",
         "currency": "USD"

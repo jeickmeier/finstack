@@ -21,7 +21,7 @@
       ],
       "lower_bound": 0.95,
       "upper_bound": 1.05,
-      "bounds_type": "RelativeToInitialSpot",
+      "bounds_type": "relative_to_initial_spot",
       "coupon_rate": 0.08,
       "notional": {
         "amount": "100000",

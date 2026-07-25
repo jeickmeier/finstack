@@ -8,6 +8,7 @@
       "pool": {
         "id": "POOL-1",
         "deal_type": "CLO",
+        "base_currency": "USD",
         "assets": [],
         "cumulative_defaults": {
           "amount": "0",

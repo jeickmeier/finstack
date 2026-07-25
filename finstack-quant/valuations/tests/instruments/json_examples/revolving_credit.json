@@ -23,11 +23,7 @@
           "cap_bp": null,
           "reset_freq": {"count": 3, "unit": "months"},
           "reset_lag_days": 2,
-          "dc": "Act360",
-          "bdc": "modified_following",
-          "calendar_id": "weekends_only",
-          "end_of_month": false,
-          "payment_lag_days": 0
+          "fixing_calendar_id": "weekends_only"
         }
       },
       "day_count": "Act360",

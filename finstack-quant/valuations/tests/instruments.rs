@@ -312,3 +312,8 @@ mod test_option_bounds;
 /// rejection for every instrument with an `example()` constructor.
 #[path = "instruments/serde_contract.rs"]
 mod serde_contract;
+
+/// Contract test for the checked-in `json_examples/` reference payloads:
+/// every example must still deserialize under the current wire schema.
+#[path = "instruments/json_examples_contract.rs"]
+mod json_examples_contract;

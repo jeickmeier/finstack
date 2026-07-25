@@ -5,12 +5,9 @@
     "spec": {
       "id": "LOOKBACK-SPX-FIXED-CALL",
       "underlying_ticker": "SPX",
-      "strike": {
-        "amount": "4500",
-        "currency": "USD"
-      },
+      "strike": 4500.0,
       "option_type": "call",
-      "lookback_type": "FixedStrike",
+      "lookback_type": "fixed_strike",
       "expiry": "2024-12-20",
       "notional": {
         "amount": "100000",

@@ -17,7 +17,7 @@
           "freq": {"count": 6, "unit": "months"},
           "dc": "Thirty360",
           "bdc": "following",
-          "calendar_id": null,
+          "calendar_id": "weekends_only",
           "stub": "None"
         }
       },

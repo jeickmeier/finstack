@@ -5,12 +5,9 @@
     "spec": {
       "id": "ASIAN-SPX-ARITH-6M",
       "underlying_ticker": "SPX",
-      "strike": {
-        "amount": "4500",
-        "currency": "USD"
-      },
+      "strike": 4500.0,
       "option_type": "call",
-      "averaging_method": "Arithmetic",
+      "averaging_method": "arithmetic",
       "expiry": "2024-06-30",
       "fixing_dates": [
         "2024-01-31",

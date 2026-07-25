@@ -16,7 +16,7 @@
                   "amount": "1000",
                   "currency": "USD"
                 },
-                "issue": "2024-01-01",
+                "issue_date": "2024-01-01",
                 "maturity": "2034-01-01",
                 "cashflow_spec": {
                   "Fixed": {
@@ -25,7 +25,7 @@
                     "freq": {"count": 6, "unit": "months"},
                     "dc": "Thirty360",
                     "bdc": "following",
-                    "calendar_id": null,
+                    "calendar_id": "weekends_only",
                     "stub": "None"
                   }
                 },
@@ -67,13 +67,17 @@
             "price_id": "AAPL-SPOT",
             "asset_type": "equity"
           },
-          "weight": 0.4,
+          "weight": 1.0,
           "units": null,
           "ticker": "AAPL"
         }
       ],
       "expense_ratio": 0.001,
       "currency": "USD",
+      "notional": {
+        "amount": "1000000",
+        "currency": "USD"
+      },
       "discount_curve_id": "USD-OIS",
       "attributes": {
         "tags": [],

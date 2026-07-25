@@ -11,8 +11,11 @@
         "2024-09-30",
         "2024-12-31"
       ],
+      "expiry": "2024-12-31",
       "local_cap": 0.05,
+      "local_floor": 0.0,
       "global_cap": 0.2,
+      "global_floor": 0.0,
       "notional": {
         "amount": "100000",
         "currency": "USD"

@@ -28,6 +28,10 @@
       ],
       "expense_ratio": 0.0025,
       "currency": "USD",
+      "notional": {
+        "amount": "1000000",
+        "currency": "USD"
+      },
       "discount_curve_id": "USD-OIS",
       "attributes": {
         "tags": [],

@@ -28,11 +28,11 @@
           "freq": {"count": 3, "unit": "months"},
           "dc": "Act360",
           "bdc": "following",
-          "calendar_id": null,
+          "calendar_id": "weekends_only",
           "stub": "None"
         }
       },
-      "side": "ReceiveTotalReturn",
+      "side": "receive_total_return",
       "initial_level": null,
       "attributes": {
         "tags": [],
