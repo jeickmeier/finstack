@@ -1,6 +1,7 @@
 //! Python bindings for the `finstack-quant-cashflows` crate.
 
 pub(crate) mod accrual;
+pub(crate) mod aggregation;
 pub(crate) mod builder;
 pub(crate) mod primitives;
 
@@ -124,6 +125,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     primitives::register(py, &m)?;
     builder::register(py, &m)?;
     accrual::register(py, &m)?;
+    aggregation::register(py, &m)?;
 
     m.add_function(wrap_pyfunction!(accrued_interest_json, &m)?)?;
     m.add_function(wrap_pyfunction!(build_cashflow_schedule_json, &m)?)?;
@@ -145,6 +147,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         [
             "accrual",
             "accrued_interest_json",
+            "aggregation",
             "build_cashflow_schedule_json",
             "builder",
             "dated_flows_json",

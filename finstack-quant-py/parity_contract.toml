@@ -232,7 +232,7 @@ note = "JSON-only schedule build, validation, dated-flow, and accrual surface."
 [crates.cashflows.modules]
 json        = { python = "finstack_quant.cashflows",             status = "exists", note = "JSON bridge exposes the canonical coupon_program and payment_program builder surface" }
 accrual     = { python = "finstack_quant.cashflows.accrual",     status = "exists", note = "Typed accrual engine; accrued_interest_json remains on the JSON bridge" }
-aggregation = { python = "finstack_quant.cashflows.aggregation", status = "missing", note = "Period aggregation not yet bound; use the JSON bridge schedule output" }
+aggregation = { python = "finstack_quant.cashflows.aggregation", status = "exists", note = "Typed period rollups and currency-checked totals" }
 builder     = { python = "finstack_quant.cashflows.builder",     status = "exists", note = "Typed spec + builder + schedule surface; the JSON program bridge remains available on finstack_quant.cashflows" }
 primitives  = { python = "finstack_quant.cashflows.primitives",  status = "exists", note = "Typed CashFlow/CFKind primitives; CashFlow rows also travel inside schedule JSON" }
 traits      = { python = "finstack_quant.cashflows.traits",      status = "missing", note = "Rust-side trait surface; not meaningful as a Python module" }
@@ -257,6 +257,10 @@ public = [
 python_package = "finstack_quant.cashflows.accrual"
 public = ["AccrualConfig", "AccrualIndex", "AccrualMethod", "ExCouponRule", "accrued_interest_amount"]
 
+[crates.cashflows.module_symbols.aggregation]
+python_package = "finstack_quant.cashflows.aggregation"
+public = ["aggregate_by_period", "aggregate_cashflows_checked"]
+
 # ---------------------------------------------------------------------------
 # WASM cashflows facade subset + symbol-level triplet pinning.
 # Python names are identical to the canonical Rust function names; the map
@@ -274,6 +278,7 @@ root_exports = [
 # Python-only typed cashflows surface; WASM stays JSON-only by design.
 python_only = [
     "accrual",
+    "aggregation",
     "builder",
     "primitives",
 ]

@@ -504,3 +504,64 @@ class TestAccrual:
         assert rule.calendar_id is None
         with pytest.raises(ValueError, match="exceeds the maximum"):
             ExCouponRule(days_before_coupon=400).ex_date(dt.date(2025, 7, 15))
+
+
+class TestAggregation:
+    def test_aggregate_cashflows_checked(self) -> None:
+        from finstack_quant.cashflows.aggregation import aggregate_cashflows_checked
+
+        flows = [
+            (dt.date(2025, 1, 15), Money(50_000.0, "USD")),
+            (dt.date(2025, 7, 15), Money(50_000.0, "USD")),
+        ]
+        total = aggregate_cashflows_checked(flows, "USD")
+        assert total.amount == pytest.approx(100_000.0)
+        assert total.currency.code == "USD"
+        # Currency mismatch is rejected, never silently converted.
+        with pytest.raises(ValueError, match="Currency mismatch"):
+            aggregate_cashflows_checked(flows, "EUR")
+
+    def test_aggregate_cashflows_checked_empty(self) -> None:
+        from finstack_quant.cashflows.aggregation import aggregate_cashflows_checked
+
+        total = aggregate_cashflows_checked([], "USD")
+        assert total.amount == pytest.approx(0.0)
+
+    def test_aggregate_by_period(self) -> None:
+        from finstack_quant.cashflows.aggregation import aggregate_by_period
+        from finstack_quant.core.dates import build_periods
+
+        flows = [
+            (dt.date(2025, 3, 15), Money(100.0, "USD")),
+            (dt.date(2025, 8, 1), Money(25.0, "USD")),
+            (dt.date(2025, 8, 2), Money(25.0, "EUR")),
+        ]
+        periods = build_periods("2025Q1..Q4").periods
+        out = aggregate_by_period(flows, periods)
+        assert out["2025Q1"]["USD"].amount == pytest.approx(100.0)
+        assert out["2025Q3"]["USD"].amount == pytest.approx(25.0)
+        assert out["2025Q3"]["EUR"].amount == pytest.approx(25.0)
+        # Periods with no flows are omitted.
+        assert "2025Q2" not in out
+
+    def test_aggregate_by_period_keyword_args(self) -> None:
+        """Regression test: aggregate_by_period accepts keyword arguments.
+
+        This ensures the parameter names match the advertised text_signature
+        and .pyi (see the AccrualIndex.build lesson from task 5).
+        """
+        from finstack_quant.cashflows.aggregation import aggregate_by_period
+        from finstack_quant.core.dates import build_periods
+
+        flows = [(dt.date(2025, 3, 15), Money(100.0, "USD"))]
+        periods = build_periods("2025Q1..Q4").periods
+        out = aggregate_by_period(flows=flows, periods=periods)
+        assert out["2025Q1"]["USD"].amount == pytest.approx(100.0)
+
+    def test_aggregate_cashflows_checked_keyword_args(self) -> None:
+        """Regression test: aggregate_cashflows_checked accepts keyword arguments."""
+        from finstack_quant.cashflows.aggregation import aggregate_cashflows_checked
+
+        flows = [(dt.date(2025, 1, 15), Money(50_000.0, "USD"))]
+        total = aggregate_cashflows_checked(flows=flows, target="USD")
+        assert total.amount == pytest.approx(50_000.0)
