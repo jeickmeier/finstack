@@ -125,6 +125,77 @@ fn apply_collateral_with_independent_amount(
     (unsecured_exposure - independent_amount).max(0.0)
 }
 
+/// Collateral held under this CSA against a given exposure level.
+///
+/// Uses the same cap semantics as [`apply_collateral`]: the counterparty posts
+/// variation margin only above `threshold + MTA`, so
+/// `C(E) = max(E − (threshold + MTA), 0)` and the unsecured residual is
+/// `E − C(E) = min(E, threshold + MTA)`.
+#[inline]
+fn collateral_held(exposure: f64, csa: &CsaTerms) -> f64 {
+    (exposure - (csa.threshold + csa.mta)).max(0.0)
+}
+
+/// Apply CSA collateral with an explicit margin-period-of-risk (MPOR) lag.
+///
+/// During the close-out period after a counterparty default, collateral stops
+/// flowing while the portfolio keeps moving: the collateral actually held at
+/// time `t` was called against the exposure observed at `t − MPOR`. This
+/// function models that gap risk:
+///
+/// ```text
+/// C(t)   = max(E(t − δ) − (threshold + MTA), 0)      (collateral held)
+/// net(t) = max(E(t) − C(t) − IA, 0)                  (residual exposure)
+/// ```
+///
+/// With `exposure_at_lag == exposure_now` (i.e. `δ = 0`) this reduces exactly
+/// to [`apply_collateral`].
+///
+/// # Arguments
+///
+/// * `exposure_now` - Positive portfolio exposure at time `t` (non-negative)
+/// * `exposure_at_lag` - Positive portfolio exposure at `t − MPOR` (non-negative)
+/// * `csa` - CSA terms; `csa.independent_amount` further reduces the residual
+///
+/// # Returns
+///
+/// Net exposure after MPOR-lagged collateral, always non-negative.
+///
+/// # References
+///
+/// - Andersen, L., Pykhtin, M., & Sokol, A. (2017). "Rethinking the margin
+///   period of risk." *Journal of Credit Risk*, 13(1), 1-45.
+/// - Gregory XVA Challenge: `docs/REFERENCES.md#gregory-xva-challenge`
+///
+/// # Examples
+///
+/// ```
+/// use finstack_quant_margin::xva::netting::apply_collateral_mpor;
+/// use finstack_quant_margin::xva::types::CsaTerms;
+///
+/// let csa = CsaTerms { threshold: 0.0, mta: 0.0, mpor_days: 10, independent_amount: 0.0 };
+/// // Exposure grew from 90 to 100 over the MPOR window: 10 is uncollateralized.
+/// assert!((apply_collateral_mpor(100.0, 90.0, &csa) - 10.0).abs() < 1e-12);
+/// ```
+#[inline]
+pub fn apply_collateral_mpor(exposure_now: f64, exposure_at_lag: f64, csa: &CsaTerms) -> f64 {
+    (exposure_now - collateral_held(exposure_at_lag, csa) - csa.independent_amount).max(0.0)
+}
+
+/// MPOR-lagged variation-margin reduction without the counterparty-posted
+/// independent amount (the ENE/DVA mirror of [`apply_collateral_mpor`]).
+// Wiring into the deterministic XVA engine (the ENE/DVA path) is task 2 of
+// this plan; until then this has no non-test caller.
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn apply_variation_margin_mpor(
+    exposure_now: f64,
+    exposure_at_lag: f64,
+    csa: &CsaTerms,
+) -> f64 {
+    (exposure_now - collateral_held(exposure_at_lag, csa)).max(0.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,5 +329,59 @@ mod tests {
             result.abs() < 1e-12,
             "Large IA should reduce exposure to zero, got {result}"
         );
+    }
+
+    // ── MPOR-lagged collateral tests ───────────────────────────────
+
+    #[test]
+    fn mpor_zero_lag_reduces_to_apply_collateral() {
+        // With exposure_at_lag == exposure_now the MPOR variant must agree
+        // exactly with apply_collateral for every regime of the piecewise
+        // formula (below threshold, in the MTA band, above threshold+MTA,
+        // and with a counterparty IA).
+        let exposures = [0.0, 5.0, 8.0, 10.5, 11.0, 20.0, 1_000.0];
+        let csas = [
+            make_csa(10.0, 1.0, 0.0),
+            make_csa(10.0, 1.0, 5.0),
+            make_csa(0.0, 0.5, 0.0),
+            make_csa(0.0, 0.0, 100.0),
+        ];
+        for csa in &csas {
+            for &e in &exposures {
+                let mpor = apply_collateral_mpor(e, e, csa);
+                let classic = apply_collateral(e, csa);
+                assert!(
+                    (mpor - classic).abs() < 1e-12,
+                    "zero-lag MPOR ({mpor}) must equal apply_collateral ({classic}) for e={e}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn mpor_gap_risk_leaves_exposure_growth_uncollateralized() {
+        // Zero threshold/MTA CSA: collateral held = lagged exposure, so the
+        // residual is exactly the exposure growth over the MPOR window.
+        let csa = make_csa(0.0, 0.0, 0.0);
+        // Exposure grew from 90 to 100 over the close-out period.
+        assert!((apply_collateral_mpor(100.0, 90.0, &csa) - 10.0).abs() < 1e-12);
+        // Exposure fell: collateral over-covers, floored at zero.
+        assert!(apply_collateral_mpor(80.0, 90.0, &csa).abs() < 1e-12);
+    }
+
+    #[test]
+    fn mpor_respects_threshold_and_ia() {
+        // threshold=10, mta=1, ia=5: collateral held on lagged exposure 50 is
+        // max(50 − 11, 0) = 39; net = max(60 − 39 − 5, 0) = 16.
+        let csa = make_csa(10.0, 1.0, 5.0);
+        assert!((apply_collateral_mpor(60.0, 50.0, &csa) - 16.0).abs() < 1e-12);
+        // ENE mirror ignores the counterparty IA: max(60 − 39, 0) = 21.
+        assert!((apply_variation_margin_mpor(60.0, 50.0, &csa) - 21.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn mpor_never_negative() {
+        let csa = make_csa(0.0, 0.0, 1_000.0);
+        assert!(apply_collateral_mpor(50.0, 500.0, &csa).abs() < 1e-12);
     }
 }
