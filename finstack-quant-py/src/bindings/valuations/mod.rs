@@ -15,6 +15,7 @@ mod pricing;
 mod sabr;
 mod structured_credit;
 pub(crate) mod typed_credit;
+pub(crate) mod typed_equity;
 pub(crate) mod typed_fx;
 mod typed_legs;
 pub(crate) mod typed_rates;
@@ -268,6 +269,7 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
     typed_legs::register(py, &m)?;
     typed_rates::register(py, &m)?;
     typed_credit::register(py, &m)?;
+    typed_equity::register(py, &m)?;
     typed_fx::register(py, &m)?;
     pricing::register(py, &m)?;
     structured_credit::register(&m)?;
@@ -275,10 +277,16 @@ fn register_instruments(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResul
         "Bond",
         "CDSIndex",
         "CDSIndexBuilder",
+        "CDSTranche",
+        "CDSTrancheBuilder",
         "CapFloor",
         "CapFloorBuilder",
+        "ConvertibleBond",
+        "ConvertibleBondBuilder",
         "CreditDefaultSwap",
         "CreditDefaultSwapBuilder",
+        "EquityOption",
+        "EquityOptionBuilder",
         "FixedLegSpec",
         "FloatLegSpec",
         "FxForward",

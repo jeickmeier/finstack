@@ -23,10 +23,16 @@ __all__ = [
     "Bond",
     "CDSIndex",
     "CDSIndexBuilder",
+    "CDSTranche",
+    "CDSTrancheBuilder",
     "CapFloor",
     "CapFloorBuilder",
+    "ConvertibleBond",
+    "ConvertibleBondBuilder",
     "CreditDefaultSwap",
     "CreditDefaultSwapBuilder",
+    "EquityOption",
+    "EquityOptionBuilder",
     "FixedLegSpec",
     "FloatLegSpec",
     "FxForward",
@@ -2879,6 +2885,1182 @@ class CDSIndexBuilder:
         """
         ...
 
+class CDSTranche:
+    """
+    Typed wrapper for the canonical Rust ``CDSTranche`` instrument.
+
+    Build with :meth:`CDSTranche.builder`; instances are accepted directly by
+    :func:`price_instrument`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.dates import DayCount, Tenor
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import CDSTranche
+    >>> tranche = (
+    ...     CDSTranche
+    ...     .builder()
+    ...     .id("CDX-IG-42-3-7")
+    ...     .index_name("CDX.NA.IG")
+    ...     .series(42)
+    ...     .attach_pct(3.0)
+    ...     .detach_pct(7.0)
+    ...     .notional(Money(10_000_000.0, Currency("USD")))
+    ...     .maturity(datetime.date(2029, 6, 20))
+    ...     .running_coupon_bp(100.0)
+    ...     .frequency(Tenor.quarterly())
+    ...     .day_count(DayCount.ACT_360)
+    ...     .discount_curve_id("USD-OIS")
+    ...     .credit_index_id("CDX-IG-42-CURVE")
+    ...     .side("buy_protection")
+    ...     .build()
+    ... )
+    >>> tranche.id
+    'CDX-IG-42-3-7'
+    """
+
+    @property
+    def id(self) -> str:
+        """
+        Instrument identifier.
+
+        Returns
+        -------
+        str
+            The unique instrument identifier.
+        """
+        ...
+
+    @staticmethod
+    def builder() -> CDSTrancheBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``CDSTranche::builder()``).
+
+        The builder pre-seeds ``accumulated_loss(0.0)`` and
+        ``standard_imm_dates(True)`` (the Rust fields have no defaults),
+        which :meth:`CDSTrancheBuilder.accumulated_loss` and
+        :meth:`CDSTrancheBuilder.standard_imm_dates` can override.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder)
+        True
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> CDSTranche:
+        """
+        Deserialize from tagged instrument JSON.
+
+        Parameters
+        ----------
+        json : str
+            Tagged instrument JSON with type ``"cds_tranche"``
+            (``{"type": "cds_tranche", "spec": {...}}``).
+
+        Returns
+        -------
+        CDSTranche
+            The validated CDS tranche.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed, has a different instrument type, or
+            fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to tagged instrument JSON.
+
+        Returns
+        -------
+        str
+            ``{"type": "cds_tranche", "spec": ...}`` JSON accepted by
+            :func:`price_instrument` and :meth:`CDSTranche.from_json`.
+        """
+        ...
+
+class CDSTrancheBuilder:
+    """
+    Fluent builder returned by :meth:`CDSTranche.builder`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import CDSTranche
+    >>> isinstance(CDSTranche.builder(), CDSTranche.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> CDSTrancheBuilder:
+        """
+        Set the instrument identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the tranche trade.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().id)
+        True
+        """
+        ...
+
+    def index_name(self, value: str) -> CDSTrancheBuilder:
+        """
+        Set the underlying index name.
+
+        Parameters
+        ----------
+        value : str
+            Index name, e.g. ``"CDX.NA.IG"``, ``"CDX.NA.HY"``, ``"iTraxx EUR"``.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().index_name)
+        True
+        """
+        ...
+
+    def series(self, value: int) -> CDSTrancheBuilder:
+        """
+        Set the series number.
+
+        Parameters
+        ----------
+        value : int
+            Series number, e.g. ``42``.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().series)
+        True
+        """
+        ...
+
+    def attach_pct(self, value: float) -> CDSTrancheBuilder:
+        """
+        Set the attachment point.
+
+        Parameters
+        ----------
+        value : float
+            Attachment point quoted in percent (e.g. ``0.0`` for equity;
+            ``3.0`` for a tranche attaching at 3%).
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().attach_pct)
+        True
+        """
+        ...
+
+    def detach_pct(self, value: float) -> CDSTrancheBuilder:
+        """
+        Set the detachment point.
+
+        Parameters
+        ----------
+        value : float
+            Detachment point quoted in percent (e.g. ``3.0`` for a 0-3%
+            tranche).
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().detach_pct)
+        True
+        """
+        ...
+
+    def notional(self, value: Money) -> CDSTrancheBuilder:
+        """
+        Set the notional amount of the tranche.
+
+        Parameters
+        ----------
+        value : Money
+            Notional amount of the tranche.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().notional)
+        True
+        """
+        ...
+
+    def maturity(self, value: datetime.date) -> CDSTrancheBuilder:
+        """
+        Set the maturity date of the tranche.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Maturity date of the tranche.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().maturity)
+        True
+        """
+        ...
+
+    def running_coupon_bp(self, value: float) -> CDSTrancheBuilder:
+        """
+        Set the running coupon.
+
+        Parameters
+        ----------
+        value : float
+            Running coupon in basis points (e.g. ``100.0`` = 1.00%).
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().running_coupon_bp)
+        True
+        """
+        ...
+
+    def frequency(self, value: Tenor) -> CDSTrancheBuilder:
+        """
+        Set the payment frequency.
+
+        Parameters
+        ----------
+        value : Tenor
+            Payment frequency (typically quarterly).
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().frequency)
+        True
+        """
+        ...
+
+    def day_count(self, value: DayCount) -> CDSTrancheBuilder:
+        """
+        Set the day count convention.
+
+        Parameters
+        ----------
+        value : DayCount
+            Day count convention (typically Act/360).
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().day_count)
+        True
+        """
+        ...
+
+    def calendar_id(self, value: str) -> CDSTrancheBuilder:
+        """
+        Set the holiday calendar identifier.
+
+        Parameters
+        ----------
+        value : str
+            Holiday calendar identifier.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().calendar_id)
+        True
+        """
+        ...
+
+    def discount_curve_id(self, value: str) -> CDSTrancheBuilder:
+        """
+        Set the discount curve identifier (by quote currency).
+
+        Parameters
+        ----------
+        value : str
+            Discount curve identifier.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().discount_curve_id)
+        True
+        """
+        ...
+
+    def credit_index_id(self, value: str) -> CDSTrancheBuilder:
+        """
+        Set the credit index identifier for survival/loss modeling.
+
+        Parameters
+        ----------
+        value : str
+            Credit index identifier.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().credit_index_id)
+        True
+        """
+        ...
+
+    def side(self, value: Literal["buy_protection", "sell_protection"]) -> CDSTrancheBuilder:
+        """
+        Set the tranche side (buy/sell protection).
+
+        Parameters
+        ----------
+        value : {"buy_protection", "sell_protection"}
+            Tranche side.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized side.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().side)
+        True
+        """
+        ...
+
+    def effective_date(self, value: datetime.date) -> CDSTrancheBuilder:
+        """
+        Set the effective date for schedule anchoring.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Effective date. If never set, uses the as-of date (or standard
+            IMM-date rolling, if ``standard_imm_dates`` is true).
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().effective_date)
+        True
+        """
+        ...
+
+    def accumulated_loss(self, value: float) -> CDSTrancheBuilder:
+        """
+        Set the accumulated realized loss.
+
+        Parameters
+        ----------
+        value : float
+            Accumulated realized loss as a fraction of the original
+            portfolio notional. Defaults to ``0.0`` when never set
+            explicitly.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().accumulated_loss)
+        True
+        """
+        ...
+
+    def standard_imm_dates(self, value: bool) -> CDSTrancheBuilder:
+        """
+        Set whether to enforce standard IMM dates.
+
+        Parameters
+        ----------
+        value : bool
+            Whether to enforce standard IMM dates (20th of Mar, Jun, Sep,
+            Dec). Defaults to ``True`` when never set explicitly.
+
+        Returns
+        -------
+        CDSTrancheBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`CDSTrancheBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().standard_imm_dates)
+        True
+        """
+        ...
+
+    def build(self) -> CDSTranche:
+        """
+        Build the validated CDS tranche.
+
+        Returns
+        -------
+        CDSTranche
+            The validated CDS tranche.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing or Rust validation fails.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import CDSTranche
+        >>> callable(CDSTranche.builder().build)
+        True
+        """
+        ...
+
+class ConvertibleBond:
+    """
+    Typed wrapper for the canonical Rust ``ConvertibleBond`` instrument.
+
+    Build with :meth:`ConvertibleBond.builder`; nested conversion/call/coupon
+    terms are set via ``*_json`` setters (JSON sub-fields, per the
+    nested-spec rule). Instances are accepted directly by
+    :func:`price_instrument`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> import json
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import ConvertibleBond
+    >>> conversion = json.dumps({
+    ...     "ratio": 20.0,
+    ...     "price": None,
+    ...     "policy": "Voluntary",
+    ...     "anti_dilution": "FullRatchet",
+    ...     "dividend_adjustment": "None",
+    ...     "dilution_events": [],
+    ... })
+    >>> bond = (
+    ...     ConvertibleBond
+    ...     .builder()
+    ...     .id("CONV-1")
+    ...     .notional(Money(1_000.0, Currency("USD")))
+    ...     .issue_date(datetime.date(2024, 1, 15))
+    ...     .maturity(datetime.date(2029, 1, 15))
+    ...     .discount_curve_id("USD-OIS")
+    ...     .conversion_json(conversion)
+    ...     .underlying_equity_id("ACME")
+    ...     .build()
+    ... )
+    >>> bond.id
+    'CONV-1'
+    """
+
+    @property
+    def id(self) -> str:
+        """
+        Instrument identifier.
+
+        Returns
+        -------
+        str
+            The unique instrument identifier.
+        """
+        ...
+
+    @staticmethod
+    def builder() -> ConvertibleBondBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``ConvertibleBond::builder()``).
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder)
+        True
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> ConvertibleBond:
+        """
+        Deserialize from tagged instrument JSON.
+
+        Parameters
+        ----------
+        json : str
+            Tagged instrument JSON with type ``"convertible_bond"``
+            (``{"type": "convertible_bond", "spec": {...}}``).
+
+        Returns
+        -------
+        ConvertibleBond
+            The validated convertible bond.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed, has a different instrument type, or
+            fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to tagged instrument JSON.
+
+        Returns
+        -------
+        str
+            ``{"type": "convertible_bond", "spec": ...}`` JSON accepted by
+            :func:`price_instrument` and :meth:`ConvertibleBond.from_json`.
+        """
+        ...
+
+class ConvertibleBondBuilder:
+    """
+    Fluent builder returned by :meth:`ConvertibleBond.builder`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import ConvertibleBond
+    >>> isinstance(ConvertibleBond.builder(), ConvertibleBond.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> ConvertibleBondBuilder:
+        """
+        Set the instrument identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the convertible bond.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`ConvertibleBondBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().id)
+        True
+        """
+        ...
+
+    def notional(self, value: Money) -> ConvertibleBondBuilder:
+        """
+        Set the principal amount.
+
+        Parameters
+        ----------
+        value : Money
+            Principal amount.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`ConvertibleBondBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().notional)
+        True
+        """
+        ...
+
+    def issue_date(self, value: datetime.date) -> ConvertibleBondBuilder:
+        """
+        Set the issue date.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Issue date.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`ConvertibleBondBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().issue_date)
+        True
+        """
+        ...
+
+    def maturity(self, value: datetime.date) -> ConvertibleBondBuilder:
+        """
+        Set the maturity date.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Maturity date.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`ConvertibleBondBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().maturity)
+        True
+        """
+        ...
+
+    def discount_curve_id(self, value: str) -> ConvertibleBondBuilder:
+        """
+        Set the discount curve identifier for the debt component.
+
+        Parameters
+        ----------
+        value : str
+            Discount curve identifier for the debt component (risk-free or
+            funding).
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`ConvertibleBondBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().discount_curve_id)
+        True
+        """
+        ...
+
+    def credit_curve_id(self, value: str) -> ConvertibleBondBuilder:
+        """
+        Set the credit curve identifier for risky discounting (bond floor).
+
+        Parameters
+        ----------
+        value : str
+            Credit curve identifier. If not provided, falls back to
+            ``discount_curve_id`` (implies no credit spread). Must represent
+            zero-recovery (pure hazard) risky discounting.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`ConvertibleBondBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().credit_curve_id)
+        True
+        """
+        ...
+
+    def conversion_json(self, value: str) -> ConvertibleBondBuilder:
+        """
+        Set the conversion terms from a JSON object.
+
+        Parameters
+        ----------
+        value : str
+            JSON-encoded ``ConversionSpec`` object with fields ``ratio``,
+            ``price``, ``policy``, ``anti_dilution``, ``dividend_adjustment``
+            and ``dilution_events``. At least one of ``ratio`` / ``price``
+            must be set. The Rust enums have no ``rename_all`` attribute, so
+            variant values use their exact PascalCase Rust names, e.g.
+            ``"Voluntary"``, ``"FullRatchet"``, ``"None"``.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the ``ConversionSpec`` shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().conversion_json)
+        True
+        """
+        ...
+
+    def underlying_equity_id(self, value: str) -> ConvertibleBondBuilder:
+        """
+        Set the underlying equity identifier.
+
+        Parameters
+        ----------
+        value : str
+            Underlying equity identifier (ticker or instrument id).
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`ConvertibleBondBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().underlying_equity_id)
+        True
+        """
+        ...
+
+    def call_put_json(self, value: str) -> ConvertibleBondBuilder:
+        """
+        Set the call/put schedule from a JSON object.
+
+        Parameters
+        ----------
+        value : str
+            JSON-encoded ``CallPutSchedule`` object with ``calls`` and
+            ``puts`` arrays of call/put windows.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the ``CallPutSchedule`` shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().call_put_json)
+        True
+        """
+        ...
+
+    def soft_call_trigger_json(self, value: str) -> ConvertibleBondBuilder:
+        """
+        Set the soft-call trigger condition from a JSON object.
+
+        Parameters
+        ----------
+        value : str
+            JSON-encoded ``SoftCallTrigger`` object with fields
+            ``threshold_pct``, ``observation_days`` and
+            ``required_days_above``.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the ``SoftCallTrigger`` shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().soft_call_trigger_json)
+        True
+        """
+        ...
+
+    def settlement_days(self, value: int) -> ConvertibleBondBuilder:
+        """
+        Set the settlement lag.
+
+        Parameters
+        ----------
+        value : int
+            Number of business days from trade date to settlement date
+            (e.g. ``2`` for US corporate convertibles). If never set,
+            settlement is assumed same-day.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`ConvertibleBondBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().settlement_days)
+        True
+        """
+        ...
+
+    def recovery_rate(self, value: float) -> ConvertibleBondBuilder:
+        """
+        Set the assumed recovery rate on default.
+
+        Parameters
+        ----------
+        value : float
+            Recovery rate as a fraction (e.g. ``0.40`` = 40%). Used in the
+            Tsiveriotis-Zhang credit model; only relevant when
+            ``credit_curve_id`` is set.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`ConvertibleBondBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().recovery_rate)
+        True
+        """
+        ...
+
+    def fixed_coupon_json(self, value: str) -> ConvertibleBondBuilder:
+        """
+        Set the fixed coupon specification from a JSON object.
+
+        Parameters
+        ----------
+        value : str
+            JSON-encoded ``FixedCouponSpec`` object.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the ``FixedCouponSpec`` shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().fixed_coupon_json)
+        True
+        """
+        ...
+
+    def floating_coupon_json(self, value: str) -> ConvertibleBondBuilder:
+        """
+        Set the floating coupon specification from a JSON object.
+
+        Parameters
+        ----------
+        value : str
+            JSON-encoded ``FloatingCouponSpec`` object.
+
+        Returns
+        -------
+        ConvertibleBondBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not valid JSON for the ``FloatingCouponSpec``
+            shape.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().floating_coupon_json)
+        True
+        """
+        ...
+
+    def build(self) -> ConvertibleBond:
+        """
+        Build the validated convertible bond.
+
+        Returns
+        -------
+        ConvertibleBond
+            The validated convertible bond.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing or Rust validation fails (e.g.
+            neither ``ratio`` nor ``price`` set on the conversion terms).
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import ConvertibleBond
+        >>> callable(ConvertibleBond.builder().build)
+        True
+        """
+        ...
+
 class FxForward:
     """
     Typed wrapper for the canonical Rust ``FxForward``.
@@ -3767,6 +4949,509 @@ class FxOptionBuilder:
         --------
         >>> from finstack_quant.valuations.instruments import FxOption
         >>> callable(FxOption.builder().build)
+        True
+        """
+        ...
+
+class EquityOption:
+    """
+    Typed wrapper for the canonical Rust ``EquityOption`` instrument.
+
+    Build with :meth:`EquityOption.builder`; instances are accepted directly
+    by :func:`price_instrument`.
+
+    Examples
+    --------
+    >>> import datetime
+    >>> from finstack_quant.core.currency import Currency
+    >>> from finstack_quant.core.money import Money
+    >>> from finstack_quant.valuations.instruments import EquityOption
+    >>> option = (
+    ...     EquityOption
+    ...     .builder()
+    ...     .id("AAPL-C-200")
+    ...     .underlying_ticker("AAPL")
+    ...     .strike(200.0)
+    ...     .option_type("call")
+    ...     .expiry(datetime.date(2025, 6, 20))
+    ...     .notional(Money(100.0, Currency("USD")))
+    ...     .discount_curve_id("USD-OIS")
+    ...     .spot_id("AAPL")
+    ...     .vol_surface_id("AAPL-VOL")
+    ...     .build()
+    ... )
+    >>> option.id
+    'AAPL-C-200'
+    """
+
+    @property
+    def id(self) -> str:
+        """
+        Instrument identifier.
+
+        Returns
+        -------
+        str
+            The unique instrument identifier.
+        """
+        ...
+
+    @staticmethod
+    def builder() -> EquityOptionBuilder:
+        """
+        Create a fluent builder (mirrors Rust ``EquityOption::builder()``).
+
+        Returns
+        -------
+        EquityOptionBuilder
+            A builder with fluent, consuming setter methods.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder)
+        True
+        """
+        ...
+
+    @classmethod
+    def from_json(cls, json: str) -> EquityOption:
+        """
+        Deserialize from tagged instrument JSON.
+
+        Parameters
+        ----------
+        json : str
+            Tagged instrument JSON with type ``"equity_option"``
+            (``{"type": "equity_option", "spec": {...}}``).
+
+        Returns
+        -------
+        EquityOption
+            The validated equity option.
+
+        Raises
+        ------
+        ValueError
+            If the JSON is malformed, has a different instrument type, or
+            fails validation.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.from_json)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to tagged instrument JSON.
+
+        Returns
+        -------
+        str
+            ``{"type": "equity_option", "spec": ...}`` JSON accepted by
+            :func:`price_instrument` and :meth:`EquityOption.from_json`.
+        """
+        ...
+
+class EquityOptionBuilder:
+    """
+    Fluent builder returned by :meth:`EquityOption.builder`.
+
+    Examples
+    --------
+    >>> from finstack_quant.valuations.instruments import EquityOption
+    >>> isinstance(EquityOption.builder(), EquityOption.builder().__class__)
+    True
+    """
+
+    def id(self, value: str) -> EquityOptionBuilder:
+        """
+        Set the instrument identifier.
+
+        Parameters
+        ----------
+        value : str
+            Unique identifier for the equity option.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`EquityOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().id)
+        True
+        """
+        ...
+
+    def underlying_ticker(self, value: str) -> EquityOptionBuilder:
+        """
+        Set the underlying equity ticker symbol.
+
+        Parameters
+        ----------
+        value : str
+            Underlying equity ticker symbol.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`EquityOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().underlying_ticker)
+        True
+        """
+        ...
+
+    def strike(self, value: float) -> EquityOptionBuilder:
+        """
+        Set the strike price.
+
+        Parameters
+        ----------
+        value : float
+            Strike price. Must be finite and positive.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`EquityOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().strike)
+        True
+        """
+        ...
+
+    def option_type(self, value: Literal["call", "put"]) -> EquityOptionBuilder:
+        """
+        Set the option type.
+
+        Parameters
+        ----------
+        value : {"call", "put"}
+            Option type of the equity option.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized option type.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().option_type)
+        True
+        """
+        ...
+
+    def exercise_style(self, value: Literal["european", "american", "bermudan"]) -> EquityOptionBuilder:
+        """
+        Set the exercise style.
+
+        Parameters
+        ----------
+        value : {"european", "american", "bermudan"}
+            Exercise style of the equity option. Defaults to ``"european"``
+            when never set.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If ``value`` is not a recognized exercise style.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().exercise_style)
+        True
+        """
+        ...
+
+    def expiry(self, value: datetime.date) -> EquityOptionBuilder:
+        """
+        Set the option expiry date.
+
+        Parameters
+        ----------
+        value : datetime.date
+            Option expiry date.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`EquityOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().expiry)
+        True
+        """
+        ...
+
+    def notional(self, value: Money) -> EquityOptionBuilder:
+        """
+        Set the notional amount for valuation scaling.
+
+        Parameters
+        ----------
+        value : Money
+            Notional amount for valuation scaling.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`EquityOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().notional)
+        True
+        """
+        ...
+
+    def discount_curve_id(self, value: str) -> EquityOptionBuilder:
+        """
+        Set the discount curve identifier for present value calculations.
+
+        Parameters
+        ----------
+        value : str
+            Discount curve identifier.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`EquityOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().discount_curve_id)
+        True
+        """
+        ...
+
+    def spot_id(self, value: str) -> EquityOptionBuilder:
+        """
+        Set the equity spot price identifier.
+
+        Parameters
+        ----------
+        value : str
+            Equity spot price identifier.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`EquityOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().spot_id)
+        True
+        """
+        ...
+
+    def vol_surface_id(self, value: str) -> EquityOptionBuilder:
+        """
+        Set the equity volatility surface identifier.
+
+        Parameters
+        ----------
+        value : str
+            Equity volatility surface identifier.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`EquityOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().vol_surface_id)
+        True
+        """
+        ...
+
+    def div_yield_id(self, value: str) -> EquityOptionBuilder:
+        """
+        Set the continuous dividend yield identifier.
+
+        Parameters
+        ----------
+        value : str
+            Continuous dividend yield identifier. If never set, the pricer
+            treats the underlying as having zero continuous dividend yield.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`EquityOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().div_yield_id)
+        True
+        """
+        ...
+
+    def discrete_dividends(self, value: list[tuple[datetime.date, float]]) -> EquityOptionBuilder:
+        """
+        Set the discrete dividend schedule.
+
+        Parameters
+        ----------
+        value : list[tuple[datetime.date, float]]
+            Discrete dividend schedule as ``(ex_date, dividend_amount)``
+            pairs. When provided, the escrowed dividend model is used for
+            pricing.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`EquityOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().discrete_dividends)
+        True
+        """
+        ...
+
+    def exercise_schedule(self, value: list[datetime.date]) -> EquityOptionBuilder:
+        """
+        Set the exercise schedule for Bermudan options.
+
+        Parameters
+        ----------
+        value : list[datetime.date]
+            Dates on which early exercise is permitted. Required when
+            ``exercise_style`` is ``"bermudan"``.
+
+        Returns
+        -------
+        EquityOptionBuilder
+            ``self``, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If this builder was already consumed by a prior call to
+            :meth:`EquityOptionBuilder.build`.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().exercise_schedule)
+        True
+        """
+        ...
+
+    def build(self) -> EquityOption:
+        """
+        Build the validated equity option.
+
+        Returns
+        -------
+        EquityOption
+            The validated equity option.
+
+        Raises
+        ------
+        ValueError
+            If a required field is missing or Rust validation fails.
+
+        Examples
+        --------
+        >>> from finstack_quant.valuations.instruments import EquityOption
+        >>> callable(EquityOption.builder().build)
         True
         """
         ...

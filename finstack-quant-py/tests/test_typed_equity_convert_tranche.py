@@ -1,0 +1,213 @@
+"""Typed EquityOption / CDSTranche / ConvertibleBond bindings."""
+
+from __future__ import annotations
+
+import datetime
+import json
+
+import pytest
+
+from finstack_quant.core.currency import Currency
+from finstack_quant.core.dates import DayCount, Tenor
+from finstack_quant.core.money import Money
+from finstack_quant.valuations.instruments import (
+    CDSTranche,
+    ConvertibleBond,
+    EquityOption,
+)
+
+
+class TestEquityOptionTyped:
+    def test_builder_round_trip(self) -> None:
+        option = (
+            EquityOption
+            .builder()
+            .id("AAPL-C-200")
+            .underlying_ticker("AAPL")
+            .strike(200.0)
+            .option_type("call")
+            .expiry(datetime.date(2025, 6, 20))
+            .notional(Money(100.0, Currency("USD")))
+            .discount_curve_id("USD-OIS")
+            .spot_id("AAPL")
+            .vol_surface_id("AAPL-VOL")
+            .build()
+        )
+        payload = json.loads(option.to_json())
+        assert payload["type"] == "equity_option"
+        assert EquityOption.from_json(option.to_json()).id == "AAPL-C-200"
+
+    def test_invalid_option_type_raises(self) -> None:
+        with pytest.raises(ValueError, match="invalid option_type"):
+            EquityOption.builder().option_type("butterfly")
+
+    def test_put_option_type_and_american_exercise_style(self) -> None:
+        option = (
+            EquityOption
+            .builder()
+            .id("AAPL-P-180")
+            .underlying_ticker("AAPL")
+            .strike(180.0)
+            .option_type("put")
+            .exercise_style("american")
+            .expiry(datetime.date(2025, 6, 20))
+            .notional(Money(100.0, Currency("USD")))
+            .discount_curve_id("USD-OIS")
+            .spot_id("AAPL")
+            .vol_surface_id("AAPL-VOL")
+            .build()
+        )
+        payload = json.loads(option.to_json())
+        assert payload["type"] == "equity_option"
+
+    def test_invalid_exercise_style_raises(self) -> None:
+        with pytest.raises(ValueError, match="invalid exercise_style"):
+            EquityOption.builder().exercise_style("bahamian")
+
+    def test_div_yield_id_and_discrete_dividends_and_exercise_schedule(self) -> None:
+        option = (
+            EquityOption
+            .builder()
+            .id("AAPL-C-200-DIV")
+            .underlying_ticker("AAPL")
+            .strike(200.0)
+            .option_type("call")
+            .exercise_style("bermudan")
+            .expiry(datetime.date(2025, 6, 20))
+            .notional(Money(100.0, Currency("USD")))
+            .discount_curve_id("USD-OIS")
+            .spot_id("AAPL")
+            .vol_surface_id("AAPL-VOL")
+            .div_yield_id("AAPL-DIVYIELD")
+            .discrete_dividends([(datetime.date(2025, 3, 1), 0.5)])
+            .exercise_schedule([datetime.date(2025, 3, 20), datetime.date(2025, 6, 20)])
+            .build()
+        )
+        payload = json.loads(option.to_json())
+        assert payload["type"] == "equity_option"
+        assert EquityOption.from_json(option.to_json()).id == "AAPL-C-200-DIV"
+
+
+class TestCDSTrancheTyped:
+    def test_builder_round_trip(self) -> None:
+        tranche = (
+            CDSTranche
+            .builder()
+            .id("CDX-IG-42-3-7")
+            .index_name("CDX.NA.IG")
+            .series(42)
+            .attach_pct(3.0)
+            .detach_pct(7.0)
+            .notional(Money(10_000_000.0, Currency("USD")))
+            .maturity(datetime.date(2029, 6, 20))
+            .running_coupon_bp(100.0)
+            .frequency(Tenor.quarterly())
+            .day_count(DayCount.ACT_360)
+            .discount_curve_id("USD-OIS")
+            .credit_index_id("CDX-IG-42-CURVE")
+            .side("buy_protection")
+            .build()
+        )
+        payload = json.loads(tranche.to_json())
+        assert payload["type"] == "cds_tranche"
+        assert CDSTranche.from_json(tranche.to_json()).id == "CDX-IG-42-3-7"
+
+    def test_sell_protection_side_and_overrides(self) -> None:
+        tranche = (
+            CDSTranche
+            .builder()
+            .id("CDX-IG-42-0-3")
+            .index_name("CDX.NA.IG")
+            .series(42)
+            .attach_pct(0.0)
+            .detach_pct(3.0)
+            .notional(Money(5_000_000.0, Currency("USD")))
+            .maturity(datetime.date(2029, 6, 20))
+            .running_coupon_bp(500.0)
+            .frequency(Tenor.quarterly())
+            .day_count(DayCount.ACT_360)
+            .calendar_id("NYSE")
+            .discount_curve_id("USD-OIS")
+            .credit_index_id("CDX-IG-42-CURVE")
+            .side("sell_protection")
+            .effective_date(datetime.date(2024, 6, 20))
+            .accumulated_loss(0.01)
+            .standard_imm_dates(False)
+            .build()
+        )
+        payload = json.loads(tranche.to_json())
+        assert payload["type"] == "cds_tranche"
+
+    def test_invalid_side_case_raises(self) -> None:
+        with pytest.raises(ValueError, match="invalid side"):
+            CDSTranche.builder().side("BuyProtection")
+
+
+class TestConvertibleBondTyped:
+    def test_builder_with_conversion_json_round_trips(self) -> None:
+        conversion = json.dumps({
+            "ratio": 20.0,
+            "price": None,
+            "policy": "Voluntary",
+            "anti_dilution": "FullRatchet",
+            "dividend_adjustment": "None",
+            "dilution_events": [],
+        })
+        bond = (
+            ConvertibleBond
+            .builder()
+            .id("CONV-1")
+            .notional(Money(1_000.0, Currency("USD")))
+            .issue_date(datetime.date(2024, 1, 15))
+            .maturity(datetime.date(2029, 1, 15))
+            .discount_curve_id("USD-OIS")
+            .conversion_json(conversion)
+            .underlying_equity_id("ACME")
+            .build()
+        )
+        payload = json.loads(bond.to_json())
+        assert payload["type"] == "convertible_bond"
+        assert ConvertibleBond.from_json(bond.to_json()).id == "CONV-1"
+
+    def test_invalid_conversion_json_raises(self) -> None:
+        with pytest.raises(ValueError, match="invalid conversion JSON"):
+            ConvertibleBond.builder().conversion_json("{nope")
+
+    def test_conversion_json_wrong_case_enum_raises(self) -> None:
+        conversion = json.dumps({
+            "ratio": 20.0,
+            "price": None,
+            "policy": "voluntary",
+            "anti_dilution": "full_ratchet",
+            "dividend_adjustment": "none",
+            "dilution_events": [],
+        })
+        with pytest.raises(ValueError, match="invalid conversion JSON"):
+            ConvertibleBond.builder().conversion_json(conversion)
+
+    def test_credit_curve_and_recovery_and_settlement_days(self) -> None:
+        conversion = json.dumps({
+            "ratio": None,
+            "price": 50.0,
+            "policy": "Voluntary",
+            "anti_dilution": "None",
+            "dividend_adjustment": "AdjustRatio",
+            "dilution_events": [],
+        })
+        bond = (
+            ConvertibleBond
+            .builder()
+            .id("CONV-2")
+            .notional(Money(1_000.0, Currency("USD")))
+            .issue_date(datetime.date(2024, 1, 15))
+            .maturity(datetime.date(2029, 1, 15))
+            .discount_curve_id("USD-OIS")
+            .credit_curve_id("USD-CREDIT-BBB")
+            .conversion_json(conversion)
+            .underlying_equity_id("ACME")
+            .settlement_days(2)
+            .recovery_rate(0.4)
+            .build()
+        )
+        payload = json.loads(bond.to_json())
+        assert payload["type"] == "convertible_bond"

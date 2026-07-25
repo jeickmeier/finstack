@@ -1,14 +1,19 @@
-//! Typed credit-derivative instruments: `CreditDefaultSwap` and `CDSIndex`.
+//! Typed credit instruments: `CreditDefaultSwap`, `CDSIndex`, `CDSTranche`
+//! and `ConvertibleBond`.
 //! Mirrors the `PyBond` pattern in `instruments.rs`.
 
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
+use crate::bindings::core::dates::daycount::PyDayCount;
+use crate::bindings::core::dates::tenor::PyTenor;
+use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
 use crate::errors::{core_to_py, serde_json_to_py, value_error};
-use finstack_quant_core::types::InstrumentId;
+use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::credit_derivatives::cds::CDSConvention;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_index::IndexPricing;
+use finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::TrancheSide;
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 use finstack_quant_valuations::market::conventions::ids::CdsDocClause;
 
@@ -19,6 +24,10 @@ type CdsBuilderInner =
     finstack_quant_valuations::instruments::credit_derivatives::cds::CreditDefaultSwapBuilder;
 type CdsIndexBuilderInner =
     finstack_quant_valuations::instruments::credit_derivatives::cds_index::CDSIndexBuilder;
+type CdsTrancheBuilderInner =
+    finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::CDSTrancheBuilder;
+type ConvertibleBondBuilderInner =
+    finstack_quant_valuations::instruments::fixed_income::convertible::ConvertibleBondBuilder;
 
 // ---------------------------------------------------------------------------
 // CreditDefaultSwap
@@ -794,6 +803,1007 @@ impl PyCDSIndexBuilder {
     }
 }
 
+// ---------------------------------------------------------------------------
+// CDSTranche
+// ---------------------------------------------------------------------------
+
+/// Typed wrapper for the Rust `CDSTranche` instrument.
+#[pyclass(
+    module = "finstack_quant.valuations.instruments",
+    name = "CDSTranche",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyCDSTranche {
+    /// Inner canonical Rust CDS tranche.
+    pub(crate) inner: finstack_quant_valuations::instruments::CDSTranche,
+}
+
+impl PyCDSTranche {
+    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
+    pub(crate) fn tagged_json(&self) -> PyResult<String> {
+        serde_json::to_string(&InstrumentJson::CDSTranche(self.inner.clone()))
+            .map_err(|err| serde_json_to_py(err, "failed to serialize CDSTranche"))
+    }
+}
+
+#[pymethods]
+impl PyCDSTranche {
+    /// Create a fluent builder (mirrors Rust ``CDSTranche::builder()``).
+    ///
+    /// The builder pre-seeds ``accumulated_loss(0.0)`` and
+    /// ``standard_imm_dates(True)`` (the Rust fields have no defaults), which
+    /// :meth:`CDSTrancheBuilder.accumulated_loss` and
+    /// :meth:`CDSTrancheBuilder.standard_imm_dates` can override.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     A builder with fluent, consuming setter methods.
+    ///
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.valuations.instruments import CDSTranche
+    /// >>> callable(CDSTranche.builder)
+    /// True
+    #[staticmethod]
+    #[pyo3(text_signature = "()")]
+    fn builder() -> PyCDSTrancheBuilder {
+        PyCDSTrancheBuilder {
+            inner: Some(
+                finstack_quant_valuations::instruments::CDSTranche::builder()
+                    .accumulated_loss(0.0)
+                    .standard_imm_dates(true),
+            ),
+        }
+    }
+
+    /// Deserialize from tagged instrument JSON (``{"type": "cds_tranche", ...}``).
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Tagged instrument JSON with type ``"cds_tranche"``.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTranche
+    ///     The validated CDS tranche.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the JSON is malformed, has a different instrument type, or
+    ///     fails validation.
+    ///
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.valuations.instruments import CDSTranche
+    /// >>> callable(CDSTranche.from_json)
+    /// True
+    #[classmethod]
+    #[pyo3(text_signature = "(cls, json)")]
+    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+        match serde_json::from_str::<InstrumentJson>(json)
+            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
+        {
+            InstrumentJson::CDSTranche(inner) => {
+                inner.validate_for_pricing().map_err(core_to_py)?;
+                Ok(Self { inner })
+            }
+            _ => Err(value_error(
+                "expected instrument type \"cds_tranche\", got a different instrument type",
+            )),
+        }
+    }
+
+    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     ``CDSTranche.from_json``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_json(&self) -> PyResult<String> {
+        self.tagged_json()
+    }
+
+    /// Instrument identifier.
+    #[getter]
+    fn id(&self) -> String {
+        self.inner.id.to_string()
+    }
+
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!("CDSTranche(id={:?})", self.inner.id.as_str())
+    }
+}
+
+/// Fluent builder for [`PyCDSTranche`]; wraps the Rust
+/// `FinancialBuilder`-generated builder (consuming setters).
+#[pyclass(
+    module = "finstack_quant.valuations.instruments",
+    name = "CDSTrancheBuilder",
+    skip_from_py_object
+)]
+pub struct PyCDSTrancheBuilder {
+    inner: Option<CdsTrancheBuilderInner>,
+}
+
+/// Take the wrapped Rust builder or fail if `build()` already consumed it.
+fn take_cds_tranche(b: &mut PyCDSTrancheBuilder) -> PyResult<CdsTrancheBuilderInner> {
+    b.inner
+        .take()
+        .ok_or_else(|| value_error("builder already consumed by build()"))
+}
+
+#[pymethods]
+impl PyCDSTrancheBuilder {
+    /// Set the instrument identifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     Unique identifier for the tranche trade.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn id<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.id(InstrumentId::new(value.to_string())));
+        Ok(slf)
+    }
+
+    /// Set the underlying index name.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     Index name, e.g. ``"CDX.NA.IG"``, ``"CDX.NA.HY"``, ``"iTraxx EUR"``.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn index_name<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.index_name(value.to_string()));
+        Ok(slf)
+    }
+
+    /// Set the series number.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : int
+    ///     Series number, e.g. ``42``.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn series<'py>(mut slf: PyRefMut<'py, Self>, value: u16) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.series(value));
+        Ok(slf)
+    }
+
+    /// Set the attachment point.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : float
+    ///     Attachment point as a fraction (e.g. ``0.0`` for equity).
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn attach_pct<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.attach_pct(value));
+        Ok(slf)
+    }
+
+    /// Set the detachment point.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : float
+    ///     Detachment point as a fraction (e.g. ``0.03`` for a 0-3% tranche).
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn detach_pct<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.detach_pct(value));
+        Ok(slf)
+    }
+
+    /// Set the notional amount of the tranche.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : Money
+    ///     Notional amount of the tranche.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn notional<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: PyRef<'_, PyMoney>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.notional(value.inner));
+        Ok(slf)
+    }
+
+    /// Set the maturity date of the tranche.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : datetime.date
+    ///     Maturity date of the tranche.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn maturity<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let maturity = py_to_date(value)?;
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.maturity(maturity));
+        Ok(slf)
+    }
+
+    /// Set the running coupon.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : float
+    ///     Running coupon in basis points (e.g. ``100.0`` = 1.00%).
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn running_coupon_bp<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: f64,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.running_coupon_bp(value));
+        Ok(slf)
+    }
+
+    /// Set the payment frequency.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : Tenor
+    ///     Payment frequency (typically quarterly).
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn frequency<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: PyRef<'_, PyTenor>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.frequency(value.inner));
+        Ok(slf)
+    }
+
+    /// Set the day count convention.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : DayCount
+    ///     Day count convention (typically Act/360).
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn day_count<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: PyRef<'_, PyDayCount>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.day_count(value.inner));
+        Ok(slf)
+    }
+
+    /// Set the holiday calendar identifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     Holiday calendar identifier.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn calendar_id<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.calendar_id(value.to_string()));
+        Ok(slf)
+    }
+
+    /// Set the discount curve identifier (by quote currency).
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     Discount curve identifier.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn discount_curve_id<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.discount_curve_id(CurveId::new(value.to_string())));
+        Ok(slf)
+    }
+
+    /// Set the credit index identifier for survival/loss modeling.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     Credit index identifier.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn credit_index_id<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.credit_index_id(CurveId::new(value.to_string())));
+        Ok(slf)
+    }
+
+    /// Set the tranche side (buy/sell protection).
+    ///
+    /// Parameters
+    /// ----------
+    /// value : {"buy_protection", "sell_protection"}
+    ///     Tranche side.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``value`` is not a recognized side.
+    #[pyo3(text_signature = "($self, value)")]
+    fn side<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyResult<PyRefMut<'py, Self>> {
+        let side: TrancheSide = enum_from_str(value, "side")?;
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.side(side));
+        Ok(slf)
+    }
+
+    /// Set the effective date for schedule anchoring.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : datetime.date
+    ///     Effective date. If never set, uses the as-of date (or standard
+    ///     IMM-date rolling, if ``standard_imm_dates`` is true).
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn effective_date<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let effective_date = py_to_date(value)?;
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.effective_date(effective_date));
+        Ok(slf)
+    }
+
+    /// Set the accumulated realized loss.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : float
+    ///     Accumulated realized loss as a fraction of the original portfolio
+    ///     notional. Defaults to ``0.0`` when never set explicitly.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn accumulated_loss<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: f64,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.accumulated_loss(value));
+        Ok(slf)
+    }
+
+    /// Set whether to enforce standard IMM dates.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : bool
+    ///     Whether to enforce standard IMM dates (20th of Mar, Jun, Sep,
+    ///     Dec). Defaults to ``True`` when never set explicitly.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTrancheBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn standard_imm_dates<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: bool,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_cds_tranche(&mut slf)?;
+        slf.inner = Some(b.standard_imm_dates(value));
+        Ok(slf)
+    }
+
+    /// Build the validated CDS tranche.
+    ///
+    /// Returns
+    /// -------
+    /// CDSTranche
+    ///     The validated CDS tranche.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a required field is missing or Rust validation fails.
+    #[pyo3(text_signature = "($self)")]
+    fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyCDSTranche> {
+        let b = take_cds_tranche(&mut slf)?;
+        let inner = b.build().map_err(core_to_py)?;
+        inner.validate_for_pricing().map_err(core_to_py)?;
+        Ok(PyCDSTranche { inner })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ConvertibleBond
+// ---------------------------------------------------------------------------
+
+/// Typed wrapper for the Rust `ConvertibleBond` instrument.
+#[pyclass(
+    module = "finstack_quant.valuations.instruments",
+    name = "ConvertibleBond",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyConvertibleBond {
+    /// Inner canonical Rust convertible bond.
+    pub(crate) inner: finstack_quant_valuations::instruments::ConvertibleBond,
+}
+
+impl PyConvertibleBond {
+    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
+    pub(crate) fn tagged_json(&self) -> PyResult<String> {
+        serde_json::to_string(&InstrumentJson::ConvertibleBond(self.inner.clone()))
+            .map_err(|err| serde_json_to_py(err, "failed to serialize ConvertibleBond"))
+    }
+}
+
+#[pymethods]
+impl PyConvertibleBond {
+    /// Create a fluent builder (mirrors Rust ``ConvertibleBond::builder()``).
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     A builder with fluent, consuming setter methods.
+    ///
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.valuations.instruments import ConvertibleBond
+    /// >>> callable(ConvertibleBond.builder)
+    /// True
+    #[staticmethod]
+    #[pyo3(text_signature = "()")]
+    fn builder() -> PyConvertibleBondBuilder {
+        PyConvertibleBondBuilder {
+            inner: Some(finstack_quant_valuations::instruments::ConvertibleBond::builder()),
+        }
+    }
+
+    /// Deserialize from tagged instrument JSON (``{"type": "convertible_bond", ...}``).
+    ///
+    /// Parameters
+    /// ----------
+    /// json : str
+    ///     Tagged instrument JSON with type ``"convertible_bond"``.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBond
+    ///     The validated convertible bond.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the JSON is malformed, has a different instrument type, or
+    ///     fails validation.
+    ///
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.valuations.instruments import ConvertibleBond
+    /// >>> callable(ConvertibleBond.from_json)
+    /// True
+    #[classmethod]
+    #[pyo3(text_signature = "(cls, json)")]
+    fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
+        match serde_json::from_str::<InstrumentJson>(json)
+            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
+        {
+            InstrumentJson::ConvertibleBond(inner) => {
+                inner.validate_for_pricing().map_err(core_to_py)?;
+                Ok(Self { inner })
+            }
+            _ => Err(value_error(
+                "expected instrument type \"convertible_bond\", got a different instrument type",
+            )),
+        }
+    }
+
+    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    ///
+    /// Returns
+    /// -------
+    /// str
+    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     ``ConvertibleBond.from_json``.
+    #[pyo3(text_signature = "($self)")]
+    fn to_json(&self) -> PyResult<String> {
+        self.tagged_json()
+    }
+
+    /// Instrument identifier.
+    #[getter]
+    fn id(&self) -> String {
+        self.inner.id.to_string()
+    }
+
+    /// Return ``repr(self)``.
+    fn __repr__(&self) -> String {
+        format!("ConvertibleBond(id={:?})", self.inner.id.as_str())
+    }
+}
+
+/// Fluent builder for [`PyConvertibleBond`]; wraps the Rust
+/// `FinancialBuilder`-generated builder (consuming setters).
+#[pyclass(
+    module = "finstack_quant.valuations.instruments",
+    name = "ConvertibleBondBuilder",
+    skip_from_py_object
+)]
+pub struct PyConvertibleBondBuilder {
+    inner: Option<ConvertibleBondBuilderInner>,
+}
+
+/// Take the wrapped Rust builder or fail if `build()` already consumed it.
+fn take_convertible(b: &mut PyConvertibleBondBuilder) -> PyResult<ConvertibleBondBuilderInner> {
+    b.inner
+        .take()
+        .ok_or_else(|| value_error("builder already consumed by build()"))
+}
+
+#[pymethods]
+impl PyConvertibleBondBuilder {
+    /// Set the instrument identifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     Unique identifier for the convertible bond.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn id<'py>(mut slf: PyRefMut<'py, Self>, value: &str) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.id(InstrumentId::new(value.to_string())));
+        Ok(slf)
+    }
+
+    /// Set the principal amount.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : Money
+    ///     Principal amount.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn notional<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: PyRef<'_, PyMoney>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.notional(value.inner));
+        Ok(slf)
+    }
+
+    /// Set the issue date.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : datetime.date
+    ///     Issue date.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn issue_date<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let issue_date = py_to_date(value)?;
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.issue_date(issue_date));
+        Ok(slf)
+    }
+
+    /// Set the maturity date.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : datetime.date
+    ///     Maturity date.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn maturity<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let maturity = py_to_date(value)?;
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.maturity(maturity));
+        Ok(slf)
+    }
+
+    /// Set the discount curve identifier for the debt component.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     Discount curve identifier for the debt component (risk-free or
+    ///     funding).
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn discount_curve_id<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.discount_curve_id(CurveId::new(value.to_string())));
+        Ok(slf)
+    }
+
+    /// Set the credit curve identifier for risky discounting (bond floor).
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     Credit curve identifier. If not provided, falls back to
+    ///     ``discount_curve_id`` (implies no credit spread). Must represent
+    ///     zero-recovery (pure hazard) risky discounting.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn credit_curve_id<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.credit_curve_id(CurveId::new(value.to_string())));
+        Ok(slf)
+    }
+
+    /// Set the conversion terms from a JSON object.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     JSON-encoded ``ConversionSpec`` object with fields ``ratio``,
+    ///     ``price``, ``policy``, ``anti_dilution``, ``dividend_adjustment``
+    ///     and ``dilution_events``. At least one of ``ratio`` / ``price``
+    ///     must be set.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``value`` is not valid JSON for the ``ConversionSpec`` shape.
+    #[pyo3(text_signature = "($self, value)")]
+    fn conversion_json<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let conversion: finstack_quant_valuations::instruments::fixed_income::convertible::ConversionSpec =
+            json_field(value, "conversion")?;
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.conversion(conversion));
+        Ok(slf)
+    }
+
+    /// Set the underlying equity identifier.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     Underlying equity identifier (ticker or instrument id).
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn underlying_equity_id<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.underlying_equity_id(value.to_string()));
+        Ok(slf)
+    }
+
+    /// Set the call/put schedule from a JSON object.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     JSON-encoded ``CallPutSchedule`` object with ``calls`` and
+    ///     ``puts`` arrays of call/put windows.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``value`` is not valid JSON for the ``CallPutSchedule`` shape.
+    #[pyo3(text_signature = "($self, value)")]
+    fn call_put_json<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let call_put: finstack_quant_valuations::instruments::fixed_income::bond::CallPutSchedule =
+            json_field(value, "call_put")?;
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.call_put(call_put));
+        Ok(slf)
+    }
+
+    /// Set the soft-call trigger condition from a JSON object.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     JSON-encoded ``SoftCallTrigger`` object with fields
+    ///     ``threshold_pct``, ``observation_days`` and
+    ///     ``required_days_above``.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``value`` is not valid JSON for the ``SoftCallTrigger`` shape.
+    #[pyo3(text_signature = "($self, value)")]
+    fn soft_call_trigger_json<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let trigger: finstack_quant_valuations::instruments::fixed_income::convertible::SoftCallTrigger =
+            json_field(value, "soft_call_trigger")?;
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.soft_call_trigger(trigger));
+        Ok(slf)
+    }
+
+    /// Set the settlement lag.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : int
+    ///     Number of business days from trade date to settlement date
+    ///     (e.g. ``2`` for US corporate convertibles). If never set,
+    ///     settlement is assumed same-day.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn settlement_days<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: u32,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.settlement_days(value));
+        Ok(slf)
+    }
+
+    /// Set the assumed recovery rate on default.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : float
+    ///     Recovery rate as a fraction (e.g. ``0.40`` = 40%). Used in the
+    ///     Tsiveriotis-Zhang credit model; only relevant when
+    ///     ``credit_curve_id`` is set.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    #[pyo3(text_signature = "($self, value)")]
+    fn recovery_rate<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: f64,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.recovery_rate(value));
+        Ok(slf)
+    }
+
+    /// Set the fixed coupon specification from a JSON object.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     JSON-encoded ``FixedCouponSpec`` object.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``value`` is not valid JSON for the ``FixedCouponSpec`` shape.
+    #[pyo3(text_signature = "($self, value)")]
+    fn fixed_coupon_json<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let spec: finstack_quant_cashflows::builder::FixedCouponSpec =
+            json_field(value, "fixed_coupon")?;
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.fixed_coupon(spec));
+        Ok(slf)
+    }
+
+    /// Set the floating coupon specification from a JSON object.
+    ///
+    /// Parameters
+    /// ----------
+    /// value : str
+    ///     JSON-encoded ``FloatingCouponSpec`` object.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBondBuilder
+    ///     ``self``, for chaining.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If ``value`` is not valid JSON for the ``FloatingCouponSpec`` shape.
+    #[pyo3(text_signature = "($self, value)")]
+    fn floating_coupon_json<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        value: &str,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let spec: finstack_quant_cashflows::builder::FloatingCouponSpec =
+            json_field(value, "floating_coupon")?;
+        let b = take_convertible(&mut slf)?;
+        slf.inner = Some(b.floating_coupon(spec));
+        Ok(slf)
+    }
+
+    /// Build the validated convertible bond.
+    ///
+    /// Returns
+    /// -------
+    /// ConvertibleBond
+    ///     The validated convertible bond.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a required field is missing or Rust validation fails (e.g.
+    ///     neither ``ratio`` nor ``price`` set on the conversion terms).
+    #[pyo3(text_signature = "($self)")]
+    fn build(mut slf: PyRefMut<'_, Self>) -> PyResult<PyConvertibleBond> {
+        let b = take_convertible(&mut slf)?;
+        let inner = b.build().map_err(core_to_py)?;
+        inner.validate_for_pricing().map_err(core_to_py)?;
+        Ok(PyConvertibleBond { inner })
+    }
+}
+
 /// Register the typed credit-derivative instruments on the instruments
 /// submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -801,5 +1811,9 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCreditDefaultSwapBuilder>()?;
     m.add_class::<PyCDSIndex>()?;
     m.add_class::<PyCDSIndexBuilder>()?;
+    m.add_class::<PyCDSTranche>()?;
+    m.add_class::<PyCDSTrancheBuilder>()?;
+    m.add_class::<PyConvertibleBond>()?;
+    m.add_class::<PyConvertibleBondBuilder>()?;
     Ok(())
 }

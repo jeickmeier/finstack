@@ -17,10 +17,16 @@ from finstack_quant.finstack_quant import valuations as _valuations
 Bond = _valuations.instruments.Bond
 CDSIndex = _valuations.instruments.CDSIndex
 CDSIndexBuilder = _valuations.instruments.CDSIndexBuilder
+CDSTranche = _valuations.instruments.CDSTranche
+CDSTrancheBuilder = _valuations.instruments.CDSTrancheBuilder
 CapFloor = _valuations.instruments.CapFloor
 CapFloorBuilder = _valuations.instruments.CapFloorBuilder
+ConvertibleBond = _valuations.instruments.ConvertibleBond
+ConvertibleBondBuilder = _valuations.instruments.ConvertibleBondBuilder
 CreditDefaultSwap = _valuations.instruments.CreditDefaultSwap
 CreditDefaultSwapBuilder = _valuations.instruments.CreditDefaultSwapBuilder
+EquityOption = _valuations.instruments.EquityOption
+EquityOptionBuilder = _valuations.instruments.EquityOptionBuilder
 FixedLegSpec = _valuations.instruments.FixedLegSpec
 FloatLegSpec = _valuations.instruments.FloatLegSpec
 FxForward = _valuations.instruments.FxForward
@@ -55,10 +61,16 @@ __all__: list[str] = [
     "Bond",
     "CDSIndex",
     "CDSIndexBuilder",
+    "CDSTranche",
+    "CDSTrancheBuilder",
     "CapFloor",
     "CapFloorBuilder",
+    "ConvertibleBond",
+    "ConvertibleBondBuilder",
     "CreditDefaultSwap",
     "CreditDefaultSwapBuilder",
+    "EquityOption",
+    "EquityOptionBuilder",
     "FixedLegSpec",
     "FloatLegSpec",
     "FxForward",

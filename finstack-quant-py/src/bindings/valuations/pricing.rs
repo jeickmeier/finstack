@@ -26,11 +26,13 @@ fn validate_pricing_instrument_json(
 /// Parameters
 /// ----------
 /// instrument_json : str | Bond | TermLoan | InterestRateSwap | Swaption |
-///     CapFloor | CreditDefaultSwap | CDSIndex | FxForward | FxOption
+///     CapFloor | CreditDefaultSwap | CDSIndex | FxForward | FxOption |
+///     CDSTranche | ConvertibleBond | EquityOption
 ///     Tagged instrument JSON (``{"type": "bond", ...}``) or a typed
 ///     ``Bond`` / ``TermLoan`` / ``InterestRateSwap`` / ``Swaption`` /
 ///     ``CapFloor`` / ``CreditDefaultSwap`` / ``CDSIndex`` / ``FxForward`` /
-///     ``FxOption`` instance.
+///     ``FxOption`` / ``CDSTranche`` / ``ConvertibleBond`` / ``EquityOption``
+///     instance.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
 /// as_of : str
@@ -76,11 +78,12 @@ fn price_instrument(
 /// Parameters
 /// ----------
 /// instrument_json : str | Bond | TermLoan | InterestRateSwap | Swaption |
-///     CapFloor | CreditDefaultSwap | CDSIndex | FxForward | FxOption
+///     CapFloor | CreditDefaultSwap | CDSIndex | FxForward | FxOption |
+///     CDSTranche | ConvertibleBond | EquityOption
 ///     Tagged instrument JSON or a typed ``Bond`` / ``TermLoan`` /
 ///     ``InterestRateSwap`` / ``Swaption`` / ``CapFloor`` /
-///     ``CreditDefaultSwap`` / ``CDSIndex`` / ``FxForward`` / ``FxOption``
-///     instance.
+///     ``CreditDefaultSwap`` / ``CDSIndex`` / ``FxForward`` / ``FxOption`` /
+///     ``CDSTranche`` / ``ConvertibleBond`` / ``EquityOption`` instance.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
 /// as_of : str
@@ -211,11 +214,12 @@ fn list_models_grouped() -> std::collections::BTreeMap<String, Vec<String>> {
 /// Parameters
 /// ----------
 /// instrument_json : str | Bond | TermLoan | InterestRateSwap | Swaption |
-///     CapFloor | CreditDefaultSwap | CDSIndex | FxForward | FxOption
+///     CapFloor | CreditDefaultSwap | CDSIndex | FxForward | FxOption |
+///     CDSTranche | ConvertibleBond | EquityOption
 ///     Tagged instrument JSON or a typed ``Bond`` / ``TermLoan`` /
 ///     ``InterestRateSwap`` / ``Swaption`` / ``CapFloor`` /
-///     ``CreditDefaultSwap`` / ``CDSIndex`` / ``FxForward`` / ``FxOption``
-///     instance.
+///     ``CreditDefaultSwap`` / ``CDSIndex`` / ``FxForward`` / ``FxOption`` /
+///     ``CDSTranche`` / ``ConvertibleBond`` / ``EquityOption`` instance.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
 /// as_of : str

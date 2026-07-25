@@ -18,7 +18,10 @@ use crate::bindings::portfolio::types::{PyPortfolio, PyPortfolioResult, PyPortfo
 use crate::bindings::statements::evaluator::PyStatementResult;
 use crate::bindings::statements::types::PyFinancialModelSpec;
 use crate::bindings::valuations::instruments::{PyBond, PyTermLoan};
-use crate::bindings::valuations::typed_credit::{PyCDSIndex, PyCreditDefaultSwap};
+use crate::bindings::valuations::typed_credit::{
+    PyCDSIndex, PyCDSTranche, PyConvertibleBond, PyCreditDefaultSwap,
+};
+use crate::bindings::valuations::typed_equity::PyEquityOption;
 use crate::bindings::valuations::typed_fx::{PyFxForward, PyFxOption};
 use crate::bindings::valuations::typed_rates::{PyCapFloor, PyInterestRateSwap, PySwaption};
 use crate::errors::{display_to_py as to_py, portfolio_to_py};
@@ -46,7 +49,8 @@ use crate::errors::{display_to_py as to_py, portfolio_to_py};
 /// below to name each newly landed class so the message stays accurate.
 ///
 /// Currently wired: `Bond`, `TermLoan`, `InterestRateSwap`, `Swaption`,
-/// `CapFloor`, `CreditDefaultSwap`, `CDSIndex`, `FxForward`, `FxOption`.
+/// `CapFloor`, `CreditDefaultSwap`, `CDSIndex`, `FxForward`, `FxOption`,
+/// `CDSTranche`, `ConvertibleBond`, `EquityOption`.
 pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     if let Ok(bond) = obj.cast::<PyBond>() {
         return bond.borrow().tagged_json();
@@ -74,6 +78,15 @@ pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     }
     if let Ok(fx_option) = obj.cast::<PyFxOption>() {
         return fx_option.borrow().tagged_json();
+    }
+    if let Ok(cds_tranche) = obj.cast::<PyCDSTranche>() {
+        return cds_tranche.borrow().tagged_json();
+    }
+    if let Ok(convertible) = obj.cast::<PyConvertibleBond>() {
+        return convertible.borrow().tagged_json();
+    }
+    if let Ok(equity_option) = obj.cast::<PyEquityOption>() {
+        return equity_option.borrow().tagged_json();
     }
     obj.extract::<String>().map_err(|_| {
         pyo3::exceptions::PyTypeError::new_err(
