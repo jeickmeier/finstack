@@ -30,6 +30,8 @@
 pub mod cva;
 /// Deterministic and stochastic exposure engines.
 pub mod exposure;
+/// Margin Valuation Adjustment (MVA) on SIMM-based IM profiles.
+pub mod mva;
 /// Netting and collateral-reduction helpers.
 pub mod netting;
 /// Minimal trait surface for XVA-compatible instruments.
