@@ -49,9 +49,18 @@
 //!
 //! * Campisi, S. (2000). "Primer on Fixed Income Performance Attribution."
 //!   *Journal of Portfolio Management*, 26(4), 14–25.
+//!   `docs/REFERENCES.md#campisi-2000`
 //! * Ben Dor, A., Dynkin, L., Hyman, J., Houweling, P., van Leeuwen, E., &
 //!   Penninga, O. (2007). "DTS (Duration Times Spread)." *Journal of
 //!   Portfolio Management*, 33(2), 77–100.
+//!   `docs/REFERENCES.md#ben-dor-2007-dts`
+//! * Brinson, G. P., & Fachler, N. (1985). "Measuring Non-US Equity Portfolio
+//!   Performance." *Journal of Portfolio Management*, 11(3) — source of the
+//!   `(w_p − w_b)(r_b,i − r_b)` allocation form used above.
+//!   `docs/REFERENCES.md#brinson-fachler-1985`
+//! * Carino, D. (1999). "Combining Attribution Effects over Time." *Journal of
+//!   Performance Measurement*, 3(4), 5–14 — multi-period smoothing applied by
+//!   [`campisi_carino_link`]. `docs/REFERENCES.md#carino-1999`
 
 use crate::brinson::carino_coefficient;
 use crate::error::{Error, Result};
@@ -239,6 +248,7 @@ pub fn snapshot_from_position_metrics(
 /// Absolute Campisi component contributions for one side (portfolio or
 /// benchmark), each `Σ_j w_j × component_j`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FiComponents {
     /// Income effect `Σ w · y · Δt`.
     pub carry: f64,
@@ -254,6 +264,7 @@ pub struct FiComponents {
 
 /// Per-sector benchmark-relative effects.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FiSectorEffect {
     /// Sector label (mirrors [`FiPositionSnapshot::sector`]).
     pub sector: String,
@@ -280,7 +291,13 @@ pub struct FiSectorEffect {
 }
 
 /// Single-period Campisi benchmark-relative attribution result.
+///
+/// This type is *input-reachable*: [`campisi_carino_link`] consumes a slice of
+/// these, and the Python/WASM bindings deserialize them from JSON. It therefore
+/// denies unknown fields like the other inbound types in this module, so a
+/// misspelled or stale key fails closed instead of being silently dropped.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FiAttributionResult {
     /// Per-sector effects, in first-seen order (portfolio first, then
     /// benchmark-only sectors).
@@ -311,7 +328,8 @@ pub struct FiAttributionResult {
 
 /// Report from reconciling the five effect totals against the active return,
 /// mirroring [`crate::attribution`] reconciliation conventions.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FiReconciliationReport {
     /// `active_return − (allocation + carry + treasury + spread + selection)`.
     pub total_residual: f64,
@@ -697,6 +715,10 @@ pub struct FiCarinoLinkedResult {
     pub linked_active_spread: f64,
     /// Sum of linked selection effects.
     pub linked_selection: f64,
+    /// Spread convention shared by every linked period (linking rejects a mix),
+    /// restated here so consumers reading only the linked totals still see the
+    /// policy that produced them.
+    pub spread_mode: SpreadChangeMode,
 }
 
 /// Apply Carino (1999) smoothing to per-period Campisi results so the five
@@ -814,6 +836,7 @@ pub fn campisi_carino_link(periods: &[FiAttributionResult]) -> Result<FiCarinoLi
         linked_active_treasury,
         linked_active_spread,
         linked_selection,
+        spread_mode: first.spread_mode,
     })
 }
 
@@ -1271,5 +1294,93 @@ mod tests {
             !message.contains("ytm"),
             "error must not name a metric that is present, got: {message}"
         );
+    }
+
+    /// [`FiAttributionResult`] is an *input* to [`campisi_carino_link`] and to
+    /// both bindings, so it must round-trip its own serialization exactly and
+    /// reject unknown keys — a stale or misspelled field must not be silently
+    /// dropped into a result that then "reconciles" on partial data.
+    #[test]
+    fn attribution_result_round_trips_and_denies_unknown_fields() {
+        let config = FiAttributionConfig::new(0.25);
+        let result = campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config)
+            .expect("golden inputs");
+        let json = serde_json::to_string(&result).expect("serialize result");
+
+        // Round-trip: `deny_unknown_fields` must not reject our own output.
+        let parsed: FiAttributionResult = serde_json::from_str(&json).expect("round-trip");
+        assert!((parsed.active_return - result.active_return).abs() < 1e-15);
+        assert_eq!(parsed.sectors.len(), result.sectors.len());
+        assert!(matches!(
+            parsed.spread_mode,
+            SpreadChangeMode::SpreadDuration
+        ));
+        // And it still links, i.e. the round-tripped value is fully usable.
+        assert!(campisi_carino_link(&[parsed]).is_ok());
+
+        // Top-level unknown key.
+        let bogus = json.replacen('{', r#"{"bogus_field": 1.0,"#, 1);
+        assert!(
+            serde_json::from_str::<FiAttributionResult>(&bogus).is_err(),
+            "unknown top-level field must be rejected"
+        );
+
+        // Nested unknown keys in the two inbound child types.
+        let bogus_sector = json.replacen(r#"{"sector""#, r#"{"bogus_field": 1.0, "sector""#, 1);
+        assert_ne!(bogus_sector, json, "fixture must actually mutate a sector");
+        assert!(
+            serde_json::from_str::<FiAttributionResult>(&bogus_sector).is_err(),
+            "unknown field inside FiSectorEffect must be rejected"
+        );
+        let bogus_components = json.replacen(r#""carry""#, r#""bogus_field": 1.0, "carry""#, 1);
+        assert_ne!(
+            bogus_components, json,
+            "fixture must actually mutate a components block"
+        );
+        assert!(
+            serde_json::from_str::<FiAttributionResult>(&bogus_components).is_err(),
+            "unknown field inside FiComponents must be rejected"
+        );
+    }
+
+    /// The linked result must restate the spread convention it enforced, so a
+    /// consumer reading only the linked totals still sees the policy stamp.
+    #[test]
+    fn carino_linked_result_stamps_the_shared_spread_mode() {
+        let mut config = FiAttributionConfig::new(0.25);
+        config.spread_mode = SpreadChangeMode::Dts;
+        let period = FiPeriodInput {
+            portfolio: golden_portfolio(),
+            benchmark: golden_benchmark(),
+        };
+        let linked = campisi_carino_link_from_snapshots(&[period.clone(), period], &config)
+            .expect("dts link");
+        assert!(matches!(linked.spread_mode, SpreadChangeMode::Dts));
+
+        let sd_config = FiAttributionConfig::new(0.25);
+        let period = FiPeriodInput {
+            portfolio: golden_portfolio(),
+            benchmark: golden_benchmark(),
+        };
+        let linked_sd = campisi_carino_link_from_snapshots(&[period], &sd_config).expect("sd link");
+        assert!(matches!(
+            linked_sd.spread_mode,
+            SpreadChangeMode::SpreadDuration
+        ));
+    }
+
+    /// [`FiAttributionResult::reconciliation_check`] is reachable from the
+    /// bindings as JSON, so its report must serialize under stable names.
+    #[test]
+    fn reconciliation_report_serializes_under_stable_names() {
+        let config = FiAttributionConfig::new(0.25);
+        let result = campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config)
+            .expect("golden inputs");
+        let json =
+            serde_json::to_string(&result.reconciliation_check(1e-10)).expect("serialize report");
+        let value: serde_json::Value = serde_json::from_str(&json).expect("parse report");
+        assert_eq!(value["is_reconciled"], serde_json::json!(true));
+        assert_eq!(value["tolerance"], serde_json::json!(1e-10));
+        assert!(value["total_residual"].as_f64().expect("residual").abs() <= 1e-10);
     }
 }

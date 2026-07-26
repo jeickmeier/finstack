@@ -46,6 +46,7 @@ __all__ = [
     "campisi_attribution",
     "campisi_carino_link",
     "campisi_carino_link_from_snapshots",
+    "campisi_reconciliation_check",
     "carino_link",
     "days_to_liquidate",
     "evaluate_risk_budget",
@@ -2106,12 +2107,14 @@ def campisi_carino_link(periods_json: str) -> str:
         JSON array of ``FiAttributionResult`` objects in chronological order,
         each the parsed output of :func:`campisi_attribution`. Every period
         must carry the same sector ordering and the same ``spread_mode``.
+        Unknown fields are rejected.
 
     Returns
     -------
     str
         JSON-serialized ``FiCarinoLinkedResult`` whose five linked totals sum
-        to the geometrically compounded active return.
+        to the geometrically compounded active return, and whose
+        ``spread_mode`` restates the convention linking enforced.
 
     Raises
     ------
@@ -2163,7 +2166,8 @@ def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> s
     -------
     str
         JSON-serialized ``FiCarinoLinkedResult`` whose five linked totals sum
-        to the geometrically compounded active return.
+        to the geometrically compounded active return, and whose
+        ``spread_mode`` restates the shared convention.
 
     Raises
     ------
@@ -2181,6 +2185,55 @@ def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> s
     --------
     >>> from finstack_quant.portfolio import campisi_carino_link_from_snapshots
     >>> linked_json = campisi_carino_link_from_snapshots(periods_json, config_json)  # doctest: +SKIP
+    """
+    ...
+
+def campisi_reconciliation_check(result_json: str, tolerance: float) -> str:
+    """
+    Reconcile the five Campisi effect totals against the active return.
+
+    Binds the Rust method
+    ``finstack_quant_portfolio::FiAttributionResult::reconciliation_check``
+    (a method in Rust, exposed here as a JSON function on the namespace).
+
+    The Campisi decomposition reconciles by construction because selection is
+    the residual, so this is a floating-point sanity gate rather than a model
+    check. Without it callers must re-sum ``total_allocation``,
+    ``total_active_carry``, ``total_active_treasury``, ``total_active_spread``
+    and ``total_selection`` by hand.
+
+    Parameters
+    ----------
+    result_json : str
+        JSON ``FiAttributionResult``, as returned by
+        :func:`campisi_attribution`. Unknown fields are rejected.
+    tolerance : float
+        Absolute tolerance in return units; ``1e-10`` is appropriate for
+        return-space values.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiReconciliationReport`` with ``total_residual``
+        (``active_return`` minus the five totals), ``is_reconciled`` and the
+        ``tolerance`` that was applied.
+
+    Raises
+    ------
+    ValueError
+        If ``result_json`` is malformed or carries unknown fields.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#campisi-2000``.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import campisi_attribution, campisi_reconciliation_check
+    >>> result_json = campisi_attribution(portfolio_json, benchmark_json, config_json)  # doctest: +SKIP
+    >>> json.loads(campisi_reconciliation_check(result_json, 1e-10))["is_reconciled"]  # doctest: +SKIP
+    True
     """
     ...
 

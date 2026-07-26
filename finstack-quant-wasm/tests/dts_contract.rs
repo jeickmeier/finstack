@@ -354,6 +354,43 @@ fn scenarios_dts_matches_json_bridge_surface() {
     assert!(dts.contains("export declare const scenarios: ScenariosNamespace;"));
 }
 
+/// `index.d.ts` is hand-maintained, so nothing else stops a declaration from
+/// drifting to the wrong argument count. A 2-argument `campisiCarinoLink`
+/// declaration would compile clean for a TypeScript caller writing
+/// `campisiCarinoLink(periods, config)` while the second argument is silently
+/// discarded at the JS boundary — the exact "shared config" mistake the
+/// results-based entry point exists to avoid. Pin the declared signatures
+/// here; `tests/facade/portfolio.test.mjs` pins the runtime `Function.length`
+/// of the real exports against the same arities.
+#[test]
+fn campisi_dts_declarations_pin_their_argument_lists() {
+    let dts = index_dts();
+
+    assert!(contains_signature(
+        &dts,
+        "campisiAttribution(portfolioJson: string, benchmarkJson: string, configJson: string): string;",
+    ));
+    assert!(contains_signature(
+        &dts,
+        "campisiCarinoLink(periodsJson: string): string;",
+    ));
+    assert!(contains_signature(
+        &dts,
+        "campisiCarinoLinkFromSnapshots(periodsJson: string, configJson: string): string;",
+    ));
+    assert!(contains_signature(
+        &dts,
+        "campisiReconciliationCheck(resultJson: string, tolerance: number): string;",
+    ));
+
+    // The results-based linker must not grow a config argument: it links
+    // periods that already carry their own `period_years`.
+    assert!(!contains_ignoring_ws(
+        &dts,
+        "campisiCarinoLink(periodsJson: string, configJson: string)",
+    ));
+}
+
 #[test]
 fn portfolio_dts_exposes_reference_price_for_almgren_chriss() {
     let dts = index_dts();

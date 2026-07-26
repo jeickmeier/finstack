@@ -7068,7 +7068,7 @@ export interface PortfolioNamespace {
    * already-applied `period_years`, so periods of *different* lengths (e.g.
    * act/365 calendar months) link correctly here; prefer this entry point
    * whenever the periods are not all the same length. Returns a JSON
-   * `FiCarinoLinkedResult`.
+   * `FiCarinoLinkedResult` whose `spread_mode` restates the shared convention.
    * @param periodsJson - Canonical JSON array of `FiAttributionResult` objects in chronological order, as returned by `campisiAttribution`.
    * @returns Returns the requested string representation or JSON payload.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
@@ -7087,6 +7087,21 @@ export interface PortfolioNamespace {
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
    */
   campisiCarinoLinkFromSnapshots(periodsJson: string, configJson: string): string;
+  /**
+   * Reconcile the five Campisi effect totals against the active return.
+   *
+   * Binds the Rust method `FiAttributionResult::reconciliation_check`. The
+   * decomposition reconciles by construction (selection is the residual), so
+   * this is a floating-point sanity gate rather than a model check; without it
+   * callers must re-sum the five totals by hand. Returns a JSON
+   * `FiReconciliationReport` with `total_residual`, `is_reconciled` and
+   * `tolerance`.
+   * @param resultJson - Canonical JSON `FiAttributionResult` as returned by `campisiAttribution`; unknown fields are rejected.
+   * @param tolerance - Absolute reconciliation tolerance in return units; `1e-10` suits return-space values.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  campisiReconciliationCheck(resultJson: string, tolerance: number): string;
   /**
    * Compute a Modified-Dietz TWRR sub-period return from period JSON.
    * @param periodJson - Canonical JSON payload representing the period consumed by this API.

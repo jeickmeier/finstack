@@ -12,6 +12,7 @@ export const portfolio = {
   // config to every period and is only correct for equal-length periods.
   campisiCarinoLink: wasm.campisiCarinoLink,
   campisiCarinoLinkFromSnapshots: wasm.campisiCarinoLinkFromSnapshots,
+  campisiReconciliationCheck: wasm.campisiReconciliationCheck,
   twrrModifiedDietz: wasm.twrrModifiedDietz,
   twrrLinked: wasm.twrrLinked,
   mwrXirr: wasm.mwrXirr,

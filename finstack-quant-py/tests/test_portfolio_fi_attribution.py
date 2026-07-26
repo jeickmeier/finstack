@@ -337,3 +337,91 @@ def test_campisi_carino_link_rejects_bad_json_and_domain_errors() -> None:
     )
     with pytest.raises(PortfolioError, match="spread mode"):
         campisi_carino_link(json.dumps([period, dts]))
+
+
+def test_campisi_result_denies_unknown_fields_on_every_input_path() -> None:
+    """A stale or misspelled key must fail closed, not be silently dropped.
+
+    ``FiAttributionResult`` is an *input* type: :func:`campisi_carino_link` and
+    :func:`campisi_reconciliation_check` both deserialize it. Silently ignoring
+    an unknown key would let a hand-assembled or stale payload flow through and
+    still "reconcile", because linking reads the period returns rather than the
+    supplied ``active_return``.
+    """
+    from finstack_quant.portfolio import (
+        campisi_attribution,
+        campisi_carino_link,
+        campisi_reconciliation_check,
+    )
+
+    result = json.loads(campisi_attribution(json.dumps(_portfolio()), json.dumps(_benchmark()), json.dumps(_CONFIG)))
+
+    # Our own output round-trips: deny_unknown_fields must not reject it.
+    campisi_carino_link(json.dumps([result]))
+    campisi_reconciliation_check(json.dumps(result), 1e-10)
+
+    top_level = {**result, "bogus_field": 1.0}
+    with pytest.raises(ValueError, match="period results JSON"):
+        campisi_carino_link(json.dumps([top_level]))
+    with pytest.raises(ValueError, match="result JSON"):
+        campisi_reconciliation_check(json.dumps(top_level), 1e-10)
+
+    nested_sector = json.loads(json.dumps(result))
+    nested_sector["sectors"][0]["bogus_field"] = 1.0
+    with pytest.raises(ValueError, match="result JSON"):
+        campisi_reconciliation_check(json.dumps(nested_sector), 1e-10)
+
+    nested_components = json.loads(json.dumps(result))
+    nested_components["portfolio_components"]["bogus_field"] = 1.0
+    with pytest.raises(ValueError, match="result JSON"):
+        campisi_reconciliation_check(json.dumps(nested_components), 1e-10)
+
+
+def test_campisi_reconciliation_check_reports_residual_and_honours_tolerance() -> None:
+    """The reconciliation gate is reachable from Python and its tolerance bites."""
+    from finstack_quant.portfolio import campisi_attribution, campisi_reconciliation_check
+
+    result_json = campisi_attribution(json.dumps(_portfolio()), json.dumps(_benchmark()), json.dumps(_CONFIG))
+    report = json.loads(campisi_reconciliation_check(result_json, 1e-10))
+
+    assert report["is_reconciled"] is True
+    assert report["tolerance"] == pytest.approx(1e-10)
+    assert abs(report["total_residual"]) <= 1e-10
+
+    # Hand-check against the five totals the caller would otherwise re-sum.
+    result = json.loads(result_json)
+    reconstructed = (
+        result["total_allocation"]
+        + result["total_active_carry"]
+        + result["total_active_treasury"]
+        + result["total_active_spread"]
+        + result["total_selection"]
+    )
+    assert report["total_residual"] == pytest.approx(result["active_return"] - reconstructed, abs=1e-18)
+
+    # Tolerance is load-bearing: a tampered active_return breaks the identity.
+    tampered = {**result, "active_return": result["active_return"] + 0.01}
+    assert json.loads(campisi_reconciliation_check(json.dumps(tampered), 1e-10))["is_reconciled"] is False
+    assert json.loads(campisi_reconciliation_check(json.dumps(tampered), 1.0))["is_reconciled"] is True
+
+
+def test_campisi_reconciliation_check_accepts_keyword_arguments() -> None:
+    """Keyword names match the documented ``text_signature``."""
+    from finstack_quant.portfolio import campisi_attribution, campisi_reconciliation_check
+
+    result_json = campisi_attribution(json.dumps(_portfolio()), json.dumps(_benchmark()), json.dumps(_CONFIG))
+    report = json.loads(campisi_reconciliation_check(result_json=result_json, tolerance=1e-10))
+    assert report["is_reconciled"] is True
+
+
+def test_campisi_linked_result_stamps_the_shared_spread_mode() -> None:
+    """Linked results restate the spread convention linking enforced."""
+    from finstack_quant.portfolio import campisi_carino_link_from_snapshots
+
+    period = {"portfolio": _portfolio(), "benchmark": _benchmark()}
+    linked = json.loads(campisi_carino_link_from_snapshots(json.dumps([period, period]), json.dumps(_CONFIG)))
+    assert linked["spread_mode"] == "spread_duration"
+
+    dts_config = {"period_years": 0.25, "spread_mode": "dts"}
+    linked_dts = json.loads(campisi_carino_link_from_snapshots(json.dumps([period, period]), json.dumps(dts_config)))
+    assert linked_dts["spread_mode"] == "dts"

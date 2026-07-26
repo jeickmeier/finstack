@@ -130,10 +130,49 @@ fn campisi_carino_link_from_snapshots(
     })
 }
 
+/// Reconcile the five Campisi effect totals against the active return.
+///
+/// Binds the Rust method
+/// `finstack_quant_portfolio::FiAttributionResult::reconciliation_check`.
+/// The decomposition reconciles by construction (selection is the residual),
+/// so this is a floating-point sanity gate rather than a model check; without
+/// it Python and JavaScript callers must re-sum the five totals by hand.
+///
+/// Parameters
+/// ----------
+/// result_json : str
+///     JSON ``FiAttributionResult``, as returned by :func:`campisi_attribution`.
+/// tolerance : float
+///     Absolute tolerance in return units (``1e-10`` is appropriate for
+///     return-space values).
+///
+/// Returns
+/// -------
+/// str
+///     JSON-serialized ``FiReconciliationReport`` with ``total_residual``,
+///     ``is_reconciled`` and ``tolerance``.
+#[pyfunction]
+#[pyo3(text_signature = "(result_json, tolerance)")]
+fn campisi_reconciliation_check(
+    py: Python<'_>,
+    result_json: &str,
+    tolerance: f64,
+) -> PyResult<String> {
+    let result_json = result_json.to_owned();
+    py.detach(move || {
+        let result: finstack_quant_portfolio::FiAttributionResult =
+            serde_json::from_str(&result_json)
+                .map_err(|err| serde_json_to_py(err, "invalid Campisi result JSON"))?;
+        serde_json::to_string(&result.reconciliation_check(tolerance))
+            .map_err(|err| serde_json_to_py(err, "serialize Campisi reconciliation report"))
+    })
+}
+
 /// Register Campisi attribution functions on the portfolio submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(campisi_attribution, m)?)?;
     m.add_function(wrap_pyfunction!(campisi_carino_link, m)?)?;
     m.add_function(wrap_pyfunction!(campisi_carino_link_from_snapshots, m)?)?;
+    m.add_function(wrap_pyfunction!(campisi_reconciliation_check, m)?)?;
     Ok(())
 }

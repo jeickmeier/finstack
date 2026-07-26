@@ -183,7 +183,7 @@ pub fn campisi_attribution(
 /// already-applied `period_years`, so periods of *different* lengths (e.g.
 /// act/365 calendar months) link correctly here; prefer this entry point
 /// whenever the periods are not all the same length. Returns a JSON
-/// `FiCarinoLinkedResult`.
+/// `FiCarinoLinkedResult` whose `spread_mode` restates the shared convention.
 /// @param periods_json - Canonical JSON array of `FiAttributionResult` objects in chronological order, as returned by `campisiAttribution`.
 #[wasm_bindgen(js_name = campisiCarinoLink)]
 pub fn campisi_carino_link(periods_json: &str) -> Result<String, JsValue> {
@@ -213,6 +213,23 @@ pub fn campisi_carino_link_from_snapshots(
     let result = finstack_quant_portfolio::campisi_carino_link_from_snapshots(&periods, &config)
         .map_err(to_js_err)?;
     serde_json::to_string(&result).map_err(to_js_err)
+}
+
+/// Reconcile the five Campisi effect totals against the active return.
+///
+/// Binds the Rust method `FiAttributionResult::reconciliation_check`. The
+/// decomposition reconciles by construction (selection is the residual), so
+/// this is a floating-point sanity gate rather than a model check; without it
+/// callers must re-sum the five totals by hand. Returns a JSON
+/// `FiReconciliationReport` with `total_residual`, `is_reconciled` and
+/// `tolerance`.
+/// @param result_json - Canonical JSON `FiAttributionResult` as returned by `campisiAttribution`; unknown fields are rejected.
+/// @param tolerance - Absolute reconciliation tolerance in return units; `1e-10` suits return-space values.
+#[wasm_bindgen(js_name = campisiReconciliationCheck)]
+pub fn campisi_reconciliation_check(result_json: &str, tolerance: f64) -> Result<String, JsValue> {
+    let result: finstack_quant_portfolio::FiAttributionResult =
+        serde_json::from_str(result_json).map_err(to_js_err)?;
+    serde_json::to_string(&result.reconciliation_check(tolerance)).map_err(to_js_err)
 }
 
 /// Compute a Modified-Dietz TWRR sub-period return from period JSON.
@@ -1421,5 +1438,46 @@ mod tests {
             "benchmark": campisi_golden_benchmark(),
         });
         assert!(campisi_carino_link(&serde_json::json!([period]).to_string()).is_err());
+    }
+
+    /// The reconciliation gate must be reachable through the JSON boundary,
+    /// must honour the supplied tolerance, and must fail closed on a result
+    /// payload carrying an unknown field.
+    #[test]
+    fn campisi_reconciliation_check_honours_tolerance_and_denies_unknown_fields() {
+        let config = campisi_config(0.25, "spread_duration");
+        let result = campisi_attribution(
+            &campisi_golden_portfolio().to_string(),
+            &campisi_golden_benchmark().to_string(),
+            &config,
+        )
+        .expect("period");
+
+        let report: serde_json::Value =
+            serde_json::from_str(&campisi_reconciliation_check(&result, 1e-10).expect("report"))
+                .expect("valid JSON");
+        assert_eq!(report["is_reconciled"], serde_json::json!(true));
+        assert!(report["total_residual"].as_f64().expect("residual").abs() <= 1e-10);
+
+        // Tolerance bites: tamper with active_return and the identity breaks.
+        let mut tampered: serde_json::Value = serde_json::from_str(&result).expect("parse");
+        let active = tampered["active_return"].as_f64().expect("active_return");
+        tampered["active_return"] = serde_json::json!(active + 0.01);
+        let tampered = tampered.to_string();
+        let strict: serde_json::Value =
+            serde_json::from_str(&campisi_reconciliation_check(&tampered, 1e-10).expect("report"))
+                .expect("valid JSON");
+        assert_eq!(strict["is_reconciled"], serde_json::json!(false));
+        let loose: serde_json::Value =
+            serde_json::from_str(&campisi_reconciliation_check(&tampered, 1.0).expect("report"))
+                .expect("valid JSON");
+        assert_eq!(loose["is_reconciled"], serde_json::json!(true));
+
+        // Unknown fields fail closed on both result-consuming entry points.
+        let mut bogus: serde_json::Value = serde_json::from_str(&result).expect("parse");
+        bogus["bogus_field"] = serde_json::json!(1.0);
+        let bogus = bogus.to_string();
+        assert!(campisi_reconciliation_check(&bogus, 1e-10).is_err());
+        assert!(campisi_carino_link(&format!("[{bogus}]")).is_err());
     }
 }

@@ -40,6 +40,7 @@ const EXPORTED_KEYS = [
   'campisiAttribution',
   'campisiCarinoLink',
   'campisiCarinoLinkFromSnapshots',
+  'campisiReconciliationCheck',
   'carinoLink',
   'computeFactorSensitivities',
   'computeFactorSensitivitiesWithMarket',
@@ -78,6 +79,18 @@ test('portfolio namespace exposes exactly the pinned contract surface', () => {
       `portfolio.${key} must be a function (got ${typeof portfolio[key]})`
     );
   }
+});
+
+// Runtime arity gate. `index.d.ts` is hand-maintained, so a declaration with
+// the wrong argument count would compile clean for a TypeScript caller while
+// the extra argument is silently discarded at the JS boundary. Pinning
+// Function.length here forces the real exports to stay at the arity the
+// declarations promise; `dts_contract.rs` pins the declarations themselves.
+test('portfolio Campisi exports keep their declared arity', () => {
+  assert.equal(portfolio.campisiAttribution.length, 3);
+  assert.equal(portfolio.campisiCarinoLink.length, 1);
+  assert.equal(portfolio.campisiCarinoLinkFromSnapshots.length, 2);
+  assert.equal(portfolio.campisiReconciliationCheck.length, 2);
 });
 
 const campisiSnapshot = (sector, weight, totalReturn, yieldAnnual, modifiedDuration) => ({
@@ -187,4 +200,35 @@ test('portfolio.campisiCarinoLinkFromSnapshots links raw snapshot periods', () =
       campisiConfig(0.25)
     )
   );
+});
+
+test('portfolio.campisiReconciliationCheck reports the residual and fails closed', () => {
+  const resultJson = portfolio.campisiAttribution(
+    CAMPISI_PORTFOLIO,
+    CAMPISI_BENCHMARK,
+    campisiConfig(0.25)
+  );
+  const report = JSON.parse(portfolio.campisiReconciliationCheck(resultJson, 1e-10));
+  assert.equal(report.is_reconciled, true);
+  assert.equal(report.tolerance, 1e-10);
+  assert.ok(Math.abs(report.total_residual) <= 1e-10);
+
+  // The tolerance argument is load-bearing, not decorative: a result whose
+  // active_return has been tampered with breaks the identity at 1e-10 and
+  // passes only under an absurdly loose tolerance.
+  const tampered = JSON.stringify({
+    ...JSON.parse(resultJson),
+    active_return: JSON.parse(resultJson).active_return + 0.01,
+  });
+  assert.equal(
+    JSON.parse(portfolio.campisiReconciliationCheck(tampered, 1e-10)).is_reconciled,
+    false
+  );
+  assert.equal(JSON.parse(portfolio.campisiReconciliationCheck(tampered, 1.0)).is_reconciled, true);
+
+  // `FiAttributionResult` denies unknown fields, so a stale key fails closed
+  // instead of being silently dropped into a report that still "reconciles".
+  const withBogus = JSON.stringify({ ...JSON.parse(resultJson), bogus_field: 1.0 });
+  assert.throws(() => portfolio.campisiReconciliationCheck(withBogus, 1e-10));
+  assert.throws(() => portfolio.campisiCarinoLink(`[${withBogus}]`));
 });

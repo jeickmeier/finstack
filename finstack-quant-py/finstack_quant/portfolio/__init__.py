@@ -103,6 +103,7 @@ carino_link = _portfolio.carino_link
 campisi_attribution = _portfolio.campisi_attribution
 campisi_carino_link = _portfolio.campisi_carino_link
 campisi_carino_link_from_snapshots = _portfolio.campisi_carino_link_from_snapshots
+campisi_reconciliation_check = _portfolio.campisi_reconciliation_check
 twrr_modified_dietz = _portfolio.twrr_modified_dietz
 twrr_linked = _portfolio.twrr_linked
 mwr_xirr = _portfolio.mwr_xirr
@@ -232,6 +233,7 @@ __all__: list[str] = [
     "campisi_attribution",
     "campisi_carino_link",
     "campisi_carino_link_from_snapshots",
+    "campisi_reconciliation_check",
     "carino_link",
     "compute_factor_sensitivities",
     "compute_pnl_profiles",

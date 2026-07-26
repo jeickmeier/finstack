@@ -979,7 +979,7 @@ dataframe    = { python = "finstack_quant.portfolio.dataframe",    status = "mis
 dependencies = { python = "finstack_quant.portfolio.dependencies", status = "missing" }
 error        = { python = "finstack_quant.portfolio.error",        status = "missing" }
 factor_model = { python = "finstack_quant.portfolio",              status = "flattened", note = "Result types (RiskDecomposition, PositionRiskDecomposition, RiskBudgetResult, WhatIfResult, StressResult, StressAttribution, FactorAssignmentReport, CreditVolReport, VolHorizon, DecompositionConfig, ...) plus allocation/risk functions (allocate_weights, validate_allocation_json, parametric/historical_var_decomposition_typed, evaluate_risk_budget_typed) are exported flat on finstack_quant.portfolio; engine/builder types remain Rust-only for now" }
-fi_attribution = { python = "finstack_quant.portfolio",            status = "flattened", note = "Campisi fixed-income benchmark attribution (campisi_attribution, campisi_carino_link, campisi_carino_link_from_snapshots) is exported flat on finstack_quant.portfolio; snapshot_from_position_metrics and typed results remain Rust-only" }
+fi_attribution = { python = "finstack_quant.portfolio",            status = "flattened", note = "Campisi fixed-income benchmark attribution (campisi_attribution, campisi_carino_link, campisi_carino_link_from_snapshots, campisi_reconciliation_check) is exported flat on finstack_quant.portfolio; campisi_reconciliation_check binds the Rust method FiAttributionResult::reconciliation_check; snapshot_from_position_metrics and typed results remain Rust-only" }
 grouping     = { python = "finstack_quant.portfolio.grouping",     status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
 margin       = { python = "finstack_quant.portfolio.margin",       status = "missing", note = "Portfolio margin helpers are not materialized as a dedicated submodule" }
 metrics      = { python = "finstack_quant.portfolio.metrics",      status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
@@ -1061,6 +1061,7 @@ public = [
   "campisi_attribution",
   "campisi_carino_link",
   "campisi_carino_link_from_snapshots",
+  "campisi_reconciliation_check",
   "carino_link",
   "compute_factor_sensitivities",
   "compute_pnl_profiles",
@@ -1115,6 +1116,7 @@ root_exports = [
   "campisiAttribution",
   "campisiCarinoLink",
   "campisiCarinoLinkFromSnapshots",
+  "campisiReconciliationCheck",
   "twrrModifiedDietz",
   "twrrLinked",
   "mwrXirr",
@@ -1238,6 +1240,7 @@ carino_link = "carinoLink"
 campisi_attribution = "campisiAttribution"
 campisi_carino_link = "campisiCarinoLink"
 campisi_carino_link_from_snapshots = "campisiCarinoLinkFromSnapshots"
+campisi_reconciliation_check = "campisiReconciliationCheck"
 twrr_modified_dietz = "twrrModifiedDietz"
 twrr_linked = "twrrLinked"
 mwr_xirr = "mwrXirr"
