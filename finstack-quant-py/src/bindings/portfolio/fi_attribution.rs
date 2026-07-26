@@ -56,7 +56,43 @@ fn campisi_attribution(
     })
 }
 
+/// Carino-link already-computed single-period Campisi attribution results.
+///
+/// Binds Rust `finstack_quant_portfolio::campisi_carino_link`. Because each
+/// period carries its own already-applied `period_years`, periods of
+/// *different* lengths (e.g. act/365 calendar months) link correctly here;
+/// use this entry point whenever the periods are not all the same length.
+///
+/// Parameters
+/// ----------
+/// periods_json : str
+///     JSON array of ``FiAttributionResult`` objects, in chronological order,
+///     as returned by :func:`campisi_attribution`.
+///
+/// Returns
+/// -------
+/// str
+///     JSON-serialized ``FiCarinoLinkedResult``.
+#[pyfunction]
+#[pyo3(text_signature = "(periods_json)")]
+fn campisi_carino_link(py: Python<'_>, periods_json: &str) -> PyResult<String> {
+    let periods_json = periods_json.to_owned();
+    py.detach(move || {
+        let periods: Vec<finstack_quant_portfolio::FiAttributionResult> =
+            serde_json::from_str(&periods_json)
+                .map_err(|err| serde_json_to_py(err, "invalid Campisi period results JSON"))?;
+        let result =
+            finstack_quant_portfolio::campisi_carino_link(&periods).map_err(portfolio_to_py)?;
+        serde_json::to_string(&result)
+            .map_err(|err| serde_json_to_py(err, "serialize Campisi linked result"))
+    })
+}
+
 /// Compute Carino-linked multi-period Campisi attribution from period JSON.
+///
+/// Binds Rust `finstack_quant_portfolio::campisi_carino_link_from_snapshots`.
+/// One shared config — hence one shared ``period_years`` — is applied to every
+/// period, so this entry point is only correct for equal-length periods.
 ///
 /// Parameters
 /// ----------
@@ -72,7 +108,11 @@ fn campisi_attribution(
 ///     JSON-serialized ``FiCarinoLinkedResult``.
 #[pyfunction]
 #[pyo3(text_signature = "(periods_json, config_json)")]
-fn campisi_carino_link(py: Python<'_>, periods_json: &str, config_json: &str) -> PyResult<String> {
+fn campisi_carino_link_from_snapshots(
+    py: Python<'_>,
+    periods_json: &str,
+    config_json: &str,
+) -> PyResult<String> {
     let periods_json = periods_json.to_owned();
     let config_json = config_json.to_owned();
     py.detach(move || {
@@ -94,5 +134,6 @@ fn campisi_carino_link(py: Python<'_>, periods_json: &str, config_json: &str) ->
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(campisi_attribution, m)?)?;
     m.add_function(wrap_pyfunction!(campisi_carino_link, m)?)?;
+    m.add_function(wrap_pyfunction!(campisi_carino_link_from_snapshots, m)?)?;
     Ok(())
 }

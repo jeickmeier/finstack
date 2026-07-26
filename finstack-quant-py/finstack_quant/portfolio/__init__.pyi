@@ -45,6 +45,7 @@ __all__ = [
     "build_stress_attribution",
     "campisi_attribution",
     "campisi_carino_link",
+    "campisi_carino_link_from_snapshots",
     "carino_link",
     "days_to_liquidate",
     "evaluate_risk_budget",
@@ -2042,6 +2043,8 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
     """
     Compute single-period Campisi fixed-income benchmark attribution.
 
+    Binds Rust ``finstack_quant_portfolio::campisi_attribution``.
+
     Parameters
     ----------
     portfolio_json : str
@@ -2084,9 +2087,67 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
     """
     ...
 
-def campisi_carino_link(periods_json: str, config_json: str) -> str:
+def campisi_carino_link(periods_json: str) -> str:
+    """
+    Carino-link already-computed single-period Campisi attribution results.
+
+    Binds Rust ``finstack_quant_portfolio::campisi_carino_link``.
+
+    Each period result already carries its own applied ``period_years``, so
+    periods of *different* lengths link correctly here (e.g. act/365 calendar
+    months: 31/365, 28/365, 31/365). Use this entry point for real day counts;
+    :func:`campisi_carino_link_from_snapshots` applies one shared
+    ``period_years`` to every period and is only correct for equal-length
+    periods.
+
+    Parameters
+    ----------
+    periods_json : str
+        JSON array of ``FiAttributionResult`` objects in chronological order,
+        each the parsed output of :func:`campisi_attribution`. Every period
+        must carry the same sector ordering and the same ``spread_mode``.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiCarinoLinkedResult`` whose five linked totals sum
+        to the geometrically compounded active return.
+
+    Raises
+    ------
+    PortfolioError
+        If ``periods_json`` is an empty array, sector orderings or spread modes
+        differ across periods, a period return is non-finite, or a return is at
+        or below -100% (outside the Carino domain).
+    ValueError
+        If ``periods_json`` is malformed or does not match the
+        ``FiAttributionResult`` schema.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#carino-1999``.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import campisi_attribution, campisi_carino_link
+    >>> jan = campisi_attribution(p1_json, b1_json, jan_config_json)  # doctest: +SKIP
+    >>> feb = campisi_attribution(p2_json, b2_json, feb_config_json)  # doctest: +SKIP
+    >>> linked_json = campisi_carino_link(json.dumps([json.loads(jan), json.loads(feb)]))  # doctest: +SKIP
+    """
+    ...
+
+def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> str:
     """
     Compute Carino-linked multi-period Campisi attribution from period JSON.
+
+    Binds Rust ``finstack_quant_portfolio::campisi_carino_link_from_snapshots``.
+
+    One ``config_json`` — and therefore one ``period_years`` — is applied to
+    every period, so this entry point is only correct when all periods have the
+    same length. For mixed-length periods (real day counts), compute each
+    period with :func:`campisi_attribution` and link the results with
+    :func:`campisi_carino_link`.
 
     Parameters
     ----------
@@ -2095,7 +2156,8 @@ def campisi_carino_link(periods_json: str, config_json: str) -> str:
         ``benchmark`` arrays of ``FiPositionSnapshot`` (same schema as
         :func:`campisi_attribution`).
     config_json : str
-        JSON ``FiAttributionConfig`` shared across periods.
+        JSON ``FiAttributionConfig`` shared across periods, with
+        ``period_years`` and ``spread_mode``; both fields are required.
 
     Returns
     -------
@@ -2117,8 +2179,8 @@ def campisi_carino_link(periods_json: str, config_json: str) -> str:
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import campisi_carino_link
-    >>> linked_json = campisi_carino_link(periods_json, config_json)  # doctest: +SKIP
+    >>> from finstack_quant.portfolio import campisi_carino_link_from_snapshots
+    >>> linked_json = campisi_carino_link_from_snapshots(periods_json, config_json)  # doctest: +SKIP
     """
     ...
 

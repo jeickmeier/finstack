@@ -108,6 +108,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "carino_link",
         "campisi_attribution",
         "campisi_carino_link",
+        "campisi_carino_link_from_snapshots",
         "twrr_modified_dietz",
         "twrr_linked",
         "mwr_xirr",
