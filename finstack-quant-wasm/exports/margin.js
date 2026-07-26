@@ -5,4 +5,5 @@ export const margin = {
   csaEurRegulatory: wasm.csaEurRegulatory,
   validateCsaJson: wasm.validateCsaJson,
   calculateVm: wasm.calculateVm,
+  computeBilateralXva: wasm.computeBilateralXva,
 };

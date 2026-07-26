@@ -17,6 +17,8 @@
 //! - **Convexity**: Curvature of price/yield relationship
 //! - **DV01**: Dollar value of 1bp rate change
 //! - **CS01**: Credit spread sensitivity
+//! - **Spread Duration**: CS01 normalized by NPV into years (shares the
+//!   instrument-agnostic structured-credit calculator)
 //!
 //! ## Spread Metrics
 //! - **Z-Spread**: Zero-volatility spread over discount curve
@@ -159,6 +161,7 @@ pub(crate) fn quoted_workout_path(
 /// register_bond_metrics(&mut registry);
 /// ```
 pub(crate) fn register_bond_metrics(registry: &mut crate::metrics::MetricRegistry) {
+    use crate::instruments::fixed_income::structured_credit::SpreadDurationCalculator;
     use crate::metrics::{
         make_credit_bumper, make_rates_bumper, CrossFactorCalculator, CrossFactorPair, MetricId,
     };
@@ -208,6 +211,8 @@ pub(crate) fn register_bond_metrics(registry: &mut crate::metrics::MetricRegistr
 
             (Cs01, BondCs01Calculator),
             (BucketedCs01, BondBucketedCs01Calculator),
+            // Instrument-agnostic: normalizes the bond's CS01 by NPV into years.
+            (SpreadDuration, SpreadDurationCalculator),
 
             (Moic, return_metrics::moic::MoicCalculator),
             (MoicToWorst, return_metrics::moic::MoicToWorstCalculator),

@@ -124,12 +124,12 @@ export interface Performance extends WasmOwned {}
 /**
  * Calibrated credit factor hierarchy artifact.
  *
- * Produced by [`CreditCalibrator`] or loaded from JSON via
- * [`CreditFactorModel.fromJson`]. Immutable once constructed.
+ * Produced by [`JsCreditCalibrator`] or loaded from JSON via
+ * [`JsCreditFactorModel::from_json`]. Immutable once constructed.
  */
 export interface CreditFactorModel extends WasmOwned {}
 /**
- * Deterministic calibrator that produces a [`CreditFactorModel`].
+ * Deterministic calibrator that produces a [`JsCreditFactorModel`].
  *
  * Configuration and inputs are passed as JSON strings.
  */
@@ -142,7 +142,7 @@ export interface CreditCalibrator extends WasmOwned {}
  */
 export interface LevelsAtDate extends WasmOwned {}
 /**
- * Component-wise difference between two [`LevelsAtDate`] snapshots.
+ * Component-wise difference between two [`JsLevelsAtDate`] snapshots.
  *
  * Produced by [`decompose_period`].
  */
@@ -277,7 +277,7 @@ export interface CurrencyConstructor {
 /**
  * Currency-tagged monetary amount.
  *
- * Money values pin a numeric amount to a [`Currency`]. Arithmetic
+ * Money values pin a numeric amount to a [`JsCurrency`]. Arithmetic
  * (`add`, `sub`) refuses to mix currencies; scalar multiplication and
  * division preserve the currency.
  *
@@ -386,7 +386,7 @@ export interface Money extends WasmOwned {
 /**
  * Currency-tagged monetary amount.
  *
- * Money values pin a numeric amount to a [`Currency`]. Arithmetic
+ * Money values pin a numeric amount to a [`JsCurrency`]. Arithmetic
  * (`add`, `sub`) refuses to mix currencies; scalar multiplication and
  * division preserve the currency.
  *
@@ -524,9 +524,10 @@ export interface RateConstructor {
    *
    * The canonical Rust `Rate::from_bps` takes an integer (`i32`) number
    * of basis points. Because JavaScript numbers are `f64`, this binding
-   * accepts a float but **rejects fractional input** rather than silently
-   * rounding it. Use `new Rate(decimal)` or `Rate.fromPercent` for sub-bp
-   * rates.
+   * accepts a float but **rejects fractional input** rather than
+   * silently rounding it: a sub-bp rate quietly rounded to whole bp is a
+   * pricing bug, not a convenience. Use `new Rate(decimal)` or
+   * `Rate.fromPercent` for sub-bp rates.
    *
    * @param bps - Rate in whole basis points (e.g. `500` for 5%).
    * @returns The constructed `Rate`.
@@ -1125,6 +1126,104 @@ export interface DiscountCurveConstructor {
 }
 
 /**
+ * Credit hazard-rate curve for default-probability modelling.
+ *
+ * Built from `(time, hazard_rate)` pillars where `time` is a year fraction
+ * from `baseDate` and `hazard_rate` is the instantaneous default intensity
+ * `λ(t)`. Survival is `S(t) = exp(-∫₀ᵗ λ(u) du)`.
+ *
+ * @example
+ * ```javascript
+ * import init, { core } from "finstack-quant-wasm";
+ * await init();
+ * // Flat 200bp hazard rate, 40% recovery.
+ * const hz = new core.HazardCurve(
+ *   "ACME-HZD",
+ *   "2025-01-02",
+ *   [0.0, 0.02, 30.0, 0.02],
+ *   0.4,
+ * );
+ * hz.sp(5.0);          // survival probability at 5y
+ * hz.hazardRate(5.0);  // instantaneous hazard rate at 5y
+ * ```
+ */
+export interface HazardCurve extends WasmOwned {
+  /**
+   * Curve identifier.
+   */
+  readonly id: string;
+  /**
+   * Base date as ISO string.
+   */
+  readonly baseDate: string;
+  /**
+   * Recovery rate assumed on default.
+   */
+  readonly recoveryRate: number;
+  /**
+   * Survival probability `S(t)` at year fraction `t`.
+   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @returns The probability of surviving from the base date through `t`, in `[0, 1]`.
+   * This operation does not throw.
+   */
+  sp(t: number): number;
+  /**
+   * Instantaneous hazard rate `lambda(t)` at year fraction `t`.
+   * @param t - Time from the curve base date in years on the documented day-count basis.
+   * @returns The annualized default intensity at `t`, expressed as a decimal rate.
+   * This operation does not throw.
+   */
+  hazardRate(t: number): number;
+}
+
+/**
+ * Credit hazard-rate curve for default-probability modelling.
+ *
+ * Built from `(time, hazard_rate)` pillars where `time` is a year fraction
+ * from `baseDate` and `hazard_rate` is the instantaneous default intensity
+ * `λ(t)`. Survival is `S(t) = exp(-∫₀ᵗ λ(u) du)`.
+ *
+ * @example
+ * ```javascript
+ * import init, { core } from "finstack-quant-wasm";
+ * await init();
+ * // Flat 200bp hazard rate, 40% recovery.
+ * const hz = new core.HazardCurve(
+ *   "ACME-HZD",
+ *   "2025-01-02",
+ *   [0.0, 0.02, 30.0, 0.02],
+ *   0.4,
+ * );
+ * hz.sp(5.0);          // survival probability at 5y
+ * hz.hazardRate(5.0);  // instantaneous hazard rate at 5y
+ * ```
+ */
+export interface HazardCurveConstructor {
+  /**
+   * Construct from an array of `[time, hazardRate]` pairs.
+   *
+   * @param id - Curve identifier (e.g. `"ACME-HZD"`).
+   * @param baseDate - ISO-8601 date string (`"YYYY-MM-DD"`). All `time`
+   * values are year fractions from this date under `dayCount`.
+   * @param knots - Flat `[t0, lambda0, t1, lambda1, …]` array. `t` in
+   * years, `lambda` a non-negative intensity. Length must be even.
+   * @param recoveryRate - Recovery on default in `[0, 1]`. Defaults to the
+   * credit assumptions registry value.
+   * @param dayCount - Day-count convention (default `"act_365f"`).
+   * @returns The constructed `HazardCurve`.
+   * @throws If `knots` length is odd, the date is malformed, the
+   * day-count is unknown, or the curve fails validation.
+   */
+  new (
+    id: string,
+    baseDate: string,
+    knots: NumericArray,
+    recoveryRate?: number | null,
+    dayCount?: string
+  ): HazardCurve;
+}
+
+/**
  * Forward rate curve for a floating-rate index with a fixed tenor.
  */
 export interface ForwardCurve extends WasmOwned {
@@ -1706,6 +1805,66 @@ export interface VariationMarginJson {
 }
 
 /**
+ * Bilateral XVA result (JSON object from Rust).
+ *
+ * Adjustments are positive when they cost the desk and compose as
+ * `bilateral_cva = cva - dva` (credit only) and
+ * `total_xva = cva - dva + fva + mva` (all-in). Optional legs are absent
+ * when they were not computed.
+ */
+export interface XvaResultJson {
+  /**
+   * CVA: expected loss from counterparty default.
+   */
+  cva: number;
+  /**
+   * DVA: own-default benefit. Absent when not computed.
+   */
+  dva?: number;
+  /**
+   * FVA: net funding cost/benefit. Absent when no funding config was given.
+   */
+  fva?: number;
+  /**
+   * MVA: funding cost of posted initial margin. Absent when no `im_profile`
+   * was given.
+   */
+  mva?: number;
+  /**
+   * Bilateral CVA (BCVA) = `cva - dva`, credit only.
+   */
+  bilateral_cva?: number;
+  /**
+   * All-in adjustment = `cva - dva + fva + mva`.
+   */
+  total_xva?: number;
+  /**
+   * Expected positive exposure profile as `[time, value]` pairs.
+   */
+  epe_profile: Array<[number, number]>;
+  /**
+   * Expected negative exposure profile as `[time, value]` pairs.
+   */
+  ene_profile: Array<[number, number]>;
+  /**
+   * Potential future exposure profile as `[time, value]` pairs.
+   */
+  pfe_profile: Array<[number, number]>;
+  /**
+   * Maximum PFE across the profile.
+   */
+  max_pfe: number;
+  /**
+   * Effective EPE profile as `[time, value]` pairs.
+   */
+  effective_epe_profile: Array<[number, number]>;
+  /**
+   * Time-weighted average effective EPE (regulatory scalar).
+   */
+  effective_epe: number;
+}
+
+/**
  * Forecast backtest metrics (JSON object from Rust).
  */
 export interface BacktestForecastMetricsJson {
@@ -1732,55 +1891,101 @@ export interface BacktestForecastMetricsJson {
  * Leverage is gross debt over EBITDA, so `8.0` reads as 8.0x.
  */
 export interface LmeLeverageImpact {
-  /** Gross debt of the target instrument before the exercise. */
+  /**
+   * Gross debt of the target instrument before the exercise.
+   */
   pre_total_debt: number;
-  /** Gross debt of the target instrument after the exercise. */
+  /**
+   * Gross debt of the target instrument after the exercise.
+   */
   post_total_debt: number;
-  /** Gross debt over EBITDA before the exercise, as a multiple. */
+  /**
+   * Gross debt over EBITDA before the exercise, as a multiple.
+   */
   pre_leverage: number;
-  /** Gross debt over EBITDA after the exercise, as a multiple. */
+  /**
+   * Gross debt over EBITDA after the exercise, as a multiple.
+   */
   post_leverage: number;
-  /** Turns of leverage removed: `pre_leverage - post_leverage`. */
+  /**
+   * Turns of leverage removed: `pre_leverage - post_leverage`.
+   */
   leverage_reduction: number;
 }
 
-/** Hold-versus-tender economics of a distressed exchange offer. */
+/**
+ * Hold-versus-tender economics of a distressed exchange offer.
+ */
 export interface ExchangeOfferAnalysis {
-  /** Canonical offer structure, echoed back from the request. */
+  /**
+   * Canonical offer structure, echoed back from the request.
+   */
   exchange_type: 'par_for_par' | 'discount' | 'uptier' | 'downtier';
-  /** Present value of the existing claim if it is not tendered. */
+  /**
+   * Present value of the existing claim if it is not tendered.
+   */
   old_npv: number;
-  /** Present value of the new instrument received on tendering. */
+  /**
+   * Present value of the new instrument received on tendering.
+   */
   new_npv: number;
-  /** Cash consent or early-tender fee. */
+  /**
+   * Cash consent or early-tender fee.
+   */
   consent_fee: number;
-  /** Estimated value of attached equity or warrants. */
+  /**
+   * Estimated value of attached equity or warrants.
+   */
   equity_sweetener_value: number;
-  /** Total tender consideration: `new_npv + consent_fee + equity_sweetener_value`. */
+  /**
+   * Total tender consideration: `new_npv + consent_fee + equity_sweetener_value`.
+   */
   tender_total: number;
-  /** Tender consideration less the hold-out present value. */
+  /**
+   * Tender consideration less the hold-out present value.
+   */
   delta_npv: number;
-  /** Hold-out recovery fraction that matches the tender; capped at 1.0. */
+  /**
+   * Hold-out recovery fraction that matches the tender; capped at 1.0.
+   */
   breakeven_recovery: number;
-  /** True when `tender_total` exceeds `old_npv * 1.02`. */
+  /**
+   * True when `tender_total` exceeds `old_npv * 1.02`.
+   */
   tender_recommended: boolean;
 }
 
-/** Issuer-side economics of a liability management exercise. */
+/**
+ * Issuer-side economics of a liability management exercise.
+ */
 export interface LmeAnalysis {
-  /** Canonical LME structure, echoed back from the request. */
+  /**
+   * Canonical LME structure, echoed back from the request.
+   */
   lme_type: 'open_market_repurchase' | 'tender_offer' | 'amend_and_extend' | 'dropdown';
-  /** Cash paid by the issuer, in the caller's monetary unit. */
+  /**
+   * Cash paid by the issuer, in the caller's monetary unit.
+   */
   cost: number;
-  /** Face amount retired; zero for structures that do not extinguish debt. */
+  /**
+   * Face amount retired; zero for structures that do not extinguish debt.
+   */
   notional_reduction: number;
-  /** Par retired less cash paid — the discount captured by the issuer. */
+  /**
+   * Par retired less cash paid — the discount captured by the issuer.
+   */
   discount_capture: number;
-  /** Discount captured as a fraction of par retired; zero when no par is retired. */
+  /**
+   * Discount captured as a fraction of par retired; zero when no par is retired.
+   */
   discount_capture_pct: number;
-  /** Value fraction diverted from non-participating holders; nonzero only for a dropdown. */
+  /**
+   * Value fraction diverted from non-participating holders; nonzero only for a dropdown.
+   */
   remaining_holder_impact_pct: number;
-  /** Gross-leverage block, or null when no positive EBITDA was supplied. */
+  /**
+   * Gross-leverage block, or null when no positive EBITDA was supplied.
+   */
   leverage_impact: LmeLeverageImpact | null;
 }
 
@@ -1863,6 +2068,10 @@ export interface CoreNamespace {
    * Discount curve exposed by this `Core` value.
    */
   DiscountCurve: DiscountCurveConstructor;
+  /**
+   * Hazard curve exposed by this `Core` value.
+   */
+  HazardCurve: HazardCurveConstructor;
   /**
    * Forward curve exposed by this `Core` value.
    */
@@ -3495,27 +3704,49 @@ export interface RecoveryModelClass {
  * name says otherwise; amounts are in the same unit as the input losses.
  */
 export interface TrancheLossStatisticsJson {
-  /** Tranche attachment point as a fraction of pool notional, in `[0, 1)`. */
+  /**
+   * Tranche attachment point as a fraction of pool notional, in `[0, 1)`.
+   */
   attachment: number;
-  /** Tranche detachment point as a fraction of pool notional, in `(0, 1]`. */
+  /**
+   * Tranche detachment point as a fraction of pool notional, in `(0, 1]`.
+   */
   detachment: number;
-  /** Tranche notional `(detachment - attachment) * poolNotional`. */
+  /**
+   * Tranche notional `(detachment - attachment) * poolNotional`.
+   */
   tranche_notional: number;
-  /** Mean tranche loss as a fraction of tranche notional, in `[0, 1]`. */
+  /**
+   * Mean tranche loss as a fraction of tranche notional, in `[0, 1]`.
+   */
   expected_loss_fraction: number;
-  /** Mean tranche loss in pool-notional units. */
+  /**
+   * Mean tranche loss in pool-notional units.
+   */
   expected_loss_amount: number;
-  /** Nearest-rank tranche loss fraction at the distribution's confidence. */
+  /**
+   * Nearest-rank tranche loss fraction at the distribution's confidence.
+   */
   var_fraction: number;
-  /** Nearest-rank tranche loss amount at the distribution's confidence. */
+  /**
+   * Nearest-rank tranche loss amount at the distribution's confidence.
+   */
   var_amount: number;
-  /** Mean tranche loss fraction from the VaR observation through the worst path. */
+  /**
+   * Mean tranche loss fraction from the VaR observation through the worst path.
+   */
   expected_shortfall_fraction: number;
-  /** Mean tranche loss amount from the VaR observation through the worst path. */
+  /**
+   * Mean tranche loss amount from the VaR observation through the worst path.
+   */
   expected_shortfall_amount: number;
-  /** Share of paths whose pool loss fraction strictly exceeds `attachment`. */
+  /**
+   * Share of paths whose pool loss fraction strictly exceeds `attachment`.
+   */
   prob_attachment_breached: number;
-  /** Share of paths whose pool loss fraction reaches or exceeds `detachment`. */
+  /**
+   * Share of paths whose pool loss fraction reaches or exceeds `detachment`.
+   */
   prob_full_writedown: number;
 }
 
@@ -4080,6 +4311,57 @@ export interface MarginNamespace {
     month: number,
     day: number
   ): VariationMarginJson;
+  /**
+   * Compute bilateral XVA: CVA, DVA, FVA, MVA, and the all-in adjustment.
+   *
+   * All legs are weighted by joint (first-to-default) survival. MVA is computed
+   * only when `fundingJson` carries an `im_profile`.
+   *
+   * The returned object reports `bilateral_cva = CVA - DVA` (credit only) and
+   * `total_xva = CVA - DVA + FVA + MVA` (all-in) — the latter being the amount
+   * subtracted from the risk-free value of the netting set. Optional legs are
+   * absent from the payload when they were not computed.
+   *
+   * @param exposureProfileJson - `ExposureProfile` JSON with `times`,
+   * `mtm_values`, `epe`, and `ene` arrays of equal length.
+   * @param counterpartyHazardCurve - Hazard curve for the counterparty's credit.
+   * @param ownHazardCurve - Hazard curve for the institution's own credit.
+   * @param discountCurve - Risk-free discount curve for present-valuing.
+   * @param counterpartyRecoveryRate - Recovery on counterparty default, in `[0, 1]`.
+   * @param ownRecoveryRate - Recovery on own default, in `[0, 1]`.
+   * @param fundingJson - Optional `FundingConfig` JSON driving FVA and, when it
+   * carries `im_profile`, MVA. Omit for credit legs only.
+   * @returns The `XvaResult` as a plain object.
+   * @throws If any JSON fails to parse, a recovery rate is outside `[0, 1]`,
+   * the exposure profile is empty or inconsistent, or a curve evaluation is
+   * non-finite.
+   *
+   * @example
+   * ```javascript
+   * import init, { core, margin } from "finstack-quant-wasm";
+   * await init();
+   * const df = new core.DiscountCurve("USD-OIS", "2025-01-01", [0.0, 1.0, 5.0, 1.0], "log_linear");
+   * const hz = new core.HazardCurve("CPTY", "2025-01-01", [0.0, 0.02, 30.0, 0.02], 0.4);
+   * const result = margin.computeBilateralXva(
+   *   JSON.stringify({ times: [1, 2], mtm_values: [1e6, 1e6], epe: [1e6, 1e6], ene: [0, 0] }),
+   *   hz, hz, df, 0.4, 0.4,
+   *   JSON.stringify({ funding_spread_bps: 50.0 }),
+   * );
+   * result.total_xva; // CVA - DVA + FVA + MVA
+   * ```
+   * @returns The `XvaResult` as a plain object.
+   * @throws Error - If any JSON fails to parse, a recovery rate is outside `[0, 1]`,
+   * the exposure profile is empty or inconsistent, or a curve evaluation is non-finite.
+   */
+  computeBilateralXva(
+    exposureProfileJson: string,
+    counterpartyHazardCurve: HazardCurve,
+    ownHazardCurve: HazardCurve,
+    discountCurve: DiscountCurve,
+    counterpartyRecoveryRate: number,
+    ownRecoveryRate: number,
+    fundingJson?: string | null
+  ): XvaResultJson;
 }
 
 /**
@@ -4110,8 +4392,6 @@ export interface CashflowsNamespace {
    * @param marketJson  Optional JSON-encoded market context for floating-rate lookups.
    * @returns           JSON-encoded `CashFlowSchedule`.
    * @throws            If the spec or market JSON is malformed, or schedule construction fails.
-   * @returns JSON-encoded `CashFlowSchedule`.
-   * @throws If the spec or market JSON is malformed, or schedule construction fails.
    */
   buildCashflowScheduleJson(specJson: string, marketJson?: string | null): string;
 
@@ -4121,8 +4401,6 @@ export interface CashflowsNamespace {
    * @param scheduleJson JSON-encoded `CashFlowSchedule`.
    * @returns            Canonicalized JSON-encoded `CashFlowSchedule`.
    * @throws             If the schedule JSON is malformed or fails validation.
-   * @returns Canonicalized JSON-encoded `CashFlowSchedule`.
-   * @throws If the schedule JSON is malformed or fails validation.
    */
   validateCashflowScheduleJson(scheduleJson: string): string;
 
@@ -4278,8 +4556,11 @@ export interface Bond extends WasmOwned {
   readonly id: string;
   /**
    * Serialize to tagged instrument JSON (`{"type": "bond", "spec": ...}`).
-   * @returns Returns the requested string representation or JSON payload.
-   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   *
+   * Pass the result to `valuations.instruments.priceInstrument` (or the
+   * other generic pricing entry points) to price this bond.
+   * @returns Tagged instrument JSON accepted by `priceInstrument` and `Bond.fromJson`.
+   * @throws If serialization fails.
    */
   toJson(): string;
 }
@@ -4311,8 +4592,8 @@ export interface BondConstructor {
    * @param issue - Issue date as an ISO-8601 string (`"YYYY-MM-DD"`).
    * @param maturity - Maturity date as an ISO-8601 string (`"YYYY-MM-DD"`).
    * @param discountCurveId - Discount curve identifier used for pricing.
-   * @returns Returns the resulting typed instrument or WebAssembly handle.
-   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   * @returns The validated fixed-rate bond.
+   * @throws If validation fails (e.g. maturity not after issue).
    */
   fixed(
     id: string,
@@ -4335,8 +4616,8 @@ export interface BondConstructor {
    * @param freq - Payment frequency (e.g. `Tenor.quarterly()`).
    * @param dc - Day count convention (e.g. `DayCount.act360()`).
    * @param discountCurveId - Discount curve identifier used for pricing.
-   * @returns Returns the resulting typed instrument or WebAssembly handle.
-   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   * @returns The validated floating-rate note.
+   * @throws If validation fails.
    */
   floating(
     id: string,
@@ -4352,8 +4633,8 @@ export interface BondConstructor {
   /**
    * Deserialize a bond from tagged instrument JSON (`{"type": "bond", "spec": ...}`).
    * @param json - Canonical JSON string defining the object to deserialize or normalize.
-   * @returns Returns the resulting typed instrument or WebAssembly handle.
-   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   * @returns The validated bond.
+   * @throws If the JSON is malformed, has a different instrument type, or fails validation.
    */
   fromJson(json: string): Bond;
 }
@@ -4373,8 +4654,11 @@ export interface TermLoan extends WasmOwned {
   readonly id: string;
   /**
    * Serialize to tagged instrument JSON (`{"type": "term_loan", "spec": ...}`).
-   * @returns Returns the requested string representation or JSON payload.
-   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   *
+   * Pass the result to `valuations.instruments.priceInstrument` (or the
+   * other generic pricing entry points) to price this loan.
+   * @returns Tagged instrument JSON accepted by `priceInstrument` and `TermLoan.fromJson`.
+   * @throws If serialization fails.
    */
   toJson(): string;
 }
@@ -4396,14 +4680,14 @@ export interface TermLoanConstructor {
   /**
    * Deserialize a term loan from tagged instrument JSON (`{"type": "term_loan", "spec": ...}`).
    * @param json - Canonical JSON string defining the object to deserialize or normalize.
-   * @returns Returns the resulting typed instrument or WebAssembly handle.
-   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   * @returns The validated term loan.
+   * @throws If the JSON is malformed, has a different instrument type, or fails validation.
    */
   fromJson(json: string): TermLoan;
   /**
    * Canonical example term loan (mirrors Rust `TermLoan::example`).
-   * @returns Returns the resulting typed instrument or WebAssembly handle.
-   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   * @returns The example loan.
+   * @throws If construction fails (should not occur).
    */
   example(): TermLoan;
 }
@@ -6763,6 +7047,60 @@ export interface PortfolioNamespace {
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
    */
   carinoLink(periodsJson: string): string;
+  /**
+   * Compute a single-period Campisi fixed-income attribution from JSON.
+   *
+   * Decomposes both sides into carry / treasury / spread / selection and
+   * splits the active return into allocation plus four active component
+   * effects (Campisi 2000). Returns a JSON `FiAttributionResult`.
+   * @param portfolioJson - Canonical JSON array of `FiPositionSnapshot` objects describing the portfolio side; weights must sum to 1.
+   * @param benchmarkJson - Canonical JSON array of `FiPositionSnapshot` objects describing the benchmark side; weights must sum to 1.
+   * @param configJson - Canonical JSON `FiAttributionConfig`; `period_years` is its only field, is required (no default), and unknown keys are rejected.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  campisiAttribution(portfolioJson: string, benchmarkJson: string, configJson: string): string;
+  /**
+   * Carino-link already-computed single-period Campisi results.
+   *
+   * Binds Rust `campisi_carino_link`. Each period carries its own
+   * already-applied `period_years`, so periods of *different* lengths (e.g.
+   * act/365 calendar months) link correctly here; prefer this entry point
+   * whenever the periods are not all the same length. Returns a JSON
+   * `FiCarinoLinkedResult`.
+   * @param periodsJson - Canonical JSON array of `FiAttributionResult` objects in chronological order, as returned by `campisiAttribution`.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  campisiCarinoLink(periodsJson: string): string;
+  /**
+   * Compute per-period Campisi attributions from snapshots and Carino-link them.
+   *
+   * Binds Rust `campisi_carino_link_from_snapshots`. One shared config — hence
+   * one shared `period_years` — is applied to every period, so this entry point
+   * is only correct for equal-length periods; use `campisiCarinoLink` for
+   * unequal periods. Returns a JSON `FiCarinoLinkedResult`.
+   * @param periodsJson - Canonical JSON array of `FiPeriodInput` objects, each holding `portfolio` and `benchmark` arrays of `FiPositionSnapshot`.
+   * @param configJson - Canonical JSON `FiAttributionConfig` applied to every period; `period_years` is its only field and is required (no default).
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  campisiCarinoLinkFromSnapshots(periodsJson: string, configJson: string): string;
+  /**
+   * Reconcile the five Campisi effect totals against the active return.
+   *
+   * Binds the Rust method `FiAttributionResult::reconciliation_check`. The
+   * decomposition reconciles by construction (selection is the residual), so
+   * this is a floating-point sanity gate rather than a model check; without it
+   * callers must re-sum the five totals by hand. Returns a JSON
+   * `FiReconciliationReport` with `total_residual`, `is_reconciled` and
+   * `tolerance`.
+   * @param resultJson - Canonical JSON `FiAttributionResult` as returned by `campisiAttribution`; unknown fields are rejected.
+   * @param tolerance - Absolute reconciliation tolerance in return units; `1e-10` suits return-space values.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  campisiReconciliationCheck(resultJson: string, tolerance: number): string;
   /**
    * Compute a Modified-Dietz TWRR sub-period return from period JSON.
    * @param periodJson - Canonical JSON payload representing the period consumed by this API.

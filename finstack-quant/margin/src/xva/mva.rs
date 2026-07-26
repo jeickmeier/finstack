@@ -9,7 +9,11 @@
 //!
 //! where `λ_B(t)` is the bank's funding spread (decimal, from bps inputs),
 //! `E[IM(t)]` the expected IM profile, `DF(t)` the risk-free discount factor,
-//! and `S(t)` the bank's survival probability (optional; `S ≡ 1` when omitted).
+//! and `S(t)` the survival probability (optional; `S ≡ 1` when omitted).
+//! [`compute_mva`] conditions on the bank's own survival only; the bilateral
+//! engine ([`crate::xva::cva::compute_bilateral_xva`]) uses joint
+//! (first-to-default) survival `S_B(t)·S_C(t)`, since a counterparty default
+//! terminates the netting set and returns the posted margin.
 //!
 //! Phase 1 builds `E[IM(t)]` deterministically from the current ISDA SIMM
 //! number and a decay profile ([`im_profile_from_simm`](crate::xva::mva::im_profile_from_simm))
@@ -25,6 +29,14 @@
 //! (left-constant) before the first grid point; include a small first grid
 //! point (e.g. `1.0/365.0`) if exact `t = 0` anchoring matters.
 //!
+//! # Aggregation
+//!
+//! MVA is a positive funding cost using the same sign convention as CVA and
+//! FVA. [`crate::xva::cva::compute_bilateral_xva`] computes it automatically
+//! whenever [`crate::xva::types::FundingConfig::im_profile`] is set and reports
+//! the all-in `CVA − DVA + FVA + MVA` in
+//! [`crate::xva::types::XvaResult::total_xva`].
+//!
 //! # Model Boundaries
 //!
 //! Two boundaries of this model are not currently represented:
@@ -34,7 +46,7 @@
 //!   own default. A book that computes `CVA − DVA + FVA + MVA` therefore
 //!   claims the full DVA benefit while also paying the full MVA cost on the
 //!   same posted collateral — the classic DVA/MVA overlap discussed in
-//!   Green (2015), ch. 10.
+//!   Green (2015), ch. 10. `total_xva` inherits this overlap.
 //! - **Counterparty-posted dynamic IM**: only the static counterparty-posted
 //!   `independent_amount` on `CsaTerms` reduces EPE. Dynamic
 //!   counterparty-posted SIMM IM — which [`PathImModel`] could represent on
@@ -283,11 +295,13 @@ pub struct MvaResult {
 ///
 /// # Relationship to `compute_bilateral_xva`
 ///
-/// [`crate::xva::cva::compute_bilateral_xva`] does **not** include this
-/// adjustment in its `bilateral_cva` output (`CVA − DVA + FVA` only). MVA is a
-/// positive funding cost with the same sign convention as CVA/FVA; add this
-/// function's `mva` field to `compute_bilateral_xva`'s result if the full
-/// funding-inclusive composition `CVA − DVA + FVA + MVA` is required.
+/// This is the **unilateral** form: it conditions only on the bank's own
+/// survival. [`crate::xva::cva::compute_bilateral_xva`] computes MVA itself
+/// whenever [`crate::xva::types::FundingConfig::im_profile`] is set, weights it
+/// by *joint* survival (consistent with its FVA leg), and folds the result into
+/// [`crate::xva::types::XvaResult::total_xva`] as `CVA − DVA + FVA + MVA`.
+/// Prefer that entry point for netting-set-level XVA; use this function for
+/// standalone MVA analysis.
 ///
 /// # References
 ///
@@ -297,6 +311,23 @@ pub fn compute_mva(
     funding_spread_curve: &[(f64, f64)],
     discount_curve: &DiscountCurve,
     survival_curve: Option<&HazardCurve>,
+) -> finstack_quant_core::Result<MvaResult> {
+    compute_mva_internal(
+        im_profile,
+        funding_spread_curve,
+        discount_curve,
+        survival_curve,
+        None,
+    )
+}
+
+/// Compute MVA with optional joint-survival weighting for the bilateral engine.
+pub(crate) fn compute_mva_internal(
+    im_profile: &ImProfile,
+    funding_spread_curve: &[(f64, f64)],
+    discount_curve: &DiscountCurve,
+    survival_curve: Option<&HazardCurve>,
+    counterparty_survival_curve: Option<&HazardCurve>,
 ) -> finstack_quant_core::Result<MvaResult> {
     im_profile.validate()?;
     validate_spread_curve(funding_spread_curve)?;
@@ -308,7 +339,8 @@ pub fn compute_mva(
     // IM is flat (left-constant) before the first grid point (see module docs).
     let mut prev_im = im_profile.im_values[0];
     let mut prev_df = 1.0;
-    let mut prev_sp = 1.0;
+    let mut prev_own_sp = 1.0;
+    let mut prev_counterparty_sp = 1.0;
 
     for i in 0..n {
         let t = im_profile.times[i];
@@ -320,7 +352,7 @@ pub fn compute_mva(
                 "MVA: non-finite discount factor at t={t}: DF(t)={df_t}"
             )));
         }
-        let sp_t = match survival_curve {
+        let own_sp_t = match survival_curve {
             Some(curve) => {
                 let sp = curve.sp(t);
                 if !sp.is_finite() {
@@ -332,11 +364,26 @@ pub fn compute_mva(
             }
             None => 1.0,
         };
+        let counterparty_sp_t = match counterparty_survival_curve {
+            Some(curve) => {
+                let sp = curve.sp(t);
+                if !sp.is_finite() {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "MVA: non-finite counterparty survival probability at t={t}: S_c(t)={sp}"
+                    )));
+                }
+                sp
+            }
+            None => 1.0,
+        };
 
         let dt = t - prev_t;
         let im_mid = 0.5 * (prev_im + im_t);
         let df_mid = 0.5 * (prev_df + df_t);
-        let sp_mid = 0.5 * (prev_sp + sp_t);
+        // Product of bucket midpoints, matching the joint-survival convention
+        // used by the FVA leg in `xva::cva`.
+        let sp_mid =
+            0.5 * (prev_own_sp + own_sp_t) * 0.5 * (prev_counterparty_sp + counterparty_sp_t);
         let spread_mid = spread_at(funding_spread_curve, 0.5 * (prev_t + t)) / 10_000.0;
 
         mva += spread_mid * im_mid * df_mid * sp_mid * dt;
@@ -345,7 +392,8 @@ pub fn compute_mva(
         prev_t = t;
         prev_im = im_t;
         prev_df = df_t;
-        prev_sp = sp_t;
+        prev_own_sp = own_sp_t;
+        prev_counterparty_sp = counterparty_sp_t;
     }
 
     let horizon = im_profile.times[n - 1];

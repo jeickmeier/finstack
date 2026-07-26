@@ -47,6 +47,7 @@ __all__ = [
     "ImDecayProfile",
     "ImProfile",
     "MvaResult",
+    "compute_bilateral_xva",
     "compute_mva",
     "im_profile_from_simm",
     "MarginUtilization",
@@ -2507,7 +2508,11 @@ class HaircutImCalculator:
 
 class FundingConfig:
     """
-    Funding cost/benefit configuration for FVA calculation.
+    Funding cost/benefit configuration for FVA and MVA calculation.
+
+    Supplying ``im_profile`` turns on MVA: :func:`compute_bilateral_xva` then
+    prices the funding cost of posted initial margin and includes it in
+    ``XvaResult.total_xva``.
 
     Parameters
     ----------
@@ -2515,6 +2520,10 @@ class FundingConfig:
         Funding spread in basis points.
     funding_benefit_bps : float | None, optional
         Funding benefit in bps; ``None`` for symmetric funding.
+    im_profile : ImProfile | None, optional
+        Expected initial-margin profile driving MVA; ``None`` disables MVA.
+    margin_funding_spread_bps : float | None, optional
+        Spread applied to posted IM; ``None`` reuses ``funding_spread_bps``.
 
     Returns
     -------
@@ -2531,16 +2540,22 @@ class FundingConfig:
         self,
         funding_spread_bps: float,
         funding_benefit_bps: float | None = None,
+        im_profile: ImProfile | None = None,
+        margin_funding_spread_bps: float | None = None,
     ) -> None:
         """
-        Compute   init for `FundingConfig`.
+        Initialize FVA and MVA funding parameters.
 
         Parameters
         ----------
-        funding_spread_bps : object
-            Rate or spread expressed in the convention documented for this API.
-        funding_benefit_bps : object
-            Value supplied for `funding_benefit_bps` to the documented binding operation.
+        funding_spread_bps : float
+            Funding cost spread in basis points.
+        funding_benefit_bps : float | None
+            Funding benefit in basis points; ``None`` uses the funding cost spread.
+        im_profile : ImProfile | None
+            Expected initial-margin profile driving MVA, or ``None``.
+        margin_funding_spread_bps : float | None
+            IM funding spread in bps, or ``None`` to reuse ``funding_spread_bps``.
 
         Raises
         ------
@@ -2580,6 +2595,59 @@ class FundingConfig:
         --------
         >>> FundingConfig(10.0, 8.0).funding_benefit_bps
         8.0
+        """
+        ...
+
+    @property
+    def im_profile(self) -> ImProfile | None:
+        """
+        Expected initial-margin profile driving MVA (or None).
+
+        Returns
+        -------
+        ImProfile or None
+            The IM profile when MVA is enabled.
+
+        Examples
+        --------
+        >>> FundingConfig(10.0).im_profile is None
+        True
+        """
+        ...
+
+    @property
+    def margin_funding_spread_bps(self) -> float | None:
+        """
+        IM funding spread in basis points (or None).
+
+        Returns
+        -------
+        float or None
+            Explicit IM funding spread, when overridden.
+
+        Examples
+        --------
+        >>> FundingConfig(10.0, None, None, 6.0).margin_funding_spread_bps
+        6.0
+        """
+        ...
+
+    def effective_margin_spread_bps(self) -> float:
+        """
+        Effective IM funding spread in basis points.
+
+        Falls back to ``funding_spread_bps`` when
+        ``margin_funding_spread_bps`` is ``None``.
+
+        Returns
+        -------
+        float
+            Effective IM funding spread in bps.
+
+        Examples
+        --------
+        >>> FundingConfig(10.0).effective_margin_spread_bps()
+        10.0
         """
         ...
 
@@ -3064,7 +3132,10 @@ class ExposureProfile:
 
 class XvaResult:
     """
-    Result of XVA calculations (CVA, DVA, FVA, exposure profiles).
+    Result of XVA calculations (CVA, DVA, FVA, MVA, exposure profiles).
+
+    Adjustments compose additively as ``bilateral_cva = CVA - DVA`` (credit
+    only) and ``total_xva = CVA - DVA + FVA + MVA`` (all-in).
 
     Parameters
     ----------
@@ -3176,9 +3247,26 @@ class XvaResult:
         ...
 
     @property
+    def mva(self) -> float | None:
+        """
+        MVA (funding cost of posted initial margin, or None).
+
+        ``None`` unless the run supplied ``FundingConfig.im_profile``.
+
+        Returns
+        -------
+        float or None
+            MVA if computed; positive is a cost to the desk.
+        """
+        ...
+
+    @property
     def bilateral_cva(self) -> float | None:
         """
-        Bilateral CVA = CVA − DVA (or None).
+        Bilateral CVA (BCVA) = CVA − DVA (or None).
+
+        Credit only — it excludes FVA and MVA. Read :attr:`total_xva` for the
+        all-in adjustment.
 
         Returns
         -------
@@ -3188,6 +3276,21 @@ class XvaResult:
         Examples
         --------
         >>> # Instance field
+        """
+        ...
+
+    @property
+    def total_xva(self) -> float | None:
+        """
+        All-in adjustment = CVA − DVA + FVA + MVA (or None).
+
+        Uncomputed legs contribute zero. This is the quantity subtracted from
+        the risk-free value of the netting set.
+
+        Returns
+        -------
+        float or None
+            Total XVA if defined.
         """
         ...
 
@@ -5614,6 +5717,75 @@ def saccr_ead(trades: list[SaCcrTrade], margined: bool = False, collateral: floa
     --------
     >>> from finstack_quant.margin import saccr_ead
     >>> callable(saccr_ead)
+    True
+    """
+    ...
+
+def compute_bilateral_xva(
+    exposure_profile: ExposureProfile,
+    counterparty_hazard_curve: HazardCurve,
+    own_hazard_curve: HazardCurve,
+    discount_curve: DiscountCurve,
+    counterparty_recovery_rate: float,
+    own_recovery_rate: float,
+    funding: FundingConfig | None = None,
+) -> XvaResult:
+    """
+    Compute bilateral XVA: CVA, DVA, FVA, MVA, and the all-in adjustment.
+
+    All legs are weighted by joint (first-to-default) survival, so the credit
+    and funding components are not double-counted. MVA is computed only when
+    ``funding`` carries an ``im_profile``.
+
+    The result reports ``bilateral_cva = CVA - DVA`` (credit only) and
+    ``total_xva = CVA - DVA + FVA + MVA`` (all-in) — the latter being the
+    quantity subtracted from the risk-free value of the netting set.
+
+    Parameters
+    ----------
+    exposure_profile : ExposureProfile
+        EPE/ENE profile from exposure simulation.
+    counterparty_hazard_curve : HazardCurve
+        Hazard curve for the counterparty's credit.
+    own_hazard_curve : HazardCurve
+        Hazard curve for the institution's own credit.
+    discount_curve : DiscountCurve
+        Risk-free discount curve for present-valuing.
+    counterparty_recovery_rate : float
+        Recovery rate on counterparty default, in ``[0, 1]``.
+    own_recovery_rate : float
+        Recovery rate on own default, in ``[0, 1]``.
+    funding : FundingConfig | None
+        Funding configuration driving FVA and, when it carries an
+        ``im_profile``, MVA. ``None`` computes the credit legs only.
+
+    Returns
+    -------
+    XvaResult
+        CVA, DVA, FVA, MVA, ``bilateral_cva``, ``total_xva``, and the
+        exposure/regulatory profiles.
+
+    Raises
+    ------
+    ValueError
+        If the exposure profile is empty or inconsistent, a recovery rate is
+        outside ``[0, 1]``, a curve evaluation is non-finite, or the supplied
+        IM profile fails validation.
+
+    Examples
+    --------
+    >>> import datetime as dt
+    >>> from finstack_quant.core.market_data.curves import DiscountCurve, HazardCurve
+    >>> profile = ExposureProfile([1.0, 2.0], [1e6, 1e6], [1e6, 1e6], [0.0, 0.0])
+    >>> df = DiscountCurve(
+    ...     "USD-OIS",
+    ...     dt.date(2025, 1, 1),
+    ...     [(0.5 * i, 1.0) for i in range(9)],
+    ...     interp="log_linear",
+    ... )
+    >>> hz = HazardCurve("CPTY", dt.date(2025, 1, 1), [(0.0, 0.02), (30.0, 0.02)])
+    >>> result = compute_bilateral_xva(profile, hz, hz, df, 0.40, 0.40)
+    >>> result.bilateral_cva == result.cva - result.dva
     True
     """
     ...

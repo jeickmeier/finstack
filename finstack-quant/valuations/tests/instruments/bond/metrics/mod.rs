@@ -11,6 +11,7 @@
 //! - `asw`: Asset swap spreads (par, market, forward variants)
 //! - `dm`: Discount margin for FRNs
 //! - `cs01`: Credit spread sensitivity
+//! - `spread_duration`: CS01 normalized to years
 //! - `oas`: Option-adjusted spread
 //! - `ytw`: Yield to worst
 //! - `theta`: Time decay
@@ -30,6 +31,7 @@ mod duration;
 mod oas;
 mod prices;
 mod quote_engine;
+mod spread_duration;
 mod spreads;
 mod theta;
 mod wal;

@@ -151,6 +151,86 @@ pub fn carino_link(periods_json: &str) -> Result<String, JsValue> {
     serde_json::to_string(&result).map_err(to_js_err)
 }
 
+/// Compute a single-period Campisi fixed-income attribution from JSON.
+///
+/// Decomposes both sides into carry / treasury / spread / selection and
+/// splits the active return into allocation plus four active component
+/// effects (Campisi 2000). Returns a JSON `FiAttributionResult`.
+/// @param portfolio_json - Canonical JSON array of `FiPositionSnapshot` objects describing the portfolio side; weights must sum to 1.
+/// @param benchmark_json - Canonical JSON array of `FiPositionSnapshot` objects describing the benchmark side; weights must sum to 1.
+/// @param config_json - Canonical JSON `FiAttributionConfig`; `period_years` is its only field, is required (no default), and unknown keys are rejected.
+#[wasm_bindgen(js_name = campisiAttribution)]
+pub fn campisi_attribution(
+    portfolio_json: &str,
+    benchmark_json: &str,
+    config_json: &str,
+) -> Result<String, JsValue> {
+    let portfolio: Vec<finstack_quant_portfolio::FiPositionSnapshot> =
+        serde_json::from_str(portfolio_json).map_err(to_js_err)?;
+    let benchmark: Vec<finstack_quant_portfolio::FiPositionSnapshot> =
+        serde_json::from_str(benchmark_json).map_err(to_js_err)?;
+    let config: finstack_quant_portfolio::FiAttributionConfig =
+        serde_json::from_str(config_json).map_err(to_js_err)?;
+    let result = finstack_quant_portfolio::campisi_attribution(&portfolio, &benchmark, &config)
+        .map_err(to_js_err)?;
+    serde_json::to_string(&result).map_err(to_js_err)
+}
+
+/// Carino-link already-computed single-period Campisi results.
+///
+/// Binds Rust `campisi_carino_link`. Each period carries its own
+/// already-applied `period_years`, so periods of *different* lengths (e.g.
+/// act/365 calendar months) link correctly here; prefer this entry point
+/// whenever the periods are not all the same length. Returns a JSON
+/// `FiCarinoLinkedResult`.
+/// @param periods_json - Canonical JSON array of `FiAttributionResult` objects in chronological order, as returned by `campisiAttribution`.
+#[wasm_bindgen(js_name = campisiCarinoLink)]
+pub fn campisi_carino_link(periods_json: &str) -> Result<String, JsValue> {
+    let periods: Vec<finstack_quant_portfolio::FiAttributionResult> =
+        serde_json::from_str(periods_json).map_err(to_js_err)?;
+    let result = finstack_quant_portfolio::campisi_carino_link(&periods).map_err(to_js_err)?;
+    serde_json::to_string(&result).map_err(to_js_err)
+}
+
+/// Compute per-period Campisi attributions from snapshots and Carino-link them.
+///
+/// Binds Rust `campisi_carino_link_from_snapshots`. One shared config — hence
+/// one shared `period_years` — is applied to every period, so this entry point
+/// is only correct for equal-length periods; use `campisiCarinoLink` for
+/// unequal periods. Returns a JSON `FiCarinoLinkedResult`.
+/// @param periods_json - Canonical JSON array of `FiPeriodInput` objects, each holding `portfolio` and `benchmark` arrays of `FiPositionSnapshot`.
+/// @param config_json - Canonical JSON `FiAttributionConfig` applied to every period; `period_years` is its only field and is required (no default).
+#[wasm_bindgen(js_name = campisiCarinoLinkFromSnapshots)]
+pub fn campisi_carino_link_from_snapshots(
+    periods_json: &str,
+    config_json: &str,
+) -> Result<String, JsValue> {
+    let periods: Vec<finstack_quant_portfolio::FiPeriodInput> =
+        serde_json::from_str(periods_json).map_err(to_js_err)?;
+    let config: finstack_quant_portfolio::FiAttributionConfig =
+        serde_json::from_str(config_json).map_err(to_js_err)?;
+    let result = finstack_quant_portfolio::campisi_carino_link_from_snapshots(&periods, &config)
+        .map_err(to_js_err)?;
+    serde_json::to_string(&result).map_err(to_js_err)
+}
+
+/// Reconcile the five Campisi effect totals against the active return.
+///
+/// Binds the Rust method `FiAttributionResult::reconciliation_check`. The
+/// decomposition reconciles by construction (selection is the residual), so
+/// this is a floating-point sanity gate rather than a model check; without it
+/// callers must re-sum the five totals by hand. Returns a JSON
+/// `FiReconciliationReport` with `total_residual`, `is_reconciled` and
+/// `tolerance`.
+/// @param result_json - Canonical JSON `FiAttributionResult` as returned by `campisiAttribution`; unknown fields are rejected.
+/// @param tolerance - Absolute reconciliation tolerance in return units; `1e-10` suits return-space values.
+#[wasm_bindgen(js_name = campisiReconciliationCheck)]
+pub fn campisi_reconciliation_check(result_json: &str, tolerance: f64) -> Result<String, JsValue> {
+    let result: finstack_quant_portfolio::FiAttributionResult =
+        serde_json::from_str(result_json).map_err(to_js_err)?;
+    serde_json::to_string(&result.reconciliation_check(tolerance)).map_err(to_js_err)
+}
+
 /// Compute a Modified-Dietz TWRR sub-period return from period JSON.
 /// @param period_json - Canonical JSON payload representing the period consumed by this API.
 #[wasm_bindgen(js_name = twrrModifiedDietz)]
@@ -1099,5 +1179,295 @@ mod tests {
 
         let result = mwr_xirr(&cashflows.to_string()).expect("xirr");
         assert!((result - 0.10).abs() < 1e-6);
+    }
+
+    // -----------------------------------------------------------------
+    // Campisi fixed-income attribution
+    // -----------------------------------------------------------------
+
+    /// Mirrors the hand-worked golden fixture in
+    /// `finstack-quant/portfolio/src/fi_attribution.rs`.
+    #[allow(clippy::too_many_arguments)]
+    fn campisi_snap(
+        sector: &str,
+        weight: f64,
+        total_return: f64,
+        yield_annual: f64,
+        modified_duration: f64,
+        spread_duration: f64,
+        spread: f64,
+        delta_treasury_yield: f64,
+        delta_spread: f64,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "sector": sector,
+            "weight": weight,
+            "total_return": total_return,
+            "yield_annual": yield_annual,
+            "modified_duration": modified_duration,
+            "spread_duration": spread_duration,
+            "spread": spread,
+            "delta_treasury_yield": delta_treasury_yield,
+            "delta_spread": delta_spread,
+        })
+    }
+
+    fn campisi_golden_portfolio() -> serde_json::Value {
+        serde_json::json!([
+            campisi_snap("GOVT", 0.30, 0.0155, 0.040, 5.0, 0.0, 0.0, -0.0010, 0.0),
+            campisi_snap("GOVT", 0.20, 0.0190, 0.045, 8.0, 0.0, 0.0, -0.0010, 0.0),
+            campisi_snap("CORP", 0.30, 0.0120, 0.060, 4.0, 3.8, 0.0150, -0.0010, 0.0020),
+            campisi_snap("CORP", 0.20, 0.0118, 0.070, 6.0, 5.5, 0.0250, -0.0010, 0.0020),
+        ])
+    }
+
+    fn campisi_golden_benchmark() -> serde_json::Value {
+        serde_json::json!([
+            campisi_snap("GOVT", 0.45, 0.0155, 0.038, 6.0, 0.0, 0.0, -0.0010, 0.0),
+            campisi_snap("GOVT", 0.15, 0.0195, 0.042, 9.0, 0.0, 0.0, -0.0010, 0.0),
+            campisi_snap("CORP", 0.25, 0.0090, 0.055, 5.0, 4.8, 0.0120, -0.0010, 0.0020),
+            campisi_snap("CORP", 0.15, 0.0100, 0.065, 7.0, 6.5, 0.0200, -0.0010, 0.0020),
+        ])
+    }
+
+    fn campisi_config(period_years: f64) -> String {
+        serde_json::json!({"period_years": period_years}).to_string()
+    }
+
+    /// Pins the canonical Rust golden numbers through the JSON boundary and
+    /// checks the five effects telescope to the active return.
+    #[test]
+    fn campisi_attribution_matches_rust_golden_and_reconciles() {
+        let result = campisi_attribution(
+            &campisi_golden_portfolio().to_string(),
+            &campisi_golden_benchmark().to_string(),
+            &campisi_config(0.25),
+        )
+        .expect("campisi attribution");
+        let parsed: serde_json::Value = serde_json::from_str(&result).expect("valid JSON");
+
+        let get = |key: &str| parsed[key].as_f64().unwrap_or_else(|| panic!("{key}"));
+        // Argument-order guard: swapping portfolio/benchmark flips these signs.
+        assert!((get("portfolio_return") - 0.01441).abs() < 1e-12);
+        assert!((get("benchmark_return") - 0.01365).abs() < 1e-12);
+        assert!((get("active_return") - 0.00076).abs() < 1e-12);
+        assert!((get("total_allocation") - -0.0007125).abs() < 1e-12);
+        assert!((get("total_active_carry") - 0.00103125).abs() < 1e-12);
+        assert!((get("total_active_treasury") - -0.00075).abs() < 1e-12);
+        assert!((get("total_active_spread") - 0.0009575).abs() < 1e-12);
+        assert!((get("total_selection") - 0.00023375).abs() < 1e-12);
+        assert!(
+            parsed.get("spread_mode").is_none(),
+            "the removed spread_mode stamp must not reappear in the result"
+        );
+
+        let reconstructed = get("total_allocation")
+            + get("total_active_carry")
+            + get("total_active_treasury")
+            + get("total_active_spread")
+            + get("total_selection");
+        assert!((reconstructed - get("active_return")).abs() < 1e-12);
+
+        // Sector ordering is portfolio-first-seen.
+        let sectors = parsed["sectors"].as_array().expect("sectors");
+        assert_eq!(sectors[0]["sector"], "GOVT");
+        assert_eq!(sectors[1]["sector"], "CORP");
+    }
+
+    /// `period_years` is the config's only field and has no default; the
+    /// binding must fail closed when it is omitted and when the retired
+    /// `spread_mode` key is still supplied. Replaces the old
+    /// `campisi_attribution_rejects_bad_or_missing_spread_mode`.
+    #[test]
+    fn campisi_attribution_rejects_unknown_and_missing_config_fields() {
+        let portfolio = campisi_golden_portfolio().to_string();
+        let benchmark = campisi_golden_benchmark().to_string();
+
+        // The sole required field, present: parses.
+        assert!(campisi_attribution(&portfolio, &benchmark, &campisi_config(0.25)).is_ok());
+        // No binding-invented default for period_years.
+        assert!(campisi_attribution(&portfolio, &benchmark, "{}").is_err());
+        // The retired `spread_mode` key is now an unknown field, not a silent
+        // no-op: a stale caller is told rather than served a guessed result.
+        assert!(campisi_attribution(
+            &portfolio,
+            &benchmark,
+            r#"{"period_years": 0.25, "spread_mode": "dts"}"#
+        )
+        .is_err());
+        // Domain errors surface too (weights must sum to 1).
+        assert!(campisi_attribution("[]", &benchmark, &campisi_config(0.25)).is_err());
+    }
+
+    /// `campisiCarinoLink` binds Rust `campisi_carino_link`, which links
+    /// *precomputed* results and therefore carries no shared `period_years`.
+    /// Feeding it two periods computed with *different* period lengths must
+    /// succeed — this is exactly what the snapshot-based entry point cannot
+    /// express, so it also proves the two names are not wired to the same
+    /// Rust function.
+    #[test]
+    fn campisi_carino_link_accepts_periods_of_different_lengths() {
+        let portfolio = campisi_golden_portfolio().to_string();
+        let benchmark = campisi_golden_benchmark().to_string();
+
+        // 31/365 and 28/365 — a real act/365 monthly pair.
+        let jan = campisi_attribution(&portfolio, &benchmark, &campisi_config(31.0 / 365.0))
+            .expect("january");
+        let feb = campisi_attribution(&portfolio, &benchmark, &campisi_config(28.0 / 365.0))
+            .expect("february");
+
+        let periods = format!("[{jan},{feb}]");
+        let linked = campisi_carino_link(&periods).expect("carino link over unequal periods");
+        let parsed: serde_json::Value = serde_json::from_str(&linked).expect("valid JSON");
+
+        let get = |key: &str| parsed[key].as_f64().unwrap_or_else(|| panic!("{key}"));
+        let geometric = get("portfolio_return_compounded") - get("benchmark_return_compounded");
+        let reconstructed = get("linked_allocation")
+            + get("linked_active_carry")
+            + get("linked_active_treasury")
+            + get("linked_active_spread")
+            + get("linked_selection");
+        assert!((reconstructed - geometric).abs() < 1e-10);
+
+        // The two periods carry different carry, so the linked result must
+        // differ from the equal-length snapshot path.
+        let jan_parsed: serde_json::Value = serde_json::from_str(&jan).expect("json");
+        let feb_parsed: serde_json::Value = serde_json::from_str(&feb).expect("json");
+        assert!(
+            (jan_parsed["total_active_carry"]
+                .as_f64()
+                .expect("jan carry")
+                - feb_parsed["total_active_carry"]
+                    .as_f64()
+                    .expect("feb carry"))
+            .abs()
+                > 1e-9
+        );
+
+        assert_eq!(parsed["periods"].as_array().expect("periods").len(), 2);
+        let names: Vec<&str> = parsed["linked_sectors"]
+            .as_array()
+            .expect("linked_sectors")
+            .iter()
+            .map(|s| s["sector"].as_str().expect("sector"))
+            .collect();
+        assert_eq!(names, ["GOVT", "CORP"]);
+    }
+
+    #[test]
+    fn campisi_carino_link_rejects_empty_and_inconsistent_periods() {
+        assert!(campisi_carino_link("[]").is_err());
+
+        let result = campisi_attribution(
+            &campisi_golden_portfolio().to_string(),
+            &campisi_golden_benchmark().to_string(),
+            &campisi_config(0.25),
+        )
+        .expect("period");
+        let mut other: serde_json::Value = serde_json::from_str(&result).expect("json");
+        other["sectors"][0]["sector"] = serde_json::json!("DIFFERENT");
+        let periods = format!("[{result},{other}]");
+        assert!(campisi_carino_link(&periods).is_err());
+    }
+
+    /// `campisiCarinoLinkFromSnapshots` binds Rust
+    /// `campisi_carino_link_from_snapshots`: raw period snapshots plus one
+    /// shared config.
+    #[test]
+    fn campisi_carino_link_from_snapshots_reconstructs_compounded_active_return() {
+        let period = serde_json::json!({
+            "portfolio": campisi_golden_portfolio(),
+            "benchmark": campisi_golden_benchmark(),
+        });
+        let periods = serde_json::json!([period, period]);
+
+        let linked =
+            campisi_carino_link_from_snapshots(&periods.to_string(), &campisi_config(0.25))
+                .expect("carino link from snapshots");
+        let parsed: serde_json::Value = serde_json::from_str(&linked).expect("valid JSON");
+
+        let get = |key: &str| parsed[key].as_f64().unwrap_or_else(|| panic!("{key}"));
+        // Hand-worked compounded returns: 1.01441^2 − 1 and 1.01365^2 − 1.
+        let rp = 1.01441_f64.powi(2) - 1.0;
+        let rb = 1.01365_f64.powi(2) - 1.0;
+        assert!((get("portfolio_return_compounded") - rp).abs() < 1e-12);
+        assert!((get("benchmark_return_compounded") - rb).abs() < 1e-12);
+
+        let geometric = rp - rb;
+        let reconstructed = get("linked_allocation")
+            + get("linked_active_carry")
+            + get("linked_active_treasury")
+            + get("linked_active_spread")
+            + get("linked_selection");
+        assert!((reconstructed - geometric).abs() < 1e-10);
+
+        // Carino smoothing is not a no-op here.
+        let arithmetic = 2.0 * 0.00076;
+        assert!((arithmetic - geometric).abs() > 1e-7);
+        let scale = geometric / arithmetic;
+        assert!((get("linked_active_spread") - 2.0 * 0.0009575 * scale).abs() < 1e-12);
+        assert!((get("linked_allocation") - 2.0 * -0.0007125 * scale).abs() < 1e-12);
+    }
+
+    /// The snapshot entry point takes `FiPeriodInput` objects, not
+    /// `FiAttributionResult`s — feeding it the other function's input must
+    /// fail, which pins that the two names are not interchangeable.
+    #[test]
+    fn campisi_carino_link_entry_points_are_not_interchangeable() {
+        let portfolio = campisi_golden_portfolio().to_string();
+        let benchmark = campisi_golden_benchmark().to_string();
+        let config = campisi_config(0.25);
+        let result = campisi_attribution(&portfolio, &benchmark, &config).expect("period");
+
+        // Results JSON is not FiPeriodInput.
+        assert!(campisi_carino_link_from_snapshots(&format!("[{result}]"), &config).is_err());
+
+        // Snapshot period JSON is not FiAttributionResult.
+        let period = serde_json::json!({
+            "portfolio": campisi_golden_portfolio(),
+            "benchmark": campisi_golden_benchmark(),
+        });
+        assert!(campisi_carino_link(&serde_json::json!([period]).to_string()).is_err());
+    }
+
+    /// The reconciliation gate must be reachable through the JSON boundary,
+    /// must honour the supplied tolerance, and must fail closed on a result
+    /// payload carrying an unknown field.
+    #[test]
+    fn campisi_reconciliation_check_honours_tolerance_and_denies_unknown_fields() {
+        let config = campisi_config(0.25);
+        let result = campisi_attribution(
+            &campisi_golden_portfolio().to_string(),
+            &campisi_golden_benchmark().to_string(),
+            &config,
+        )
+        .expect("period");
+
+        let report: serde_json::Value =
+            serde_json::from_str(&campisi_reconciliation_check(&result, 1e-10).expect("report"))
+                .expect("valid JSON");
+        assert_eq!(report["is_reconciled"], serde_json::json!(true));
+        assert!(report["total_residual"].as_f64().expect("residual").abs() <= 1e-10);
+
+        // Tolerance bites: tamper with active_return and the identity breaks.
+        let mut tampered: serde_json::Value = serde_json::from_str(&result).expect("parse");
+        let active = tampered["active_return"].as_f64().expect("active_return");
+        tampered["active_return"] = serde_json::json!(active + 0.01);
+        let tampered = tampered.to_string();
+        let strict: serde_json::Value =
+            serde_json::from_str(&campisi_reconciliation_check(&tampered, 1e-10).expect("report"))
+                .expect("valid JSON");
+        assert_eq!(strict["is_reconciled"], serde_json::json!(false));
+        let loose: serde_json::Value =
+            serde_json::from_str(&campisi_reconciliation_check(&tampered, 1.0).expect("report"))
+                .expect("valid JSON");
+        assert_eq!(loose["is_reconciled"], serde_json::json!(true));
+
+        // Unknown fields fail closed on both result-consuming entry points.
+        let mut bogus: serde_json::Value = serde_json::from_str(&result).expect("parse");
+        bogus["bogus_field"] = serde_json::json!(1.0);
+        let bogus = bogus.to_string();
+        assert!(campisi_reconciliation_check(&bogus, 1e-10).is_err());
+        assert!(campisi_carino_link(&format!("[{bogus}]")).is_err());
     }
 }

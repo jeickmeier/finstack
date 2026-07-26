@@ -38,6 +38,7 @@ ImDecayProfile = _margin.ImDecayProfile
 ImProfile = _margin.ImProfile
 MvaResult = _margin.MvaResult
 compute_mva = _margin.compute_mva
+compute_bilateral_xva = _margin.compute_bilateral_xva
 im_profile_from_simm = _margin.im_profile_from_simm
 MarginUtilization = _margin.MarginUtilization
 ExcessCollateral = _margin.ExcessCollateral
@@ -87,6 +88,7 @@ __all__: list[str] = [
     "XvaConfig",
     "XvaNettingSet",
     "XvaResult",
+    "compute_bilateral_xva",
     "compute_mva",
     "frtb_sba_charge",
     "im_profile_from_simm",

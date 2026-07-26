@@ -9,6 +9,7 @@ mod allocation;
 mod attribution;
 mod brinson;
 mod factor_model;
+mod fi_attribution;
 mod json_bridge;
 mod liquidity;
 mod matrix_input;
@@ -63,6 +64,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     sensitivity::register(py, &m)?;
     liquidity::register(py, &m)?;
     brinson::register(py, &m)?;
+    fi_attribution::register(py, &m)?;
     performance::register(py, &m)?;
 
     let exports = vec![
@@ -104,6 +106,10 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "kyle_lambda",
         "brinson_fachler",
         "carino_link",
+        "campisi_attribution",
+        "campisi_carino_link",
+        "campisi_carino_link_from_snapshots",
+        "campisi_reconciliation_check",
         "twrr_modified_dietz",
         "twrr_linked",
         "mwr_xirr",

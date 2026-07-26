@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 
 import pytest
 
-from finstack_quant.core.market_data.curves import DiscountCurve
+from finstack_quant.core.market_data.curves import DiscountCurve, HazardCurve
 from finstack_quant.margin import (
+    ExposureProfile,
+    FundingConfig,
     ImDecayProfile,
     ImProfile,
     MvaResult,
     SimmCalculator,
     SimmSensitivities,
+    XvaResult,
+    compute_bilateral_xva,
     compute_mva,
     im_profile_from_simm,
 )
@@ -110,3 +115,138 @@ def test_im_profile_from_simm_keyword_arguments() -> None:
         time_grid=[1.0, 2.0, 4.0],
     )
     assert profile.times == [1.0, 2.0, 4.0]
+
+
+def test_funding_config_carries_im_profile_for_mva() -> None:
+    """``FundingConfig`` exposes the MVA inputs the Rust engine consumes."""
+    profile = ImProfile([1.0, 2.0], [1_000_000.0, 1_000_000.0])
+    config = FundingConfig(50.0, 30.0, profile, 20.0)
+
+    assert config.funding_spread_bps == pytest.approx(50.0)
+    assert config.effective_benefit_bps() == pytest.approx(30.0)
+    assert config.margin_funding_spread_bps == pytest.approx(20.0)
+    assert config.effective_margin_spread_bps() == pytest.approx(20.0)
+    assert config.im_profile is not None
+    assert config.im_profile.times == [1.0, 2.0]
+
+
+def test_funding_config_margin_spread_defaults_to_funding_spread() -> None:
+    config = FundingConfig(45.0)
+    assert config.im_profile is None
+    assert config.margin_funding_spread_bps is None
+    assert config.effective_margin_spread_bps() == pytest.approx(45.0)
+
+
+def test_xva_result_exposes_mva_and_total_xva() -> None:
+    """``total_xva`` is the all-in CVA - DVA + FVA + MVA composition."""
+    payload = json.dumps({
+        "cva": 100.0,
+        "dva": 30.0,
+        "fva": 20.0,
+        "mva": 15.0,
+        "bilateral_cva": 70.0,
+        "total_xva": 105.0,
+        "epe_profile": [[1.0, 10.0]],
+        "ene_profile": [[1.0, 2.0]],
+        "pfe_profile": [[1.0, 10.0]],
+        "max_pfe": 10.0,
+        "effective_epe_profile": [[1.0, 10.0]],
+        "effective_epe": 10.0,
+    })
+    result = XvaResult.from_json(payload)
+
+    assert result.mva == pytest.approx(15.0)
+    assert result.bilateral_cva == pytest.approx(result.cva - result.dva)
+    assert result.total_xva == pytest.approx(result.cva - result.dva + result.fva + result.mva)
+
+
+def test_xva_result_mva_fields_are_optional() -> None:
+    """Payloads without the funding legs still load, with ``None`` fields."""
+    payload = json.dumps({
+        "cva": 100.0,
+        "epe_profile": [[1.0, 10.0]],
+        "ene_profile": [[1.0, 0.0]],
+        "pfe_profile": [[1.0, 10.0]],
+        "max_pfe": 10.0,
+        "effective_epe_profile": [[1.0, 10.0]],
+        "effective_epe": 10.0,
+    })
+    result = XvaResult.from_json(payload)
+
+    assert result.mva is None
+    assert result.total_xva is None
+
+
+def flat_hazard_curve(lam: float) -> HazardCurve:
+    return HazardCurve("HZ", dt.date(2025, 1, 1), [(0.0, lam), (30.0, lam)])
+
+
+def uniform_exposure() -> ExposureProfile:
+    return ExposureProfile([1.0, 2.0], [1e6, 1e6], [1e6, 1e6], [0.0, 0.0])
+
+
+def test_compute_bilateral_xva_aggregates_mva_into_total() -> None:
+    """MVA reaches ``total_xva``; zero hazard pins it to the Rust figure."""
+    no_default = flat_hazard_curve(0.0)
+    funding = FundingConfig(50.0, 30.0, ImProfile([1.0, 2.0], [1e6, 1e6]))
+
+    result = compute_bilateral_xva(
+        uniform_exposure(),
+        no_default,
+        no_default,
+        flat_discount_curve(),
+        0.40,
+        0.40,
+        funding,
+    )
+
+    # Zero hazard ⇒ no credit legs, and MVA is exactly the hand-checked 10_000
+    # (flat 1e6 IM, 50bp, DF = 1, grid [1, 2]).
+    assert result.cva == pytest.approx(0.0)
+    assert result.dva == pytest.approx(0.0)
+    assert result.mva == pytest.approx(10_000.0)
+    assert result.fva > 0.0
+    assert result.total_xva == pytest.approx(result.cva - result.dva + result.fva + result.mva)
+
+
+def test_compute_bilateral_xva_without_funding_has_no_funding_legs() -> None:
+    result = compute_bilateral_xva(
+        uniform_exposure(),
+        flat_hazard_curve(0.02),
+        flat_hazard_curve(0.03),
+        flat_discount_curve(),
+        0.40,
+        0.40,
+    )
+
+    assert result.fva is None
+    assert result.mva is None
+    assert result.cva > 0.0
+    # bilateral_cva is credit-only, and with no funding legs it is the total.
+    assert result.bilateral_cva == pytest.approx(result.cva - result.dva)
+    assert result.total_xva == pytest.approx(result.bilateral_cva)
+
+
+def test_compute_bilateral_xva_rejects_bad_recovery_rate() -> None:
+    with pytest.raises(ValueError, match="recovery_rate"):
+        compute_bilateral_xva(
+            uniform_exposure(),
+            flat_hazard_curve(0.02),
+            flat_hazard_curve(0.02),
+            flat_discount_curve(),
+            1.5,
+            0.40,
+        )
+
+
+def test_compute_bilateral_xva_accepts_keyword_arguments() -> None:
+    result = compute_bilateral_xva(
+        exposure_profile=uniform_exposure(),
+        counterparty_hazard_curve=flat_hazard_curve(0.02),
+        own_hazard_curve=flat_hazard_curve(0.03),
+        discount_curve=flat_discount_curve(),
+        counterparty_recovery_rate=0.40,
+        own_recovery_rate=0.40,
+        funding=None,
+    )
+    assert result.total_xva is not None

@@ -9,7 +9,8 @@ use finstack_quant_core::market_data::surfaces::{
     FxDeltaVolSurface as RustFxDeltaVolSurface, VolCube as RustVolCube, VolInterpolationMode,
 };
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve as RustDiscountCurve, ForwardCurve as RustForwardCurve, ValidationMode,
+    DiscountCurve as RustDiscountCurve, ForwardCurve as RustForwardCurve,
+    HazardCurve as RustHazardCurve, ValidationMode,
 };
 use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
 use finstack_quant_core::math::volatility::sabr::SabrParams;
@@ -197,6 +198,116 @@ impl JsDiscountCurve {
     #[wasm_bindgen(getter, js_name = baseDate)]
     pub fn base_date(&self) -> String {
         date_to_iso(self.inner.base_date())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// JsHazardCurve
+// ---------------------------------------------------------------------------
+
+/// Credit hazard-rate curve for default-probability modelling.
+///
+/// Built from `(time, hazard_rate)` pillars where `time` is a year fraction
+/// from `baseDate` and `hazard_rate` is the instantaneous default intensity
+/// `λ(t)`. Survival is `S(t) = exp(-∫₀ᵗ λ(u) du)`.
+///
+/// @example
+/// ```javascript
+/// import init, { core } from "finstack-quant-wasm";
+/// await init();
+/// // Flat 200bp hazard rate, 40% recovery.
+/// const hz = new core.HazardCurve(
+///   "ACME-HZD",
+///   "2025-01-02",
+///   [0.0, 0.02, 30.0, 0.02],
+///   0.4,
+/// );
+/// hz.sp(5.0);          // survival probability at 5y
+/// hz.hazardRate(5.0);  // instantaneous hazard rate at 5y
+/// ```
+#[wasm_bindgen(js_name = HazardCurve)]
+pub struct JsHazardCurve {
+    #[wasm_bindgen(skip)]
+    pub(crate) inner: Arc<RustHazardCurve>,
+}
+
+#[wasm_bindgen(js_class = HazardCurve)]
+impl JsHazardCurve {
+    /// Construct from an array of `[time, hazardRate]` pairs.
+    ///
+    /// @param id - Curve identifier (e.g. `"ACME-HZD"`).
+    /// @param baseDate - ISO-8601 date string (`"YYYY-MM-DD"`). All `time`
+    /// values are year fractions from this date under `dayCount`.
+    /// @param knots - Flat `[t0, lambda0, t1, lambda1, …]` array. `t` in
+    /// years, `lambda` a non-negative intensity. Length must be even.
+    /// @param recoveryRate - Recovery on default in `[0, 1]`. Defaults to the
+    /// credit assumptions registry value.
+    /// @param dayCount - Day-count convention (default `"act_365f"`).
+    /// @returns The constructed `HazardCurve`.
+    /// @throws If `knots` length is odd, the date is malformed, the
+    /// day-count is unknown, or the curve fails validation.
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        id: &str,
+        base_date: &str,
+        knots: &[f64],
+        recovery_rate: Option<f64>,
+        day_count: Option<String>,
+    ) -> Result<JsHazardCurve, JsValue> {
+        let base = parse_iso_date(base_date)?;
+        if !knots.len().is_multiple_of(2) {
+            return Err(to_js_err(
+                "knots array must have even length (t, hazardRate pairs)",
+            ));
+        }
+        let pairs: Vec<(f64, f64)> = knots.chunks_exact(2).map(|c| (c[0], c[1])).collect();
+        let mut builder = RustHazardCurve::builder(id).base_date(base).knots(pairs);
+        if let Some(recovery) = recovery_rate {
+            builder = builder.recovery_rate(recovery);
+        }
+        if let Some(ref day_count) = day_count {
+            builder = builder.day_count(parse_day_count(day_count)?);
+        }
+        let curve = builder.build().map_err(to_js_err)?;
+
+        Ok(Self {
+            inner: Arc::new(curve),
+        })
+    }
+
+    /// Survival probability `S(t)` at year fraction `t`.
+    /// @param t - Time from the curve base date in years on the documented day-count basis.
+    /// @returns The probability of surviving from the base date through `t`, in `[0, 1]`.
+    /// This operation does not throw.
+    pub fn sp(&self, t: f64) -> f64 {
+        self.inner.sp(t)
+    }
+
+    /// Instantaneous hazard rate `lambda(t)` at year fraction `t`.
+    /// @param t - Time from the curve base date in years on the documented day-count basis.
+    /// @returns The annualized default intensity at `t`, expressed as a decimal rate.
+    /// This operation does not throw.
+    #[wasm_bindgen(js_name = hazardRate)]
+    pub fn hazard_rate(&self, t: f64) -> f64 {
+        self.inner.hazard_rate(t)
+    }
+
+    /// Curve identifier.
+    #[wasm_bindgen(getter, js_name = id)]
+    pub fn id(&self) -> String {
+        self.inner.id().as_str().to_string()
+    }
+
+    /// Base date as ISO string.
+    #[wasm_bindgen(getter, js_name = baseDate)]
+    pub fn base_date(&self) -> String {
+        date_to_iso(self.inner.base_date())
+    }
+
+    /// Recovery rate assumed on default.
+    #[wasm_bindgen(getter, js_name = recoveryRate)]
+    pub fn recovery_rate(&self) -> f64 {
+        self.inner.recovery_rate()
     }
 }
 

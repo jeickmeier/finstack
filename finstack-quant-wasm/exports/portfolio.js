@@ -5,6 +5,14 @@ export const portfolio = {
   parsePortfolioSpec: wasm.parsePortfolioSpec,
   brinsonFachler: wasm.brinsonFachler,
   carinoLink: wasm.carinoLink,
+  campisiAttribution: wasm.campisiAttribution,
+  // ⚠️ campisiCarinoLink links precomputed results and carries no shared
+  // period_years, so it is the correct entry point for unequal-length
+  // periods (e.g. act/365 months). campisiCarinoLinkFromSnapshots applies one
+  // config to every period and is only correct for equal-length periods.
+  campisiCarinoLink: wasm.campisiCarinoLink,
+  campisiCarinoLinkFromSnapshots: wasm.campisiCarinoLinkFromSnapshots,
+  campisiReconciliationCheck: wasm.campisiReconciliationCheck,
   twrrModifiedDietz: wasm.twrrModifiedDietz,
   twrrLinked: wasm.twrrLinked,
   mwrXirr: wasm.mwrXirr,

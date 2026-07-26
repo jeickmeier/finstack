@@ -43,6 +43,10 @@ __all__ = [
     "build_credit_vol_report",
     "build_portfolio_from_spec",
     "build_stress_attribution",
+    "campisi_attribution",
+    "campisi_carino_link",
+    "campisi_carino_link_from_snapshots",
+    "campisi_reconciliation_check",
     "carino_link",
     "days_to_liquidate",
     "evaluate_risk_budget",
@@ -2033,6 +2037,205 @@ def carino_link(periods_json: str) -> str:
     --------
     >>> from finstack_quant.portfolio import carino_link
     >>> linked_json = carino_link(periods_json)  # doctest: +SKIP
+    """
+    ...
+
+def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: str) -> str:
+    """
+    Compute single-period Campisi fixed-income benchmark attribution.
+
+    Binds Rust ``finstack_quant_portfolio::campisi_attribution``.
+
+    Parameters
+    ----------
+    portfolio_json : str
+        JSON array of ``FiPositionSnapshot`` objects with ``sector``,
+        ``weight``, ``total_return``, ``yield_annual``, ``modified_duration``,
+        ``spread_duration``, ``spread``, ``delta_treasury_yield``, and
+        ``delta_spread`` fields (decimals; durations in years). Unknown fields
+        are rejected and weights must sum to one.
+    benchmark_json : str
+        JSON array of ``FiPositionSnapshot`` objects for the benchmark.
+    config_json : str
+        JSON object whose only field is ``period_years`` (e.g. ``0.25``). It is
+        required — there is no default — and unknown keys are rejected. The
+        spread convention is not configurable: the Campisi spread effect
+        ``-SD * delta_spread`` is identical under the absolute and
+        Duration-Times-Spread conventions, so a mode switch could only relabel
+        an identical result.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiAttributionResult``. ``result["sectors"]`` is a
+        flat records array: ``pd.DataFrame(json.loads(result)["sectors"])``
+        yields the sector x component table directly.
+
+    Raises
+    ------
+    PortfolioError
+        If weights do not sum to one, inputs are non-finite, ``period_years``
+        is not finite and positive, either side is empty, or a sector nets to
+        exactly zero weight on either side. The spread *level* is unconstrained:
+        zero and negative spreads are accepted, because the spread effect never
+        divides by it.
+    ValueError
+        If any JSON argument is malformed.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#campisi-2000``.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import campisi_attribution
+    >>> result_json = campisi_attribution(portfolio_json, benchmark_json, config_json)  # doctest: +SKIP
+    """
+    ...
+
+def campisi_carino_link(periods_json: str) -> str:
+    """
+    Carino-link already-computed single-period Campisi attribution results.
+
+    Binds Rust ``finstack_quant_portfolio::campisi_carino_link``.
+
+    Each period result already carries its own applied ``period_years``, so
+    periods of *different* lengths link correctly here (e.g. act/365 calendar
+    months: 31/365, 28/365, 31/365). Use this entry point for real day counts;
+    :func:`campisi_carino_link_from_snapshots` applies one shared
+    ``period_years`` to every period and is only correct for equal-length
+    periods.
+
+    Parameters
+    ----------
+    periods_json : str
+        JSON array of ``FiAttributionResult`` objects in chronological order,
+        each the parsed output of :func:`campisi_attribution`. Every period
+        must carry the same sector ordering. Unknown fields are rejected.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiCarinoLinkedResult`` whose five linked totals sum
+        to the geometrically compounded active return.
+
+    Raises
+    ------
+    PortfolioError
+        If ``periods_json`` is an empty array, sector orderings differ across
+        periods, a period return is non-finite, or a return is at or below
+        -100% (outside the Carino domain).
+    ValueError
+        If ``periods_json`` is malformed or does not match the
+        ``FiAttributionResult`` schema.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#carino-1999``.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import campisi_attribution, campisi_carino_link
+    >>> jan = campisi_attribution(p1_json, b1_json, jan_config_json)  # doctest: +SKIP
+    >>> feb = campisi_attribution(p2_json, b2_json, feb_config_json)  # doctest: +SKIP
+    >>> linked_json = campisi_carino_link(json.dumps([json.loads(jan), json.loads(feb)]))  # doctest: +SKIP
+    """
+    ...
+
+def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> str:
+    """
+    Compute Carino-linked multi-period Campisi attribution from period JSON.
+
+    Binds Rust ``finstack_quant_portfolio::campisi_carino_link_from_snapshots``.
+
+    One ``config_json`` — and therefore one ``period_years`` — is applied to
+    every period, so this entry point is only correct when all periods have the
+    same length. For mixed-length periods (real day counts), compute each
+    period with :func:`campisi_attribution` and link the results with
+    :func:`campisi_carino_link`.
+
+    Parameters
+    ----------
+    periods_json : str
+        JSON array of period objects, each with ``portfolio`` and
+        ``benchmark`` arrays of ``FiPositionSnapshot`` (same schema as
+        :func:`campisi_attribution`).
+    config_json : str
+        JSON ``FiAttributionConfig`` shared across periods; ``period_years`` is
+        its only field and is required (no default).
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiCarinoLinkedResult`` whose five linked totals sum
+        to the geometrically compounded active return.
+
+    Raises
+    ------
+    PortfolioError
+        If ``periods_json`` is empty, any period fails Campisi validation, or
+        sector orderings differ across periods.
+    ValueError
+        If any JSON argument is malformed.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#carino-1999``.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import campisi_carino_link_from_snapshots
+    >>> linked_json = campisi_carino_link_from_snapshots(periods_json, config_json)  # doctest: +SKIP
+    """
+    ...
+
+def campisi_reconciliation_check(result_json: str, tolerance: float) -> str:
+    """
+    Reconcile the five Campisi effect totals against the active return.
+
+    Binds the Rust method
+    ``finstack_quant_portfolio::FiAttributionResult::reconciliation_check``
+    (a method in Rust, exposed here as a JSON function on the namespace).
+
+    The Campisi decomposition reconciles by construction because selection is
+    the residual, so this is a floating-point sanity gate rather than a model
+    check. Without it callers must re-sum ``total_allocation``,
+    ``total_active_carry``, ``total_active_treasury``, ``total_active_spread``
+    and ``total_selection`` by hand.
+
+    Parameters
+    ----------
+    result_json : str
+        JSON ``FiAttributionResult``, as returned by
+        :func:`campisi_attribution`. Unknown fields are rejected.
+    tolerance : float
+        Absolute tolerance in return units; ``1e-10`` is appropriate for
+        return-space values.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiReconciliationReport`` with ``total_residual``
+        (``active_return`` minus the five totals), ``is_reconciled`` and the
+        ``tolerance`` that was applied.
+
+    Raises
+    ------
+    ValueError
+        If ``result_json`` is malformed or carries unknown fields.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#campisi-2000``.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import campisi_attribution, campisi_reconciliation_check
+    >>> result_json = campisi_attribution(portfolio_json, benchmark_json, config_json)  # doctest: +SKIP
+    >>> json.loads(campisi_reconciliation_check(result_json, 1e-10))["is_reconciled"]  # doctest: +SKIP
+    True
     """
     ...
 

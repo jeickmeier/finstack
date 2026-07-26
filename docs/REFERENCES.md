@@ -475,6 +475,30 @@ risk calculation with a standard reference.
 - Carino, D. R. "Combining Attribution Effects Over Time." Multi-period
   linking for Brinson-style attribution.
 
+<a id="campisi-2000"></a>
+
+### Campisi 2000
+
+- Campisi, S. "Primer on Fixed Income Performance Attribution." *Journal of
+  Portfolio Management*, 26(4), 14-25. Canonical carry / treasury / spread /
+  selection decomposition for fixed-income attribution.
+
+<a id="ben-dor-2007-dts"></a>
+
+### Ben Dor 2007 DTS
+
+- Ben Dor, A., Dynkin, L., Hyman, J., Houweling, P., van Leeuwen, E., and
+  Penninga, O. "DTS (Duration Times Spread)." *Journal of Portfolio
+  Management*, 33(2), 77-100. Source of the DTS convention, which expresses
+  credit exposure as `D * s` against a *relative* spread change. Cited by
+  `finstack-quant/portfolio/src/fi_attribution.rs` to record why Campisi
+  attribution offers no DTS mode: the return leg is an algebraic identity
+  (`-(D * s)(ds / s)` = `-D * ds`), so given a realized spread change the two
+  conventions produce the same number. DTS earns its keep only in the
+  volatility and hedge-ratio legs, where `D * s` is a standalone risk quantity
+  multiplied by an empirically more stable relative spread volatility - risk
+  and hedging surfaces, not ex-post attribution.
+
 <a id="fama-french-1993"></a>
 
 ### Fama French 1993
