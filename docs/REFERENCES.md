@@ -489,8 +489,9 @@ risk calculation with a standard reference.
 
 - Ben Dor, A., Dynkin, L., Hyman, J., Houweling, P., van Leeuwen, E., and
   Penninga, O. "DTS (Duration Times Spread)." *Journal of Portfolio
-  Management*, 33(2), 77-100. Basis for the relative-spread-change convention
-  in Campisi spread attribution.
+  Management*, 33(2), 77-100. Motivates the strictly-positive-spread
+  requirement of the `Dts` spread mode in Campisi spread attribution; the
+  spread effect itself uses absolute spread changes in both modes.
 
 <a id="fama-french-1993"></a>
 

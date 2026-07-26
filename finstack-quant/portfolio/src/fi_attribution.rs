@@ -7,15 +7,16 @@
 //! ```text
 //! carry_j     = yield_annual_j × Δt                    // income effect
 //! treasury_j  = −MD_j × Δy_tsy,j                       // duration / curve effect
-//! spread_j    = −SD_j × Δs_j                           // SpreadDuration mode
-//!             = −(SD_j × s_j) × (Δs_j / s_j)           // Dts mode (Ben Dor et al. 2007)
+//! spread_j    = −SD_j × Δs_j                           // both spread modes
 //! selection_j = r_j − carry_j − treasury_j − spread_j  // residual
 //! ```
 //!
-//! With exact inputs the two spread conventions coincide per position; the
-//! mode governs fail-closed validation (Dts requires a positive spread
-//! whenever `SD × Δs ≠ 0`) and is stamped into the result so downstream
-//! consumers know which convention produced the numbers.
+//! `Δs_j` ([`FiPositionSnapshot::delta_spread`]) is the *absolute* spread
+//! change under both [`SpreadChangeMode`] variants, and the two modes evaluate
+//! the identical expression (`−(SD·s)·(Δs/s) ≡ −SD·Δs`). The mode only governs
+//! fail-closed validation — `Dts` requires a positive spread whenever
+//! `SD × Δs ≠ 0`, the DTS risk premise of Ben Dor et al. (2007) — and is
+//! stamped into the result so downstream consumers know which policy ran.
 //!
 //! # Benchmark-relative sector layer
 //!
@@ -52,7 +53,8 @@
 //!   `docs/REFERENCES.md#campisi-2000`
 //! * Ben Dor, A., Dynkin, L., Hyman, J., Houweling, P., van Leeuwen, E., &
 //!   Penninga, O. (2007). "DTS (Duration Times Spread)." *Journal of
-//!   Portfolio Management*, 33(2), 77–100.
+//!   Portfolio Management*, 33(2), 77–100 — motivates the strictly-positive
+//!   spread requirement of [`SpreadChangeMode::Dts`].
 //!   `docs/REFERENCES.md#ben-dor-2007-dts`
 //! * Brinson, G. P., & Fachler, N. (1985). "Measuring Non-US Equity Portfolio
 //!   Performance." *Journal of Portfolio Management*, 11(3) — source of the
@@ -73,18 +75,29 @@ const WEIGHT_TOLERANCE: f64 = 1e-6;
 
 /// Convention used for the spread component of the Campisi decomposition.
 ///
-/// Both conventions produce identical numbers when `spread` and
-/// `delta_spread` are exact (`−SD·Δs ≡ −(SD·s)·(Δs/s)`); the mode selects the
-/// documented convention, is stamped into [`FiAttributionResult`], and in
-/// [`SpreadChangeMode::Dts`] enforces a positive spread whenever the spread
-/// term is non-zero (Ben Dor et al. 2007).
+/// **Both modes evaluate the same expression**, `−spread_duration ×
+/// delta_spread`, and [`FiPositionSnapshot::delta_spread`] is the *absolute*
+/// spread change in both. The two modes are therefore numerically identical on
+/// the same inputs; the only behavioural difference is that
+/// [`SpreadChangeMode::Dts`] fails closed unless `spread` is strictly positive
+/// whenever the spread term is non-zero. The selected mode is stamped into
+/// [`FiAttributionResult`] so downstream consumers see which policy ran.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpreadChangeMode {
-    /// Spread effect `−spread_duration × delta_spread` (absolute change).
+    /// Spread effect `−spread_duration × delta_spread`, with `delta_spread`
+    /// the absolute spread change. Imposes no constraint on the spread level.
     SpreadDuration,
-    /// Spread effect `−DTS × (delta_spread / spread)` with
-    /// `DTS = spread_duration × spread` (relative change).
+    /// Spread effect `−spread_duration × delta_spread` — the identical
+    /// expression to [`SpreadChangeMode::SpreadDuration`], since
+    /// `−(SD·s)·(Δs/s) ≡ −SD·Δs`. `delta_spread` is the **absolute** spread
+    /// change here too, *not* a relative one.
+    ///
+    /// This mode differs only by requiring a strictly positive `spread`
+    /// whenever the spread term is non-zero, the DTS risk premise of Ben Dor
+    /// et al. (2007). Supplying a relative change `Δs / s` instead of `Δs`
+    /// would overstate the spread effect by a factor of `1 / s` and dump the
+    /// difference into selection.
     Dts,
 }
 
@@ -440,9 +453,15 @@ fn validate_snapshot(s: &FiPositionSnapshot, side: &str) -> Result<()> {
 }
 
 /// Weighted per-sector accumulators for one side.
+///
+/// `weight` is the *net* sector weight (long minus short) and `abs_weight` the
+/// gross weight; the pair distinguishes "sector absent from this side"
+/// (`abs_weight == 0`) from "sector present with offsetting positions"
+/// (`abs_weight > 0`, `weight == 0`), which [`check_net_weight`] rejects.
 #[derive(Clone, Copy, Default)]
 struct SideAgg {
     weight: f64,
+    abs_weight: f64,
     ret: f64,
     carry: f64,
     treasury: f64,
@@ -450,8 +469,15 @@ struct SideAgg {
     selection: f64,
 }
 
-/// Sector rates: weighted contribution ÷ sector weight (0 if empty side).
 impl SideAgg {
+    /// Sector rate: weighted contribution ÷ net sector weight.
+    ///
+    /// Returns `0.0` only when the sector is absent from this side, i.e. every
+    /// contribution is likewise `0.0`. Sectors present with an exactly-zero
+    /// net weight are rejected by [`check_net_weight`] before this is called,
+    /// so the guard never silently discards a real contribution. The `.abs()`
+    /// is load-bearing: net-short sectors (`weight < 0`) are legal and must
+    /// take the division branch.
     fn rate(&self, contribution: f64) -> f64 {
         if self.weight.abs() > 0.0 {
             contribution / self.weight
@@ -459,6 +485,29 @@ impl SideAgg {
             0.0
         }
     }
+}
+
+/// Fail closed on a sector that is present on a side but nets to exactly zero
+/// weight (a long/short pair, a CDS hedge against a cash bond in the same
+/// bucket, a fully-hedged sector).
+///
+/// Such a sector still contributes `Σ_j w_j r_j ≠ 0` to the side total, but its
+/// per-unit rate `contribution / weight` is undefined, so every per-sector
+/// effect would be forced to zero while the contribution stayed in the side
+/// return — breaking the telescoping identity while `active_return` still ties
+/// out against performance data.
+fn check_net_weight(sector: &str, agg: &SideAgg, side_name: &str) -> Result<()> {
+    if agg.weight == 0.0 && agg.abs_weight > 0.0 {
+        return Err(Error::invalid_input(format!(
+            "{side_name} sector '{sector}' has offsetting positions netting to exactly \
+             zero weight (gross weight {}); a zero-net-weight sector cannot be \
+             attributed because its per-unit rate contribution / weight is undefined. \
+             Split the offsetting positions into distinct sectors, or net them into a \
+             single snapshot with non-zero weight.",
+            agg.abs_weight
+        )));
+    }
+    Ok(())
 }
 
 /// Accumulate one side into per-sector aggregates and side totals.
@@ -502,6 +551,7 @@ fn aggregate_side(
             &mut entry.1
         };
         agg.weight += s.weight;
+        agg.abs_weight += s.weight.abs();
         agg.ret += s.weight * s.total_return;
         agg.carry += s.weight * carry;
         agg.treasury += s.weight * treasury;
@@ -542,7 +592,10 @@ fn aggregate_side(
 /// module docs for the exact formulas and the reconciliation proof).
 ///
 /// A sector missing from one side is treated with zero weight on that side,
-/// so the decomposition stays complete.
+/// so the decomposition stays complete. A sector that is *present* on a side
+/// but whose positions net to exactly zero weight (a long/short pair, a CDS
+/// hedge against a cash bond in the same bucket) has no defined per-unit rate
+/// and is rejected — see the errors below.
 ///
 /// # Arguments
 ///
@@ -554,8 +607,9 @@ fn aggregate_side(
 ///
 /// * [`Error::InvalidInput`] if either side is empty, any value is
 ///   non-finite, weights don't sum to 1.0 (±1e-6), `period_years` is not
-///   finite and positive, or (Dts mode) a snapshot has non-positive spread
-///   with a non-zero spread term.
+///   finite and positive, a sector has offsetting positions netting to exactly
+///   zero weight on either side, or (Dts mode) a snapshot has non-positive
+///   spread with a non-zero spread term.
 ///
 /// # Examples
 ///
@@ -610,6 +664,14 @@ pub fn campisi_attribution(
         aggregate_side(portfolio, config, &mut sectors, true)?;
     let (benchmark_return, benchmark_components) =
         aggregate_side(benchmark, config, &mut sectors, false)?;
+
+    // A sector present on a side but netting to exactly zero weight has no
+    // defined per-unit rate; attributing it would zero its five effects while
+    // its contribution stayed in the side return. Fail closed instead.
+    for (sector, (p, b)) in &sectors {
+        check_net_weight(sector, p, "Portfolio")?;
+        check_net_weight(sector, b, "Benchmark")?;
+    }
 
     let mut total_allocation = NeumaierAccumulator::new();
     let mut total_active_carry = NeumaierAccumulator::new();
@@ -1015,6 +1077,113 @@ mod tests {
             r.active_return
         );
         assert!(r.reconciliation_check(1e-10).is_reconciled);
+
+        // The zero-weight `rate` guard exists exactly for this case: a sector
+        // genuinely absent from a side. It must keep working after the
+        // zero-net-weight fail-closed check was added.
+        let extra = &r.sectors[1];
+        assert_eq!(extra.sector, "EXTRA");
+        assert_close(extra.portfolio_weight, 0.20, "extra w_p");
+        assert_close(extra.benchmark_weight, 0.0, "extra w_b");
+        assert_close(extra.benchmark_return, 0.0, "extra r_b");
+        assert!(
+            extra.active_carry.abs() > 0.0,
+            "an absent benchmark sector must still produce real portfolio-side effects"
+        );
+    }
+
+    /// A sector that is *present* on a side but whose positions net to exactly
+    /// zero weight (a long/short pair, a CDS hedge against a cash bond in the
+    /// same bucket) has no defined per-unit rate. Silently zeroing its five
+    /// effects leaves its real contribution `Σ w_j r_j ≠ 0` in the side total,
+    /// breaking the telescoping identity while `active_return` still ties out
+    /// against performance data. It must fail closed instead.
+    #[test]
+    fn campisi_rejects_zero_net_weight_sector_on_portfolio_side() {
+        let config = FiAttributionConfig::new(0.25);
+        let portfolio = vec![
+            snap("CORE", 1.00, 0.0150, 0.048, 5.0, 0.0, 0.0, -0.0010, 0.0),
+            snap("HEDGE", 0.50, 0.0400, 0.060, 3.0, 0.0, 0.0, -0.0010, 0.0),
+            snap("HEDGE", -0.50, 0.0100, 0.020, 1.0, 0.0, 0.0, -0.0010, 0.0),
+        ];
+        let benchmark = vec![snap(
+            "CORE", 1.0, 0.0140, 0.044, 5.5, 0.0, 0.0, -0.0010, 0.0,
+        )];
+
+        let err = campisi_attribution(&portfolio, &benchmark, &config)
+            .expect_err("zero-net-weight sector must be rejected");
+        let message = err.to_string();
+        assert!(
+            message.contains("HEDGE"),
+            "error must name the sector: {message}"
+        );
+        assert!(
+            message.contains("Portfolio"),
+            "error must name the offending side: {message}"
+        );
+        assert!(
+            message.contains("zero"),
+            "error must explain the zero-net-weight cause: {message}"
+        );
+    }
+
+    /// Same failure on the benchmark side, where the reviewer measured a
+    /// reported attribution with the *opposite sign* to the actual active
+    /// return.
+    #[test]
+    fn campisi_rejects_zero_net_weight_sector_on_benchmark_side() {
+        let config = FiAttributionConfig::new(0.25);
+        let portfolio = vec![snap(
+            "CORE", 1.0, 0.0150, 0.048, 5.0, 0.0, 0.0, -0.0010, 0.0,
+        )];
+        let benchmark = vec![
+            snap("CORE", 1.00, 0.0140, 0.044, 5.5, 0.0, 0.0, -0.0010, 0.0),
+            snap("HEDGE", 0.40, 0.0300, 0.055, 4.0, 0.0, 0.0, -0.0010, 0.0),
+            snap("HEDGE", -0.40, 0.0050, 0.015, 1.0, 0.0, 0.0, -0.0010, 0.0),
+        ];
+
+        let err = campisi_attribution(&portfolio, &benchmark, &config)
+            .expect_err("zero-net-weight benchmark sector must be rejected");
+        let message = err.to_string();
+        assert!(
+            message.contains("HEDGE"),
+            "error must name the sector: {message}"
+        );
+        assert!(
+            message.contains("Benchmark"),
+            "error must name the offending side: {message}"
+        );
+    }
+
+    /// Negative net sector weights are legal (a net-short sector) and must be
+    /// attributed by dividing through, not zeroed. Pins the `.abs()` in
+    /// [`SideAgg::rate`]'s guard: dropping it silently zeroes the entire
+    /// decomposition for every net-short sector.
+    #[test]
+    fn campisi_attributes_net_short_sector() {
+        let config = FiAttributionConfig::new(0.25);
+        let portfolio = vec![
+            snap("CORE", 1.20, 0.0150, 0.048, 5.0, 0.0, 0.0, -0.0010, 0.0),
+            snap("SHORT", -0.20, 0.0100, 0.030, 2.0, 0.0, 0.0, -0.0010, 0.0),
+        ];
+        let benchmark = vec![snap(
+            "CORE", 1.0, 0.0140, 0.044, 5.5, 0.0, 0.0, -0.0010, 0.0,
+        )];
+
+        let r = campisi_attribution(&portfolio, &benchmark, &config).expect("net-short is legal");
+        let short = &r.sectors[1];
+        assert_eq!(short.sector, "SHORT");
+        assert_close(short.portfolio_weight, -0.20, "short w_p");
+        // r_p = (−0.2 × 0.0100) / −0.2 = 0.0100; carry rate = 0.030 × 0.25.
+        assert_close(short.portfolio_return, 0.0100, "short r_p");
+        assert_close(short.active_carry, -0.20 * 0.0075, "short active_carry");
+        // −MD·Δy = −2.0 × −0.0010 = 0.0020, benchmark absent.
+        assert_close(
+            short.active_treasury,
+            -0.20 * 0.0020,
+            "short active_treasury",
+        );
+        assert!(r.reconciliation_check(1e-12).is_reconciled);
     }
 
     #[test]
@@ -1025,6 +1194,27 @@ mod tests {
         let err = campisi_attribution(&portfolio, &golden_benchmark(), &config)
             .expect_err("weights must sum to 1");
         assert!(err.to_string().contains("Portfolio weights"), "{err}");
+    }
+
+    /// Pins [`WEIGHT_TOLERANCE`] itself. The test above misses by 0.20, which
+    /// still trips under an absurdly loose tolerance; these two cases bracket
+    /// the documented ±1e-6 boundary so loosening or tightening it fails here.
+    #[test]
+    fn campisi_weight_tolerance_is_pinned_at_1e_minus_6() {
+        let config = FiAttributionConfig::new(0.25);
+
+        let mut just_over = golden_portfolio();
+        just_over[0].weight += 2e-6; // sums to 1 + 2e-6 > tolerance
+        let err = campisi_attribution(&just_over, &golden_benchmark(), &config)
+            .expect_err("1 + 2e-6 must be rejected at a 1e-6 tolerance");
+        assert!(err.to_string().contains("Portfolio weights"), "{err}");
+
+        let mut just_under = golden_portfolio();
+        just_under[0].weight += 5e-7; // sums to 1 + 5e-7 < tolerance
+        assert!(
+            campisi_attribution(&just_under, &golden_benchmark(), &config).is_ok(),
+            "1 + 5e-7 must be accepted at a 1e-6 tolerance"
+        );
     }
 
     #[test]
@@ -1166,6 +1356,54 @@ mod tests {
             .map(|s| s.sector.as_str())
             .collect();
         assert_eq!(names, ["GOVT", "CORP"]);
+
+        // Every per-sector linked effect, field by field, against the golden
+        // single-period value × 2 periods × the uniform Carino scale. Without
+        // these the grand totals stay correct even if the per-sector record
+        // transposes two effects or drops one from `total_active`, because the
+        // totals accumulate from the pre-record locals.
+        let golden: [(&str, [f64; 5]); 2] = [
+            ("GOVT", [-0.000285, 0.000375, -0.000275, 0.0, 0.0001]),
+            (
+                "CORP",
+                [-0.0004275, 0.00065625, -0.000475, 0.0009575, 0.00013375],
+            ),
+        ];
+        for (linked_sector, (name, effects)) in linked.linked_sectors.iter().zip(golden) {
+            assert_eq!(linked_sector.sector, name);
+            let [allocation, carry, treasury, spread, selection] =
+                effects.map(|value| 2.0 * value * scale);
+            assert_close(
+                linked_sector.allocation,
+                allocation,
+                &format!("{name} linked allocation"),
+            );
+            assert_close(
+                linked_sector.active_carry,
+                carry,
+                &format!("{name} linked active_carry"),
+            );
+            assert_close(
+                linked_sector.active_treasury,
+                treasury,
+                &format!("{name} linked active_treasury"),
+            );
+            assert_close(
+                linked_sector.active_spread,
+                spread,
+                &format!("{name} linked active_spread"),
+            );
+            assert_close(
+                linked_sector.selection,
+                selection,
+                &format!("{name} linked selection"),
+            );
+            assert_close(
+                linked_sector.total_active,
+                allocation + carry + treasury + spread + selection,
+                &format!("{name} linked total_active"),
+            );
+        }
     }
 
     #[test]

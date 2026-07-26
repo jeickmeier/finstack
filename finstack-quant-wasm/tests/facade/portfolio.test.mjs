@@ -202,6 +202,58 @@ test('portfolio.campisiCarinoLinkFromSnapshots links raw snapshot periods', () =
   );
 });
 
+test('portfolio.campisiAttribution fails closed on a zero-net-weight sector', () => {
+  // A long/short pair (or a CDS hedge against a cash bond) inside one bucket
+  // nets to exactly zero weight. Its real contribution stays in the side
+  // return while every per-sector effect would be forced to zero, so the
+  // decomposition must be rejected with the offending sector named.
+  const core = campisiSnapshot('CORE', 1.0, 0.015, 0.048, 5.0);
+  const cleanBenchmark = JSON.stringify([campisiSnapshot('CORE', 1.0, 0.014, 0.044, 5.5)]);
+
+  const hedgedPortfolio = JSON.stringify([
+    core,
+    campisiSnapshot('HEDGE', 0.5, 0.04, 0.06, 3.0),
+    campisiSnapshot('HEDGE', -0.5, 0.01, 0.02, 1.0),
+  ]);
+  assert.throws(
+    () => portfolio.campisiAttribution(hedgedPortfolio, cleanBenchmark, campisiConfig(0.25)),
+    (error) => /HEDGE/.test(String(error)) && /Portfolio/.test(String(error))
+  );
+
+  const hedgedBenchmark = JSON.stringify([
+    campisiSnapshot('CORE', 1.0, 0.014, 0.044, 5.5),
+    campisiSnapshot('HEDGE', 0.4, 0.03, 0.055, 4.0),
+    campisiSnapshot('HEDGE', -0.4, 0.005, 0.015, 1.0),
+  ]);
+  assert.throws(
+    () =>
+      portfolio.campisiAttribution(JSON.stringify([core]), hedgedBenchmark, campisiConfig(0.25)),
+    (error) => /HEDGE/.test(String(error)) && /Benchmark/.test(String(error))
+  );
+
+  // A sector genuinely absent from one side is the legitimate zero-weight
+  // case and must keep working.
+  const oneSided = JSON.stringify([
+    campisiSnapshot('CORE', 0.8, 0.015, 0.048, 5.0),
+    campisiSnapshot('EXTRA', 0.2, 0.021, 0.07, 3.0),
+  ]);
+  const result = JSON.parse(
+    portfolio.campisiAttribution(oneSided, cleanBenchmark, campisiConfig(0.25))
+  );
+  assert.deepEqual(
+    result.sectors.map((s) => s.sector),
+    ['CORE', 'EXTRA']
+  );
+  assert.equal(result.sectors[1].benchmark_weight, 0.0);
+  const reconstructed =
+    result.total_allocation +
+    result.total_active_carry +
+    result.total_active_treasury +
+    result.total_active_spread +
+    result.total_selection;
+  assert.ok(Math.abs(reconstructed - result.active_return) < 1e-12);
+});
+
 test('portfolio.campisiReconciliationCheck reports the residual and fails closed', () => {
   const resultJson = portfolio.campisiAttribution(
     CAMPISI_PORTFOLIO,

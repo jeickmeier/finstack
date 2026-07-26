@@ -298,6 +298,56 @@ def test_campisi_attribution_rejects_bad_json_and_bad_weights() -> None:
         campisi_attribution(json.dumps(bad), json.dumps(_benchmark()), json.dumps(_CONFIG))
 
 
+def test_campisi_attribution_rejects_zero_net_weight_sector() -> None:
+    """A sector netting to exactly zero weight has no defined per-unit rate.
+
+    Long/short pairs and CDS-vs-cash hedges inside one bucket net to zero. Their
+    real contribution stays in the side return while every per-sector effect
+    would be forced to zero, so the decomposition must fail closed with the
+    offending sector named rather than silently reporting a broken split.
+    """
+    from finstack_quant.portfolio import PortfolioError, campisi_attribution
+
+    core = _snap("CORE", 1.00, 0.0150, 0.048, 5.0, 0.0, 0.0, -0.0010, 0.0)
+    hedged_portfolio = [
+        core,
+        _snap("HEDGE", 0.50, 0.0400, 0.060, 3.0, 0.0, 0.0, -0.0010, 0.0),
+        _snap("HEDGE", -0.50, 0.0100, 0.020, 1.0, 0.0, 0.0, -0.0010, 0.0),
+    ]
+    clean_benchmark = [_snap("CORE", 1.00, 0.0140, 0.044, 5.5, 0.0, 0.0, -0.0010, 0.0)]
+
+    with pytest.raises(PortfolioError, match="HEDGE") as portfolio_side:
+        campisi_attribution(json.dumps(hedged_portfolio), json.dumps(clean_benchmark), json.dumps(_CONFIG))
+    assert "Portfolio" in str(portfolio_side.value)
+
+    hedged_benchmark = [
+        _snap("CORE", 1.00, 0.0140, 0.044, 5.5, 0.0, 0.0, -0.0010, 0.0),
+        _snap("HEDGE", 0.40, 0.0300, 0.055, 4.0, 0.0, 0.0, -0.0010, 0.0),
+        _snap("HEDGE", -0.40, 0.0050, 0.015, 1.0, 0.0, 0.0, -0.0010, 0.0),
+    ]
+    with pytest.raises(PortfolioError, match="HEDGE") as benchmark_side:
+        campisi_attribution(json.dumps([core]), json.dumps(hedged_benchmark), json.dumps(_CONFIG))
+    assert "Benchmark" in str(benchmark_side.value)
+
+    # A sector genuinely absent from one side stays legal — that is the
+    # legitimate zero-weight case and must not regress.
+    one_sided = [
+        _snap("CORE", 0.80, 0.0150, 0.048, 5.0, 0.0, 0.0, -0.0010, 0.0),
+        _snap("EXTRA", 0.20, 0.0210, 0.070, 3.0, 4.0, 0.0300, -0.0010, -0.0010),
+    ]
+    result = json.loads(campisi_attribution(json.dumps(one_sided), json.dumps(clean_benchmark), json.dumps(_CONFIG)))
+    assert [s["sector"] for s in result["sectors"]] == ["CORE", "EXTRA"]
+    assert result["sectors"][1]["benchmark_weight"] == pytest.approx(0.0, abs=1e-15)
+    reconstructed = (
+        result["total_allocation"]
+        + result["total_active_carry"]
+        + result["total_active_treasury"]
+        + result["total_active_spread"]
+        + result["total_selection"]
+    )
+    assert reconstructed == pytest.approx(result["active_return"], abs=1e-12)
+
+
 def test_campisi_carino_link_from_snapshots_rejects_bad_json_and_domain_errors() -> None:
     """The snapshot-based linked entry point maps parse and domain failures."""
     from finstack_quant.portfolio import PortfolioError, campisi_carino_link_from_snapshots
