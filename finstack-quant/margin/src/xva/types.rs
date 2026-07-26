@@ -484,6 +484,13 @@ pub struct StochasticExposureProfile {
 
     /// Tail quantile used for `pfe_profile`.
     pub pfe_quantile: f64,
+
+    /// Mean per-path initial margin at each time point (phase-2 MVA input).
+    ///
+    /// Populated only when an IM model was supplied to the stochastic engine;
+    /// `None` otherwise. Length matches `profile.times` when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub im_profile: Option<Vec<f64>>,
 }
 
 impl StochasticExposureProfile {
@@ -522,7 +529,38 @@ impl StochasticExposureProfile {
                 )));
             }
         }
+        if let Some(ref im) = self.im_profile {
+            if im.len() != self.profile.times.len() {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "StochasticExposureProfile: im_profile length {} must match profile length {}",
+                    im.len(),
+                    self.profile.times.len()
+                )));
+            }
+            for (i, v) in im.iter().enumerate() {
+                if !v.is_finite() || *v < 0.0 {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "StochasticExposureProfile: im_profile[{i}] = {v} must be non-negative and finite"
+                    )));
+                }
+            }
+        }
         Ok(())
+    }
+
+    /// Convert the mean per-path IM into an [`crate::xva::mva::ImProfile`]
+    /// consumable by [`crate::xva::mva::compute_mva`].
+    ///
+    /// # Returns
+    ///
+    /// `None` when the profile carries no IM (no IM model was supplied).
+    pub fn to_im_profile(&self) -> Option<crate::xva::mva::ImProfile> {
+        self.im_profile
+            .as_ref()
+            .map(|im| crate::xva::mva::ImProfile {
+                times: self.profile.times.clone(),
+                im_values: im.clone(),
+            })
     }
 }
 

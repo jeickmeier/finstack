@@ -52,8 +52,9 @@ Workspace (umbrella crate: finstack-quant)
  │  finstack-quant-wasm  ← WASM bindings (wasm-bindgen); src/api/ + hand-written JS facade     │
  └─────────────────────────────────────────────────────────────────────────────────────────────┘
 
-Dependency direction (verified 2026-07-16):
-  core → {analytics, cashflows, covenants, features, margin, monte_carlo}
+Dependency direction (verified 2026-07-25):
+  core → {analytics, cashflows, covenants, features, monte_carlo}
+       → margin (consumes monte_carlo for its stochastic XVA exposure engine)
        → factor-model → valuations → {attribution, statements}
        → scenarios → portfolio
   `valuations` is the true mid-stack hub: it consumes margin, monte_carlo,

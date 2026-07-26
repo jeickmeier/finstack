@@ -10,14 +10,18 @@
 //! - Exposure times are year fractions.
 //! - Deterministic exposure assumes constant curves on the roll-forward grid.
 //! - Close-out netting follows an ISDA master-agreement view.
-//! - CSA terms reduce exposure; MPOR gap risk is not modeled in the
-//!   deterministic engine.
+//! - CSA terms reduce exposure; MPOR-lagged collateral (gap risk) is applied
+//!   whenever `csa.mpor_days > 0`, in both the deterministic and stochastic
+//!   engines.
 //!
 //! # Stochastic exposure
 //!
-//! Pathwise exposure with quantile-based PFE uses `finstack-quant-monte-carlo` behind
-//! a crate-private helper. Defaults
-//! are in `data/margin/xva_defaults.v1.json`.
+//! Pathwise exposure with quantile-based PFE uses `finstack-quant-monte-carlo`:
+//! `exposure::compute_stochastic_exposure_profile` (generic valuation callback)
+//! and `exposure::compute_stochastic_exposure_with_valuer` (path-consistent
+//! portfolio repricing via `traits::PathValuer`, with per-path MPOR-lagged CSA
+//! collateral and optional per-path IM via `mva::PathImModel`). Defaults are in
+//! `data/margin/xva_defaults.v1.json`.
 //!
 //! # References
 //!

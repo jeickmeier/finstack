@@ -42,18 +42,18 @@ use finstack_quant_core::money::fx::FxConversionPolicy;
 use finstack_quant_core::money::fx::FxQuery;
 use finstack_quant_core::money::Money;
 
-use super::traits::Valuable;
-#[cfg(test)]
+use super::mva::PathImModel;
+use super::traits::{PathValuer, Valuable};
 use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
-#[cfg(test)]
 use finstack_quant_monte_carlo::{
     state_keys, Discretization, PathState, RandomStream, StochasticProcess,
 };
 
 use super::netting::{apply_collateral_mpor, apply_variation_margin_mpor};
-use super::types::{ExposureProfile, XvaConfig, XvaNettingSet};
-#[cfg(test)]
-use super::types::{StochasticExposureConfig, StochasticExposureProfile};
+use super::types::{
+    CsaTerms, ExposureProfile, StochasticExposureConfig, StochasticExposureProfile, XvaConfig,
+    XvaNettingSet,
+};
 
 /// Map a year fraction to a whole-day offset using ACT/365F-style scaling.
 ///
@@ -178,7 +178,7 @@ fn interpolate_lagged(times: &[f64], values: &[f64], v0: f64, t: f64) -> f64 {
     prev_v
 }
 
-#[cfg(test)]
+/// Linear-interpolated quantile of `samples` (sorted in place).
 fn interpolate_quantile(samples: &mut [f64], quantile: f64) -> f64 {
     samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     if samples.len() == 1 {
@@ -325,6 +325,214 @@ pub fn compute_exposure_profile(
     })
 }
 
+/// Time-major pathwise simulation output shared by the stochastic engines.
+struct SimulatedExposurePaths {
+    /// Pathwise MtM, indexed `[step_idx * num_paths + path_idx]`.
+    mtms: Vec<f64>,
+    /// Portfolio MtM at `t = 0` (all paths share the initial state); used as
+    /// the anchor for MPOR lag interpolation.
+    initial_mtm: f64,
+    /// Optional pathwise IM, same indexing as `mtms`.
+    im: Option<Vec<f64>>,
+}
+
+/// Simulate factor paths and evaluate MtM (and optionally IM) at each grid point.
+///
+/// RNG discipline is identical to the original engine: one Philox substream
+/// per path (`substream(path_idx + 1)`), shocks drawn in step order, so results
+/// are deterministic for a fixed seed and independent of aggregation.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "internal helper shared by both public stochastic entry points; \
+              splitting args into a config struct would only move the surface, not shrink it"
+)]
+fn simulate_exposure_paths<P, D>(
+    process: &P,
+    discretization: &D,
+    initial_state: &[f64],
+    time_grid: &[f64],
+    num_paths: usize,
+    seed: u64,
+    valuation_fn: &dyn Fn(&PathState, f64) -> finstack_quant_core::Result<f64>,
+    im_model: Option<&dyn PathImModel>,
+) -> finstack_quant_core::Result<SimulatedExposurePaths>
+where
+    P: StochasticProcess,
+    D: Discretization<P>,
+{
+    if initial_state.len() != process.dim() {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "Stochastic exposure: initial_state length {} must match process dim {}",
+            initial_state.len(),
+            process.dim()
+        )));
+    }
+
+    let time_count = time_grid.len();
+    let total_cells = time_count.checked_mul(num_paths).ok_or_else(|| {
+        finstack_quant_core::Error::Validation(format!(
+            "Stochastic exposure: time_count ({time_count}) * num_paths ({num_paths}) overflows usize"
+        ))
+    })?;
+    let mut mtms = vec![0.0f64; total_cells];
+    let mut im = im_model.map(|_| vec![0.0f64; total_cells]);
+
+    // t = 0 anchor valuation (consumes no randomness).
+    let mut initial_ps = PathState::new(0, 0.0);
+    initial_ps.set(state_keys::TIME, 0.0);
+    initial_ps.set(state_keys::STEP, 0.0);
+    process.populate_path_state(initial_state, &mut initial_ps);
+    let initial_mtm = valuation_fn(&initial_ps, 0.0)?;
+
+    let base_rng = PhiloxRng::new(seed);
+    let mut state_vector = vec![0.0; process.dim()];
+    let mut shocks = vec![0.0; process.num_factors()];
+    let mut work = vec![0.0; discretization.work_size(process)];
+
+    for path_idx in 0..num_paths {
+        let mut rng = base_rng.substream((path_idx + 1) as u64);
+        state_vector.copy_from_slice(initial_state);
+        let mut prev_t = 0.0;
+
+        for (step_idx, &t) in time_grid.iter().enumerate() {
+            let dt = t - prev_t;
+            rng.fill_std_normals(&mut shocks);
+            discretization.step(process, prev_t, dt, &mut state_vector, &shocks, &mut work);
+
+            let mut path_state = PathState::new(step_idx + 1, t);
+            path_state.set(state_keys::TIME, t);
+            path_state.set(state_keys::STEP, (step_idx + 1) as f64);
+            process.populate_path_state(&state_vector, &mut path_state);
+
+            let cell = step_idx * num_paths + path_idx;
+            mtms[cell] = valuation_fn(&path_state, t)?;
+            if let (Some(im_buf), Some(model)) = (im.as_mut(), im_model) {
+                im_buf[cell] = model.im_on_path(&path_state, t)?;
+            }
+            prev_t = t;
+        }
+    }
+
+    Ok(SimulatedExposurePaths {
+        mtms,
+        initial_mtm,
+        im,
+    })
+}
+
+/// Interpolate one path's MtM at time `t` (linear, anchored at `(0, v0)`,
+/// clamped to the grid span). Time-major indexing as in `SimulatedExposurePaths`.
+fn interpolate_path_value(
+    mtms: &[f64],
+    num_paths: usize,
+    path_idx: usize,
+    times: &[f64],
+    v0: f64,
+    t: f64,
+) -> f64 {
+    if t <= 0.0 {
+        return v0;
+    }
+    let mut prev_t = 0.0;
+    let mut prev_v = v0;
+    for (step_idx, &ti) in times.iter().enumerate() {
+        let vi = mtms[step_idx * num_paths + path_idx];
+        if t <= ti {
+            let w = (t - prev_t) / (ti - prev_t);
+            return prev_v + w * (vi - prev_v);
+        }
+        prev_t = ti;
+        prev_v = vi;
+    }
+    prev_v
+}
+
+/// Shared netting/collateral/quantile aggregation for the stochastic engines.
+///
+/// Close-out netting is `max(V_p(t), 0)` per path (the valuer/callback returns
+/// the netted portfolio MtM). When `csa` is present, MPOR-lagged collateral is
+/// applied per path before averaging: collateral at `t` reflects the path's
+/// exposure at `t − mpor_days/365` (linear interpolation, `t = 0` anchor).
+fn aggregate_stochastic_profile(
+    time_grid: &[f64],
+    sim: &SimulatedExposurePaths,
+    num_paths: usize,
+    pfe_quantile: f64,
+    csa: Option<&CsaTerms>,
+) -> finstack_quant_core::Result<StochasticExposureProfile> {
+    let time_count = time_grid.len();
+    let mut mtm_values = Vec::with_capacity(time_count);
+    let mut epe = Vec::with_capacity(time_count);
+    let mut ene = Vec::with_capacity(time_count);
+    let mut pfe_profile = Vec::with_capacity(time_count);
+    let mut positive_buf = Vec::with_capacity(num_paths);
+    let path_count_f = num_paths as f64;
+    let mpor_lag_years = csa.map_or(0.0, |c| f64::from(c.mpor_days) / CALENDAR_DAYS_PER_YEAR);
+
+    for (step_idx, &t) in time_grid.iter().enumerate() {
+        positive_buf.clear();
+        let mut sum_mtm = 0.0;
+        let mut sum_pos = 0.0;
+        let mut sum_neg = 0.0;
+        for path_idx in 0..num_paths {
+            let mtm = sim.mtms[step_idx * num_paths + path_idx];
+            sum_mtm += mtm;
+            let (pos, neg) = match csa {
+                Some(csa) => {
+                    let lag_mtm = interpolate_path_value(
+                        &sim.mtms,
+                        num_paths,
+                        path_idx,
+                        time_grid,
+                        sim.initial_mtm,
+                        t - mpor_lag_years,
+                    );
+                    (
+                        apply_collateral_mpor(mtm.max(0.0), lag_mtm.max(0.0), csa),
+                        apply_variation_margin_mpor((-mtm).max(0.0), (-lag_mtm).max(0.0), csa),
+                    )
+                }
+                None => (mtm.max(0.0), (-mtm).max(0.0)),
+            };
+            sum_pos += pos;
+            sum_neg += neg;
+            positive_buf.push(pos);
+        }
+        mtm_values.push(sum_mtm / path_count_f);
+        epe.push(sum_pos / path_count_f);
+        ene.push(sum_neg / path_count_f);
+        pfe_profile.push(interpolate_quantile(&mut positive_buf, pfe_quantile));
+    }
+
+    let im_profile = sim.im.as_ref().map(|im| {
+        (0..time_count)
+            .map(|step_idx| {
+                let row = &im[step_idx * num_paths..(step_idx + 1) * num_paths];
+                row.iter().sum::<f64>() / path_count_f
+            })
+            .collect::<Vec<f64>>()
+    });
+
+    let profile = ExposureProfile {
+        times: time_grid.to_vec(),
+        mtm_values,
+        epe,
+        ene,
+        diagnostics: None,
+    };
+    profile.validate()?;
+
+    let stochastic_profile = StochasticExposureProfile {
+        profile,
+        pfe_profile,
+        path_count: num_paths,
+        pfe_quantile,
+        im_profile,
+    };
+    stochastic_profile.validate()?;
+    Ok(stochastic_profile)
+}
+
 /// Compute a stochastic exposure profile using the Monte Carlo primitives.
 ///
 /// This engine simulates factor paths and revalues the portfolio through a
@@ -398,8 +606,7 @@ pub fn compute_exposure_profile(
 ///
 /// - Gregory XVA Challenge: `docs/REFERENCES.md#gregory-xva-challenge`
 /// - BCBS 279 SA-CCR: `docs/REFERENCES.md#bcbs-279-saccr`
-#[cfg(test)]
-pub(crate) fn compute_stochastic_exposure_profile<P, D, V>(
+pub fn compute_stochastic_exposure_profile<P, D, V>(
     process: &P,
     discretization: &D,
     initial_state: &[f64],
@@ -414,105 +621,107 @@ where
 {
     xva_config.validate()?;
     stochastic_config.validate()?;
+    let wrapped = |state: &PathState, _t: f64| valuation_fn(state);
+    let sim = simulate_exposure_paths(
+        process,
+        discretization,
+        initial_state,
+        &xva_config.time_grid,
+        stochastic_config.num_paths,
+        stochastic_config.seed,
+        &wrapped,
+        None,
+    )?;
+    aggregate_stochastic_profile(
+        &xva_config.time_grid,
+        &sim,
+        stochastic_config.num_paths,
+        stochastic_config.pfe_quantile,
+        None,
+    )
+}
 
-    if initial_state.len() != process.dim() {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "Stochastic exposure: initial_state length {} must match process dim {}",
-            initial_state.len(),
-            process.dim()
-        )));
-    }
-
-    let time_count = xva_config.time_grid.len();
-    let num_paths = stochastic_config.num_paths;
-    // Single flat *time-major* buffer indexed as
-    // `[step_idx * num_paths + path_idx]`. One heap allocation
-    // (vs. `time_count` for the old `Vec<Vec<f64>>`) and aggregation
-    // walks each row contiguously, matching the access pattern of the
-    // post-loop mean/quantile reductions. Simulation writes are
-    // strided by `num_paths`, but the per-step valuation closure
-    // dominates wall-time and prefetchers handle a stride this large
-    // well; quantile + sum reductions are the cache-sensitive phase.
-    let total_cells = time_count.checked_mul(num_paths).ok_or_else(|| {
-        finstack_quant_core::Error::Validation(format!(
-            "Stochastic exposure: time_count ({time_count}) * num_paths ({num_paths}) overflows usize"
-        ))
-    })?;
-    let mut pathwise_mtms = vec![0.0f64; total_cells];
-    let base_rng = PhiloxRng::new(stochastic_config.seed);
-
-    let mut state_vector = vec![0.0; process.dim()];
-    let mut shocks = vec![0.0; process.num_factors()];
-    let mut work = vec![0.0; discretization.work_size(process)];
-
-    for path_idx in 0..num_paths {
-        let mut rng = base_rng.substream((path_idx + 1) as u64);
-        state_vector.copy_from_slice(initial_state);
-        let mut prev_t = 0.0;
-
-        for (step_idx, &t) in xva_config.time_grid.iter().enumerate() {
-            let dt = t - prev_t;
-            rng.fill_std_normals(&mut shocks);
-            discretization.step(process, prev_t, dt, &mut state_vector, &shocks, &mut work);
-
-            let mut path_state = PathState::new(step_idx + 1, t);
-            path_state.set(state_keys::TIME, t);
-            path_state.set(state_keys::STEP, (step_idx + 1) as f64);
-            process.populate_path_state(&state_vector, &mut path_state);
-
-            let mtm = valuation_fn(&path_state)?;
-            pathwise_mtms[step_idx * num_paths + path_idx] = mtm;
-            prev_t = t;
-        }
-    }
-
-    let mut mtm_values = Vec::with_capacity(time_count);
-    let mut epe = Vec::with_capacity(time_count);
-    let mut ene = Vec::with_capacity(time_count);
-    let mut pfe_profile = Vec::with_capacity(time_count);
-    let mut positive_buf = Vec::with_capacity(num_paths);
-    let path_count_f = num_paths as f64;
-
-    for step_idx in 0..time_count {
-        positive_buf.clear();
-        let mut sum_mtm = 0.0;
-        let mut sum_pos = 0.0;
-        let mut sum_neg = 0.0;
-        let row_start = step_idx * num_paths;
-        let row = &pathwise_mtms[row_start..row_start + num_paths];
-        for &mtm in row {
-            sum_mtm += mtm;
-            let pos = mtm.max(0.0);
-            sum_pos += pos;
-            sum_neg += (-mtm).max(0.0);
-            positive_buf.push(pos);
-        }
-        mtm_values.push(sum_mtm / path_count_f);
-        epe.push(sum_pos / path_count_f);
-        ene.push(sum_neg / path_count_f);
-        pfe_profile.push(interpolate_quantile(
-            &mut positive_buf,
-            stochastic_config.pfe_quantile,
-        ));
-    }
-
-    let profile = ExposureProfile {
-        times: xva_config.time_grid.clone(),
-        mtm_values,
-        epe,
-        ene,
-        diagnostics: None,
-    };
-    profile.validate()?;
-
-    let stochastic_profile = StochasticExposureProfile {
-        profile,
-        pfe_profile,
-        path_count: stochastic_config.num_paths,
-        pfe_quantile: stochastic_config.pfe_quantile,
-    };
-    stochastic_profile.validate()?;
-    Ok(stochastic_profile)
+/// Compute a stochastic exposure profile by repricing the actual portfolio on
+/// simulated paths through a [`PathValuer`].
+///
+/// This is the path-consistent counterpart of
+/// [`compute_stochastic_exposure_profile`]: instead of a generic valuation
+/// callback it takes the margin-side [`PathValuer`] bridge (implemented by the
+/// valuations crate or the caller), and it applies the netting set's CSA —
+/// including MPOR-lagged collateral (gap risk) — and quantile PFE inside the
+/// engine, per path:
+///
+/// ```text
+/// E_p(t)    = max(V_p(t), 0)                                  (close-out netting)
+/// C_p(t)    = max(E_p(t − δ) − (threshold + MTA), 0)          (MPOR-lagged collateral)
+/// EPE(t)    = mean_p max(E_p(t) − C_p(t) − IA, 0)
+/// PFE_α(t)  = quantile_α over p of the collateralized exposure
+/// ```
+///
+/// with `δ = csa.mpor_days / 365` and per-path linear interpolation of the
+/// lagged value (anchored at the `t = 0` portfolio value). Without a CSA the
+/// raw netted exposures are aggregated.
+///
+/// When `im_model` is provided, per-path IM is evaluated at every grid point
+/// and its mean is returned in `StochasticExposureProfile::im_profile`
+/// (phase-2 MVA input; see [`crate::xva::mva::compute_mva`]).
+///
+/// # Errors
+///
+/// Returns an error if configuration validation fails, the initial state has
+/// the wrong dimension, or the valuer / IM model fails on any path.
+///
+/// # Determinism
+///
+/// Fixed `stochastic_config.seed` gives bit-identical results (one Philox
+/// substream per path, independent of aggregation order).
+///
+/// # References
+///
+/// - Green, A. (2015). *XVA*. Wiley. Chapters 3, 10.
+/// - Andersen, L., Pykhtin, M., & Sokol, A. (2017). "Rethinking the margin
+///   period of risk." *Journal of Credit Risk*, 13(1).
+/// - Gregory XVA Challenge: `docs/REFERENCES.md#gregory-xva-challenge`
+#[expect(
+    clippy::too_many_arguments,
+    reason = "public path-consistent entry point mirrors the deterministic engine's argument \
+              shape plus the valuer/netting-set/IM-model additions; a config struct would just \
+              relocate the surface"
+)]
+pub fn compute_stochastic_exposure_with_valuer<P, D>(
+    process: &P,
+    discretization: &D,
+    initial_state: &[f64],
+    valuer: &dyn PathValuer,
+    xva_config: &XvaConfig,
+    stochastic_config: &StochasticExposureConfig,
+    netting_set: &XvaNettingSet,
+    im_model: Option<&dyn PathImModel>,
+) -> finstack_quant_core::Result<StochasticExposureProfile>
+where
+    P: StochasticProcess,
+    D: Discretization<P>,
+{
+    xva_config.validate()?;
+    stochastic_config.validate()?;
+    let wrapped = |state: &PathState, t: f64| valuer.value_on_path(state, t);
+    let sim = simulate_exposure_paths(
+        process,
+        discretization,
+        initial_state,
+        &xva_config.time_grid,
+        stochastic_config.num_paths,
+        stochastic_config.seed,
+        &wrapped,
+        im_model,
+    )?;
+    aggregate_stochastic_profile(
+        &xva_config.time_grid,
+        &sim,
+        stochastic_config.num_paths,
+        stochastic_config.pfe_quantile,
+        netting_set.csa.as_ref(),
+    )
 }
 
 #[cfg(test)]
@@ -1229,5 +1438,283 @@ mod tests {
             .mtm_values
             .iter()
             .all(|mtm| (*mtm - 10.0).abs() < 1e-12));
+    }
+
+    #[test]
+    fn stochastic_engine_is_deterministic_across_runs() {
+        use crate::xva::types::StochasticExposureConfig;
+        use finstack_quant_monte_carlo::prelude::{ExactGbm, GbmProcess};
+
+        let process = GbmProcess::with_params(0.0, 0.0, 0.25).expect("valid GBM params");
+        let discretization = ExactGbm::new();
+        let xva_config = XvaConfig {
+            time_grid: vec![0.5, 1.0],
+            recovery_rate: 0.40,
+            own_recovery_rate: None,
+            funding: None,
+        };
+        let stochastic = StochasticExposureConfig {
+            num_paths: 512,
+            seed: 7,
+            pfe_quantile: 0.975,
+        };
+        let run = || {
+            compute_stochastic_exposure_profile(
+                &process,
+                &discretization,
+                &[100.0],
+                &xva_config,
+                &stochastic,
+                |state| Ok(state.spot().unwrap_or(0.0) - 100.0),
+            )
+            .expect("profile should compute")
+        };
+        let a = run();
+        let b = run();
+        assert_eq!(a.profile.epe, b.profile.epe);
+        assert_eq!(a.pfe_profile, b.pfe_profile);
+    }
+
+    #[test]
+    fn valuer_engine_with_zero_mpor_full_csa_kills_exposure() {
+        // threshold = mta = ia = 0 and mpor_days = 0: collateral equals current
+        // exposure ⇒ EPE ≡ 0 on every path.
+        use crate::xva::traits::PathValuer;
+        use crate::xva::types::StochasticExposureConfig;
+        use finstack_quant_monte_carlo::prelude::{ExactGbm, GbmProcess};
+
+        struct ForwardValuer;
+        impl PathValuer for ForwardValuer {
+            fn value_on_path(
+                &self,
+                state: &PathState,
+                _t: f64,
+            ) -> finstack_quant_core::Result<f64> {
+                state
+                    .spot()
+                    .map(|s| s - 100.0)
+                    .ok_or_else(|| finstack_quant_core::Error::Validation("missing spot".into()))
+            }
+        }
+
+        let process = GbmProcess::with_params(0.0, 0.0, 0.25).expect("valid GBM params");
+        let discretization = ExactGbm::new();
+        let xva_config = XvaConfig {
+            time_grid: vec![0.5, 1.0],
+            recovery_rate: 0.40,
+            own_recovery_rate: None,
+            funding: None,
+        };
+        let stochastic = StochasticExposureConfig {
+            num_paths: 256,
+            seed: 11,
+            pfe_quantile: 0.975,
+        };
+        let netting_set = XvaNettingSet {
+            id: "NS-CSA-0".into(),
+            counterparty_id: "CP".into(),
+            csa: Some(CsaTerms {
+                threshold: 0.0,
+                mta: 0.0,
+                mpor_days: 0,
+                independent_amount: 0.0,
+            }),
+            reporting_currency: None,
+        };
+
+        let profile = compute_stochastic_exposure_with_valuer(
+            &process,
+            &discretization,
+            &[100.0],
+            &ForwardValuer,
+            &xva_config,
+            &stochastic,
+            &netting_set,
+            None,
+        )
+        .expect("profile should compute");
+        assert!(profile.profile.epe.iter().all(|&v| v.abs() < 1e-12));
+        assert!(profile.pfe_profile.iter().all(|&v| v.abs() < 1e-12));
+        // Raw MtM mean is untouched by collateral.
+        assert!(profile.profile.mtm_values[1].abs() < 1.0);
+    }
+
+    #[test]
+    fn valuer_engine_mpor_gap_risk_is_positive_but_below_uncollateralized() {
+        use crate::xva::traits::PathValuer;
+        use crate::xva::types::StochasticExposureConfig;
+        use finstack_quant_monte_carlo::prelude::{ExactGbm, GbmProcess};
+
+        struct ForwardValuer;
+        impl PathValuer for ForwardValuer {
+            fn value_on_path(
+                &self,
+                state: &PathState,
+                _t: f64,
+            ) -> finstack_quant_core::Result<f64> {
+                state
+                    .spot()
+                    .map(|s| s - 100.0)
+                    .ok_or_else(|| finstack_quant_core::Error::Validation("missing spot".into()))
+            }
+        }
+
+        let process = GbmProcess::with_params(0.0, 0.0, 0.25).expect("valid GBM params");
+        let discretization = ExactGbm::new();
+        let xva_config = XvaConfig {
+            time_grid: vec![0.5, 1.0],
+            recovery_rate: 0.40,
+            own_recovery_rate: None,
+            funding: None,
+        };
+        let stochastic = StochasticExposureConfig {
+            num_paths: 4_096,
+            seed: 11,
+            pfe_quantile: 0.975,
+        };
+        let make_ns = |mpor_days: u32, csa: bool| XvaNettingSet {
+            id: format!("NS-{mpor_days}"),
+            counterparty_id: "CP".into(),
+            csa: csa.then_some(CsaTerms {
+                threshold: 0.0,
+                mta: 0.0,
+                mpor_days,
+                independent_amount: 0.0,
+            }),
+            reporting_currency: None,
+        };
+
+        let run = |ns: &XvaNettingSet| {
+            compute_stochastic_exposure_with_valuer(
+                &process,
+                &discretization,
+                &[100.0],
+                &ForwardValuer,
+                &xva_config,
+                &stochastic,
+                ns,
+                None,
+            )
+            .expect("profile should compute")
+        };
+
+        let uncollat = run(&make_ns(0, false));
+        let mpor10 = run(&make_ns(10, true));
+
+        for i in 0..2 {
+            assert!(
+                mpor10.profile.epe[i] > 0.0,
+                "MPOR gap risk must leave positive residual EPE at step {i}"
+            );
+            assert!(
+                mpor10.profile.epe[i] < uncollat.profile.epe[i],
+                "collateralized EPE must be below uncollateralized at step {i}"
+            );
+        }
+    }
+
+    #[test]
+    fn valuer_engine_carries_scaled_simm_decay_im() {
+        use crate::xva::mva::{ImDecayProfile, ScaledSimmDecayIm};
+        use crate::xva::traits::PathValuer;
+        use crate::xva::types::StochasticExposureConfig;
+        use finstack_quant_monte_carlo::prelude::{ExactGbm, GbmProcess};
+
+        struct ForwardValuer;
+        impl PathValuer for ForwardValuer {
+            fn value_on_path(
+                &self,
+                state: &PathState,
+                _t: f64,
+            ) -> finstack_quant_core::Result<f64> {
+                state
+                    .spot()
+                    .map(|s| s - 100.0)
+                    .ok_or_else(|| finstack_quant_core::Error::Validation("missing spot".into()))
+            }
+        }
+
+        let process = GbmProcess::with_params(0.0, 0.0, 0.25).expect("valid GBM params");
+        let discretization = ExactGbm::new();
+        let xva_config = XvaConfig {
+            time_grid: vec![1.0, 2.0],
+            recovery_rate: 0.40,
+            own_recovery_rate: None,
+            funding: None,
+        };
+        let stochastic = StochasticExposureConfig {
+            num_paths: 64,
+            seed: 3,
+            pfe_quantile: 0.975,
+        };
+        let netting_set = XvaNettingSet {
+            id: "NS-IM".into(),
+            counterparty_id: "CP".into(),
+            csa: None,
+            reporting_currency: None,
+        };
+        let im_model = ScaledSimmDecayIm::new(
+            1_000_000.0,
+            ImDecayProfile::LinearToMaturity {
+                maturity_years: 4.0,
+            },
+        )
+        .expect("valid IM model");
+
+        let profile = compute_stochastic_exposure_with_valuer(
+            &process,
+            &discretization,
+            &[100.0],
+            &ForwardValuer,
+            &xva_config,
+            &stochastic,
+            &netting_set,
+            Some(&im_model),
+        )
+        .expect("profile should compute");
+
+        // Deterministic IM model ⇒ mean per-path IM equals the decay exactly:
+        // IM(1) = 1e6 × 0.75, IM(2) = 1e6 × 0.5.
+        let im = profile.im_profile.as_ref().expect("IM profile present");
+        assert!((im[0] - 750_000.0).abs() < 1e-6);
+        assert!((im[1] - 500_000.0).abs() < 1e-6);
+
+        // And it round-trips into compute_mva input.
+        let im_profile = profile.to_im_profile().expect("convertible");
+        im_profile.validate().expect("valid");
+    }
+
+    /// `im_profile` is additive: a payload serialized before this field
+    /// existed (no `im_profile` key at all) must still deserialize cleanly,
+    /// with `im_profile` defaulting to `None`.
+    #[test]
+    fn stochastic_exposure_profile_im_profile_is_wire_additive() {
+        let pre_change_json = r#"{
+            "profile": {
+                "times": [0.5, 1.0],
+                "mtm_values": [1.0, 2.0],
+                "epe": [1.0, 2.0],
+                "ene": [0.0, 0.0]
+            },
+            "pfe_profile": [1.5, 2.5],
+            "path_count": 100,
+            "pfe_quantile": 0.975
+        }"#;
+        let profile: StochasticExposureProfile =
+            serde_json::from_str(pre_change_json).expect("pre-change payload must still parse");
+        assert!(profile.im_profile.is_none());
+        profile
+            .validate()
+            .expect("profile without IM must validate");
+
+        // And a profile carrying IM round-trips through JSON unchanged.
+        let with_im = StochasticExposureProfile {
+            im_profile: Some(vec![10.0, 20.0]),
+            ..profile
+        };
+        let json = serde_json::to_string(&with_im).expect("serialize");
+        let back: StochasticExposureProfile =
+            serde_json::from_str(&json).expect("deserialize round-trip");
+        assert_eq!(back.im_profile, Some(vec![10.0, 20.0]));
     }
 }
