@@ -6,6 +6,7 @@ use finstack_quant_margin::xva::types as xva;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+use finstack_quant_margin::xva::cva;
 use finstack_quant_margin::xva::mva;
 
 use crate::bindings::core::market_data::curves::{PyDiscountCurve, PyHazardCurve};
@@ -15,7 +16,7 @@ use crate::bindings::margin::im::{PySimmCalculator, PySimmSensitivities};
 // FundingConfig
 // ---------------------------------------------------------------------------
 
-/// Funding cost/benefit configuration for FVA calculation.
+/// Funding cost/benefit configuration for FVA and MVA calculation.
 #[pyclass(
     name = "FundingConfig",
     module = "finstack_quant.margin",
@@ -36,13 +37,31 @@ impl PyFundingConfig {
     ///     Funding spread in basis points.
     /// funding_benefit_bps : float | None
     ///     Funding benefit spread in bps. If ``None``, symmetric funding.
+    /// im_profile : ImProfile | None
+    ///     Expected initial-margin profile driving MVA. If ``None``, MVA is
+    ///     not computed.
+    /// margin_funding_spread_bps : float | None
+    ///     Spread applied to posted IM. If ``None``, uses
+    ///     ``funding_spread_bps``.
     #[new]
-    #[pyo3(signature = (funding_spread_bps, funding_benefit_bps=None))]
-    fn new(funding_spread_bps: f64, funding_benefit_bps: Option<f64>) -> Self {
+    #[pyo3(signature = (
+        funding_spread_bps,
+        funding_benefit_bps=None,
+        im_profile=None,
+        margin_funding_spread_bps=None,
+    ))]
+    fn new(
+        funding_spread_bps: f64,
+        funding_benefit_bps: Option<f64>,
+        im_profile: Option<&PyImProfile>,
+        margin_funding_spread_bps: Option<f64>,
+    ) -> Self {
         Self {
             inner: xva::FundingConfig {
                 funding_spread_bps,
                 funding_benefit_bps,
+                im_profile: im_profile.map(|p| p.inner.clone()),
+                margin_funding_spread_bps,
             },
         }
     }
@@ -59,15 +78,37 @@ impl PyFundingConfig {
         self.inner.funding_benefit_bps
     }
 
+    /// Expected IM profile driving MVA (or None).
+    #[getter]
+    fn im_profile(&self) -> Option<PyImProfile> {
+        self.inner.im_profile.as_ref().map(|inner| PyImProfile {
+            inner: inner.clone(),
+        })
+    }
+
+    /// IM funding spread in basis points (or None).
+    #[getter]
+    fn margin_funding_spread_bps(&self) -> Option<f64> {
+        self.inner.margin_funding_spread_bps
+    }
+
     /// Effective funding benefit spread in basis points.
     fn effective_benefit_bps(&self) -> f64 {
         self.inner.effective_benefit_bps()
     }
 
+    /// Effective IM funding spread in basis points (falls back to
+    /// ``funding_spread_bps``).
+    fn effective_margin_spread_bps(&self) -> f64 {
+        self.inner.effective_margin_spread_bps()
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "FundingConfig(spread={:.1}bp, benefit={:?}bp)",
-            self.inner.funding_spread_bps, self.inner.funding_benefit_bps,
+            "FundingConfig(spread={:.1}bp, benefit={:?}bp, mva={})",
+            self.inner.funding_spread_bps,
+            self.inner.funding_benefit_bps,
+            self.inner.im_profile.is_some(),
         )
     }
 }
@@ -297,7 +338,7 @@ impl PyExposureProfile {
 // XvaResult
 // ---------------------------------------------------------------------------
 
-/// Result of XVA calculations (CVA, DVA, FVA, exposure profiles).
+/// Result of XVA calculations (CVA, DVA, FVA, MVA, exposure profiles).
 #[pyclass(
     name = "XvaResult",
     module = "finstack_quant.margin",
@@ -341,10 +382,28 @@ impl PyXvaResult {
         self.inner.fva
     }
 
-    /// Bilateral CVA = CVA - DVA (or None).
+    /// MVA (funding cost of posted initial margin, or None).
+    #[getter]
+    fn mva(&self) -> Option<f64> {
+        self.inner.mva
+    }
+
+    /// Bilateral CVA (BCVA) = CVA - DVA, credit only (or None).
+    ///
+    /// Excludes funding adjustments — read ``total_xva`` for the all-in
+    /// number.
     #[getter]
     fn bilateral_cva(&self) -> Option<f64> {
         self.inner.bilateral_cva
+    }
+
+    /// All-in adjustment = CVA - DVA + FVA + MVA (or None).
+    ///
+    /// Uncomputed legs contribute zero. This is the quantity subtracted from
+    /// the risk-free value of the netting set.
+    #[getter]
+    fn total_xva(&self) -> Option<f64> {
+        self.inner.total_xva
     }
 
     /// Maximum PFE across the profile.
@@ -406,8 +465,13 @@ impl PyXvaResult {
 
     fn __repr__(&self) -> String {
         format!(
-            "XvaResult(cva={:.4}, dva={:?}, fva={:?}, max_pfe={:.2})",
-            self.inner.cva, self.inner.dva, self.inner.fva, self.inner.max_pfe
+            "XvaResult(cva={:.4}, dva={:?}, fva={:?}, mva={:?}, total_xva={:?}, max_pfe={:.2})",
+            self.inner.cva,
+            self.inner.dva,
+            self.inner.fva,
+            self.inner.mva,
+            self.inner.total_xva,
+            self.inner.max_pfe
         )
     }
 }
@@ -814,6 +878,64 @@ fn compute_mva(
     Ok(PyMvaResult { inner })
 }
 
+/// Compute bilateral XVA: CVA, DVA, FVA, MVA, and the all-in adjustment.
+///
+/// All legs are weighted by joint (first-to-default) survival. MVA is computed
+/// only when ``funding`` carries an ``im_profile``.
+///
+/// The result reports ``bilateral_cva = CVA - DVA`` (credit only) and
+/// ``total_xva = CVA - DVA + FVA + MVA`` (all-in, the number subtracted from
+/// the risk-free value of the netting set).
+///
+/// Parameters
+/// ----------
+/// exposure_profile : ExposureProfile
+///     EPE/ENE profile from exposure simulation.
+/// counterparty_hazard_curve : HazardCurve
+///     Hazard curve for the counterparty's credit.
+/// own_hazard_curve : HazardCurve
+///     Hazard curve for the institution's own credit.
+/// discount_curve : DiscountCurve
+///     Risk-free discount curve.
+/// counterparty_recovery_rate : float
+///     Recovery rate on counterparty default, in ``[0, 1]``.
+/// own_recovery_rate : float
+///     Recovery rate on own default, in ``[0, 1]``.
+/// funding : FundingConfig | None
+///     Funding configuration driving FVA and, when it carries an
+///     ``im_profile``, MVA. ``None`` computes credit legs only.
+#[pyfunction]
+#[pyo3(signature = (
+    exposure_profile,
+    counterparty_hazard_curve,
+    own_hazard_curve,
+    discount_curve,
+    counterparty_recovery_rate,
+    own_recovery_rate,
+    funding=None,
+))]
+fn compute_bilateral_xva(
+    exposure_profile: &PyExposureProfile,
+    counterparty_hazard_curve: &PyHazardCurve,
+    own_hazard_curve: &PyHazardCurve,
+    discount_curve: &PyDiscountCurve,
+    counterparty_recovery_rate: f64,
+    own_recovery_rate: f64,
+    funding: Option<&PyFundingConfig>,
+) -> PyResult<PyXvaResult> {
+    let inner = cva::compute_bilateral_xva(
+        &exposure_profile.inner,
+        counterparty_hazard_curve.inner.as_ref(),
+        own_hazard_curve.inner.as_ref(),
+        &discount_curve.inner,
+        counterparty_recovery_rate,
+        own_recovery_rate,
+        funding.map(|f| &f.inner),
+    )
+    .map_err(core_to_py)?;
+    Ok(PyXvaResult { inner })
+}
+
 /// Register XVA classes.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFundingConfig>()?;
@@ -828,5 +950,6 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyMvaResult>()?;
     m.add_function(pyo3::wrap_pyfunction!(im_profile_from_simm, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(compute_mva, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(compute_bilateral_xva, m)?)?;
     Ok(())
 }

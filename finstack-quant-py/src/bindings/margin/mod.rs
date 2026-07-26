@@ -60,6 +60,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "ImDecayProfile",
             "ImProfile",
             "MvaResult",
+            "compute_bilateral_xva",
             "compute_mva",
             "im_profile_from_simm",
             // Metrics

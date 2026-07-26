@@ -384,8 +384,7 @@ fn position_components(
         SpreadChangeMode::SpreadDuration => -s.spread_duration * s.delta_spread,
         SpreadChangeMode::Dts => {
             if s.spread > 0.0 {
-                let dts = s.spread_duration * s.spread;
-                -dts * (s.delta_spread / s.spread)
+                -s.spread_duration * s.delta_spread
             } else if (s.spread_duration * s.delta_spread).abs() > 0.0 {
                 return Err(Error::invalid_input(format!(
                     "DTS spread mode requires a positive spread for sector '{}' \
@@ -435,9 +434,9 @@ struct SideAgg {
 
 /// Sector rates: weighted contribution ÷ sector weight (0 if empty side).
 impl SideAgg {
-    fn rate(contribution: f64, weight: f64) -> f64 {
-        if weight.abs() > 0.0 {
-            contribution / weight
+    fn rate(&self, contribution: f64) -> f64 {
+        if self.weight.abs() > 0.0 {
+            contribution / self.weight
         } else {
             0.0
         }
@@ -451,10 +450,14 @@ impl SideAgg {
 fn aggregate_side(
     snapshots: &[FiPositionSnapshot],
     config: &FiAttributionConfig,
-    side: &str,
     sectors: &mut IndexMap<String, (SideAgg, SideAgg)>,
     is_portfolio: bool,
 ) -> Result<(f64, FiComponents)> {
+    let (side, side_name) = if is_portfolio {
+        ("portfolio", "Portfolio")
+    } else {
+        ("benchmark", "Benchmark")
+    };
     let mut sum_w = NeumaierAccumulator::new();
     let mut sum_r = NeumaierAccumulator::new();
     let mut sum_carry = NeumaierAccumulator::new();
@@ -490,11 +493,6 @@ fn aggregate_side(
 
     let total_w = sum_w.total();
     if (total_w - 1.0).abs() > WEIGHT_TOLERANCE {
-        let side_name = if is_portfolio {
-            "Portfolio"
-        } else {
-            "Benchmark"
-        };
         return Err(Error::invalid_input(format!(
             "{side_name} weights must sum to 1.0 (got {total_w})"
         )));
@@ -591,9 +589,9 @@ pub fn campisi_attribution(
     // benchmark-only sectors (deterministic IndexMap ordering).
     let mut sectors: IndexMap<String, (SideAgg, SideAgg)> = IndexMap::new();
     let (portfolio_return, portfolio_components) =
-        aggregate_side(portfolio, config, "portfolio", &mut sectors, true)?;
+        aggregate_side(portfolio, config, &mut sectors, true)?;
     let (benchmark_return, benchmark_components) =
-        aggregate_side(benchmark, config, "benchmark", &mut sectors, false)?;
+        aggregate_side(benchmark, config, &mut sectors, false)?;
 
     let mut total_allocation = NeumaierAccumulator::new();
     let mut total_active_carry = NeumaierAccumulator::new();
@@ -603,17 +601,13 @@ pub fn campisi_attribution(
     let mut sector_effects = Vec::with_capacity(sectors.len());
 
     for (sector, (p, b)) in sectors {
-        let r_p = SideAgg::rate(p.ret, p.weight);
-        let r_b = SideAgg::rate(b.ret, b.weight);
+        let r_p = p.rate(p.ret);
+        let r_b = b.rate(b.ret);
         let allocation = (p.weight - b.weight) * (r_b - benchmark_return);
-        let active_carry =
-            p.weight * (SideAgg::rate(p.carry, p.weight) - SideAgg::rate(b.carry, b.weight));
-        let active_treasury =
-            p.weight * (SideAgg::rate(p.treasury, p.weight) - SideAgg::rate(b.treasury, b.weight));
-        let active_spread =
-            p.weight * (SideAgg::rate(p.spread, p.weight) - SideAgg::rate(b.spread, b.weight));
-        let selection = p.weight
-            * (SideAgg::rate(p.selection, p.weight) - SideAgg::rate(b.selection, b.weight));
+        let active_carry = p.weight * (p.rate(p.carry) - b.rate(b.carry));
+        let active_treasury = p.weight * (p.rate(p.treasury) - b.rate(b.treasury));
+        let active_spread = p.weight * (p.rate(p.spread) - b.rate(b.spread));
+        let selection = p.weight * (p.rate(p.selection) - b.rate(b.selection));
 
         total_allocation.add(allocation);
         total_active_carry.add(active_carry);
@@ -786,41 +780,40 @@ pub fn campisi_carino_link(periods: &[FiAttributionResult]) -> Result<FiCarinoLi
     let mut linked_sectors = Vec::with_capacity(sector_names.len());
     let mut totals = [NeumaierAccumulator::new(); N_EFFECTS];
     for (name, sector_acc) in sector_names.into_iter().zip(acc) {
-        let values: Vec<f64> = sector_acc.iter().map(|a| a.total()).collect();
-        let mut effect = FiLinkedSectorEffect {
-            sector: name,
-            allocation: 0.0,
-            active_carry: 0.0,
-            active_treasury: 0.0,
-            active_spread: 0.0,
-            selection: 0.0,
-            total_active: 0.0,
-        };
-        if let [alloc, carry, tsy, spr, sel] = values.as_slice() {
-            effect.allocation = *alloc;
-            effect.active_carry = *carry;
-            effect.active_treasury = *tsy;
-            effect.active_spread = *spr;
-            effect.selection = *sel;
-            effect.total_active = alloc + carry + tsy + spr + sel;
-            for (acc, v) in totals.iter_mut().zip(values.iter()) {
-                acc.add(*v);
-            }
+        let [allocation, active_carry, active_treasury, active_spread, selection] =
+            sector_acc.map(|value| value.total());
+        for (total, value) in totals.iter_mut().zip([
+            allocation,
+            active_carry,
+            active_treasury,
+            active_spread,
+            selection,
+        ]) {
+            total.add(value);
         }
-        linked_sectors.push(effect);
+        linked_sectors.push(FiLinkedSectorEffect {
+            sector: name,
+            allocation,
+            active_carry,
+            active_treasury,
+            active_spread,
+            selection,
+            total_active: allocation + active_carry + active_treasury + active_spread + selection,
+        });
     }
 
-    let mut totals_iter = totals.iter().map(|a| a.total());
+    let [linked_allocation, linked_active_carry, linked_active_treasury, linked_active_spread, linked_selection] =
+        totals.map(|value| value.total());
     Ok(FiCarinoLinkedResult {
         periods: periods.to_vec(),
         portfolio_return_compounded: r_p_total,
         benchmark_return_compounded: r_b_total,
         linked_sectors,
-        linked_allocation: totals_iter.next().unwrap_or(0.0),
-        linked_active_carry: totals_iter.next().unwrap_or(0.0),
-        linked_active_treasury: totals_iter.next().unwrap_or(0.0),
-        linked_active_spread: totals_iter.next().unwrap_or(0.0),
-        linked_selection: totals_iter.next().unwrap_or(0.0),
+        linked_allocation,
+        linked_active_carry,
+        linked_active_treasury,
+        linked_active_spread,
+        linked_selection,
     })
 }
 
@@ -878,8 +871,7 @@ mod tests {
     }
 
     /// Hand-worked golden fixture: 2 sectors × 2 positions per side,
-    /// quarterly period. Every expected value below is derived line-by-line
-    /// in docs/superpowers/plans/2026-07-24-fi-benchmark-attribution.md.
+    /// quarterly period.
     fn golden_portfolio() -> Vec<FiPositionSnapshot> {
         vec![
             snap("GOVT", 0.30, 0.0155, 0.040, 5.0, 0.0, 0.0, -0.0010, 0.0),

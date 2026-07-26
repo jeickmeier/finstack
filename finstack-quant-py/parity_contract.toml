@@ -328,7 +328,7 @@ regulatory  = { python = "finstack_quant.margin", status = "flattened", note = "
 registry    = { python = "finstack_quant.margin.registry",    status = "missing" }
 traits      = { python = "finstack_quant.margin.traits",      status = "missing" }
 types       = { python = "finstack_quant.margin", status = "flattened", note = "CSA, collateral, netting, and enum wrappers exposed flat on finstack_quant.margin" }
-xva         = { python = "finstack_quant.margin", status = "flattened", note = "XVA config/result/netting container wrappers plus MVA (ImDecayProfile, ImProfile, MvaResult, compute_mva, im_profile_from_simm) exposed flat on finstack_quant.margin. PathValuer and PathImModel are Rust-only traits (not bindable)." }
+xva         = { python = "finstack_quant.margin", status = "flattened", note = "XVA config/result/netting container wrappers plus MVA (ImDecayProfile, ImProfile, MvaResult, compute_mva, im_profile_from_simm) and compute_bilateral_xva exposed flat on finstack_quant.margin. PathValuer and PathImModel are Rust-only traits (not bindable)." }
 
 [crates.margin.symbols]
 public = [
@@ -367,6 +367,7 @@ public = [
   "XvaConfig",
   "XvaNettingSet",
   "XvaResult",
+  "compute_bilateral_xva",
   "compute_mva",
   "frtb_sba_charge",
   "im_profile_from_simm",
@@ -381,6 +382,7 @@ symbols = [
   "csaEurRegulatory",
   "validateCsaJson",
   "calculateVm",
+  "computeBilateralXva",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1412,6 +1414,8 @@ discount_curve_members = ["id", "baseDate", "flat", "df", "zero", "forward"]
 discount_curve_optional_constructor_args = [
     "interp", "extrapolation", "dayCount", "validationMode", "forwardFloor",
 ]
+hazard_curve_members = ["id", "baseDate", "sp", "hazardRate"]
+hazard_curve_optional_constructor_args = ["recoveryRate", "dayCount"]
 forward_curve_members = ["id", "baseDate", "projectionGrid", "resetLag", "rate", "rateBetween"]
 forward_curve_optional_constructor_args = [
     "dayCount", "interp", "extrapolation", "projectionGrid", "resetLag",
@@ -1443,6 +1447,7 @@ root_exports = [
     "adjust",
     "availableCalendars",
     "DiscountCurve",
+    "HazardCurve",
     "ForwardCurve",
     "VolCube",
     "FxDeltaVolSurface",
@@ -1495,7 +1500,6 @@ python_only_market_data = [
     "arbitrage",
     "BaseCorrelationCurve",
     "CreditIndexData",
-    "HazardCurve",
     "InflationCurve",
     "PriceCurve",
     "VolSurface",

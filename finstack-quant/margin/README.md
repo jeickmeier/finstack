@@ -14,7 +14,7 @@ pulling the full instrument stack.
 - **Regulatory capital** — FRTB sensitivity-based approach and SA-CCR EAD
   (`regulatory::frtb`, `regulatory::sa_ccr`).
 - **XVA** — deterministic exposure roll-forward, ISDA-style netting/collateral
-  helpers, and CVA/DVA/FVA integration (`xva::{exposure,cva,netting,types}`).
+  helpers, and CVA/DVA/FVA/MVA integration (`xva::{exposure,cva,mva,netting,types}`).
 
 ## Public modules
 
@@ -26,7 +26,7 @@ pulling the full instrument stack.
 | `metrics` | IM/VM metrics plus utilization, excess collateral, funding cost, Haircut01 |
 | `regulatory` | FRTB SBA and SA-CCR engines |
 | `constants` | Shared heuristics |
-| `xva` | Deterministic exposure, netting, CVA/DVA/FVA, and shared XVA types |
+| `xva` | Deterministic exposure, netting, CVA/DVA/FVA/MVA, and shared XVA types |
 
 Registry JSON is embedded at build time. Overlays use the Finstack config
 extension key `valuations.margin_registry.v1`; the name is legacy-compatible,

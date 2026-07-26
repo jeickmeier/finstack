@@ -408,6 +408,7 @@ fn dts_documents_wasm_owned_handles_and_dispose_contract() {
         "Money ",
         "DayCount ",
         "DiscountCurve ",
+        "HazardCurve ",
         "ForwardCurve ",
         "VolCube ",
         "FxDeltaVolSurface ",

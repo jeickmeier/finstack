@@ -1,0 +1,144 @@
+/**
+ * Margin-namespace XVA facade runtime tests.
+ *
+ * Loads the public facade (`index.js` + `exports/margin.js` + `exports/core.js`),
+ * initializes the web-target wasm module from bytes, and exercises
+ * `margin.computeBilateralXva` end-to-end through the new `core.HazardCurve`.
+ *
+ * The zero-hazard fixture is byte-equivalent to the Rust integration test
+ * `toy_forward_valuer_path_im_flows_into_total_xva` and to
+ * `finstack-quant-py/tests/test_margin_mva.py::test_compute_bilateral_xva_aggregates_mva_into_total`,
+ * so the Rust, Python and WASM surfaces produce the same MVA figure
+ * (cross-language determinism).
+ *
+ * Requires the wasm-pack web build: npm run build (mise run wasm-build).
+ */
+
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PKG_DIR = join(__dirname, '..', '..', 'pkg');
+const WASM_BG = join(PKG_DIR, 'finstack_quant_wasm_bg.wasm');
+
+if (!existsSync(WASM_BG)) {
+  throw new Error(
+    `finstack-quant-wasm web build not found at ${WASM_BG}. Generate it with: npm run build`
+  );
+}
+
+const facade = await import('../../index.js');
+const init = facade.default;
+const { core, margin } = facade;
+
+await init({ module_or_path: readFileSync(WASM_BG) });
+
+// Flat DF = 1 out to 4y, so discounting is a no-op and the arithmetic is
+// hand-checkable.
+const flatDiscount = () =>
+  new core.DiscountCurve(
+    'USD-OIS',
+    '2025-01-01',
+    [0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 4.0, 1.0],
+    'log_linear'
+  );
+
+const flatHazard = (lambda) =>
+  new core.HazardCurve('HZ', '2025-01-01', [0.0, lambda, 30.0, lambda], 0.4);
+
+const exposureJson = JSON.stringify({
+  times: [1.0, 2.0],
+  mtm_values: [1e6, 1e6],
+  epe: [1e6, 1e6],
+  ene: [0.0, 0.0],
+});
+
+test('margin namespace exports computeBilateralXva as a live function', () => {
+  assert.equal(typeof margin.computeBilateralXva, 'function');
+});
+
+test('core namespace exports HazardCurve as a live constructor', () => {
+  assert.equal(typeof core.HazardCurve, 'function');
+  const hz = flatHazard(0.02);
+  assert.equal(hz.id, 'HZ');
+  assert.equal(hz.baseDate, '2025-01-01');
+  assert.ok(Math.abs(hz.recoveryRate - 0.4) < 1e-12);
+  // S(t) = exp(-0.02 t) for a flat 200bp intensity.
+  assert.ok(Math.abs(hz.sp(1.0) - Math.exp(-0.02)) < 1e-9);
+  assert.ok(Math.abs(hz.hazardRate(1.0) - 0.02) < 1e-9);
+});
+
+test('computeBilateralXva folds MVA into total_xva', () => {
+  const noDefault = flatHazard(0.0);
+  const result = margin.computeBilateralXva(
+    exposureJson,
+    noDefault,
+    noDefault,
+    flatDiscount(),
+    0.4,
+    0.4,
+    JSON.stringify({
+      funding_spread_bps: 50.0,
+      funding_benefit_bps: 30.0,
+      im_profile: { times: [1.0, 2.0], im_values: [1e6, 1e6] },
+    })
+  );
+
+  // Zero hazard ⇒ no credit legs; MVA is exactly the hand-checked 10_000
+  // (flat 1e6 IM, 50bp, DF = 1, grid [1, 2]) — same figure as Rust/Python.
+  assert.ok(Math.abs(result.cva) < 1e-12);
+  assert.ok(Math.abs(result.dva) < 1e-12);
+  assert.ok(Math.abs(result.mva - 10_000.0) < 1e-6);
+  assert.ok(result.fva > 0.0);
+  assert.ok(
+    Math.abs(result.total_xva - (result.cva - result.dva + result.fva + result.mva)) < 1e-9
+  );
+});
+
+test('computeBilateralXva omits uncomputed legs and keeps BCVA credit-only', () => {
+  const result = margin.computeBilateralXva(
+    exposureJson,
+    flatHazard(0.02),
+    flatHazard(0.03),
+    flatDiscount(),
+    0.4,
+    0.4
+  );
+
+  // Optional legs are skipped on the wire when not computed.
+  assert.equal(result.fva, undefined);
+  assert.equal(result.mva, undefined);
+  assert.ok(result.cva > 0.0);
+  assert.ok(Math.abs(result.bilateral_cva - (result.cva - result.dva)) < 1e-12);
+  // With no funding legs, the all-in total collapses onto BCVA.
+  assert.ok(Math.abs(result.total_xva - result.bilateral_cva) < 1e-12);
+});
+
+test('computeBilateralXva throws on an out-of-range recovery rate', () => {
+  assert.throws(() =>
+    margin.computeBilateralXva(
+      exposureJson,
+      flatHazard(0.02),
+      flatHazard(0.02),
+      flatDiscount(),
+      1.5,
+      0.4
+    )
+  );
+});
+
+test('computeBilateralXva throws on a malformed exposure payload', () => {
+  assert.throws(() =>
+    margin.computeBilateralXva(
+      '{"times":[1.0],"mtm_values":[1.0],"epe":[1.0,2.0],"ene":[0.0]}',
+      flatHazard(0.02),
+      flatHazard(0.02),
+      flatDiscount(),
+      0.4,
+      0.4
+    )
+  );
+});

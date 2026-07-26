@@ -14,6 +14,7 @@ export const core = {
   adjust: wasm.adjust,
   availableCalendars: wasm.availableCalendars,
   DiscountCurve: wasm.DiscountCurve,
+  HazardCurve: wasm.HazardCurve,
   ForwardCurve: wasm.ForwardCurve,
   VolCube: wasm.VolCube,
   FxDeltaVolSurface: wasm.FxDeltaVolSurface,

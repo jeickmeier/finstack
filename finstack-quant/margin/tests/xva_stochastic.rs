@@ -9,14 +9,20 @@
 //!   PFE₀.₉₇₅(1) = 100·exp(−0.02 + 0.2×1.959964) − 100 ≈ 45.06
 
 use finstack_quant_core::math::special_functions::norm_cdf;
+use finstack_quant_core::{
+    dates::Date,
+    market_data::term_structures::{DiscountCurve, HazardCurve},
+};
+use finstack_quant_margin::xva::cva::compute_bilateral_xva;
 use finstack_quant_margin::xva::exposure::compute_stochastic_exposure_with_valuer;
 use finstack_quant_margin::xva::mva::{compute_mva, ImDecayProfile, ScaledSimmDecayIm};
 use finstack_quant_margin::xva::traits::PathValuer;
 use finstack_quant_margin::xva::types::{
-    CsaTerms, StochasticExposureConfig, XvaConfig, XvaNettingSet,
+    CsaTerms, FundingConfig, StochasticExposureConfig, XvaConfig, XvaNettingSet,
 };
 use finstack_quant_monte_carlo::prelude::{ExactGbm, GbmProcess};
 use finstack_quant_monte_carlo::PathState;
+use time::Month;
 
 /// Toy path valuer: a forward contract on the simulated spot, `V = S_t − K`.
 struct ForwardValuer {
@@ -154,13 +160,9 @@ fn toy_forward_valuer_zero_vol_collapses_to_intrinsic() {
 }
 
 #[test]
-fn toy_forward_valuer_mpor_csa_and_path_im_to_mva() {
+fn toy_forward_valuer_mpor_csa_and_path_im_to_total_xva() {
     // Full pipeline: valuer → MPOR-collateralized exposure + per-path IM →
     // ImProfile → compute_mva, with hand-checkable MVA arithmetic.
-    use finstack_quant_core::dates::Date;
-    use finstack_quant_core::market_data::term_structures::DiscountCurve;
-    use time::Month;
-
     let process = GbmProcess::with_params(0.0, 0.0, 0.2).expect("valid GBM params");
     let discretization = ExactGbm::new();
     let stochastic = StochasticExposureConfig {
@@ -236,5 +238,52 @@ fn toy_forward_valuer_mpor_csa_and_path_im_to_mva() {
         (mva.mva - 10_000.0).abs() < 1e-6,
         "end-to-end MVA {} != 10_000",
         mva.mva
+    );
+
+    // Zero hazard on both legs ⇒ S ≡ 1, so the joint-survival weighting is a
+    // no-op and CVA and DVA are zero.
+    let no_default = HazardCurve::builder("NO-DEFAULT")
+        .base_date(base)
+        .knots([(0.0, 0.0), (30.0, 0.0)])
+        .build()
+        .expect("HazardCurve should build");
+
+    let funding = FundingConfig {
+        funding_spread_bps: 50.0,
+        funding_benefit_bps: Some(30.0),
+        im_profile: Some(im_profile),
+        margin_funding_spread_bps: None,
+    };
+
+    let result = compute_bilateral_xva(
+        &profile.profile,
+        &no_default,
+        &no_default,
+        &discount,
+        0.40,
+        0.40,
+        Some(&funding),
+    )
+    .expect("bilateral XVA should compute");
+
+    let dva = result.dva.expect("DVA");
+    let fva = result.fva.expect("FVA");
+    let mva = result.mva.expect("MVA must be aggregated, not dropped");
+    let total = result.total_xva.expect("total XVA");
+
+    assert!(
+        (mva - 10_000.0).abs() < 1e-6,
+        "aggregated MVA {mva} != 10_000"
+    );
+    assert!(
+        result.cva.abs() < 1e-12,
+        "zero hazard ⇒ zero CVA, got {}",
+        result.cva
+    );
+    assert!(dva.abs() < 1e-12, "zero hazard ⇒ zero DVA, got {dva}");
+    assert!(fva > 0.0, "uncollateralized EPE ⇒ positive FVA, got {fva}");
+    assert!(
+        (total - (result.cva - dva + fva + mva)).abs() < 1e-9,
+        "total_xva {total} != cva - dva + fva + mva"
     );
 }
