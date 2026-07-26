@@ -163,6 +163,8 @@ pub mod builder;
 pub(crate) mod dataframe;
 /// Error types for portfolio operations.
 pub mod error;
+/// Duration-cell base-return tables from a reference universe (Lehman App. B).
+pub mod excess_return;
 /// Factor-model portfolio risk decomposition outputs and engines.
 pub mod factor_model;
 /// Campisi-style benchmark-relative fixed-income attribution
@@ -237,6 +239,10 @@ pub use dataframe::{
     aggregated_metrics_to_table, entities_to_table, metrics_to_table, positions_to_table,
 };
 pub use dependencies::{flatten_dependencies, DependencyIndex, MarketFactorKey};
+pub use excess_return::{
+    cell_returns_from_reference, duration_cell_label, CellConfig, CellReturn, DurationCellTable,
+    ReferenceReturn,
+};
 pub use factor_model::{
     allocate_weights, validate_allocation_json, AllocationDiagnostics, AllocationScheme,
     StrategyAllocation, StrategyAllocationInput, WeightAllocationResult, WeightAllocationSpec,

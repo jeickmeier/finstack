@@ -499,6 +499,18 @@ risk calculation with a standard reference.
   multiplied by an empirically more stable relative spread volatility - risk
   and hedging surfaces, not ex-post attribution.
 
+<a id="dynkin-hyman-vankudre-1998"></a>
+
+### Dynkin Hyman Vankudre 1998
+
+- Dynkin, L., Hyman, J., and Vankudre, P. "Attribution of Portfolio
+  Performance Relative to an Index." Lehman Brothers Fixed Income Research,
+  March 1998. Appendix B source for bucketing a reference (e.g. Treasury)
+  universe into duration cells, averaging returns within each cell, and
+  interpolating/extrapolating empty cells - used by
+  `finstack-quant/portfolio/src/excess_return.rs` to build the duration-matched
+  base return curve for credit excess return calculations.
+
 <a id="fama-french-1993"></a>
 
 ### Fama French 1993
