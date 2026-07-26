@@ -780,4 +780,59 @@ mod tests {
             SpreadChangeMode::SpreadDuration
         ));
     }
+
+    /// With exact `spread` and `delta_spread` inputs, the DTS convention
+    /// −DTS·(Δs/s) is algebraically identical to −SD·Δs (Ben Dor et al.
+    /// 2007), so on all-positive-spread data both modes must agree to
+    /// floating-point round-off.
+    #[test]
+    fn dts_mode_matches_spread_duration_mode_on_positive_spreads() {
+        let portfolio = vec![
+            snap(
+                "CORP", 0.60, 0.0120, 0.060, 4.0, 3.8, 0.0150, -0.0010, 0.0020,
+            ),
+            snap("HY", 0.40, 0.0118, 0.070, 6.0, 5.5, 0.0250, -0.0010, 0.0020),
+        ];
+        let benchmark = vec![
+            snap(
+                "CORP", 0.50, 0.0090, 0.055, 5.0, 4.8, 0.0120, -0.0010, 0.0020,
+            ),
+            snap("HY", 0.50, 0.0100, 0.065, 7.0, 6.5, 0.0200, -0.0010, 0.0020),
+        ];
+
+        let sd_config = FiAttributionConfig::new(0.25);
+        let mut dts_config = FiAttributionConfig::new(0.25);
+        dts_config.spread_mode = SpreadChangeMode::Dts;
+
+        let sd = campisi_attribution(&portfolio, &benchmark, &sd_config).expect("sd mode");
+        let dts = campisi_attribution(&portfolio, &benchmark, &dts_config).expect("dts mode");
+
+        assert!((sd.total_active_spread - dts.total_active_spread).abs() < 1e-14);
+        assert!((sd.total_selection - dts.total_selection).abs() < 1e-14);
+        assert!(matches!(dts.spread_mode, SpreadChangeMode::Dts));
+        assert!(matches!(sd.spread_mode, SpreadChangeMode::SpreadDuration));
+        assert!(dts.reconciliation_check(1e-10).is_reconciled);
+    }
+
+    /// DTS mode must fail closed when a snapshot carries a non-zero spread
+    /// term but a non-positive spread — silently substituting zero would
+    /// misclassify spread P&L as selection.
+    #[test]
+    fn dts_mode_rejects_nonpositive_spread_with_nonzero_spread_term() {
+        let mut config = FiAttributionConfig::new(0.25);
+        config.spread_mode = SpreadChangeMode::Dts;
+        let portfolio = vec![snap("CORP", 1.0, 0.01, 0.05, 4.0, 3.8, 0.0, -0.001, 0.002)];
+        let benchmark = vec![snap(
+            "CORP", 1.0, 0.01, 0.05, 4.0, 3.8, 0.0100, -0.001, 0.002,
+        )];
+
+        let err = campisi_attribution(&portfolio, &benchmark, &config)
+            .expect_err("zero spread with non-zero SD×Δs must fail in DTS mode");
+        assert!(err.to_string().contains("DTS"), "{err}");
+
+        // Treasuries (SD = 0, Δs = 0) remain fine in DTS mode.
+        let portfolio_ok = vec![snap("GOVT", 1.0, 0.01, 0.04, 5.0, 0.0, 0.0, -0.001, 0.0)];
+        let benchmark_ok = vec![snap("GOVT", 1.0, 0.01, 0.04, 5.5, 0.0, 0.0, -0.001, 0.0)];
+        assert!(campisi_attribution(&portfolio_ok, &benchmark_ok, &config).is_ok());
+    }
 }
