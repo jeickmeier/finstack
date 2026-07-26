@@ -1,22 +1,32 @@
-//! Duration cell tables built from a reference (e.g. Treasury) universe.
+//! Duration cell tables giving a base-return curve for duration-matched
+//! credit excess return attribution.
 //!
-//! Implements the bucketing method of Dynkin, Hyman & Vankudre (1998),
-//! Appendix B, "Attribution of Portfolio Performance Relative to an Index":
-//! reference instruments (typically on-the-run Treasuries) are bucketed into
-//! fixed-width duration cells; a cell's base return is the **simple
-//! average** of the total returns of every reference instrument that falls
-//! in it ("calculate the average return of all Treasuries in that cell").
-//! Cells with no reference instrument are filled by linear interpolation
-//! between the nearest observed neighbours (interior gaps) or flat
-//! extrapolation from the nearest observed cell (leading/trailing gaps —
-//! matching Lehman's convention of extending the longest observed cell, e.g.
-//! `12.5+ = 1.16%`).
+//! There are two ways to build a [`DurationCellTable`]:
 //!
-//! This duration-cell base-return curve is the foundation for duration-matched
-//! credit excess returns: a credit position's excess return over its
-//! duration-matched Treasury (or swap) cell isolates the credit-specific
-//! component of performance from the general level/shape move of the base
-//! curve.
+//! 1. [`cell_returns_from_reference`] implements the bucketing method of
+//!    Dynkin, Hyman & Vankudre (1998), Appendix B, "Attribution of Portfolio
+//!    Performance Relative to an Index": reference instruments (typically
+//!    on-the-run Treasuries) are bucketed into fixed-width duration cells; a
+//!    cell's base return is the **simple average** of the total returns of
+//!    every reference instrument that falls in it ("calculate the average
+//!    return of all Treasuries in that cell"). Cells with no reference
+//!    instrument are filled by linear interpolation between the nearest
+//!    observed neighbours (interior gaps) or flat extrapolation from the
+//!    nearest observed cell (leading/trailing gaps — matching Lehman's
+//!    convention of extending the longest observed cell, e.g. `12.5+ =
+//!    1.16%`).
+//! 2. [`cell_returns_from_curves`] derives each cell's base return directly
+//!    from two curve snapshots (start- and end-of-period discount curves)
+//!    instead of averaging discrete reference returns: a hypothetical
+//!    zero-coupon position bought at the cell midpoint and revalued off the
+//!    end curve. This makes the base curve a caller choice (Treasury or
+//!    swap/OIS) rather than a hardcoded assumption, and every cell is
+//!    observed since a curve has a value at every queried point.
+//!
+//! Either table is the foundation for duration-matched credit excess
+//! returns: a credit position's excess return over its duration-matched
+//! Treasury (or swap) cell isolates the credit-specific component of
+//! performance from the general level/shape move of the base curve.
 //!
 //! # References
 //!
@@ -26,6 +36,7 @@
 //!   `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
 
 use crate::error::{Error, Result};
+use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use serde::{Deserialize, Serialize};
 
 /// Configuration for [`cell_returns_from_reference`].
@@ -118,6 +129,17 @@ pub fn duration_cell_label(lower: f64, upper: f64) -> String {
     format!("{lower:.1}-{upper:.1}")
 }
 
+/// Validate a [`CellConfig::width`], shared by [`cell_returns_from_reference`]
+/// and [`cell_returns_from_curves`].
+fn validate_width(width: f64) -> Result<()> {
+    if !width.is_finite() || width <= 0.0 {
+        return Err(Error::invalid_input(format!(
+            "CellConfig.width must be finite and positive (got {width})"
+        )));
+    }
+    Ok(())
+}
+
 /// Validate one reference instrument's fields.
 fn validate_reference(r: &ReferenceReturn, index: usize) -> Result<()> {
     if !r.duration.is_finite() || r.duration < 0.0 {
@@ -197,12 +219,7 @@ pub fn cell_returns_from_reference(
             "cell_returns_from_reference requires a non-empty reference universe",
         ));
     }
-    if !config.width.is_finite() || config.width <= 0.0 {
-        return Err(Error::invalid_input(format!(
-            "CellConfig.width must be finite and positive (got {})",
-            config.width
-        )));
-    }
+    validate_width(config.width)?;
     for (index, r) in reference.iter().enumerate() {
         validate_reference(r, index)?;
     }
@@ -251,6 +268,169 @@ pub fn cell_returns_from_reference(
             }
         })
         .collect();
+
+    check_label_collisions(&cells, width)?;
+
+    Ok(DurationCellTable {
+        base_label: base_label.to_string(),
+        cells,
+    })
+}
+
+/// Build a duration-cell base-return table from two curve snapshots (start
+/// and end of the holding period).
+///
+/// This is the second construction path for a [`DurationCellTable`]: instead
+/// of averaging returns from a reference universe (see
+/// [`cell_returns_from_reference`]), each cell's base return is the
+/// holding-period total return of a hypothetical zero-coupon position bought
+/// at the start of the period with maturity equal to the cell midpoint `d`,
+/// and revalued off the `end` curve after `horizon_years` have elapsed:
+///
+/// ```text
+/// R_cell(d) = df_end(d - Δt) / df_start(d) - 1,   Δt = horizon_years
+/// ```
+///
+/// The same formula works identically for a Treasury discount curve or a
+/// swap/OIS discount curve: the caller supplies whichever curves it wants and
+/// stamps the choice into `base_label` (e.g. `"UST"`, `"USD-SOFR"`) purely for
+/// policy visibility on [`DurationCellTable::base_label`] — it never affects
+/// the arithmetic. Every cell in the resulting table is
+/// [`CellReturn::observed`], because a curve supplies a discount factor at
+/// every queried midpoint; there are no gaps to interpolate or extrapolate
+/// (contrast with [`cell_returns_from_reference`], whose cells can be
+/// empty).
+///
+/// Cells are indexed by the zero's remaining maturity at period start, which
+/// is used as an approximation to Macaulay duration; this is exact for a
+/// zero-coupon position (its only cash flow is the redemption, so duration
+/// equals maturity) but is an approximation for coupon-bearing instruments in
+/// later stages that reuse this table.
+///
+/// # Arguments
+///
+/// * `start` - Discount curve observed at the start of the holding period.
+/// * `end` - Discount curve observed at the end of the holding period
+///   (`horizon_years` later).
+/// * `horizon_years` - Length of the holding period, in years. Must be finite
+///   and positive.
+/// * `max_duration` - Upper bound of the duration grid, in years. Must be
+///   finite and strictly greater than `horizon_years`, so that at least one
+///   cell's midpoint matures after the period ends.
+/// * `base_label` - Label identifying the base curve (e.g. `"UST"`,
+///   `"USD-SOFR"`), stamped into the result for policy visibility.
+/// * `config` - Cell width configuration.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] if `config.width` is not finite and
+/// positive, `horizon_years` is not finite and positive, `max_duration` is
+/// not finite or does not exceed `horizon_years`, any cell's midpoint `d`
+/// does not exceed `horizon_years` (the hypothetical zero would mature inside
+/// the holding period — the error names the offending cell), either curve
+/// produces a non-finite or non-positive discount factor at a queried time,
+/// or `config.width` produces colliding cell labels (see
+/// [`cell_returns_from_reference`]'s error documentation).
+///
+/// # Examples
+///
+/// ```rust
+/// use finstack_quant_portfolio::excess_return::{cell_returns_from_curves, CellConfig};
+/// use finstack_quant_core::market_data::term_structures::DiscountCurve;
+/// use finstack_quant_core::dates::Date;
+/// use time::Month;
+///
+/// let base = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+/// let start = DiscountCurve::builder("UST")
+///     .base_date(base)
+///     .knots([(0.0, 1.0), (0.5, 0.980_198_67), (1.5, 0.941_764_53)])
+///     .build()?;
+/// let end = DiscountCurve::builder("UST")
+///     .base_date(base)
+///     .knots([(0.0, 1.0), (0.25, 0.990_049_83), (1.25, 0.951_229_42)])
+///     .build()?;
+///
+/// let table = cell_returns_from_curves(
+///     &start, &end, 0.25, 2.0, "UST", &CellConfig { width: 1.0 },
+/// )?;
+/// assert_eq!(table.cells.len(), 2);
+/// assert!(table.cells.iter().all(|c| c.observed));
+/// # Ok::<(), finstack_quant_portfolio::Error>(())
+/// ```
+///
+/// # References
+///
+/// * Dynkin, L., Hyman, J., & Vankudre, P. (1998). "Attribution of Portfolio
+///   Performance Relative to an Index." Lehman Brothers Fixed Income
+///   Research, March 1998, Appendix B.
+///   `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
+pub fn cell_returns_from_curves(
+    start: &DiscountCurve,
+    end: &DiscountCurve,
+    horizon_years: f64,
+    max_duration: f64,
+    base_label: &str,
+    config: &CellConfig,
+) -> Result<DurationCellTable> {
+    validate_width(config.width)?;
+    if !horizon_years.is_finite() || horizon_years <= 0.0 {
+        return Err(Error::invalid_input(format!(
+            "horizon_years must be finite and positive (got {horizon_years})"
+        )));
+    }
+    if !max_duration.is_finite() || max_duration <= horizon_years {
+        return Err(Error::invalid_input(format!(
+            "max_duration must be finite and strictly greater than horizon_years \
+             ({horizon_years}) (got {max_duration})"
+        )));
+    }
+
+    let width = config.width;
+    let num_cells = ((max_duration / width).ceil() as usize).max(1);
+
+    let mut cells = Vec::with_capacity(num_cells);
+    for i in 0..num_cells {
+        #[allow(clippy::cast_precision_loss)]
+        let lower = i as f64 * width;
+        let upper = lower + width;
+        let mid = lower + width / 2.0;
+        let label = duration_cell_label(lower, upper);
+
+        if mid <= horizon_years {
+            return Err(Error::invalid_input(format!(
+                "duration cell \"{label}\" (midpoint {mid}) does not exceed horizon_years \
+                 ({horizon_years}): a zero-coupon position maturing at {mid} years would \
+                 mature inside the holding period"
+            )));
+        }
+
+        let start_t = mid;
+        let end_t = mid - horizon_years;
+        let df_start = start.df(start_t);
+        let df_end = end.df(end_t);
+        if !df_start.is_finite() || df_start <= 0.0 {
+            return Err(Error::invalid_input(format!(
+                "start curve '{}' produced a non-positive/non-finite discount factor \
+                 ({df_start}) at t={start_t} for duration cell \"{label}\"",
+                start.id()
+            )));
+        }
+        if !df_end.is_finite() || df_end <= 0.0 {
+            return Err(Error::invalid_input(format!(
+                "end curve '{}' produced a non-positive/non-finite discount factor \
+                 ({df_end}) at t={end_t} for duration cell \"{label}\"",
+                end.id()
+            )));
+        }
+
+        cells.push(CellReturn {
+            label,
+            lower,
+            upper,
+            base_return: df_end / df_start - 1.0,
+            observed: true,
+        });
+    }
 
     check_label_collisions(&cells, width)?;
 
@@ -342,6 +522,134 @@ fn fill_gaps(base_return: &mut [f64], observed: &[bool]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use time::macros::date;
+
+    /// Builds a [`DiscountCurve`] from exact `(t, df)` knots for curve-snapshot
+    /// tests. The brief's helper omitted `.base_date(..)`; `DiscountCurveBuilder::build`
+    /// requires a base date (`base: Option<Date>` starts `None` and `build()` errors
+    /// on `None`), so it is added here. `df(t)` reads knot times as year fractions
+    /// directly and never consults the base date, so the choice of date is
+    /// otherwise inert for these tests.
+    fn curve(id: &'static str, knots: &[(f64, f64)]) -> DiscountCurve {
+        DiscountCurve::builder(id)
+            .base_date(date!(2024 - 01 - 01))
+            .knots(knots.iter().copied())
+            .build()
+            .expect("curve")
+    }
+
+    #[test]
+    fn flat_curve_cell_returns_equal_pure_carry() {
+        // 4% flat, Δt = 0.25, width 1.0, max 2.0 => mids 0.5 and 1.5.
+        // R = e^{0.04·0.25} − 1 = 0.01005017 for every cell (carry only, no roll differential).
+        let knots = [
+            (0.0, 1.0),
+            (0.25, 0.99004983),
+            (0.5, 0.98019867),
+            (1.25, 0.95122942),
+            (1.5, 0.94176453),
+        ];
+        let start = curve("UST", &knots);
+        let end = curve("UST", &knots);
+        let table =
+            cell_returns_from_curves(&start, &end, 0.25, 2.0, "UST", &CellConfig { width: 1.0 })
+                .unwrap();
+        assert_eq!(table.cells.len(), 2);
+        for cell in &table.cells {
+            assert!(
+                (cell.base_return - 0.01005017).abs() < 1e-6,
+                "{}",
+                cell.base_return
+            );
+            assert!(cell.observed);
+        }
+    }
+
+    #[test]
+    fn rising_rates_hurt_the_longer_cell_more() {
+        // Start 4% flat, end 5% flat: R(0.5) = e^{−0.0125+0.02} − 1, R(1.5) = e^{−0.0625+0.06} − 1.
+        //
+        // Two corrections to the brief here, both verified with Python
+        // `decimal.Decimal.exp` at 50-digit precision:
+        //
+        // 1. The brief's second end-curve knot literal `(0.25, 0.98757805)` is
+        //    wrong: e^{-0.05*0.25} = e^{-0.0125} = 0.9875778004938814..., which
+        //    rounds to `0.98757780`, not `0.98757805` — a ~2.5e-7 error, not
+        //    just an 8th-decimal rounding artifact. Using the wrong knot as
+        //    written makes `df_end(0.25)` (and hence `R(0.5)`) numerically
+        //    wrong regardless of interpolation method, since the curve passes
+        //    through its own knots exactly. Fixed to `0.98757780` below (the
+        //    other three knots in this test were independently verified
+        //    correct to 8 decimals).
+        // 2. With the corrected knot, R(0.5) = 0.0075281983396..., not the
+        //    brief's `0.00752821` (off by ~1.46e-8, outside the brief's own
+        //    `1e-8` tolerance). R(1.5) = -0.0024968776025398..., which does
+        //    match the brief's `-0.00249688` within `1e-8`.
+        let start = curve("UST", &[(0.0, 1.0), (0.5, 0.98019867), (1.5, 0.94176453)]);
+        let end = curve("UST", &[(0.0, 1.0), (0.25, 0.98757780), (1.25, 0.93941306)]);
+        let table =
+            cell_returns_from_curves(&start, &end, 0.25, 2.0, "UST", &CellConfig { width: 1.0 })
+                .unwrap();
+        assert!((table.cells[0].base_return - 0.0075281983).abs() < 1e-8);
+        assert!((table.cells[1].base_return - (-0.00249688)).abs() < 1e-8);
+    }
+
+    #[test]
+    fn swap_curve_base_is_supported_via_label() {
+        let knots = [
+            (0.0, 1.0),
+            (0.25, 0.99004983),
+            (0.5, 0.98019867),
+            (1.25, 0.95122942),
+            (1.5, 0.94176453),
+        ];
+        let table = cell_returns_from_curves(
+            &curve("USD-SOFR", &knots),
+            &curve("USD-SOFR", &knots),
+            0.25,
+            2.0,
+            "USD-SOFR",
+            &CellConfig { width: 1.0 },
+        )
+        .unwrap();
+        assert_eq!(table.base_label, "USD-SOFR");
+    }
+
+    #[test]
+    fn cell_maturing_inside_period_is_rejected() {
+        let knots = [(0.0, 1.0), (0.25, 0.99004983), (0.5, 0.98019867)];
+        // width 0.25 => first mid 0.125 < Δt 0.25 => error naming the cell
+        let err = cell_returns_from_curves(
+            &curve("UST", &knots),
+            &curve("UST", &knots),
+            0.25,
+            0.5,
+            "UST",
+            &CellConfig { width: 0.25 },
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("0.0-0.2") || err.to_string().contains("matures"),
+            "{err}"
+        );
+    }
+
+    // NOTE on the Task 1 carried finding (trailing flat extrapolation through
+    // a public API): `cell_returns_from_curves` does not close this gap.
+    // Every cell it produces is `observed: true` by construction — a curve
+    // supplies a discount factor at every queried midpoint, so there is
+    // nothing to interpolate or extrapolate (see the module-level ambiguity
+    // note and this task's report for the full reasoning). And
+    // `cell_returns_from_reference` still cannot reach the trailing branch
+    // either: `num_cells = ceil(max_duration / width)` is derived from the
+    // *largest reference duration itself*, so the top cell always contains
+    // that duration and is always observed — there is no parameter that lets
+    // a caller extend the grid past the data, by design (see that function's
+    // doc comment: "there is no separate range parameter in this stage").
+    // The gap remains covered only by the direct `fill_gaps` unit test
+    // (`fill_gaps_extrapolates_leading_and_trailing_flat` above); closing it
+    // through a public API would require a future stage to add an explicit
+    // upper-bound parameter to `cell_returns_from_reference` itself.
 
     #[test]
     fn cell_table_interpolates_interior_and_extrapolates_ends() {
