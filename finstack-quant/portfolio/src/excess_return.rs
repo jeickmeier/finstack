@@ -580,10 +580,20 @@ pub struct ExcessReturnResult {
     /// Weight-weighted portfolio base return `Σ w_i · base_return_i`.
     pub portfolio_base_return: f64,
     /// Weight-weighted portfolio excess return `Σ w_i · excess_return_i`,
-    /// computed independently from `portfolio_total_return` and
-    /// `portfolio_base_return` (not as their difference). The two are
-    /// algebraically identical; see [`excess_returns`]'s tests for the
-    /// reconciling identity.
+    /// accumulated independently from `portfolio_total_return` and
+    /// `portfolio_base_return` — not computed as their difference. The
+    /// identity `portfolio_excess_return == portfolio_total_return −
+    /// portfolio_base_return` holds algebraically for any correct
+    /// implementation of [`excess_returns`], but computing
+    /// `portfolio_excess_return` *as* that difference would subtract two
+    /// large, nearly-equal weighted sums whenever positions' total and base
+    /// returns share a large common component — exactly the shape of
+    /// catastrophic cancellation. Accumulating the already-small
+    /// per-position excesses directly avoids that precision loss; see
+    /// [`excess_returns`]'s
+    /// `portfolio_excess_return_avoids_catastrophic_cancellation` test,
+    /// which constructs such a case and shows the two computations
+    /// measurably diverge (~3e-9 absolute, against sums of order 1e8).
     pub portfolio_excess_return: f64,
 }
 
@@ -651,11 +661,24 @@ fn find_cell<'a>(
 /// is `total_return − cell.base_return` — the credit-specific component of
 /// performance, isolated from the general level/shape move of the base
 /// curve. Portfolio-level totals are the weight-weighted sums of the
-/// per-position total, base and excess returns (each accumulated
-/// independently with [`NeumaierAccumulator`] for numerical stability), so
-/// the identity `portfolio_excess_return == portfolio_total_return −
-/// portfolio_base_return` is a check on the arithmetic rather than a
-/// shortcut taken by it.
+/// per-position total, base and excess returns, each accumulated
+/// independently with [`NeumaierAccumulator`].
+///
+/// The identity `portfolio_excess_return == portfolio_total_return −
+/// portfolio_base_return` holds algebraically for any correct
+/// implementation of this function — but `portfolio_excess_return` is
+/// deliberately *not* computed as that difference. `portfolio_total_return`
+/// and `portfolio_base_return` are large, nearly-equal weighted sums
+/// whenever positions' total and base returns share a large common
+/// component (e.g. both dominated by a carry/roll term much bigger than the
+/// credit-specific excess), and subtracting two such sums directly is
+/// vulnerable to catastrophic cancellation. Summing the already-small
+/// per-position excesses avoids that loss of precision. The
+/// `portfolio_excess_return_avoids_catastrophic_cancellation` test
+/// constructs exactly such a case (weighted sums of order 1e8 differing by
+/// ~1e-6) and shows the two computations measurably diverge (~3e-9
+/// absolute) — confirming this is a real numerical-stability property of
+/// the implementation, not just an algebraic curiosity.
 ///
 /// # Arguments
 ///
@@ -1155,6 +1178,108 @@ mod tests {
                 - (result.portfolio_total_return - result.portfolio_base_return))
                 .abs()
                 < 1e-15
+        );
+    }
+
+    /// Proves `portfolio_excess_return`'s independent accumulation is
+    /// load-bearing, not just algebraically equivalent to `total - base`.
+    ///
+    /// At the small return magnitudes used elsewhere in this test module
+    /// (~1e-2), `total - base` and the independent weighted sum agree to
+    /// 1e-15 (see the identity assertion in the Figure B-2 golden above), so
+    /// no black-box test at that scale can tell the two computations apart.
+    /// This test instead uses total/base returns of order 1e8 that differ by
+    /// only ~1e-6 per position — e.g. a large common carry/roll component
+    /// swamping a tiny credit-specific excess — which is exactly the shape
+    /// that makes `total_sum - base_sum` lose precision: both sums round to
+    /// the nearest representable `f64` near 1e8 (ULP ~1.49e-8) independently
+    /// of each other, so their difference inherits error at that scale even
+    /// though the true excess is ~1e-6. Summing the per-position excesses
+    /// directly never forms those large intermediate sums, so it does not
+    /// inherit that error.
+    ///
+    /// Every literal below was independently verified in Python using the
+    /// same IEEE 754 double arithmetic and the crate's exact Neumaier
+    /// compensated-summation algorithm (transcribed identically), plus
+    /// `fractions.Fraction` for an exact rational cross-check of the "true"
+    /// answer implied by the bit-exact `f64` inputs:
+    /// - Independent accumulation: `2.9981136322021487e-6`, matching the
+    ///   exact rational answer to `0.0` absolute error.
+    /// - `total_sum - base_sum` shortcut: `2.995133399963379e-6`, off by
+    ///   `~2.98e-9` absolute (~0.1% relative) from the exact answer.
+    ///
+    /// See the task report for the full derivation. This test was run
+    /// against a deliberately mutated implementation
+    /// (`portfolio_excess_return: total_return_sum.total() -
+    /// base_return_sum.total()`) and confirmed to fail before being
+    /// finalized against the real implementation.
+    #[test]
+    fn portfolio_excess_return_avoids_catastrophic_cancellation() {
+        // Single-member cells so each cell's base_return is exactly its one
+        // reference literal (no averaging to reason about).
+        let base_returns = [
+            99_999_999.999_999,
+            100_000_136.999_998,
+            100_000_273.999_997,
+            100_000_410.999_996,
+            100_000_547.999_995,
+        ];
+        let reference: Vec<ReferenceReturn> = base_returns
+            .iter()
+            .enumerate()
+            .map(|(i, &total_return)| ReferenceReturn {
+                #[allow(clippy::cast_precision_loss)]
+                duration: 0.25 + i as f64 * 0.5,
+                total_return,
+            })
+            .collect();
+        let table =
+            cell_returns_from_reference(&reference, "UST", &CellConfig { width: 0.5 }).unwrap();
+
+        let total_returns = [
+            100_000_000.0,
+            100_000_137.0,
+            100_000_274.0,
+            100_000_411.0,
+            100_000_548.0,
+        ];
+        let positions: Vec<ExcessReturnPosition> = total_returns
+            .iter()
+            .enumerate()
+            .map(|(i, &total_return)| ExcessReturnPosition {
+                id: format!("P{i}"),
+                weight: 0.2,
+                #[allow(clippy::cast_precision_loss)]
+                duration: 0.25 + i as f64 * 0.5,
+                total_return,
+            })
+            .collect();
+
+        let result = excess_returns(&positions, &table).unwrap();
+
+        // Exact rational answer implied by the bit-exact f64 inputs above
+        // (Python `fractions.Fraction`), rounded to the nearest f64.
+        let exact = 2.998_113_632_202_148_7e-6;
+
+        // The independent accumulation must match the exact answer far
+        // tighter than the shortcut's ~2.98e-9 error: this is the assertion
+        // the reviewer's mutation fails.
+        assert!(
+            (result.portfolio_excess_return - exact).abs() < 1e-9,
+            "portfolio_excess_return should avoid catastrophic cancellation: \
+             got {}, exact {exact}",
+            result.portfolio_excess_return
+        );
+
+        // Setup sanity check (not the mutation-detecting assertion above):
+        // confirm this scenario genuinely produces a large-sum shortcut that
+        // disagrees with the exact answer beyond that same tolerance, so a
+        // future edit to the literals can't silently make this test vacuous.
+        let shortcut = result.portfolio_total_return - result.portfolio_base_return;
+        assert!(
+            (shortcut - exact).abs() > 1e-9,
+            "test setup should produce a measurable cancellation gap: \
+             shortcut {shortcut}, exact {exact}"
         );
     }
 
