@@ -68,6 +68,16 @@ pub struct CellReturn {
     /// Cell lower bound (inclusive), in years.
     pub lower: f64,
     /// Cell upper bound (exclusive), in years.
+    ///
+    /// One exception: the *top* cell (the cell containing the largest
+    /// reference duration) folds a reference instrument whose duration is
+    /// numerically equal to `upper` into this cell instead of raising `upper`
+    /// to start a new, empty cell. This only happens for the single top cell
+    /// of the table, and only when the largest reference duration is an
+    /// exact multiple of the configured cell width (e.g. a duration of
+    /// `2.0` with `width = 0.5` is folded into the `1.5-2.0` cell rather
+    /// than opening an empty `2.0-2.5` cell). Every other cell boundary is
+    /// strictly half-open.
     pub upper: f64,
     /// Cell base return: simple average of member reference returns, or
     /// interpolated/extrapolated when the cell has no members.
@@ -142,6 +152,11 @@ fn validate_reference(r: &ReferenceReturn, index: usize) -> Result<()> {
 /// Open-ended top cells (e.g. Lehman's `12.5+`) are not supported: the grid
 /// always has a fixed upper bound derived from the data.
 ///
+/// The top cell (the one containing the largest reference duration) is
+/// therefore always [`CellReturn::observed`]; when that largest duration is
+/// an exact multiple of `config.width`, the top cell folds it in rather than
+/// opening a new empty cell above it — see the note on [`CellReturn::upper`].
+///
 /// # Arguments
 ///
 /// * `reference` - Reference universe returns; must be non-empty.
@@ -151,8 +166,11 @@ fn validate_reference(r: &ReferenceReturn, index: usize) -> Result<()> {
 /// # Errors
 ///
 /// Returns [`Error::InvalidInput`] if `reference` is empty, `config.width`
-/// is not finite and positive, or any reference entry has a non-finite
-/// `total_return` or a non-finite/negative `duration`.
+/// is not finite and positive, any reference entry has a non-finite
+/// `total_return` or a non-finite/negative `duration`, or `config.width`
+/// produces two numerically distinct cells that format to the same
+/// `"{lower:.1}-{upper:.1}"` label (e.g. `width = 0.03`) — labels must stay
+/// unique because downstream lookups key cells by label.
 ///
 /// # Examples
 ///
@@ -219,7 +237,7 @@ pub fn cell_returns_from_reference(
 
     fill_gaps(&mut base_return, &observed);
 
-    let cells = (0..num_cells)
+    let cells: Vec<CellReturn> = (0..num_cells)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
             let lower = i as f64 * width;
@@ -234,10 +252,39 @@ pub fn cell_returns_from_reference(
         })
         .collect();
 
+    check_label_collisions(&cells, width)?;
+
     Ok(DurationCellTable {
         base_label: base_label.to_string(),
         cells,
     })
+}
+
+/// Reject a `config.width` that makes two numerically distinct cells format
+/// to the same `"{lower:.1}-{upper:.1}"` label.
+///
+/// Downstream stages (duration-matched excess return, grid attribution) look
+/// up a position's base return by cell *label*, so a collision would
+/// silently map two different duration buckets to whichever cell happened to
+/// be inserted last, mis-pricing the excess return for one of them. Widths
+/// that are multiples of `0.05` (and in particular of `0.1`) never collide;
+/// finer widths such as `0.03` can, because `"{:.1}"` throws away
+/// distinctions below one tenth of a year.
+fn check_label_collisions(cells: &[CellReturn], width: f64) -> Result<()> {
+    let mut seen: std::collections::HashSet<&str> =
+        std::collections::HashSet::with_capacity(cells.len());
+    for cell in cells {
+        if !seen.insert(cell.label.as_str()) {
+            return Err(Error::invalid_input(format!(
+                "CellConfig.width {width} produces ambiguous duration cell labels at \
+                 one-decimal precision: cell [{:.6}, {:.6}) collides with an earlier, \
+                 numerically distinct cell on label \"{}\". Choose a width (e.g. a multiple \
+                 of 0.1) whose \"{{lower:.1}}-{{upper:.1}}\" labels stay unique.",
+                cell.lower, cell.upper, cell.label
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Fill unobserved entries of `base_return` in place: interior gaps by
@@ -323,6 +370,76 @@ mod tests {
         assert_eq!(table.base_label, "UST");
     }
 
+    /// Leading flat extrapolation through the public API: the smallest
+    /// reference duration lands strictly above cell 0, so cells before it
+    /// have no members and must flat-equal the first observed cell.
+    ///
+    /// Note there is no equivalent trailing case reachable through this
+    /// function: `num_cells` is derived from the *largest* reference
+    /// duration (`ceil(max_duration / width)`), so the top cell always
+    /// contains that duration and is therefore always observed by
+    /// construction. Trailing extrapolation is still real code, reachable
+    /// once a future stage adds an explicit upper-bound parameter that can
+    /// exceed the observed maximum; the
+    /// `fill_gaps_extrapolates_leading_and_trailing_flat` test below
+    /// exercises it directly against the internal `fill_gaps` helper.
+    #[test]
+    fn cell_table_extrapolates_leading_cells_flat() {
+        let reference = vec![
+            ReferenceReturn {
+                duration: 1.25, // cell 2 of a 0.5-wide grid: [1.0, 1.5)
+                total_return: 0.02,
+            },
+            ReferenceReturn {
+                duration: 2.25, // top cell: [2.0, 2.5)
+                total_return: 0.05,
+            },
+        ];
+        let table = cell_returns_from_reference(&reference, "UST", &CellConfig { width: 0.5 })
+            .expect("valid reference");
+        assert_eq!(table.cells.len(), 5);
+        // Cells 0 and 1 are leading gaps below the first observed cell (2).
+        assert_eq!(
+            table.cells[0].base_return, 0.02,
+            "cell 0 must flat-extrapolate from the first observed cell"
+        );
+        assert!(!table.cells[0].observed);
+        assert_eq!(
+            table.cells[1].base_return, 0.02,
+            "cell 1 must flat-extrapolate from the first observed cell"
+        );
+        assert!(!table.cells[1].observed);
+        assert!(table.cells[2].observed);
+    }
+
+    /// Directly exercises both flat-extrapolation branches of the internal
+    /// `fill_gaps` helper (leading *and* trailing), which
+    /// `cell_table_extrapolates_leading_cells_flat` above cannot reach on the
+    /// trailing side alone (see that test's doc comment for why). Mirrors
+    /// the reviewer's "cells 2 and 4 of a 6-cell grid" construction: with
+    /// observed cells at index 2 and 4, cells 0-1 must flat-equal cell 2's
+    /// value and cell 5 must flat-equal cell 4's value.
+    #[test]
+    fn fill_gaps_extrapolates_leading_and_trailing_flat() {
+        let mut base_return = vec![0.0, 0.0, 0.03, 0.0, 0.07, 0.0];
+        let observed = [false, false, true, false, true, false];
+        fill_gaps(&mut base_return, &observed);
+        assert_eq!(
+            base_return[0], 0.03,
+            "leading cell 0 must flat-equal cell 2"
+        );
+        assert_eq!(
+            base_return[1], 0.03,
+            "leading cell 1 must flat-equal cell 2"
+        );
+        assert_eq!(base_return[2], 0.03, "observed cell 2 must be unchanged");
+        assert_eq!(base_return[4], 0.07, "observed cell 4 must be unchanged");
+        assert_eq!(
+            base_return[5], 0.07,
+            "trailing cell 5 must flat-equal cell 4"
+        );
+    }
+
     #[test]
     fn cell_table_averages_multiple_instruments_per_cell() {
         let reference = vec![
@@ -358,5 +475,45 @@ mod tests {
             total_return: f64::NAN,
         }];
         assert!(cell_returns_from_reference(&nan, "UST", &CellConfig { width: 0.5 }).is_err());
+    }
+
+    /// `width = 0.03` makes distinct cells (e.g. `[0.06, 0.09)` and
+    /// `[0.09, 0.12)`) both format to the label `"0.1-0.1"` under
+    /// `"{lower:.1}-{upper:.1}"`. Since downstream stages look positions up
+    /// by label, this must fail closed rather than silently colliding.
+    #[test]
+    fn cell_table_rejects_colliding_width_labels() {
+        let reference = vec![ReferenceReturn {
+            duration: 0.1,
+            total_return: 0.01,
+        }];
+        let err = cell_returns_from_reference(&reference, "UST", &CellConfig { width: 0.03 })
+            .expect_err("width=0.03 must be rejected: labels collide at one-decimal precision");
+        let message = err.to_string();
+        assert!(message.contains("0.03"), "must name the width: {message}");
+        assert!(
+            message.contains("0.1-0.1"),
+            "must name the colliding label: {message}"
+        );
+    }
+
+    /// Widths that are multiples of `0.1` (the plan-mandated widths used by
+    /// this task and Task 2) must keep passing the collision check.
+    #[test]
+    fn cell_table_accepts_legitimate_widths() {
+        let reference = vec![
+            ReferenceReturn {
+                duration: 0.25,
+                total_return: 0.01,
+            },
+            ReferenceReturn {
+                duration: 2.25,
+                total_return: 0.05,
+            },
+        ];
+        assert!(cell_returns_from_reference(&reference, "UST", &CellConfig { width: 0.5 }).is_ok());
+        assert!(
+            cell_returns_from_reference(&reference, "UST", &CellConfig { width: 0.25 }).is_ok()
+        );
     }
 }
