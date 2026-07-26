@@ -979,6 +979,7 @@ dataframe    = { python = "finstack_quant.portfolio.dataframe",    status = "mis
 dependencies = { python = "finstack_quant.portfolio.dependencies", status = "missing" }
 error        = { python = "finstack_quant.portfolio.error",        status = "missing" }
 factor_model = { python = "finstack_quant.portfolio",              status = "flattened", note = "Result types (RiskDecomposition, PositionRiskDecomposition, RiskBudgetResult, WhatIfResult, StressResult, StressAttribution, FactorAssignmentReport, CreditVolReport, VolHorizon, DecompositionConfig, ...) plus allocation/risk functions (allocate_weights, validate_allocation_json, parametric/historical_var_decomposition_typed, evaluate_risk_budget_typed) are exported flat on finstack_quant.portfolio; engine/builder types remain Rust-only for now" }
+fi_attribution = { python = "finstack_quant.portfolio",            status = "flattened", note = "Campisi fixed-income benchmark attribution (campisi_attribution, campisi_carino_link) is exported flat on finstack_quant.portfolio; snapshot_from_position_metrics and typed results remain Rust-only" }
 grouping     = { python = "finstack_quant.portfolio.grouping",     status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
 margin       = { python = "finstack_quant.portfolio.margin",       status = "missing", note = "Portfolio margin helpers are not materialized as a dedicated submodule" }
 metrics      = { python = "finstack_quant.portfolio.metrics",      status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
@@ -1057,6 +1058,8 @@ public = [
   "build_credit_vol_report",
   "build_portfolio_from_spec",
   "build_stress_attribution",
+  "campisi_attribution",
+  "campisi_carino_link",
   "carino_link",
   "compute_factor_sensitivities",
   "compute_pnl_profiles",
@@ -1203,6 +1206,10 @@ python_only = [
   "attribute_portfolio_pnl",
   "build_credit_vol_report",
   "build_stress_attribution",
+  # Campisi fixed-income attribution is Python-only for now; the WASM facade
+  # has no fixed-income attribution surface yet.
+  "campisi_attribution",
+  "campisi_carino_link",
   "evaluate_risk_budget_typed",
   "factor_stress",
   "historical_var_decomposition_typed",

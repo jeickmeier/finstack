@@ -475,6 +475,23 @@ risk calculation with a standard reference.
 - Carino, D. R. "Combining Attribution Effects Over Time." Multi-period
   linking for Brinson-style attribution.
 
+<a id="campisi-2000"></a>
+
+### Campisi 2000
+
+- Campisi, S. "Primer on Fixed Income Performance Attribution." *Journal of
+  Portfolio Management*, 26(4), 14-25. Canonical carry / treasury / spread /
+  selection decomposition for fixed-income attribution.
+
+<a id="ben-dor-2007-dts"></a>
+
+### Ben Dor 2007 DTS
+
+- Ben Dor, A., Dynkin, L., Hyman, J., Houweling, P., van Leeuwen, E., and
+  Penninga, O. "DTS (Duration Times Spread)." *Journal of Portfolio
+  Management*, 33(2), 77-100. Basis for the relative-spread-change convention
+  in Campisi spread attribution.
+
 <a id="fama-french-1993"></a>
 
 ### Fama French 1993

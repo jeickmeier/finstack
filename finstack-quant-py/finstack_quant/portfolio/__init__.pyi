@@ -43,6 +43,8 @@ __all__ = [
     "build_credit_vol_report",
     "build_portfolio_from_spec",
     "build_stress_attribution",
+    "campisi_attribution",
+    "campisi_carino_link",
     "carino_link",
     "days_to_liquidate",
     "evaluate_risk_budget",
@@ -2033,6 +2035,90 @@ def carino_link(periods_json: str) -> str:
     --------
     >>> from finstack_quant.portfolio import carino_link
     >>> linked_json = carino_link(periods_json)  # doctest: +SKIP
+    """
+    ...
+
+def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: str) -> str:
+    """
+    Compute single-period Campisi fixed-income benchmark attribution.
+
+    Parameters
+    ----------
+    portfolio_json : str
+        JSON array of ``FiPositionSnapshot`` objects with ``sector``,
+        ``weight``, ``total_return``, ``yield_annual``, ``modified_duration``,
+        ``spread_duration``, ``spread``, ``delta_treasury_yield``, and
+        ``delta_spread`` fields (decimals; durations in years). Unknown fields
+        are rejected and weights must sum to one.
+    benchmark_json : str
+        JSON array of ``FiPositionSnapshot`` objects for the benchmark.
+    config_json : str
+        JSON object with ``period_years`` (e.g. ``0.25``) and ``spread_mode``
+        (``"spread_duration"`` or ``"dts"``). Both fields are required.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiAttributionResult``. ``result["sectors"]`` is a
+        flat records array: ``pd.DataFrame(json.loads(result)["sectors"])``
+        yields the sector x component table directly.
+
+    Raises
+    ------
+    PortfolioError
+        If weights do not sum to one, inputs are non-finite, ``period_years``
+        is not finite and positive, either side is empty, or DTS mode receives
+        a non-positive spread with a non-zero spread term.
+    ValueError
+        If any JSON argument is malformed.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#campisi-2000`` and
+    ``docs/REFERENCES.md#ben-dor-2007-dts``.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import campisi_attribution
+    >>> result_json = campisi_attribution(portfolio_json, benchmark_json, config_json)  # doctest: +SKIP
+    """
+    ...
+
+def campisi_carino_link(periods_json: str, config_json: str) -> str:
+    """
+    Compute Carino-linked multi-period Campisi attribution from period JSON.
+
+    Parameters
+    ----------
+    periods_json : str
+        JSON array of period objects, each with ``portfolio`` and
+        ``benchmark`` arrays of ``FiPositionSnapshot`` (same schema as
+        :func:`campisi_attribution`).
+    config_json : str
+        JSON ``FiAttributionConfig`` shared across periods.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FiCarinoLinkedResult`` whose five linked totals sum
+        to the geometrically compounded active return.
+
+    Raises
+    ------
+    PortfolioError
+        If ``periods_json`` is empty, any period fails Campisi validation, or
+        sector orderings or spread modes differ across periods.
+    ValueError
+        If any JSON argument is malformed.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#carino-1999``.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import campisi_carino_link
+    >>> linked_json = campisi_carino_link(periods_json, config_json)  # doctest: +SKIP
     """
     ...
 
