@@ -37,7 +37,12 @@
 
 use crate::error::{Error, Result};
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
+use finstack_quant_core::math::summation::NeumaierAccumulator;
 use serde::{Deserialize, Serialize};
+
+/// Absolute tolerance for the position-weight-sums-to-one check in
+/// [`excess_returns`], matching [`crate::fi_attribution`]'s convention.
+const WEIGHT_TOLERANCE: f64 = 1e-6;
 
 /// Configuration for [`cell_returns_from_reference`].
 ///
@@ -519,6 +524,234 @@ fn fill_gaps(base_return: &mut [f64], observed: &[bool]) {
     }
 }
 
+/// One position's beginning-of-period duration, weight and realized total
+/// return, the input to [`excess_returns`].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExcessReturnPosition {
+    /// Position identifier, used to name the position in any validation
+    /// error and echoed onto the matching [`PositionExcess::id`].
+    pub id: String,
+    /// Portfolio weight (decimal, e.g. `0.2` = 20%). Across all positions
+    /// passed to [`excess_returns`] these must sum to `1.0` within
+    /// [`WEIGHT_TOLERANCE`]. Must be finite.
+    pub weight: f64,
+    /// Beginning-of-period duration in years, used to look up the
+    /// duration-matched cell in the [`DurationCellTable`]. Must be finite,
+    /// non-negative, and fall within the table's covered range
+    /// `[0, cells.last().upper]`.
+    pub duration: f64,
+    /// Realized period total return (decimal, e.g. `0.0225` = 2.25%). Must
+    /// be finite.
+    pub total_return: f64,
+}
+
+/// One position's duration-matched credit excess return.
+///
+/// This type is *input-reachable*: the Python/WASM bindings deserialize
+/// [`ExcessReturnResult`] (which embeds a `Vec` of these) from JSON, so it
+/// denies unknown fields like the other inbound types in this module.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PositionExcess {
+    /// Position identifier (mirrors [`ExcessReturnPosition::id`]).
+    pub id: String,
+    /// Label of the duration cell the position was matched to (mirrors
+    /// [`CellReturn::label`]).
+    pub cell: String,
+    /// The matched cell's base return.
+    pub base_return: f64,
+    /// `total_return − base_return` for this position.
+    pub excess_return: f64,
+}
+
+/// Per-position and portfolio-level duration-matched credit excess return
+/// result, produced by [`excess_returns`].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExcessReturnResult {
+    /// Label of the base curve the excess returns were measured against
+    /// (mirrors [`DurationCellTable::base_label`]).
+    pub base_label: String,
+    /// Per-position results, in input order.
+    pub positions: Vec<PositionExcess>,
+    /// Weight-weighted portfolio total return `Σ w_i · total_return_i`.
+    pub portfolio_total_return: f64,
+    /// Weight-weighted portfolio base return `Σ w_i · base_return_i`.
+    pub portfolio_base_return: f64,
+    /// Weight-weighted portfolio excess return `Σ w_i · excess_return_i`,
+    /// computed independently from `portfolio_total_return` and
+    /// `portfolio_base_return` (not as their difference). The two are
+    /// algebraically identical; see [`excess_returns`]'s tests for the
+    /// reconciling identity.
+    pub portfolio_excess_return: f64,
+}
+
+/// Validate one [`ExcessReturnPosition`]'s numeric fields.
+fn validate_position(p: &ExcessReturnPosition) -> Result<()> {
+    if !p.weight.is_finite() {
+        return Err(Error::invalid_input(format!(
+            "position '{}' weight must be finite (got {})",
+            p.id, p.weight
+        )));
+    }
+    if !p.duration.is_finite() || p.duration < 0.0 {
+        return Err(Error::invalid_input(format!(
+            "position '{}' duration must be finite and non-negative (got {})",
+            p.id, p.duration
+        )));
+    }
+    if !p.total_return.is_finite() {
+        return Err(Error::invalid_input(format!(
+            "position '{}' total_return must be finite (got {})",
+            p.id, p.total_return
+        )));
+    }
+    Ok(())
+}
+
+/// Find the [`CellReturn`] whose duration range contains `duration`.
+///
+/// Cells are half-open `[lower, upper)`, except the table's last cell, which
+/// is closed `[lower, upper]` — mirroring the inclusive-top-cell convention
+/// documented on [`CellReturn::upper`], so a position sitting exactly at the
+/// table's outer edge is not spuriously rejected.
+fn find_cell<'a>(
+    duration: f64,
+    table: &'a DurationCellTable,
+    position_id: &str,
+) -> Result<&'a CellReturn> {
+    let last_index = table.cells.len().saturating_sub(1);
+    for (index, cell) in table.cells.iter().enumerate() {
+        let in_range = if index == last_index {
+            duration >= cell.lower && duration <= cell.upper
+        } else {
+            duration >= cell.lower && duration < cell.upper
+        };
+        if in_range {
+            return Ok(cell);
+        }
+    }
+    let (lower, upper) = (
+        table.cells.first().map_or(0.0, |c| c.lower),
+        table.cells.last().map_or(0.0, |c| c.upper),
+    );
+    Err(Error::invalid_input(format!(
+        "position '{position_id}' duration {duration} falls outside the duration cell \
+         table's covered range [{lower:.6}, {upper:.6}]"
+    )))
+}
+
+/// Compute duration-matched credit excess returns for a set of positions
+/// against a [`DurationCellTable`] base curve.
+///
+/// Implements the position-level application of Dynkin, Hyman & Vankudre
+/// (1998), Appendix B: each position's beginning-of-period `duration` is
+/// mapped to its duration cell in `table`, and the position's excess return
+/// is `total_return − cell.base_return` — the credit-specific component of
+/// performance, isolated from the general level/shape move of the base
+/// curve. Portfolio-level totals are the weight-weighted sums of the
+/// per-position total, base and excess returns (each accumulated
+/// independently with [`NeumaierAccumulator`] for numerical stability), so
+/// the identity `portfolio_excess_return == portfolio_total_return −
+/// portfolio_base_return` is a check on the arithmetic rather than a
+/// shortcut taken by it.
+///
+/// # Arguments
+///
+/// * `positions` - Positions to attribute; weights must sum to `1.0` within
+///   [`WEIGHT_TOLERANCE`].
+/// * `table` - Duration-cell base-return curve to match positions against
+///   (see [`cell_returns_from_reference`] or [`cell_returns_from_curves`]).
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] if `table` has no cells, any position has
+/// a non-finite `weight`/`total_return` or a non-finite/negative `duration`,
+/// any position's `duration` falls outside `table`'s covered range (the
+/// error names the position by `id`), or the position weights do not sum to
+/// `1.0` within [`WEIGHT_TOLERANCE`].
+///
+/// # Examples
+///
+/// ```rust
+/// use finstack_quant_portfolio::excess_return::{
+///     cell_returns_from_reference, excess_returns, CellConfig, ExcessReturnPosition,
+///     ReferenceReturn,
+/// };
+///
+/// let reference = vec![
+///     ReferenceReturn { duration: 0.25, total_return: 0.01 },
+///     ReferenceReturn { duration: 2.25, total_return: 0.05 },
+/// ];
+/// let table = cell_returns_from_reference(&reference, "UST", &CellConfig { width: 0.5 })?;
+/// let positions = vec![ExcessReturnPosition {
+///     id: "Bond1".into(),
+///     weight: 1.0,
+///     duration: 0.4,
+///     total_return: 0.02,
+/// }];
+/// let result = excess_returns(&positions, &table)?;
+/// assert!((result.positions[0].excess_return - 0.01).abs() < 1e-12);
+/// # Ok::<(), finstack_quant_portfolio::Error>(())
+/// ```
+///
+/// # References
+///
+/// * Dynkin, L., Hyman, J., & Vankudre, P. (1998). "Attribution of Portfolio
+///   Performance Relative to an Index." Lehman Brothers Fixed Income
+///   Research, March 1998, Appendix B.
+///   `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
+pub fn excess_returns(
+    positions: &[ExcessReturnPosition],
+    table: &DurationCellTable,
+) -> Result<ExcessReturnResult> {
+    if table.cells.is_empty() {
+        return Err(Error::invalid_input(
+            "excess_returns requires a DurationCellTable with at least one cell",
+        ));
+    }
+
+    let mut weight_sum = NeumaierAccumulator::new();
+    let mut total_return_sum = NeumaierAccumulator::new();
+    let mut base_return_sum = NeumaierAccumulator::new();
+    let mut excess_return_sum = NeumaierAccumulator::new();
+    let mut position_results = Vec::with_capacity(positions.len());
+
+    for p in positions {
+        validate_position(p)?;
+        let cell = find_cell(p.duration, table, &p.id)?;
+        let excess = p.total_return - cell.base_return;
+
+        weight_sum.add(p.weight);
+        total_return_sum.add(p.weight * p.total_return);
+        base_return_sum.add(p.weight * cell.base_return);
+        excess_return_sum.add(p.weight * excess);
+
+        position_results.push(PositionExcess {
+            id: p.id.clone(),
+            cell: cell.label.clone(),
+            base_return: cell.base_return,
+            excess_return: excess,
+        });
+    }
+
+    let total_weight = weight_sum.total();
+    if (total_weight - 1.0).abs() > WEIGHT_TOLERANCE {
+        return Err(Error::invalid_input(format!(
+            "position weights must sum to 1.0 (got {total_weight})"
+        )));
+    }
+
+    Ok(ExcessReturnResult {
+        base_label: table.base_label.clone(),
+        positions: position_results,
+        portfolio_total_return: total_return_sum.total(),
+        portfolio_base_return: base_return_sum.total(),
+        portfolio_excess_return: excess_return_sum.total(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -823,5 +1056,182 @@ mod tests {
         assert!(
             cell_returns_from_reference(&reference, "UST", &CellConfig { width: 0.25 }).is_ok()
         );
+    }
+
+    /// Populated cells of Lehman Figure B-1 (May 1997 Treasury returns by
+    /// duration), percent/100. Empty cells 7.5-9.0 and 12.5+ are deliberately
+    /// omitted — interpolation/extrapolation is covered by Task 1's own tests.
+    fn lehman_b1_table() -> DurationCellTable {
+        let cells: &[(f64, f64)] = &[
+            (0.25, 0.0054),
+            (0.75, 0.0059),
+            (1.25, 0.0066),
+            (1.75, 0.0071),
+            (2.25, 0.0073),
+            (2.75, 0.0075),
+            (3.25, 0.0078),
+            (3.75, 0.0078),
+            (4.25, 0.0080),
+            (4.75, 0.0092),
+            (5.25, 0.0097),
+            (5.75, 0.0103),
+            (6.25, 0.0111),
+            (6.75, 0.0105),
+            (7.25, 0.0105),
+            (9.25, 0.0110),
+            (9.75, 0.0111),
+            (10.25, 0.0111),
+            (10.75, 0.0115),
+            (11.25, 0.0118),
+            (11.75, 0.0121),
+            (12.25, 0.0116),
+        ];
+        let reference: Vec<ReferenceReturn> = cells
+            .iter()
+            .map(|&(duration, total_return)| ReferenceReturn {
+                duration,
+                total_return,
+            })
+            .collect();
+        cell_returns_from_reference(&reference, "UST", &CellConfig { width: 0.5 }).unwrap()
+    }
+
+    /// Reproduces Dynkin, Hyman & Vankudre (1998), Figure B-2 exactly: five
+    /// real bonds, five published excess returns. Independently re-derived
+    /// (see task report) with Python at full precision; the brief's values
+    /// match the arithmetic exactly, so this asserts at `1e-12`.
+    #[test]
+    fn lehman_figure_b2_excess_returns_reproduce_exactly() {
+        let table = lehman_b1_table();
+        let positions = vec![
+            ExcessReturnPosition {
+                id: "Colombia".into(),
+                weight: 0.2,
+                duration: 5.16,
+                total_return: 0.0225,
+            },
+            ExcessReturnPosition {
+                id: "RiteAid".into(),
+                weight: 0.2,
+                duration: 6.71,
+                total_return: 0.0172,
+            },
+            ExcessReturnPosition {
+                id: "NewsAM".into(),
+                weight: 0.2,
+                duration: 9.58,
+                total_return: 0.0182,
+            },
+            ExcessReturnPosition {
+                id: "Delta".into(),
+                weight: 0.2,
+                duration: 9.81,
+                total_return: 0.0102,
+            },
+            ExcessReturnPosition {
+                id: "Quebec".into(),
+                weight: 0.2,
+                duration: 11.08,
+                total_return: 0.0185,
+            },
+        ];
+        let result = excess_returns(&positions, &table).unwrap();
+        let expected = [0.0128, 0.0067, 0.0071, -0.0009, 0.0067]; // Figure B-2, exact
+        for (got, want) in result.positions.iter().zip(expected) {
+            assert!(
+                (got.excess_return - want).abs() < 1e-12,
+                "{}: {} vs {want}",
+                got.id,
+                got.excess_return
+            );
+        }
+        assert_eq!(result.positions[0].cell, "5.0-5.5");
+        assert!((result.portfolio_excess_return - 0.00648).abs() < 1e-12); // 0.2 * Sum(excess)
+        assert!((result.portfolio_total_return - 0.01732).abs() < 1e-12);
+        assert!((result.portfolio_base_return - 0.01084).abs() < 1e-12);
+        // Identity: excess === total - base, computed independently.
+        assert!(
+            (result.portfolio_excess_return
+                - (result.portfolio_total_return - result.portfolio_base_return))
+                .abs()
+                < 1e-15
+        );
+    }
+
+    #[test]
+    fn excess_returns_validation() {
+        let table = lehman_b1_table();
+        // duration beyond table
+        let far = vec![ExcessReturnPosition {
+            id: "X".into(),
+            weight: 1.0,
+            duration: 99.0,
+            total_return: 0.01,
+        }];
+        let err = excess_returns(&far, &table).unwrap_err();
+        assert!(err.to_string().contains('X'), "{err}");
+        // weight tolerance pinned both directions
+        let mk = |w: f64| {
+            vec![ExcessReturnPosition {
+                id: "A".into(),
+                weight: w,
+                duration: 1.0,
+                total_return: 0.01,
+            }]
+        };
+        assert!(excess_returns(&mk(1.0 + 5e-7), &table).is_ok());
+        assert!(excess_returns(&mk(1.0 + 2e-6), &table).is_err());
+    }
+
+    /// Serialize -> deserialize round-trip for [`ExcessReturnResult`].
+    ///
+    /// Float fields are compared with a tight tolerance rather than
+    /// `assert_eq!`: this workspace's `serde_json` dependency does not enable
+    /// the `float_roundtrip` cargo feature, so JSON float parsing is
+    /// documented as "best-effort precision," not bit-exact — independently
+    /// confirmed here by round-tripping `0.0225 - 0.0097` (`0.01279999999999999888`)
+    /// through `serde_json`, which comes back as `0.01280000000000000061`, one
+    /// ULP off. That is a `serde_json` parser characteristic, not a defect in
+    /// this module, so the test tolerates it instead of masking it with
+    /// `float_roundtrip`.
+    #[test]
+    fn excess_return_result_serde_round_trip() {
+        let table = lehman_b1_table();
+        let positions = vec![ExcessReturnPosition {
+            id: "Colombia".into(),
+            weight: 1.0,
+            duration: 5.16,
+            total_return: 0.0225,
+        }];
+        let result = excess_returns(&positions, &table).unwrap();
+        let json = serde_json::to_string(&result).unwrap();
+        let round_tripped: ExcessReturnResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(round_tripped.base_label, result.base_label);
+        assert_eq!(round_tripped.positions.len(), result.positions.len());
+        assert_eq!(round_tripped.positions[0].id, result.positions[0].id);
+        assert_eq!(round_tripped.positions[0].cell, result.positions[0].cell);
+        assert!(
+            (round_tripped.positions[0].base_return - result.positions[0].base_return).abs()
+                < 1e-12
+        );
+        assert!(
+            (round_tripped.positions[0].excess_return - result.positions[0].excess_return).abs()
+                < 1e-12
+        );
+        assert!(
+            (round_tripped.portfolio_total_return - result.portfolio_total_return).abs() < 1e-12
+        );
+        assert!((round_tripped.portfolio_base_return - result.portfolio_base_return).abs() < 1e-12);
+        assert!(
+            (round_tripped.portfolio_excess_return - result.portfolio_excess_return).abs() < 1e-12
+        );
+    }
+
+    #[test]
+    fn excess_return_position_denies_unknown_fields() {
+        let json =
+            r#"{"id": "A", "weight": 1.0, "duration": 1.0, "total_return": 0.01, "extra": 1}"#;
+        let result: std::result::Result<ExcessReturnPosition, _> = serde_json::from_str(json);
+        assert!(result.is_err());
     }
 }

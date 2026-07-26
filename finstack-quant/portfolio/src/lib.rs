@@ -240,8 +240,9 @@ pub use dataframe::{
 };
 pub use dependencies::{flatten_dependencies, DependencyIndex, MarketFactorKey};
 pub use excess_return::{
-    cell_returns_from_curves, cell_returns_from_reference, duration_cell_label, CellConfig,
-    CellReturn, DurationCellTable, ReferenceReturn,
+    cell_returns_from_curves, cell_returns_from_reference, duration_cell_label, excess_returns,
+    CellConfig, CellReturn, DurationCellTable, ExcessReturnPosition, ExcessReturnResult,
+    PositionExcess, ReferenceReturn,
 };
 pub use factor_model::{
     allocate_weights, validate_allocation_json, AllocationDiagnostics, AllocationScheme,
