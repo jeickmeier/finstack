@@ -24,6 +24,14 @@ stability contract and schema-version policy.
   `ewma`.
 
 ### Changed
+- **`compute_exposure_profile` now models MPOR gap risk under a CSA.** For
+  netting sets whose CSA has `mpor_days > 0` and whose portfolio value moves
+  over the exposure horizon, collateral at time `t` is now lagged to the
+  (interpolated) net portfolio value at `t − mpor_days/365` — following
+  Andersen, Pykhtin & Sokol (2017) — instead of being computed against the
+  current-time exposure. Collateralized EPE/ENE for those profiles is now
+  larger (correctly gap-risk-inclusive) than before. Profiles with
+  `mpor_days == 0`, no CSA, or constant exposure are numerically unchanged.
 - **`CovenantForecastConfig` stochastic forecasting now does what it says.**
   `num_paths > 0` runs path-consistent Monte Carlo simulation instead of
   silently falling back to the closed-form analytic calculation; `num_paths ==
@@ -32,6 +40,31 @@ stability contract and schema-version policy.
   analytic-only behavior.
 
 ### Added
+- **Margin Valuation Adjustment (MVA)** (`finstack_quant_margin::xva::mva`,
+  also exposed to Python as `finstack_quant.margin.{compute_mva,
+  im_profile_from_simm, ImDecayProfile, ImProfile, MvaResult}`): funding cost
+  of posting initial margin, `MVA = ∫ λ_B(t)·E[IM(t)]·DF(t)·S(t) dt` via
+  trapezoid quadrature. `im_profile_from_simm` builds `E[IM(t)]` by decaying
+  today's ISDA SIMM number (`ImDecayProfile::{Constant, LinearToMaturity,
+  SqrtTime}`); `compute_mva` integrates it against a funding spread curve, a
+  discount curve, and an optional bank survival curve (Green 2015 ch. 10).
+- **Path-consistent stochastic exposure** (`finstack_quant_margin::xva`):
+  `compute_stochastic_exposure_profile` is now `pub` (previously
+  `#[cfg(test)] pub(crate)`), and a new `compute_stochastic_exposure_with_valuer`
+  entry point reprices the actual portfolio on simulated Monte Carlo paths
+  through the new Rust-only `PathValuer` trait (implemented by the caller or
+  the valuations crate, since `margin` cannot depend on `valuations`),
+  applying close-out netting, MPOR-lagged CSA collateral, and quantile PFE per
+  path. The companion `PathImModel` trait (default impl `ScaledSimmDecayIm`)
+  carries per-path initial margin into a new `StochasticExposureProfile.im_profile`
+  field (additive, `#[serde(default)]`) for phase-2 (path-based) MVA.
+  `finstack-quant-monte-carlo` is now a real (non-dev) dependency of `margin`.
+- **MPOR-lagged CSA collateral helpers**
+  (`finstack_quant_margin::xva::netting::{apply_collateral_mpor,
+  apply_variation_margin_mpor}`): model margin-period-of-risk gap risk by
+  computing collateral held at `t` against the exposure observed at
+  `t − mpor_days/365` (Andersen, Pykhtin & Sokol 2017), rather than assuming
+  instantaneous collateral response.
 - **CECL WARM methodology** (`CeclConfig.warm_annual_loss_rate`,
   `CeclMethodology::Warm`): undiscounted weighted-average remaining maturity
   loss-rate method per the FASB 2019 CECL practical expedient.

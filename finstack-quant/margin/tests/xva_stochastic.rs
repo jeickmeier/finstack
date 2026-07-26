@@ -76,6 +76,16 @@ fn toy_forward_valuer_matches_analytic_epe_and_pfe() {
     .expect("profile should compute");
 
     // EPE(1) analytic: S₀(2Φ(σ/2) − 1) with σ√t = 0.2 at t = 1.
+    //
+    // Blind spot: at this ATM/driftless parametrization (K = S₀, r = q = 0),
+    // put-call parity makes E[(S−K)⁺] = E[(K−S)⁺] exactly, so this EPE
+    // assertion ALONE cannot distinguish a correct EPE/ENE aggregation from
+    // one with the two swapped — a mutation test confirmed that swapping the
+    // EPE/ENE formula in `aggregate_stochastic_profile` is caught only by the
+    // PFE assertion below and by `toy_forward_valuer_zero_vol_collapses_to_intrinsic`'s
+    // `ene ≈ 0` check. Do not remove those two checks in the name of
+    // "simplifying" this test — they are the only things actually
+    // discriminating EPE from ENE here.
     let epe_analytic = s0 * (2.0 * norm_cdf(sigma / 2.0) - 1.0); // = 7.96556746
     let epe_mc = profile.profile.epe[1];
     assert!(
@@ -91,11 +101,18 @@ fn toy_forward_valuer_matches_analytic_epe_and_pfe() {
     );
 
     // PFE(1) analytic: lognormal 97.5% quantile of (S₁ − K)⁺.
+    //
+    // Tolerance: empirically SE(PFE) ≈ 0.303 at 65,536 paths (~0.67%
+    // relative to the ≈45.06 analytic value), so a 3% relative band is
+    // ~4.5 standard errors — comparable validation weight to the EPE band
+    // above (~3.9 SE). Do not widen this band to paper over an unrelated
+    // failure; if it flakes, the seed or path count changed, or there is a
+    // real regression.
     let z = 1.959_963_985;
     let pfe_analytic = s0 * (-0.5 * sigma * sigma + sigma * z).exp() - s0; // ≈ 45.06
     let pfe_mc = profile.pfe_profile[1];
     assert!(
-        (pfe_mc - pfe_analytic).abs() / pfe_analytic < 0.05,
+        (pfe_mc - pfe_analytic).abs() / pfe_analytic < 0.03,
         "PFE(1) MC {pfe_mc} vs analytic {pfe_analytic}"
     );
 
@@ -197,6 +214,15 @@ fn toy_forward_valuer_mpor_csa_and_path_im_to_mva() {
 
     // MVA at flat 50bp, DF = 1, no survival:
     //   grid [1, 2] ⇒ MVA = 0.005 × 1e6 × (1 + 1) = 10_000 exactly.
+    //
+    // Coverage limit: the IM profile here is perfectly flat (ScaledSimmDecayIm
+    // with ImDecayProfile::Constant), so every quadrature rule that integrates
+    // a constant exactly (trapezoid, midpoint, Simpson, ...) reproduces the
+    // same 10_000. This test validates units/discounting/wiring end-to-end but
+    // cannot discriminate `compute_mva`'s trapezoidal rule from another
+    // reasonable one; `mva_linear_decay_profile` and
+    // `mva_interpolates_spread_curve` in `xva/mva.rs` are what actually pin
+    // the trapezoid convention on non-constant inputs.
     let base = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
     let discount = DiscountCurve::builder("USD-OIS")
         .base_date(base)

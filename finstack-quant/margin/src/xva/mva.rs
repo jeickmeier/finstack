@@ -12,13 +12,14 @@
 //! and `S(t)` the bank's survival probability (optional; `S ≡ 1` when omitted).
 //!
 //! Phase 1 builds `E[IM(t)]` deterministically from the current ISDA SIMM
-//! number and a decay profile ([`im_profile_from_simm`]) — the standard
-//! practitioner approximation. Phase 2 carries per-path IM through the
-//! stochastic exposure engine via [`PathImModel`].
+//! number and a decay profile ([`im_profile_from_simm`](crate::xva::mva::im_profile_from_simm))
+//! — the standard practitioner approximation. Phase 2 carries per-path IM
+//! through the stochastic exposure engine via
+//! [`PathImModel`](crate::xva::mva::PathImModel).
 //!
 //! # Integration convention
 //!
-//! [`compute_mva`] uses the same midpoint/trapezoid style as the CVA engine
+//! [`compute_mva`](crate::xva::mva::compute_mva) uses the same midpoint/trapezoid style as the CVA engine
 //! (`xva::cva`): per bucket `[tᵢ₋₁, tᵢ]` it multiplies bucket-midpoint values
 //! of spread, IM, DF, and survival by `Δt`. IM is treated as flat
 //! (left-constant) before the first grid point; include a small first grid

@@ -142,8 +142,16 @@ fn collateral_held(exposure: f64, csa: &CsaTerms) -> f64 {
 /// net(t) = max(E(t) − C(t) − IA, 0)                  (residual exposure)
 /// ```
 ///
-/// With `exposure_at_lag == exposure_now` (i.e. `δ = 0`) this reduces exactly
-/// to [`apply_collateral`].
+/// With `exposure_at_lag == exposure_now` (i.e. `δ = 0`) this is algebraically
+/// and numerically equivalent to [`apply_collateral`] — same formula, same
+/// result to the tolerances tested in `mpor_zero_lag_reduces_to_apply_collateral`
+/// below. It is not guaranteed **bit-identical**: the two functions evaluate a
+/// different sequence of floating-point operations (this one goes through
+/// `collateral_held`'s separate subtraction), so results can diverge in the
+/// last few ULPs at extreme exposure/threshold ratios (empirically, around
+/// `1e20:1`). Callers doing exact bitwise comparisons against
+/// [`apply_collateral`] should not rely on δ = 0 producing an identical bit
+/// pattern.
 ///
 /// # Arguments
 ///

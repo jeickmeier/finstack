@@ -1235,6 +1235,76 @@ mod tests {
     }
 
     #[test]
+    fn mpor_lag_produces_gap_risk_on_declining_exposure() {
+        // Mirror of `mpor_lag_produces_gap_risk_on_growing_exposure`, but with
+        // a DECLINING net portfolio value (negative slope), which drives the
+        // ENE/DVA side of `compute_exposure_profile` instead of EPE. The only
+        // other ENE assertion among these tests is the trivial "all ≈ 0" in
+        // the growing-exposure test above; this test hand-computes nonzero
+        // expected ENE values to actually exercise
+        // `apply_variation_margin_mpor`'s lag interpolation.
+        //
+        // Zero-threshold/zero-MTA/zero-IA CSA with 10-day MPOR.
+        //
+        // Exposure grid (ACT/365F day rounding, half-up):
+        //   t1 = 0.25 → 91 days  → V1 = -1000 × 91/365  = -249.31506849315068
+        //   t2 = 0.50 → 183 days → V2 = -1000 × 183/365 = -501.36986301369863
+        //   V(0) anchor = 0
+        //   δ = 10/365 = 0.0273972602739726 years
+        //
+        // -V(t) is piecewise linear on {0, t1, t2} and mirrors the growing
+        // case exactly (same magnitudes, opposite sign), so the same closed
+        // forms apply to ENE:
+        //   ene(t1) = |V1|·δ/t1          = 27.322199 (≈ 27.32219929)
+        //   ene(t2) = (|V2|−|V1|)·δ/0.25 = 27.622443 (≈ 27.62244325)
+        // and EPE is ≈ 0 throughout (portfolio value never goes positive).
+        let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
+        let instruments: Vec<Arc<dyn Valuable>> = vec![Arc::new(GrowingInstrument {
+            id: "DECLINE".into(),
+            slope_per_year: -1000.0,
+        })];
+        let market = MarketContext::new();
+        let config = XvaConfig {
+            time_grid: vec![0.25, 0.5],
+            recovery_rate: 0.40,
+            own_recovery_rate: None,
+            funding: None,
+        };
+        let csa = CsaTerms {
+            threshold: 0.0,
+            mta: 0.0,
+            mpor_days: 10,
+            independent_amount: 0.0,
+        };
+        let netting_set = XvaNettingSet {
+            id: "NS-MPOR-DECLINE".into(),
+            counterparty_id: "CP".into(),
+            csa: Some(csa),
+            reporting_currency: None,
+        };
+
+        let profile = compute_exposure_profile(&instruments, &market, as_of, &config, &netting_set)
+            .expect("profile should compute");
+
+        let e1 = 1000.0 * 91.0 / 365.0;
+        let e2 = 1000.0 * 183.0 / 365.0;
+        let lag = 10.0 / 365.0;
+        let expected1 = e1 * lag / 0.25;
+        let expected2 = (e2 - e1) * lag / 0.25;
+        assert!(
+            (profile.ene[0] - expected1).abs() < 1e-9,
+            "ene[0]={} expected {expected1}",
+            profile.ene[0]
+        );
+        assert!(
+            (profile.ene[1] - expected2).abs() < 1e-9,
+            "ene[1]={} expected {expected2}",
+            profile.ene[1]
+        );
+        assert!(profile.epe.iter().all(|&v| v.abs() < 1e-12));
+    }
+
+    #[test]
     fn mpor_zero_days_matches_classic_collateral_on_growing_exposure() {
         // Same setup with mpor_days = 0: the lagged exposure equals the current
         // exposure, so a zero-threshold CSA fully collateralizes (EPE = 0),
