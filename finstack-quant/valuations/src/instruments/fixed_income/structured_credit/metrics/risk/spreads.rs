@@ -282,11 +282,17 @@ impl MetricCalculator for Cs01Calculator {
     }
 }
 
-/// Calculates spread duration for structured credit.
+/// Calculates spread duration from CS01.
 ///
 /// Spread duration measures the percentage change in price for a 1 % change
 /// in spread, expressed in years; it converts CS01 into a duration-like
 /// metric.
+///
+/// The calculation is instrument-agnostic — it reads only
+/// [`MetricId::Cs01`] and the context's base NPV — so it is registered for
+/// [`InstrumentType::Bond`] as well as the structured-credit types.
+///
+/// [`InstrumentType::Bond`]: crate::instruments::InstrumentType::Bond
 ///
 /// # Formula
 ///

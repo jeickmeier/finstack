@@ -157,6 +157,16 @@ pub struct FiPositionSnapshot {
 /// moves — are not valuation metrics and must be supplied by the caller (e.g.
 /// from performance data and curve marks).
 ///
+/// # Instrument coverage
+///
+/// `"spread_duration"` is registered for `InstrumentType::Bond` and the
+/// structured-credit instrument types (CLO/ABS/RMBS/CMBS tranches). It is
+/// derived from CS01 (`-CS01 / (NPV × 1bp)`), so the position must have been
+/// priced with `MetricId::Cs01` available; requesting `MetricId::SpreadDuration`
+/// pulls that dependency in automatically. Instrument types without a
+/// registered CS01 — swaps, options, equities — cannot supply this helper's
+/// inputs, and the returned error names the missing metric.
+///
 /// # Arguments
 ///
 /// * `metrics` - Per-position metrics from [`crate::metrics::aggregate_metrics`]
@@ -1208,6 +1218,12 @@ mod tests {
         assert!((snap.spread - 0.0150).abs() < 1e-15);
         assert!((snap.weight - 0.30).abs() < 1e-15);
         assert!((snap.total_return - 0.0120).abs() < 1e-15);
+        // `delta_treasury_yield` and `delta_spread` are adjacent bare `f64`
+        // parameters; without these two assertions a transposition in the
+        // struct literal silently reassigns return between the treasury and
+        // spread effects while the Campisi identity still reconciles.
+        assert!((snap.delta_treasury_yield - (-0.0010)).abs() < 1e-15);
+        assert!((snap.delta_spread - 0.0020).abs() < 1e-15);
     }
 
     #[test]
@@ -1227,5 +1243,41 @@ mod tests {
         )
         .expect_err("missing metrics must be named");
         assert!(err.to_string().contains("ytm"), "{err}");
+    }
+
+    /// The empty-map case above cannot distinguish a message that interpolates
+    /// the missing ID from one that hardcodes `"ytm"`, because `"ytm"` is the
+    /// first metric checked. Supply every fixed metric and let only the
+    /// caller-chosen spread metric be absent, so the message must name *that*
+    /// ID.
+    #[test]
+    fn snapshot_from_position_metrics_names_missing_spread_metric() {
+        let mut metrics = indexmap::IndexMap::new();
+        metrics.insert("ytm".to_string(), 0.060);
+        metrics.insert("duration_mod".to_string(), 4.0);
+        metrics.insert("spread_duration".to_string(), 3.8);
+        let position_metrics = crate::metrics::PositionMetrics {
+            currency: finstack_quant_core::currency::Currency::USD,
+            metrics,
+        };
+        let err = snapshot_from_position_metrics(
+            &position_metrics,
+            "CORP",
+            0.30,
+            0.0120,
+            -0.0010,
+            0.0020,
+            "oas",
+        )
+        .expect_err("absent spread metric must be named");
+        let message = err.to_string();
+        assert!(
+            message.contains("oas"),
+            "error must name the absent spread metric, got: {message}"
+        );
+        assert!(
+            !message.contains("ytm"),
+            "error must not name a metric that is present, got: {message}"
+        );
     }
 }
