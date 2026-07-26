@@ -328,7 +328,7 @@ regulatory  = { python = "finstack_quant.margin", status = "flattened", note = "
 registry    = { python = "finstack_quant.margin.registry",    status = "missing" }
 traits      = { python = "finstack_quant.margin.traits",      status = "missing" }
 types       = { python = "finstack_quant.margin", status = "flattened", note = "CSA, collateral, netting, and enum wrappers exposed flat on finstack_quant.margin" }
-xva         = { python = "finstack_quant.margin", status = "flattened", note = "XVA config/result/netting container wrappers exposed flat on finstack_quant.margin" }
+xva         = { python = "finstack_quant.margin", status = "flattened", note = "XVA config/result/netting container wrappers plus MVA (ImDecayProfile, ImProfile, MvaResult, compute_mva, im_profile_from_simm) exposed flat on finstack_quant.margin. PathValuer and PathImModel are Rust-only traits (not bindable)." }
 
 [crates.margin.symbols]
 public = [
@@ -346,12 +346,15 @@ public = [
   "FundingConfig",
   "HaircutImCalculator",
   "Haircut01",
+  "ImDecayProfile",
   "ImMethodology",
+  "ImProfile",
   "ImResult",
   "MarginCallType",
   "MarginFundingCost",
   "MarginTenor",
   "MarginUtilization",
+  "MvaResult",
   "NettingSetId",
   "SaCcrEngine",
   "SaCcrNettingSetConfig",
@@ -364,7 +367,9 @@ public = [
   "XvaConfig",
   "XvaNettingSet",
   "XvaResult",
+  "compute_mva",
   "frtb_sba_charge",
+  "im_profile_from_simm",
   "saccr_ead",
 ]
 

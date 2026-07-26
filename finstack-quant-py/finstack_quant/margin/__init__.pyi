@@ -18,6 +18,8 @@ from typing import Any, Final
 
 import pandas as pd
 
+from finstack_quant.core.market_data import DiscountCurve, HazardCurve
+
 __all__ = [
     "ImMethodology",
     "MarginTenor",
@@ -42,6 +44,11 @@ __all__ = [
     "XvaResult",
     "CsaTerms",
     "XvaNettingSet",
+    "ImDecayProfile",
+    "ImProfile",
+    "MvaResult",
+    "compute_mva",
+    "im_profile_from_simm",
     "MarginUtilization",
     "ExcessCollateral",
     "MarginFundingCost",
@@ -3536,6 +3543,487 @@ class XvaNettingSet:
 
     def __repr__(self) -> str: ...
 
+class ImDecayProfile:
+    """
+    Deterministic IM decay profile for MVA (Green 2015, ch. 10).
+
+    Approximates the expected initial-margin path ``E[IM(t)] = IM(0) *
+    factor(t)`` used by :func:`im_profile_from_simm`. Constructed via the
+    static factories below; there is no direct constructor.
+
+    Parameters
+    ----------
+    (Use ``constant()``, ``linear_to_maturity()``, or ``sqrt_time()``.)
+
+    Returns
+    -------
+    ImDecayProfile
+        Decay profile applied to today's IM.
+
+    Examples
+    --------
+    >>> ImDecayProfile.constant().factor(5.0)
+    1.0
+    """
+
+    @staticmethod
+    def constant() -> ImDecayProfile:
+        """
+        IM stays at today's level for the whole horizon.
+
+        Returns
+        -------
+        ImDecayProfile
+            Decay profile with ``factor(t) == 1`` for all ``t``.
+
+        Examples
+        --------
+        >>> ImDecayProfile.constant().factor(10.0)
+        1.0
+        """
+        ...
+
+    @staticmethod
+    def linear_to_maturity(maturity_years: float) -> ImDecayProfile:
+        """
+        IM decays linearly to zero at ``maturity_years``.
+
+        Parameters
+        ----------
+        maturity_years : float
+            Portfolio maturity ``T`` in years; must be positive and finite.
+
+        Returns
+        -------
+        ImDecayProfile
+            Decay profile with ``factor(t) = max(1 - t/T, 0)``.
+
+        Raises
+        ------
+        ValueError
+            If ``maturity_years`` is non-positive or non-finite.
+
+        Examples
+        --------
+        >>> ImDecayProfile.linear_to_maturity(2.0).factor(1.0)
+        0.5
+        """
+        ...
+
+    @staticmethod
+    def sqrt_time(maturity_years: float) -> ImDecayProfile:
+        """
+        IM decays like the square root of remaining time to ``maturity_years``.
+
+        Parameters
+        ----------
+        maturity_years : float
+            Portfolio maturity ``T`` in years; must be positive and finite.
+
+        Returns
+        -------
+        ImDecayProfile
+            Decay profile with ``factor(t) = sqrt(max(1 - t/T, 0))``.
+
+        Raises
+        ------
+        ValueError
+            If ``maturity_years`` is non-positive or non-finite.
+
+        Examples
+        --------
+        >>> round(ImDecayProfile.sqrt_time(2.0).factor(1.0), 6)
+        0.707107
+        """
+        ...
+
+    def factor(self, t: float) -> float:
+        """
+        Decay factor at time ``t``.
+
+        Parameters
+        ----------
+        t : float
+            Time in years from the valuation date.
+
+        Returns
+        -------
+        float
+            Decay factor, always in ``[0, 1]`` for ``t >= 0``.
+
+        Raises
+        ------
+        (None)
+            This is a pure arithmetic evaluation; it never raises.
+
+        Examples
+        --------
+        >>> ImDecayProfile.constant().factor(3.0)
+        1.0
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ImDecayProfile:
+        """
+        Deserialize from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON representation produced by ``to_json``.
+
+        Returns
+        -------
+        ImDecayProfile
+            Parsed decay profile.
+
+        Raises
+        ------
+        ValueError
+            If the payload is not valid JSON or does not match the schema.
+
+        Examples
+        --------
+        >>> ImDecayProfile.from_json(ImDecayProfile.constant().to_json())
+        ImDecayProfile(Constant)
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to JSON.
+
+        Returns
+        -------
+        str
+            Pretty-printed JSON.
+
+        Examples
+        --------
+        >>> isinstance(ImDecayProfile.constant().to_json(), str)
+        True
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+class ImProfile:
+    """
+    Expected initial-margin profile ``E[IM(t)]`` on a time grid.
+
+    Values are in the aggregation currency chosen when the profile was
+    built (e.g. the ``currency`` argument of :func:`im_profile_from_simm`).
+
+    Parameters
+    ----------
+    times : list[float]
+        Time points in years from the valuation date; strictly increasing
+        and positive.
+    im_values : list[float]
+        Expected IM at each time point; non-negative and finite.
+
+    Returns
+    -------
+    ImProfile
+        IM profile as constructed; not validated until ``validate()`` is
+        called or the profile is passed to ``compute_mva`` or
+        ``im_profile_from_simm``.
+
+    Examples
+    --------
+    >>> ImProfile([1.0, 2.0], [100.0, 50.0]).times
+    [1.0, 2.0]
+    """
+
+    def __init__(self, times: list[float], im_values: list[float]) -> None:
+        """
+        Construct from time and IM vectors.
+
+        Values are stored as given and are not validated at construction
+        time. Call ``validate()`` explicitly, or rely on downstream
+        functions (``compute_mva``, ``im_profile_from_simm``) to reject an
+        inconsistent profile when it is used.
+
+        Parameters
+        ----------
+        times : list[float]
+            Time points in years; strictly increasing and positive.
+        im_values : list[float]
+            Expected IM at each time point; non-negative and finite.
+
+        Raises
+        ------
+        (None)
+            Construction never raises; values are stored unchecked and
+            validated only by ``validate()`` or downstream consumers.
+
+        Examples
+        --------
+        >>> ImProfile([1.0, 2.0], [100.0, 50.0]).times
+        [1.0, 2.0]
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> ImProfile:
+        """
+        Deserialize from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON representation produced by ``to_json``.
+
+        Returns
+        -------
+        ImProfile
+            Parsed IM profile.
+
+        Raises
+        ------
+        ValueError
+            If the payload is not valid JSON or does not match the schema.
+
+        Examples
+        --------
+        >>> ImProfile.from_json(ImProfile([1.0], [1.0]).to_json()).times
+        [1.0]
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to JSON.
+
+        Returns
+        -------
+        str
+            Pretty-printed JSON.
+
+        Examples
+        --------
+        >>> isinstance(ImProfile([1.0], [1.0]).to_json(), str)
+        True
+        """
+        ...
+
+    def validate(self) -> None:
+        """
+        Validate internal consistency.
+
+        Raises
+        ------
+        ValueError
+            If the profile is empty, lengths differ, times are not
+            strictly increasing and positive, or IM values are
+            negative/non-finite.
+
+        Examples
+        --------
+        >>> ImProfile([1.0], [1.0]).validate()
+        """
+        ...
+
+    @property
+    def times(self) -> list[float]:
+        """
+        Time points in years.
+
+        Returns
+        -------
+        list[float]
+            Strictly increasing, positive time points.
+
+        Examples
+        --------
+        >>> ImProfile([1.0, 2.0], [1.0, 2.0]).times
+        [1.0, 2.0]
+        """
+        ...
+
+    @property
+    def im_values(self) -> list[float]:
+        """
+        Expected IM at each time point.
+
+        Returns
+        -------
+        list[float]
+            Non-negative IM values in the profile's aggregation currency.
+
+        Examples
+        --------
+        >>> ImProfile([1.0], [100.0]).im_values
+        [100.0]
+        """
+        ...
+
+    def __len__(self) -> int:
+        """
+        Number of time points.
+
+        Returns
+        -------
+        int
+            Length of ``times`` (and ``im_values``).
+
+        Examples
+        --------
+        >>> len(ImProfile([1.0, 2.0], [1.0, 2.0]))
+        2
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export as a pandas ``DataFrame`` with time (years) as index.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Single column ``im``, indexed by time in years.
+
+        Examples
+        --------
+        >>> df = ImProfile([1.0, 2.0], [100.0, 50.0]).to_dataframe()
+        >>> list(df.columns)
+        ['im']
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
+class MvaResult:
+    """
+    Result of an MVA computation.
+
+    All monetary quantities are ``float`` in the IM profile's currency.
+    Returned by :func:`compute_mva`.
+
+    Parameters
+    ----------
+    (Returned by ``compute_mva``; not directly instantiated.)
+
+    Returns
+    -------
+    MvaResult
+        MVA value, average IM, and echoed IM profile.
+
+    Examples
+    --------
+    >>> isinstance(MvaResult, type)
+    True
+    """
+
+    @staticmethod
+    def from_json(json: str) -> MvaResult:
+        """
+        Deserialize from JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON representation produced by ``to_json``.
+
+        Returns
+        -------
+        MvaResult
+            Parsed MVA result.
+
+        Raises
+        ------
+        ValueError
+            If the payload is not valid JSON or does not match the schema.
+
+        Examples
+        --------
+        >>> isinstance(MvaResult.from_json, object)
+        True
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize to JSON.
+
+        Returns
+        -------
+        str
+            Pretty-printed JSON.
+
+        Examples
+        --------
+        >>> # Depends on instance data
+        """
+        ...
+
+    @property
+    def mva(self) -> float:
+        """
+        MVA (positive = lifetime funding cost of posting IM).
+
+        Returns
+        -------
+        float
+            MVA amount in the IM profile's currency.
+
+        Examples
+        --------
+        >>> # Instance field
+        """
+        ...
+
+    @property
+    def average_im(self) -> float:
+        """
+        Time-weighted average IM over the profile horizon.
+
+        Returns
+        -------
+        float
+            ``(1/T) * integral_0^T IM(t) dt`` under the same trapezoid
+            convention as ``mva``, in the IM profile's currency.
+
+        Examples
+        --------
+        >>> # Instance field
+        """
+        ...
+
+    @property
+    def im_profile(self) -> list[tuple[float, float]]:
+        """
+        IM profile used, as ``(time, value)`` tuples.
+
+        Returns
+        -------
+        list[tuple[float, float]]
+            ``(time_years, im_value)`` pairs echoing the input profile.
+
+        Examples
+        --------
+        >>> # Instance field
+        """
+        ...
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Export the IM profile as a pandas ``DataFrame``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Single column ``im``, indexed by time in years.
+
+        Examples
+        --------
+        >>> # Depends on instance data
+        """
+        ...
+
+    def __repr__(self) -> str: ...
+
 class MarginUtilization:
     """
     Margin utilization result (ratio of posted to required margin).
@@ -4959,6 +5447,107 @@ class SaCcrEngine:
             If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         ...
+
+def im_profile_from_simm(
+    calculator: SimmCalculator,
+    sensitivities: SimmSensitivities,
+    currency: str,
+    decay: ImDecayProfile,
+    time_grid: list[float],
+) -> ImProfile:
+    """
+    Build a deterministic IM profile from current SIMM sensitivities.
+
+    Computes ``IM(t) = SIMM(sensitivities) * decay(t)`` on ``time_grid``,
+    where the base IM is the full cross-risk-class ISDA SIMM aggregate from
+    ``calculator.calculate_from_sensitivities(sensitivities, currency)``.
+
+    Parameters
+    ----------
+    calculator : SimmCalculator
+        SIMM calculator fixing the version/registry parameters.
+    sensitivities : SimmSensitivities
+        Current portfolio sensitivities in SIMM buckets.
+    currency : str
+        Aggregation currency for the SIMM total.
+    decay : ImDecayProfile
+        Deterministic decay profile applied to the base IM.
+    time_grid : list[float]
+        Strictly increasing, positive year fractions.
+
+    Returns
+    -------
+    ImProfile
+        Expected IM profile ``E[IM(t)]`` on ``time_grid``.
+
+    Raises
+    ------
+    ValueError
+        If ``currency`` is not a known currency code, or ``decay`` or
+        ``time_grid`` fails validation.
+
+    Examples
+    --------
+    >>> sens = SimmSensitivities("USD")
+    >>> sens.add_ir_delta("USD", "5Y", 50_000.0)
+    >>> calc = SimmCalculator("v2_6")
+    >>> decay = ImDecayProfile.linear_to_maturity(4.0)
+    >>> profile = im_profile_from_simm(calc, sens, "USD", decay, [1.0, 2.0, 4.0])
+    >>> profile.times
+    [1.0, 2.0, 4.0]
+    """
+    ...
+
+def compute_mva(
+    im_profile: ImProfile,
+    funding_spread_curve: list[tuple[float, float]],
+    discount_curve: DiscountCurve,
+    survival_curve: HazardCurve | None = None,
+) -> MvaResult:
+    """
+    Compute MVA over an expected-IM profile.
+
+    Integrates ``spread(t) * IM(t) * DF(t) * S(t)`` over the profile's time
+    grid using the same midpoint/trapezoid convention as the CVA engine,
+    with a ``t = 0`` bucket edge (``DF(0) = 1``, ``S(0) = 1``). IM is
+    treated as flat (left-constant) before the first grid point.
+
+    Parameters
+    ----------
+    im_profile : ImProfile
+        Expected IM profile ``E[IM(t)]`` (from ``im_profile_from_simm`` or
+        the stochastic engine's mean per-path IM).
+    funding_spread_curve : list[tuple[float, float]]
+        ``(time_years, spread_bps)`` pairs in basis points, linearly
+        interpolated with flat extrapolation; a single pair means a flat
+        spread.
+    discount_curve : DiscountCurve
+        Risk-free discount curve.
+    survival_curve : HazardCurve or None, optional
+        Optional bank (own) hazard curve; when ``None``, survival
+        probability ``S(t)`` is treated as 1 for all ``t``.
+
+    Returns
+    -------
+    MvaResult
+        MVA, time-weighted average IM, and the echoed IM profile.
+
+    Raises
+    ------
+    ValueError
+        If the profile or spread curve fails validation, or if any curve
+        evaluation returns a non-finite value.
+
+    Examples
+    --------
+    >>> profile = ImProfile([1.0, 2.0], [1_000_000.0, 1_000_000.0])
+    >>> result = compute_mva(
+    ...     profile, [(0.0, 50.0)], DiscountCurve.flat("USD-OIS", __import__("datetime").date(2025, 1, 1), 0.0)
+    ... )
+    >>> round(result.mva, 2)
+    10000.0
+    """
+    ...
 
 def frtb_sba_charge(
     sensitivities: FrtbSensitivities, correlation_scenario: str | None = None

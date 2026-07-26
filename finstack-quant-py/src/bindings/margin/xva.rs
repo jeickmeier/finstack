@@ -6,6 +6,11 @@ use finstack_quant_margin::xva::types as xva;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+use finstack_quant_margin::xva::mva;
+
+use crate::bindings::core::market_data::curves::{PyDiscountCurve, PyHazardCurve};
+use crate::bindings::margin::im::{PySimmCalculator, PySimmSensitivities};
+
 // ---------------------------------------------------------------------------
 // FundingConfig
 // ---------------------------------------------------------------------------
@@ -546,6 +551,269 @@ impl PyXvaNettingSet {
     }
 }
 
+// ---------------------------------------------------------------------------
+// ImDecayProfile
+// ---------------------------------------------------------------------------
+
+/// Deterministic IM decay profile for MVA (Green 2015, ch. 10).
+#[pyclass(
+    name = "ImDecayProfile",
+    module = "finstack_quant.margin",
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyImDecayProfile {
+    pub(super) inner: mva::ImDecayProfile,
+}
+
+#[pymethods]
+impl PyImDecayProfile {
+    /// IM stays at today's level for the whole horizon.
+    #[staticmethod]
+    fn constant() -> Self {
+        Self {
+            inner: mva::ImDecayProfile::Constant,
+        }
+    }
+
+    /// IM decays linearly to zero at ``maturity_years``.
+    #[staticmethod]
+    fn linear_to_maturity(maturity_years: f64) -> PyResult<Self> {
+        let inner = mva::ImDecayProfile::LinearToMaturity { maturity_years };
+        inner.validate().map_err(core_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// IM decays like sqrt of remaining time to ``maturity_years``.
+    #[staticmethod]
+    fn sqrt_time(maturity_years: f64) -> PyResult<Self> {
+        let inner = mva::ImDecayProfile::SqrtTime { maturity_years };
+        inner.validate().map_err(core_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Decay factor at time ``t`` (years); always in ``[0, 1]``.
+    fn factor(&self, t: f64) -> f64 {
+        self.inner.factor(t)
+    }
+
+    /// Deserialize from JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: mva::ImDecayProfile = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("ImDecayProfile({:?})", self.inner)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ImProfile
+// ---------------------------------------------------------------------------
+
+/// Expected initial-margin profile E[IM(t)] on a time grid.
+#[pyclass(
+    name = "ImProfile",
+    module = "finstack_quant.margin",
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyImProfile {
+    pub(super) inner: mva::ImProfile,
+}
+
+#[pymethods]
+impl PyImProfile {
+    /// Construct from time and IM vectors.
+    ///
+    /// Values are stored as given; call ``validate()`` explicitly or rely
+    /// on downstream functions (``compute_mva``, ``im_profile_from_simm``)
+    /// to reject an inconsistent profile.
+    #[new]
+    fn new(times: Vec<f64>, im_values: Vec<f64>) -> Self {
+        Self {
+            inner: mva::ImProfile { times, im_values },
+        }
+    }
+
+    /// Deserialize from JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: mva::ImProfile = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+    }
+
+    /// Validate internal consistency.
+    fn validate(&self) -> PyResult<()> {
+        self.inner.validate().map_err(core_to_py)
+    }
+
+    /// Time points in years.
+    #[getter]
+    fn times(&self) -> Vec<f64> {
+        self.inner.times.clone()
+    }
+
+    /// Expected IM at each time point.
+    #[getter]
+    fn im_values(&self) -> Vec<f64> {
+        self.inner.im_values.clone()
+    }
+
+    /// Number of time points.
+    fn __len__(&self) -> usize {
+        self.inner.times.len()
+    }
+
+    /// Export as a pandas ``DataFrame`` with time (years) as index.
+    ///
+    /// Columns: ``im``.
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let data = PyDict::new(py);
+        data.set_item("im", &self.inner.im_values)?;
+        let idx = self.inner.times.clone().into_pyobject(py)?.into_any();
+        dict_to_dataframe(py, &data, Some(idx))
+    }
+
+    fn __repr__(&self) -> String {
+        format!("ImProfile(points={})", self.inner.times.len())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// MvaResult
+// ---------------------------------------------------------------------------
+
+/// Result of an MVA computation.
+#[pyclass(
+    name = "MvaResult",
+    module = "finstack_quant.margin",
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub struct PyMvaResult {
+    pub(super) inner: mva::MvaResult,
+}
+
+#[pymethods]
+impl PyMvaResult {
+    /// Deserialize from JSON.
+    #[staticmethod]
+    fn from_json(json: &str) -> PyResult<Self> {
+        let inner: mva::MvaResult = serde_json::from_str(json).map_err(display_to_py)?;
+        Ok(Self { inner })
+    }
+
+    /// Serialize to JSON.
+    fn to_json(&self) -> PyResult<String> {
+        serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
+    }
+
+    /// MVA (positive = lifetime funding cost of posting IM).
+    #[getter]
+    fn mva(&self) -> f64 {
+        self.inner.mva
+    }
+
+    /// Time-weighted average IM over the profile horizon.
+    #[getter]
+    fn average_im(&self) -> f64 {
+        self.inner.average_im
+    }
+
+    /// IM profile used, as ``(time, value)`` tuples.
+    #[getter]
+    fn im_profile(&self) -> Vec<(f64, f64)> {
+        self.inner.im_profile.clone()
+    }
+
+    /// Export the IM profile as a pandas ``DataFrame`` (column ``im``,
+    /// indexed by time in years).
+    fn to_dataframe<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let data = PyDict::new(py);
+        let (times, im_vals): (Vec<f64>, Vec<f64>) = self.inner.im_profile.iter().copied().unzip();
+        data.set_item("im", im_vals)?;
+        let idx = times.into_pyobject(py)?.into_any();
+        dict_to_dataframe(py, &data, Some(idx))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "MvaResult(mva={:.4}, average_im={:.2})",
+            self.inner.mva, self.inner.average_im
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// MVA functions
+// ---------------------------------------------------------------------------
+
+/// Build a deterministic IM profile from SIMM sensitivities:
+/// ``IM(t) = SIMM(sensitivities) * decay(t)``.
+#[pyfunction]
+#[pyo3(signature = (calculator, sensitivities, currency, decay, time_grid))]
+fn im_profile_from_simm(
+    calculator: &PySimmCalculator,
+    sensitivities: &PySimmSensitivities,
+    currency: &str,
+    decay: &PyImDecayProfile,
+    time_grid: Vec<f64>,
+) -> PyResult<PyImProfile> {
+    let ccy: finstack_quant_core::currency::Currency = currency.parse().map_err(display_to_py)?;
+    let inner = mva::im_profile_from_simm(
+        &calculator.inner,
+        &sensitivities.inner,
+        ccy,
+        &decay.inner,
+        &time_grid,
+    )
+    .map_err(core_to_py)?;
+    Ok(PyImProfile { inner })
+}
+
+/// Compute MVA: ``∫ spread(t) · IM(t) · DF(t) · S(t) dt`` (trapezoid).
+///
+/// Parameters
+/// ----------
+/// im_profile : ImProfile
+///     Expected IM profile.
+/// funding_spread_curve : list[tuple[float, float]]
+///     ``(time_years, spread_bps)`` pairs; a single pair means a flat spread.
+/// discount_curve : DiscountCurve
+///     Risk-free discount curve.
+/// survival_curve : HazardCurve | None
+///     Optional bank (own) hazard curve; ``None`` means no survival weighting.
+#[pyfunction]
+#[pyo3(signature = (im_profile, funding_spread_curve, discount_curve, survival_curve=None))]
+fn compute_mva(
+    im_profile: &PyImProfile,
+    funding_spread_curve: Vec<(f64, f64)>,
+    discount_curve: &PyDiscountCurve,
+    survival_curve: Option<&PyHazardCurve>,
+) -> PyResult<PyMvaResult> {
+    let inner = mva::compute_mva(
+        &im_profile.inner,
+        &funding_spread_curve,
+        &discount_curve.inner,
+        survival_curve.map(|c| c.inner.as_ref()),
+    )
+    .map_err(core_to_py)?;
+    Ok(PyMvaResult { inner })
+}
+
 /// Register XVA classes.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFundingConfig>()?;
@@ -555,5 +823,10 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyXvaResult>()?;
     m.add_class::<PyCsaTerms>()?;
     m.add_class::<PyXvaNettingSet>()?;
+    m.add_class::<PyImDecayProfile>()?;
+    m.add_class::<PyImProfile>()?;
+    m.add_class::<PyMvaResult>()?;
+    m.add_function(pyo3::wrap_pyfunction!(im_profile_from_simm, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(compute_mva, m)?)?;
     Ok(())
 }

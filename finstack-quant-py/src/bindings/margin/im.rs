@@ -54,7 +54,7 @@ fn parse_schedule_asset_class(asset_class: &str) -> PyResult<fm::ScheduleAssetCl
 )]
 #[derive(Clone)]
 pub struct PySimmSensitivities {
-    inner: fm::SimmSensitivities,
+    pub(super) inner: fm::SimmSensitivities,
 }
 
 #[pymethods]
@@ -177,7 +177,7 @@ impl PySimmSensitivities {
 )]
 #[derive(Clone)]
 pub struct PySimmCalculator {
-    inner: fm::SimmCalculator,
+    pub(super) inner: fm::SimmCalculator,
 }
 
 #[pymethods]

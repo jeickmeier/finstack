@@ -57,6 +57,11 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "XvaResult",
             "CsaTerms",
             "XvaNettingSet",
+            "ImDecayProfile",
+            "ImProfile",
+            "MvaResult",
+            "compute_mva",
+            "im_profile_from_simm",
             // Metrics
             "MarginUtilization",
             "ExcessCollateral",

@@ -34,6 +34,11 @@ ExposureProfile = _margin.ExposureProfile
 XvaResult = _margin.XvaResult
 CsaTerms = _margin.CsaTerms
 XvaNettingSet = _margin.XvaNettingSet
+ImDecayProfile = _margin.ImDecayProfile
+ImProfile = _margin.ImProfile
+MvaResult = _margin.MvaResult
+compute_mva = _margin.compute_mva
+im_profile_from_simm = _margin.im_profile_from_simm
 MarginUtilization = _margin.MarginUtilization
 ExcessCollateral = _margin.ExcessCollateral
 MarginFundingCost = _margin.MarginFundingCost
@@ -61,12 +66,15 @@ __all__: list[str] = [
     "FundingConfig",
     "Haircut01",
     "HaircutImCalculator",
+    "ImDecayProfile",
     "ImMethodology",
+    "ImProfile",
     "ImResult",
     "MarginCallType",
     "MarginFundingCost",
     "MarginTenor",
     "MarginUtilization",
+    "MvaResult",
     "NettingSetId",
     "SaCcrEngine",
     "SaCcrNettingSetConfig",
@@ -79,6 +87,8 @@ __all__: list[str] = [
     "XvaConfig",
     "XvaNettingSet",
     "XvaResult",
+    "compute_mva",
     "frtb_sba_charge",
+    "im_profile_from_simm",
     "saccr_ead",
 ]
