@@ -243,8 +243,8 @@ pub use factor_model::{
 };
 pub use fi_attribution::{
     campisi_attribution, campisi_carino_link, campisi_carino_link_from_snapshots,
-    FiAttributionConfig, FiAttributionResult, FiCarinoLinkedResult, FiComponents,
-    FiLinkedSectorEffect, FiPeriodInput, FiPositionSnapshot, FiReconciliationReport,
+    snapshot_from_position_metrics, FiAttributionConfig, FiAttributionResult, FiCarinoLinkedResult,
+    FiComponents, FiLinkedSectorEffect, FiPeriodInput, FiPositionSnapshot, FiReconciliationReport,
     FiSectorEffect, SpreadChangeMode,
 };
 pub use margin::{

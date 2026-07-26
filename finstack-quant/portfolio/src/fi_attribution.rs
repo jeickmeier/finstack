@@ -146,6 +146,86 @@ pub struct FiPositionSnapshot {
     pub delta_spread: f64,
 }
 
+/// Assemble an [`FiPositionSnapshot`] from valuation metrics plus
+/// caller-supplied period data.
+///
+/// Reads `"ytm"`, `"duration_mod"` and `"spread_duration"` (the canonical
+/// valuations metric IDs) plus the caller-chosen spread metric (typically
+/// `"z_spread"` or `"oas"`) from `metrics`. All four are decimals/years in the
+/// registry, matching [`FiPositionSnapshot`]'s conventions. The remaining
+/// fields — sector, weight, realized return and the period's treasury/spread
+/// moves — are not valuation metrics and must be supplied by the caller (e.g.
+/// from performance data and curve marks).
+///
+/// # Arguments
+///
+/// * `metrics` - Per-position metrics from [`crate::metrics::aggregate_metrics`]
+///   output (a [`crate::metrics::PositionMetrics`] entry of `by_position`).
+/// * `sector` - Sector bucket label for the attribution.
+/// * `weight` - Position weight (fraction of the side, decimal).
+/// * `total_return` - Realized period return (decimal).
+/// * `delta_treasury_yield` - Treasury yield move for the position's bucket
+///   (decimal).
+/// * `delta_spread` - Absolute spread move (decimal).
+/// * `spread_metric_id` - Metric ID to read the period-start spread from
+///   (e.g. `"z_spread"`, `"oas"`, `"g_spread"`, `"discount_margin"`).
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] naming the first missing metric ID; the
+/// metrics are checked in the order `"ytm"`, `"duration_mod"`,
+/// `"spread_duration"`, `spread_metric_id`.
+///
+/// # Examples
+///
+/// ```rust
+/// use finstack_quant_core::currency::Currency;
+/// use finstack_quant_portfolio::metrics::PositionMetrics;
+/// use finstack_quant_portfolio::snapshot_from_position_metrics;
+///
+/// let mut metrics = indexmap::IndexMap::new();
+/// metrics.insert("ytm".to_string(), 0.06);
+/// metrics.insert("duration_mod".to_string(), 4.0);
+/// metrics.insert("spread_duration".to_string(), 3.8);
+/// metrics.insert("z_spread".to_string(), 0.015);
+/// let position = PositionMetrics { currency: Currency::USD, metrics };
+///
+/// let snap = snapshot_from_position_metrics(
+///     &position, "CORP", 0.30, 0.012, -0.001, 0.002, "z_spread",
+/// )?;
+/// assert_eq!(snap.sector, "CORP");
+/// # Ok::<(), finstack_quant_portfolio::Error>(())
+/// ```
+pub fn snapshot_from_position_metrics(
+    metrics: &crate::metrics::PositionMetrics,
+    sector: impl Into<String>,
+    weight: f64,
+    total_return: f64,
+    delta_treasury_yield: f64,
+    delta_spread: f64,
+    spread_metric_id: &str,
+) -> Result<FiPositionSnapshot> {
+    let get = |id: &str| -> Result<f64> {
+        metrics.metrics.get(id).copied().ok_or_else(|| {
+            Error::invalid_input(format!(
+                "Campisi snapshot requires metric '{id}' in PositionMetrics; \
+                 request it via RequestedMetrics before aggregation"
+            ))
+        })
+    };
+    Ok(FiPositionSnapshot {
+        sector: sector.into(),
+        weight,
+        total_return,
+        yield_annual: get("ytm")?,
+        modified_duration: get("duration_mod")?,
+        spread_duration: get("spread_duration")?,
+        spread: get(spread_metric_id)?,
+        delta_treasury_yield,
+        delta_spread,
+    })
+}
+
 /// Absolute Campisi component contributions for one side (portfolio or
 /// benchmark), each `Σ_j w_j × component_j`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1096,5 +1176,56 @@ mod tests {
         let portfolio_ok = vec![snap("GOVT", 1.0, 0.01, 0.04, 5.0, 0.0, 0.0, -0.001, 0.0)];
         let benchmark_ok = vec![snap("GOVT", 1.0, 0.01, 0.04, 5.5, 0.0, 0.0, -0.001, 0.0)];
         assert!(campisi_attribution(&portfolio_ok, &benchmark_ok, &config).is_ok());
+    }
+
+    #[test]
+    fn snapshot_from_position_metrics_reads_fi_metrics() {
+        let mut metrics = indexmap::IndexMap::new();
+        metrics.insert("ytm".to_string(), 0.060);
+        metrics.insert("duration_mod".to_string(), 4.0);
+        metrics.insert("spread_duration".to_string(), 3.8);
+        metrics.insert("z_spread".to_string(), 0.0150);
+        let position_metrics = crate::metrics::PositionMetrics {
+            currency: finstack_quant_core::currency::Currency::USD,
+            metrics,
+        };
+
+        let snap = snapshot_from_position_metrics(
+            &position_metrics,
+            "CORP",
+            0.30,
+            0.0120,
+            -0.0010,
+            0.0020,
+            "z_spread",
+        )
+        .expect("all metrics present");
+
+        assert_eq!(snap.sector, "CORP");
+        assert!((snap.yield_annual - 0.060).abs() < 1e-15);
+        assert!((snap.modified_duration - 4.0).abs() < 1e-15);
+        assert!((snap.spread_duration - 3.8).abs() < 1e-15);
+        assert!((snap.spread - 0.0150).abs() < 1e-15);
+        assert!((snap.weight - 0.30).abs() < 1e-15);
+        assert!((snap.total_return - 0.0120).abs() < 1e-15);
+    }
+
+    #[test]
+    fn snapshot_from_position_metrics_names_missing_metric() {
+        let position_metrics = crate::metrics::PositionMetrics {
+            currency: finstack_quant_core::currency::Currency::USD,
+            metrics: indexmap::IndexMap::new(),
+        };
+        let err = snapshot_from_position_metrics(
+            &position_metrics,
+            "CORP",
+            0.30,
+            0.0120,
+            -0.0010,
+            0.0020,
+            "z_spread",
+        )
+        .expect_err("missing metrics must be named");
+        assert!(err.to_string().contains("ytm"), "{err}");
     }
 }
