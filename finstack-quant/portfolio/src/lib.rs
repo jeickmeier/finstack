@@ -242,8 +242,10 @@ pub use factor_model::{
     StrategyAllocation, StrategyAllocationInput, WeightAllocationResult, WeightAllocationSpec,
 };
 pub use fi_attribution::{
-    campisi_attribution, FiAttributionConfig, FiAttributionResult, FiComponents,
-    FiPositionSnapshot, FiReconciliationReport, FiSectorEffect, SpreadChangeMode,
+    campisi_attribution, campisi_carino_link, campisi_carino_link_from_snapshots,
+    FiAttributionConfig, FiAttributionResult, FiCarinoLinkedResult, FiComponents,
+    FiLinkedSectorEffect, FiPeriodInput, FiPositionSnapshot, FiReconciliationReport,
+    FiSectorEffect, SpreadChangeMode,
 };
 pub use margin::{
     CurrencyMismatchError, NettingSet, NettingSetManager, NettingSetMargin,

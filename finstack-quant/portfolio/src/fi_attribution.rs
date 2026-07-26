@@ -53,6 +53,7 @@
 //!   Penninga, O. (2007). "DTS (Duration Times Spread)." *Journal of
 //!   Portfolio Management*, 33(2), 77–100.
 
+use crate::brinson::carino_coefficient;
 use crate::error::{Error, Result};
 use finstack_quant_core::math::summation::NeumaierAccumulator;
 use indexmap::IndexMap;
@@ -561,6 +562,202 @@ pub fn campisi_attribution(
     })
 }
 
+/// One attribution period's raw inputs for multi-period linking.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FiPeriodInput {
+    /// Portfolio snapshots for the period.
+    pub portfolio: Vec<FiPositionSnapshot>,
+    /// Benchmark snapshots for the period.
+    pub benchmark: Vec<FiPositionSnapshot>,
+}
+
+/// Carino-linked per-sector FI effects summed across periods.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FiLinkedSectorEffect {
+    /// Sector label.
+    pub sector: String,
+    /// Linked allocation effect.
+    pub allocation: f64,
+    /// Linked active carry effect.
+    pub active_carry: f64,
+    /// Linked active treasury effect.
+    pub active_treasury: f64,
+    /// Linked active spread effect.
+    pub active_spread: f64,
+    /// Linked selection effect.
+    pub selection: f64,
+    /// Sum of the five linked effects.
+    pub total_active: f64,
+}
+
+/// Multi-period Carino-linked Campisi attribution.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FiCarinoLinkedResult {
+    /// Per-period single-period results, in chronological order.
+    pub periods: Vec<FiAttributionResult>,
+    /// Geometrically compounded portfolio return `∏(1 + r_p,t) − 1`.
+    pub portfolio_return_compounded: f64,
+    /// Geometrically compounded benchmark return.
+    pub benchmark_return_compounded: f64,
+    /// Per-sector linked effects; their grand total reconstructs the
+    /// compounded active return exactly.
+    pub linked_sectors: Vec<FiLinkedSectorEffect>,
+    /// Sum of linked allocation effects.
+    pub linked_allocation: f64,
+    /// Sum of linked active carry effects.
+    pub linked_active_carry: f64,
+    /// Sum of linked active treasury effects.
+    pub linked_active_treasury: f64,
+    /// Sum of linked active spread effects.
+    pub linked_active_spread: f64,
+    /// Sum of linked selection effects.
+    pub linked_selection: f64,
+}
+
+/// Apply Carino (1999) smoothing to per-period Campisi results so the five
+/// arithmetic effects reconstruct the geometrically compounded active return.
+///
+/// Reuses the smoothing coefficient from [`crate::brinson`] (`k_t / K`
+/// rescaling); this function only adapts it to the five-component FI
+/// decomposition.
+///
+/// # Arguments
+///
+/// * `periods` - Chronologically ordered results with identical sector
+///   ordering and identical [`SpreadChangeMode`] across periods.
+///
+/// # Errors
+///
+/// * [`Error::InvalidInput`] if `periods` is empty, sector ordering or spread
+///   mode differs across periods, any period return is non-finite, or a
+///   return is at or below −100 % (Carino domain, see
+///   [`crate::brinson::carino_link`]).
+pub fn campisi_carino_link(periods: &[FiAttributionResult]) -> Result<FiCarinoLinkedResult> {
+    let Some(first) = periods.first() else {
+        return Err(Error::invalid_input(
+            "Campisi Carino linking requires at least one period",
+        ));
+    };
+    let sector_names: Vec<String> = first.sectors.iter().map(|e| e.sector.clone()).collect();
+    for (idx, p) in periods.iter().enumerate().skip(1) {
+        let same_order = p.sectors.len() == sector_names.len()
+            && p.sectors
+                .iter()
+                .zip(sector_names.iter())
+                .all(|(e, n)| e.sector == *n);
+        if !same_order {
+            return Err(Error::invalid_input(format!(
+                "Campisi Carino linking requires identical sector ordering across all periods \
+                 (period {idx} differs from period 0)"
+            )));
+        }
+        if p.spread_mode != first.spread_mode {
+            return Err(Error::invalid_input(format!(
+                "Campisi Carino linking requires a consistent spread mode \
+                 (period {idx} differs from period 0)"
+            )));
+        }
+    }
+
+    let mut compounded_p = 1.0_f64;
+    let mut compounded_b = 1.0_f64;
+    for p in periods {
+        if !p.portfolio_return.is_finite() || !p.benchmark_return.is_finite() {
+            return Err(Error::invalid_input(format!(
+                "Campisi Carino linking requires finite period returns \
+                 (got portfolio_return = {}, benchmark_return = {})",
+                p.portfolio_return, p.benchmark_return
+            )));
+        }
+        compounded_p *= 1.0 + p.portfolio_return;
+        compounded_b *= 1.0 + p.benchmark_return;
+    }
+    let r_p_total = compounded_p - 1.0;
+    let r_b_total = compounded_b - 1.0;
+    let big_k = carino_coefficient(r_p_total, r_b_total)?;
+
+    const N_EFFECTS: usize = 5;
+    let mut acc: Vec<[NeumaierAccumulator; N_EFFECTS]> =
+        vec![[NeumaierAccumulator::new(); N_EFFECTS]; sector_names.len()];
+
+    for period in periods {
+        let k_t = carino_coefficient(period.portfolio_return, period.benchmark_return)?;
+        let scale = k_t / big_k;
+        for (sector_acc, e) in acc.iter_mut().zip(period.sectors.iter()) {
+            sector_acc[0].add(scale * e.allocation);
+            sector_acc[1].add(scale * e.active_carry);
+            sector_acc[2].add(scale * e.active_treasury);
+            sector_acc[3].add(scale * e.active_spread);
+            sector_acc[4].add(scale * e.selection);
+        }
+    }
+
+    let mut linked_sectors = Vec::with_capacity(sector_names.len());
+    let mut totals = [NeumaierAccumulator::new(); N_EFFECTS];
+    for (name, sector_acc) in sector_names.into_iter().zip(acc) {
+        let values: Vec<f64> = sector_acc.iter().map(|a| a.total()).collect();
+        let mut effect = FiLinkedSectorEffect {
+            sector: name,
+            allocation: 0.0,
+            active_carry: 0.0,
+            active_treasury: 0.0,
+            active_spread: 0.0,
+            selection: 0.0,
+            total_active: 0.0,
+        };
+        if let [alloc, carry, tsy, spr, sel] = values.as_slice() {
+            effect.allocation = *alloc;
+            effect.active_carry = *carry;
+            effect.active_treasury = *tsy;
+            effect.active_spread = *spr;
+            effect.selection = *sel;
+            effect.total_active = alloc + carry + tsy + spr + sel;
+            for (acc, v) in totals.iter_mut().zip(values.iter()) {
+                acc.add(*v);
+            }
+        }
+        linked_sectors.push(effect);
+    }
+
+    let mut totals_iter = totals.iter().map(|a| a.total());
+    Ok(FiCarinoLinkedResult {
+        periods: periods.to_vec(),
+        portfolio_return_compounded: r_p_total,
+        benchmark_return_compounded: r_b_total,
+        linked_sectors,
+        linked_allocation: totals_iter.next().unwrap_or(0.0),
+        linked_active_carry: totals_iter.next().unwrap_or(0.0),
+        linked_active_treasury: totals_iter.next().unwrap_or(0.0),
+        linked_active_spread: totals_iter.next().unwrap_or(0.0),
+        linked_selection: totals_iter.next().unwrap_or(0.0),
+    })
+}
+
+/// Compute per-period Campisi attributions and Carino-link them.
+///
+/// Canonical entry point for bindings that receive raw period snapshots.
+///
+/// # Arguments
+///
+/// * `periods` - Chronologically ordered period inputs. Every period must
+///   produce the same sector set in the same first-seen order.
+/// * `config` - Shared period length and spread convention.
+///
+/// # Errors
+///
+/// Propagates any [`campisi_attribution`] or [`campisi_carino_link`] error.
+pub fn campisi_carino_link_from_snapshots(
+    periods: &[FiPeriodInput],
+    config: &FiAttributionConfig,
+) -> Result<FiCarinoLinkedResult> {
+    let results = periods
+        .iter()
+        .map(|p| campisi_attribution(&p.portfolio, &p.benchmark, config))
+        .collect::<Result<Vec<_>>>()?;
+    campisi_carino_link(&results)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -812,6 +1009,71 @@ mod tests {
         assert!(matches!(dts.spread_mode, SpreadChangeMode::Dts));
         assert!(matches!(sd.spread_mode, SpreadChangeMode::SpreadDuration));
         assert!(dts.reconciliation_check(1e-10).is_reconciled);
+    }
+
+    /// Carino linking must rescale the five FI effects so their linked sum
+    /// reconstructs the geometric compounded active return exactly; with two
+    /// identical periods every linked component is its arithmetic two-period
+    /// sum times the uniform scale `geometric_active / arithmetic_active`.
+    #[test]
+    fn campisi_carino_link_matches_compounded_active_return() {
+        let config = FiAttributionConfig::new(0.25);
+        let period = FiPeriodInput {
+            portfolio: golden_portfolio(),
+            benchmark: golden_benchmark(),
+        };
+        let linked = campisi_carino_link_from_snapshots(&[period.clone(), period], &config)
+            .expect("carino link");
+
+        // Compounded returns (hand-worked): 1.01441^2 − 1, 1.01365^2 − 1.
+        let rp = 1.01441_f64.powi(2) - 1.0;
+        let rb = 1.01365_f64.powi(2) - 1.0;
+        assert!((linked.portfolio_return_compounded - rp).abs() < 1e-12);
+        assert!((linked.benchmark_return_compounded - rb).abs() < 1e-12);
+
+        let geometric_active = rp - rb;
+        let reconstructed = linked.linked_allocation
+            + linked.linked_active_carry
+            + linked.linked_active_treasury
+            + linked.linked_active_spread
+            + linked.linked_selection;
+        assert!(
+            (reconstructed - geometric_active).abs() < 1e-10,
+            "linked effects {reconstructed} must equal geometric active {geometric_active}"
+        );
+
+        // Smoothing must not be a no-op: arithmetic ≠ geometric here.
+        let arithmetic_active = 2.0 * 0.00076;
+        assert!((arithmetic_active - geometric_active).abs() > 1e-7);
+
+        // Identical periods ⇒ identical k_t ⇒ one uniform scale factor.
+        let scale = geometric_active / arithmetic_active;
+        assert!(
+            (linked.linked_active_spread - 2.0 * 0.0009575 * scale).abs() < 1e-12,
+            "linked_active_spread must be uniformly Carino-scaled"
+        );
+        assert!((linked.linked_allocation - 2.0 * -0.0007125 * scale).abs() < 1e-12);
+
+        // Sector ordering preserved.
+        let names: Vec<&str> = linked
+            .linked_sectors
+            .iter()
+            .map(|s| s.sector.as_str())
+            .collect();
+        assert_eq!(names, ["GOVT", "CORP"]);
+    }
+
+    #[test]
+    fn campisi_carino_link_rejects_empty_and_inconsistent_periods() {
+        assert!(campisi_carino_link(&[]).is_err());
+
+        let config = FiAttributionConfig::new(0.25);
+        let p1 = campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config)
+            .expect("period 1");
+        let mut p2 = p1.clone();
+        p2.sectors[0].sector = "DIFFERENT".to_string();
+        let err = campisi_carino_link(&[p1, p2]).expect_err("sector ordering must match");
+        assert!(err.to_string().contains("sector ordering"), "{err}");
     }
 
     /// DTS mode must fail closed when a snapshot carries a non-zero spread

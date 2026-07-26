@@ -401,7 +401,7 @@ pub fn carino_link_from_sector_periods(
 /// −100 % (`1 + r ≤ 0`). The Carino formula uses `ln(1 + r)`, which is
 /// undefined in that regime, and silently substituting unity would mask a
 /// genuine modeling error in the upstream period returns.
-fn carino_coefficient(r_p: f64, r_b: f64) -> Result<f64> {
+pub(crate) fn carino_coefficient(r_p: f64, r_b: f64) -> Result<f64> {
     if !r_p.is_finite() || !r_b.is_finite() {
         return Err(Error::invalid_input(format!(
             "Carino coefficient requires finite returns (got r_p = {r_p}, r_b = {r_b})"
