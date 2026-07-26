@@ -172,6 +172,8 @@ pub mod factor_model;
 pub mod fi_attribution;
 /// Shared FX conversion helpers (e.g. converting position values to base currency).
 pub(crate) mod fx;
+/// Hierarchical duration-cell x sector grid attribution (Lehman/Dynkin-Hyman-Vankudre 1998).
+pub mod grid_attribution;
 /// Grouping and aggregation by attributes or books.
 pub mod grouping;
 /// Liquidity risk metrics, spread estimation, and portfolio scoring.
@@ -253,6 +255,10 @@ pub use fi_attribution::{
     snapshot_from_position_metrics, FiAttributionConfig, FiAttributionResult, FiCarinoLinkedResult,
     FiComponents, FiLinkedSectorEffect, FiPeriodInput, FiPositionSnapshot, FiReconciliationReport,
     FiSectorEffect,
+};
+pub use grid_attribution::{
+    grid_attribution, GridAttributionResult, GridCellEffect, GridPosition, GridSectorEffect,
+    GridSelectionEffect,
 };
 pub use margin::{
     CurrencyMismatchError, NettingSet, NettingSetManager, NettingSetMargin,
