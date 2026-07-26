@@ -7048,6 +7048,46 @@ export interface PortfolioNamespace {
    */
   carinoLink(periodsJson: string): string;
   /**
+   * Compute a single-period Campisi fixed-income attribution from JSON.
+   *
+   * Decomposes both sides into carry / treasury / spread / selection and
+   * splits the active return into allocation plus four active component
+   * effects (Campisi 2000; Ben Dor et al. 2007 for the DTS convention).
+   * Returns a JSON `FiAttributionResult`.
+   * @param portfolioJson - Canonical JSON array of `FiPositionSnapshot` objects describing the portfolio side; weights must sum to 1.
+   * @param benchmarkJson - Canonical JSON array of `FiPositionSnapshot` objects describing the benchmark side; weights must sum to 1.
+   * @param configJson - Canonical JSON `FiAttributionConfig`; both `period_years` and `spread_mode` (`"spread_duration"` or `"dts"`) are required, with no defaults.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  campisiAttribution(portfolioJson: string, benchmarkJson: string, configJson: string): string;
+  /**
+   * Carino-link already-computed single-period Campisi results.
+   *
+   * Binds Rust `campisi_carino_link`. Each period carries its own
+   * already-applied `period_years`, so periods of *different* lengths (e.g.
+   * act/365 calendar months) link correctly here; prefer this entry point
+   * whenever the periods are not all the same length. Returns a JSON
+   * `FiCarinoLinkedResult`.
+   * @param periodsJson - Canonical JSON array of `FiAttributionResult` objects in chronological order, as returned by `campisiAttribution`.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  campisiCarinoLink(periodsJson: string): string;
+  /**
+   * Compute per-period Campisi attributions from snapshots and Carino-link them.
+   *
+   * Binds Rust `campisi_carino_link_from_snapshots`. One shared config — hence
+   * one shared `period_years` — is applied to every period, so this entry point
+   * is only correct for equal-length periods; use `campisiCarinoLink` for
+   * unequal periods. Returns a JSON `FiCarinoLinkedResult`.
+   * @param periodsJson - Canonical JSON array of `FiPeriodInput` objects, each holding `portfolio` and `benchmark` arrays of `FiPositionSnapshot`.
+   * @param configJson - Canonical JSON `FiAttributionConfig` applied to every period; both `period_years` and `spread_mode` are required, with no defaults.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  campisiCarinoLinkFromSnapshots(periodsJson: string, configJson: string): string;
+  /**
    * Compute a Modified-Dietz TWRR sub-period return from period JSON.
    * @param periodJson - Canonical JSON payload representing the period consumed by this API.
    * @returns Returns the result using the declared TypeScript shape.

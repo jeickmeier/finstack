@@ -1112,6 +1112,9 @@ root_exports = [
   "parsePortfolioSpec",
   "brinsonFachler",
   "carinoLink",
+  "campisiAttribution",
+  "campisiCarinoLink",
+  "campisiCarinoLinkFromSnapshots",
   "twrrModifiedDietz",
   "twrrLinked",
   "mwrXirr",
@@ -1207,11 +1210,6 @@ python_only = [
   "attribute_portfolio_pnl",
   "build_credit_vol_report",
   "build_stress_attribution",
-  # Campisi fixed-income attribution is Python-only for now; the WASM facade
-  # has no fixed-income attribution surface yet.
-  "campisi_attribution",
-  "campisi_carino_link",
-  "campisi_carino_link_from_snapshots",
   "evaluate_risk_budget_typed",
   "factor_stress",
   "historical_var_decomposition_typed",
@@ -1237,6 +1235,9 @@ Portfolio = "Portfolio"
 parse_portfolio_spec = "parsePortfolioSpec"
 brinson_fachler = "brinsonFachler"
 carino_link = "carinoLink"
+campisi_attribution = "campisiAttribution"
+campisi_carino_link = "campisiCarinoLink"
+campisi_carino_link_from_snapshots = "campisiCarinoLinkFromSnapshots"
 twrr_modified_dietz = "twrrModifiedDietz"
 twrr_linked = "twrrLinked"
 mwr_xirr = "mwrXirr"
