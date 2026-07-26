@@ -165,6 +165,9 @@ pub(crate) mod dataframe;
 pub mod error;
 /// Factor-model portfolio risk decomposition outputs and engines.
 pub mod factor_model;
+/// Campisi-style benchmark-relative fixed-income attribution
+/// (carry / treasury / spread / selection with Carino linking).
+pub mod fi_attribution;
 /// Shared FX conversion helpers (e.g. converting position values to base currency).
 pub(crate) mod fx;
 /// Grouping and aggregation by attributes or books.
@@ -237,6 +240,10 @@ pub use dependencies::{flatten_dependencies, DependencyIndex, MarketFactorKey};
 pub use factor_model::{
     allocate_weights, validate_allocation_json, AllocationDiagnostics, AllocationScheme,
     StrategyAllocation, StrategyAllocationInput, WeightAllocationResult, WeightAllocationSpec,
+};
+pub use fi_attribution::{
+    campisi_attribution, FiAttributionConfig, FiAttributionResult, FiComponents,
+    FiPositionSnapshot, FiReconciliationReport, FiSectorEffect, SpreadChangeMode,
 };
 pub use margin::{
     CurrencyMismatchError, NettingSet, NettingSetManager, NettingSetMargin,
