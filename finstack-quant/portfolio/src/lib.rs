@@ -245,7 +245,7 @@ pub use fi_attribution::{
     campisi_attribution, campisi_carino_link, campisi_carino_link_from_snapshots,
     snapshot_from_position_metrics, FiAttributionConfig, FiAttributionResult, FiCarinoLinkedResult,
     FiComponents, FiLinkedSectorEffect, FiPeriodInput, FiPositionSnapshot, FiReconciliationReport,
-    FiSectorEffect, SpreadChangeMode,
+    FiSectorEffect,
 };
 pub use margin::{
     CurrencyMismatchError, NettingSet, NettingSetManager, NettingSetMargin,

@@ -2057,8 +2057,12 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
     benchmark_json : str
         JSON array of ``FiPositionSnapshot`` objects for the benchmark.
     config_json : str
-        JSON object with ``period_years`` (e.g. ``0.25``) and ``spread_mode``
-        (``"spread_duration"`` or ``"dts"``). Both fields are required.
+        JSON object whose only field is ``period_years`` (e.g. ``0.25``). It is
+        required — there is no default — and unknown keys are rejected. The
+        spread convention is not configurable: the Campisi spread effect
+        ``-SD * delta_spread`` is identical under the absolute and
+        Duration-Times-Spread conventions, so a mode switch could only relabel
+        an identical result.
 
     Returns
     -------
@@ -2071,15 +2075,16 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
     ------
     PortfolioError
         If weights do not sum to one, inputs are non-finite, ``period_years``
-        is not finite and positive, either side is empty, or DTS mode receives
-        a non-positive spread with a non-zero spread term.
+        is not finite and positive, either side is empty, or a sector nets to
+        exactly zero weight on either side. The spread *level* is unconstrained:
+        zero and negative spreads are accepted, because the spread effect never
+        divides by it.
     ValueError
         If any JSON argument is malformed.
 
     Sources
     -------
-    See ``docs/REFERENCES.md#campisi-2000`` and
-    ``docs/REFERENCES.md#ben-dor-2007-dts``.
+    See ``docs/REFERENCES.md#campisi-2000``.
 
     Examples
     --------
@@ -2106,22 +2111,20 @@ def campisi_carino_link(periods_json: str) -> str:
     periods_json : str
         JSON array of ``FiAttributionResult`` objects in chronological order,
         each the parsed output of :func:`campisi_attribution`. Every period
-        must carry the same sector ordering and the same ``spread_mode``.
-        Unknown fields are rejected.
+        must carry the same sector ordering. Unknown fields are rejected.
 
     Returns
     -------
     str
         JSON-serialized ``FiCarinoLinkedResult`` whose five linked totals sum
-        to the geometrically compounded active return, and whose
-        ``spread_mode`` restates the convention linking enforced.
+        to the geometrically compounded active return.
 
     Raises
     ------
     PortfolioError
-        If ``periods_json`` is an empty array, sector orderings or spread modes
-        differ across periods, a period return is non-finite, or a return is at
-        or below -100% (outside the Carino domain).
+        If ``periods_json`` is an empty array, sector orderings differ across
+        periods, a period return is non-finite, or a return is at or below
+        -100% (outside the Carino domain).
     ValueError
         If ``periods_json`` is malformed or does not match the
         ``FiAttributionResult`` schema.
@@ -2159,21 +2162,20 @@ def campisi_carino_link_from_snapshots(periods_json: str, config_json: str) -> s
         ``benchmark`` arrays of ``FiPositionSnapshot`` (same schema as
         :func:`campisi_attribution`).
     config_json : str
-        JSON ``FiAttributionConfig`` shared across periods, with
-        ``period_years`` and ``spread_mode``; both fields are required.
+        JSON ``FiAttributionConfig`` shared across periods; ``period_years`` is
+        its only field and is required (no default).
 
     Returns
     -------
     str
         JSON-serialized ``FiCarinoLinkedResult`` whose five linked totals sum
-        to the geometrically compounded active return, and whose
-        ``spread_mode`` restates the shared convention.
+        to the geometrically compounded active return.
 
     Raises
     ------
     PortfolioError
         If ``periods_json`` is empty, any period fails Campisi validation, or
-        sector orderings or spread modes differ across periods.
+        sector orderings differ across periods.
     ValueError
         If any JSON argument is malformed.
 

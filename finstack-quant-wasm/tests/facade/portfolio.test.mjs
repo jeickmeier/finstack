@@ -113,8 +113,7 @@ const CAMPISI_BENCHMARK = JSON.stringify([
   campisiSnapshot('GOVT', 0.5, 0.015, 0.04, 5.5),
   campisiSnapshot('CORP', 0.5, 0.011, 0.055, 4.5),
 ]);
-const campisiConfig = (periodYears) =>
-  JSON.stringify({ period_years: periodYears, spread_mode: 'spread_duration' });
+const campisiConfig = (periodYears) => JSON.stringify({ period_years: periodYears });
 
 test('portfolio.campisiAttribution reconciles the five effects to active return', () => {
   const result = JSON.parse(
@@ -127,23 +126,22 @@ test('portfolio.campisiAttribution reconciles the five effects to active return'
     result.total_active_spread +
     result.total_selection;
   assert.ok(Math.abs(reconstructed - result.active_return) < 1e-12);
-  assert.equal(result.spread_mode, 'spread_duration');
+  assert.equal('spread_mode' in result, false);
 });
 
-test('portfolio.campisiAttribution fails closed on a non-canonical spread_mode', () => {
+test('portfolio.campisiAttribution fails closed on unknown and missing config fields', () => {
+  // `period_years` is the config's only field and has no default: omitting it
+  // must be rejected, not guessed.
   assert.throws(() =>
-    portfolio.campisiAttribution(
-      CAMPISI_PORTFOLIO,
-      CAMPISI_BENCHMARK,
-      JSON.stringify({ period_years: 0.25, spread_mode: 'SpreadDuration' })
-    )
+    portfolio.campisiAttribution(CAMPISI_PORTFOLIO, CAMPISI_BENCHMARK, JSON.stringify({}))
   );
-  // `spread_mode` has no default: omitting it must be rejected, not guessed.
+  // The retired `spread_mode` key is now an unknown field. A stale caller must
+  // be told, not silently served a result computed without it.
   assert.throws(() =>
     portfolio.campisiAttribution(
       CAMPISI_PORTFOLIO,
       CAMPISI_BENCHMARK,
-      JSON.stringify({ period_years: 0.25 })
+      JSON.stringify({ period_years: 0.25, spread_mode: 'dts' })
     )
   );
 });

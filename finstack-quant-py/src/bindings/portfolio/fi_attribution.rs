@@ -21,8 +21,8 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 /// benchmark_json : str
 ///     JSON array of ``FiPositionSnapshot`` objects for the benchmark.
 /// config_json : str
-///     JSON ``FiAttributionConfig`` with ``period_years`` and ``spread_mode``
-///     (``"spread_duration"`` or ``"dts"``); both fields are required.
+///     JSON ``FiAttributionConfig``; ``period_years`` is its only field and is
+///     required (no default). Unknown keys are rejected.
 ///
 /// Returns
 /// -------

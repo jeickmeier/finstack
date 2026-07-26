@@ -52,7 +52,7 @@ def _benchmark() -> list[dict[str, float | str]]:
     ]
 
 
-_CONFIG = {"period_years": 0.25, "spread_mode": "spread_duration"}
+_CONFIG = {"period_years": 0.25}
 
 
 def test_campisi_attribution_matches_hand_worked_golden() -> None:
@@ -69,7 +69,7 @@ def test_campisi_attribution_matches_hand_worked_golden() -> None:
     assert result["total_active_treasury"] == pytest.approx(-0.00075, abs=1e-12)
     assert result["total_active_spread"] == pytest.approx(0.0009575, abs=1e-12)
     assert result["total_selection"] == pytest.approx(0.00023375, abs=1e-12)
-    assert result["spread_mode"] == "spread_duration"
+    assert "spread_mode" not in result
 
     # Absolute per-side Campisi split is surfaced too.
     assert result["portfolio_components"]["carry"] == pytest.approx(0.01325, abs=1e-12)
@@ -115,25 +115,22 @@ def test_campisi_attribution_accepts_keyword_arguments() -> None:
     assert result["active_return"] == pytest.approx(0.00076, abs=1e-12)
 
 
-def test_campisi_attribution_accepts_dts_spread_mode() -> None:
-    """``"dts"`` is the other accepted ``spread_mode`` literal and is echoed back."""
+def test_campisi_attribution_rejects_unknown_and_missing_config_fields() -> None:
+    """``period_years`` is the config's only field and carries no default.
+
+    Replaces the pair of tests that pinned the retired ``spread_mode``
+    literals. The spread convention is no longer configurable, so a caller
+    still sending the key must be told rather than silently served a result
+    computed without it.
+    """
     from finstack_quant.portfolio import campisi_attribution
 
-    config = {"period_years": 0.25, "spread_mode": "dts"}
-    result = json.loads(campisi_attribution(json.dumps(_portfolio()), json.dumps(_benchmark()), json.dumps(config)))
-
-    assert result["spread_mode"] == "dts"
-    # Exact inputs ⇒ DTS and spread-duration conventions agree numerically.
-    assert result["total_active_spread"] == pytest.approx(0.0009575, abs=1e-12)
-
-
-def test_campisi_attribution_rejects_unknown_spread_mode() -> None:
-    """Only the two documented ``spread_mode`` literals parse."""
-    from finstack_quant.portfolio import campisi_attribution
-
-    config = {"period_years": 0.25, "spread_mode": "SpreadDuration"}
     with pytest.raises(ValueError, match="config JSON"):
-        campisi_attribution(json.dumps(_portfolio()), json.dumps(_benchmark()), json.dumps(config))
+        campisi_attribution(json.dumps(_portfolio()), json.dumps(_benchmark()), json.dumps({}))
+
+    stale = {"period_years": 0.25, "spread_mode": "dts"}
+    with pytest.raises(ValueError, match="config JSON"):
+        campisi_attribution(json.dumps(_portfolio()), json.dumps(_benchmark()), json.dumps(stale))
 
 
 def test_campisi_carino_link_from_snapshots_reconstructs_compounded_active_return() -> None:
@@ -174,7 +171,6 @@ def test_campisi_carino_link_from_snapshots_reconstructs_compounded_active_retur
     assert [s["sector"] for s in result["linked_sectors"]] == ["GOVT", "CORP"]
     assert len(result["periods"]) == 2
     assert result["periods"][0]["active_return"] == pytest.approx(0.00076, abs=1e-12)
-    assert result["periods"][0]["spread_mode"] == "spread_duration"
     assert result["periods"][0]["total_active_carry"] == pytest.approx(0.00103125, abs=1e-12)
 
 
@@ -192,30 +188,36 @@ def test_campisi_carino_link_from_snapshots_accepts_keyword_arguments() -> None:
     assert len(result["linked_sectors"]) == 2
 
 
-def test_campisi_carino_link_from_snapshots_propagates_dts_mode() -> None:
-    """``spread_mode`` from ``config_json`` actually reaches every period."""
-    from finstack_quant.portfolio import PortfolioError, campisi_carino_link_from_snapshots
+def test_campisi_accepts_zero_and_negative_spread_levels() -> None:
+    """The spread *level* never enters the arithmetic, so it is unconstrained.
 
-    dts_config = {"period_years": 0.25, "spread_mode": "dts"}
-    period = {"portfolio": _portfolio(), "benchmark": _benchmark()}
-    result = json.loads(campisi_carino_link_from_snapshots(json.dumps([period, period]), json.dumps(dts_config)))
-    assert [p["spread_mode"] for p in result["periods"]] == ["dts", "dts"]
+    Replaces the DTS-propagation test, whose only observable behaviour was the
+    old DTS rejection of a non-positive spread. The surviving spread effect
+    ``-SD * delta_spread`` does not divide by the level, so zero and negative
+    spreads (Bund asset swaps, negative OAS) are ordinary inputs and must not
+    perturb any effect.
+    """
+    from finstack_quant.portfolio import campisi_carino_link_from_snapshots
 
-    # The two modes are numerically identical on positive spreads, so the echo
-    # alone could be cosmetic. DTS additionally fails closed on a zero spread
-    # with a non-zero spread term — a case ``spread_duration`` prices fine.
-    # Only a genuinely propagated mode can produce this divergence.
-    zero_spread_portfolio = [_snap("CORP", 1.00, 0.0120, 0.060, 4.0, 3.8, 0.0, -0.0010, 0.0020)]
-    zero_spread_benchmark = [_snap("CORP", 1.00, 0.0090, 0.055, 5.0, 4.8, 0.0120, -0.0010, 0.0020)]
-    zero_spread_period = {"portfolio": zero_spread_portfolio, "benchmark": zero_spread_benchmark}
-    periods_json = json.dumps([zero_spread_period, zero_spread_period])
+    def _period(p_spread: float, b_spread: float) -> dict[str, object]:
+        return {
+            "portfolio": [_snap("CORP", 1.00, 0.0120, 0.060, 4.0, 3.8, p_spread, -0.0010, 0.0020)],
+            "benchmark": [_snap("CORP", 1.00, 0.0090, 0.055, 5.0, 4.8, b_spread, -0.0010, 0.0020)],
+        }
 
-    ok = json.loads(campisi_carino_link_from_snapshots(periods_json, json.dumps(_CONFIG)))
-    assert ok["periods"][0]["spread_mode"] == "spread_duration"
-    assert ok["periods"][0]["total_active_spread"] == pytest.approx(0.0020, abs=1e-12)
+    def _link(p_spread: float, b_spread: float) -> dict[str, object]:
+        period = _period(p_spread, b_spread)
+        return json.loads(campisi_carino_link_from_snapshots(json.dumps([period, period]), json.dumps(_CONFIG)))
 
-    with pytest.raises(PortfolioError, match="DTS spread mode requires a positive spread"):
-        campisi_carino_link_from_snapshots(periods_json, json.dumps(dts_config))
+    baseline = _link(0.0150, 0.0120)
+    # w_p (-SD_p ds - (-SD_b ds)) = 1.0 x (-3.8 + 4.8) x 0.0020 per period.
+    assert baseline["periods"][0]["total_active_spread"] == pytest.approx(0.0020, abs=1e-12)
+
+    # A zero portfolio-side spread with a non-zero SD x ds term is precisely
+    # what the retired DTS mode rejected; it is now a legal input.
+    for label, linked in (("zero", _link(0.0, 0.0120)), ("negative", _link(-0.0025, -0.0040))):
+        assert linked["linked_active_spread"] == pytest.approx(baseline["linked_active_spread"], abs=1e-15), label
+        assert linked["linked_selection"] == pytest.approx(baseline["linked_selection"], abs=1e-15), label
 
 
 def test_campisi_carino_link_links_precomputed_results_of_mixed_lengths() -> None:
@@ -229,14 +231,14 @@ def test_campisi_carino_link_links_precomputed_results_of_mixed_lengths() -> Non
         campisi_attribution(
             json.dumps(_portfolio()),
             json.dumps(_benchmark()),
-            json.dumps({"period_years": 31.0 / 365.0, "spread_mode": "spread_duration"}),
+            json.dumps({"period_years": 31.0 / 365.0}),
         )
     )
     february = json.loads(
         campisi_attribution(
             json.dumps(_portfolio()),
             json.dumps(_benchmark()),
-            json.dumps({"period_years": 28.0 / 365.0, "spread_mode": "spread_duration"}),
+            json.dumps({"period_years": 28.0 / 365.0}),
         )
     )
 
@@ -378,16 +380,6 @@ def test_campisi_carino_link_rejects_bad_json_and_domain_errors() -> None:
     with pytest.raises(PortfolioError, match="sector ordering"):
         campisi_carino_link(json.dumps([period, renamed]))
 
-    dts = json.loads(
-        campisi_attribution(
-            json.dumps(_portfolio()),
-            json.dumps(_benchmark()),
-            json.dumps({"period_years": 0.25, "spread_mode": "dts"}),
-        )
-    )
-    with pytest.raises(PortfolioError, match="spread mode"):
-        campisi_carino_link(json.dumps([period, dts]))
-
 
 def test_campisi_result_denies_unknown_fields_on_every_input_path() -> None:
     """A stale or misspelled key must fail closed, not be silently dropped.
@@ -462,16 +454,3 @@ def test_campisi_reconciliation_check_accepts_keyword_arguments() -> None:
     result_json = campisi_attribution(json.dumps(_portfolio()), json.dumps(_benchmark()), json.dumps(_CONFIG))
     report = json.loads(campisi_reconciliation_check(result_json=result_json, tolerance=1e-10))
     assert report["is_reconciled"] is True
-
-
-def test_campisi_linked_result_stamps_the_shared_spread_mode() -> None:
-    """Linked results restate the spread convention linking enforced."""
-    from finstack_quant.portfolio import campisi_carino_link_from_snapshots
-
-    period = {"portfolio": _portfolio(), "benchmark": _benchmark()}
-    linked = json.loads(campisi_carino_link_from_snapshots(json.dumps([period, period]), json.dumps(_CONFIG)))
-    assert linked["spread_mode"] == "spread_duration"
-
-    dts_config = {"period_years": 0.25, "spread_mode": "dts"}
-    linked_dts = json.loads(campisi_carino_link_from_snapshots(json.dumps([period, period]), json.dumps(dts_config)))
-    assert linked_dts["spread_mode"] == "dts"

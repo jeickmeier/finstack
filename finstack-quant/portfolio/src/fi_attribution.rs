@@ -7,16 +7,45 @@
 //! ```text
 //! carry_j     = yield_annual_j × Δt                    // income effect
 //! treasury_j  = −MD_j × Δy_tsy,j                       // duration / curve effect
-//! spread_j    = −SD_j × Δs_j                           // both spread modes
+//! spread_j    = −SD_j × Δs_j                           // spread effect
 //! selection_j = r_j − carry_j − treasury_j − spread_j  // residual
 //! ```
 //!
 //! `Δs_j` ([`FiPositionSnapshot::delta_spread`]) is the *absolute* spread
-//! change under both [`SpreadChangeMode`] variants, and the two modes evaluate
-//! the identical expression (`−(SD·s)·(Δs/s) ≡ −SD·Δs`). The mode only governs
-//! fail-closed validation — `Dts` requires a positive spread whenever
-//! `SD × Δs ≠ 0`, the DTS risk premise of Ben Dor et al. (2007) — and is
-//! stamped into the result so downstream consumers know which policy ran.
+//! change. Supplying a relative change `Δs / s` instead would overstate the
+//! spread effect by a factor of `1 / s` and dump the difference into selection.
+//!
+//! # Why there is no DTS spread mode
+//!
+//! Duration-Times-Spread (Ben Dor et al. 2007) re-expresses credit exposure as
+//! the product `D · s` against a *relative* spread change. Under that
+//! convention the three quantities of interest read:
+//!
+//! ```text
+//!               absolute                DTS
+//! return        R = −D · Δs             R = −(D · s) · (Δs / s)
+//! volatility    σ_R ≈ D · σ_absolute    σ_R ≈ (D · s) · σ_relative
+//! hedge ratio   H = D₁ / D₂             H = (D₁ · s₁) / (D₂ · s₂)
+//! ```
+//!
+//! (Barclays QPS, "Managing Credit Exposure of CDS Portfolios: Adjusting DTS
+//! for Market Beta", 23 Jan 2024 — the "paradigm change from absolute to
+//! relative spread changes" slide.)
+//!
+//! The **return** row is an algebraic identity: `−(D · s)(Δs / s) ≡ −D · Δs`.
+//! DTS earns its keep only in the volatility and hedge-ratio rows, where
+//! `D · s` is a standalone risk quantity multiplied by a relative spread
+//! volatility that is empirically far more stable across issuers and rating
+//! bands than an absolute one. Ex-post attribution is handed a *realized* `Δs`,
+//! so there is no volatility to model and no hedge to size — both conventions
+//! reduce to the same number. A mode switch here could therefore only ever
+//! relabel an identical result, so this module exposes one spread convention.
+//! DTS belongs in risk and hedging surfaces, not in this decomposition.
+//!
+//! A corollary: the spread *level* [`FiPositionSnapshot::spread`] never enters
+//! the arithmetic — nothing divides by it — so zero and negative spread levels
+//! (Bund asset swaps, negative OAS on deep-premium callables) are accepted as
+//! ordinary inputs rather than rejected.
 //!
 //! # Benchmark-relative sector layer
 //!
@@ -53,8 +82,8 @@
 //!   `docs/REFERENCES.md#campisi-2000`
 //! * Ben Dor, A., Dynkin, L., Hyman, J., Houweling, P., van Leeuwen, E., &
 //!   Penninga, O. (2007). "DTS (Duration Times Spread)." *Journal of
-//!   Portfolio Management*, 33(2), 77–100 — motivates the strictly-positive
-//!   spread requirement of [`SpreadChangeMode::Dts`].
+//!   Portfolio Management*, 33(2), 77–100 — source of the DTS convention
+//!   deliberately *not* offered here; see "Why there is no DTS spread mode".
 //!   `docs/REFERENCES.md#ben-dor-2007-dts`
 //! * Brinson, G. P., & Fachler, N. (1985). "Measuring Non-US Equity Portfolio
 //!   Performance." *Journal of Portfolio Management*, 11(3) — source of the
@@ -73,48 +102,22 @@ use serde::{Deserialize, Serialize};
 /// Tolerance for the requirement that weights sum to 1.0 on each side.
 const WEIGHT_TOLERANCE: f64 = 1e-6;
 
-/// Convention used for the spread component of the Campisi decomposition.
-///
-/// **Both modes evaluate the same expression**, `−spread_duration ×
-/// delta_spread`, and [`FiPositionSnapshot::delta_spread`] is the *absolute*
-/// spread change in both. The two modes are therefore numerically identical on
-/// the same inputs; the only behavioural difference is that
-/// [`SpreadChangeMode::Dts`] fails closed unless `spread` is strictly positive
-/// whenever the spread term is non-zero. The selected mode is stamped into
-/// [`FiAttributionResult`] so downstream consumers see which policy ran.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SpreadChangeMode {
-    /// Spread effect `−spread_duration × delta_spread`, with `delta_spread`
-    /// the absolute spread change. Imposes no constraint on the spread level.
-    SpreadDuration,
-    /// Spread effect `−spread_duration × delta_spread` — the identical
-    /// expression to [`SpreadChangeMode::SpreadDuration`], since
-    /// `−(SD·s)·(Δs/s) ≡ −SD·Δs`. `delta_spread` is the **absolute** spread
-    /// change here too, *not* a relative one.
-    ///
-    /// This mode differs only by requiring a strictly positive `spread`
-    /// whenever the spread term is non-zero, the DTS risk premise of Ben Dor
-    /// et al. (2007). Supplying a relative change `Δs / s` instead of `Δs`
-    /// would overstate the spread effect by a factor of `1 / s` and dump the
-    /// difference into selection.
-    Dts,
-}
-
 /// Configuration for [`campisi_attribution`].
+///
+/// Deliberately a single field: the spread convention is not configurable, for
+/// the reason set out under "Why there is no DTS spread mode" in the module
+/// docs. `period_years` has no serde default — an omitted key fails closed
+/// rather than silently assuming a period length.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FiAttributionConfig {
     /// Length of the attribution period in years (e.g. `0.25` for a
     /// quarter). Scales `yield_annual` into the period carry.
     pub period_years: f64,
-    /// Spread-effect convention.
-    pub spread_mode: SpreadChangeMode,
 }
 
 impl FiAttributionConfig {
-    /// Create a config with the given period length and the default
-    /// [`SpreadChangeMode::SpreadDuration`] convention.
+    /// Create a config for the given period length.
     ///
     /// # Arguments
     ///
@@ -124,17 +127,13 @@ impl FiAttributionConfig {
     /// # Examples
     ///
     /// ```rust
-    /// use finstack_quant_portfolio::fi_attribution::{FiAttributionConfig, SpreadChangeMode};
+    /// use finstack_quant_portfolio::fi_attribution::FiAttributionConfig;
     ///
     /// let config = FiAttributionConfig::new(0.25);
     /// assert_eq!(config.period_years, 0.25);
-    /// assert_eq!(config.spread_mode, SpreadChangeMode::SpreadDuration);
     /// ```
     pub fn new(period_years: f64) -> Self {
-        Self {
-            period_years,
-            spread_mode: SpreadChangeMode::SpreadDuration,
-        }
+        Self { period_years }
     }
 }
 
@@ -160,6 +159,11 @@ pub struct FiPositionSnapshot {
     /// Spread duration in years at period start.
     pub spread_duration: f64,
     /// Spread at period start (decimal; e.g. Z-spread or OAS).
+    ///
+    /// Carried for provenance and downstream reporting only — the
+    /// decomposition never divides by it, so any finite value (including zero
+    /// and negative levels) is accepted. See "Why there is no DTS spread mode"
+    /// in the module docs.
     pub spread: f64,
     /// Change in the treasury/benchmark yield relevant to this position's
     /// duration bucket over the period (decimal).
@@ -267,7 +271,7 @@ pub struct FiComponents {
     pub carry: f64,
     /// Treasury/duration effect `Σ w · (−MD · Δy)`.
     pub treasury: f64,
-    /// Spread effect (per [`SpreadChangeMode`]).
+    /// Spread effect `Σ w · (−SD · Δs)`.
     pub spread: f64,
     /// Residual selection `Σ w · (r − explained)`.
     pub selection: f64,
@@ -335,8 +339,6 @@ pub struct FiAttributionResult {
     pub total_active_spread: f64,
     /// Sum of sector selection effects.
     pub total_selection: f64,
-    /// Spread convention that produced this result.
-    pub spread_mode: SpreadChangeMode,
 }
 
 /// Report from reconciling the five effect totals against the active return,
@@ -405,29 +407,16 @@ impl FiAttributionResult {
 }
 
 /// Per-position Campisi components (carry, treasury, spread) in return space.
-fn position_components(
-    s: &FiPositionSnapshot,
-    config: &FiAttributionConfig,
-) -> Result<(f64, f64, f64)> {
+///
+/// Infallible: every input has already been checked for finiteness by
+/// [`validate_snapshot`], and none of the three expressions divides by an
+/// input. In particular the spread effect is linear in `delta_spread` and does
+/// not touch the spread *level*, so `spread <= 0` needs no guard here.
+fn position_components(s: &FiPositionSnapshot, config: &FiAttributionConfig) -> (f64, f64, f64) {
     let carry = s.yield_annual * config.period_years;
     let treasury = -s.modified_duration * s.delta_treasury_yield;
-    let spread = match config.spread_mode {
-        SpreadChangeMode::SpreadDuration => -s.spread_duration * s.delta_spread,
-        SpreadChangeMode::Dts => {
-            if s.spread > 0.0 {
-                -s.spread_duration * s.delta_spread
-            } else if (s.spread_duration * s.delta_spread).abs() > 0.0 {
-                return Err(Error::invalid_input(format!(
-                    "DTS spread mode requires a positive spread for sector '{}' \
-                     (got spread = {}, spread_duration = {}, delta_spread = {})",
-                    s.sector, s.spread, s.spread_duration, s.delta_spread
-                )));
-            } else {
-                0.0
-            }
-        }
-    };
-    Ok((carry, treasury, spread))
+    let spread = -s.spread_duration * s.delta_spread;
+    (carry, treasury, spread)
 }
 
 /// Validate finiteness of every numeric field of a snapshot.
@@ -534,7 +523,7 @@ fn aggregate_side(
 
     for s in snapshots {
         validate_snapshot(s, side)?;
-        let (carry, treasury, spread) = position_components(s, config)?;
+        let (carry, treasury, spread) = position_components(s, config);
         let selection = s.total_return - carry - treasury - spread;
 
         sum_w.add(s.weight);
@@ -586,10 +575,10 @@ fn aggregate_side(
 /// Compute a single-period Campisi benchmark-relative attribution.
 ///
 /// Decomposes each side's return into carry, treasury, spread and selection
-/// (Campisi 2000; Ben Dor et al. 2007 for the DTS spread convention), then
-/// buckets by sector and splits the active return into allocation plus four
-/// active component effects using Brinson-Fachler sign conventions (see the
-/// module docs for the exact formulas and the reconciliation proof).
+/// (Campisi 2000), then buckets by sector and splits the active return into
+/// allocation plus four active component effects using Brinson-Fachler sign
+/// conventions (see the module docs for the exact formulas and the
+/// reconciliation proof).
 ///
 /// A sector missing from one side is treated with zero weight on that side,
 /// so the decomposition stays complete. A sector that is *present* on a side
@@ -601,15 +590,17 @@ fn aggregate_side(
 ///
 /// * `portfolio` - Portfolio position/bucket snapshots; weights must sum to 1.
 /// * `benchmark` - Benchmark snapshots; weights must sum to 1.
-/// * `config` - Period length and spread convention.
+/// * `config` - Period length.
 ///
 /// # Errors
 ///
 /// * [`Error::InvalidInput`] if either side is empty, any value is
 ///   non-finite, weights don't sum to 1.0 (±1e-6), `period_years` is not
-///   finite and positive, a sector has offsetting positions netting to exactly
-///   zero weight on either side, or (Dts mode) a snapshot has non-positive
-///   spread with a non-zero spread term.
+///   finite and positive, or a sector has offsetting positions netting to
+///   exactly zero weight on either side.
+///
+/// The spread *level* is unconstrained: zero and negative spreads are accepted,
+/// because the spread effect `−SD · Δs` never divides by it.
 ///
 /// # Examples
 ///
@@ -722,7 +713,6 @@ pub fn campisi_attribution(
         total_active_treasury: total_active_treasury.total(),
         total_active_spread: total_active_spread.total(),
         total_selection: total_selection.total(),
-        spread_mode: config.spread_mode,
     })
 }
 
@@ -777,10 +767,6 @@ pub struct FiCarinoLinkedResult {
     pub linked_active_spread: f64,
     /// Sum of linked selection effects.
     pub linked_selection: f64,
-    /// Spread convention shared by every linked period (linking rejects a mix),
-    /// restated here so consumers reading only the linked totals still see the
-    /// policy that produced them.
-    pub spread_mode: SpreadChangeMode,
 }
 
 /// Apply Carino (1999) smoothing to per-period Campisi results so the five
@@ -793,14 +779,13 @@ pub struct FiCarinoLinkedResult {
 /// # Arguments
 ///
 /// * `periods` - Chronologically ordered results with identical sector
-///   ordering and identical [`SpreadChangeMode`] across periods.
+///   ordering across periods.
 ///
 /// # Errors
 ///
-/// * [`Error::InvalidInput`] if `periods` is empty, sector ordering or spread
-///   mode differs across periods, any period return is non-finite, or a
-///   return is at or below −100 % (Carino domain, see
-///   [`crate::brinson::carino_link`]).
+/// * [`Error::InvalidInput`] if `periods` is empty, sector ordering differs
+///   across periods, any period return is non-finite, or a return is at or
+///   below −100 % (Carino domain, see [`crate::brinson::carino_link`]).
 pub fn campisi_carino_link(periods: &[FiAttributionResult]) -> Result<FiCarinoLinkedResult> {
     let Some(first) = periods.first() else {
         return Err(Error::invalid_input(
@@ -817,12 +802,6 @@ pub fn campisi_carino_link(periods: &[FiAttributionResult]) -> Result<FiCarinoLi
         if !same_order {
             return Err(Error::invalid_input(format!(
                 "Campisi Carino linking requires identical sector ordering across all periods \
-                 (period {idx} differs from period 0)"
-            )));
-        }
-        if p.spread_mode != first.spread_mode {
-            return Err(Error::invalid_input(format!(
-                "Campisi Carino linking requires a consistent spread mode \
                  (period {idx} differs from period 0)"
             )));
         }
@@ -898,7 +877,6 @@ pub fn campisi_carino_link(periods: &[FiAttributionResult]) -> Result<FiCarinoLi
         linked_active_treasury,
         linked_active_spread,
         linked_selection,
-        spread_mode: first.spread_mode,
     })
 }
 
@@ -910,7 +888,7 @@ pub fn campisi_carino_link(periods: &[FiAttributionResult]) -> Result<FiCarinoLi
 ///
 /// * `periods` - Chronologically ordered period inputs. Every period must
 ///   produce the same sector set in the same first-seen order.
-/// * `config` - Shared period length and spread convention.
+/// * `config` - Shared period length.
 ///
 /// # Errors
 ///
@@ -1265,45 +1243,69 @@ mod tests {
         assert!(serde_json::from_str::<FiPositionSnapshot>(bad).is_err());
 
         let config: FiAttributionConfig =
-            serde_json::from_str(r#"{"period_years": 0.25, "spread_mode": "spread_duration"}"#)
-                .expect("config parses");
-        assert!(matches!(
-            config.spread_mode,
-            SpreadChangeMode::SpreadDuration
-        ));
+            serde_json::from_str(r#"{"period_years": 0.25}"#).expect("config parses");
+        assert!((config.period_years - 0.25).abs() < 1e-15);
+
+        // `period_years` is the config's only field and carries no serde
+        // default: an empty object must fail rather than assume a period.
+        assert!(serde_json::from_str::<FiAttributionConfig>("{}").is_err());
+
+        // The removed `spread_mode` key must now fail closed as an unknown
+        // field, so a stale caller is told rather than silently ignored.
+        assert!(serde_json::from_str::<FiAttributionConfig>(
+            r#"{"period_years": 0.25, "spread_mode": "dts"}"#
+        )
+        .is_err());
     }
 
-    /// With exact `spread` and `delta_spread` inputs, the DTS convention
-    /// −DTS·(Δs/s) is algebraically identical to −SD·Δs (Ben Dor et al.
-    /// 2007), so on all-positive-spread data both modes must agree to
-    /// floating-point round-off.
+    /// The spread effect is `−SD · Δs` and never touches the spread *level*,
+    /// so the level is inert: zero and negative spreads must be accepted and
+    /// must not perturb any effect. This replaces the old pair of DTS-mode
+    /// tests (mode-equivalence, and the DTS rejection of a non-positive
+    /// spread), which pinned a mode that no longer exists.
     #[test]
-    fn dts_mode_matches_spread_duration_mode_on_positive_spreads() {
-        let portfolio = vec![
-            snap(
-                "CORP", 0.60, 0.0120, 0.060, 4.0, 3.8, 0.0150, -0.0010, 0.0020,
-            ),
-            snap("HY", 0.40, 0.0118, 0.070, 6.0, 5.5, 0.0250, -0.0010, 0.0020),
-        ];
-        let benchmark = vec![
-            snap(
-                "CORP", 0.50, 0.0090, 0.055, 5.0, 4.8, 0.0120, -0.0010, 0.0020,
-            ),
-            snap("HY", 0.50, 0.0100, 0.065, 7.0, 6.5, 0.0200, -0.0010, 0.0020),
-        ];
+    fn campisi_spread_level_is_inert_and_may_be_zero_or_negative() {
+        let config = FiAttributionConfig::new(0.25);
+        let build = |p_spread: f64, b_spread: f64| {
+            (
+                vec![snap(
+                    "CORP", 1.0, 0.0120, 0.060, 4.0, 3.8, p_spread, -0.0010, 0.0020,
+                )],
+                vec![snap(
+                    "CORP", 1.0, 0.0090, 0.055, 5.0, 4.8, b_spread, -0.0010, 0.0020,
+                )],
+            )
+        };
 
-        let sd_config = FiAttributionConfig::new(0.25);
-        let mut dts_config = FiAttributionConfig::new(0.25);
-        dts_config.spread_mode = SpreadChangeMode::Dts;
+        // Baseline: ordinary positive spread levels.
+        let (portfolio, benchmark) = build(0.0150, 0.0120);
+        let base = campisi_attribution(&portfolio, &benchmark, &config).expect("positive spreads");
+        // w_p (−SD_p Δs − (−SD_b Δs)) = 1.0 × (−3.8 + 4.8) × 0.0020.
+        assert_close(base.total_active_spread, 0.0020, "baseline active_spread");
 
-        let sd = campisi_attribution(&portfolio, &benchmark, &sd_config).expect("sd mode");
-        let dts = campisi_attribution(&portfolio, &benchmark, &dts_config).expect("dts mode");
+        // A zero spread on the portfolio side with a non-zero SD × Δs term is
+        // exactly what the old DTS mode rejected. It is now a legal input.
+        let (zero_p, zero_b) = build(0.0, 0.0120);
+        let zero = campisi_attribution(&zero_p, &zero_b, &config).expect("zero spread is legal");
 
-        assert!((sd.total_active_spread - dts.total_active_spread).abs() < 1e-14);
-        assert!((sd.total_selection - dts.total_selection).abs() < 1e-14);
-        assert!(matches!(dts.spread_mode, SpreadChangeMode::Dts));
-        assert!(matches!(sd.spread_mode, SpreadChangeMode::SpreadDuration));
-        assert!(dts.reconciliation_check(1e-10).is_reconciled);
+        // Negative spread levels are real (Bund asset swaps, negative OAS).
+        let (neg_p, neg_b) = build(-0.0025, -0.0040);
+        let negative =
+            campisi_attribution(&neg_p, &neg_b, &config).expect("negative spread is legal");
+
+        for (label, r) in [("zero", &zero), ("negative", &negative)] {
+            assert_close(
+                r.total_active_spread,
+                base.total_active_spread,
+                &format!("{label} active_spread must match the baseline"),
+            );
+            assert_close(
+                r.total_selection,
+                base.total_selection,
+                &format!("{label} selection must match the baseline"),
+            );
+            assert!(r.reconciliation_check(1e-10).is_reconciled);
+        }
     }
 
     /// Carino linking must rescale the five FI effects so their linked sum
@@ -1419,28 +1421,6 @@ mod tests {
         assert!(err.to_string().contains("sector ordering"), "{err}");
     }
 
-    /// DTS mode must fail closed when a snapshot carries a non-zero spread
-    /// term but a non-positive spread — silently substituting zero would
-    /// misclassify spread P&L as selection.
-    #[test]
-    fn dts_mode_rejects_nonpositive_spread_with_nonzero_spread_term() {
-        let mut config = FiAttributionConfig::new(0.25);
-        config.spread_mode = SpreadChangeMode::Dts;
-        let portfolio = vec![snap("CORP", 1.0, 0.01, 0.05, 4.0, 3.8, 0.0, -0.001, 0.002)];
-        let benchmark = vec![snap(
-            "CORP", 1.0, 0.01, 0.05, 4.0, 3.8, 0.0100, -0.001, 0.002,
-        )];
-
-        let err = campisi_attribution(&portfolio, &benchmark, &config)
-            .expect_err("zero spread with non-zero SD×Δs must fail in DTS mode");
-        assert!(err.to_string().contains("DTS"), "{err}");
-
-        // Treasuries (SD = 0, Δs = 0) remain fine in DTS mode.
-        let portfolio_ok = vec![snap("GOVT", 1.0, 0.01, 0.04, 5.0, 0.0, 0.0, -0.001, 0.0)];
-        let benchmark_ok = vec![snap("GOVT", 1.0, 0.01, 0.04, 5.5, 0.0, 0.0, -0.001, 0.0)];
-        assert!(campisi_attribution(&portfolio_ok, &benchmark_ok, &config).is_ok());
-    }
-
     #[test]
     fn snapshot_from_position_metrics_reads_fi_metrics() {
         let mut metrics = indexmap::IndexMap::new();
@@ -1549,10 +1529,6 @@ mod tests {
         let parsed: FiAttributionResult = serde_json::from_str(&json).expect("round-trip");
         assert!((parsed.active_return - result.active_return).abs() < 1e-15);
         assert_eq!(parsed.sectors.len(), result.sectors.len());
-        assert!(matches!(
-            parsed.spread_mode,
-            SpreadChangeMode::SpreadDuration
-        ));
         // And it still links, i.e. the round-tripped value is fully usable.
         assert!(campisi_carino_link(&[parsed]).is_ok());
 
@@ -1579,32 +1555,6 @@ mod tests {
             serde_json::from_str::<FiAttributionResult>(&bogus_components).is_err(),
             "unknown field inside FiComponents must be rejected"
         );
-    }
-
-    /// The linked result must restate the spread convention it enforced, so a
-    /// consumer reading only the linked totals still sees the policy stamp.
-    #[test]
-    fn carino_linked_result_stamps_the_shared_spread_mode() {
-        let mut config = FiAttributionConfig::new(0.25);
-        config.spread_mode = SpreadChangeMode::Dts;
-        let period = FiPeriodInput {
-            portfolio: golden_portfolio(),
-            benchmark: golden_benchmark(),
-        };
-        let linked = campisi_carino_link_from_snapshots(&[period.clone(), period], &config)
-            .expect("dts link");
-        assert!(matches!(linked.spread_mode, SpreadChangeMode::Dts));
-
-        let sd_config = FiAttributionConfig::new(0.25);
-        let period = FiPeriodInput {
-            portfolio: golden_portfolio(),
-            benchmark: golden_benchmark(),
-        };
-        let linked_sd = campisi_carino_link_from_snapshots(&[period], &sd_config).expect("sd link");
-        assert!(matches!(
-            linked_sd.spread_mode,
-            SpreadChangeMode::SpreadDuration
-        ));
     }
 
     /// [`FiAttributionResult::reconciliation_check`] is reachable from the

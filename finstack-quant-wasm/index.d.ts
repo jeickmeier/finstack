@@ -7052,11 +7052,10 @@ export interface PortfolioNamespace {
    *
    * Decomposes both sides into carry / treasury / spread / selection and
    * splits the active return into allocation plus four active component
-   * effects (Campisi 2000; Ben Dor et al. 2007 for the DTS convention).
-   * Returns a JSON `FiAttributionResult`.
+   * effects (Campisi 2000). Returns a JSON `FiAttributionResult`.
    * @param portfolioJson - Canonical JSON array of `FiPositionSnapshot` objects describing the portfolio side; weights must sum to 1.
    * @param benchmarkJson - Canonical JSON array of `FiPositionSnapshot` objects describing the benchmark side; weights must sum to 1.
-   * @param configJson - Canonical JSON `FiAttributionConfig`; both `period_years` and `spread_mode` (`"spread_duration"` or `"dts"`) are required, with no defaults.
+   * @param configJson - Canonical JSON `FiAttributionConfig`; `period_years` is its only field, is required (no default), and unknown keys are rejected.
    * @returns Returns the requested string representation or JSON payload.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
    */
@@ -7068,7 +7067,7 @@ export interface PortfolioNamespace {
    * already-applied `period_years`, so periods of *different* lengths (e.g.
    * act/365 calendar months) link correctly here; prefer this entry point
    * whenever the periods are not all the same length. Returns a JSON
-   * `FiCarinoLinkedResult` whose `spread_mode` restates the shared convention.
+   * `FiCarinoLinkedResult`.
    * @param periodsJson - Canonical JSON array of `FiAttributionResult` objects in chronological order, as returned by `campisiAttribution`.
    * @returns Returns the requested string representation or JSON payload.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
@@ -7082,7 +7081,7 @@ export interface PortfolioNamespace {
    * is only correct for equal-length periods; use `campisiCarinoLink` for
    * unequal periods. Returns a JSON `FiCarinoLinkedResult`.
    * @param periodsJson - Canonical JSON array of `FiPeriodInput` objects, each holding `portfolio` and `benchmark` arrays of `FiPositionSnapshot`.
-   * @param configJson - Canonical JSON `FiAttributionConfig` applied to every period; both `period_years` and `spread_mode` are required, with no defaults.
+   * @param configJson - Canonical JSON `FiAttributionConfig` applied to every period; `period_years` is its only field and is required (no default).
    * @returns Returns the requested string representation or JSON payload.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
    */

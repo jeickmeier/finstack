@@ -489,9 +489,15 @@ risk calculation with a standard reference.
 
 - Ben Dor, A., Dynkin, L., Hyman, J., Houweling, P., van Leeuwen, E., and
   Penninga, O. "DTS (Duration Times Spread)." *Journal of Portfolio
-  Management*, 33(2), 77-100. Motivates the strictly-positive-spread
-  requirement of the `Dts` spread mode in Campisi spread attribution; the
-  spread effect itself uses absolute spread changes in both modes.
+  Management*, 33(2), 77-100. Source of the DTS convention, which expresses
+  credit exposure as `D * s` against a *relative* spread change. Cited by
+  `finstack-quant/portfolio/src/fi_attribution.rs` to record why Campisi
+  attribution offers no DTS mode: the return leg is an algebraic identity
+  (`-(D * s)(ds / s)` = `-D * ds`), so given a realized spread change the two
+  conventions produce the same number. DTS earns its keep only in the
+  volatility and hedge-ratio legs, where `D * s` is a standalone risk quantity
+  multiplied by an empirically more stable relative spread volatility - risk
+  and hedging surfaces, not ex-post attribution.
 
 <a id="fama-french-1993"></a>
 
