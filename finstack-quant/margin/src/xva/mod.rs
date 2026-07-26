@@ -3,7 +3,8 @@
 //! Public surface: [`types`] (configuration, exposure profiles, results),
 //! `exposure::compute_exposure_profile`, `cva::compute_cva`,
 //! `cva::compute_dva`, `cva::compute_fva`, `cva::compute_bilateral_xva`,
-//! and the deterministic netting helpers.
+//! `mva::compute_mva`, `mva::im_profile_from_simm`, and the deterministic
+//! netting helpers.
 //!
 //! # Conventions
 //!

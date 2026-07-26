@@ -32,6 +32,13 @@ pub trait Valuable: Send + Sync {
 /// and quantile PFE on top of the values this trait produces.
 ///
 /// This trait is Rust-only (not exposed through Python/WASM bindings).
+///
+/// # Determinism
+///
+/// The exposure engine's bit-identical-for-fixed-seed guarantee holds only if
+/// the implementation is a pure function of `(PathState, t)` — no hidden
+/// mutable state, randomness, or I/O that could vary between calls with the
+/// same inputs.
 pub trait PathValuer: Send + Sync {
     /// Netted portfolio value in this path state at time `t` (years).
     ///

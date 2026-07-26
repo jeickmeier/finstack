@@ -25,6 +25,23 @@
 //! (left-constant) before the first grid point; include a small first grid
 //! point (e.g. `1.0/365.0`) if exact `t = 0` anchoring matters.
 //!
+//! # Model Boundaries
+//!
+//! Two boundaries of this model are not currently represented:
+//!
+//! - **DVA/MVA overlap**: bank-posted IM incurs MVA (a funding cost) but also
+//!   collateralizes the counterparty's claim against the bank on the bank's
+//!   own default. A book that computes `CVA − DVA + FVA + MVA` therefore
+//!   claims the full DVA benefit while also paying the full MVA cost on the
+//!   same posted collateral — the classic DVA/MVA overlap discussed in
+//!   Green (2015), ch. 10.
+//! - **Counterparty-posted dynamic IM**: only the static counterparty-posted
+//!   `independent_amount` on `CsaTerms` reduces EPE. Dynamic
+//!   counterparty-posted SIMM IM — which [`PathImModel`] could represent on
+//!   the counterparty side — does not currently reduce EPE gap risk, so gap
+//!   risk is overstated for UMR counterparties that carry only a static IA
+//!   rather than dynamic SIMM-based IM.
+//!
 //! # References
 //!
 //! - Green, A. (2015). *XVA: Credit, Funding and Capital Valuation
@@ -263,6 +280,14 @@ pub struct MvaResult {
 ///
 /// Returns an error if the profile or spread curve fails validation, or if any
 /// curve evaluation returns a non-finite value.
+///
+/// # Relationship to `compute_bilateral_xva`
+///
+/// [`crate::xva::cva::compute_bilateral_xva`] does **not** include this
+/// adjustment in its `bilateral_cva` output (`CVA − DVA + FVA` only). MVA is a
+/// positive funding cost with the same sign convention as CVA/FVA; add this
+/// function's `mva` field to `compute_bilateral_xva`'s result if the full
+/// funding-inclusive composition `CVA − DVA + FVA + MVA` is required.
 ///
 /// # References
 ///

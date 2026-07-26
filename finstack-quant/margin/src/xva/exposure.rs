@@ -676,6 +676,27 @@ where
 /// Fixed `stochastic_config.seed` gives bit-identical results (one Philox
 /// substream per path, independent of aggregation order).
 ///
+/// # Limitations
+///
+/// - **MPOR gap-risk discretization**: the lagged value at `t − δ` is linearly
+///   interpolated between adjacent `time_grid` points (`interpolate_path_value`),
+///   not simulated directly. For a Brownian-driven factor with grid spacing
+///   `Δt`, this makes the modeled gap increment `(δ/Δt)·(V(t) − V(t−Δt))`, whose
+///   standard deviation is `σ·δ/√Δt = σ√δ·√(δ/Δt)` rather than the true `σ√δ`
+///   over the MPOR window. With `δ = 10/365` years and a typical `Δt = 0.5`
+///   year grid, `√(δ/Δt) ≈ 0.23`, i.e. gap risk is understated by roughly
+///   `4.3×`. Gap risk is only accurate when the grid spacing is comparable to
+///   the MPOR; callers who need accurate MPOR gap risk should add secondary
+///   valuation points at `t − δ` to `time_grid`. This is exactly the
+///   discretization effect Andersen, Pykhtin & Sokol (2017) warn about.
+/// - **One-sided MPOR window**: `EPE` and `ENE` are aggregated from separately
+///   floored `max(V, 0)` / `max(-V, 0)` legs (see `aggregate_stochastic_profile`),
+///   so when `V` crosses zero inside the MPOR window, outstanding posted VM on
+///   the side that goes to zero is floored at zero rather than added to
+///   exposure on the other side — consistent with the locked D4 cap semantics
+///   (see [`super::netting::apply_collateral_mpor`] /
+///   [`super::netting::apply_variation_margin_mpor`]).
+///
 /// # References
 ///
 /// - Green, A. (2015). *XVA*. Wiley. Chapters 3, 10.

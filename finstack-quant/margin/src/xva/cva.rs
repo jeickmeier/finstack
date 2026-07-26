@@ -549,6 +549,15 @@ pub fn compute_fva(
 ///
 /// Returns an error if any sub-calculation (CVA, DVA, FVA) fails.
 ///
+/// # Limitations
+///
+/// `result.bilateral_cva` does **not** include MVA (Margin Valuation
+/// Adjustment). MVA is a positive funding cost using the same sign convention
+/// as CVA/FVA, so the full funding-inclusive composition is
+/// `CVA − DVA + FVA + MVA`; callers who want it must add
+/// [`crate::xva::mva::compute_mva`]'s `mva` field to `result.bilateral_cva`
+/// themselves.
+///
 /// # References
 ///
 /// - Gregory, J. (2020). *The xVA Challenge*, 4th ed. Wiley. Chapters 14, 17, 19.
