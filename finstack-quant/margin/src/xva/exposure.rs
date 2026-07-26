@@ -50,7 +50,7 @@ use finstack_quant_monte_carlo::{
     state_keys, Discretization, PathState, RandomStream, StochasticProcess,
 };
 
-use super::netting::{apply_collateral, apply_netting};
+use super::netting::{apply_collateral_mpor, apply_variation_margin_mpor};
 use super::types::{ExposureProfile, XvaConfig, XvaNettingSet};
 #[cfg(test)]
 use super::types::{StochasticExposureConfig, StochasticExposureProfile};
@@ -132,6 +132,52 @@ fn convert_to_reporting(
     Ok(value.amount() * rate)
 }
 
+/// Net (close-out netted) portfolio value in the reporting currency at `on`.
+fn net_portfolio_value(
+    instruments: &[Arc<dyn Valuable>],
+    market: &MarketContext,
+    on: Date,
+    reporting_currency: Currency,
+    horizon_years: f64,
+) -> finstack_quant_core::Result<f64> {
+    let mut values = Vec::with_capacity(instruments.len());
+    for inst in instruments {
+        let value = inst
+            .value(market, on)
+            .and_then(|value| convert_to_reporting(value, reporting_currency, market, on))
+            .map_err(|error| {
+                finstack_quant_core::Error::Validation(format!(
+                    "XVA valuation failed for instrument '{}' at horizon {horizon_years} years: {error}",
+                    inst.id()
+                ))
+            })?;
+        values.push(value);
+    }
+    Ok(neumaier_sum(values.iter().copied()))
+}
+
+/// Linear interpolation of a piecewise-linear path over `times`, anchored at
+/// `(0, v0)` and clamped to `[0, times.last()]`.
+///
+/// `times` must be strictly increasing and positive (guaranteed by
+/// `XvaConfig::validate`); `values.len() == times.len()`.
+fn interpolate_lagged(times: &[f64], values: &[f64], v0: f64, t: f64) -> f64 {
+    if t <= 0.0 {
+        return v0;
+    }
+    let mut prev_t = 0.0;
+    let mut prev_v = v0;
+    for (&ti, &vi) in times.iter().zip(values.iter()) {
+        if t <= ti {
+            let w = (t - prev_t) / (ti - prev_t);
+            return prev_v + w * (vi - prev_v);
+        }
+        prev_t = ti;
+        prev_v = vi;
+    }
+    prev_v
+}
+
 #[cfg(test)]
 fn interpolate_quantile(samples: &mut [f64], quantile: f64) -> f64 {
     samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -187,11 +233,18 @@ fn interpolate_quantile(samples: &mut [f64], quantile: f64) -> f64 {
 ///
 /// - Uses deterministic (single-scenario) exposure; no Monte Carlo
 /// - PFE equals EPE in this simplified model
-/// - Does not model margin period of risk (MPOR) explicitly
+/// - Margin period of risk (MPOR) *is* modeled when `netting_set.csa` is
+///   present and `csa.mpor_days > 0`: collateral held at time `t` is lagged
+///   to the (interpolated) net portfolio value at `t − MPOR`, following
+///   Andersen, Pykhtin & Sokol (2017), so a rising exposure path produces
+///   larger (correctly gap-risk-inclusive) collateralized EPE than the
+///   `MPOR = 0` case. See [`super::netting::apply_collateral_mpor`].
 /// - Curve roll uses constant-curves assumption (no carry/theta)
 ///
 /// # References
 ///
+/// - Andersen, L., Pykhtin, M., & Sokol, A. (2017). "Rethinking the margin
+///   period of risk." *Journal of Credit Risk*, 13(1), 1-45.
 /// - Gregory XVA Challenge: `docs/REFERENCES.md#gregory-xva-challenge`
 /// - BCBS 279 SA-CCR: `docs/REFERENCES.md#bcbs-279-saccr`
 #[tracing::instrument(skip(instruments, market), fields(grid_points = config.time_grid.len()))]
@@ -208,8 +261,6 @@ pub fn compute_exposure_profile(
     let n = config.time_grid.len();
     let mut times = Vec::with_capacity(n);
     let mut mtm_values = Vec::with_capacity(n);
-    let mut epe = Vec::with_capacity(n);
-    let mut ene = Vec::with_capacity(n);
 
     for &t in &config.time_grid {
         // Convert years to days using ACT/365F convention
@@ -223,45 +274,47 @@ pub fn compute_exposure_profile(
             ))
         })?;
 
-        // Value each instrument at the future date
-        let mut values = Vec::with_capacity(instruments.len());
-        for inst in instruments {
-            let value = inst
-                .value(&rolled_market, future_date)
-                .and_then(|value| {
-                    convert_to_reporting(value, reporting_currency, &rolled_market, future_date)
-                })
-                .map_err(|error| {
-                    finstack_quant_core::Error::Validation(format!(
-                        "XVA valuation failed for instrument '{}' at horizon {t} years: {error}",
-                        inst.id()
-                    ))
-                })?;
-            values.push(value);
-        }
-
-        // Apply close-out netting: net portfolio value
-        let net_value: f64 = neumaier_sum(values.iter().copied());
-        let net_positive_exposure = apply_netting(&values);
-        let net_negative_exposure = (-net_value).max(0.0);
-
-        let (positive_exposure, negative_exposure) = if let Some(ref csa) = netting_set.csa {
-            (
-                apply_collateral(net_positive_exposure, csa),
-                // `independent_amount` is documented as collateral posted by
-                // the counterparty. It reduces EPE, but cannot also represent
-                // independent collateral posted by the bank for ENE/DVA.
-                super::netting::apply_variation_margin(net_negative_exposure, csa),
-            )
-        } else {
-            (net_positive_exposure, net_negative_exposure)
-        };
-
+        let net_value = net_portfolio_value(
+            instruments,
+            &rolled_market,
+            future_date,
+            reporting_currency,
+            t,
+        )?;
         times.push(t);
         mtm_values.push(net_value);
-        epe.push(positive_exposure);
-        ene.push(negative_exposure);
     }
+
+    let (epe, ene) = if let Some(ref csa) = netting_set.csa {
+        // MPOR gap risk: collateral held at t was called against the exposure
+        // at t − δ. Anchor the lag interpolation at today's net value.
+        let mpor_lag_years = f64::from(csa.mpor_days) / CALENDAR_DAYS_PER_YEAR;
+        let net_value_0 = net_portfolio_value(instruments, market, as_of, reporting_currency, 0.0)?;
+        let mut epe = Vec::with_capacity(n);
+        let mut ene = Vec::with_capacity(n);
+        for (i, &t) in times.iter().enumerate() {
+            let net_now = mtm_values[i];
+            let net_lag = interpolate_lagged(&times, &mtm_values, net_value_0, t - mpor_lag_years);
+            epe.push(apply_collateral_mpor(
+                net_now.max(0.0),
+                net_lag.max(0.0),
+                csa,
+            ));
+            // `independent_amount` is collateral posted by the counterparty:
+            // it reduces EPE, but not the bank-posted side (ENE/DVA).
+            ene.push(apply_variation_margin_mpor(
+                (-net_now).max(0.0),
+                (-net_lag).max(0.0),
+                csa,
+            ));
+        }
+        (epe, ene)
+    } else {
+        (
+            mtm_values.iter().map(|v| v.max(0.0)).collect(),
+            mtm_values.iter().map(|v| (-v).max(0.0)).collect(),
+        )
+    };
 
     Ok(ExposureProfile {
         times,
@@ -466,6 +519,7 @@ where
 mod tests {
     use super::*;
     use crate::xva::cva::compute_cva;
+    use crate::xva::netting::{apply_collateral, apply_netting};
     use crate::xva::types::CsaTerms;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::dates::Date;
@@ -877,6 +931,133 @@ mod tests {
             profile.ene[0],
             expected_ene
         );
+    }
+
+    /// Instrument whose value grows linearly with the valuation date:
+    /// V(date) = slope_per_year × years(as ACT/365F days) since 2025-01-01.
+    #[derive(Clone, Debug)]
+    struct GrowingInstrument {
+        id: String,
+        slope_per_year: f64,
+    }
+
+    impl Valuable for GrowingInstrument {
+        fn id(&self) -> &str {
+            &self.id
+        }
+
+        fn value(
+            &self,
+            _market: &MarketContext,
+            as_of: Date,
+        ) -> finstack_quant_core::Result<Money> {
+            let base = Date::from_calendar_date(2025, Month::January, 1)
+                .map_err(|e| finstack_quant_core::Error::Validation(e.to_string()))?;
+            let days = (as_of - base).whole_days() as f64;
+            Ok(Money::new(
+                self.slope_per_year * days / 365.0,
+                Currency::USD,
+            ))
+        }
+    }
+
+    #[test]
+    fn mpor_lag_produces_gap_risk_on_growing_exposure() {
+        // Zero-threshold/zero-MTA/zero-IA CSA with 10-day MPOR.
+        //
+        // Exposure grid (ACT/365F day rounding, half-up — see
+        // years_to_days_act_365f):
+        //   t1 = 0.25 → 91 days  → E1 = 1000 × 91/365  = 249.31506849315068
+        //   t2 = 0.50 → 183 days → E2 = 1000 × 183/365 = 501.36986301369863
+        //   E(0) anchor = 0 (portfolio is worth 0 at as_of)
+        //   δ = 10/365 = 0.0273972602739726 years
+        //
+        // Exposure is piecewise linear on {0, t1, t2}, so the interpolated
+        // lagged values give closed forms:
+        //   epe(t1) = E1 − E1·(t1 − δ)/t1        = E1·δ/t1        = E1 × (8/73)
+        //           = 27.322199 (≈ 27.32219929)
+        //   epe(t2) = E2 − [E1 + (E2−E1)·(t2−δ−t1)/(t2−t1)]
+        //           = (E2 − E1)·δ/(t2 − t1)      = (E2−E1) × (8/73)
+        //           = 27.622443 (≈ 27.62244325)
+        let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
+        let instruments: Vec<Arc<dyn Valuable>> = vec![Arc::new(GrowingInstrument {
+            id: "GROW".into(),
+            slope_per_year: 1000.0,
+        })];
+        let market = MarketContext::new();
+        let config = XvaConfig {
+            time_grid: vec![0.25, 0.5],
+            recovery_rate: 0.40,
+            own_recovery_rate: None,
+            funding: None,
+        };
+        let csa = CsaTerms {
+            threshold: 0.0,
+            mta: 0.0,
+            mpor_days: 10,
+            independent_amount: 0.0,
+        };
+        let netting_set = XvaNettingSet {
+            id: "NS-MPOR".into(),
+            counterparty_id: "CP".into(),
+            csa: Some(csa),
+            reporting_currency: None,
+        };
+
+        let profile = compute_exposure_profile(&instruments, &market, as_of, &config, &netting_set)
+            .expect("profile should compute");
+
+        let e1 = 1000.0 * 91.0 / 365.0;
+        let e2 = 1000.0 * 183.0 / 365.0;
+        let lag = 10.0 / 365.0;
+        let expected1 = e1 * lag / 0.25;
+        let expected2 = (e2 - e1) * lag / 0.25;
+        assert!(
+            (profile.epe[0] - expected1).abs() < 1e-9,
+            "epe[0]={} expected {expected1}",
+            profile.epe[0]
+        );
+        assert!(
+            (profile.epe[1] - expected2).abs() < 1e-9,
+            "epe[1]={} expected {expected2}",
+            profile.epe[1]
+        );
+        assert!(profile.ene.iter().all(|&v| v.abs() < 1e-12));
+    }
+
+    #[test]
+    fn mpor_zero_days_matches_classic_collateral_on_growing_exposure() {
+        // Same setup with mpor_days = 0: the lagged exposure equals the current
+        // exposure, so a zero-threshold CSA fully collateralizes (EPE = 0),
+        // matching apply_collateral semantics.
+        let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
+        let instruments: Vec<Arc<dyn Valuable>> = vec![Arc::new(GrowingInstrument {
+            id: "GROW".into(),
+            slope_per_year: 1000.0,
+        })];
+        let market = MarketContext::new();
+        let config = XvaConfig {
+            time_grid: vec![0.25, 0.5],
+            recovery_rate: 0.40,
+            own_recovery_rate: None,
+            funding: None,
+        };
+        let csa = CsaTerms {
+            threshold: 0.0,
+            mta: 0.0,
+            mpor_days: 0,
+            independent_amount: 0.0,
+        };
+        let netting_set = XvaNettingSet {
+            id: "NS-MPOR-0".into(),
+            counterparty_id: "CP".into(),
+            csa: Some(csa),
+            reporting_currency: None,
+        };
+
+        let profile = compute_exposure_profile(&instruments, &market, as_of, &config, &netting_set)
+            .expect("profile should compute");
+        assert!(profile.epe.iter().all(|&v| v.abs() < 1e-12));
     }
 
     #[test]

@@ -105,12 +105,6 @@ pub fn apply_collateral(gross_exposure: f64, csa: &CsaTerms) -> f64 {
     apply_collateral_with_independent_amount(gross_exposure, csa, csa.independent_amount)
 }
 
-/// Apply variation-margin terms without a counterparty-posted independent amount.
-#[inline]
-pub(crate) fn apply_variation_margin(gross_exposure: f64, csa: &CsaTerms) -> f64 {
-    apply_collateral_with_independent_amount(gross_exposure, csa, 0.0)
-}
-
 #[inline]
 fn apply_collateral_with_independent_amount(
     gross_exposure: f64,
@@ -184,9 +178,9 @@ pub fn apply_collateral_mpor(exposure_now: f64, exposure_at_lag: f64, csa: &CsaT
 
 /// MPOR-lagged variation-margin reduction without the counterparty-posted
 /// independent amount (the ENE/DVA mirror of [`apply_collateral_mpor`]).
-// Wiring into the deterministic XVA engine (the ENE/DVA path) is task 2 of
-// this plan; until then this has no non-test caller.
-#[allow(dead_code)]
+///
+/// Wired into the deterministic XVA engine's ENE/DVA path in
+/// [`super::exposure::compute_exposure_profile`].
 #[inline]
 pub(crate) fn apply_variation_margin_mpor(
     exposure_now: f64,
@@ -291,9 +285,13 @@ mod tests {
 
     #[test]
     fn counterparty_independent_amount_does_not_reduce_negative_exposure() {
+        // The bank-posted (ENE/DVA) side cannot also benefit from a
+        // counterparty-posted independent amount — verified here via the
+        // zero-lag MPOR variant, which is exactly the non-MPOR variation
+        // margin reduction (see `mpor_zero_lag_reduces_to_apply_collateral`).
         let csa = make_csa(10.0, 1.0, 5.0);
         assert!((apply_collateral(20.0, &csa) - 6.0).abs() < 1e-12);
-        assert!((apply_variation_margin(20.0, &csa) - 11.0).abs() < 1e-12);
+        assert!((apply_variation_margin_mpor(20.0, 20.0, &csa) - 11.0).abs() < 1e-12);
     }
 
     #[test]
