@@ -35,9 +35,16 @@
 //!
 //! # Telescoping identity
 //!
-//! The three sums telescope to the active return exactly, given per-side
-//! weight normalization (`Σ_t x_t^k = 1`) and within-cell share normalization
-//! (`Σ_s z_st^k = 1` for every cell present on side `k`):
+//! The three sums telescope to the active return exactly (to floating-point
+//! precision), given per-side weight normalization (`Σ_t x_t^k = 1`),
+//! within-cell share normalization (`Σ_s z_st^k = 1` for every cell present
+//! on side `k`), and every present bucket's rate `r_st^k` / `r_t^k` being
+//! well-conditioned — its net weight not itself vanishingly small relative to
+//! its gross weight (see the internal `check_zero_net_weight` guard). A
+//! bucket netting *close to*, but not exactly, zero has a numerically
+//! explosive rather than merely undefined rate: as its net weight shrinks
+//! toward zero, the rate — and every effect derived from it — grows without
+//! bound, which an exact-equality-only check cannot catch:
 //!
 //! ```text
 //! Σ_st e^security_st = Σ_st y_st^P r_st^P − Σ_st y_st^P r_st^B
@@ -48,10 +55,17 @@
 //! Sum                 = r^P − r^B
 //! ```
 //!
-//! Exactness therefore *requires* the per-side weight-sum validation and
-//! within-cell share normalization enforced by [`grid_attribution()`] — they
-//! are not cosmetic input checks, they are the hypotheses of the identity
-//! above.
+//! Exactness therefore *requires* the per-side weight-sum validation,
+//! within-cell share normalization, and near-zero-net-weight rejection
+//! enforced by [`grid_attribution()`] — they are not cosmetic input checks,
+//! they are the hypotheses of the identity above. Even among inputs that
+//! pass every check, the identity holds to floating-point precision, not to
+//! an arbitrarily tight tolerance: a bucket whose net weight sits just above
+//! the internal `NET_WEIGHT_RELATIVE_TOLERANCE` bound is legal but still
+//! amplifies rounding noise in its rate, so the reconstructed sum can differ from
+//! `active_return` by more than the smallest tolerances asserted in this
+//! module's own tests (which use golden fixtures with well-separated net
+//! weights, not adversarial near-cancellation).
 //!
 //! # Out-of-benchmark fallbacks
 //!
@@ -80,16 +94,23 @@
 //! # Fail-closed validation
 //!
 //! - Each side's weights must sum to `1.0` within `±1e-6`.
-//! - A bucket (cell, or cell+sector) that has positions on a side but nets
-//!   to *exactly* zero weight with non-zero gross weight (e.g. a long/short
-//!   pair in the same bucket) has an undefined per-unit rate. Rather than
-//!   silently zeroing its effects — which would leave its non-zero
-//!   contribution to the side return unexplained and break the telescoping
-//!   identity — [`grid_attribution()`] rejects it, naming the bucket and the
-//!   side.
-//! - A bucket that nets to a *non-zero* (including negative / net-short)
-//!   weight is ordinary input and is attributed normally by dividing through
-//!   the net weight, not the gross weight.
+//! - A bucket (cell, or cell+sector) that has positions on a side but nets to
+//!   zero, or to a weight smaller than an internal relative tolerance
+//!   (1e-6 of its own gross weight; e.g. a long/short pair in the same
+//!   bucket that nearly, or exactly, offsets), has an undefined-or-explosive
+//!   per-unit rate: at exact cancellation the rate `weighted_return / weight`
+//!   is `0 / 0`; arbitrarily close to it, the rate is finite but grows
+//!   without bound as the net weight shrinks, so a check that only rejects
+//!   the exact-zero case still lets a bucket's rate — and every effect
+//!   derived from it — blow up into a numerically meaningless value while
+//!   reporting no error. Rather than silently zeroing its effects (which
+//!   would leave its non-zero contribution to the side return unexplained
+//!   and break the telescoping identity) or only catching the exact-zero
+//!   case, [`grid_attribution()`] rejects any bucket whose net weight fails
+//!   the relative bound, naming the bucket and the side.
+//! - A bucket that nets to a weight *outside* that near-zero band (including
+//!   negative / net-short) is ordinary input and is attributed normally by
+//!   dividing through the net weight, not the gross weight.
 //!
 //! # Ordering
 //!
@@ -114,6 +135,25 @@ use serde::{Deserialize, Serialize};
 
 /// Tolerance for the requirement that weights sum to 1.0 on each side.
 const WEIGHT_TOLERANCE: f64 = 1e-6;
+
+/// Relative tolerance on the ratio `|net weight| / gross weight` below which
+/// a bucket's per-unit rate is treated as too poorly conditioned to
+/// attribute, in [`check_zero_net_weight`].
+///
+/// A bucket's rate is `weighted_return / weight` (see [`BucketAgg::rate`]).
+/// At exact cancellation (`weight == 0.0` with `abs_weight > 0.0`) that rate
+/// is undefined; arbitrarily close to exact cancellation it is *defined* but
+/// numerically explosive — as `weight -> 0` for a roughly fixed
+/// `weighted_return`, the rate, and every curve/sector/selection effect
+/// derived from it, grows without bound. An exact-equality-only guard misses
+/// this: a benchmark bucket of `+0.5` and `-(0.5 - 1e-8)` in the same cell
+/// nets to `1e-8`, not `0.0`, yet produces a curve effect on the order of
+/// `2.5e5` against a realistic sub-1% active return. Reusing
+/// [`WEIGHT_TOLERANCE`]'s existing 1e-6 precision floor for this ratio keeps
+/// a single, already-load-bearing precision assumption for the whole module:
+/// a net weight smaller than a millionth of its own gross weight is, for the
+/// purposes of this module, indistinguishable from exact cancellation.
+const NET_WEIGHT_RELATIVE_TOLERANCE: f64 = 1e-6;
 
 /// One position (or pre-aggregated bucket) in a duration-cell x sector grid,
 /// for one period and one side (portfolio or benchmark).
@@ -215,8 +255,9 @@ pub struct GridAttributionResult {
 /// `weight` is the *net* bucket weight (long minus short) and `abs_weight`
 /// the gross weight; the pair distinguishes "bucket absent from this side"
 /// (`abs_weight == 0`) from "bucket present with offsetting positions"
-/// (`abs_weight > 0`, `weight == 0`), which [`check_zero_net_weight`]
-/// rejects.
+/// (`abs_weight > 0`, `weight` zero or, per [`NET_WEIGHT_RELATIVE_TOLERANCE`],
+/// numerically near zero relative to `abs_weight`), which
+/// [`check_zero_net_weight`] rejects.
 #[derive(Clone, Copy, Default)]
 struct BucketAgg {
     weight: f64,
@@ -267,24 +308,35 @@ fn validate_position(p: &GridPosition, side: &str) -> Result<()> {
     Ok(())
 }
 
-/// Fail closed on a bucket that is present on a side but nets to exactly
-/// zero weight (a long/short pair, a hedge against a cash position in the
-/// same bucket).
+/// Fail closed on a bucket that is present on a side but nets to zero, or to
+/// a weight that is numerically near zero *relative to its own gross
+/// weight* (a long/short pair, a hedge against a cash position in the same
+/// bucket, that exactly or nearly offsets).
 ///
-/// Such a bucket still contributes `Σ_j w_j r_j ≠ 0` to the side total, but
-/// its per-unit rate `weighted_return / weight` is undefined, so every
-/// effect derived from it would be forced to zero while the contribution
-/// stayed in the side return — breaking the telescoping identity while
-/// `active_return` still ties out against performance data.
+/// Such a bucket still contributes `Σ_j w_j r_j ≠ 0` to the side total. At
+/// exact cancellation its per-unit rate `weighted_return / weight` is
+/// undefined (`0 / 0`); at near-cancellation the rate is *defined* but grows
+/// without bound as the net weight shrinks toward zero, so every effect
+/// derived from it can blow up to a numerically meaningless magnitude while
+/// `active_return` still ties out against performance data, silently
+/// breaking the telescoping identity (see the module docs) without ever
+/// producing a `NaN` or infinity that a finiteness check would catch. An
+/// exact-equality check (`agg.weight == 0.0`) misses this near-cancellation
+/// regime entirely, so this compares the ratio `|weight| / abs_weight`
+/// against [`NET_WEIGHT_RELATIVE_TOLERANCE`] instead — a relative bound so
+/// rescaling all weights uniformly (e.g. percent vs. decimal) does not
+/// change whether it fires.
 fn check_zero_net_weight(bucket: &str, agg: &BucketAgg, side_name: &str) -> Result<()> {
-    if agg.weight == 0.0 && agg.abs_weight > 0.0 {
+    if agg.abs_weight > 0.0 && agg.weight.abs() <= NET_WEIGHT_RELATIVE_TOLERANCE * agg.abs_weight {
         return Err(Error::invalid_input(format!(
-            "{side_name} bucket '{bucket}' has offsetting positions netting to exactly zero \
-             weight (gross weight {}); a zero-net-weight bucket cannot be attributed because \
-             its per-unit rate (weighted return / weight) is undefined. Split the offsetting \
-             positions into distinct buckets, or net them into a single position with non-zero \
-             weight.",
-            agg.abs_weight
+            "{side_name} bucket '{bucket}' has offsetting positions netting to a weight \
+             ({}) that is zero, or numerically near zero, relative to its gross weight ({}): \
+             a bucket whose |net weight| does not exceed {NET_WEIGHT_RELATIVE_TOLERANCE} times \
+             its gross weight cannot be attributed because its per-unit rate (weighted return \
+             / weight) is undefined or numerically explosive. Split the offsetting positions \
+             into distinct buckets, or net them into a single position with a net weight well \
+             clear of that relative bound.",
+            agg.weight, agg.abs_weight
         )));
     }
     Ok(())
@@ -356,8 +408,9 @@ fn aggregate_side(
 ///
 /// Returns [`Error::InvalidInput`] if any weight or return is non-finite,
 /// either side's weights don't sum to `1.0` (±1e-6), or a (cell) or
-/// (cell, sector) bucket has positions on a side but nets to exactly zero
-/// weight with non-zero gross weight.
+/// (cell, sector) bucket has positions on a side but nets to a weight that
+/// is zero, or numerically near zero (within 1e-6 relative to its own gross
+/// weight).
 ///
 /// # Examples
 ///
@@ -977,6 +1030,79 @@ mod tests {
         assert!(
             message.contains("Portfolio"),
             "error must name the side: {message}"
+        );
+    }
+
+    /// Executed regression for the whole-branch review's Important-1
+    /// finding: the zero-net-weight guard must reject *near* cancellation,
+    /// not only *exact* cancellation. A single exact-equality test
+    /// (`agg.weight == 0.0`) lets a benchmark cell net to an arbitrarily
+    /// small, non-zero weight through unrejected; [`BucketAgg::rate`] then
+    /// divides by that near-zero net weight, so the rate — and every effect
+    /// derived from it — grows without bound as the net weight shrinks,
+    /// silently breaking the telescoping identity while reporting no error.
+    ///
+    /// Benchmark cell "X" holds GOVT `+0.5@2%` and CORP `-(0.5 - eps)@1%`
+    /// (two sectors, so this trips the *cell*-level check specifically, not
+    /// either sector's own well-defined per-sector rate — mirroring
+    /// `cell_level_zero_net_weight_with_nonzero_sector_nets_fails_closed`'s
+    /// fixture shape). Net weight is `eps`, gross weight is `1 - eps`, so the
+    /// ratio is `eps / (1 - eps) ~= eps`. Cell "Y" carries the rest of the
+    /// benchmark side so both fixtures still sum to `1.0`.
+    ///
+    /// Pins the boundary in both directions: `eps = 1e-8` (ratio far below
+    /// `NET_WEIGHT_RELATIVE_TOLERANCE`, matching the coordinator's own
+    /// executed evidence of a curve effect on the order of `2.5e5`) must be
+    /// rejected, naming the cell and side; `eps = 1e-2` (ratio comfortably
+    /// above the tolerance) must be accepted and produce a bounded, sane
+    /// curve effect rather than a numerically exploded one.
+    #[test]
+    fn near_zero_net_weight_bucket_fails_closed_before_rate_blows_up() {
+        let fixture = |eps: f64| {
+            let portfolio = vec![pos("X", "GOVT", 0.5, 0.018), pos("Y", "GOVT", 0.5, 0.02)];
+            let benchmark = vec![
+                pos("X", "GOVT", 0.5, 0.02),
+                pos("X", "CORP", -(0.5 - eps), 0.01),
+                pos("Y", "GOVT", 1.0 - eps, 0.015),
+            ];
+            (portfolio, benchmark)
+        };
+
+        // eps = 1e-8: net/gross ratio ~1e-8, far below the 1e-6 relative
+        // bound. Must be rejected, naming the cell and the side.
+        let (portfolio, benchmark) = fixture(1e-8);
+        let err = grid_attribution(&portfolio, &benchmark).expect_err(
+            "near-zero net weight (ratio ~1e-8) must be rejected, not silently divided through",
+        );
+        let message = err.to_string();
+        assert!(
+            message.contains("bucket 'X'"),
+            "error must name the cell: {message}"
+        );
+        assert!(
+            message.contains("Benchmark"),
+            "error must name the side: {message}"
+        );
+
+        // eps = 1e-2: net/gross ratio ~1e-2, comfortably above the bound.
+        // Must be accepted, and the resulting curve effect must stay within
+        // a sane magnitude — not the ~2.5e5-scale blowup the coordinator
+        // measured at eps=1e-8 — confirming the guard's boundary rejects
+        // genuine near-cancellation without over-rejecting a legitimate,
+        // merely small, net weight.
+        let (portfolio, benchmark) = fixture(1e-2);
+        let r = grid_attribution(&portfolio, &benchmark)
+            .expect("net weight well clear of the relative bound must be accepted");
+        let cell_x = r
+            .curve_effects
+            .iter()
+            .find(|e| e.cell == "X")
+            .expect("cell X present");
+        assert!(
+            cell_x.curve_effect.abs() < 10.0,
+            "a legitimate small-but-not-near-zero net weight must not produce an exploded \
+             curve effect: {}",
+            cell_x.curve_effect
         );
     }
 

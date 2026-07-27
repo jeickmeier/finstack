@@ -145,6 +145,45 @@ fn validate_width(width: f64) -> Result<()> {
     Ok(())
 }
 
+/// Sanity bound on the number of duration cells a grid may contain, shared
+/// by [`cell_returns_from_reference`] and [`cell_returns_from_curves`].
+///
+/// Both entry points derive `num_cells` from a caller-supplied
+/// `max_duration` (or, for [`cell_returns_from_reference`], the largest
+/// reference duration) divided by `config.width`, with no upper bound of its
+/// own. A units mistake (e.g. a duration in days rather than years, or a
+/// stray large value from JSON deserialized across the Python/WASM FFI
+/// boundary) can make `num_cells` astronomically large; the `vec![0.0;
+/// num_cells]` allocations that follow then panic with "capacity overflow"
+/// rather than returning a `Result`. Across the WASM boundary a Rust panic
+/// is an unrecoverable module trap, not a catchable JS exception, so this
+/// must fail closed *before* any allocation is attempted, not merely bound
+/// the eventual panic message. `100_000` cells comfortably covers any
+/// realistic duration grid (e.g. a 1,000-year universe at a 0.01-year width)
+/// with orders of magnitude of headroom.
+const MAX_DURATION_CELLS: usize = 100_000;
+
+/// Compute `num_cells = ceil(max_duration / width)`, clamped to at least `1`,
+/// failing closed if the result would exceed [`MAX_DURATION_CELLS`] (see its
+/// doc comment for why this bound exists) before any cell-sized allocation
+/// is attempted.
+///
+/// Callers must validate `width` (via [`validate_width`]) and `max_duration`
+/// as finite beforehand; this function assumes both are already finite.
+fn compute_num_cells(max_duration: f64, width: f64) -> Result<usize> {
+    let num_cells_f = (max_duration / width).ceil();
+    if num_cells_f > MAX_DURATION_CELLS as f64 {
+        return Err(Error::invalid_input(format!(
+            "duration grid would require {num_cells_f} cells (max_duration={max_duration}, \
+             width={width}), exceeding the sanity bound of {MAX_DURATION_CELLS} cells; check \
+             that max_duration and width are both expressed in years"
+        )));
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let num_cells = (num_cells_f as usize).max(1);
+    Ok(num_cells)
+}
+
 /// Validate one reference instrument's fields.
 fn validate_reference(r: &ReferenceReturn, index: usize) -> Result<()> {
     if !r.duration.is_finite() || r.duration < 0.0 {
@@ -194,10 +233,13 @@ fn validate_reference(r: &ReferenceReturn, index: usize) -> Result<()> {
 ///
 /// Returns [`Error::InvalidInput`] if `reference` is empty, `config.width`
 /// is not finite and positive, any reference entry has a non-finite
-/// `total_return` or a non-finite/negative `duration`, or `config.width`
+/// `total_return` or a non-finite/negative `duration`, `config.width`
 /// produces two numerically distinct cells that format to the same
 /// `"{lower:.1}-{upper:.1}"` label (e.g. `width = 0.03`) — labels must stay
-/// unique because downstream lookups key cells by label.
+/// unique because downstream lookups key cells by label — or the largest
+/// reference `duration` divided by `config.width` would require more than an
+/// internal sanity bound of cells (100,000; a units mistake, e.g. days
+/// instead of years, rather than a legitimate duration grid).
 ///
 /// # Examples
 ///
@@ -234,7 +276,7 @@ pub fn cell_returns_from_reference(
         .iter()
         .map(|r| r.duration)
         .fold(f64::MIN, f64::max);
-    let num_cells = ((max_duration / width).ceil() as usize).max(1);
+    let num_cells = compute_num_cells(max_duration, width)?;
 
     // Accumulate simple sums and counts per cell (index = floor(duration / width)).
     let mut sums = vec![0.0_f64; num_cells];
@@ -312,6 +354,22 @@ pub fn cell_returns_from_reference(
 /// equals maturity) but is an approximation for coupon-bearing instruments in
 /// later stages that reuse this table.
 ///
+/// # Cell Width Constraint
+///
+/// The grid starts at duration `0`, so the first cell spans `[0, width)` and
+/// its midpoint is `width / 2`. Every cell's midpoint must exceed
+/// `horizon_years` (see `# Errors`), so **`config.width` must be strictly
+/// greater than `2 * horizon_years`** or the very first cell is rejected.
+/// This fails loudly with a per-cell error message, never a wrong answer,
+/// but it does mean a fixed cell width is not usable across every holding
+/// period: a Lehman-standard `0.5`-year cell width, for example, requires a
+/// holding period strictly under `0.25` years and is unusable for a
+/// quarterly (`0.25`-year) or longer holding period. A caller sweeping
+/// multiple horizons against the same nominal grid must widen
+/// `config.width` past `2 *` the *longest* horizon in the sweep, or use
+/// [`cell_returns_from_reference`] instead (which has no such coupling
+/// between cell width and a holding period).
+///
 /// # Arguments
 ///
 /// * `start` - Discount curve observed at the start of the holding period.
@@ -330,11 +388,14 @@ pub fn cell_returns_from_reference(
 ///
 /// Returns [`Error::InvalidInput`] if `config.width` is not finite and
 /// positive, `horizon_years` is not finite and positive, `max_duration` is
-/// not finite or does not exceed `horizon_years`, any cell's midpoint `d`
-/// does not exceed `horizon_years` (the hypothetical zero would mature inside
-/// the holding period — the error names the offending cell), either curve
-/// produces a non-finite or non-positive discount factor at a queried time,
-/// or `config.width` produces colliding cell labels (see
+/// not finite or does not exceed `horizon_years`, `max_duration` divided by
+/// `config.width` would require more than an internal sanity bound of cells
+/// (100,000; a units mistake rather than a legitimate duration grid), any cell's
+/// midpoint `d` does not exceed `horizon_years` (the hypothetical zero would
+/// mature inside the holding period — the error names the offending cell;
+/// see `# Cell Width Constraint` above for when this is unavoidable), either
+/// curve produces a non-finite or non-positive discount factor at a queried
+/// time, or `config.width` produces colliding cell labels (see
 /// [`cell_returns_from_reference`]'s error documentation).
 ///
 /// # Examples
@@ -391,7 +452,7 @@ pub fn cell_returns_from_curves(
     }
 
     let width = config.width;
-    let num_cells = ((max_duration / width).ceil() as usize).max(1);
+    let num_cells = compute_num_cells(max_duration, width)?;
 
     let mut cells = Vec::with_capacity(num_cells);
     for i in 0..num_cells {
@@ -915,6 +976,31 @@ mod tests {
         );
     }
 
+    /// Executed regression for the reviewer's Minor-2 finding, second entry
+    /// point: `max_duration` is a direct caller parameter on
+    /// `cell_returns_from_curves` (unlike `cell_returns_from_reference`,
+    /// where it is derived from the reference universe), so a units mistake
+    /// reaches it even more directly. An astronomically large `max_duration`
+    /// must fail closed before the `Vec::with_capacity(num_cells)`
+    /// allocation, not panic.
+    #[test]
+    fn astronomically_large_max_duration_fails_closed_not_panics() {
+        let knots = [(0.0, 1.0), (0.5, 0.98019867), (1.5, 0.94176453)];
+        let err = cell_returns_from_curves(
+            &curve("UST", &knots),
+            &curve("UST", &knots),
+            0.5,
+            1e30,
+            "UST",
+            &CellConfig { width: 1.0 },
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("sanity bound"),
+            "error must name the cell-count sanity bound: {err}"
+        );
+    }
+
     // NOTE on the Task 1 carried finding (trailing flat extrapolation through
     // a public API): `cell_returns_from_curves` does not close this gap.
     // Every cell it produces is `observed: true` by construction — a curve
@@ -1046,24 +1132,74 @@ mod tests {
         assert!((table.cells[0].base_return - 0.020).abs() < 1e-15); // simple average
     }
 
+    /// Four distinct guards, each asserted on message content rather than
+    /// bare `.is_err()`: the reviewer traced all four and each *can* fail
+    /// (none is a can't-fail test), but a bare `.is_err()` would still pass
+    /// if two of these guards were swapped or merged, since it cannot tell
+    /// *which* validation fired. This departs from the rest of this
+    /// module's (and this branch's) message-content convention.
     #[test]
     fn cell_table_rejects_bad_inputs() {
         let ok = vec![ReferenceReturn {
             duration: 1.0,
             total_return: 0.01,
         }];
-        assert!(cell_returns_from_reference(&[], "UST", &CellConfig { width: 0.5 }).is_err());
-        assert!(cell_returns_from_reference(&ok, "UST", &CellConfig { width: 0.0 }).is_err());
+
+        let err = cell_returns_from_reference(&[], "UST", &CellConfig { width: 0.5 })
+            .expect_err("empty reference universe must be rejected");
+        assert!(
+            err.to_string().contains("non-empty"),
+            "error must name the empty-reference guard: {err}"
+        );
+
+        let err = cell_returns_from_reference(&ok, "UST", &CellConfig { width: 0.0 })
+            .expect_err("zero width must be rejected");
+        assert!(
+            err.to_string().contains("width"),
+            "error must name the width guard: {err}"
+        );
+
         let neg = vec![ReferenceReturn {
             duration: -0.5,
             total_return: 0.01,
         }];
-        assert!(cell_returns_from_reference(&neg, "UST", &CellConfig { width: 0.5 }).is_err());
+        let err = cell_returns_from_reference(&neg, "UST", &CellConfig { width: 0.5 })
+            .expect_err("negative duration must be rejected");
+        assert!(
+            err.to_string().contains("duration"),
+            "error must name the duration guard: {err}"
+        );
+
         let nan = vec![ReferenceReturn {
             duration: 1.0,
             total_return: f64::NAN,
         }];
-        assert!(cell_returns_from_reference(&nan, "UST", &CellConfig { width: 0.5 }).is_err());
+        let err = cell_returns_from_reference(&nan, "UST", &CellConfig { width: 0.5 })
+            .expect_err("NaN total_return must be rejected");
+        assert!(
+            err.to_string().contains("total_return"),
+            "error must name the total_return guard: {err}"
+        );
+    }
+
+    /// Executed regression for the reviewer's Minor-2 finding: an
+    /// astronomically large reference `duration` (a plausible units mistake,
+    /// e.g. days instead of years) must fail closed with a clear message
+    /// *before* the `vec![0.0; num_cells]` allocations, not panic with
+    /// "capacity overflow" — a Rust panic that would cross the WASM boundary
+    /// as an unrecoverable module trap, not a catchable JS exception.
+    #[test]
+    fn astronomically_large_duration_fails_closed_not_panics() {
+        let reference = vec![ReferenceReturn {
+            duration: 1e30,
+            total_return: 0.01,
+        }];
+        let err = cell_returns_from_reference(&reference, "UST", &CellConfig { width: 1.0 })
+            .expect_err("a 1e30 duration must fail closed, not panic on allocation");
+        assert!(
+            err.to_string().contains("sanity bound"),
+            "error must name the cell-count sanity bound: {err}"
+        );
     }
 
     /// `width = 0.03` makes distinct cells (e.g. `[0.06, 0.09)` and
