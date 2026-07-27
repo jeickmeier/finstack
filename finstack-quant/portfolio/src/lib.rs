@@ -165,6 +165,9 @@ pub(crate) mod dataframe;
 pub mod error;
 /// Duration-cell base-return tables from a reference universe (Lehman App. B).
 pub mod excess_return;
+/// Factor-Brinson unified attribution over continuous factor exposures
+/// (Jeet & Partani 2023).
+pub mod factor_brinson;
 /// Factor-model portfolio risk decomposition outputs and engines.
 pub mod factor_model;
 /// Campisi-style benchmark-relative fixed-income attribution
@@ -245,6 +248,10 @@ pub use excess_return::{
     cell_returns_from_curves, cell_returns_from_reference, duration_cell_label, excess_returns,
     CellConfig, CellReturn, DurationCellTable, ExcessReturnPosition, ExcessReturnResult,
     PositionExcess, ReferenceReturn,
+};
+pub use factor_brinson::{
+    factor_brinson_attribution, AssetSpecificContribution, FactorBrinsonInput, FactorBrinsonResult,
+    FactorContribution,
 };
 pub use factor_model::{
     allocate_weights, validate_allocation_json, AllocationDiagnostics, AllocationScheme,
