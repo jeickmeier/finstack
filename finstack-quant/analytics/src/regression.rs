@@ -100,6 +100,19 @@ const RANK_TOLERANCE_FACTOR: f64 = 1.0e-10;
 ///   scale-invariant: rescaling `weights` uniformly (e.g. percent vs.
 ///   decimal) does not change whether it fires.
 ///
+/// # Ill-Conditioning
+///
+/// The degeneracy guard above is a bound on how close `w` and `Xg` are to
+/// *exactly* orthogonal; it does not bound how close they are to that
+/// boundary. A `w` just inside the guard can still make `w'Xg` small enough
+/// that `λ = w'ε̂ / (w'Xg)`, and therefore `f`, is very large in magnitude.
+/// That large `f` is the mathematically correct constrained solution for an
+/// ill-conditioned `(X, w)` pair, not a bug: `|f| ≫ 1` (e.g. an implied
+/// factor return far outside any plausible range) is a signal to inspect the
+/// conditioning of the inputs — near-collinear factor exposures or a weight
+/// vector nearly orthogonal to the constraint direction — rather than
+/// evidence that this function mis-solved the constraint.
+///
 /// # Examples
 ///
 /// ```rust
@@ -208,7 +221,11 @@ fn no_intercept_least_squares(x: &DMatrix<f64>, y: &DVector<f64>) -> crate::Resu
 
     let svd = scaled.svd(true, true);
     let max_singular = svd.singular_values.iter().copied().fold(0.0_f64, f64::max);
-    let tolerance = RANK_TOLERANCE_FACTOR * max_singular.max(1.0);
+    // No `.max(1.0)` floor needed: every column of `scaled` was normalized
+    // to unit norm above, so `max_singular >= ||scaled * e_i|| = 1` for any
+    // standard basis vector `e_i` — the largest singular value is always at
+    // least 1 by construction, making such a floor a no-op.
+    let tolerance = RANK_TOLERANCE_FACTOR * max_singular;
     // The column-norm guard above already rejected zero / non-finite
     // columns, so any remaining shortfall is rank-deficiency relative to `p`.
     let rank = svd
@@ -326,8 +343,29 @@ mod tests {
 
     #[test]
     fn empty_assets_fails_closed() {
+        // n_assets = returns.len() = 0 with n_factors = 2: exposures.len()
+        // (0) and weights.len() (0) both match n_assets * n_factors / n_assets
+        // trivially, so this trips the dedicated `n_assets == 0` guard (which
+        // renders as `InputError::Invalid`, "Invalid input data"), not a
+        // dimension-mismatch check.
         let err = constrained_least_squares(&[], 2, &[], &[]).unwrap_err();
-        assert!(!err.to_string().is_empty());
+        assert!(err.to_string().to_lowercase().contains("invalid"), "{err}");
+    }
+
+    /// Two factor columns in an exact `2x` proportion (perfectly collinear)
+    /// make the 3-asset x 2-factor design matrix rank-deficient: after
+    /// column normalization both columns are numerically identical, so the
+    /// underlying `no_intercept_least_squares` SVD solve sees only one
+    /// non-negligible singular value for two factor columns and must fail
+    /// closed rather than silently returning an arbitrary least-norm split
+    /// between the two collinear factors.
+    #[test]
+    fn rank_deficient_exposures_fail_closed() {
+        let x = [1.0, 2.0, 2.0, 4.0, 3.0, 6.0]; // factor 2 = 2 * factor 1
+        let r = [0.05, 0.02, 0.01];
+        let w = [0.6, 0.3, 0.1];
+        let err = constrained_least_squares(&x, 2, &r, &w).unwrap_err();
+        assert!(err.to_string().to_lowercase().contains("invalid"), "{err}");
     }
 
     #[test]

@@ -890,6 +890,31 @@ mod tests {
         );
     }
 
+    /// Exact-boundary pin for the `mid <= horizon_years` guard: a cell
+    /// midpoint numerically *equal* to `horizon_years` (not just less than
+    /// it) must still be rejected — the hypothetical zero would mature
+    /// exactly at the end of the holding period, leaving `end_t = mid -
+    /// horizon_years = 0.0`, not a forward maturity. Width 1.0, horizon
+    /// 0.5 => first cell "0.0-1.0" has midpoint exactly 0.5. Weakening the
+    /// guard's `<=` to `<` would silently accept this cell.
+    #[test]
+    fn cell_maturing_exactly_at_horizon_boundary_is_rejected() {
+        let knots = [(0.0, 1.0), (0.5, 0.98019867), (1.5, 0.94176453)];
+        let err = cell_returns_from_curves(
+            &curve("UST", &knots),
+            &curve("UST", &knots),
+            0.5,
+            2.0,
+            "UST",
+            &CellConfig { width: 1.0 },
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("0.0-1.0") || err.to_string().contains("matures"),
+            "{err}"
+        );
+    }
+
     // NOTE on the Task 1 carried finding (trailing flat extrapolation through
     // a public API): `cell_returns_from_curves` does not close this gap.
     // Every cell it produces is `observed: true` by construction — a curve
