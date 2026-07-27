@@ -499,6 +499,33 @@ risk calculation with a standard reference.
   multiplied by an empirically more stable relative spread volatility - risk
   and hedging surfaces, not ex-post attribution.
 
+<a id="dynkin-hyman-vankudre-1998"></a>
+
+### Dynkin Hyman Vankudre 1998
+
+- Dynkin, L., Hyman, J., and Vankudre, P. "Attribution of Portfolio
+  Performance Relative to an Index." Lehman Brothers Fixed Income Research,
+  March 1998. Appendix B source for bucketing a reference (e.g. Treasury)
+  universe into duration cells, averaging returns within each cell, and
+  interpolating/extrapolating empty cells - used by
+  `finstack-quant/portfolio/src/excess_return.rs` to build the duration-matched
+  base return curve for credit excess return calculations. Appendix A source
+  for the hierarchical curve/sector/selection grid decomposition (duration
+  cell x sector, with an out-of-benchmark fallback) - used by
+  `finstack-quant/portfolio/src/grid_attribution.rs`.
+
+<a id="jeet-partani-2023"></a>
+
+### Jeet Partani 2023
+
+- Jeet, V., & Partani, A. (2023). "Brinson-Style Attribution over Continuous
+  Factors." *The Journal of Portfolio Management*, Quantitative Special Issue
+  2023, 216-223. Appendix A source for the equality-constrained least-squares
+  correction (`f = f̂ + λg`) used by
+  `finstack-quant/analytics/src/regression.rs::constrained_least_squares` to
+  enforce `w'Xf = w'r` on top of an unconstrained OLS factor-return fit, for
+  factor-Brinson attribution.
+
 <a id="fama-french-1993"></a>
 
 ### Fama French 1993

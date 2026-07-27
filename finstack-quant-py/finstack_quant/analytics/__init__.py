@@ -26,6 +26,8 @@ MultiFactorResult = _analytics.MultiFactorResult
 DrawdownEpisode = _analytics.DrawdownEpisode
 DatedSeries = _analytics.DatedSeries
 
+constrained_least_squares = _analytics.constrained_least_squares
+
 __all__: list[str] = [
     "AnalyticsError",
     "BetaResult",
@@ -37,4 +39,5 @@ __all__: list[str] = [
     "Performance",
     "PeriodStats",
     "RollingGreeks",
+    "constrained_least_squares",
 ]

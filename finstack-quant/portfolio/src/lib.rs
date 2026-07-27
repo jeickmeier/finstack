@@ -163,6 +163,11 @@ pub mod builder;
 pub(crate) mod dataframe;
 /// Error types for portfolio operations.
 pub mod error;
+/// Duration-cell base-return tables from a reference universe (Lehman App. B).
+pub mod excess_return;
+/// Factor-Brinson unified attribution over continuous factor exposures
+/// (Jeet & Partani 2023).
+pub mod factor_brinson;
 /// Factor-model portfolio risk decomposition outputs and engines.
 pub mod factor_model;
 /// Campisi-style benchmark-relative fixed-income attribution
@@ -170,6 +175,8 @@ pub mod factor_model;
 pub mod fi_attribution;
 /// Shared FX conversion helpers (e.g. converting position values to base currency).
 pub(crate) mod fx;
+/// Hierarchical duration-cell x sector grid attribution (Lehman/Dynkin-Hyman-Vankudre 1998).
+pub mod grid_attribution;
 /// Grouping and aggregation by attributes or books.
 pub mod grouping;
 /// Liquidity risk metrics, spread estimation, and portfolio scoring.
@@ -237,6 +244,15 @@ pub use dataframe::{
     aggregated_metrics_to_table, entities_to_table, metrics_to_table, positions_to_table,
 };
 pub use dependencies::{flatten_dependencies, DependencyIndex, MarketFactorKey};
+pub use excess_return::{
+    cell_returns_from_curves, cell_returns_from_reference, duration_cell_label, excess_returns,
+    CellConfig, CellReturn, DurationCellTable, ExcessReturnPosition, ExcessReturnResult,
+    PositionExcess, ReferenceReturn,
+};
+pub use factor_brinson::{
+    factor_brinson_attribution, AssetSpecificContribution, FactorBrinsonInput, FactorBrinsonResult,
+    FactorContribution,
+};
 pub use factor_model::{
     allocate_weights, validate_allocation_json, AllocationDiagnostics, AllocationScheme,
     StrategyAllocation, StrategyAllocationInput, WeightAllocationResult, WeightAllocationSpec,
@@ -246,6 +262,10 @@ pub use fi_attribution::{
     snapshot_from_position_metrics, FiAttributionConfig, FiAttributionResult, FiCarinoLinkedResult,
     FiComponents, FiLinkedSectorEffect, FiPeriodInput, FiPositionSnapshot, FiReconciliationReport,
     FiSectorEffect,
+};
+pub use grid_attribution::{
+    grid_attribution, grid_carino_link, GridAttributionResult, GridCarinoLinkedResult,
+    GridCellEffect, GridPosition, GridSectorEffect, GridSelectionEffect,
 };
 pub use margin::{
     CurrencyMismatchError, NettingSet, NettingSetManager, NettingSetMargin,

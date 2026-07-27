@@ -44,6 +44,7 @@
 
 use std::sync::Arc;
 
+use crate::api::core::market_data::JsDiscountCurve;
 use crate::utils::{to_js_err, to_js_value};
 use wasm_bindgen::prelude::*;
 
@@ -229,6 +230,153 @@ pub fn campisi_reconciliation_check(result_json: &str, tolerance: f64) -> Result
     let result: finstack_quant_portfolio::FiAttributionResult =
         serde_json::from_str(result_json).map_err(to_js_err)?;
     serde_json::to_string(&result.reconciliation_check(tolerance)).map_err(to_js_err)
+}
+
+/// Build a duration-cell base-return table from a reference universe.
+///
+/// Binds Rust `cell_returns_from_reference` (Dynkin, Hyman & Vankudre 1998,
+/// Appendix B): buckets `referenceJson` into fixed-width duration cells and
+/// averages each cell's member total returns, interpolating interior gaps
+/// and flat-extrapolating leading/trailing gaps. Returns a JSON
+/// `DurationCellTable`.
+/// @param referenceJson - Canonical JSON array of `ReferenceReturn` objects (`duration`, `total_return`, both decimals with duration in years); must be non-empty.
+/// @param baseLabel - Label identifying the resulting curve (e.g. `"UST"`), carried through to the output's `base_label` for policy visibility.
+/// @param configJson - Canonical JSON `CellConfig`; `width` is its only field (cell width in years, finite and positive) and is required, with no default.
+#[wasm_bindgen(js_name = cellReturnsFromReference)]
+pub fn cell_returns_from_reference(
+    reference_json: &str,
+    base_label: &str,
+    config_json: &str,
+) -> Result<String, JsValue> {
+    let reference: Vec<finstack_quant_portfolio::ReferenceReturn> =
+        serde_json::from_str(reference_json).map_err(to_js_err)?;
+    let config: finstack_quant_portfolio::CellConfig =
+        serde_json::from_str(config_json).map_err(to_js_err)?;
+    let table =
+        finstack_quant_portfolio::cell_returns_from_reference(&reference, base_label, &config)
+            .map_err(to_js_err)?;
+    serde_json::to_string(&table).map_err(to_js_err)
+}
+
+/// Build a duration-cell base-return table from start/end discount curves.
+///
+/// Binds Rust `cell_returns_from_curves`: each cell's base return is the
+/// holding-period return of a hypothetical zero-coupon position bought at
+/// the cell midpoint off `start` and revalued off `end` after
+/// `horizonYears` have elapsed. Every resulting cell is observed, unlike the
+/// reference-universe path in `cellReturnsFromReference`. Returns a JSON
+/// `DurationCellTable`.
+/// @param start - Discount curve observed at the start of the holding period.
+/// @param end - Discount curve observed `horizonYears` later, at period end.
+/// @param horizonYears - Length of the holding period, in years; must be finite and positive.
+/// @param maxDuration - Upper bound of the duration grid, in years; must be finite and strictly greater than `horizonYears`.
+/// @param baseLabel - Label identifying the base curve (e.g. `"UST"`, `"USD-SOFR"`), stamped into the result purely for policy visibility.
+/// @param configJson - Canonical JSON `CellConfig`; `width` is its only field and is required, with no default.
+#[wasm_bindgen(js_name = cellReturnsFromCurves)]
+pub fn cell_returns_from_curves(
+    start: &JsDiscountCurve,
+    end: &JsDiscountCurve,
+    horizon_years: f64,
+    max_duration: f64,
+    base_label: &str,
+    config_json: &str,
+) -> Result<String, JsValue> {
+    let config: finstack_quant_portfolio::CellConfig =
+        serde_json::from_str(config_json).map_err(to_js_err)?;
+    let table = finstack_quant_portfolio::cell_returns_from_curves(
+        &start.inner,
+        &end.inner,
+        horizon_years,
+        max_duration,
+        base_label,
+        &config,
+    )
+    .map_err(to_js_err)?;
+    serde_json::to_string(&table).map_err(to_js_err)
+}
+
+/// Compute duration-matched credit excess returns against a base-return table.
+///
+/// Binds Rust `excess_returns` (Dynkin, Hyman & Vankudre 1998, Appendix B):
+/// each position's `duration` is matched to its duration cell in
+/// `tableJson` and the position's excess return is `total_return -
+/// cell.base_return`, the credit-specific component of performance isolated
+/// from the general level/shape move of the base curve. Returns a JSON
+/// `ExcessReturnResult` with per-position and portfolio-level totals.
+/// @param positionsJson - Canonical JSON array of `ExcessReturnPosition` objects (`id`, `weight`, `duration`, `total_return`); weights must sum to 1.
+/// @param tableJson - Canonical JSON `DurationCellTable`, as returned by `cellReturnsFromReference` or `cellReturnsFromCurves`.
+#[wasm_bindgen(js_name = excessReturns)]
+pub fn excess_returns(positions_json: &str, table_json: &str) -> Result<String, JsValue> {
+    let positions: Vec<finstack_quant_portfolio::ExcessReturnPosition> =
+        serde_json::from_str(positions_json).map_err(to_js_err)?;
+    let table: finstack_quant_portfolio::DurationCellTable =
+        serde_json::from_str(table_json).map_err(to_js_err)?;
+    let result = finstack_quant_portfolio::excess_returns(&positions, &table).map_err(to_js_err)?;
+    serde_json::to_string(&result).map_err(to_js_err)
+}
+
+/// Compute a single-period hierarchical duration-cell x sector grid attribution.
+///
+/// Binds Rust `grid_attribution` (Dynkin, Hyman & Vankudre 1998, Appendix A):
+/// decomposes active return into a per-cell curve (positioning) effect, a
+/// within-cell sector allocation effect, and a security-selection residual
+/// per (cell, sector). Returns a JSON `GridAttributionResult` whose
+/// `total_curve`, `total_sector` and `total_selection` sum to
+/// `active_return` to floating-point precision for well-conditioned inputs;
+/// among accepted inputs, the reconciliation residual grows the closer any
+/// bucket's net weight sits to the near-zero-net-weight rejection boundary
+/// (see the Rust module docs for measured magnitudes).
+/// @param portfolioJson - Canonical JSON array of `GridPosition` objects (`cell`, `sector`, `weight`, `total_return`) for the portfolio side; weights must sum to 1.
+/// @param benchmarkJson - Canonical JSON array of `GridPosition` objects for the benchmark side; same weight-sum requirement.
+#[wasm_bindgen(js_name = gridAttribution)]
+pub fn grid_attribution(portfolio_json: &str, benchmark_json: &str) -> Result<String, JsValue> {
+    let portfolio: Vec<finstack_quant_portfolio::GridPosition> =
+        serde_json::from_str(portfolio_json).map_err(to_js_err)?;
+    let benchmark: Vec<finstack_quant_portfolio::GridPosition> =
+        serde_json::from_str(benchmark_json).map_err(to_js_err)?;
+    let result =
+        finstack_quant_portfolio::grid_attribution(&portfolio, &benchmark).map_err(to_js_err)?;
+    serde_json::to_string(&result).map_err(to_js_err)
+}
+
+/// Carino-link multi-period hierarchical grid attribution results.
+///
+/// Binds Rust `grid_carino_link` (Carino 1999): applies Carino smoothing to
+/// a chronological sequence of single-period `gridAttribution` results so
+/// the three top-level effects (`linked_curve`, `linked_sector`,
+/// `linked_selection`) sum exactly to the geometrically compounded active
+/// return. Only the three top-level effects are linked; per-cell /
+/// per-(cell, sector) multi-period linking is out of scope. Returns a JSON
+/// `GridCarinoLinkedResult`.
+/// @param periodsJson - Canonical JSON array of `GridAttributionResult` objects, in chronological order, each the parsed output of `gridAttribution`.
+#[wasm_bindgen(js_name = gridCarinoLink)]
+pub fn grid_carino_link(periods_json: &str) -> Result<String, JsValue> {
+    let periods: Vec<finstack_quant_portfolio::GridAttributionResult> =
+        serde_json::from_str(periods_json).map_err(to_js_err)?;
+    let result = finstack_quant_portfolio::grid_carino_link(&periods).map_err(to_js_err)?;
+    serde_json::to_string(&result).map_err(to_js_err)
+}
+
+/// Compute Jeet-Partani (2023) factor-Brinson unified attribution.
+///
+/// Binds Rust `factor_brinson_attribution`: generalizes classical
+/// Brinson-Fachler allocation/selection to continuous factor exposures by
+/// replacing the sector partition with a factor-exposure matrix and a
+/// caller-supplied benchmark factor-return vector. Returns a JSON
+/// `FactorBrinsonResult` with `allocation`, `selection`, and their
+/// per-factor / per-asset breakdowns.
+/// @param inputJson - Canonical JSON `FactorBrinsonInput` with `asset_ids`, `asset_returns`, `exposures` (row-major n_assets x n_factors), `factor_names`, `portfolio_weights` and `benchmark_weights`; each weight vector must sum to 1.
+/// @param factorReturns - Caller-supplied benchmark factor returns `f_b`, length `input.factor_names`; typically fit with `analytics.constrainedLeastSquares` using benchmark weights.
+#[wasm_bindgen(js_name = factorBrinsonAttribution)]
+pub fn factor_brinson_attribution(
+    input_json: &str,
+    factor_returns: Vec<f64>,
+) -> Result<String, JsValue> {
+    let input: finstack_quant_portfolio::FactorBrinsonInput =
+        serde_json::from_str(input_json).map_err(to_js_err)?;
+    let result = finstack_quant_portfolio::factor_brinson_attribution(&input, &factor_returns)
+        .map_err(to_js_err)?;
+    serde_json::to_string(&result).map_err(to_js_err)
 }
 
 /// Compute a Modified-Dietz TWRR sub-period return from period JSON.
@@ -444,7 +592,7 @@ pub fn apply_scenario_and_revalue(
 }
 
 /// Compute the profit and loss attributable to a scenario for an already-built
-/// [`Portfolio`] handle.
+/// [`JsPortfolio`] handle.
 ///
 /// Values the portfolio against the unshocked market and against the
 /// scenario-shocked market, and returns a JS object with structured `pnl`

@@ -35,6 +35,9 @@
 //! - [`beta`] is kept public for cross-crate regression use.
 //! - [`correlation`] owns shared row-major correlation-matrix validation and
 //!   repair infrastructure used by valuations and factor-model crates.
+//! - [`regression`] owns [`constrained_least_squares`], an equality-constrained
+//!   least-squares solver consumed by `finstack-quant-portfolio` for
+//!   factor-Brinson attribution.
 //!
 //! Key conventions:
 //! - returns are simple decimal returns
@@ -57,6 +60,7 @@ pub mod correlation;
 pub(crate) mod drawdown;
 pub(crate) mod lookback;
 pub(crate) mod performance;
+pub mod regression;
 pub(crate) mod returns;
 pub(crate) mod risk_metrics;
 
@@ -67,4 +71,5 @@ pub use aggregation::PeriodStats;
 pub use benchmark::{beta, BetaResult, GreeksResult, MultiFactorResult, RollingGreeks};
 pub use drawdown::DrawdownEpisode;
 pub use performance::{LookbackReturns, Performance};
+pub use regression::constrained_least_squares;
 pub use risk_metrics::{AnnualizationConvention, CagrBasis, DatedSeries};

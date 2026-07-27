@@ -16,7 +16,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from finstack_quant.core.market_data import MarketContext
+from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.core.money import Money
 from finstack_quant.core.table import ArrowTable
 from finstack_quant.factor_model.credit import CreditFactorModel
@@ -48,9 +48,15 @@ __all__ = [
     "campisi_carino_link_from_snapshots",
     "campisi_reconciliation_check",
     "carino_link",
+    "cell_returns_from_curves",
+    "cell_returns_from_reference",
     "days_to_liquidate",
     "evaluate_risk_budget",
+    "excess_returns",
+    "factor_brinson_attribution",
     "factor_stress",
+    "grid_attribution",
+    "grid_carino_link",
     "historical_var_decomposition",
     "kyle_lambda",
     "liquidity_tier",
@@ -2236,6 +2242,339 @@ def campisi_reconciliation_check(result_json: str, tolerance: float) -> str:
     >>> result_json = campisi_attribution(portfolio_json, benchmark_json, config_json)  # doctest: +SKIP
     >>> json.loads(campisi_reconciliation_check(result_json, 1e-10))["is_reconciled"]  # doctest: +SKIP
     True
+    """
+    ...
+
+def cell_returns_from_reference(reference_json: str, base_label: str, config_json: str) -> str:
+    """
+    Build a duration-cell base-return table from a reference universe.
+
+    Binds Rust ``finstack_quant_portfolio::cell_returns_from_reference``
+    (Dynkin, Hyman & Vankudre 1998, Appendix B): buckets ``reference_json``
+    into fixed-width duration cells and averages each cell's member total
+    returns, interpolating interior gaps and flat-extrapolating
+    leading/trailing gaps.
+
+    Parameters
+    ----------
+    reference_json : str
+        JSON array of ``ReferenceReturn`` objects (``duration``,
+        ``total_return``, both decimals with duration in years); must be
+        non-empty. Unknown fields are rejected.
+    base_label : str
+        Label identifying the resulting curve (e.g. ``"UST"``), carried
+        through to the output's ``base_label`` for policy visibility.
+    config_json : str
+        JSON ``CellConfig``; ``width`` is its only field (cell width in
+        years, finite and positive) and is required — there is no default.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``DurationCellTable``.
+
+    Raises
+    ------
+    PortfolioError
+        If ``reference_json`` is empty, ``config.width`` is not finite and
+        positive, any reference entry has a non-finite ``total_return`` or a
+        non-finite/negative ``duration``, the width produces two numerically
+        distinct cells that collide on their one-decimal label, or the
+        largest reference ``duration`` divided by ``config.width`` would
+        require more than an internal sanity bound of cells (100,000; a
+        units mistake, e.g. days instead of years, rather than a legitimate
+        duration grid).
+    ValueError
+        If any JSON argument is malformed or carries unknown fields.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#dynkin-hyman-vankudre-1998``.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import cell_returns_from_reference
+    >>> table_json = cell_returns_from_reference(reference_json, "UST", config_json)  # doctest: +SKIP
+    """
+    ...
+
+def cell_returns_from_curves(
+    start: DiscountCurve,
+    end: DiscountCurve,
+    horizon_years: float,
+    max_duration: float,
+    base_label: str,
+    config_json: str,
+) -> str:
+    """
+    Build a duration-cell base-return table from start/end discount curves.
+
+    Binds Rust ``finstack_quant_portfolio::cell_returns_from_curves``: each
+    cell's base return is the holding-period return of a hypothetical
+    zero-coupon position bought at the cell midpoint off ``start`` and
+    revalued off ``end`` after ``horizon_years`` have elapsed. Every
+    resulting cell is observed (a curve has a discount factor at every
+    queried point), unlike the reference-universe path in
+    :func:`cell_returns_from_reference`.
+
+    Parameters
+    ----------
+    start : DiscountCurve
+        Discount curve observed at the start of the holding period.
+    end : DiscountCurve
+        Discount curve observed ``horizon_years`` later, at period end.
+    horizon_years : float
+        Length of the holding period, in years; must be finite and positive.
+    max_duration : float
+        Upper bound of the duration grid, in years; must be finite and
+        strictly greater than ``horizon_years``.
+    base_label : str
+        Label identifying the base curve (e.g. ``"UST"``, ``"USD-SOFR"``),
+        stamped into the result purely for policy visibility.
+    config_json : str
+        JSON ``CellConfig``; ``width`` is its only field and is required.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``DurationCellTable``.
+
+    Raises
+    ------
+    PortfolioError
+        If ``config.width`` or ``horizon_years`` is not finite and positive,
+        ``max_duration`` does not strictly exceed ``horizon_years``,
+        ``max_duration`` divided by ``config.width`` would require more than
+        an internal sanity bound of cells (100,000; a units mistake rather
+        than a legitimate duration grid), a cell's midpoint does not exceed
+        ``horizon_years`` (unavoidable whenever ``config.width`` is not
+        strictly greater than ``2 * horizon_years``, since the first cell's
+        midpoint is ``config.width / 2``), either curve produces a
+        non-positive/non-finite discount factor at a queried time, or the
+        width produces colliding one-decimal cell labels.
+    ValueError
+        If ``config_json`` is malformed.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#dynkin-hyman-vankudre-1998``.
+
+    Examples
+    --------
+    >>> from finstack_quant.core.market_data import DiscountCurve
+    >>> from finstack_quant.portfolio import cell_returns_from_curves
+    >>> table_json = cell_returns_from_curves(
+    ...     start,
+    ...     end,
+    ...     0.25,
+    ...     2.0,
+    ...     "UST",
+    ...     config_json,
+    ... )  # doctest: +SKIP
+    """
+    ...
+
+def excess_returns(positions_json: str, table_json: str) -> str:
+    """
+    Compute duration-matched credit excess returns against a base-return table.
+
+    Binds Rust ``finstack_quant_portfolio::excess_returns`` (Dynkin, Hyman &
+    Vankudre 1998, Appendix B): each position's ``duration`` is matched to
+    its duration cell in ``table_json`` and the position's excess return is
+    ``total_return - cell.base_return``, the credit-specific component of
+    performance isolated from the general level/shape move of the base curve.
+
+    Parameters
+    ----------
+    positions_json : str
+        JSON array of ``ExcessReturnPosition`` objects (``id``, ``weight``,
+        ``duration``, ``total_return``); weights must sum to ``1.0`` within
+        ``1e-6``.
+    table_json : str
+        JSON ``DurationCellTable``, as returned by
+        :func:`cell_returns_from_reference` or :func:`cell_returns_from_curves`.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``ExcessReturnResult`` with per-position and
+        portfolio-level total/base/excess returns.
+
+    Raises
+    ------
+    PortfolioError
+        If ``table_json`` has no cells, a position has a non-finite
+        weight/duration/total_return, a position's duration falls outside
+        the table's covered range (the error names the position), or the
+        position weights do not sum to ``1.0`` within tolerance.
+    ValueError
+        If any JSON argument is malformed.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#dynkin-hyman-vankudre-1998``.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import cell_returns_from_reference, excess_returns
+    >>> table_json = cell_returns_from_reference(reference_json, "UST", config_json)  # doctest: +SKIP
+    >>> result_json = excess_returns(positions_json, table_json)  # doctest: +SKIP
+    """
+    ...
+
+def grid_attribution(portfolio_json: str, benchmark_json: str) -> str:
+    """
+    Compute a single-period hierarchical duration-cell x sector grid attribution.
+
+    Binds Rust ``finstack_quant_portfolio::grid_attribution`` (Dynkin, Hyman
+    & Vankudre 1998, Appendix A): decomposes active return into a per-cell
+    curve (positioning) effect, a within-cell sector allocation effect, and
+    a security-selection residual per (cell, sector).
+
+    Parameters
+    ----------
+    portfolio_json : str
+        JSON array of ``GridPosition`` objects (``cell``, ``sector``,
+        ``weight``, ``total_return``) for the portfolio side; weights must
+        sum to ``1.0`` within ``1e-6``.
+    benchmark_json : str
+        JSON array of ``GridPosition`` objects for the benchmark side; same
+        weight-sum requirement.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``GridAttributionResult`` whose ``total_curve``,
+        ``total_sector`` and ``total_selection`` sum to ``active_return`` to
+        floating-point precision for well-conditioned inputs; among
+        *accepted* inputs (those that clear the near-zero-net-weight check
+        below), the reconciliation residual grows the closer any bucket's
+        net weight sits to that check's own rejection boundary — see the
+        Rust module docs' measured residuals for magnitudes.
+
+    Raises
+    ------
+    PortfolioError
+        If any weight or return is non-finite, either side's weights don't
+        sum to ``1.0`` within tolerance, or a (cell) or (cell, sector)
+        bucket has positions on a side but nets to a weight that is zero, or
+        numerically near zero (within ``1e-6`` relative to its own gross
+        weight), which is undefined-or-explosive to attribute (the error
+        names the bucket and the side).
+    ValueError
+        If either JSON argument is malformed or carries unknown fields.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#dynkin-hyman-vankudre-1998``.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import grid_attribution
+    >>> result_json = grid_attribution(portfolio_json, benchmark_json)  # doctest: +SKIP
+    """
+    ...
+
+def grid_carino_link(periods_json: str) -> str:
+    """
+    Carino-link multi-period hierarchical grid attribution results.
+
+    Binds Rust ``finstack_quant_portfolio::grid_carino_link`` (Carino 1999):
+    applies Carino smoothing to a chronological sequence of single-period
+    :func:`grid_attribution` results so the three top-level effects
+    (``linked_curve``, ``linked_sector``, ``linked_selection``) sum exactly
+    to the geometrically compounded active return. Only the three top-level
+    effects are linked; per-cell / per-(cell, sector) multi-period linking
+    is out of scope.
+
+    Parameters
+    ----------
+    periods_json : str
+        JSON array of ``GridAttributionResult`` objects, in chronological
+        order, each the parsed output of :func:`grid_attribution`.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``GridCarinoLinkedResult``.
+
+    Raises
+    ------
+    PortfolioError
+        If ``periods_json`` is an empty array, any period's portfolio or
+        benchmark return is non-finite, or any per-period or compounded
+        return is at or below -100% (outside the Carino domain).
+    ValueError
+        If ``periods_json`` is malformed or does not match the
+        ``GridAttributionResult`` schema.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#carino-1999`` and
+    ``docs/REFERENCES.md#dynkin-hyman-vankudre-1998``.
+
+    Examples
+    --------
+    >>> import json
+    >>> from finstack_quant.portfolio import grid_attribution, grid_carino_link
+    >>> jan = grid_attribution(jan_portfolio_json, jan_benchmark_json)  # doctest: +SKIP
+    >>> feb = grid_attribution(feb_portfolio_json, feb_benchmark_json)  # doctest: +SKIP
+    >>> linked_json = grid_carino_link(json.dumps([json.loads(jan), json.loads(feb)]))  # doctest: +SKIP
+    """
+    ...
+
+def factor_brinson_attribution(input_json: str, factor_returns: list[float]) -> str:
+    """
+    Compute Jeet-Partani (2023) factor-Brinson unified attribution.
+
+    Binds Rust ``finstack_quant_portfolio::factor_brinson_attribution``:
+    generalizes classical Brinson-Fachler allocation/selection to continuous
+    factor exposures by replacing the sector partition with a
+    factor-exposure matrix and a caller-supplied benchmark factor-return
+    vector.
+
+    Parameters
+    ----------
+    input_json : str
+        JSON ``FactorBrinsonInput`` with ``asset_ids``, ``asset_returns``,
+        ``exposures`` (row-major ``n_assets x n_factors``), ``factor_names``,
+        ``portfolio_weights`` and ``benchmark_weights``. Each weight vector
+        must sum to ``1.0`` within ``1e-6``; weights may be negative (short
+        positions).
+    factor_returns : list[float]
+        Caller-supplied benchmark factor returns ``f_b``, length
+        ``input.factor_names``. Typically fit with
+        :func:`finstack_quant.analytics.constrained_least_squares` (using
+        benchmark weights) so the completeness condition below holds.
+
+    Returns
+    -------
+    str
+        JSON-serialized ``FactorBrinsonResult`` with ``allocation``,
+        ``selection``, and their per-factor / per-asset breakdowns.
+
+    Raises
+    ------
+    PortfolioError
+        If any array has the wrong length relative to ``n_assets`` /
+        ``n_factors``, either ``n_assets`` or ``n_factors`` is zero, any
+        input value is non-finite, portfolio or benchmark weights don't sum
+        to ``1.0`` within tolerance, or the Jeet-Partani completeness
+        residual ``|h_b'eps_b|`` exceeds tolerance — meaning the supplied
+        ``factor_returns`` do not fully explain the benchmark return. The
+        error directs callers to
+        :func:`finstack_quant.analytics.constrained_least_squares`.
+    ValueError
+        If ``input_json`` is malformed or carries unknown fields.
+
+    Sources
+    -------
+    See ``docs/REFERENCES.md#jeet-partani-2023``.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import factor_brinson_attribution
+    >>> result_json = factor_brinson_attribution(input_json, [0.02, 0.31 / 7.0])  # doctest: +SKIP
     """
     ...
 

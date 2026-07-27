@@ -424,6 +424,22 @@ pub enum InputError {
         /// Description of the missing leg (e.g., "EUR->USD not found").
         missing_leg: String,
     },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Constrained Optimization
+    // ─────────────────────────────────────────────────────────────────────────
+    /// An equality-constrained solve could not restore its constraint because
+    /// the constraint-restoring direction is (numerically) degenerate.
+    ///
+    /// Used by `finstack-quant-analytics::regression::constrained_least_squares`
+    /// when the denominator `w'Xg` of the Lagrange multiplier is ~0, meaning no
+    /// scalar correction can move the unconstrained solution onto the
+    /// constraint plane.
+    #[error("Equality constraint is unreachable: denominator is degenerate ({denominator:.3e})")]
+    ConstraintUnreachable {
+        /// The near-zero denominator that made the constraint unenforceable.
+        denominator: f64,
+    },
 }
 
 #[cfg(test)]

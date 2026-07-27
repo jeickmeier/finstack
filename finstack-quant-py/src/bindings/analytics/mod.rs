@@ -6,6 +6,7 @@
 //! `Performance` instance built from a price or return panel.
 
 mod performance;
+mod regression;
 mod types;
 
 use pyo3::prelude::*;
@@ -25,6 +26,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
 
     types::register(py, &m)?;
     performance::register(py, &m)?;
+    regression::register(py, &m)?;
 
     let all = PyList::new(
         py,
@@ -39,6 +41,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "MultiFactorResult",
             "DrawdownEpisode",
             "DatedSeries",
+            "constrained_least_squares",
         ],
     )?;
     m.setattr("__all__", all)?;

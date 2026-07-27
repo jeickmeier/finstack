@@ -22,7 +22,7 @@ if (!existsSync(WASM_BG)) {
 
 const facade = await import('../../index.js');
 const init = facade.default;
-const { portfolio } = facade;
+const { portfolio, analytics, core } = facade;
 
 await init({ module_or_path: readFileSync(WASM_BG) });
 
@@ -42,6 +42,8 @@ const EXPORTED_KEYS = [
   'campisiCarinoLinkFromSnapshots',
   'campisiReconciliationCheck',
   'carinoLink',
+  'cellReturnsFromCurves',
+  'cellReturnsFromReference',
   'computeFactorSensitivities',
   'computeFactorSensitivitiesWithMarket',
   'computePnlProfiles',
@@ -49,6 +51,10 @@ const EXPORTED_KEYS = [
   'daysToLiquidate',
   'decomposeFactorRisk',
   'evaluateRiskBudget',
+  'excessReturns',
+  'factorBrinsonAttribution',
+  'gridAttribution',
+  'gridCarinoLink',
   'historicalVarDecomposition',
   'kyleLambda',
   'liquidityTier',
@@ -91,6 +97,25 @@ test('portfolio Campisi exports keep their declared arity', () => {
   assert.equal(portfolio.campisiCarinoLink.length, 1);
   assert.equal(portfolio.campisiCarinoLinkFromSnapshots.length, 2);
   assert.equal(portfolio.campisiReconciliationCheck.length, 2);
+});
+
+// Same lesson as the Campisi arity gate above, applied to the credit
+// excess-return / grid-attribution / factor-Brinson surfaces landed here:
+// `index.d.ts` is hand-maintained, so a declaration with the wrong argument
+// count would compile clean for a TypeScript caller while an extra argument
+// is silently discarded at the JS boundary. `dts_contract.rs` pins the
+// declared signatures themselves.
+test('portfolio credit excess / grid / factor-Brinson exports keep their declared arity', () => {
+  assert.equal(portfolio.cellReturnsFromReference.length, 3);
+  assert.equal(portfolio.cellReturnsFromCurves.length, 6);
+  assert.equal(portfolio.excessReturns.length, 2);
+  assert.equal(portfolio.gridAttribution.length, 2);
+  assert.equal(portfolio.gridCarinoLink.length, 1);
+  assert.equal(portfolio.factorBrinsonAttribution.length, 2);
+});
+
+test('analytics.constrainedLeastSquares keeps its declared arity', () => {
+  assert.equal(analytics.constrainedLeastSquares.length, 4);
 });
 
 const campisiSnapshot = (sector, weight, totalReturn, yieldAnnual, modifiedDuration) => ({
@@ -281,4 +306,327 @@ test('portfolio.campisiReconciliationCheck reports the residual and fails closed
   const withBogus = JSON.stringify({ ...JSON.parse(resultJson), bogus_field: 1.0 });
   assert.throws(() => portfolio.campisiReconciliationCheck(withBogus, 1e-10));
   assert.throws(() => portfolio.campisiCarinoLink(`[${withBogus}]`));
+});
+
+// ---------------------------------------------------------------------------
+// Credit excess returns, hierarchical grid attribution, and factor-Brinson
+// (Dynkin, Hyman & Vankudre 1998; Carino 1999; Jeet & Partani 2023).
+// ---------------------------------------------------------------------------
+
+// Lehman Brothers Fixed Income Research (1998), Figure B-1: populated
+// duration cells of May 1997 Treasury returns by duration, width 0.5y.
+const LEHMAN_B1_REFERENCE = JSON.stringify(
+  [
+    [0.25, 0.0054],
+    [0.75, 0.0059],
+    [1.25, 0.0066],
+    [1.75, 0.0071],
+    [2.25, 0.0073],
+    [2.75, 0.0075],
+    [3.25, 0.0078],
+    [3.75, 0.0078],
+    [4.25, 0.008],
+    [4.75, 0.0092],
+    [5.25, 0.0097],
+    [5.75, 0.0103],
+    [6.25, 0.0111],
+    [6.75, 0.0105],
+    [7.25, 0.0105],
+    [9.25, 0.011],
+    [9.75, 0.0111],
+    [10.25, 0.0111],
+    [10.75, 0.0115],
+    [11.25, 0.0118],
+    [11.75, 0.0121],
+    [12.25, 0.0116],
+  ].map(([duration, total_return]) => ({ duration, total_return }))
+);
+const lehmanCellConfig = JSON.stringify({ width: 0.5 });
+
+test('portfolio.cellReturnsFromReference + excessReturns reproduce the Lehman Figure B-2 golden', () => {
+  const tableJson = portfolio.cellReturnsFromReference(
+    LEHMAN_B1_REFERENCE,
+    'UST',
+    lehmanCellConfig
+  );
+  const table = JSON.parse(tableJson);
+  assert.equal(table.base_label, 'UST');
+  assert.equal(table.cells[0].label, '0.0-0.5');
+
+  const positions = JSON.stringify([
+    { id: 'Colombia', weight: 0.2, duration: 5.16, total_return: 0.0225 },
+    { id: 'RiteAid', weight: 0.2, duration: 6.71, total_return: 0.0172 },
+    { id: 'NewsAM', weight: 0.2, duration: 9.58, total_return: 0.0182 },
+    { id: 'Delta', weight: 0.2, duration: 9.81, total_return: 0.0102 },
+    { id: 'Quebec', weight: 0.2, duration: 11.08, total_return: 0.0185 },
+  ]);
+  const result = JSON.parse(portfolio.excessReturns(positions, tableJson));
+  assert.ok(Math.abs(result.portfolio_excess_return - 0.00648) < 1e-9);
+  assert.equal(result.positions[0].cell, '5.0-5.5');
+  assert.ok(
+    Math.abs(
+      result.portfolio_excess_return -
+        (result.portfolio_total_return - result.portfolio_base_return)
+    ) < 1e-9
+  );
+});
+
+test('portfolio.excessReturns fails closed on a duration outside the table range, naming the position', () => {
+  const tableJson = portfolio.cellReturnsFromReference(
+    LEHMAN_B1_REFERENCE,
+    'UST',
+    lehmanCellConfig
+  );
+  const farPosition = JSON.stringify([
+    { id: 'X', weight: 1.0, duration: 99.0, total_return: 0.01 },
+  ]);
+  assert.throws(() => portfolio.excessReturns(farPosition, tableJson), /X/);
+});
+
+test('portfolio.cellReturnsFromReference rejects an empty reference universe', () => {
+  assert.throws(() => portfolio.cellReturnsFromReference('[]', 'UST', lehmanCellConfig));
+});
+
+// FFI-level regression for the Minor-2 finding: a units mistake (e.g. days
+// instead of years) producing an astronomically large `duration` must fail
+// closed with a clear error, not crash the WASM module with an unrecoverable
+// panic ("capacity overflow") while allocating the duration grid.
+test('portfolio.cellReturnsFromReference rejects an astronomically large duration, not a panic', () => {
+  const reference = JSON.stringify([{ duration: 1e30, total_return: 0.01 }]);
+  assert.throws(
+    () => portfolio.cellReturnsFromReference(reference, 'UST', JSON.stringify({ width: 1.0 })),
+    (error) => /sanity bound/.test(String(error))
+  );
+});
+
+const flatCurveKnots = (id) =>
+  new core.DiscountCurve(
+    id,
+    '2024-01-01',
+    [0.0, 1.0, 0.25, 0.99004983, 0.5, 0.98019867, 1.25, 0.95122942, 1.5, 0.94176453]
+  );
+
+test('portfolio.cellReturnsFromCurves reproduces the flat-curve pure-carry golden', () => {
+  const start = flatCurveKnots('UST');
+  const end = flatCurveKnots('UST');
+  const table = JSON.parse(
+    portfolio.cellReturnsFromCurves(start, end, 0.25, 2.0, 'UST', JSON.stringify({ width: 1.0 }))
+  );
+  assert.equal(table.cells.length, 2);
+  for (const cell of table.cells) {
+    assert.ok(Math.abs(cell.base_return - 0.01005017) < 1e-6);
+    assert.equal(cell.observed, true);
+  }
+});
+
+// The mutation-catching argument-order test the task brief calls for:
+// distinct start/end curves (4% -> 5%, rising rates) so swapping the two
+// `DiscountCurve` arguments is not a no-op, unlike the pure-carry golden
+// above whose start === end.
+test('portfolio.cellReturnsFromCurves distinguishes start and end curves under rising rates', () => {
+  const start = new core.DiscountCurve(
+    'UST',
+    '2024-01-01',
+    [0.0, 1.0, 0.5, 0.98019867, 1.5, 0.94176453]
+  );
+  const end = new core.DiscountCurve(
+    'UST',
+    '2024-01-01',
+    [0.0, 1.0, 0.25, 0.9875778, 1.25, 0.93941306]
+  );
+  const table = JSON.parse(
+    portfolio.cellReturnsFromCurves(start, end, 0.25, 2.0, 'UST', JSON.stringify({ width: 1.0 }))
+  );
+  assert.ok(Math.abs(table.cells[0].base_return - 0.0075281983) < 1e-8);
+  assert.ok(Math.abs(table.cells[1].base_return - -0.00249688) < 1e-8);
+});
+
+test('portfolio.cellReturnsFromCurves fails closed when a cell matures inside the holding period', () => {
+  const knots = [0.0, 1.0, 0.25, 0.99004983, 0.5, 0.98019867];
+  const start = new core.DiscountCurve('UST', '2024-01-01', knots);
+  const end = new core.DiscountCurve('UST', '2024-01-01', knots);
+  assert.throws(() =>
+    portfolio.cellReturnsFromCurves(start, end, 0.25, 0.5, 'UST', JSON.stringify({ width: 0.25 }))
+  );
+});
+
+// Hand-derived golden fixture (finstack-quant/portfolio/src/grid_attribution.rs
+// `grid_attribution_matches_hand_derived_golden`): r^P=0.0293, r^B=0.0245,
+// active=0.0048, curve=0.0021, sector=0.0004, selection=0.0023.
+const gridPos = (cell, sector, weight, total_return) => ({ cell, sector, weight, total_return });
+const GRID_PORTFOLIO = JSON.stringify([
+  gridPos('0.0-3.0', 'GOVT', 0.2, 0.012),
+  gridPos('0.0-3.0', 'CORP', 0.2, 0.025),
+  gridPos('3.0-6.0', 'GOVT', 0.3, 0.028),
+  gridPos('3.0-6.0', 'CORP', 0.3, 0.045),
+]);
+const GRID_BENCHMARK = JSON.stringify([
+  gridPos('0.0-3.0', 'GOVT', 0.3, 0.01),
+  gridPos('0.0-3.0', 'CORP', 0.2, 0.02),
+  gridPos('3.0-6.0', 'GOVT', 0.25, 0.03),
+  gridPos('3.0-6.0', 'CORP', 0.25, 0.04),
+]);
+
+test('portfolio.gridAttribution matches the hand-derived golden and reconciles', () => {
+  const result = JSON.parse(portfolio.gridAttribution(GRID_PORTFOLIO, GRID_BENCHMARK));
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} vs ${b}`);
+  close(result.portfolio_return, 0.0293);
+  close(result.benchmark_return, 0.0245);
+  close(result.active_return, 0.0048);
+  close(result.total_curve, 0.0021);
+  close(result.total_sector, 0.0004);
+  close(result.total_selection, 0.0023);
+  close(result.total_curve + result.total_sector + result.total_selection, result.active_return);
+});
+
+// Argument-order mutation gate: `portfolio`/`benchmark` are same-typed JSON
+// arrays, and the golden above has portfolio_return != benchmark_return, so
+// swapping them changes every total.
+test('portfolio.gridAttribution is not invariant under swapping portfolio and benchmark', () => {
+  const swapped = JSON.parse(portfolio.gridAttribution(GRID_BENCHMARK, GRID_PORTFOLIO));
+  assert.notEqual(swapped.active_return, 0.0048);
+  assert.ok(Math.abs(swapped.active_return - -0.0048) < 1e-12);
+});
+
+test('portfolio.gridAttribution fails closed on a zero-net-weight bucket, naming cell/sector/side', () => {
+  const portfolioPositions = JSON.stringify([
+    gridPos('0.0-3.0', 'GOVT', 0.5, 0.01),
+    gridPos('0.0-3.0', 'GOVT', -0.5, 0.02),
+    gridPos('0.0-3.0', 'CORP', 1.0, 0.03),
+  ]);
+  const benchmarkPositions = JSON.stringify([gridPos('0.0-3.0', 'CORP', 1.0, 0.025)]);
+  assert.throws(
+    () => portfolio.gridAttribution(portfolioPositions, benchmarkPositions),
+    (error) =>
+      /0\.0-3\.0/.test(String(error)) &&
+      /GOVT/.test(String(error)) &&
+      /Portfolio/.test(String(error))
+  );
+});
+
+// FFI-level regression for the whole-branch review's Important-1 finding: an
+// exact-equality-only guard would let a benchmark cell netting to `eps`
+// (not `0.0`) through, and `weighted_return / weight` would then blow up
+// without bound as `eps` shrinks. Re-pins the Rust
+// `near_zero_net_weight_bucket_fails_closed_before_rate_blows_up` fixture
+// through the WASM facade: `eps = 1e-8` (ratio ~1e-8, far below the 1e-6
+// relative bound) must be rejected, naming the cell and the side.
+test('portfolio.gridAttribution fails closed on a near-zero (not just exact-zero) net weight', () => {
+  const eps = 1e-8;
+  const portfolioPositions = JSON.stringify([
+    gridPos('X', 'GOVT', 0.5, 0.018),
+    gridPos('Y', 'GOVT', 0.5, 0.02),
+  ]);
+  const benchmarkPositions = JSON.stringify([
+    gridPos('X', 'GOVT', 0.5, 0.02),
+    gridPos('X', 'CORP', -(0.5 - eps), 0.01),
+    gridPos('Y', 'GOVT', 1.0 - eps, 0.015),
+  ]);
+  assert.throws(
+    () => portfolio.gridAttribution(portfolioPositions, benchmarkPositions),
+    (error) => /bucket 'X'/.test(String(error)) && /Benchmark/.test(String(error))
+  );
+});
+
+test('portfolio.gridCarinoLink reconstructs the geometrically compounded active return over two periods', () => {
+  const period = portfolio.gridAttribution(GRID_PORTFOLIO, GRID_BENCHMARK);
+  const linked = JSON.parse(portfolio.gridCarinoLink(`[${period},${period}]`));
+  const close = (a, b, tol) => assert.ok(Math.abs(a - b) < tol, `${a} vs ${b}`);
+  close(linked.portfolio_return_compounded, 0.05945849, 1e-8);
+  close(linked.benchmark_return_compounded, 0.04960025, 1e-8);
+  const sum = linked.linked_curve + linked.linked_sector + linked.linked_selection;
+  close(sum, linked.portfolio_return_compounded - linked.benchmark_return_compounded, 1e-12);
+  assert.equal(linked.periods.length, 2);
+});
+
+test('portfolio.gridCarinoLink rejects an empty period array', () => {
+  assert.throws(() => portfolio.gridCarinoLink('[]'), /at least one period/);
+});
+
+// Jeet & Partani (2023) Exhibits 1-2, binary sector-indicator exposures:
+// A -> Healthcare, B -> Energy, C -> Healthcare.
+const FACTOR_BRINSON_INPUT = JSON.stringify({
+  asset_ids: ['A', 'B', 'C'],
+  asset_returns: [0.05, 0.02, 0.01],
+  exposures: [0.0, 1.0, 1.0, 0.0, 0.0, 1.0],
+  factor_names: ['Energy', 'Healthcare'],
+  portfolio_weights: [1.25, -0.3, 0.05],
+  benchmark_weights: [0.6, 0.3, 0.1],
+});
+const FACTOR_BRINSON_F_B = [0.02, 0.31 / 7.0];
+
+test('portfolio.factorBrinsonAttribution matches the binary Jeet-Partani golden', () => {
+  const result = JSON.parse(
+    portfolio.factorBrinsonAttribution(FACTOR_BRINSON_INPUT, FACTOR_BRINSON_F_B)
+  );
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} vs ${b}`);
+  close(result.active_return, 0.02);
+  close(result.allocation, 0.0145714285714286);
+  close(result.selection, 0.0054285714285714);
+  close(result.allocation + result.selection, result.active_return);
+});
+
+test('portfolio.factorBrinsonAttribution fails closed when factor_returns do not explain the benchmark', () => {
+  assert.throws(
+    () => portfolio.factorBrinsonAttribution(FACTOR_BRINSON_INPUT, [0.05, 0.01]),
+    /constrained_least_squares/
+  );
+});
+
+// Jeet & Partani (2023) Exhibit 1 hand-derivation:
+// f = (0.02 + 0.3*lambda, 0.03 + 0.35*lambda) = (0.0289552239, 0.0404477612).
+test('analytics.constrainedLeastSquares matches the binary hand-derived golden', () => {
+  const f = analytics.constrainedLeastSquares(
+    [0.0, 1.0, 1.0, 0.0, 0.0, 1.0],
+    2,
+    [0.05, 0.02, 0.01],
+    [0.6, 0.3, 0.1]
+  );
+  assert.ok(f instanceof Float64Array);
+  assert.equal(f.length, 2);
+  assert.ok(Math.abs(f[0] - 0.0289552239) < 1e-9);
+  assert.ok(Math.abs(f[1] - 0.0404477612) < 1e-9);
+});
+
+test('analytics.constrainedLeastSquares fails closed on orthogonal weights', () => {
+  assert.throws(
+    () => analytics.constrainedLeastSquares([1.0, -1.0], 1, [0.02, 0.01], [0.5, 0.5]),
+    /constraint/i
+  );
+});
+
+test('analytics.constrainedLeastSquares accepts Float64Array inputs, matching the plain-array golden', () => {
+  const f = analytics.constrainedLeastSquares(
+    Float64Array.from([0.0, 1.0, 1.0, 0.0, 0.0, 1.0]),
+    2,
+    Float64Array.from([0.05, 0.02, 0.01]),
+    Float64Array.from([0.6, 0.3, 0.1])
+  );
+  assert.ok(Math.abs(f[0] - 0.0289552239) < 1e-9);
+  assert.ok(Math.abs(f[1] - 0.0404477612) < 1e-9);
+});
+
+// End-to-end workflow: fit f_b with `analytics.constrainedLeastSquares`
+// against benchmark weights, then feed it into
+// `portfolio.factorBrinsonAttribution` and confirm the completeness
+// condition holds (no rejection) on the continuous (non-binary) exposures
+// fixture — the workflow the brief's own doc comments describe.
+test('constrainedLeastSquares output satisfies factorBrinsonAttribution completeness', () => {
+  const exposures = [1.2, -0.8, 0.5, 1.2, -0.7, 0.7];
+  const returns = [0.05, 0.02, 0.01];
+  const benchmarkWeights = [0.6, 0.3, 0.1];
+  const fB = analytics.constrainedLeastSquares(exposures, 2, returns, benchmarkWeights);
+
+  const input = JSON.stringify({
+    asset_ids: ['A', 'B', 'C'],
+    asset_returns: returns,
+    exposures,
+    factor_names: ['Energy', 'Healthcare'],
+    portfolio_weights: [1.25, -0.3, 0.05],
+    benchmark_weights: benchmarkWeights,
+  });
+  const result = JSON.parse(portfolio.factorBrinsonAttribution(input, Array.from(fB)));
+  assert.ok(Math.abs(result.allocation - 0.00977) < 1e-4);
+  assert.ok(Math.abs(result.selection - 0.010231) < 1e-4);
+  assert.ok(Math.abs(result.allocation + result.selection - result.active_return) < 1e-12);
 });
