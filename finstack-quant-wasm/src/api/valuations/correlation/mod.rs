@@ -16,7 +16,6 @@ use wasm_bindgen::prelude::*;
 /// Copula model specification for configuration and deferred construction.
 #[wasm_bindgen(js_name = CopulaSpec)]
 pub struct JsCopulaSpec {
-    #[wasm_bindgen(skip)]
     inner: CopulaSpec,
 }
 
@@ -101,11 +100,9 @@ impl JsCopulaSpec {
 /// Concrete copula model for portfolio default correlation.
 #[wasm_bindgen(js_name = Copula)]
 pub struct JsCopula {
-    #[wasm_bindgen(skip)]
     inner: Box<dyn Copula + Send + Sync>,
     /// Originating spec, retained so concrete-model-only diagnostics
     /// (`stressCorrelationProxy`) can be dispatched.
-    #[wasm_bindgen(skip)]
     spec: CopulaSpec,
 }
 
@@ -184,7 +181,6 @@ impl JsCopula {
 /// Recovery model specification for configuration and deferred construction.
 #[wasm_bindgen(js_name = RecoverySpec)]
 pub struct JsRecoverySpec {
-    #[wasm_bindgen(skip)]
     inner: corr::RecoverySpec,
 }
 
@@ -258,7 +254,6 @@ impl JsRecoverySpec {
 /// Concrete recovery model for credit portfolio pricing.
 #[wasm_bindgen(js_name = RecoveryModel)]
 pub struct JsRecoveryModel {
-    #[wasm_bindgen(skip)]
     inner: Box<dyn RecoveryModel + Send + Sync>,
 }
 

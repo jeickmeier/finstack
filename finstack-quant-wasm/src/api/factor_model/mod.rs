@@ -108,7 +108,6 @@ fn ensure_period_finite(
 /// [`JsCreditFactorModel::from_json`]. Immutable once constructed.
 #[wasm_bindgen(js_name = CreditFactorModel)]
 pub struct JsCreditFactorModel {
-    #[wasm_bindgen(skip)]
     /// Underlying Rust value (not exposed to JS).
     pub(crate) inner: finstack_quant_factor_model::credit::hierarchy::CreditFactorModel,
 }
@@ -190,7 +189,6 @@ impl JsCreditCalibrator {
 /// period-over-period changes.  The full data is available via `toJson`.
 #[wasm_bindgen(js_name = LevelsAtDate)]
 pub struct JsLevelsAtDate {
-    #[wasm_bindgen(skip)]
     /// Underlying Rust value (not exposed to JS).
     pub(crate) inner: finstack_quant_factor_model::credit::decomposition::LevelsAtDate,
 }
@@ -218,7 +216,6 @@ impl JsLevelsAtDate {
 /// Produced by [`decompose_period`].
 #[wasm_bindgen(js_name = PeriodDecomposition)]
 pub struct JsPeriodDecomposition {
-    #[wasm_bindgen(skip)]
     /// Underlying Rust value (not exposed to JS).
     pub(crate) inner: finstack_quant_factor_model::credit::decomposition::PeriodDecomposition,
 }
