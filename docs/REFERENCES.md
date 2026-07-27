@@ -514,6 +514,18 @@ risk calculation with a standard reference.
   cell x sector, with an out-of-benchmark fallback) - used by
   `finstack-quant/portfolio/src/grid_attribution.rs`.
 
+<a id="jeet-partani-2023"></a>
+
+### Jeet Partani 2023
+
+- Jeet, V., & Partani, A. (2023). "Brinson-Style Attribution over Continuous
+  Factors." *The Journal of Portfolio Management*, Quantitative Special Issue
+  2023, 216-223. Appendix A source for the equality-constrained least-squares
+  correction (`f = f̂ + λg`) used by
+  `finstack-quant/analytics/src/regression.rs::constrained_least_squares` to
+  enforce `w'Xf = w'r` on top of an unconstrained OLS factor-return fit, for
+  factor-Brinson attribution.
+
 <a id="fama-french-1993"></a>
 
 ### Fama French 1993
