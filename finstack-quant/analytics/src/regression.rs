@@ -33,10 +33,18 @@
 use finstack_quant_core::error::{InputError, NonFiniteKind};
 use nalgebra::{DMatrix, DVector};
 
-/// Absolute tolerance below which the constraint-restoring denominator
-/// `w'Xg` is treated as numerically zero, i.e. the equality constraint
-/// `w'Xf = w'r` cannot be enforced by any scalar Lagrangian correction.
-const CONSTRAINT_DEGENERACY_TOLERANCE: f64 = 1e-10;
+/// Relative tolerance, on the Cauchy-Schwarz ratio `|w'Xg| / (‖w‖‖Xg‖)`,
+/// below which the constraint-restoring denominator `w'Xg` is treated as
+/// numerically zero, i.e. the equality constraint `w'Xf = w'r` cannot be
+/// enforced by any scalar Lagrangian correction.
+///
+/// This ratio is the cosine of the angle between `w` and `Xg`; it is
+/// dimensionless and invariant under any uniform rescaling of `w` (e.g.
+/// holdings expressed as percent vs. decimal fractions), unlike a bound on
+/// the raw `w'Xg` magnitude, which scales as `‖w‖²` under such a rescaling.
+/// When either `w` or `Xg` is the zero vector the ratio is (by convention)
+/// treated as `0`, which correctly flags that case as degenerate too.
+const CONSTRAINT_DEGENERACY_RELATIVE_TOLERANCE: f64 = 1e-10;
 
 /// Relative singular-value tolerance used to detect rank-deficient design
 /// matrices in the underlying no-intercept least-squares solves.
@@ -85,9 +93,12 @@ const RANK_TOLERANCE_FACTOR: f64 = 1.0e-10;
 /// - any input value is `NaN` or infinite.
 /// - the design matrix `X` is rank-deficient (either least-squares solve is
 ///   underdetermined).
-/// - `|w'Xg|` is numerically zero, meaning the constraint direction `g`
-///   carries no weighted return through `X` and the constraint cannot be
-///   restored by any scalar correction.
+/// - `|w'Xg|` is numerically zero *relative to* `‖w‖·‖Xg‖` (a `1e-10`
+///   bound on the Cauchy-Schwarz ratio `|w'Xg| / (‖w‖‖Xg‖)`), meaning `w`
+///   and the constraint direction `Xg` are (numerically) orthogonal and the
+///   constraint cannot be restored by any scalar correction. This test is
+///   scale-invariant: rescaling `weights` uniformly (e.g. percent vs.
+///   decimal) does not change whether it fires.
 ///
 /// # Examples
 ///
@@ -146,7 +157,15 @@ pub fn constrained_least_squares(
     let x_g = &x_matrix * &g;
     let w_dot_xg = w_vector.dot(&x_g);
 
-    if !w_dot_xg.is_finite() || w_dot_xg.abs() < CONSTRAINT_DEGENERACY_TOLERANCE {
+    // Scale-invariant degeneracy test: compare |w'Xg| against a bound
+    // relative to ‖w‖·‖Xg‖ rather than an absolute epsilon (see the
+    // constant's doc comment). By Cauchy-Schwarz, |w'Xg| <= ‖w‖·‖Xg‖
+    // always, so this is equivalent to bounding the cosine of the angle
+    // between `w` and `Xg`. Using `<=` (not `<`) also catches the exact-zero
+    // case (either vector is zero) without a separate branch: the bound
+    // itself becomes `0`, and `0.abs() <= 0` is true.
+    let degeneracy_bound = CONSTRAINT_DEGENERACY_RELATIVE_TOLERANCE * w_vector.norm() * x_g.norm();
+    if !w_dot_xg.is_finite() || w_dot_xg.abs() <= degeneracy_bound {
         return Err(InputError::ConstraintUnreachable {
             denominator: w_dot_xg,
         }
@@ -317,5 +336,68 @@ mod tests {
         let err = constrained_least_squares(&x, 2, &[f64::NAN, 0.02, 0.01], &[0.6, 0.3, 0.1])
             .unwrap_err();
         assert!(err.to_string().to_lowercase().contains("finite"), "{err}");
+    }
+
+    #[test]
+    fn non_finite_exposures_and_weights_fail_closed_with_finite_value_error() {
+        // Parametrized over {exposures, weights} x {NaN, +Inf, -Inf}. Each
+        // combination must be rejected by `ensure_finite` itself (message
+        // mentions "finite"), not merely by some downstream guard that
+        // happens to also reject it under a different, less specific error
+        // (e.g. "Invalid input data" or "constraint ... degenerate").
+        let good_x = [0.0, 1.0, 1.0, 0.0, 0.0, 1.0];
+        let good_r = [0.05, 0.02, 0.01];
+        let good_w = [0.6, 0.3, 0.1];
+
+        for &bad in &[f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let mut x = good_x;
+            x[0] = bad;
+            let err = constrained_least_squares(&x, 2, &good_r, &good_w).unwrap_err();
+            assert!(
+                err.to_string().to_lowercase().contains("finite"),
+                "exposures[0] = {bad}: {err}"
+            );
+
+            let mut w = good_w;
+            w[0] = bad;
+            let err = constrained_least_squares(&good_x, 2, &good_r, &w).unwrap_err();
+            assert!(
+                err.to_string().to_lowercase().contains("finite"),
+                "weights[0] = {bad}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn near_degenerate_boundary_is_scale_invariant() {
+        // X = [1, -1] (2 assets x 1 factor); w = c * (0.5, 0.5 + delta).
+        // The Cauchy-Schwarz ratio |w'Xg| / (||w|| ||Xg||) that the
+        // degeneracy guard tests depends only on `delta`, not on the
+        // overall scale `c` (both the numerator and denominator scale as
+        // c^2 under w -> c*w, so c cancels exactly). A caller supplying
+        // weights as percent (c = 100) rather than decimal (c = 1) must
+        // therefore see the same accept/reject outcome for the same delta.
+        let x = [1.0, -1.0];
+        let r = [0.02, 0.01];
+
+        let classify = |delta: f64, c: f64| -> bool {
+            let w = [c * 0.5, c * (0.5 + delta)];
+            constrained_least_squares(&x, 1, &r, &w).is_err()
+        };
+
+        // Below the relative-ratio tolerance (~delta): still degenerate,
+        // regardless of scale. Exercises the raw-zero test's blind spot:
+        // the old absolute threshold on w'Xg could not distinguish this
+        // near-zero-but-nonzero denominator from the exact w'Xg == 0 case
+        // that `orthogonal_weights_fail_closed` already covers.
+        assert!(classify(1e-12, 1.0), "delta=1e-12, c=1 should error");
+        assert!(classify(1e-12, 100.0), "delta=1e-12, c=100 should error");
+
+        // Above the tolerance: no longer treated as degenerate, in either
+        // scale. Under the old *absolute* threshold this pair would have
+        // disagreed (raw w'Xg scales as c^2, so only the c=1 case passed);
+        // the relative criterion agrees for both.
+        assert!(!classify(1e-8, 1.0), "delta=1e-8, c=1 should NOT error");
+        assert!(!classify(1e-8, 100.0), "delta=1e-8, c=100 should NOT error");
     }
 }
