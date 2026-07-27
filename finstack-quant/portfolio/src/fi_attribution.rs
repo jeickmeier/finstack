@@ -590,7 +590,8 @@ fn aggregate_side(
 ///
 /// * `portfolio` - Portfolio position/bucket snapshots; weights must sum to 1.
 /// * `benchmark` - Benchmark snapshots; weights must sum to 1.
-/// * `config` - Period length.
+/// * `config` - Attribution period length in years, used to convert annual
+///   yields into the period's carry return; must be finite and positive.
 ///
 /// # Errors
 ///

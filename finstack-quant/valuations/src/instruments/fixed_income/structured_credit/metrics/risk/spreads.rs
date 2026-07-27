@@ -292,7 +292,7 @@ impl MetricCalculator for Cs01Calculator {
 /// [`MetricId::Cs01`] and the context's base NPV — so it is registered for
 /// [`InstrumentType::Bond`] as well as the structured-credit types.
 ///
-/// [`InstrumentType::Bond`]: crate::instruments::InstrumentType::Bond
+/// [`InstrumentType::Bond`]: crate::pricer::InstrumentType::Bond
 ///
 /// # Formula
 ///

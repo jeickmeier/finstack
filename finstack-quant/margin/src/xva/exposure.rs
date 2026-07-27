@@ -666,6 +666,19 @@ where
 /// and its mean is returned in `StochasticExposureProfile::im_profile`
 /// (phase-2 MVA input; see [`crate::xva::mva::compute_mva`]).
 ///
+/// # Arguments
+///
+/// * `process` - Stochastic process that evolves the factor state
+/// * `discretization` - Time-stepping scheme used to advance `process`
+/// * `initial_state` - Initial factor state vector; length must equal `process.dim()`
+/// * `valuer` - Path-consistent portfolio repricer invoked at every grid point
+/// * `xva_config` - Exposure time grid expressed as year fractions
+/// * `stochastic_config` - Monte Carlo path count, RNG seed, and PFE quantile
+/// * `netting_set` - Close-out netting set whose CSA terms (threshold, MTA,
+///   independent amount, MPOR) are applied per path
+/// * `im_model` - Optional per-path initial-margin model; when `Some`, its
+///   path-average is returned as the profile's `im_profile`
+///
 /// # Errors
 ///
 /// Returns an error if configuration validation fails, the initial state has
@@ -694,8 +707,8 @@ where
 ///   so when `V` crosses zero inside the MPOR window, outstanding posted VM on
 ///   the side that goes to zero is floored at zero rather than added to
 ///   exposure on the other side — consistent with the locked D4 cap semantics
-///   (see [`super::netting::apply_collateral_mpor`] /
-///   [`super::netting::apply_variation_margin_mpor`]).
+///   (see [`super::netting::apply_collateral_mpor`] and its crate-internal
+///   variation-margin counterpart `apply_variation_margin_mpor`).
 ///
 /// # References
 ///

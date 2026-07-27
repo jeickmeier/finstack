@@ -81,6 +81,15 @@ impl DownturnLgd {
     /// multiple-of-Bernoulli-stdev approximation; see
     /// [`DownturnMethod::FryeJacobs`] for the formula and naming note).
     ///
+    /// # Arguments
+    ///
+    /// * `asset_correlation` - Basel asset correlation `rho` in (0, 1),
+    ///   typically 0.10-0.24.
+    /// * `lgd_sensitivity` - Non-negative sensitivity of LGD to the systematic
+    ///   factor, typically 0.3-0.5.
+    /// * `stress_quantile` - Downturn scenario quantile in (0, 1), typically
+    ///   0.999 (99.9th percentile).
+    ///
     /// # Errors
     ///
     /// Returns an error if:
@@ -104,6 +113,13 @@ impl DownturnLgd {
     }
 
     /// Create a regulatory-floor downturn adjuster.
+    ///
+    /// # Arguments
+    ///
+    /// * `add_on` - Non-negative flat increment over the base LGD, typically
+    ///   0.05-0.10 (5-10 percentage points).
+    /// * `floor` - Absolute LGD floor in [0, 1], typically 0.10 for secured
+    ///   and 0.25 for unsecured exposures.
     ///
     /// # Errors
     ///

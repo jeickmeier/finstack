@@ -61,7 +61,7 @@ pub struct FundingConfig {
     ///
     /// Build the profile with
     /// [`crate::xva::mva::im_profile_from_simm`] (deterministic SIMM decay) or
-    /// [`crate::xva::exposure::StochasticExposureProfile::to_im_profile`]
+    /// [`crate::xva::types::StochasticExposureProfile::to_im_profile`]
     /// (path-consistent mean IM).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub im_profile: Option<ImProfile>,

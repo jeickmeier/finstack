@@ -1,7 +1,7 @@
 //! Apache Arrow interchange for finstack-quant tabular outputs.
 //!
 //! Converts [`finstack_quant_core::table::TableEnvelope`] to and from Arrow
-//! [`RecordBatch`](arrow::record_batch::RecordBatch) values and Arrow IPC
+//! [`RecordBatch`] values and Arrow IPC
 //! stream bytes. Column roles and metadata round-trip losslessly through
 //! Arrow field/schema metadata (keys `finstack:role` and `finstack:metadata`).
 //!
@@ -148,6 +148,11 @@ fn column_to_arrow(column: &TableColumn) -> Result<(Field, ArrayRef)> {
 /// (`finstack:role`, `finstack:metadata`), and table-level metadata is carried
 /// as schema metadata (`finstack:metadata`).
 ///
+/// # Arguments
+///
+/// * `table` - Validated envelope to convert; its column order, names, roles,
+///   and metadata are carried into the resulting Arrow schema.
+///
 /// # Errors
 ///
 /// Returns [`Error::Validation`] if metadata cannot be serialized or the
@@ -286,6 +291,11 @@ fn column_from_arrow(field: &Field, array: &ArrayRef) -> Result<TableColumn> {
 /// the nullable vs non-nullable envelope variant; `finstack:role` and
 /// `finstack:metadata` field/schema metadata are restored.
 ///
+/// # Arguments
+///
+/// * `batch` - Arrow batch to convert; its schema drives column names, roles,
+///   nullability, and the restored table metadata.
+///
 /// # Errors
 ///
 /// Returns [`Error::Validation`] for unsupported Arrow types, nulls in a
@@ -336,6 +346,11 @@ pub fn from_record_batch(batch: &RecordBatch) -> Result<TableEnvelope> {
 /// `finstack:*` metadata), suitable for `pyarrow.ipc.open_stream`, DuckDB,
 /// or any Arrow IPC consumer.
 ///
+/// # Arguments
+///
+/// * `table` - Validated envelope to serialize; it is written as a single
+///   record batch carrying the full `finstack:*` schema metadata.
+///
 /// # Errors
 ///
 /// Returns [`Error::Validation`] if conversion or IPC encoding fails.
@@ -375,6 +390,11 @@ pub fn to_ipc_bytes(table: &TableEnvelope) -> Result<Vec<u8>> {
 /// first batch: [`arrow::ipc::writer::StreamWriter`] readily produces
 /// multi-batch streams (e.g. chunked writers), and concatenation is the
 /// behavior a caller reading "the table" from a stream would expect.
+///
+/// # Arguments
+///
+/// * `bytes` - Arrow IPC stream-format buffer; every batch it contains is
+///   read and concatenated column-wise into one envelope.
 ///
 /// # Errors
 ///

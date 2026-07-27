@@ -39,7 +39,7 @@ pub struct CovenantForecastConfig {
     pub volatility: Option<f64>,
     /// RNG seed for Monte Carlo mode (`num_paths > 0`).
     ///
-    /// `None` uses [`DEFAULT_MC_SEED`]. Ignored in analytic mode
+    /// `None` uses the crate-internal `DEFAULT_MC_SEED` (`0`). Ignored in analytic mode
     /// (`num_paths == 0`) and when `stochastic` is `false`.
     pub random_seed: Option<u64>,
     /// Enables antithetic variate pairing in Monte Carlo mode.

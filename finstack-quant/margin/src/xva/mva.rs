@@ -10,7 +10,8 @@
 //! where `λ_B(t)` is the bank's funding spread (decimal, from bps inputs),
 //! `E[IM(t)]` the expected IM profile, `DF(t)` the risk-free discount factor,
 //! and `S(t)` the survival probability (optional; `S ≡ 1` when omitted).
-//! [`compute_mva`] conditions on the bank's own survival only; the bilateral
+//! [`compute_mva`](crate::xva::mva::compute_mva) conditions on the bank's own
+//! survival only; the bilateral
 //! engine ([`crate::xva::cva::compute_bilateral_xva`]) uses joint
 //! (first-to-default) survival `S_B(t)·S_C(t)`, since a counterparty default
 //! terminates the netting set and returns the posted margin.
@@ -49,7 +50,8 @@
 //!   Green (2015), ch. 10. `total_xva` inherits this overlap.
 //! - **Counterparty-posted dynamic IM**: only the static counterparty-posted
 //!   `independent_amount` on `CsaTerms` reduces EPE. Dynamic
-//!   counterparty-posted SIMM IM — which [`PathImModel`] could represent on
+//!   counterparty-posted SIMM IM — which
+//!   [`PathImModel`](crate::xva::mva::PathImModel) could represent on
 //!   the counterparty side — does not currently reduce EPE gap risk, so gap
 //!   risk is overstated for UMR counterparties that carry only a static IA
 //!   rather than dynamic SIMM-based IM.
