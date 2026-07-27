@@ -784,3 +784,58 @@ fn attribution_dts_matches_json_pipeline_surface() {
     assert!(dts.contains("defaultAttributionMetrics(): string[];"));
     assert!(dts.contains("export declare const attribution: AttributionNamespace;"));
 }
+
+/// Mirrors `campisi_dts_declarations_pin_their_argument_lists` for the
+/// credit excess-return / grid-attribution / factor-Brinson surfaces: the
+/// `.d.ts` is hand-maintained and otherwise ungated, so a declaration with
+/// the wrong argument count would compile clean for a TypeScript caller
+/// while an extra or missing argument is silently mishandled at the JS
+/// boundary. `tests/facade/portfolio.test.mjs` pins the runtime
+/// `Function.length` of the real exports against the same arities.
+#[test]
+fn credit_excess_grid_factor_brinson_dts_declarations_pin_their_argument_lists() {
+    let dts = index_dts();
+
+    assert!(contains_signature(
+        &dts,
+        "cellReturnsFromReference(referenceJson: string, baseLabel: string, configJson: string): string;",
+    ));
+    assert!(contains_signature(
+        &dts,
+        "cellReturnsFromCurves(\
+           start: DiscountCurve, \
+           end: DiscountCurve, \
+           horizonYears: number, \
+           maxDuration: number, \
+           baseLabel: string, \
+           configJson: string\
+         ): string;",
+    ));
+    assert!(contains_signature(
+        &dts,
+        "excessReturns(positionsJson: string, tableJson: string): string;",
+    ));
+    assert!(contains_signature(
+        &dts,
+        "gridAttribution(portfolioJson: string, benchmarkJson: string): string;",
+    ));
+    assert!(contains_signature(
+        &dts,
+        "gridCarinoLink(periodsJson: string): string;",
+    ));
+    assert!(contains_signature(
+        &dts,
+        "factorBrinsonAttribution(inputJson: string, factorReturns: number[]): string;",
+    ));
+
+    let analytics = interface_block(&dts, "AnalyticsNamespace");
+    assert!(contains_signature(
+        analytics,
+        "constrainedLeastSquares(\
+           exposures: NumericArray, \
+           nFactors: number, \
+           returns: NumericArray, \
+           weights: NumericArray\
+         ): Float64Array;",
+    ));
+}

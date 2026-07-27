@@ -1128,6 +1128,12 @@ root_exports = [
   "campisiCarinoLink",
   "campisiCarinoLinkFromSnapshots",
   "campisiReconciliationCheck",
+  "cellReturnsFromReference",
+  "cellReturnsFromCurves",
+  "excessReturns",
+  "gridAttribution",
+  "gridCarinoLink",
+  "factorBrinsonAttribution",
   "twrrModifiedDietz",
   "twrrLinked",
   "mwrXirr",
@@ -1223,17 +1229,8 @@ python_only = [
   "attribute_portfolio_pnl",
   "build_credit_vol_report",
   "build_stress_attribution",
-  # Task 8 (Python-only for now): Rust surfaces for credit excess returns,
-  # hierarchical grid attribution, and factor-Brinson attribution. WASM
-  # bindings land in Task 9, at which point these move to python_js_map.
-  "cell_returns_from_curves",
-  "cell_returns_from_reference",
   "evaluate_risk_budget_typed",
-  "excess_returns",
-  "factor_brinson_attribution",
   "factor_stress",
-  "grid_attribution",
-  "grid_carino_link",
   "historical_var_decomposition_typed",
   "optimize_portfolio_typed",
   "parametric_var_decomposition_typed",
@@ -1261,6 +1258,12 @@ campisi_attribution = "campisiAttribution"
 campisi_carino_link = "campisiCarinoLink"
 campisi_carino_link_from_snapshots = "campisiCarinoLinkFromSnapshots"
 campisi_reconciliation_check = "campisiReconciliationCheck"
+cell_returns_from_reference = "cellReturnsFromReference"
+cell_returns_from_curves = "cellReturnsFromCurves"
+excess_returns = "excessReturns"
+grid_attribution = "gridAttribution"
+grid_carino_link = "gridCarinoLink"
+factor_brinson_attribution = "factorBrinsonAttribution"
 twrr_modified_dietz = "twrrModifiedDietz"
 twrr_linked = "twrrLinked"
 mwr_xirr = "mwrXirr"

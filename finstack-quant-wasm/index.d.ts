@@ -2997,6 +2997,28 @@ export interface AnalyticsNamespace {
    * method on the resulting instance.
    */
   Performance: typeof Performance;
+  /**
+   * Fit factor returns satisfying the equality constraint `w'Xf = w'r`.
+   *
+   * Binds Rust `constrained_least_squares` (Jeet & Partani 2023, Appendix
+   * A): adds the minimal Lagrangian correction to an unconstrained OLS fit
+   * so the corrected factor returns exactly reproduce the weighted
+   * realized return `w'r`. Typically used to fit the benchmark factor
+   * returns consumed by `portfolio.factorBrinsonAttribution`, which
+   * requires factor returns satisfying that same completeness condition.
+   * @param exposures - Row-major factor exposure matrix, `n_assets x n_factors`: asset i's exposure to factor j is `exposures[i * n_factors + j]`.
+   * @param nFactors - Number of factor columns in `exposures`; must be positive.
+   * @param returns - Realized asset returns, length `n_assets` (defines `n_assets`).
+   * @param weights - Holding weights whose weighted return `w'r` must be fully reproduced by `w'Xf` (e.g. benchmark weights for a benchmark-return attribution).
+   * @returns Constrained factor returns `f`, one per factor, satisfying `w'Xf = w'r` to numerical precision.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  constrainedLeastSquares(
+    exposures: NumericArray,
+    nFactors: number,
+    returns: NumericArray,
+    weights: NumericArray
+  ): Float64Array;
 }
 
 /**
@@ -7101,6 +7123,107 @@ export interface PortfolioNamespace {
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
    */
   campisiReconciliationCheck(resultJson: string, tolerance: number): string;
+  /**
+   * Build a duration-cell base-return table from a reference universe.
+   *
+   * Binds Rust `cell_returns_from_reference` (Dynkin, Hyman & Vankudre 1998,
+   * Appendix B): buckets `referenceJson` into fixed-width duration cells and
+   * averages each cell's member total returns, interpolating interior gaps
+   * and flat-extrapolating leading/trailing gaps. Returns a JSON
+   * `DurationCellTable`.
+   * @param referenceJson - Canonical JSON array of `ReferenceReturn` objects (`duration`, `total_return`, both decimals with duration in years); must be non-empty.
+   * @param baseLabel - Label identifying the resulting curve (e.g. `"UST"`), carried through to the output's `base_label` for policy visibility.
+   * @param configJson - Canonical JSON `CellConfig`; `width` is its only field (cell width in years, finite and positive) and is required, with no default.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  cellReturnsFromReference(referenceJson: string, baseLabel: string, configJson: string): string;
+  /**
+   * Build a duration-cell base-return table from start/end discount curves.
+   *
+   * Binds Rust `cell_returns_from_curves`: each cell's base return is the
+   * holding-period return of a hypothetical zero-coupon position bought at
+   * the cell midpoint off `start` and revalued off `end` after
+   * `horizonYears` have elapsed. Every resulting cell is observed, unlike
+   * the reference-universe path in `cellReturnsFromReference`. Returns a
+   * JSON `DurationCellTable`.
+   * @param start - Discount curve observed at the start of the holding period.
+   * @param end - Discount curve observed `horizonYears` later, at period end.
+   * @param horizonYears - Length of the holding period, in years; must be finite and positive.
+   * @param maxDuration - Upper bound of the duration grid, in years; must be finite and strictly greater than `horizonYears`.
+   * @param baseLabel - Label identifying the base curve (e.g. `"UST"`, `"USD-SOFR"`), stamped into the result purely for policy visibility.
+   * @param configJson - Canonical JSON `CellConfig`; `width` is its only field and is required, with no default.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  cellReturnsFromCurves(
+    start: DiscountCurve,
+    end: DiscountCurve,
+    horizonYears: number,
+    maxDuration: number,
+    baseLabel: string,
+    configJson: string
+  ): string;
+  /**
+   * Compute duration-matched credit excess returns against a base-return table.
+   *
+   * Binds Rust `excess_returns` (Dynkin, Hyman & Vankudre 1998, Appendix B):
+   * each position's `duration` is matched to its duration cell in
+   * `tableJson` and the position's excess return is `total_return -
+   * cell.base_return`, the credit-specific component of performance
+   * isolated from the general level/shape move of the base curve. Returns a
+   * JSON `ExcessReturnResult` with per-position and portfolio-level totals.
+   * @param positionsJson - Canonical JSON array of `ExcessReturnPosition` objects (`id`, `weight`, `duration`, `total_return`); weights must sum to 1.
+   * @param tableJson - Canonical JSON `DurationCellTable`, as returned by `cellReturnsFromReference` or `cellReturnsFromCurves`.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  excessReturns(positionsJson: string, tableJson: string): string;
+  /**
+   * Compute a single-period hierarchical duration-cell x sector grid attribution.
+   *
+   * Binds Rust `grid_attribution` (Dynkin, Hyman & Vankudre 1998, Appendix
+   * A): decomposes active return into a per-cell curve (positioning)
+   * effect, a within-cell sector allocation effect, and a
+   * security-selection residual per (cell, sector). Returns a JSON
+   * `GridAttributionResult` whose `total_curve`, `total_sector` and
+   * `total_selection` sum exactly to `active_return`.
+   * @param portfolioJson - Canonical JSON array of `GridPosition` objects (`cell`, `sector`, `weight`, `total_return`) for the portfolio side; weights must sum to 1.
+   * @param benchmarkJson - Canonical JSON array of `GridPosition` objects for the benchmark side; same weight-sum requirement.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  gridAttribution(portfolioJson: string, benchmarkJson: string): string;
+  /**
+   * Carino-link multi-period hierarchical grid attribution results.
+   *
+   * Binds Rust `grid_carino_link` (Carino 1999): applies Carino smoothing to
+   * a chronological sequence of single-period `gridAttribution` results so
+   * the three top-level effects (`linked_curve`, `linked_sector`,
+   * `linked_selection`) sum exactly to the geometrically compounded active
+   * return. Only the three top-level effects are linked; per-cell /
+   * per-(cell, sector) multi-period linking is out of scope. Returns a JSON
+   * `GridCarinoLinkedResult`.
+   * @param periodsJson - Canonical JSON array of `GridAttributionResult` objects, in chronological order, each the parsed output of `gridAttribution`.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  gridCarinoLink(periodsJson: string): string;
+  /**
+   * Compute Jeet-Partani (2023) factor-Brinson unified attribution.
+   *
+   * Binds Rust `factor_brinson_attribution`: generalizes classical
+   * Brinson-Fachler allocation/selection to continuous factor exposures by
+   * replacing the sector partition with a factor-exposure matrix and a
+   * caller-supplied benchmark factor-return vector. Returns a JSON
+   * `FactorBrinsonResult` with `allocation`, `selection`, and their
+   * per-factor / per-asset breakdowns.
+   * @param inputJson - Canonical JSON `FactorBrinsonInput` with `asset_ids`, `asset_returns`, `exposures` (row-major n_assets x n_factors), `factor_names`, `portfolio_weights` and `benchmark_weights`; each weight vector must sum to 1.
+   * @param factorReturns - Caller-supplied benchmark factor returns `f_b`, length `input.factor_names`; typically fit with `analytics.constrainedLeastSquares` using benchmark weights.
+   * @returns Returns the requested string representation or JSON payload.
+   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   */
+  factorBrinsonAttribution(inputJson: string, factorReturns: number[]): string;
   /**
    * Compute a Modified-Dietz TWRR sub-period return from period JSON.
    * @param periodJson - Canonical JSON payload representing the period consumed by this API.
