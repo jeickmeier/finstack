@@ -62,13 +62,32 @@
 //! ```
 //!
 //! Because component rates sum to the sector return on each side, the five
-//! effects telescope exactly to the active return:
+//! effects telescope to the active return exactly (to floating-point
+//! precision), given that weights sum to 1 on each side and that every present
+//! sector's rate `r_·,i` is well-conditioned — its net weight not itself
+//! vanishingly small relative to its gross weight (see the internal
+//! `check_net_weight` guard):
 //!
 //! ```text
 //! Σ_i [Alloc_i + w_p,i (r_p,i − r_b,i)]
 //!   = Σ_i w_p,i r_p,i − Σ_i w_b,i r_b,i − r_b Σ_i (w_p,i − w_b,i)
 //!   = r_p − r_b                        (weights sum to 1 on each side)
 //! ```
+//!
+//! The cancellation of the `Σ_i w_p,i r_b,i` terms between `Alloc_i` and the
+//! within-sector effects is what makes this exact, and it is also where a
+//! near-cancelling sector does its damage: a sector netting *close to*, but
+//! not exactly, zero has a numerically explosive rather than merely undefined
+//! rate, so those two terms both grow without bound and their difference loses
+//! precision proportionally. That is why the guard uses a relative bound
+//! rather than an exact-equality test. Even among inputs that pass it, the
+//! identity holds to floating-point precision, not to an arbitrarily tight
+//! tolerance: a sector whose net weight sits just above the internal
+//! `NET_WEIGHT_RELATIVE_TOLERANCE` bound is legal but still amplifies rounding
+//! noise, so the reconstructed sum can differ from `active_return` by more
+//! than the tightest tolerances asserted in this module's own tests (which use
+//! golden fixtures with well-separated net weights, not adversarial
+//! near-cancellation).
 //!
 //! This is the two-way Brinson-Fachler form (interaction folded into the
 //! within-sector effects at portfolio weight), which keeps the component
@@ -101,6 +120,28 @@ use serde::{Deserialize, Serialize};
 
 /// Tolerance for the requirement that weights sum to 1.0 on each side.
 const WEIGHT_TOLERANCE: f64 = 1e-6;
+
+/// Relative tolerance on the ratio `|net weight| / gross weight` below which a
+/// sector's per-unit rate is treated as too poorly conditioned to attribute,
+/// in [`check_net_weight`].
+///
+/// A sector's rate is `contribution / weight` (see [`SideAgg::rate`]). At exact
+/// cancellation (`weight == 0.0` with `abs_weight > 0.0`) that rate is
+/// undefined; arbitrarily close to exact cancellation it is *defined* but
+/// numerically explosive — as `weight -> 0` for a roughly fixed contribution,
+/// the rate grows without bound, and with it the Brinson-Fachler allocation
+/// `(w_p,i − w_b,i)(r_b,i − r_b)`, whose weight difference does not shrink
+/// alongside the exploding rate. An exact-equality-only guard misses this: a
+/// benchmark sector of `+0.40 @ 3%` and `-(0.40 - 1e-8) @ 0.5%` nets to
+/// `1e-8`, not `0.0`, yet produces an allocation on the order of `3e5` against
+/// an active return of `-81 bp`, and drives the telescoping identity's residual
+/// to `-3.8e-11` — outside the `1e-12` tolerance this module's own tests
+/// assert. Reusing [`WEIGHT_TOLERANCE`]'s existing 1e-6 precision floor for
+/// this ratio keeps a single, already-load-bearing precision assumption for the
+/// whole module: a net weight smaller than a millionth of its own gross weight
+/// is, for the purposes of this module, indistinguishable from exact
+/// cancellation.
+const NET_WEIGHT_RELATIVE_TOLERANCE: f64 = 1e-6;
 
 /// Configuration for [`campisi_attribution`].
 ///
@@ -361,6 +402,12 @@ impl FiAttributionResult {
     /// is a residual), so this is a floating-point sanity gate, not a model
     /// check; `1e-10` is an appropriate tolerance for return-space values.
     ///
+    /// It is not a substitute for [`campisi_attribution`]'s near-zero-net-weight
+    /// input guard, and cannot stand in for it: a sector netting to a
+    /// vanishingly small weight inflates the per-sector effects by orders of
+    /// magnitude while its residual — the cancellation of two exploded terms —
+    /// stays small enough to pass this gate.
+    ///
     /// # Arguments
     ///
     /// * `tolerance` - Absolute tolerance in return units.
@@ -446,7 +493,9 @@ fn validate_snapshot(s: &FiPositionSnapshot, side: &str) -> Result<()> {
 /// `weight` is the *net* sector weight (long minus short) and `abs_weight` the
 /// gross weight; the pair distinguishes "sector absent from this side"
 /// (`abs_weight == 0`) from "sector present with offsetting positions"
-/// (`abs_weight > 0`, `weight == 0`), which [`check_net_weight`] rejects.
+/// (`abs_weight > 0`, `weight` zero or, per [`NET_WEIGHT_RELATIVE_TOLERANCE`],
+/// numerically near zero relative to `abs_weight`), which [`check_net_weight`]
+/// rejects.
 #[derive(Clone, Copy, Default)]
 struct SideAgg {
     weight: f64,
@@ -462,9 +511,11 @@ impl SideAgg {
     /// Sector rate: weighted contribution ÷ net sector weight.
     ///
     /// Returns `0.0` only when the sector is absent from this side, i.e. every
-    /// contribution is likewise `0.0`. Sectors present with an exactly-zero
-    /// net weight are rejected by [`check_net_weight`] before this is called,
-    /// so the guard never silently discards a real contribution. The `.abs()`
+    /// contribution is likewise `0.0`. Sectors present with a zero — or
+    /// numerically near-zero — net weight are rejected by [`check_net_weight`]
+    /// before this is called, so the guard never silently discards a real
+    /// contribution, and never divides through a weight so small that the
+    /// resulting rate is numerically meaningless. The `.abs()`
     /// is load-bearing: net-short sectors (`weight < 0`) are legal and must
     /// take the division branch.
     fn rate(&self, contribution: f64) -> f64 {
@@ -476,24 +527,35 @@ impl SideAgg {
     }
 }
 
-/// Fail closed on a sector that is present on a side but nets to exactly zero
-/// weight (a long/short pair, a CDS hedge against a cash bond in the same
-/// bucket, a fully-hedged sector).
+/// Fail closed on a sector that is present on a side but nets to zero, or to a
+/// weight that is numerically near zero *relative to its own gross weight* (a
+/// long/short pair, a CDS hedge against a cash bond in the same bucket, a
+/// fully- or nearly-fully-hedged sector).
 ///
-/// Such a sector still contributes `Σ_j w_j r_j ≠ 0` to the side total, but its
-/// per-unit rate `contribution / weight` is undefined, so every per-sector
-/// effect would be forced to zero while the contribution stayed in the side
-/// return — breaking the telescoping identity while `active_return` still ties
-/// out against performance data.
+/// Such a sector still contributes `Σ_j w_j r_j ≠ 0` to the side total. At
+/// exact cancellation its per-unit rate `contribution / weight` is undefined
+/// (`0 / 0`), so every per-sector effect would be forced to zero while the
+/// contribution stayed in the side return. At near-cancellation the rate is
+/// *defined* but grows without bound as the net weight shrinks, so the
+/// allocation effect built from it can blow up to a numerically meaningless
+/// magnitude — and the telescoping identity's residual with it — while
+/// `active_return` still ties out against performance data and no `NaN` or
+/// infinity ever appears for a finiteness check to catch. An exact-equality
+/// check (`agg.weight == 0.0`) misses that regime entirely, so this compares
+/// the ratio `|weight| / abs_weight` against [`NET_WEIGHT_RELATIVE_TOLERANCE`]
+/// instead — a relative bound, so rescaling all weights uniformly (percent vs.
+/// decimal) does not change whether it fires.
 fn check_net_weight(sector: &str, agg: &SideAgg, side_name: &str) -> Result<()> {
-    if agg.weight == 0.0 && agg.abs_weight > 0.0 {
+    if agg.abs_weight > 0.0 && agg.weight.abs() <= NET_WEIGHT_RELATIVE_TOLERANCE * agg.abs_weight {
         return Err(Error::invalid_input(format!(
-            "{side_name} sector '{sector}' has offsetting positions netting to exactly \
-             zero weight (gross weight {}); a zero-net-weight sector cannot be \
-             attributed because its per-unit rate contribution / weight is undefined. \
-             Split the offsetting positions into distinct sectors, or net them into a \
-             single snapshot with non-zero weight.",
-            agg.abs_weight
+            "{side_name} sector '{sector}' has offsetting positions netting to a weight \
+             ({}) that is zero, or numerically near zero, relative to its gross weight \
+             ({}): a sector whose |net weight| does not exceed \
+             {NET_WEIGHT_RELATIVE_TOLERANCE} times its gross weight cannot be attributed \
+             because its per-unit rate contribution / weight is undefined or numerically \
+             explosive. Split the offsetting positions into distinct sectors, or net them \
+             into a single snapshot with a net weight well clear of that relative bound.",
+            agg.weight, agg.abs_weight
         )));
     }
     Ok(())
@@ -582,9 +644,10 @@ fn aggregate_side(
 ///
 /// A sector missing from one side is treated with zero weight on that side,
 /// so the decomposition stays complete. A sector that is *present* on a side
-/// but whose positions net to exactly zero weight (a long/short pair, a CDS
-/// hedge against a cash bond in the same bucket) has no defined per-unit rate
-/// and is rejected — see the errors below.
+/// but whose positions net to zero — or to a weight smaller than `1e-6` of its
+/// own gross weight (a long/short pair, a CDS hedge against a cash bond in the
+/// same bucket, exactly or nearly offsetting) — has a per-unit rate that is
+/// undefined or numerically explosive, and is rejected; see the errors below.
 ///
 /// # Arguments
 ///
@@ -596,8 +659,9 @@ fn aggregate_side(
 ///
 /// * [`Error::InvalidInput`] if either side is empty, any value is
 ///   non-finite, weights don't sum to 1.0 (±1e-6), `period_years` is not
-///   finite and positive, or a sector has offsetting positions netting to
-///   exactly zero weight on either side.
+///   finite and positive, or a sector has offsetting positions netting to a
+///   weight that is zero, or no larger than `1e-6` times its own gross
+///   weight, on either side.
 ///
 /// The spread *level* is unconstrained: zero and negative spreads are accepted,
 /// because the spread effect `−SD · Δs` never divides by it.
@@ -656,9 +720,11 @@ pub fn campisi_attribution(
     let (benchmark_return, benchmark_components) =
         aggregate_side(benchmark, config, &mut sectors, false)?;
 
-    // A sector present on a side but netting to exactly zero weight has no
-    // defined per-unit rate; attributing it would zero its five effects while
-    // its contribution stayed in the side return. Fail closed instead.
+    // A sector present on a side but netting to zero — or to a weight
+    // numerically near zero relative to its gross weight — has a per-unit rate
+    // that is undefined or explosive; attributing it would zero its five
+    // effects while its contribution stayed in the side return, or blow those
+    // effects up past any meaningful magnitude. Fail closed instead.
     for (sector, (p, b)) in &sectors {
         check_net_weight(sector, p, "Portfolio")?;
         check_net_weight(sector, b, "Benchmark")?;
@@ -1130,6 +1196,91 @@ mod tests {
         assert!(
             message.contains("Benchmark"),
             "error must name the offending side: {message}"
+        );
+    }
+
+    /// The net-weight guard must reject *near* cancellation, not only *exact*
+    /// cancellation. An exact-equality test (`agg.weight == 0.0`) lets a
+    /// sector net to an arbitrarily small, non-zero weight through
+    /// unrejected; [`SideAgg::rate`] then divides by that near-zero net
+    /// weight, so the sector's rate — and the allocation effect built from it
+    /// — grows without bound while no error is reported.
+    ///
+    /// Benchmark sector "HEDGE" holds `+0.40 @ 3%` and `-(0.40 - eps) @ 0.5%`
+    /// (a CDS hedge against a cash bond in the same bucket), so its net
+    /// weight is `eps` against a gross weight of `0.80 - eps`. The portfolio
+    /// holds an ordinary `0.30` in HEDGE, so the Brinson-Fachler allocation
+    /// `(w_p − w_b)(r_b,i − r_b)` multiplies the exploded benchmark rate by a
+    /// non-tiny weight difference rather than cancelling it away.
+    ///
+    /// Pins the boundary in both directions. At `eps = 1e-8` (ratio ~1.25e-8,
+    /// far below `NET_WEIGHT_RELATIVE_TOLERANCE`) the pre-fix code reported
+    /// no error and produced a HEDGE allocation of `3.0e5` — 30 million bp —
+    /// against an active return of `-81 bp`, with the telescoping identity
+    /// missing by `-3.8e-11`, outside the `1e-12` tolerance this module's own
+    /// tests assert. It must now be rejected, naming the sector and the side.
+    /// At `eps = 1e-2` (ratio ~1.3e-2, comfortably above the bound) the input
+    /// is legitimate and must still be accepted, with a bounded allocation.
+    #[test]
+    fn campisi_rejects_near_zero_net_weight_sector_before_rate_blows_up() {
+        let config = FiAttributionConfig::new(0.25);
+        let fixture = |eps: f64| {
+            let portfolio = vec![
+                snap("CORE", 0.70, 0.0150, 0.048, 5.0, 0.0, 0.0, -0.0010, 0.0),
+                snap("HEDGE", 0.30, 0.0180, 0.050, 4.0, 0.0, 0.0, -0.0010, 0.0),
+            ];
+            let benchmark = vec![
+                snap(
+                    "CORE",
+                    1.0 - eps,
+                    0.0140,
+                    0.044,
+                    5.5,
+                    0.0,
+                    0.0,
+                    -0.0010,
+                    0.0,
+                ),
+                snap("HEDGE", 0.40, 0.0300, 0.055, 4.0, 0.0, 0.0, -0.0010, 0.0),
+                snap(
+                    "HEDGE",
+                    -(0.40 - eps),
+                    0.0050,
+                    0.015,
+                    1.0,
+                    0.0,
+                    0.0,
+                    -0.0010,
+                    0.0,
+                ),
+            ];
+            (portfolio, benchmark)
+        };
+
+        let (portfolio, benchmark) = fixture(1e-8);
+        let err = campisi_attribution(&portfolio, &benchmark, &config).expect_err(
+            "near-zero net weight (ratio ~1e-8) must be rejected, not silently divided through",
+        );
+        let message = err.to_string();
+        assert!(
+            message.contains("HEDGE"),
+            "error must name the sector: {message}"
+        );
+        assert!(
+            message.contains("Benchmark"),
+            "error must name the offending side: {message}"
+        );
+
+        let (portfolio, benchmark) = fixture(1e-2);
+        let r = campisi_attribution(&portfolio, &benchmark, &config)
+            .expect("net weight well clear of the relative bound must be accepted");
+        let hedge = &r.sectors[1];
+        assert_eq!(hedge.sector, "HEDGE");
+        assert!(
+            hedge.allocation.abs() < 10.0,
+            "a legitimate small-but-not-near-zero net weight must not produce an exploded \
+             allocation: {}",
+            hedge.allocation
         );
     }
 
