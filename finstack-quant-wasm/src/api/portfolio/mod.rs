@@ -62,7 +62,6 @@ pub mod sensitivity;
 /// avoids paying that cost twice.
 #[wasm_bindgen(js_name = Portfolio)]
 pub struct JsPortfolio {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: Arc<finstack_quant_portfolio::Portfolio>,
 }
 

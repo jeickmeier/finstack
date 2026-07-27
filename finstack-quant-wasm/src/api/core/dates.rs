@@ -144,7 +144,6 @@ impl JsDayCountContext {
 /// ```
 #[wasm_bindgen(js_name = DayCount)]
 pub struct JsDayCount {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: RustDayCount,
 }
 
@@ -350,7 +349,6 @@ impl JsDayCount {
 /// ```
 #[wasm_bindgen(js_name = Tenor)]
 pub struct JsTenor {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: RustTenor,
 }
 

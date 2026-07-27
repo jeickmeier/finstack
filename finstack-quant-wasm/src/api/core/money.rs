@@ -24,7 +24,6 @@ use wasm_bindgen::prelude::*;
 /// ```
 #[wasm_bindgen(js_name = Money)]
 pub struct JsMoney {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: RustMoney,
 }
 

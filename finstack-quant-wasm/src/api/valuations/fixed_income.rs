@@ -31,7 +31,6 @@ fn parse_tagged(json: &str) -> Result<InstrumentJson, JsValue> {
 #[wasm_bindgen(js_name = Bond)]
 #[derive(Clone)]
 pub struct JsBond {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: finstack_quant_valuations::instruments::Bond,
 }
 
@@ -161,7 +160,6 @@ impl JsBond {
 #[wasm_bindgen(js_name = TermLoan)]
 #[derive(Clone)]
 pub struct JsTermLoan {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: finstack_quant_valuations::instruments::TermLoan,
 }
 

@@ -71,7 +71,6 @@ fn parse_extrapolation(s: &str) -> Result<ExtrapolationPolicy, JsValue> {
 /// ```
 #[wasm_bindgen(js_name = DiscountCurve)]
 pub struct JsDiscountCurve {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: Arc<RustDiscountCurve>,
 }
 
@@ -227,7 +226,6 @@ impl JsDiscountCurve {
 /// ```
 #[wasm_bindgen(js_name = HazardCurve)]
 pub struct JsHazardCurve {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: Arc<RustHazardCurve>,
 }
 
@@ -337,7 +335,6 @@ struct ForwardCurveOptions {
 /// Forward rate curve for a floating-rate index with a fixed tenor.
 #[wasm_bindgen(js_name = ForwardCurve)]
 pub struct JsForwardCurve {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: Arc<RustForwardCurve>,
 }
 
@@ -687,7 +684,6 @@ impl JsFxMatrix {
 /// Hagan (2002) approximation.
 #[wasm_bindgen(js_name = VolCube)]
 pub struct JsVolCube {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: Arc<RustVolCube>,
 }
 
@@ -836,7 +832,6 @@ impl JsVolCube {
 /// The delta convention is **forward delta (premium-unadjusted)**.
 #[wasm_bindgen(js_name = FxDeltaVolSurface)]
 pub struct JsFxDeltaVolSurface {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: Arc<RustFxDeltaVolSurface>,
 }
 

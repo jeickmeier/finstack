@@ -25,7 +25,6 @@ use wasm_bindgen::prelude::*;
 /// ```
 #[wasm_bindgen(js_name = Rate)]
 pub struct JsRate {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: RustRate,
 }
 
@@ -152,7 +151,6 @@ fn try_whole_bps(value: f64) -> Result<RustBps, JsValue> {
 /// ```
 #[wasm_bindgen(js_name = Bps)]
 pub struct JsBps {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: RustBps,
 }
 
@@ -202,7 +200,6 @@ impl JsBps {
 /// ```
 #[wasm_bindgen(js_name = Percentage)]
 pub struct JsPercentage {
-    #[wasm_bindgen(skip)]
     pub(crate) inner: RustPercentage,
 }
 
