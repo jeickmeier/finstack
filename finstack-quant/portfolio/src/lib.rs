@@ -257,8 +257,8 @@ pub use fi_attribution::{
     FiSectorEffect,
 };
 pub use grid_attribution::{
-    grid_attribution, GridAttributionResult, GridCellEffect, GridPosition, GridSectorEffect,
-    GridSelectionEffect,
+    grid_attribution, grid_carino_link, GridAttributionResult, GridCarinoLinkedResult,
+    GridCellEffect, GridPosition, GridSectorEffect, GridSelectionEffect,
 };
 pub use margin::{
     CurrencyMismatchError, NettingSet, NettingSetManager, NettingSetMargin,

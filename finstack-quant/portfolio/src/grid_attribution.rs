@@ -106,6 +106,7 @@
 //!   grid decomposition and the out-of-benchmark fallback convention used
 //!   above. `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
 
+use crate::brinson::carino_coefficient;
 use crate::error::{Error, Result};
 use finstack_quant_core::math::summation::NeumaierAccumulator;
 use indexmap::IndexMap;
@@ -502,6 +503,138 @@ pub fn grid_attribution(
         total_curve: total_curve.total(),
         total_sector: total_sector.total(),
         total_selection: total_selection.total(),
+    })
+}
+
+/// Multi-period Carino-linked hierarchical grid attribution.
+///
+/// Links only the three top-level effects (`total_curve`, `total_sector`,
+/// `total_selection`) across periods, so their sum reconstructs the
+/// geometrically compounded active return exactly. This is a deliberate
+/// scope decision: per-cell / per-(cell, sector) multi-period linking is
+/// deferred. Because the Carino scale `k_t / K` (see [`carino_coefficient`])
+/// is a single per-period scalar multiplier, extending this to link
+/// `curve_effects`, `sector_effects`, and `selection_effects` element-wise —
+/// the way [`crate::fi_attribution::campisi_carino_link`] links its five
+/// per-sector effects — is a mechanical extension if ever needed: it would
+/// only require validating consistent cell/sector ordering across periods,
+/// mirroring [`crate::brinson::carino_link`].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GridCarinoLinkedResult {
+    /// Per-period single-period grid attribution results, in chronological
+    /// order.
+    pub periods: Vec<GridAttributionResult>,
+    /// Geometrically compounded portfolio return, `∏_t (1 + r_p,t) − 1`.
+    pub portfolio_return_compounded: f64,
+    /// Geometrically compounded benchmark return, `∏_t (1 + r_b,t) − 1`.
+    pub benchmark_return_compounded: f64,
+    /// Sum of per-period Carino-scaled curve effects.
+    ///
+    /// `linked_curve + linked_sector + linked_selection` reconstructs
+    /// `portfolio_return_compounded − benchmark_return_compounded` exactly.
+    pub linked_curve: f64,
+    /// Sum of per-period Carino-scaled sector allocation effects.
+    pub linked_sector: f64,
+    /// Sum of per-period Carino-scaled selection effects.
+    pub linked_selection: f64,
+}
+
+/// Apply Carino (1999) smoothing to a sequence of per-period hierarchical
+/// grid attribution results ([`grid_attribution`]) so the three top-level
+/// arithmetic effects reconstruct the *geometrically compounded* active
+/// return exactly, mirroring [`crate::brinson::carino_link`] and
+/// [`crate::fi_attribution::campisi_carino_link`].
+///
+/// Each period contributes its three top-level effects (`total_curve`,
+/// `total_sector`, `total_selection`) scaled by `k_t / K`, where `k_t` is the
+/// single-period Carino coefficient and `K` is the coefficient for the
+/// compounded portfolio/benchmark returns over the whole horizon (see
+/// [`carino_coefficient`]). Mixed period lengths are inherent: there is no
+/// `period_years` input, so periods of any duration or position-count may be
+/// linked together.
+///
+/// Carino, D. R. (1999). "Combining Attribution Effects Over Time." *Journal
+/// of Performance Measurement*, Winter 1999/2000, 5-14.
+/// `docs/REFERENCES.md#carino-1999`
+///
+/// # Arguments
+///
+/// * `periods` - Chronologically ordered single-period grid attribution
+///   results.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] if `periods` is empty, any period's
+/// `portfolio_return` or `benchmark_return` is non-finite, or any per-period
+/// or compounded return is at or below −100 % (the Carino formula's domain;
+/// see [`carino_coefficient`]).
+///
+/// # Examples
+///
+/// ```rust
+/// use finstack_quant_portfolio::grid_attribution::{
+///     grid_attribution, grid_carino_link, GridPosition,
+/// };
+///
+/// let pos = |cell: &str, sector: &str, weight: f64, total_return: f64| GridPosition {
+///     cell: cell.into(),
+///     sector: sector.into(),
+///     weight,
+///     total_return,
+/// };
+/// let portfolio = vec![pos("0.0-3.0", "GOVT", 1.0, 0.012)];
+/// let benchmark = vec![pos("0.0-3.0", "GOVT", 1.0, 0.010)];
+/// let period = grid_attribution(&portfolio, &benchmark)?;
+///
+/// let linked = grid_carino_link(&[period.clone(), period])?;
+/// let sum = linked.linked_curve + linked.linked_sector + linked.linked_selection;
+/// let active = linked.portfolio_return_compounded - linked.benchmark_return_compounded;
+/// assert!((sum - active).abs() < 1e-12);
+/// # Ok::<(), finstack_quant_portfolio::Error>(())
+/// ```
+pub fn grid_carino_link(periods: &[GridAttributionResult]) -> Result<GridCarinoLinkedResult> {
+    if periods.is_empty() {
+        return Err(Error::invalid_input(
+            "Grid Carino linking requires at least one period",
+        ));
+    }
+
+    let mut compounded_p = 1.0_f64;
+    let mut compounded_b = 1.0_f64;
+    for p in periods {
+        if !p.portfolio_return.is_finite() || !p.benchmark_return.is_finite() {
+            return Err(Error::invalid_input(format!(
+                "Grid Carino linking requires finite period returns \
+                 (got portfolio_return = {}, benchmark_return = {})",
+                p.portfolio_return, p.benchmark_return
+            )));
+        }
+        compounded_p *= 1.0 + p.portfolio_return;
+        compounded_b *= 1.0 + p.benchmark_return;
+    }
+    let r_p_total = compounded_p - 1.0;
+    let r_b_total = compounded_b - 1.0;
+    let big_k = carino_coefficient(r_p_total, r_b_total)?;
+
+    let mut linked_curve = NeumaierAccumulator::new();
+    let mut linked_sector = NeumaierAccumulator::new();
+    let mut linked_selection = NeumaierAccumulator::new();
+
+    for period in periods {
+        let k_t = carino_coefficient(period.portfolio_return, period.benchmark_return)?;
+        let scale = k_t / big_k;
+        linked_curve.add(scale * period.total_curve);
+        linked_sector.add(scale * period.total_sector);
+        linked_selection.add(scale * period.total_selection);
+    }
+
+    Ok(GridCarinoLinkedResult {
+        periods: periods.to_vec(),
+        portfolio_return_compounded: r_p_total,
+        benchmark_return_compounded: r_b_total,
+        linked_curve: linked_curve.total(),
+        linked_sector: linked_sector.total(),
+        linked_selection: linked_selection.total(),
     })
 }
 
@@ -1038,5 +1171,103 @@ mod tests {
         let benchmark = vec![pos("0.0-3.0", "GOVT", 1.0, 0.008)];
         let err = grid_attribution(&portfolio, &benchmark).expect_err("NaN must be rejected");
         assert!(err.to_string().contains("finite"), "{err}");
+    }
+
+    /// The Task-4 golden fixture, built through the public [`grid_attribution`]
+    /// entry point (not hand-assembled) so the per-period effect vectors are
+    /// guaranteed internally consistent: `r^P = 0.0293`, `r^B = 0.0245`,
+    /// `total_curve = 0.0021`, `total_sector = 0.0004`,
+    /// `total_selection = 0.0023`.
+    fn golden_period() -> GridAttributionResult {
+        let portfolio = vec![
+            pos("0.0-3.0", "GOVT", 0.20, 0.012),
+            pos("0.0-3.0", "CORP", 0.20, 0.025),
+            pos("3.0-6.0", "GOVT", 0.30, 0.028),
+            pos("3.0-6.0", "CORP", 0.30, 0.045),
+        ];
+        let benchmark = vec![
+            pos("0.0-3.0", "GOVT", 0.30, 0.010),
+            pos("0.0-3.0", "CORP", 0.20, 0.020),
+            pos("3.0-6.0", "GOVT", 0.25, 0.030),
+            pos("3.0-6.0", "CORP", 0.25, 0.040),
+        ];
+        grid_attribution(&portfolio, &benchmark).expect("golden fixture is valid")
+    }
+
+    #[test]
+    fn linked_effects_reconstruct_compounded_active_return() {
+        // Two copies of the Task-4 golden period.
+        // R_p = 1.0293² − 1 = 0.05945849 ; R_b = 1.0245² − 1 = 0.04960025.
+        let period = golden_period();
+        let linked = grid_carino_link(&[period.clone(), period]).expect("two valid periods");
+        let close = |a: f64, b: f64, tol: f64| assert!((a - b).abs() < tol, "{a} vs {b}");
+        close(linked.portfolio_return_compounded, 0.05945849, 1e-8);
+        close(linked.benchmark_return_compounded, 0.04960025, 1e-8);
+        // The defining property: linked effects sum to geometric active exactly.
+        let sum = linked.linked_curve + linked.linked_sector + linked.linked_selection;
+        close(
+            sum,
+            linked.portfolio_return_compounded - linked.benchmark_return_compounded,
+            1e-12,
+        );
+        // Each effect equals 2 · scale · per-period effect; assert per-effect values via the
+        // scale recomputed in-test from the Carino formula (identity-based, no fragile hand
+        // logs). This also pins the effect->accumulator mapping: swapping linked_sector and
+        // linked_selection would fail these assertions since 0.0004 != 0.0023.
+        let k = ((1.0293f64).ln() - (1.0245f64).ln()) / 0.0048;
+        let kk = ((1.05945849f64).ln() - (1.04960025f64).ln()) / (0.05945849 - 0.04960025);
+        let scale = k / kk;
+        close(linked.linked_curve, 2.0 * scale * 0.0021, 1e-10);
+        close(linked.linked_sector, 2.0 * scale * 0.0004, 1e-10);
+        close(linked.linked_selection, 2.0 * scale * 0.0023, 1e-10);
+    }
+
+    /// Both rejection paths, with message assertions (not merely "is an
+    /// error"): empty input, and a period return at/below −100 %, which is
+    /// outside the Carino formula's `ln(1 + r)` domain.
+    #[test]
+    fn link_rejects_empty_and_sub_minus_100_percent_returns() {
+        let empty: Vec<GridAttributionResult> = Vec::new();
+        let err = grid_carino_link(&empty).expect_err("empty periods must be rejected");
+        assert!(
+            err.to_string().contains("at least one period"),
+            "empty-input error must explain the requirement: {err}"
+        );
+
+        let mut sub_100 = golden_period();
+        sub_100.portfolio_return = -1.5; // 1 + r = -0.5 <= 0, outside ln(1+r)'s domain.
+        let err = grid_carino_link(&[sub_100]).expect_err("return <= -100% must be rejected");
+        let message = err.to_string();
+        assert!(
+            message.contains("-100%") || message.contains("100 %"),
+            "sub-minus-100%-return error must name the domain violation: {message}"
+        );
+    }
+
+    /// Two periods with genuinely different effect vectors and returns (not
+    /// two copies of the golden, which is already covered by the
+    /// reconstruction test above): the golden two-cell period, and a single
+    /// (cell, sector) period whose entire active return surfaces as
+    /// selection (`total_curve = total_sector = 0`). Mixed period lengths
+    /// (position counts) are inherent — there is no `period_years` input.
+    #[test]
+    fn mixed_length_periods_link_and_reconcile() {
+        let golden = golden_period();
+
+        let small_portfolio = vec![pos("A", "X", 1.0, 0.03)];
+        let small_benchmark = vec![pos("A", "X", 1.0, 0.02)];
+        let small = grid_attribution(&small_portfolio, &small_benchmark)
+            .expect("single-cell period is valid");
+        // Sanity: this period's effect vector genuinely differs from the
+        // golden's (0.0021, 0.0004, 0.0023) — it is a pure-selection period.
+        assert_eq!(small.total_curve, 0.0);
+        assert_eq!(small.total_sector, 0.0);
+        let close = |a: f64, b: f64, tol: f64| assert!((a - b).abs() < tol, "{a} vs {b}");
+        close(small.total_selection, 0.01, 1e-12);
+
+        let linked = grid_carino_link(&[golden, small]).expect("mixed-length periods link");
+        let sum = linked.linked_curve + linked.linked_sector + linked.linked_selection;
+        let active = linked.portfolio_return_compounded - linked.benchmark_return_compounded;
+        close(sum, active, 1e-12);
     }
 }
