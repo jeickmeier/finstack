@@ -8,8 +8,11 @@
 mod allocation;
 mod attribution;
 mod brinson;
+mod excess_return;
+mod factor_brinson;
 mod factor_model;
 mod fi_attribution;
+mod grid_attribution;
 mod json_bridge;
 mod liquidity;
 mod matrix_input;
@@ -66,6 +69,9 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     brinson::register(py, &m)?;
     fi_attribution::register(py, &m)?;
     performance::register(py, &m)?;
+    excess_return::register(py, &m)?;
+    grid_attribution::register(py, &m)?;
+    factor_brinson::register(py, &m)?;
 
     let exports = vec![
         "PortfolioError",
@@ -110,6 +116,12 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "campisi_carino_link",
         "campisi_carino_link_from_snapshots",
         "campisi_reconciliation_check",
+        "cell_returns_from_curves",
+        "cell_returns_from_reference",
+        "excess_returns",
+        "factor_brinson_attribution",
+        "grid_attribution",
+        "grid_carino_link",
         "twrr_modified_dietz",
         "twrr_linked",
         "mwr_xirr",

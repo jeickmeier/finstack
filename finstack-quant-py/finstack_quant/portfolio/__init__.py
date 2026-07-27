@@ -104,6 +104,12 @@ campisi_attribution = _portfolio.campisi_attribution
 campisi_carino_link = _portfolio.campisi_carino_link
 campisi_carino_link_from_snapshots = _portfolio.campisi_carino_link_from_snapshots
 campisi_reconciliation_check = _portfolio.campisi_reconciliation_check
+cell_returns_from_curves = _portfolio.cell_returns_from_curves
+cell_returns_from_reference = _portfolio.cell_returns_from_reference
+excess_returns = _portfolio.excess_returns
+factor_brinson_attribution = _portfolio.factor_brinson_attribution
+grid_attribution = _portfolio.grid_attribution
+grid_carino_link = _portfolio.grid_carino_link
 twrr_modified_dietz = _portfolio.twrr_modified_dietz
 twrr_linked = _portfolio.twrr_linked
 mwr_xirr = _portfolio.mwr_xirr
@@ -235,13 +241,19 @@ __all__: list[str] = [
     "campisi_carino_link_from_snapshots",
     "campisi_reconciliation_check",
     "carino_link",
+    "cell_returns_from_curves",
+    "cell_returns_from_reference",
     "compute_factor_sensitivities",
     "compute_pnl_profiles",
     "days_to_liquidate",
     "decompose_factor_risk",
     "evaluate_risk_budget",
     "evaluate_risk_budget_typed",
+    "excess_returns",
+    "factor_brinson_attribution",
     "factor_stress",
+    "grid_attribution",
+    "grid_carino_link",
     "historical_var_decomposition",
     "historical_var_decomposition_typed",
     "kyle_lambda",
