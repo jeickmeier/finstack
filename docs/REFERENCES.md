@@ -509,7 +509,10 @@ risk calculation with a standard reference.
   universe into duration cells, averaging returns within each cell, and
   interpolating/extrapolating empty cells - used by
   `finstack-quant/portfolio/src/excess_return.rs` to build the duration-matched
-  base return curve for credit excess return calculations.
+  base return curve for credit excess return calculations. Appendix A source
+  for the hierarchical curve/sector/selection grid decomposition (duration
+  cell x sector, with an out-of-benchmark fallback) - used by
+  `finstack-quant/portfolio/src/grid_attribution.rs`.
 
 <a id="fama-french-1993"></a>
 

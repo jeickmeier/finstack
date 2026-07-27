@@ -340,6 +340,10 @@ fn aggregate_side(
 /// out-of-benchmark fallback convention, and a proof that the three sums
 /// telescope exactly to the active return.
 ///
+/// Dynkin, L., Hyman, J., & Vankudre, P. (1998). "Attribution of Portfolio
+/// Performance Relative to an Index." Lehman Brothers Fixed Income Research,
+/// March 1998, Appendix A. `docs/REFERENCES.md#dynkin-hyman-vankudre-1998`
+///
 /// # Arguments
 ///
 /// * `portfolio` - Portfolio position/bucket snapshots; weights must sum to
@@ -569,17 +573,52 @@ mod tests {
             r.total_curve + r.total_sector + r.total_selection,
             r.active_return,
         );
+
+        // Reconciliation-by-subtraction guard: a `total_*` field back-solved
+        // from `active_return` and the *other* totals would still satisfy
+        // every assertion above (the identity holds by construction), while
+        // silently decoupling from the effects vector it is supposed to
+        // summarize. Tie each total directly to an independent sum over its
+        // own emitted `Vec`, not to the cross-total identity.
+        let sum_curve: f64 = r.curve_effects.iter().map(|e| e.curve_effect).sum();
+        let sum_sector: f64 = r.sector_effects.iter().map(|e| e.allocation_effect).sum();
+        let sum_selection: f64 = r.selection_effects.iter().map(|e| e.selection_effect).sum();
+        assert_eq!(
+            r.total_curve, sum_curve,
+            "total_curve must equal the sum of curve_effects, not a value back-solved from \
+             active_return and the other totals"
+        );
+        assert_eq!(
+            r.total_sector, sum_sector,
+            "total_sector must equal the sum of sector_effects"
+        );
+        assert_eq!(
+            r.total_selection, sum_selection,
+            "total_selection must equal the sum of selection_effects"
+        );
     }
 
     /// A cell the portfolio holds but the benchmark entirely lacks falls
-    /// back to `r_t^B := r_t^P`: its selection effect must be exactly zero
-    /// and the whole effect must surface as curve, while the identity still
-    /// closes exactly.
+    /// back to `r_t^B := r_t^P` and, for every sector within it,
+    /// `z_st^B := z_st^P` / `r_st^B := r_st^P`: every sector's selection *and*
+    /// allocation effect must be exactly zero and the whole effect must
+    /// surface as curve, while the identity still closes exactly.
+    ///
+    /// Cell "B" deliberately holds *two* sectors (IG, HY) with different
+    /// returns, not one. With a single sector, `z_p = 1` trivially forces
+    /// `allocation_effect == 0` for *any* value of `z_b` (`0`, `z_p`, or
+    /// anything else), so a single-sector fixture cannot distinguish the
+    /// correct `z_st^B := z_st^P` fallback from the wrong `z_st^B := 0`
+    /// fallback. With two sectors of unequal share, `z_st^B := 0` produces
+    /// non-zero, sign-opposite per-sector allocations that merely cancel in
+    /// the cell total — so each sector's allocation must be checked
+    /// individually, not just the reconciliation identity.
     #[test]
     fn out_of_benchmark_cell_flows_to_curve_with_zero_selection() {
         let portfolio = vec![
             pos("A", "GOVT", 0.5, 0.02),
-            pos("B", "CORP", 0.5, 0.03), // benchmark has no "B" cell at all
+            pos("B", "IG", 0.3, 0.01), // benchmark has no "B" cell at all
+            pos("B", "HY", 0.2, 0.06),
         ];
         let benchmark = vec![pos("A", "GOVT", 1.0, 0.01)];
 
@@ -599,38 +638,183 @@ mod tests {
             1e-15,
             "cell B benchmark weight",
         );
+        // r_t^P = (0.3*0.01 + 0.2*0.06) / 0.5 = 0.03.
         close(
             cell_b.benchmark_cell_return,
             0.03,
-            1e-15,
+            1e-12,
             "cell B r_t^B fallback = r_t^P",
         );
         // (0.5 - 0.0) * (0.03 - 0.01) = 0.01, the entire out-of-benchmark
         // effect surfaces as curve.
         close(cell_b.curve_effect, 0.01, 1e-12, "cell B curve effect");
 
-        let sel_b = r
-            .selection_effects
-            .iter()
-            .find(|e| e.cell == "B" && e.sector == "CORP")
-            .expect("selection entry for B/CORP");
-        close(
-            sel_b.selection_effect,
-            0.0,
-            1e-15,
-            "out-of-benchmark selection is zero",
-        );
+        for sector in ["IG", "HY"] {
+            let sel = r
+                .selection_effects
+                .iter()
+                .find(|e| e.cell == "B" && e.sector == sector)
+                .unwrap_or_else(|| panic!("selection entry for B/{sector}"));
+            close(
+                sel.selection_effect,
+                0.0,
+                1e-15,
+                &format!("out-of-benchmark selection is zero for B/{sector}"),
+            );
 
-        let alloc_b = r
+            let alloc = r
+                .sector_effects
+                .iter()
+                .find(|e| e.cell == "B" && e.sector == sector)
+                .unwrap_or_else(|| panic!("allocation entry for B/{sector}"));
+            // z_st^B := z_st^P for every sector in an out-of-benchmark cell,
+            // so (z_p - z_b) == 0 regardless of the sector's own share —
+            // this must hold individually for IG (share 0.6) and HY (share
+            // 0.4), not just cancel out in the cell total.
+            close(
+                alloc.allocation_effect,
+                0.0,
+                1e-15,
+                &format!("out-of-benchmark allocation is zero for B/{sector}"),
+            );
+        }
+    }
+
+    /// A (cell, sector) bucket absent from the benchmark *while the cell
+    /// itself is present* (`x_t^B != 0`, `y_st^B == 0`) takes the narrower
+    /// fallback: `z_st^B` is naturally `0` (no fallback needed there), but
+    /// `r_st^B := r_st^P`.
+    ///
+    /// This value is structurally invisible to any reconciliation-only
+    /// check: with `z_st^B = 0`, `r_st^B` enters `selection_effect` with
+    /// coefficient `-y_st^P` and `allocation_effect` with coefficient
+    /// `+x_t^P * z_st^P = +y_st^P` — equal and opposite, so it cancels
+    /// exactly out of every total regardless of what `r_st^B` fallback value
+    /// is used. Both effects must therefore be pinned individually.
+    ///
+    /// Fixture and hand-derived values from the review: cell A holds
+    /// portfolio GOVT 0.6@0.01 and HY 0.4@0.05; benchmark holds only GOVT
+    /// 1.0@0.012 (so cell A is present on both sides, but HY is
+    /// benchmark-absent). `r_t^B = 0.012`, `z_p^HY = 0.4`, `z_b^HY = 0`,
+    /// `r_st^P_HY = 0.05`, fallback `r_st^B_HY := 0.05`:
+    /// `allocation_effect = 1.0 * 0.4 * (0.05 - 0.012) = 0.0152`,
+    /// `selection_effect = 0.4 * (0.05 - 0.05) = 0`.
+    #[test]
+    fn portfolio_only_sector_in_benchmark_present_cell_pins_allocation_and_selection() {
+        let portfolio = vec![pos("A", "GOVT", 0.6, 0.01), pos("A", "HY", 0.4, 0.05)];
+        let benchmark = vec![pos("A", "GOVT", 1.0, 0.012)];
+
+        let r = grid_attribution(&portfolio, &benchmark).expect("valid inputs");
+
+        let alloc_hy = r
             .sector_effects
             .iter()
-            .find(|e| e.cell == "B" && e.sector == "CORP")
-            .expect("allocation entry for B/CORP");
+            .find(|e| e.cell == "A" && e.sector == "HY")
+            .expect("allocation entry for A/HY");
+        let sel_hy = r
+            .selection_effects
+            .iter()
+            .find(|e| e.cell == "A" && e.sector == "HY")
+            .expect("selection entry for A/HY");
+
         close(
-            alloc_b.allocation_effect,
+            sel_hy.selection_effect,
             0.0,
             1e-15,
-            "single-sector cell allocation is zero",
+            "selection is zero for a benchmark-absent sector (r_st^B fallback = r_st^P)",
+        );
+        close(
+            alloc_hy.allocation_effect,
+            0.0152,
+            1e-12,
+            "hand-derived allocation effect for A/HY",
+        );
+
+        let reconstructed = r.total_curve + r.total_sector + r.total_selection;
+        close(reconstructed, r.active_return, 1e-12, "reconciliation");
+    }
+
+    /// Cell/sector labels must appear in first-appearance order: portfolio
+    /// positions scanned before benchmark positions, both at the cell level
+    /// and, within each cell, at the sector level. "X" is present on both
+    /// sides (portfolio sectors S1, S2 first, then benchmark-only S9
+    /// appended); "Y" is portfolio-only; "Z" is benchmark-only and must sort
+    /// last among cells.
+    #[test]
+    fn ordering_is_first_appearance_portfolio_before_benchmark_only() {
+        let portfolio = vec![
+            pos("X", "S1", 0.3, 0.01),
+            pos("X", "S2", 0.2, 0.02),
+            pos("Y", "S1", 0.5, 0.03),
+        ];
+        let benchmark = vec![
+            pos("X", "S1", 0.35, 0.015),
+            pos("X", "S9", 0.05, 0.025),
+            pos("Z", "S3", 0.6, 0.035),
+        ];
+
+        let r = grid_attribution(&portfolio, &benchmark).expect("valid ordering fixture");
+
+        let cell_labels: Vec<&str> = r.curve_effects.iter().map(|e| e.cell.as_str()).collect();
+        assert_eq!(
+            cell_labels,
+            vec!["X", "Y", "Z"],
+            "cells must be first-appearance order, portfolio before benchmark-only"
+        );
+
+        let sector_labels: Vec<(&str, &str)> = r
+            .sector_effects
+            .iter()
+            .map(|e| (e.cell.as_str(), e.sector.as_str()))
+            .collect();
+        assert_eq!(
+            sector_labels,
+            vec![
+                ("X", "S1"),
+                ("X", "S2"),
+                ("X", "S9"),
+                ("Y", "S1"),
+                ("Z", "S3"),
+            ],
+            "sectors must be first-appearance within each cell, portfolio before benchmark-only"
+        );
+
+        let selection_labels: Vec<(&str, &str)> = r
+            .selection_effects
+            .iter()
+            .map(|e| (e.cell.as_str(), e.sector.as_str()))
+            .collect();
+        assert_eq!(
+            selection_labels, sector_labels,
+            "selection_effects must share sector_effects' ordering"
+        );
+    }
+
+    /// A cell can net to exactly zero weight even when *every individual
+    /// sector within it* nets to a non-zero weight: GOVT +0.5 and CORP -0.5
+    /// in the same cell each have a well-defined per-sector rate, but the
+    /// cell-level aggregate is exactly zero with non-zero gross weight. This
+    /// is a distinct failure mode from the (cell, sector)-level guard (which
+    /// this fixture does not trip) and requires its own cell-level check.
+    #[test]
+    fn cell_level_zero_net_weight_with_nonzero_sector_nets_fails_closed() {
+        let portfolio = vec![
+            pos("A", "GOVT", 0.5, 0.01),
+            pos("A", "CORP", -0.5, 0.02),
+            pos("B", "X", 1.0, 0.03),
+        ];
+        let benchmark = vec![pos("B", "X", 1.0, 0.025)];
+
+        let err = grid_attribution(&portfolio, &benchmark)
+            .expect_err("cell netting to zero despite non-zero sector nets must be rejected");
+        let message = err.to_string();
+        assert!(
+            message.contains("bucket 'A'"),
+            "error must name the cell: {message}"
+        );
+        assert!(
+            message.contains("Portfolio"),
+            "error must name the side: {message}"
         );
     }
 
