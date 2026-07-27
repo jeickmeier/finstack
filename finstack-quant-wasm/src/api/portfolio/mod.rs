@@ -321,8 +321,11 @@ pub fn excess_returns(positions_json: &str, table_json: &str) -> Result<String, 
 /// decomposes active return into a per-cell curve (positioning) effect, a
 /// within-cell sector allocation effect, and a security-selection residual
 /// per (cell, sector). Returns a JSON `GridAttributionResult` whose
-/// `total_curve`, `total_sector` and `total_selection` sum exactly to
-/// `active_return`.
+/// `total_curve`, `total_sector` and `total_selection` sum to
+/// `active_return` to floating-point precision for well-conditioned inputs;
+/// among accepted inputs, the reconciliation residual grows the closer any
+/// bucket's net weight sits to the near-zero-net-weight rejection boundary
+/// (see the Rust module docs for measured magnitudes).
 /// @param portfolioJson - Canonical JSON array of `GridPosition` objects (`cell`, `sector`, `weight`, `total_return`) for the portfolio side; weights must sum to 1.
 /// @param benchmarkJson - Canonical JSON array of `GridPosition` objects for the benchmark side; same weight-sum requirement.
 #[wasm_bindgen(js_name = gridAttribution)]

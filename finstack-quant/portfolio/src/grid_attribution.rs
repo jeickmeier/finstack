@@ -35,16 +35,10 @@
 //!
 //! # Telescoping identity
 //!
-//! The three sums telescope to the active return exactly (to floating-point
-//! precision), given per-side weight normalization (`Σ_t x_t^k = 1`),
-//! within-cell share normalization (`Σ_s z_st^k = 1` for every cell present
-//! on side `k`), and every present bucket's rate `r_st^k` / `r_t^k` being
-//! well-conditioned — its net weight not itself vanishingly small relative to
-//! its gross weight (see the internal `check_zero_net_weight` guard). A
-//! bucket netting *close to*, but not exactly, zero has a numerically
-//! explosive rather than merely undefined rate: as its net weight shrinks
-//! toward zero, the rate — and every effect derived from it — grows without
-//! bound, which an exact-equality-only check cannot catch:
+//! The three sums telescope to the active return, given per-side weight
+//! normalization (`Σ_t x_t^k = 1`), within-cell share normalization (`Σ_s
+//! z_st^k = 1` for every cell present on side `k`), and every present
+//! bucket's net weight clearing the fail-closed check below:
 //!
 //! ```text
 //! Σ_st e^security_st = Σ_st y_st^P r_st^P − Σ_st y_st^P r_st^B
@@ -55,17 +49,43 @@
 //! Sum                 = r^P − r^B
 //! ```
 //!
-//! Exactness therefore *requires* the per-side weight-sum validation,
-//! within-cell share normalization, and near-zero-net-weight rejection
-//! enforced by [`grid_attribution()`] — they are not cosmetic input checks,
-//! they are the hypotheses of the identity above. Even among inputs that
-//! pass every check, the identity holds to floating-point precision, not to
-//! an arbitrarily tight tolerance: a bucket whose net weight sits just above
-//! the internal `NET_WEIGHT_RELATIVE_TOLERANCE` bound is legal but still
-//! amplifies rounding noise in its rate, so the reconstructed sum can differ from
-//! `active_return` by more than the smallest tolerances asserted in this
-//! module's own tests (which use golden fixtures with well-separated net
-//! weights, not adversarial near-cancellation).
+//! This is *not* a universal exactness guarantee: the identity holds to
+//! floating-point precision **only for well-conditioned inputs**, and
+//! degrades continuously and measurably as any bucket's net weight
+//! approaches the fail-closed guard's own boundary — the guard bounds how
+//! explosive a bucket's rate can become, it does not bound how much
+//! numerical noise that rate injects into the reconstructed sum. Measured on
+//! a fixture with a ~1% return spread (a bucket netting to `eps` relative to
+//! its own gross weight, `eps` decreasing toward the guard's `1e-6`
+//! boundary):
+//!
+//! ```text
+//! eps = 1e-3  ->  reconciliation residual ~  1.1e-13   (float noise floor)
+//! eps = 1e-4  ->  reconciliation residual ~ -7.1e-12
+//! eps = 1e-5  ->  reconciliation residual ~  5.7e-10
+//! eps = 1e-6  ->  reconciliation residual ~ -5.7e-08   (just inside the guard)
+//! ```
+//!
+//! A wider return spread amplifies the same effect: the same `eps = 1e-6`
+//! bucket against a ~100% return spread measured a residual around `-8.6e-6`
+//! — roughly 150x worse than the ~1% case, because the residual scales with
+//! both the near-cancellation amplification *and* the magnitude of the
+//! return differences it amplifies. So a caller relying on this module's
+//! output tying out to a tight (sub-`1e-9`) tolerance must itself check how
+//! close its own buckets' net weights sit to zero, not just that
+//! [`grid_attribution()`] returned `Ok`; the fixtures in this module's own
+//! tests all use net weights well clear of the guard's boundary (or are
+//! adversarial in other ways, not in near-cancellation), and their tight
+//! tolerances (`1e-12`, `1e-15`) hold *for those specific fixtures*, not as a
+//! bound on every valid input.
+//!
+//! The per-side weight-sum validation, within-cell share normalization, and
+//! near-zero-net-weight rejection enforced by [`grid_attribution()`] are
+//! therefore not cosmetic input checks — without them the identity does not
+//! hold even approximately — but clearing them is necessary, not sufficient,
+//! for a *tight* reconciliation; see `NET_WEIGHT_RELATIVE_TOLERANCE`'s own
+//! doc comment for why that bound was deliberately not tightened further to
+//! close this gap.
 //!
 //! # Out-of-benchmark fallbacks
 //!
@@ -148,11 +168,30 @@ const WEIGHT_TOLERANCE: f64 = 1e-6;
 /// derived from it, grows without bound. An exact-equality-only guard misses
 /// this: a benchmark bucket of `+0.5` and `-(0.5 - 1e-8)` in the same cell
 /// nets to `1e-8`, not `0.0`, yet produces a curve effect on the order of
-/// `2.5e5` against a realistic sub-1% active return. Reusing
-/// [`WEIGHT_TOLERANCE`]'s existing 1e-6 precision floor for this ratio keeps
-/// a single, already-load-bearing precision assumption for the whole module:
-/// a net weight smaller than a millionth of its own gross weight is, for the
-/// purposes of this module, indistinguishable from exact cancellation.
+/// `2.5e5` against a realistic sub-1% active return.
+///
+/// # What this bound does, and does not, guarantee
+///
+/// This bound exists to cap how *explosive* an accepted bucket's rate can
+/// become; it is not, and cannot be made to be, a promise that the
+/// reconstructed `total_curve + total_sector + total_selection` reconciles
+/// to `active_return` within any particular tolerance — see the module-level
+/// "Telescoping identity" section for measured reconciliation residuals as
+/// large as `~5.7e-8` (on a ~1% return spread) or `~8.6e-6` (on a ~100%
+/// spread) for an *accepted*, in-bound bucket sitting right at this
+/// tolerance. Tightening this constant would shrink those residuals, but at
+/// a real cost: reaching a `1e-12`-tight reconciliation guarantee across
+/// realistic return spreads would require a bound near `1e-3`, which would
+/// reject a bucket netting to 0.1% of its own gross weight — an entirely
+/// plausible near-hedge in a long/short credit portfolio, not a numerical
+/// artifact to be filtered out. `1e-6` is therefore a deliberate trade-off,
+/// reusing [`WEIGHT_TOLERANCE`]'s existing precision floor for the whole
+/// module: it closes the catastrophic case this bound was added for (silent,
+/// unbounded rates from near-cancellation) without rejecting legitimate
+/// hedged positions this module must still be able to attribute. Callers
+/// needing a tight reconciliation tolerance must additionally check how
+/// close their own buckets' net weights sit to this boundary, not merely
+/// that [`grid_attribution()`] returned `Ok`.
 const NET_WEIGHT_RELATIVE_TOLERANCE: f64 = 1e-6;
 
 /// One position (or pre-aggregated bucket) in a duration-cell x sector grid,
@@ -391,7 +430,10 @@ fn aggregate_side(
 /// within-cell sector-allocation effect, and a security-selection residual
 /// per (cell, sector) — see the module docs for the exact formulas, the
 /// out-of-benchmark fallback convention, and a proof that the three sums
-/// telescope exactly to the active return.
+/// telescope to the active return for well-conditioned inputs (see the
+/// module-level "Telescoping identity" section for how the reconciliation
+/// degrades as a bucket's net weight approaches the fail-closed guard's own
+/// boundary).
 ///
 /// Dynkin, L., Hyman, J., & Vankudre, P. (1998). "Attribution of Portfolio
 /// Performance Relative to an Index." Lehman Brothers Fixed Income Research,

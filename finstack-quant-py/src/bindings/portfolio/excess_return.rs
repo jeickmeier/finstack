@@ -45,8 +45,12 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 /// PortfolioError
 ///     If ``reference_json`` is empty, ``config.width`` is not finite and
 ///     positive, any reference entry has a non-finite ``total_return`` or a
-///     non-finite/negative ``duration``, or the width produces two
-///     numerically distinct cells that collide on their one-decimal label.
+///     non-finite/negative ``duration``, the width produces two numerically
+///     distinct cells that collide on their one-decimal label, or the
+///     largest reference ``duration`` divided by ``config.width`` would
+///     require more than an internal sanity bound of cells (100,000; a units
+///     mistake, e.g. days instead of years, rather than a legitimate
+///     duration grid).
 /// ValueError
 ///     If any JSON argument is malformed or carries unknown fields.
 ///
@@ -119,10 +123,15 @@ fn cell_returns_from_reference(
 /// ------
 /// PortfolioError
 ///     If ``config.width`` or ``horizon_years`` is not finite and positive,
-///     ``max_duration`` does not strictly exceed ``horizon_years``, a
-///     cell's midpoint does not exceed ``horizon_years``, either curve
-///     produces a non-positive/non-finite discount factor at a queried
-///     time, or the width produces colliding one-decimal cell labels.
+///     ``max_duration`` does not strictly exceed ``horizon_years``,
+///     ``max_duration`` divided by ``config.width`` would require more than
+///     an internal sanity bound of cells (100,000; a units mistake rather
+///     than a legitimate duration grid), a cell's midpoint does not exceed
+///     ``horizon_years`` (this is unavoidable whenever ``config.width`` is
+///     not strictly greater than ``2 * horizon_years``, since the first
+///     cell's midpoint is ``config.width / 2``), either curve produces a
+///     non-positive/non-finite discount factor at a queried time, or the
+///     width produces colliding one-decimal cell labels.
 /// ValueError
 ///     If ``config_json`` is malformed.
 ///

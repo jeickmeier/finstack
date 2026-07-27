@@ -387,6 +387,18 @@ test('portfolio.cellReturnsFromReference rejects an empty reference universe', (
   assert.throws(() => portfolio.cellReturnsFromReference('[]', 'UST', lehmanCellConfig));
 });
 
+// FFI-level regression for the Minor-2 finding: a units mistake (e.g. days
+// instead of years) producing an astronomically large `duration` must fail
+// closed with a clear error, not crash the WASM module with an unrecoverable
+// panic ("capacity overflow") while allocating the duration grid.
+test('portfolio.cellReturnsFromReference rejects an astronomically large duration, not a panic', () => {
+  const reference = JSON.stringify([{ duration: 1e30, total_return: 0.01 }]);
+  assert.throws(
+    () => portfolio.cellReturnsFromReference(reference, 'UST', JSON.stringify({ width: 1.0 })),
+    (error) => /sanity bound/.test(String(error))
+  );
+});
+
 const flatCurveKnots = (id) =>
   new core.DiscountCurve(
     id,
@@ -489,6 +501,30 @@ test('portfolio.gridAttribution fails closed on a zero-net-weight bucket, naming
       /0\.0-3\.0/.test(String(error)) &&
       /GOVT/.test(String(error)) &&
       /Portfolio/.test(String(error))
+  );
+});
+
+// FFI-level regression for the whole-branch review's Important-1 finding: an
+// exact-equality-only guard would let a benchmark cell netting to `eps`
+// (not `0.0`) through, and `weighted_return / weight` would then blow up
+// without bound as `eps` shrinks. Re-pins the Rust
+// `near_zero_net_weight_bucket_fails_closed_before_rate_blows_up` fixture
+// through the WASM facade: `eps = 1e-8` (ratio ~1e-8, far below the 1e-6
+// relative bound) must be rejected, naming the cell and the side.
+test('portfolio.gridAttribution fails closed on a near-zero (not just exact-zero) net weight', () => {
+  const eps = 1e-8;
+  const portfolioPositions = JSON.stringify([
+    gridPos('X', 'GOVT', 0.5, 0.018),
+    gridPos('Y', 'GOVT', 0.5, 0.02),
+  ]);
+  const benchmarkPositions = JSON.stringify([
+    gridPos('X', 'GOVT', 0.5, 0.02),
+    gridPos('X', 'CORP', -(0.5 - eps), 0.01),
+    gridPos('Y', 'GOVT', 1.0 - eps, 0.015),
+  ]);
+  assert.throws(
+    () => portfolio.gridAttribution(portfolioPositions, benchmarkPositions),
+    (error) => /bucket 'X'/.test(String(error)) && /Benchmark/.test(String(error))
   );
 });
 

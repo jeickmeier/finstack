@@ -2278,8 +2278,12 @@ def cell_returns_from_reference(reference_json: str, base_label: str, config_jso
     PortfolioError
         If ``reference_json`` is empty, ``config.width`` is not finite and
         positive, any reference entry has a non-finite ``total_return`` or a
-        non-finite/negative ``duration``, or the width produces two
-        numerically distinct cells that collide on their one-decimal label.
+        non-finite/negative ``duration``, the width produces two numerically
+        distinct cells that collide on their one-decimal label, or the
+        largest reference ``duration`` divided by ``config.width`` would
+        require more than an internal sanity bound of cells (100,000; a
+        units mistake, e.g. days instead of years, rather than a legitimate
+        duration grid).
     ValueError
         If any JSON argument is malformed or carries unknown fields.
 
@@ -2339,10 +2343,15 @@ def cell_returns_from_curves(
     ------
     PortfolioError
         If ``config.width`` or ``horizon_years`` is not finite and positive,
-        ``max_duration`` does not strictly exceed ``horizon_years``, a
-        cell's midpoint does not exceed ``horizon_years``, either curve
-        produces a non-positive/non-finite discount factor at a queried
-        time, or the width produces colliding one-decimal cell labels.
+        ``max_duration`` does not strictly exceed ``horizon_years``,
+        ``max_duration`` divided by ``config.width`` would require more than
+        an internal sanity bound of cells (100,000; a units mistake rather
+        than a legitimate duration grid), a cell's midpoint does not exceed
+        ``horizon_years`` (unavoidable whenever ``config.width`` is not
+        strictly greater than ``2 * horizon_years``, since the first cell's
+        midpoint is ``config.width / 2``), either curve produces a
+        non-positive/non-finite discount factor at a queried time, or the
+        width produces colliding one-decimal cell labels.
     ValueError
         If ``config_json`` is malformed.
 
@@ -2436,16 +2445,22 @@ def grid_attribution(portfolio_json: str, benchmark_json: str) -> str:
     -------
     str
         JSON-serialized ``GridAttributionResult`` whose ``total_curve``,
-        ``total_sector`` and ``total_selection`` sum exactly to
-        ``active_return``.
+        ``total_sector`` and ``total_selection`` sum to ``active_return`` to
+        floating-point precision for well-conditioned inputs; among
+        *accepted* inputs (those that clear the near-zero-net-weight check
+        below), the reconciliation residual grows the closer any bucket's
+        net weight sits to that check's own rejection boundary — see the
+        Rust module docs' measured residuals for magnitudes.
 
     Raises
     ------
     PortfolioError
         If any weight or return is non-finite, either side's weights don't
         sum to ``1.0`` within tolerance, or a (cell) or (cell, sector)
-        bucket has positions on a side but nets to exactly zero weight with
-        non-zero gross weight (the error names the bucket and the side).
+        bucket has positions on a side but nets to a weight that is zero, or
+        numerically near zero (within ``1e-6`` relative to its own gross
+        weight), which is undefined-or-explosive to attribute (the error
+        names the bucket and the side).
     ValueError
         If either JSON argument is malformed or carries unknown fields.
 

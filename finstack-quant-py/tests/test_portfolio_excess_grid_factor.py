@@ -166,6 +166,20 @@ def test_cell_returns_from_reference_rejects_colliding_width_labels() -> None:
     assert "0.1-0.1" in message
 
 
+def test_cell_returns_from_reference_rejects_astronomically_large_duration() -> None:
+    """FFI-level regression for the Minor-2 finding: a units mistake (e.g.
+
+    days instead of years) producing an astronomically large `duration`
+    must fail closed with a clear `PortfolioError`, not crash the process
+    with a Rust panic ("capacity overflow") while allocating the duration
+    grid. Re-pins the Rust `astronomically_large_duration_fails_closed_not_panics`
+    fixture through the Python binding.
+    """
+    reference = [_ref(1e30, 0.01)]
+    with pytest.raises(PortfolioError, match="sanity bound"):
+        cell_returns_from_reference(json.dumps(reference), "UST", json.dumps({"width": 1.0}))
+
+
 def test_cell_returns_from_reference_denies_unknown_fields() -> None:
     """An unknown field on a ``ReferenceReturn`` entry fails closed."""
     bad_reference = [{"duration": 1.0, "total_return": 0.01, "surprise": 1.0}]
@@ -368,6 +382,32 @@ def test_grid_attribution_rejects_zero_net_weight_bucket() -> None:
     assert "0.0-3.0" in message
     assert "GOVT" in message
     assert "Portfolio" in message
+
+
+def test_grid_attribution_rejects_near_zero_net_weight_bucket() -> None:
+    """FFI-level regression for the whole-branch review's Important-1 finding.
+
+    Re-pins the Rust `near_zero_net_weight_bucket_fails_closed_before_rate_blows_up`
+    fixture through the Python binding: a benchmark cell "X" holding GOVT
+    +0.5@2% and CORP -(0.5 - eps)@1% nets to `eps`, not `0.0`. An
+    exact-equality-only guard would let this through and
+    `weighted_return / weight` would then blow up without bound as `eps`
+    shrinks. `eps=1e-8` (ratio ~1e-8, far below the 1e-6 relative bound)
+    must be rejected, naming the cell and side.
+    """
+    portfolio = [_gpos("X", "GOVT", 0.5, 0.018), _gpos("Y", "GOVT", 0.5, 0.02)]
+    eps = 1e-8
+    benchmark = [
+        _gpos("X", "GOVT", 0.5, 0.02),
+        _gpos("X", "CORP", -(0.5 - eps), 0.01),
+        _gpos("Y", "GOVT", 1.0 - eps, 0.015),
+    ]
+
+    with pytest.raises(PortfolioError) as exc_info:
+        grid_attribution(json.dumps(portfolio), json.dumps(benchmark))
+    message = str(exc_info.value)
+    assert "bucket 'X'" in message
+    assert "Benchmark" in message
 
 
 def test_grid_attribution_denies_unknown_position_fields() -> None:

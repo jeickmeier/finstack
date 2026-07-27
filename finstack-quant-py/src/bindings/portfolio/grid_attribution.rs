@@ -31,16 +31,22 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 /// -------
 /// str
 ///     JSON-serialized ``GridAttributionResult`` whose ``total_curve``,
-///     ``total_sector`` and ``total_selection`` sum exactly to
-///     ``active_return``.
+///     ``total_sector`` and ``total_selection`` sum to ``active_return`` to
+///     floating-point precision for well-conditioned inputs; among *accepted*
+///     inputs (those that clear the near-zero-net-weight check below), the
+///     reconciliation residual grows the closer any bucket's net weight sits
+///     to that check's own rejection boundary — see the Rust module docs'
+///     measured residuals for magnitudes.
 ///
 /// Raises
 /// ------
 /// PortfolioError
 ///     If any weight or return is non-finite, either side's weights don't
 ///     sum to ``1.0`` within tolerance, or a (cell) or (cell, sector)
-///     bucket has positions on a side but nets to exactly zero weight with
-///     non-zero gross weight (the error names the bucket and the side).
+///     bucket has positions on a side but nets to a weight that is zero, or
+///     numerically near zero (within ``1e-6`` relative to its own gross
+///     weight), which is undefined-or-explosive to attribute (the error
+///     names the bucket and the side).
 /// ValueError
 ///     If either JSON argument is malformed or carries unknown fields.
 ///
