@@ -1220,6 +1220,130 @@ mod tests {
         close(linked.linked_curve, 2.0 * scale * 0.0021, 1e-10);
         close(linked.linked_sector, 2.0 * scale * 0.0004, 1e-10);
         close(linked.linked_selection, 2.0 * scale * 0.0023, 1e-10);
+        assert_eq!(
+            linked.periods.len(),
+            2,
+            "periods passthrough must preserve every input period"
+        );
+    }
+
+    /// `GridAttributionResult` is `Deserialize` with public fields, so a
+    /// period can be hand-built (or arrive from an external producer) whose
+    /// three totals do *not* reconcile to its own return spread — nothing in
+    /// this module enforces that invariant on the way in. The correct
+    /// implementation must report the linked totals it actually computed
+    /// from the *given* per-period totals, not silently "repair" them by
+    /// back-solving one total from the compounded active return and the
+    /// other two (indistinguishable from the correct value on any
+    /// self-consistent fixture, since the sum identity then holds by
+    /// algebra either way).
+    ///
+    /// With a single period, `k_t` and `K` are computed from *nearly*
+    /// identical inputs — the period's own returns versus the same values
+    /// round-tripped through `1.0 + r - 1.0` while compounding — so
+    /// `scale = k_t / K` is extremely close to but not bit-exactly `1.0`
+    /// (differs at the ~1e-16 relative level from that round trip). Each
+    /// `linked_*` must therefore equal its `total_*` input to float
+    /// precision, even though `0.01 + 0.01 + 0.005 = 0.025 !=
+    /// active_return (0.03)`. `1e-14` comfortably separates that ~1e-18
+    /// absolute rounding noise from the ~5e-3 discrepancy a
+    /// subtraction-based implementation would produce for any one of the
+    /// three totals.
+    #[test]
+    fn non_reconciling_period_totals_are_not_repaired_by_subtraction() {
+        let period = GridAttributionResult {
+            portfolio_return: 0.05,
+            benchmark_return: 0.02,
+            active_return: 0.03,
+            curve_effects: Vec::new(),
+            sector_effects: Vec::new(),
+            selection_effects: Vec::new(),
+            total_curve: 0.01,
+            total_sector: 0.01,
+            total_selection: 0.005,
+        };
+
+        let linked = grid_carino_link(&[period]).expect("single period is valid");
+
+        close(
+            linked.linked_curve,
+            0.01,
+            1e-14,
+            "linked_curve must reflect the input total_curve as given, not a value \
+             back-solved from active_return and the other two linked totals",
+        );
+        close(
+            linked.linked_sector,
+            0.01,
+            1e-14,
+            "linked_sector must reflect the input total_sector as given",
+        );
+        close(
+            linked.linked_selection,
+            0.005,
+            1e-14,
+            "linked_selection must reflect the input total_selection as given",
+        );
+    }
+
+    #[test]
+    fn link_rejects_non_finite_period_returns() {
+        let mut bad = golden_period();
+        bad.portfolio_return = f64::NAN;
+        let err = grid_carino_link(&[bad]).expect_err("NaN portfolio_return must be rejected");
+        let message = err.to_string();
+        assert!(
+            message.contains("finite period returns"),
+            "error must name the finiteness requirement (this pins the dedicated per-period \
+             finiteness guard, distinct from carino_coefficient's own finiteness check on the \
+             compounded/per-period Carino coefficients): {message}"
+        );
+    }
+
+    #[test]
+    fn grid_carino_linked_result_serde_round_trips() {
+        let period = golden_period();
+        let linked = grid_carino_link(&[period.clone(), period]).expect("two valid periods");
+
+        let json = serde_json::to_string(&linked).expect("serializes");
+        let round_tripped: GridCarinoLinkedResult =
+            serde_json::from_str(&json).expect("deserializes");
+
+        assert_eq!(
+            round_tripped.periods.len(),
+            linked.periods.len(),
+            "periods passthrough must survive a serde round trip"
+        );
+        close(
+            round_tripped.portfolio_return_compounded,
+            linked.portfolio_return_compounded,
+            1e-15,
+            "portfolio_return_compounded",
+        );
+        close(
+            round_tripped.benchmark_return_compounded,
+            linked.benchmark_return_compounded,
+            1e-15,
+            "benchmark_return_compounded",
+        );
+        close(
+            round_tripped.linked_curve,
+            linked.linked_curve,
+            1e-15,
+            "linked_curve",
+        );
+        close(
+            round_tripped.linked_sector,
+            linked.linked_sector,
+            1e-15,
+            "linked_sector",
+        );
+        close(
+            round_tripped.linked_selection,
+            linked.linked_selection,
+            1e-15,
+            "linked_selection",
+        );
     }
 
     /// Both rejection paths, with message assertions (not merely "is an
