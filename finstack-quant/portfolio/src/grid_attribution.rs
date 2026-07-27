@@ -49,7 +49,7 @@
 //! ```
 //!
 //! Exactness therefore *requires* the per-side weight-sum validation and
-//! within-cell share normalization enforced by [`grid_attribution`] — they
+//! within-cell share normalization enforced by [`grid_attribution()`] — they
 //! are not cosmetic input checks, they are the hypotheses of the identity
 //! above.
 //!
@@ -85,7 +85,7 @@
 //!   pair in the same bucket) has an undefined per-unit rate. Rather than
 //!   silently zeroing its effects — which would leave its non-zero
 //!   contribution to the side return unexplained and break the telescoping
-//!   identity — [`grid_attribution`] rejects it, naming the bucket and the
+//!   identity — [`grid_attribution()`] rejects it, naming the bucket and the
 //!   side.
 //! - A bucket that nets to a *non-zero* (including negative / net-short)
 //!   weight is ordinary input and is attributed normally by dividing through
@@ -119,7 +119,7 @@ const WEIGHT_TOLERANCE: f64 = 1e-6;
 /// for one period and one side (portfolio or benchmark).
 ///
 /// Weights are fractions of the whole side and must sum to `1.0` (within
-/// [`WEIGHT_TOLERANCE`]) across all positions on that side. Returns are
+/// `WEIGHT_TOLERANCE`) across all positions on that side. Returns are
 /// decimals (`0.02` = 2 %).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -293,7 +293,7 @@ fn check_zero_net_weight(bucket: &str, agg: &BucketAgg, side_name: &str) -> Resu
 /// Accumulate one side's positions into the cell x sector grid.
 ///
 /// Returns the side's total return `Σ_j w_j r_j` and validates that the
-/// side's weights sum to `1.0` within [`WEIGHT_TOLERANCE`].
+/// side's weights sum to `1.0` within `WEIGHT_TOLERANCE`.
 fn aggregate_side(
     positions: &[GridPosition],
     cells: &mut IndexMap<String, SectorMap>,
@@ -512,7 +512,7 @@ pub fn grid_attribution(
 /// `total_selection`) across periods, so their sum reconstructs the
 /// geometrically compounded active return exactly. This is a deliberate
 /// scope decision: per-cell / per-(cell, sector) multi-period linking is
-/// deferred. Because the Carino scale `k_t / K` (see [`carino_coefficient`])
+/// deferred. Because the Carino scale `k_t / K` (see `carino_coefficient`)
 /// is a single per-period scalar multiplier, extending this to link
 /// `curve_effects`, `sector_effects`, and `selection_effects` element-wise —
 /// the way [`crate::fi_attribution::campisi_carino_link`] links its five
@@ -540,7 +540,7 @@ pub struct GridCarinoLinkedResult {
 }
 
 /// Apply Carino (1999) smoothing to a sequence of per-period hierarchical
-/// grid attribution results ([`grid_attribution`]) so the three top-level
+/// grid attribution results ([`grid_attribution()`]) so the three top-level
 /// arithmetic effects reconstruct the *geometrically compounded* active
 /// return exactly, mirroring [`crate::brinson::carino_link`] and
 /// [`crate::fi_attribution::campisi_carino_link`].
@@ -549,7 +549,7 @@ pub struct GridCarinoLinkedResult {
 /// `total_sector`, `total_selection`) scaled by `k_t / K`, where `k_t` is the
 /// single-period Carino coefficient and `K` is the coefficient for the
 /// compounded portfolio/benchmark returns over the whole horizon (see
-/// [`carino_coefficient`]). Mixed period lengths are inherent: there is no
+/// `carino_coefficient`). Mixed period lengths are inherent: there is no
 /// `period_years` input, so periods of any duration or position-count may be
 /// linked together.
 ///
@@ -567,7 +567,7 @@ pub struct GridCarinoLinkedResult {
 /// Returns [`Error::InvalidInput`] if `periods` is empty, any period's
 /// `portfolio_return` or `benchmark_return` is non-finite, or any per-period
 /// or compounded return is at or below −100 % (the Carino formula's domain;
-/// see [`carino_coefficient`]).
+/// see `carino_coefficient`).
 ///
 /// # Examples
 ///
@@ -1060,7 +1060,7 @@ mod tests {
         );
     }
 
-    /// Pins [`WEIGHT_TOLERANCE`] itself, in both directions: `1 + 5e-7` must
+    /// Pins `WEIGHT_TOLERANCE` itself, in both directions: `1 + 5e-7` must
     /// be accepted, `1 + 2e-6` must be rejected.
     #[test]
     fn weight_tolerance_is_pinned_at_1e_minus_6_both_directions() {

@@ -534,7 +534,7 @@ pub struct ExcessReturnPosition {
     pub id: String,
     /// Portfolio weight (decimal, e.g. `0.2` = 20%). Across all positions
     /// passed to [`excess_returns`] these must sum to `1.0` within
-    /// [`WEIGHT_TOLERANCE`]. Must be finite.
+    /// `WEIGHT_TOLERANCE`. Must be finite.
     pub weight: f64,
     /// Beginning-of-period duration in years, used to look up the
     /// duration-matched cell in the [`DurationCellTable`]. Must be finite,
@@ -683,7 +683,7 @@ fn find_cell<'a>(
 /// # Arguments
 ///
 /// * `positions` - Positions to attribute; weights must sum to `1.0` within
-///   [`WEIGHT_TOLERANCE`].
+///   `WEIGHT_TOLERANCE`.
 /// * `table` - Duration-cell base-return curve to match positions against
 ///   (see [`cell_returns_from_reference`] or [`cell_returns_from_curves`]).
 ///
@@ -693,7 +693,7 @@ fn find_cell<'a>(
 /// a non-finite `weight`/`total_return` or a non-finite/negative `duration`,
 /// any position's `duration` falls outside `table`'s covered range (the
 /// error names the position by `id`), or the position weights do not sum to
-/// `1.0` within [`WEIGHT_TOLERANCE`].
+/// `1.0` within `WEIGHT_TOLERANCE`.
 ///
 /// # Examples
 ///

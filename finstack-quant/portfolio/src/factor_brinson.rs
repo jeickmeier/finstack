@@ -26,7 +26,16 @@
 //!
 //! `FC + SC` reconstructs the active return for *any* `f_b` — that identity
 //! is pure algebra (`w'f_b + (h_p-h_b)'ε_b = (h_p-h_b)'(Xf_b + ε_b) =
-//! (h_p-h_b)'r`) and holds even for a nonsensical `f_b`. What makes `FC`
+//! (h_p-h_b)'r`) and holds even for a nonsensical `f_b`. Because of this,
+//! `selection` is computed *independently* (as `Σ_i (h_p-h_b)_i ε_b,i` via
+//! its own accumulator) rather than as `active_return - allocation`: an
+//! adversarial sweep over exposure magnitudes spanning `1e-2..1e6`,
+//! adjudicated against exact rational arithmetic, found the independent
+//! form's worst-case error (`-5.00e-11`) is about 6x smaller than the
+//! subtraction form's (`+3.09e-10`) — both are correct to 9 significant
+//! figures and diverge only at exposure magnitudes meaningless for
+//! attribution, but the independent form is measurably better conditioned,
+//! not just more diagnostic. What makes `FC`
 //! and `SC` interpretable as Brinson-style allocation/selection effects is
 //! the **completeness condition** `h_b'ε_b ≈ 0`: the benchmark's specific
 //! returns implied by `f_b` must average to zero under benchmark weights,
@@ -35,10 +44,10 @@
 //! each sector's benchmark-weighted-mean return, satisfy this exactly and
 //! reduce `FC`/`SC` to classical Brinson-Fachler allocation/(selection +
 //! interaction) — see
-//! [`binary_factors_reproduce_brinson_fachler_exactly`] in this module's
+//! `binary_factors_reproduce_brinson_fachler_exactly` in this module's
 //! tests. For continuous exposures, `f_b` must come from a fit that
 //! enforces the completeness condition, e.g.
-//! [`finstack_quant_analytics::regression::constrained_least_squares`],
+//! `finstack_quant_analytics::regression::constrained_least_squares`,
 //! which this crate does not depend on: factor returns are always
 //! caller-supplied, and [`factor_brinson_attribution`] only checks the
 //! condition, it does not fit `f_b` itself.
@@ -61,15 +70,21 @@
 //!   reaches this function as literal floating-point numbers — often
 //!   copied from a risk-model report or rounded to a handful of
 //!   significant digits — so a residual at the scale of that rounding
-//!   (empirically ~1e-8 for 8-significant-digit inputs; see this module's
-//!   `continuous_factors_match_hand_derived_estimator_output` test) is
-//!   expected, not a modeling failure. [`factor_brinson_attribution`]
-//!   therefore uses [`COMPLETENESS_TOLERANCE`] (`1e-6`, matching this
-//!   crate's other weight-sum tolerances) scaled by `max(1, |r_b|)`,
-//!   rather than a tolerance tight enough to reject that rounding — while
-//!   still rejecting `f_b` values that do not explain the benchmark at
-//!   all (residuals several orders of magnitude larger; see
-//!   `incomplete_factor_returns_fail_closed`).
+//!   (empirically ~1.45e-8 for 8-significant-digit inputs; see this
+//!   module's `continuous_factors_match_hand_derived_estimator_output`
+//!   test) is expected, not a modeling failure. [`factor_brinson_attribution`]
+//!   therefore uses `COMPLETENESS_TOLERANCE` (`1e-7`) scaled by
+//!   `max(1, |r_b|)` — an absolute `1e-7` for typical (sub-100%) returns,
+//!   scaling up proportionally for large-magnitude `r_b` — rather than a
+//!   tolerance tight enough to reject the 8-significant-digit rounding
+//!   above. This bound is pinned in both directions (accept/reject just
+//!   inside/outside `1e-7`, see
+//!   `completeness_tolerance_is_pinned_at_1e_minus_7_both_directions`), and
+//!   the `max(1, ·)` floor is independently pinned by
+//!   `completeness_bound_scales_with_large_benchmark_return`, so it is not
+//!   inert scaffolding — while still rejecting `f_b` values that do not
+//!   explain the benchmark at all (residuals several orders of magnitude
+//!   larger; see `incomplete_factor_returns_fail_closed`).
 //!
 //! # References
 //!
@@ -87,14 +102,14 @@ const WEIGHT_TOLERANCE: f64 = 1e-6;
 
 /// Tolerance on the Jeet-Partani completeness residual `h_b'ε_b`, scaled by
 /// `max(1, |r_b|)`. See the module-level "Completeness tolerance" note for
-/// why this is `1e-6` and not a tighter bound.
-const COMPLETENESS_TOLERANCE: f64 = 1e-6;
+/// why this is `1e-7` and not a tighter or looser bound.
+const COMPLETENESS_TOLERANCE: f64 = 1e-7;
 
 /// Inputs to [`factor_brinson_attribution`]: per-asset returns, a factor
 /// exposure matrix, and portfolio/benchmark weights.
 ///
 /// Weights may be negative (short positions); each side's weights must sum
-/// to `1.0` within [`WEIGHT_TOLERANCE`].
+/// to `1.0` within `WEIGHT_TOLERANCE`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FactorBrinsonInput {
@@ -188,9 +203,9 @@ pub struct FactorBrinsonResult {
 /// - `exposures.len() != n_assets * n_factors`.
 /// - any input value is `NaN` or infinite.
 /// - portfolio or benchmark weights do not sum to `1.0` within
-///   [`WEIGHT_TOLERANCE`].
+///   `WEIGHT_TOLERANCE`.
 /// - the completeness residual `|h_b'ε_b|` exceeds
-///   [`COMPLETENESS_TOLERANCE`] * `max(1, |benchmark_return|)` — the
+///   `COMPLETENESS_TOLERANCE` * `max(1, |benchmark_return|)` — the
 ///   supplied `factor_returns` do not fully explain the benchmark return,
 ///   so `allocation`/`selection` would not be valid Brinson effects. The
 ///   error message directs callers to
@@ -375,7 +390,8 @@ pub fn factor_brinson_attribution(
     // Specific (selection) contribution SC = (h_p - h_b)'eps_b, computed
     // independently of `allocation` and `active_return` (not by
     // subtraction) so this check retains diagnostic value against a
-    // mis-derived selection term.
+    // mis-derived selection term. This is also measurably better
+    // conditioned than the subtraction form (see module docs).
     let mut acc_sc = NeumaierAccumulator::new();
     for (&aw_i, &eps_i) in active_weight.iter().zip(specific_return.iter()) {
         acc_sc.add(aw_i * eps_i);
@@ -452,8 +468,10 @@ mod tests {
         // Equivalence with the existing Brinson-Fachler implementation.
         //
         // Energy = {B}, Healthcare = {A, C}. Healthcare's portfolio sector
-        // return is the portfolio-weighted mean of A and C:
-        // (1.25*0.05 + 0.05*0.01) / 1.30 = 0.0484615384615.
+        // return is the portfolio-weighted mean of A and C. Written as the
+        // exact expression (not a truncated decimal literal) so the fixture
+        // doesn't inject its own rounding error against the 1e-12 tolerance
+        // below.
         let sectors = vec![
             SectorPeriod {
                 sector: "Energy".into(),
@@ -466,7 +484,7 @@ mod tests {
                 sector: "Healthcare".into(),
                 portfolio_weight: 1.30,
                 benchmark_weight: 0.70,
-                portfolio_return: 0.0484615384615,
+                portfolio_return: (1.25 * 0.05 + 0.05 * 0.01) / 1.30,
                 benchmark_return: 0.31 / 7.0,
             },
         ];
@@ -491,6 +509,94 @@ mod tests {
             r.selection,
             1e-12,
             "BF selection + interaction",
+        );
+    }
+
+    /// Pins every field of every element of `factor_contributions` and
+    /// `asset_contributions` for the binary fixture, in input order. The
+    /// two top-level scalars (`allocation`, `selection`) reconciling with
+    /// their breakdown sums is necessary but not sufficient: a presentation
+    /// sort on either `Vec`, an off-by-one in the per-factor/per-asset
+    /// loop, or a zeroed individual field can all leave the top-level sums
+    /// unchanged. Exact values independently derived with exact rational
+    /// arithmetic (see task report), not back-computed from the code under
+    /// test.
+    #[test]
+    fn factor_and_asset_contributions_are_pinned_exactly() {
+        let input = base_input(vec![0.0, 1.0, 1.0, 0.0, 0.0, 1.0]);
+        let f_b = [0.02, 0.31 / 7.0];
+        let r = factor_brinson_attribution(&input, &f_b).expect("valid inputs");
+
+        assert_eq!(r.factor_contributions.len(), 2, "factor_contributions len");
+        let fc = &r.factor_contributions[0];
+        assert_eq!(fc.factor, "Energy", "factor_contributions[0].factor");
+        close(fc.active_loading, -0.60, 1e-12, "fc[0].active_loading");
+        close(fc.factor_return, 0.02, 1e-12, "fc[0].factor_return");
+        close(fc.contribution, -0.012, 1e-12, "fc[0].contribution");
+
+        let fc = &r.factor_contributions[1];
+        assert_eq!(fc.factor, "Healthcare", "factor_contributions[1].factor");
+        close(fc.active_loading, 0.60, 1e-12, "fc[1].active_loading");
+        close(fc.factor_return, 0.31 / 7.0, 1e-12, "fc[1].factor_return");
+        close(
+            fc.contribution,
+            0.0265714285714286,
+            1e-12,
+            "fc[1].contribution",
+        );
+
+        assert_eq!(r.asset_contributions.len(), 3, "asset_contributions len");
+        let ac = &r.asset_contributions[0];
+        assert_eq!(ac.asset, "A", "asset_contributions[0].asset");
+        close(
+            ac.specific_return,
+            0.0057142857142857,
+            1e-12,
+            "ac[0].specific_return",
+        );
+        close(ac.active_weight, 0.65, 1e-12, "ac[0].active_weight");
+        close(
+            ac.contribution,
+            0.0037142857142857,
+            1e-12,
+            "ac[0].contribution",
+        );
+
+        let ac = &r.asset_contributions[1];
+        assert_eq!(ac.asset, "B", "asset_contributions[1].asset");
+        close(ac.specific_return, 0.0, 1e-12, "ac[1].specific_return");
+        close(ac.active_weight, -0.60, 1e-12, "ac[1].active_weight");
+        close(ac.contribution, 0.0, 1e-12, "ac[1].contribution");
+
+        let ac = &r.asset_contributions[2];
+        assert_eq!(ac.asset, "C", "asset_contributions[2].asset");
+        close(
+            ac.specific_return,
+            -0.0342857142857143,
+            1e-12,
+            "ac[2].specific_return",
+        );
+        close(ac.active_weight, -0.05, 1e-12, "ac[2].active_weight");
+        close(
+            ac.contribution,
+            0.0017142857142857,
+            1e-12,
+            "ac[2].contribution",
+        );
+
+        let fc_sum: f64 = r.factor_contributions.iter().map(|c| c.contribution).sum();
+        close(
+            fc_sum,
+            r.allocation,
+            1e-12,
+            "sum(factor_contributions.contribution) == allocation",
+        );
+        let ac_sum: f64 = r.asset_contributions.iter().map(|c| c.contribution).sum();
+        close(
+            ac_sum,
+            r.selection,
+            1e-12,
+            "sum(asset_contributions.contribution) == selection",
         );
     }
 
@@ -531,6 +637,59 @@ mod tests {
         );
     }
 
+    /// Pins `COMPLETENESS_TOLERANCE` (`1e-7`) itself, in both directions,
+    /// mirroring the `WEIGHT_TOLERANCE` both-directions pins below.
+    /// Perturbing `f_b[0]` by `delta` changes the completeness residual by
+    /// `-delta * Σ_i h_b,i X_i0` (since `h_b'ε_b = benchmark_return -
+    /// (Σ h_b X)'f_b`); for this fixture `Σ h_b X = (0.8, -0.05)`, so
+    /// `delta = 1.0e-7` keeps the residual just inside the bound and
+    /// `delta = 2.5e-7` (the reviewer's suggested `2e-7 / |Σ h_b X|`) pushes
+    /// it just outside.
+    #[test]
+    fn completeness_tolerance_is_pinned_at_1e_minus_7_both_directions() {
+        let input = base_input(vec![1.2, -0.8, 0.5, 1.2, -0.7, 0.7]);
+        let f_b_base = [0.04695653, 0.01130477];
+
+        let mut just_inside = f_b_base;
+        just_inside[0] += 1.0e-7;
+        assert!(
+            factor_brinson_attribution(&input, &just_inside).is_ok(),
+            "a completeness residual just inside 1e-7 must be accepted"
+        );
+
+        let mut just_outside = f_b_base;
+        just_outside[0] += 2.5e-7;
+        let err = factor_brinson_attribution(&input, &just_outside)
+            .expect_err("a completeness residual just outside 1e-7 must be rejected");
+        assert!(err.to_string().contains("completeness"), "{err}");
+    }
+
+    /// Pins the `max(1, |r_b|)` floor in the completeness bound: without it
+    /// (or if it were replaced by a hardcoded `1.0`), a large-magnitude
+    /// benchmark return would use a bound far tighter than is reasonable
+    /// for a proportionally large residual, and this fixture's residual
+    /// would be wrongly rejected. `n_factors = 1`, uniform unit exposure, so
+    /// `eps_b,i = r_i - f_b` and `h_b'eps_b = benchmark_return - f_b`
+    /// exactly: `benchmark_return = 5.0`, `f_b = 5.0 - 3e-7` gives a
+    /// residual of exactly `3e-7`, which must be accepted only because the
+    /// bound scales up to `1e-7 * 5.0 = 5e-7`.
+    #[test]
+    fn completeness_bound_scales_with_large_benchmark_return() {
+        let input = FactorBrinsonInput {
+            asset_ids: vec!["A".into(), "B".into()],
+            asset_returns: vec![6.0, 4.0],
+            exposures: vec![1.0, 1.0],
+            factor_names: vec!["F".into()],
+            portfolio_weights: vec![0.5, 0.5],
+            benchmark_weights: vec![0.5, 0.5],
+        };
+        let f_b = [5.0 - 3e-7];
+        let r = factor_brinson_attribution(&input, &f_b).expect(
+            "residual 3e-7 must be accepted: bound = 1e-7 * max(1, 5.0) = 5e-7, not 1e-7 * 1",
+        );
+        close(r.benchmark_return, 5.0, 1e-12, "benchmark_return");
+    }
+
     #[test]
     fn dimension_and_weight_validation() {
         let input = base_input(vec![1.2, -0.8, 0.5, 1.2, -0.7, 0.7]);
@@ -558,7 +717,7 @@ mod tests {
         bad.factor_names = vec![];
         bad.exposures = vec![];
         let err = factor_brinson_attribution(&bad, &[]).expect_err("zero factors");
-        assert!(err.to_string().contains("factor"), "{err}");
+        assert!(err.to_string().contains("at least one factor"), "{err}");
 
         // n_assets == 0.
         let empty = FactorBrinsonInput {
@@ -614,16 +773,50 @@ mod tests {
         );
     }
 
-    /// Negative (short) weights must be supported, not rejected: the
-    /// binary-factor fixture's portfolio weight on asset B is -0.30.
+    /// Negative (short) weights must be supported on the *benchmark* side
+    /// too, not just the portfolio side (every other fixture in this module
+    /// has an all-positive `benchmark_weights`). Energy = {B}, Healthcare =
+    /// {A, C} as in the binary golden, but the benchmark is short 20% of B:
+    /// `benchmark_weights = (0.9, -0.2, 0.3)`. Values hand-derived
+    /// independently (not back-computed from the code under test):
+    ///
+    /// `f_Energy = r_B = 0.02` (single-asset sector, weight sign is
+    /// irrelevant to a single asset's own return); `f_Healthcare =
+    /// (0.9*0.05 + 0.3*0.01) / (0.9+0.3) = 0.04`. `eps_b = (0.01, 0, -0.03)`,
+    /// and `h_b'eps_b = 0.9*0.01 - 0.2*0 + 0.3*(-0.03) = 0` exactly, so the
+    /// completeness condition still holds with a benchmark short.
+    ///
+    /// `active_weight = h_p - h_b = (0.35, -0.10, -0.25)`,
+    /// `w = (active_weight_B, active_weight_A + active_weight_C) =
+    /// (-0.10, 0.10)`, `allocation = -0.10*0.02 + 0.10*0.04 = 0.002`,
+    /// `selection = 0.35*0.01 - 0.10*0 - 0.25*(-0.03) = 0.011`,
+    /// `active_return = portfolio_return - benchmark_return = 0.057 -
+    /// 0.044 = 0.013 = allocation + selection`.
     #[test]
-    fn negative_weights_are_supported() {
-        let input = base_input(vec![0.0, 1.0, 1.0, 0.0, 0.0, 1.0]);
-        assert!(input.portfolio_weights.iter().any(|&w| w < 0.0));
-        let sum: f64 = input.portfolio_weights.iter().sum();
-        close(sum, 1.0, 1e-12, "portfolio weights sum");
-        let f_b = [0.02, 0.31 / 7.0];
-        assert!(factor_brinson_attribution(&input, &f_b).is_ok());
+    fn benchmark_short_position_is_supported() {
+        let input = FactorBrinsonInput {
+            asset_ids: vec!["A".into(), "B".into(), "C".into()],
+            asset_returns: vec![0.05, 0.02, 0.01],
+            exposures: vec![0.0, 1.0, 1.0, 0.0, 0.0, 1.0],
+            factor_names: vec!["Energy".into(), "Healthcare".into()],
+            portfolio_weights: vec![1.25, -0.30, 0.05],
+            benchmark_weights: vec![0.9, -0.2, 0.3],
+        };
+        assert!(input.benchmark_weights.iter().any(|&w| w < 0.0));
+        let f_b = [0.02, 0.04];
+        let r = factor_brinson_attribution(&input, &f_b).expect("valid inputs");
+
+        close(r.portfolio_return, 0.057, 1e-12, "portfolio_return");
+        close(r.benchmark_return, 0.044, 1e-12, "benchmark_return");
+        close(r.active_return, 0.013, 1e-12, "active_return");
+        close(r.allocation, 0.002, 1e-12, "allocation");
+        close(r.selection, 0.011, 1e-12, "selection");
+        close(
+            r.allocation + r.selection,
+            r.active_return,
+            1e-14,
+            "FC + SC = active_return",
+        );
     }
 
     #[test]
