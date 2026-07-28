@@ -44,8 +44,8 @@
 //!
 //! A corollary: the spread *level* [`FiPositionSnapshot::spread`] never enters
 //! the arithmetic — nothing divides by it — so zero and negative spread levels
-//! (Bund asset swaps, negative OAS on deep-premium callables) are accepted as
-//! ordinary inputs rather than rejected.
+//! (including negative Z-spreads on rich bonds) are accepted as ordinary inputs
+//! rather than rejected.
 //!
 //! # Benchmark-relative sector layer
 //!
@@ -143,6 +143,51 @@ const WEIGHT_TOLERANCE: f64 = 1e-6;
 /// cancellation.
 const NET_WEIGHT_RELATIVE_TOLERANCE: f64 = 1e-6;
 
+/// Relative reconciliation tolerance for inbound linked-period effects.
+///
+/// The floor is `1e-10` in ordinary return space. For near-cancelling,
+/// long/short-generated effects whose gross magnitude is much larger than
+/// their net active return, it scales with an overflow-safe L1 sector-effect
+/// norm so valid outputs from [`campisi_attribution`] are not rejected solely
+/// because cancellation amplified floating-point noise.
+const LINK_RECONCILIATION_RELATIVE_TOLERANCE: f64 = 1e-10;
+
+/// Streaming L1 scale that avoids summing absolute values at their original
+/// magnitude.
+#[derive(Default)]
+struct ScaledL1Norm {
+    scale: f64,
+    normalized_sum: f64,
+}
+
+impl ScaledL1Norm {
+    fn add(&mut self, value: f64) {
+        let magnitude = value.abs();
+        if magnitude > self.scale {
+            self.normalized_sum = if self.scale == 0.0 {
+                1.0
+            } else {
+                self.normalized_sum * (self.scale / magnitude) + 1.0
+            };
+            self.scale = magnitude;
+        } else if self.scale > 0.0 {
+            self.normalized_sum += magnitude / self.scale;
+        }
+    }
+
+    fn tolerance(&self) -> f64 {
+        if self.scale == 0.0 {
+            return LINK_RECONCILIATION_RELATIVE_TOLERANCE;
+        }
+        let scaled_relative = LINK_RECONCILIATION_RELATIVE_TOLERANCE * self.scale;
+        if self.normalized_sum > f64::MAX / scaled_relative {
+            f64::MAX
+        } else {
+            (scaled_relative * self.normalized_sum).max(LINK_RECONCILIATION_RELATIVE_TOLERANCE)
+        }
+    }
+}
+
 /// Configuration for [`campisi_attribution`].
 ///
 /// Deliberately a single field: the spread convention is not configurable, for
@@ -197,9 +242,13 @@ pub struct FiPositionSnapshot {
     pub yield_annual: f64,
     /// Modified duration in years at period start.
     pub modified_duration: f64,
-    /// Spread duration in years at period start.
+    /// Quote-reproducing Z-spread duration in years at period start.
+    ///
+    /// Must use the same Z-spread basis as [`Self::spread`] and
+    /// [`Self::delta_spread`]; OAS, G-spread, and discount-margin durations
+    /// are not compatible inputs.
     pub spread_duration: f64,
-    /// Spread at period start (decimal; e.g. Z-spread or OAS).
+    /// Quote-reproducing Z-spread at period start (decimal).
     ///
     /// Carried for provenance and downstream reporting only — the
     /// decomposition never divides by it, so any finite value (including zero
@@ -209,30 +258,40 @@ pub struct FiPositionSnapshot {
     /// Change in the treasury/benchmark yield relevant to this position's
     /// duration bucket over the period (decimal).
     pub delta_treasury_yield: f64,
-    /// Absolute change in the position's spread over the period (decimal).
+    /// Absolute change in the quote-reproducing Z-spread over the period
+    /// (decimal).
+    ///
+    /// Must use the same Z-spread basis as [`Self::spread_duration`] and
+    /// [`Self::spread`].
     pub delta_spread: f64,
 }
 
 /// Assemble an [`FiPositionSnapshot`] from valuation metrics plus
 /// caller-supplied period data.
 ///
-/// Reads `"ytm"`, `"duration_mod"` and `"spread_duration"` (the canonical
-/// valuations metric IDs) plus the caller-chosen spread metric (typically
-/// `"z_spread"` or `"oas"`) from `metrics`. All four are decimals/years in the
-/// registry, matching [`FiPositionSnapshot`]'s conventions. The remaining
-/// fields — sector, weight, realized return and the period's treasury/spread
-/// moves — are not valuation metrics and must be supplied by the caller (e.g.
-/// from performance data and curve marks).
+/// Reads `"ytm"`, `"duration_mod"`, `"spread_duration"`, and `"z_spread"`
+/// (the canonical valuations metric IDs) from `metrics`. The helper requires
+/// `spread_metric_id == "z_spread"` exactly: canonical bond and
+/// structured-credit spread duration is a quote-reproducing Z-spread
+/// sensitivity, so pairing it with OAS, G-spread, discount margin, or a
+/// differently based `delta_spread` would mix risk bases. All four metric
+/// values are decimals/years, matching [`FiPositionSnapshot`]'s conventions.
+/// The remaining fields — sector, weight, realized return and the period's
+/// treasury/Z-spread moves — are not valuation metrics and must be supplied by
+/// the caller (e.g. from performance data and curve marks).
 ///
 /// # Instrument coverage
 ///
 /// `"spread_duration"` is registered for `InstrumentType::Bond` and the
-/// structured-credit instrument types (CLO/ABS/RMBS/CMBS tranches). It is
-/// derived from CS01 (`-CS01 / (NPV × 1bp)`), so the position must have been
-/// priced with `MetricId::Cs01` available; requesting `MetricId::SpreadDuration`
-/// pulls that dependency in automatically. Instrument types without a
-/// registered CS01 — swaps, options, equities — cannot supply this helper's
-/// inputs, and the returned error names the missing metric.
+/// structured-credit instrument types (CLO/ABS/RMBS/CMBS tranches). For bonds,
+/// it directly depends on `MetricId::ZSpread` and bumps the quote-reproducing
+/// Z-spread workout path. For structured credit, it depends on
+/// `MetricId::Cs01`, whose calculator is itself a quote-reproducing Z-spread
+/// bump, and normalizes that CS01 by the quoted target PV. Requesting
+/// `MetricId::SpreadDuration` pulls the appropriate instrument-specific
+/// dependency in automatically. Instrument types without a registered spread
+/// duration — swaps, options, equities — cannot supply this helper's inputs,
+/// and the returned error names the missing metric.
 ///
 /// # Arguments
 ///
@@ -243,15 +302,18 @@ pub struct FiPositionSnapshot {
 /// * `total_return` - Realized period return (decimal).
 /// * `delta_treasury_yield` - Treasury yield move for the position's bucket
 ///   (decimal).
-/// * `delta_spread` - Absolute spread move (decimal).
-/// * `spread_metric_id` - Metric ID to read the period-start spread from
-///   (e.g. `"z_spread"`, `"oas"`, `"g_spread"`, `"discount_margin"`).
+/// * `delta_spread` - Absolute Z-spread move over the period (decimal), on the
+///   same quote-reproducing basis as `"spread_duration"`.
+/// * `spread_metric_id` - Metric ID to read the period-start spread from; must
+///   be exactly `"z_spread"`.
 ///
 /// # Errors
 ///
-/// Returns [`Error::InvalidInput`] naming the first missing metric ID; the
+/// Returns [`Error::InvalidInput`] if `spread_metric_id` is not exactly
+/// `"z_spread"`, naming both the supplied and required IDs. Once the basis is
+/// valid, returns [`Error::InvalidInput`] naming the first missing metric ID;
 /// metrics are checked in the order `"ytm"`, `"duration_mod"`,
-/// `"spread_duration"`, `spread_metric_id`.
+/// `"spread_duration"`, `"z_spread"`.
 ///
 /// # Examples
 ///
@@ -282,6 +344,14 @@ pub fn snapshot_from_position_metrics(
     delta_spread: f64,
     spread_metric_id: &str,
 ) -> Result<FiPositionSnapshot> {
+    if spread_metric_id != "z_spread" {
+        return Err(Error::invalid_input(format!(
+            "Campisi snapshot requires spread_metric_id exactly 'z_spread' so \
+             spread_duration and delta_spread share the quote-reproducing Z-spread basis; \
+             got '{spread_metric_id}'"
+        )));
+    }
+
     let get = |id: &str| -> Result<f64> {
         metrics.metrics.get(id).copied().ok_or_else(|| {
             Error::invalid_input(format!(
@@ -297,7 +367,7 @@ pub fn snapshot_from_position_metrics(
         yield_annual: get("ytm")?,
         modified_duration: get("duration_mod")?,
         spread_duration: get("spread_duration")?,
-        spread: get(spread_metric_id)?,
+        spread: get("z_spread")?,
         delta_treasury_yield,
         delta_spread,
     })
@@ -836,6 +906,155 @@ pub struct FiCarinoLinkedResult {
     pub linked_selection: f64,
 }
 
+/// Validate one externally reachable single-period result before linking.
+fn validate_campisi_link_period(period: &FiAttributionResult, index: usize) -> Result<()> {
+    for (name, value) in [
+        ("portfolio_return", period.portfolio_return),
+        ("benchmark_return", period.benchmark_return),
+        ("active_return", period.active_return),
+        ("total_allocation", period.total_allocation),
+        ("total_active_carry", period.total_active_carry),
+        ("total_active_treasury", period.total_active_treasury),
+        ("total_active_spread", period.total_active_spread),
+        ("total_selection", period.total_selection),
+    ] {
+        if !value.is_finite() {
+            return Err(Error::invalid_input(format!(
+                "Campisi Carino period[{index}].{name} must be finite (got {value})"
+            )));
+        }
+    }
+
+    let expected_active = period.portfolio_return - period.benchmark_return;
+    if !expected_active.is_finite() {
+        return Err(Error::invalid_input(format!(
+            "Campisi Carino period[{index}] portfolio_return - benchmark_return must be finite"
+        )));
+    }
+    let return_scale = period
+        .portfolio_return
+        .abs()
+        .max(period.benchmark_return.abs())
+        .max(period.active_return.abs())
+        .max(1.0);
+    let return_tolerance = 1e-12 * return_scale;
+    let active_residual = period.active_return - expected_active;
+    if !active_residual.is_finite() {
+        return Err(Error::invalid_input(format!(
+            "Campisi Carino period[{index}] active-return residual must be finite"
+        )));
+    }
+    if active_residual.abs() > return_tolerance {
+        return Err(Error::invalid_input(format!(
+            "Campisi Carino period[{index}].active_return ({}) does not agree with \
+             portfolio_return - benchmark_return ({expected_active}) within return-scale \
+             tolerance {return_tolerance}",
+            period.active_return
+        )));
+    }
+
+    const N_EFFECTS: usize = 5;
+    let mut sector_totals = [NeumaierAccumulator::new(); N_EFFECTS];
+    let mut effect_l1 = ScaledL1Norm::default();
+    for (sector_index, sector) in period.sectors.iter().enumerate() {
+        if !sector.total_active.is_finite() {
+            return Err(Error::invalid_input(format!(
+                "Campisi Carino period[{index}].sectors[{sector_index}] '{}' field total_active \
+                 must be finite (got {})",
+                sector.sector, sector.total_active
+            )));
+        }
+        let mut sector_sum = NeumaierAccumulator::new();
+        let mut sector_l1 = ScaledL1Norm::default();
+        for (effect_index, (name, value)) in [
+            ("allocation", sector.allocation),
+            ("active_carry", sector.active_carry),
+            ("active_treasury", sector.active_treasury),
+            ("active_spread", sector.active_spread),
+            ("selection", sector.selection),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            if !value.is_finite() {
+                return Err(Error::invalid_input(format!(
+                    "Campisi Carino period[{index}].sectors[{sector_index}] '{}' field {name} \
+                     must be finite (got {value})",
+                    sector.sector
+                )));
+            }
+            sector_totals[effect_index].add(value);
+            sector_sum.add(value);
+            sector_l1.add(value);
+            effect_l1.add(value);
+        }
+        let actual_total = sector_sum.total();
+        let sector_residual = actual_total - sector.total_active;
+        if !sector_residual.is_finite() {
+            return Err(Error::invalid_input(format!(
+                "Campisi Carino period[{index}].sectors[{sector_index}] '{}' total_active \
+                 reconciliation residual must be finite",
+                sector.sector
+            )));
+        }
+        let sector_tolerance = sector_l1.tolerance();
+        if sector_residual.abs() > sector_tolerance {
+            return Err(Error::invalid_input(format!(
+                "Campisi Carino period[{index}].sectors[{sector_index}] '{}' total_active {} \
+                 does not reconcile to its five effects sum {actual_total} within scale-aware \
+                 tolerance {sector_tolerance}",
+                sector.sector, sector.total_active
+            )));
+        }
+    }
+    let tolerance = effect_l1.tolerance();
+
+    let declared_totals = [
+        ("total_allocation", period.total_allocation),
+        ("total_active_carry", period.total_active_carry),
+        ("total_active_treasury", period.total_active_treasury),
+        ("total_active_spread", period.total_active_spread),
+        ("total_selection", period.total_selection),
+    ];
+    let mut declared_sum = NeumaierAccumulator::new();
+    for ((name, declared), sector_total) in declared_totals.into_iter().zip(sector_totals) {
+        let actual = sector_total.total();
+        let residual = actual - declared;
+        if !residual.is_finite() {
+            return Err(Error::invalid_input(format!(
+                "Campisi Carino period[{index}] {name} reconciliation residual must be finite"
+            )));
+        }
+        if residual.abs() > tolerance {
+            return Err(Error::invalid_input(format!(
+                "Campisi Carino period[{index}] sector effects sum to {actual} for {name}, \
+                 which does not reconcile to the declared total {declared} within scale-aware \
+                 tolerance {tolerance} (scaled L1 effect scale {}, normalized L1 sum {})",
+                effect_l1.scale, effect_l1.normalized_sum
+            )));
+        }
+        declared_sum.add(declared);
+    }
+
+    let effect_total = declared_sum.total();
+    let reconciliation_residual = effect_total - period.active_return;
+    if !reconciliation_residual.is_finite() {
+        return Err(Error::invalid_input(format!(
+            "Campisi Carino period[{index}] effect reconciliation residual must be finite"
+        )));
+    }
+    if reconciliation_residual.abs() > tolerance {
+        return Err(Error::invalid_input(format!(
+            "Campisi Carino period[{index}] effect totals sum to {effect_total}, which does not \
+             reconcile to active_return {} within scale-aware tolerance {tolerance} \
+             (scaled L1 effect scale {}, normalized L1 sum {})",
+            period.active_return, effect_l1.scale, effect_l1.normalized_sum,
+        )));
+    }
+
+    Ok(())
+}
+
 /// Apply Carino (1999) smoothing to per-period Campisi results so the five
 /// arithmetic effects reconstruct the geometrically compounded active return.
 ///
@@ -850,9 +1069,16 @@ pub struct FiCarinoLinkedResult {
 ///
 /// # Errors
 ///
-/// * [`Error::InvalidInput`] if `periods` is empty, sector ordering differs
-///   across periods, any period return is non-finite, or a return is at or
-///   below −100 % (Carino domain, see [`crate::brinson::carino_link`]).
+/// * [`Error::InvalidInput`] if `periods` is empty; sector ordering differs
+///   across periods; any consumed top-level return/effect or per-sector
+///   linked effect or `total_active` is non-finite; a declared `active_return`
+///   does not agree with `portfolio_return - benchmark_return`; each sector's
+///   `total_active` does not reconcile to its five component effects;
+///   per-sector effects do not reconcile to their declared top-level totals;
+///   the five totals do not reconcile to `active_return` within an
+///   overflow-safe, scale-aware L1 tolerance; any return identity or
+///   reconciliation residual is non-finite; or a return is at or below
+///   −100 % (Carino domain, see [`crate::brinson::carino_link`]).
 pub fn campisi_carino_link(periods: &[FiAttributionResult]) -> Result<FiCarinoLinkedResult> {
     let Some(first) = periods.first() else {
         return Err(Error::invalid_input(
@@ -876,14 +1102,8 @@ pub fn campisi_carino_link(periods: &[FiAttributionResult]) -> Result<FiCarinoLi
 
     let mut compounded_p = 1.0_f64;
     let mut compounded_b = 1.0_f64;
-    for p in periods {
-        if !p.portfolio_return.is_finite() || !p.benchmark_return.is_finite() {
-            return Err(Error::invalid_input(format!(
-                "Campisi Carino linking requires finite period returns \
-                 (got portfolio_return = {}, benchmark_return = {})",
-                p.portfolio_return, p.benchmark_return
-            )));
-        }
+    for (index, p) in periods.iter().enumerate() {
+        validate_campisi_link_period(p, index)?;
         compounded_p *= 1.0 + p.portfolio_return;
         compounded_b *= 1.0 + p.benchmark_return;
     }
@@ -1440,7 +1660,7 @@ mod tests {
         let (zero_p, zero_b) = build(0.0, 0.0120);
         let zero = campisi_attribution(&zero_p, &zero_b, &config).expect("zero spread is legal");
 
-        // Negative spread levels are real (Bund asset swaps, negative OAS).
+        // Rich bonds can have negative quote-reproducing Z-spreads.
         let (neg_p, neg_b) = build(-0.0025, -0.0040);
         let negative =
             campisi_attribution(&neg_p, &neg_b, &config).expect("negative spread is legal");
@@ -1561,6 +1781,239 @@ mod tests {
     }
 
     #[test]
+    fn campisi_link_rejects_active_return_mismatch() {
+        let config = FiAttributionConfig::new(0.25);
+        let mut period =
+            campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config).unwrap();
+        period.active_return += 0.001;
+
+        let err = campisi_carino_link(&[period])
+            .expect_err("declared active return must match portfolio minus benchmark");
+        assert!(
+            err.to_string().contains("active_return"),
+            "error must name the mismatched field: {err}"
+        );
+    }
+
+    #[test]
+    fn campisi_link_rejects_materially_tampered_top_level_totals() {
+        let config = FiAttributionConfig::new(0.25);
+        let mut period =
+            campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config).unwrap();
+        period.total_selection += 0.001;
+
+        let err = campisi_carino_link(&[period])
+            .expect_err("linking must reject inconsistent totals rather than repair them");
+        assert!(
+            err.to_string().contains("declared total"),
+            "error must name the violated reconciliation: {err}"
+        );
+    }
+
+    #[test]
+    fn campisi_link_rejects_non_finite_and_inconsistent_sector_effects() {
+        let config = FiAttributionConfig::new(0.25);
+        let period =
+            campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config).unwrap();
+
+        let mut non_finite_total = period.clone();
+        non_finite_total.total_active_carry = f64::NAN;
+        let err = campisi_carino_link(&[non_finite_total])
+            .expect_err("NaN top-level effects consumed by validation must be rejected");
+        assert!(
+            err.to_string().contains("total_active_carry"),
+            "error must name the non-finite top-level field: {err}"
+        );
+
+        let mut non_finite = period.clone();
+        non_finite.sectors[0].active_spread = f64::NAN;
+        let err = campisi_carino_link(&[non_finite])
+            .expect_err("NaN sector effects consumed by linking must be rejected");
+        assert!(
+            err.to_string().contains("active_spread"),
+            "error must name the non-finite sector field: {err}"
+        );
+
+        let mut inconsistent = period;
+        inconsistent.sectors[0].selection += 0.001;
+        inconsistent.sectors[0].total_active += 0.001;
+        let err = campisi_carino_link(&[inconsistent])
+            .expect_err("sector effects must reconcile with declared top-level totals");
+        assert!(
+            err.to_string().contains("total_selection"),
+            "error must name the inconsistent declared total: {err}"
+        );
+    }
+
+    fn neutralize_campisi_effects(period: &mut FiAttributionResult) {
+        period.total_allocation = 0.0;
+        period.total_active_carry = 0.0;
+        period.total_active_treasury = 0.0;
+        period.total_active_spread = 0.0;
+        period.total_selection = 0.0;
+        for sector in &mut period.sectors {
+            sector.allocation = 0.0;
+            sector.active_carry = 0.0;
+            sector.active_treasury = 0.0;
+            sector.active_spread = 0.0;
+            sector.selection = 0.0;
+            sector.total_active = 0.0;
+        }
+    }
+
+    #[test]
+    fn campisi_link_rejects_active_mismatch_when_additive_return_scale_overflows() {
+        let config = FiAttributionConfig::new(0.25);
+        let mut period =
+            campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config).unwrap();
+        neutralize_campisi_effects(&mut period);
+        period.portfolio_return = 1e308;
+        period.benchmark_return = 9e307;
+        period.active_return = 0.0;
+
+        let err = campisi_carino_link(&[period])
+            .expect_err("finite return magnitudes must not overflow the validation scale");
+        assert!(err.to_string().contains("active_return"), "{err}");
+    }
+
+    #[test]
+    fn campisi_link_rejects_non_finite_expected_active_explicitly() {
+        let config = FiAttributionConfig::new(0.25);
+        let mut period =
+            campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config).unwrap();
+        neutralize_campisi_effects(&mut period);
+        period.portfolio_return = f64::MAX;
+        period.benchmark_return = -f64::MAX;
+        period.active_return = 0.0;
+
+        let err = campisi_carino_link(&[period])
+            .expect_err("overflowed portfolio-minus-benchmark return must be rejected");
+        assert!(
+            err.to_string()
+                .contains("portfolio_return - benchmark_return must be finite"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn campisi_link_accepts_huge_finite_cancelling_effects() {
+        let config = FiAttributionConfig::new(0.25);
+        let mut period =
+            campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config).unwrap();
+        neutralize_campisi_effects(&mut period);
+        period.portfolio_return = 0.01;
+        period.benchmark_return = 0.01;
+        period.active_return = 0.0;
+        period.total_allocation = f64::MAX;
+        period.total_active_carry = -f64::MAX;
+        period.sectors[0].allocation = f64::MAX;
+        period.sectors[0].active_carry = -f64::MAX;
+
+        let linked = campisi_carino_link(&[period])
+            .expect("scaled L1 tolerance must not overflow on finite cancelling effects");
+        assert_eq!(linked.linked_allocation, f64::MAX);
+        assert_eq!(linked.linked_active_carry, -f64::MAX);
+    }
+
+    #[test]
+    fn campisi_link_rejects_non_finite_reconciliation_residual_explicitly() {
+        let config = FiAttributionConfig::new(0.25);
+        let mut period =
+            campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config).unwrap();
+        neutralize_campisi_effects(&mut period);
+        period.portfolio_return = 0.01;
+        period.benchmark_return = 0.01;
+        period.active_return = 0.0;
+        period.total_allocation = f64::MAX;
+        period.total_active_carry = f64::MAX;
+        period.total_active_treasury = -f64::MAX;
+        period.sectors[0].allocation = f64::MAX;
+        period.sectors[0].active_carry = f64::MAX;
+        period.sectors[0].active_treasury = -f64::MAX;
+        period.sectors[0].total_active = f64::MAX;
+
+        let err = campisi_carino_link(&[period])
+            .expect_err("overflowed effect reconciliation must be rejected");
+        assert!(
+            err.to_string()
+                .contains("reconciliation residual must be finite"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn campisi_link_rejects_non_finite_sector_total_active() {
+        let config = FiAttributionConfig::new(0.25);
+        let mut period =
+            campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config).unwrap();
+        period.sectors[0].total_active = f64::NAN;
+
+        let err = campisi_carino_link(&[period])
+            .expect_err("non-finite declared sector total must be rejected");
+        assert!(err.to_string().contains("total_active"), "{err}");
+    }
+
+    #[test]
+    fn campisi_link_rejects_inconsistent_sector_total_active() {
+        let config = FiAttributionConfig::new(0.25);
+        let mut period =
+            campisi_attribution(&golden_portfolio(), &golden_benchmark(), &config).unwrap();
+        period.sectors[0].total_active += 0.001;
+
+        let err = campisi_carino_link(&[period])
+            .expect_err("declared sector total must reconcile to its five effects");
+        assert!(
+            err.to_string().contains("total_active") && err.to_string().contains("five effects"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn campisi_link_accepts_generated_near_cancelling_output() {
+        let config = FiAttributionConfig::new(0.25);
+        let eps = 1.1e-6;
+        let portfolio = vec![
+            snap("CORE", 0.70, 0.4, 0.048, 5.0, 0.0, 0.0, -0.001, 0.0),
+            snap("HEDGE", 0.30, 0.8, 0.050, 4.0, 0.0, 0.0, -0.001, 0.0),
+        ];
+        let benchmark = vec![
+            snap("CORE", 1.0 - eps, 0.1, 0.044, 5.5, 0.0, 0.0, -0.001, 0.0),
+            snap("HEDGE", 0.40, 1.0, 0.055, 4.0, 0.0, 0.0, -0.001, 0.0),
+            snap(
+                "HEDGE",
+                -(0.40 - eps),
+                -0.2,
+                0.015,
+                1.0,
+                0.0,
+                0.0,
+                -0.001,
+                0.0,
+            ),
+        ];
+        let period = campisi_attribution(&portfolio, &benchmark, &config)
+            .expect("the sector remains just outside the near-zero rejection boundary");
+        let gross: f64 = period
+            .sectors
+            .iter()
+            .map(|sector| {
+                sector.allocation.abs()
+                    + sector.active_carry.abs()
+                    + sector.active_treasury.abs()
+                    + sector.active_spread.abs()
+                    + sector.selection.abs()
+            })
+            .sum();
+        assert!(
+            gross > 1_000.0,
+            "fixture must exercise cancellation between large effects (gross {gross})"
+        );
+
+        campisi_carino_link(&[period])
+            .expect("scale-aware validation must accept generated near-cancelling output");
+    }
+
+    #[test]
     fn campisi_carino_link_rejects_empty_and_inconsistent_periods() {
         assert!(campisi_carino_link(&[]).is_err());
 
@@ -1612,6 +2065,37 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_from_position_metrics_rejects_non_z_spread_bases() {
+        for spread_metric_id in ["oas", "g_spread", "discount_margin"] {
+            let mut metrics = indexmap::IndexMap::new();
+            metrics.insert("ytm".to_string(), 0.060);
+            metrics.insert("duration_mod".to_string(), 4.0);
+            metrics.insert("spread_duration".to_string(), 3.8);
+            metrics.insert(spread_metric_id.to_string(), 0.0150);
+            let position_metrics = crate::metrics::PositionMetrics {
+                currency: finstack_quant_core::currency::Currency::USD,
+                metrics,
+            };
+
+            let err = snapshot_from_position_metrics(
+                &position_metrics,
+                "CORP",
+                0.30,
+                0.0120,
+                -0.0010,
+                0.0020,
+                spread_metric_id,
+            )
+            .expect_err("Campisi helper must reject a non-Z-spread basis");
+            let message = err.to_string();
+            assert!(
+                message.contains(spread_metric_id) && message.contains("z_spread"),
+                "error must name supplied and required spread bases; got: {message}"
+            );
+        }
+    }
+
+    #[test]
     fn snapshot_from_position_metrics_names_missing_metric() {
         let position_metrics = crate::metrics::PositionMetrics {
             currency: finstack_quant_core::currency::Currency::USD,
@@ -1633,8 +2117,7 @@ mod tests {
     /// The empty-map case above cannot distinguish a message that interpolates
     /// the missing ID from one that hardcodes `"ytm"`, because `"ytm"` is the
     /// first metric checked. Supply every fixed metric and let only the
-    /// caller-chosen spread metric be absent, so the message must name *that*
-    /// ID.
+    /// required Z-spread metric be absent, so the message must name *that* ID.
     #[test]
     fn snapshot_from_position_metrics_names_missing_spread_metric() {
         let mut metrics = indexmap::IndexMap::new();
@@ -1652,12 +2135,12 @@ mod tests {
             0.0120,
             -0.0010,
             0.0020,
-            "oas",
+            "z_spread",
         )
         .expect_err("absent spread metric must be named");
         let message = err.to_string();
         assert!(
-            message.contains("oas"),
+            message.contains("z_spread"),
             "error must name the absent spread metric, got: {message}"
         );
         assert!(

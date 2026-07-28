@@ -278,7 +278,9 @@ class ScheduleBuilder:
     Examples
     --------
     >>> from finstack_quant.core.dates import (
-    ...     ScheduleBuilder, BusinessDayConvention, StubKind,
+    ...     ScheduleBuilder,
+    ...     BusinessDayConvention,
+    ...     StubKind,
     ... )
     >>> b = ScheduleBuilder(start, end)
     >>> b.frequency("3M")

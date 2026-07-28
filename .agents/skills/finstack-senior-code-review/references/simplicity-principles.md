@@ -45,9 +45,11 @@ A private helper called once, with a name that just restates the code, adds nois
 def _is_valid_price(price):
     return price > 0
 
+
 def process(price):
     if _is_valid_price(price):
         ...
+
 
 # GOOD: inline
 def process(price):
@@ -73,6 +75,7 @@ def process_trade(trade):
                 log.error("bad quantity")
         else:
             log.error("invalid trade")
+
 
 # GOOD: early returns
 def process_trade(trade):
@@ -118,7 +121,7 @@ If you need a comment to explain a variable or function name, the name is wrong.
 ```python
 # BAD
 x = get_data()  # fetches daily P&L from the database
-transform(x)    # converts to USD
+transform(x)  # converts to USD
 
 # GOOD
 daily_pnl = fetch_daily_pnl()
@@ -135,6 +138,7 @@ def test_uses_cache():
     service = PricingService()
     service.price(option)
     assert service._cache._store.__len__() == 1  # tied to internals
+
 
 # GOOD: testing behavior
 def test_same_result_on_repeated_call():

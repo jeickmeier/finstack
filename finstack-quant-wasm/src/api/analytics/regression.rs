@@ -22,16 +22,28 @@ use super::support::parse_f64_vec;
 /// `portfolio.factorBrinsonAttribution`, which requires factor returns
 /// satisfying that same completeness condition.
 /// @param exposures - Row-major factor exposure matrix, `n_assets x n_factors`: asset i's exposure to factor j is `exposures[i * n_factors + j]`.
-/// @param nFactors - Number of factor columns in `exposures`; must be positive.
+/// @param nFactors - Number of factor columns in `exposures`; must be a positive integer no greater than `4294967295`.
 /// @param returns - Realized asset returns, length `n_assets` (defines `n_assets`).
 /// @param weights - Holding weights whose weighted return `w'r` must be fully reproduced by `w'Xf` (e.g. benchmark weights for a benchmark-return attribution).
+/// @returns Constrained factor returns `f`, one per factor, satisfying `w'Xf = w'r` to numerical precision.
+/// @throws Error - If `nFactors` is non-finite, fractional, zero, negative, or exceeds the WebAssembly `usize` range; if vector dimensions are inconsistent (including an overflowing `n_assets * n_factors`); if any vector value is non-finite; if the design matrix is rank-deficient; if coefficient rescaling or the constraint correction produces a non-finite value; or if the correction direction is degenerate and OLS does not already satisfy the constraint.
 #[wasm_bindgen(js_name = constrainedLeastSquares)]
 pub fn constrained_least_squares(
     exposures: JsValue,
-    n_factors: usize,
+    n_factors: f64,
     returns: JsValue,
     weights: JsValue,
 ) -> Result<Float64Array, JsValue> {
+    if !n_factors.is_finite()
+        || n_factors <= 0.0
+        || n_factors.fract() != 0.0
+        || n_factors > f64::from(u32::MAX)
+    {
+        return Err(to_js_err(
+            "nFactors must be a positive integer no greater than 4294967295",
+        ));
+    }
+    let n_factors = n_factors as usize;
     let exposures = parse_f64_vec(exposures)?;
     let returns = parse_f64_vec(returns)?;
     let weights = parse_f64_vec(weights)?;

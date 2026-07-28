@@ -81,7 +81,7 @@ for i in range(n_simulations):
 
 # BEST: vectorize the entire simulation
 Z = np.random.standard_normal((n_simulations, n_steps))
-paths = S0 * np.exp(np.cumsum((r - 0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z, axis=1))
+paths = S0 * np.exp(np.cumsum((r - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z, axis=1))
 ```
 
 ## WASM/JS

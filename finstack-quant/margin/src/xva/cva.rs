@@ -17,6 +17,11 @@
 //! DVA = (1 - R_own) × Σᵢ ENE_mid(tᵢ) × [S_own(tᵢ₋₁) - S_own(tᵢ)] × DF_mid(tᵢ)
 //! ```
 //!
+//! In [`crate::xva::cva::compute_bilateral_xva`], posted IM reduces ENE before
+//! DVA integration: `ENE_effective(t) = max(ENE(t) - IM(t), 0)`. The public
+//! unilateral [`crate::xva::cva::compute_dva`] function retains the unadjusted
+//! formula above.
+//!
 //! **FVA** — funding cost/benefit on uncollateralized exposure:
 //!
 //! ```text
@@ -29,9 +34,9 @@
 //! MVA = Σᵢ s_im × IM_mid(tᵢ) × DF_mid(tᵢ) × S_joint_mid(tᵢ) × Δtᵢ
 //! ```
 //!
-//! **Bilateral CVA (BCVA)** = CVA - DVA
+//! **Legacy bilateral adjustment** = CVA - DVA + FVA
 //!
-//! **Total XVA** = CVA - DVA + FVA + MVA
+//! **Total XVA** = bilateral adjustment + MVA
 //!
 //! where `EPE_mid` and `DF_mid` are averaged over consecutive time points
 //! for O(Δt²) convergence.
@@ -77,6 +82,27 @@ fn validate_exposure_profile_lengths(
     }
 
     Ok(n)
+}
+
+fn horizons_match(lhs: f64, rhs: f64) -> bool {
+    let scale = lhs.abs().max(rhs.abs()).max(1.0);
+    (lhs - rhs).abs() <= 1.0e-12 * scale
+}
+
+fn im_at(profile: &mva::ImProfile, t: f64) -> f64 {
+    if t <= profile.times[0] {
+        return profile.im_values[0];
+    }
+    for i in 1..profile.times.len() {
+        if t <= profile.times[i] {
+            let t0 = profile.times[i - 1];
+            let t1 = profile.times[i];
+            let im0 = profile.im_values[i - 1];
+            let im1 = profile.im_values[i];
+            return im0 + (im1 - im0) * (t - t0) / (t1 - t0);
+        }
+    }
+    profile.im_values[profile.im_values.len() - 1]
 }
 
 fn compute_cva_internal(
@@ -205,6 +231,7 @@ fn compute_dva_internal(
     discount_curve: &DiscountCurve,
     own_recovery_rate: f64,
     counterparty_survival_curve: Option<&HazardCurve>,
+    posted_im: Option<&mva::ImProfile>,
 ) -> finstack_quant_core::Result<f64> {
     let n = validate_exposure_profile_lengths(exposure_profile, "DVA")?;
 
@@ -223,7 +250,8 @@ fn compute_dva_internal(
 
     for i in 0..n {
         let t = exposure_profile.times[i];
-        let ene_t = exposure_profile.ene[i];
+        let im_t = posted_im.map_or(0.0, |profile| im_at(profile, t));
+        let ene_t = (exposure_profile.ene[i] - im_t).max(0.0);
 
         let survival_t = own_hazard_curve.sp(t);
         if !survival_t.is_finite() {
@@ -475,6 +503,7 @@ pub fn compute_dva(
         discount_curve,
         own_recovery_rate,
         None,
+        None,
     )
 }
 
@@ -510,6 +539,8 @@ pub fn compute_dva(
 /// Returns an error if:
 /// - The exposure profile is empty
 /// - Exposure profile vectors have inconsistent lengths
+/// - Either funding spread is negative or non-finite
+/// - The funding benefit spread exceeds the funding cost spread
 /// - Curve evaluations return non-finite values
 ///
 /// # References
@@ -523,6 +554,13 @@ pub fn compute_fva(
     funding_spread_bps: f64,
     funding_benefit_bps: f64,
 ) -> finstack_quant_core::Result<f64> {
+    FundingConfig {
+        funding_spread_bps,
+        funding_benefit_bps: Some(funding_benefit_bps),
+        ..Default::default()
+    }
+    .validate()?;
+
     compute_fva_internal(
         exposure_profile,
         discount_curve,
@@ -547,14 +585,13 @@ pub fn compute_fva(
 /// # Outputs
 ///
 /// ```text
-/// result.bilateral_cva = CVA − DVA                 (credit only, "BCVA")
-/// result.total_xva     = CVA − DVA + FVA + MVA     (all-in)
+/// result.bilateral_cva = CVA − DVA + FVA           (legacy compatibility)
+/// result.total_xva     = bilateral_cva + MVA        (all-in)
 /// ```
 ///
-/// Uncomputed legs contribute zero to `total_xva`. Read
-/// [`XvaResult::total_xva`] for the number to subtract from the risk-free
-/// value of the netting set; [`XvaResult::bilateral_cva`] is the credit
-/// component in isolation.
+/// Uncomputed legs contribute zero. `bilateral_cva` retains its historical
+/// funding-inclusive meaning; `total_xva` adds MVA when an IM profile is
+/// supplied.
 ///
 /// # Arguments
 ///
@@ -574,14 +611,9 @@ pub fn compute_fva(
 ///
 /// # Errors
 ///
-/// Returns an error if any sub-calculation (CVA, DVA, FVA, MVA) fails —
-/// including an invalid IM profile or a negative IM funding spread.
-///
-/// # Limitations
-///
-/// MVA inherits the DVA/MVA overlap documented on [`crate::xva::mva`]: the
-/// full DVA benefit is claimed while the full funding cost of posted IM is
-/// also charged.
+/// Returns an error if any sub-calculation (CVA, DVA, FVA, MVA) fails,
+/// [`FundingConfig`] is invalid, or the IM and exposure profiles have
+/// different terminal horizons.
 ///
 /// # References
 ///
@@ -599,6 +631,10 @@ pub fn compute_bilateral_xva(
     own_recovery_rate: f64,
     funding: Option<&FundingConfig>,
 ) -> finstack_quant_core::Result<XvaResult> {
+    if let Some(fc) = funding {
+        fc.validate()?;
+    }
+
     let mut result = compute_cva_internal(
         exposure_profile,
         counterparty_hazard_curve,
@@ -607,12 +643,25 @@ pub fn compute_bilateral_xva(
         Some(own_hazard_curve),
     )?;
 
+    let posted_im = funding.and_then(|fc| fc.im_profile.as_ref());
+    if let Some(im_profile) = posted_im {
+        let exposure_horizon = exposure_profile.times[exposure_profile.times.len() - 1];
+        let im_horizon = im_profile.times[im_profile.times.len() - 1];
+        if !horizons_match(exposure_horizon, im_horizon) {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Bilateral XVA: IM profile horizon {im_horizon} must match exposure profile \
+                 horizon {exposure_horizon}"
+            )));
+        }
+    }
+
     let dva = compute_dva_internal(
         exposure_profile,
         own_hazard_curve,
         discount_curve,
         own_recovery_rate,
         Some(counterparty_hazard_curve),
+        posted_im,
     )?;
     result.dva = Some(dva);
 
@@ -651,9 +700,9 @@ pub fn compute_bilateral_xva(
         }
     };
 
-    // BCVA is credit-only; total_xva carries the funding legs.
-    result.bilateral_cva = Some(result.cva - dva);
-    result.total_xva = Some(result.cva - dva + fva + mva);
+    let bilateral_cva = result.cva - dva + fva;
+    result.bilateral_cva = Some(bilateral_cva);
+    result.total_xva = Some(bilateral_cva + mva);
 
     Ok(result)
 }
@@ -1222,6 +1271,27 @@ mod tests {
     }
 
     #[test]
+    fn standalone_fva_rejects_invalid_funding_spreads() {
+        let discount = flat_discount_curve(0.03);
+        let profile = uniform_profile(1_000_000.0, &[1.0, 2.0]);
+        let cases = [
+            (-1.0, 0.0, "funding_spread_bps"),
+            (f64::NAN, 0.0, "funding_spread_bps"),
+            (f64::INFINITY, 0.0, "funding_spread_bps"),
+            (50.0, -1.0, "funding_benefit_bps"),
+            (50.0, f64::NAN, "funding_benefit_bps"),
+            (50.0, f64::INFINITY, "funding_benefit_bps"),
+            (50.0, 50.1, "must not exceed"),
+        ];
+
+        for (cost, benefit, expected) in cases {
+            let err = compute_fva(&profile, &discount, cost, benefit)
+                .expect_err("standalone FVA must enforce FundingConfig spread validation");
+            assert!(err.to_string().contains(expected), "{err}");
+        }
+    }
+
+    #[test]
     fn fva_analytical_check_with_flat_curves() {
         // For constant EPE, zero ENE, flat discount rate r, and funding spread s:
         // FVA = EPE × s × ∫₀ᵀ DF(t) dt = EPE × s × (1 - e^{-rT}) / r
@@ -1344,15 +1414,15 @@ mod tests {
             .expect("Bilateral CVA should be computed");
         let total = result.total_xva.expect("Total XVA should be computed");
 
-        // bilateral_cva is credit-only; the funding leg lives in total_xva.
+        // Legacy compatibility: bilateral_cva includes the FVA funding leg.
         assert!(
-            (bilateral - (result.cva - dva)).abs() < 1e-10,
-            "bilateral_cva ({bilateral:.6}) should equal cva - dva"
+            (bilateral - (result.cva - dva + fva)).abs() < 1e-10,
+            "bilateral_cva ({bilateral:.6}) should equal cva - dva + fva"
         );
-        let expected_total = result.cva - dva + fva;
+        let expected_total = bilateral;
         assert!(
             (total - expected_total).abs() < 1e-10,
-            "total_xva ({total:.6}) should equal cva - dva + fva = {expected_total:.6}"
+            "total_xva ({total:.6}) should equal bilateral_cva without MVA = {expected_total:.6}"
         );
 
         // No IM profile supplied, so MVA is not computed.
@@ -1408,13 +1478,13 @@ mod tests {
             "MVA should be a positive funding cost, got {mva}"
         );
         assert!(
-            (bilateral - (result.cva - dva)).abs() < 1e-10,
-            "bilateral_cva should remain credit-only"
+            (bilateral - (result.cva - dva + fva)).abs() < 1e-10,
+            "bilateral_cva should preserve the legacy funding-inclusive meaning"
         );
-        let expected_total = result.cva - dva + fva + mva;
+        let expected_total = bilateral + mva;
         assert!(
             (total - expected_total).abs() < 1e-10,
-            "total_xva ({total:.6}) should equal cva - dva + fva + mva = {expected_total:.6}"
+            "total_xva ({total:.6}) should equal bilateral_cva + mva = {expected_total:.6}"
         );
     }
 
@@ -1542,6 +1612,307 @@ mod tests {
             )
             .is_err(),
             "a negative IM value must fail closed"
+        );
+    }
+
+    #[test]
+    fn bilateral_xva_rejects_invalid_direct_funding_config() {
+        let counterparty_hazard = flat_hazard_curve(0.02);
+        let own_hazard = flat_hazard_curve(0.03);
+        let discount = flat_discount_curve(0.02);
+        let profile = uniform_profile(500_000.0, &[1.0, 2.0]);
+        let funding = FundingConfig {
+            funding_spread_bps: -1.0,
+            ..Default::default()
+        };
+
+        assert!(
+            compute_bilateral_xva(
+                &profile,
+                &counterparty_hazard,
+                &own_hazard,
+                &discount,
+                0.40,
+                0.40,
+                Some(&funding),
+            )
+            .is_err(),
+            "direct Rust callers must not bypass FundingConfig validation"
+        );
+    }
+
+    #[test]
+    fn bilateral_xva_rejects_im_horizon_mismatch() {
+        let counterparty_hazard = flat_hazard_curve(0.02);
+        let own_hazard = flat_hazard_curve(0.03);
+        let discount = flat_discount_curve(0.02);
+        let profile = uniform_profile(500_000.0, &[1.0, 2.0]);
+        let funding = FundingConfig {
+            funding_spread_bps: 40.0,
+            im_profile: Some(ImProfile {
+                times: vec![1.0, 3.0],
+                im_values: vec![100_000.0, 0.0],
+            }),
+            ..Default::default()
+        };
+
+        assert!(
+            compute_bilateral_xva(
+                &profile,
+                &counterparty_hazard,
+                &own_hazard,
+                &discount,
+                0.40,
+                0.40,
+                Some(&funding),
+            )
+            .is_err(),
+            "IM and exposure profiles must terminate at the same horizon"
+        );
+    }
+
+    #[test]
+    fn bilateral_xva_accepts_im_horizon_within_scale_aware_tolerance() {
+        let counterparty_hazard = flat_hazard_curve(0.02);
+        let own_hazard = flat_hazard_curve(0.03);
+        let discount = flat_discount_curve(0.02);
+        let horizon = 2.0_f64;
+        let tolerance = 1.0e-12 * horizon;
+        let profile = uniform_profile(500_000.0, &[1.0, horizon]);
+        let funding = FundingConfig {
+            funding_spread_bps: 40.0,
+            im_profile: Some(ImProfile {
+                times: vec![1.0, horizon + 0.99 * tolerance],
+                im_values: vec![100_000.0, 0.0],
+            }),
+            ..Default::default()
+        };
+
+        compute_bilateral_xva(
+            &profile,
+            &counterparty_hazard,
+            &own_hazard,
+            &discount,
+            0.40,
+            0.40,
+            Some(&funding),
+        )
+        .expect("a terminal mismatch within the scale-aware tolerance must be accepted");
+    }
+
+    #[test]
+    fn bilateral_xva_rejects_im_horizon_just_outside_scale_aware_tolerance() {
+        let counterparty_hazard = flat_hazard_curve(0.02);
+        let own_hazard = flat_hazard_curve(0.03);
+        let discount = flat_discount_curve(0.02);
+        let horizon = 2.0_f64;
+        let tolerance = 1.0e-12 * horizon;
+        let profile = uniform_profile(500_000.0, &[1.0, horizon]);
+        let funding = FundingConfig {
+            funding_spread_bps: 40.0,
+            im_profile: Some(ImProfile {
+                times: vec![1.0, horizon + 1.01 * tolerance],
+                im_values: vec![100_000.0, 0.0],
+            }),
+            ..Default::default()
+        };
+
+        assert!(
+            compute_bilateral_xva(
+                &profile,
+                &counterparty_hazard,
+                &own_hazard,
+                &discount,
+                0.40,
+                0.40,
+                Some(&funding),
+            )
+            .is_err(),
+            "a terminal mismatch just outside the scale-aware tolerance must be rejected"
+        );
+    }
+
+    #[test]
+    fn bilateral_dva_is_reduced_by_posted_im() {
+        let counterparty_hazard = flat_hazard_curve(0.02);
+        let own_hazard = flat_hazard_curve(0.03);
+        let discount = flat_discount_curve(0.02);
+        let profile = uniform_ene_profile(1_000_000.0, &[1.0, 2.0, 3.0]);
+
+        let without_im = compute_bilateral_xva(
+            &profile,
+            &counterparty_hazard,
+            &own_hazard,
+            &discount,
+            0.40,
+            0.40,
+            None,
+        )
+        .expect("bilateral XVA without IM")
+        .dva
+        .expect("DVA");
+
+        let funding = FundingConfig {
+            funding_spread_bps: 40.0,
+            im_profile: Some(ImProfile {
+                times: vec![1.0, 3.0],
+                im_values: vec![250_000.0, 750_000.0],
+            }),
+            ..Default::default()
+        };
+        let with_im = compute_bilateral_xva(
+            &profile,
+            &counterparty_hazard,
+            &own_hazard,
+            &discount,
+            0.40,
+            0.40,
+            Some(&funding),
+        )
+        .expect("bilateral XVA with IM")
+        .dva
+        .expect("DVA");
+
+        assert!(
+            with_im > 0.0 && with_im < without_im,
+            "posted IM should reduce bilateral DVA: with_im={with_im}, without_im={without_im}"
+        );
+    }
+
+    #[test]
+    fn bilateral_dva_linearly_interpolates_im_onto_exposure_grid() {
+        let counterparty_hazard = flat_hazard_curve(0.02);
+        let own_hazard = flat_hazard_curve(0.03);
+        let discount = flat_discount_curve(0.02);
+        let profile = uniform_ene_profile(900_000.0, &[1.0, 2.0, 3.0]);
+
+        let dva_for_im = |im_profile: ImProfile| {
+            let funding = FundingConfig {
+                funding_spread_bps: 0.0,
+                im_profile: Some(im_profile),
+                ..Default::default()
+            };
+            compute_bilateral_xva(
+                &profile,
+                &counterparty_hazard,
+                &own_hazard,
+                &discount,
+                0.40,
+                0.40,
+                Some(&funding),
+            )
+            .expect("bilateral XVA")
+            .dva
+            .expect("DVA")
+        };
+
+        let coarse_grid_dva = dva_for_im(ImProfile {
+            times: vec![1.0, 3.0],
+            im_values: vec![100_000.0, 500_000.0],
+        });
+        let explicit_grid_dva = dva_for_im(ImProfile {
+            times: vec![1.0, 2.0, 3.0],
+            im_values: vec![100_000.0, 300_000.0, 500_000.0],
+        });
+
+        assert!(
+            (coarse_grid_dva - explicit_grid_dva).abs() < 1.0e-12,
+            "linear interpolation must reproduce explicit exposure-grid IM: \
+             coarse={coarse_grid_dva}, explicit={explicit_grid_dva}"
+        );
+    }
+
+    #[test]
+    fn bilateral_dva_zero_floors_overcollateralized_ene() {
+        let counterparty_hazard = flat_hazard_curve(0.02);
+        let own_hazard = flat_hazard_curve(0.03);
+        let discount = flat_discount_curve(0.02);
+        let profile = ExposureProfile {
+            times: vec![1.0, 2.0, 3.0],
+            mtm_values: vec![-100_000.0, -250_000.0, -400_000.0],
+            epe: vec![0.0; 3],
+            ene: vec![100_000.0, 250_000.0, 400_000.0],
+            diagnostics: None,
+        };
+        let funding = FundingConfig {
+            funding_spread_bps: 0.0,
+            im_profile: Some(ImProfile {
+                times: vec![1.0, 3.0],
+                im_values: vec![500_000.0, 500_000.0],
+            }),
+            ..Default::default()
+        };
+
+        let dva = compute_bilateral_xva(
+            &profile,
+            &counterparty_hazard,
+            &own_hazard,
+            &discount,
+            0.40,
+            0.40,
+            Some(&funding),
+        )
+        .expect("bilateral XVA")
+        .dva
+        .expect("DVA");
+
+        assert!(
+            dva.abs() < 1.0e-12,
+            "max(ENE - IM, 0) must zero-floor overcollateralized exposure, got {dva}"
+        );
+    }
+
+    #[test]
+    fn unilateral_compute_dva_remains_unadjusted_by_im() {
+        let no_counterparty_default = flat_hazard_curve(0.0);
+        let own_hazard = flat_hazard_curve(0.03);
+        let discount = flat_discount_curve(0.02);
+        let profile = uniform_ene_profile(1_000_000.0, &[1.0, 2.0, 3.0]);
+
+        let unilateral = compute_dva(&profile, &own_hazard, &discount, 0.40)
+            .expect("unilateral DVA should compute");
+        let no_im_bilateral = compute_bilateral_xva(
+            &profile,
+            &no_counterparty_default,
+            &own_hazard,
+            &discount,
+            0.40,
+            0.40,
+            None,
+        )
+        .expect("bilateral XVA without IM")
+        .dva
+        .expect("DVA");
+
+        let funding = FundingConfig {
+            funding_spread_bps: 0.0,
+            im_profile: Some(ImProfile {
+                times: vec![1.0, 3.0],
+                im_values: vec![1_000_000.0, 1_000_000.0],
+            }),
+            ..Default::default()
+        };
+        let im_adjusted_bilateral = compute_bilateral_xva(
+            &profile,
+            &no_counterparty_default,
+            &own_hazard,
+            &discount,
+            0.40,
+            0.40,
+            Some(&funding),
+        )
+        .expect("bilateral XVA with IM")
+        .dva
+        .expect("DVA");
+
+        assert!(unilateral > 0.0);
+        assert!(
+            (unilateral - no_im_bilateral).abs() < 1.0e-12,
+            "with no counterparty default, unadjusted bilateral DVA must equal public unilateral DVA"
+        );
+        assert!(
+            im_adjusted_bilateral.abs() < 1.0e-12,
+            "posted IM must affect bilateral DVA only"
         );
     }
 

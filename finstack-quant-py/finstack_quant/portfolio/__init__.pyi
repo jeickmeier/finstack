@@ -2059,9 +2059,15 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
         ``weight``, ``total_return``, ``yield_annual``, ``modified_duration``,
         ``spread_duration``, ``spread``, ``delta_treasury_yield``, and
         ``delta_spread`` fields (decimals; durations in years). Unknown fields
-        are rejected and weights must sum to one.
+        are rejected and weights must sum to one. ``spread_duration`` must be
+        the canonical quote-reproducing Z-spread duration; ``spread`` and
+        ``delta_spread`` must use the matching ``z_spread`` basis. OAS,
+        G-spread, and discount-margin values are incompatible. The direct JSON
+        shape has no metric-ID provenance, so this binding cannot detect a
+        mislabeled numeric spread basis.
     benchmark_json : str
-        JSON array of ``FiPositionSnapshot`` objects for the benchmark.
+        JSON array of ``FiPositionSnapshot`` objects for the benchmark, subject
+        to the same quote-reproducing Z-spread basis contract.
     config_json : str
         JSON object whose only field is ``period_years`` (e.g. ``0.25``). It is
         required — there is no default — and unknown keys are rejected. The
@@ -2081,10 +2087,12 @@ def campisi_attribution(portfolio_json: str, benchmark_json: str, config_json: s
     ------
     PortfolioError
         If weights do not sum to one, inputs are non-finite, ``period_years``
-        is not finite and positive, either side is empty, or a sector nets to
-        exactly zero weight on either side. The spread *level* is unconstrained:
-        zero and negative spreads are accepted, because the spread effect never
-        divides by it.
+        is not finite and positive, either side is empty, or a sector present
+        on either side has ``|net sector weight| <= 1e-6 * gross absolute
+        sector weight``. The spread *level* is unconstrained: zero and negative
+        Z-spreads are accepted, because the spread effect never divides by the
+        level. Spread-basis provenance cannot be validated from the numeric JSON
+        shape.
     ValueError
         If any JSON argument is malformed.
 
@@ -2128,8 +2136,14 @@ def campisi_carino_link(periods_json: str) -> str:
     Raises
     ------
     PortfolioError
-        If ``periods_json`` is an empty array, sector orderings differ across
-        periods, a period return is non-finite, or a return is at or below
+        If ``periods_json`` is empty; sector orderings differ; a consumed
+        top-level return/effect, per-sector linked effect, or sector
+        ``total_active`` is non-finite; ``active_return`` disagrees with the
+        portfolio-minus-benchmark return; a sector ``total_active`` disagrees
+        with its five effects; sector effects do not reconcile to their
+        declared top-level totals; the five totals do not reconcile to
+        ``active_return`` within the overflow-safe scaled-L1 tolerance; a
+        reconciliation residual is non-finite; or a return is at or below
         -100% (outside the Carino domain).
     ValueError
         If ``periods_json`` is malformed or does not match the
@@ -2403,10 +2417,13 @@ def excess_returns(positions_json: str, table_json: str) -> str:
     Raises
     ------
     PortfolioError
-        If ``table_json`` has no cells, a position has a non-finite
-        weight/duration/total_return, a position's duration falls outside
-        the table's covered range (the error names the position), or the
-        position weights do not sum to ``1.0`` within tolerance.
+        If ``table_json`` has no cells; a cell has an empty or duplicate
+        label, non-finite bounds or base return, a negative lower bound, a
+        non-positive width, non-ascending lower bounds, or overlaps its
+        predecessor; a position has a non-finite
+        weight/duration/total_return; a position's duration falls outside
+        every cell, including a valid gap (the error names the position); or
+        the position weights do not sum to ``1.0`` within tolerance.
     ValueError
         If any JSON argument is malformed.
 
@@ -2501,9 +2518,13 @@ def grid_carino_link(periods_json: str) -> str:
     Raises
     ------
     PortfolioError
-        If ``periods_json`` is an empty array, any period's portfolio or
-        benchmark return is non-finite, or any per-period or compounded
-        return is at or below -100% (outside the Carino domain).
+        If ``periods_json`` is empty; any consumed return or top-level effect
+        is non-finite; ``active_return`` disagrees with the portfolio-minus-
+        benchmark return; the three effect totals do not reconcile to
+        ``active_return`` within an overflow-safe scaled-L1 tolerance; a
+        return-identity or reconciliation residual is non-finite; or any
+        per-period or compounded return is at or below -100% (outside the
+        Carino domain).
     ValueError
         If ``periods_json`` is malformed or does not match the
         ``GridAttributionResult`` schema.

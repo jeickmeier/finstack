@@ -10,9 +10,7 @@
 use crate::constants::numerical::ZERO_TOLERANCE;
 use crate::instruments::common_impl::pricing::time::{rate_between_on_dates, rate_period_on_dates};
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::fixed_income::bond::metrics::price_yield_spread::z_spread::{
-    bond_z_spread_compounding_frequency, z_spread_discount_factor,
-};
+use crate::instruments::fixed_income::bond::metrics::price_yield_spread::z_spread::BondZSpreadPricingKernel;
 use crate::instruments::fixed_income::bond::pricing::settlement::QuoteDateContext;
 use crate::instruments::fixed_income::bond::Bond;
 use crate::metrics::{standard_registry, MetricRegistry};
@@ -1150,9 +1148,11 @@ pub fn price_from_ytw(
 /// price_from_z_spread(bond, market, as_of, ZSpreadCalculator.solve(...)) == dirty
 /// ```
 ///
-/// holds for **any** bond, including ones with a non-zero `settlement_days`
-/// lag (`quote_date != as_of`). Callers must pass the valuation date as
-/// `as_of`; the settlement offset is handled here.
+/// holds for **any** bond, including callable/putable bonds whose quoted
+/// yield-to-worst selects an early workout path and bonds with a non-zero
+/// `settlement_days` lag (`quote_date != as_of`). Callers must pass the
+/// valuation date as `as_of`; workout selection and settlement are handled
+/// here.
 ///
 /// [`ZSpreadCalculator`]: crate::instruments::fixed_income::bond::ZSpreadCalculator
 ///
@@ -1171,44 +1171,7 @@ pub fn price_from_z_spread(
     as_of: Date,
     z: f64,
 ) -> finstack_quant_core::Result<f64> {
-    use finstack_quant_core::math::summation::NeumaierAccumulator;
-
-    // Cashflows are generated at the valuation date — identical to the
-    // ZSpreadCalculator, which builds them via `pricing_dated_cashflows(as_of)`.
-    let flows = bond.pricing_dated_cashflows(curves, as_of)?;
-    let disc = curves.get_discount(&bond.discount_curve_id)?;
-    let compounds_per_year = bond_z_spread_compounding_frequency(bond);
-
-    // Settlement-anchored time origin: the same `quote_date` the Z-spread was
-    // calibrated on. When `settlement_days == 0` this equals `as_of`.
-    let quote_date = QuoteDateContext::new(bond, curves, as_of)?.quote_date;
-
-    let mut pv = NeumaierAccumulator::new();
-    for (d, a) in &flows {
-        // Mirror the ZSpreadCalculator convention: strictly-future cashflows
-        // relative to the settlement date. A flow dated exactly on `quote_date`
-        // has t = 0 and is excluded by the solver's `d > quote_date` filter, so
-        // it is excluded here too — keeping both paths on the same cashflow set.
-        if *d <= quote_date {
-            continue;
-        }
-        // Time and base discount factor are both measured from `quote_date`
-        // (the settlement origin the Z-spread was solved on), so the
-        // periodically-compounded z-spread term (see `z_spread_discount_factor`)
-        // is applied on the same axis. The spread shifts the compounded zero
-        // rate at frequency `m`; it is not a continuous `exp(-z·t)` shift.
-        let t_from_quote =
-            disc.day_count()
-                .year_fraction(quote_date, *d, DayCountContext::default())?;
-
-        let df = disc.df_between_dates(quote_date, *d)?;
-        // Propagate Err from `z_spread_discount_factor` so callers receive a
-        // clear curve-data or spread-domain error rather than Ok(INFINITY) or
-        // Ok(NaN) when the base DF or compounding denominator is non-positive.
-        let df_z = z_spread_discount_factor(df, t_from_quote, z, compounds_per_year)?;
-        pv.add(a.amount() * df_z);
-    }
-    Ok(pv.total())
+    BondZSpreadPricingKernel::new(bond, curves, as_of)?.price(z)
 }
 
 /// Price from Option-Adjusted Spread using the short-rate tree pricer.

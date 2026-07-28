@@ -105,9 +105,13 @@ fn grid_attribution(
 /// Raises
 /// ------
 /// PortfolioError
-///     If ``periods_json`` is an empty array, any period's portfolio or
-///     benchmark return is non-finite, or any per-period or compounded
-///     return is at or below -100% (outside the Carino domain).
+///     If ``periods_json`` is empty; any consumed return or top-level effect
+///     is non-finite; ``active_return`` disagrees with the portfolio-minus-
+///     benchmark return; the three effect totals do not reconcile to
+///     ``active_return`` within an overflow-safe scaled-L1 tolerance; a
+///     return-identity or reconciliation residual is non-finite; or any
+///     per-period or compounded return is at or below -100% (outside the
+///     Carino domain).
 /// ValueError
 ///     If ``periods_json`` is malformed or does not match the
 ///     ``GridAttributionResult`` schema.

@@ -177,12 +177,7 @@ in-place mutation: each setter returns the same instance.
 ```python
 from finstack_quant.core.dates import ScheduleBuilder, StubKind
 
-schedule = (
-    ScheduleBuilder(start, end)
-    .frequency("3M")
-    .stub_rule(StubKind.SHORT_FRONT)
-    .build()
-)
+schedule = ScheduleBuilder(start, end).frequency("3M").stub_rule(StubKind.SHORT_FRONT).build()
 ```
 
 ### Errors

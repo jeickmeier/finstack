@@ -1,4 +1,4 @@
-import { core, type WasmOwned } from '../../index.js';
+import { analytics, core, portfolio, type WasmOwned } from '../../index.js';
 
 const numberValues: number[] = [0, 1, 1, 0.99];
 const typedValues = new Float64Array(numberValues);
@@ -64,6 +64,8 @@ const fxVolFromTyped = new core.FxDeltaVolSurface(
 const projectionGrid: Float64Array | null = forwardFromTyped.projectionGrid;
 const expiries: Float64Array = fxVolFromTyped.expiries;
 const pillarVols: Float64Array = fxVolFromArrays.pillarVols(0);
+const factorReturns = analytics.constrainedLeastSquares([1], 1, [0.01], [1]);
+const factorAttributionJson: string = portfolio.factorBrinsonAttribution('{}', factorReturns);
 
 const owned: WasmOwned[] = [
   discountFromArray,
@@ -80,3 +82,4 @@ owned.forEach((value) => value.free());
 void projectionGrid;
 void expiries;
 void pillarVols;
+void factorAttributionJson;

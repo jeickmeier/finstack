@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import date
 import json
 import math
+import sys
 
 import pytest
 
@@ -321,6 +322,42 @@ def test_excess_returns_rejects_duration_outside_table_range() -> None:
         excess_returns(json.dumps(positions), table_json)
 
 
+def test_excess_returns_validates_inbound_cell_table_structure() -> None:
+    """Hand-built tables are validated before any duration lookup."""
+    positions = [{"id": "P", "weight": 1.0, "duration": 0.75, "total_return": 0.03}]
+    overlapping = {
+        "base_label": "CUSTOM",
+        "cells": [
+            {"label": "first", "lower": 0.0, "upper": 1.0, "base_return": 0.01, "observed": True},
+            {"label": "second", "lower": 0.5, "upper": 1.5, "base_return": 0.02, "observed": True},
+        ],
+    }
+    with pytest.raises(PortfolioError, match=r"cell\[1\].*overlaps"):
+        excess_returns(json.dumps(positions), json.dumps(overlapping))
+
+
+@pytest.mark.parametrize(
+    ("labels", "expected"),
+    [
+        (["", "long"], r"cell\[0\].*non-empty"),
+        (["duplicate", "duplicate"], r"cell\[1\].*unique"),
+    ],
+)
+def test_excess_returns_rejects_invalid_inbound_cell_labels(labels: list[str], expected: str) -> None:
+    """Inbound cell labels are non-empty and unique before duration lookup."""
+    positions = [{"id": "P", "weight": 1.0, "duration": 0.25, "total_return": 0.03}]
+    table = {
+        "base_label": "CUSTOM",
+        "cells": [
+            {"label": labels[0], "lower": 0.0, "upper": 1.0, "base_return": 0.01, "observed": True},
+            {"label": labels[1], "lower": 1.0, "upper": 2.0, "base_return": 0.02, "observed": True},
+        ],
+    }
+
+    with pytest.raises(PortfolioError, match=expected):
+        excess_returns(json.dumps(positions), json.dumps(table))
+
+
 def test_excess_returns_denies_unknown_position_fields() -> None:
     """An unknown field on an ``ExcessReturnPosition`` entry fails closed."""
     table_json = _lehman_b1_table_json()
@@ -474,6 +511,19 @@ def test_grid_carino_link_rejects_empty_periods() -> None:
         grid_carino_link(json.dumps([]))
 
 
+def test_grid_carino_link_rejects_inconsistent_period_contract() -> None:
+    """Finite but tampered returns/effects fail before Carino scaling."""
+    period = json.loads(_grid_golden_period_json())
+
+    bad_active = {**period, "active_return": period["active_return"] + 0.001}
+    with pytest.raises(PortfolioError, match="active_return"):
+        grid_carino_link(json.dumps([bad_active]))
+
+    bad_total = {**period, "total_selection": period["total_selection"] + 0.001}
+    with pytest.raises(PortfolioError, match="effect totals"):
+        grid_carino_link(json.dumps([bad_total]))
+
+
 def test_grid_carino_link_denies_unknown_period_fields() -> None:
     """An unknown top-level field on a ``GridAttributionResult`` period fails closed."""
     period = json.loads(_grid_golden_period_json())
@@ -558,10 +608,35 @@ def test_constrained_least_squares_accepts_keyword_arguments() -> None:
     assert f[0] == pytest.approx(0.0289552239, abs=1e-9)
 
 
+def test_constrained_least_squares_documents_integer_conversion_errors() -> None:
+    """The host-language integer contract names its pre-Rust failures."""
+    doc = constrained_least_squares.__doc__ or ""
+    assert "positive integer" in doc
+    assert "TypeError" in doc
+    assert "OverflowError" in doc
+
+    with pytest.raises(TypeError):
+        constrained_least_squares([], 1.5, [], [])
+    with pytest.raises(OverflowError):
+        constrained_least_squares([], -1, [], [])
+
+
 def test_constrained_least_squares_rejects_orthogonal_weights() -> None:
     """`w` orthogonal to the constraint direction cannot be restored: fails closed."""
     with pytest.raises(AnalyticsError, match=r"(?i)constraint"):
         constrained_least_squares([1.0, -1.0], 1, [0.02, 0.01], [0.5, 0.5])
+
+
+def test_constrained_least_squares_returns_ols_when_constraint_is_already_met() -> None:
+    """A degenerate correction direction is harmless when OLS already closes."""
+    f = constrained_least_squares([1.0, -1.0], 1, [0.02, -0.02], [0.5, 0.5])
+    assert f == pytest.approx([0.02], abs=1e-15)
+
+
+def test_constrained_least_squares_maps_overflowing_dimensions() -> None:
+    """A valid Python ``usize`` that overflows the matrix product stays a domain error."""
+    with pytest.raises(AnalyticsError, match=r"(?i)dimension"):
+        constrained_least_squares([], sys.maxsize + 1, [0.02, 0.01], [0.5, 0.5])
 
 
 def test_constrained_least_squares_rejects_dimension_mismatch() -> None:

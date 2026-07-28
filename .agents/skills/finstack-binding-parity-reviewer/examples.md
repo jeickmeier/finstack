@@ -94,6 +94,7 @@ pub fn map_error(e: CoreError) -> PyErr {
 # finstack-quant/core/expr_helpers.py
 # ACCEPTABLE: Operator overloading for ergonomics only
 
+
 class ExprWrapper:
     """Wraps Expr to enable Python operator overloading."""
 

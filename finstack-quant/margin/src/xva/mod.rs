@@ -12,9 +12,10 @@
 //! - Deterministic exposure assumes constant curves on the roll-forward grid.
 //! - Close-out netting follows an ISDA master-agreement view.
 //! - Adjustments are positive when they cost the desk and compose as
-//!   `bilateral_cva = CVA − DVA` (credit only) and
-//!   `total_xva = CVA − DVA + FVA + MVA` (all-in). `cva::compute_bilateral_xva`
-//!   computes MVA whenever `types::FundingConfig::im_profile` is set.
+//!   `bilateral_cva = CVA − DVA + FVA` for legacy compatibility and
+//!   `total_xva = bilateral_cva + MVA` (all-in). `cva::compute_bilateral_xva`
+//!   computes MVA and reduces bilateral DVA by posted IM whenever
+//!   `types::FundingConfig::im_profile` is set.
 //! - CSA terms reduce exposure; MPOR-lagged collateral (gap risk) is applied
 //!   whenever `csa.mpor_days > 0`, in both the deterministic and stochastic
 //!   engines.

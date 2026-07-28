@@ -34,15 +34,21 @@ impl PyFundingConfig {
     /// Parameters
     /// ----------
     /// funding_spread_bps : float
-    ///     Funding spread in basis points.
+    ///     Non-negative finite funding cost spread in basis points.
     /// funding_benefit_bps : float | None
-    ///     Funding benefit spread in bps. If ``None``, symmetric funding.
+    ///     Non-negative finite funding benefit spread in bps, no greater than
+    ///     ``funding_spread_bps``. If ``None``, symmetric funding.
     /// im_profile : ImProfile | None
-    ///     Expected initial-margin profile driving MVA. If ``None``, MVA is
-    ///     not computed.
+    ///     Valid expected initial-margin profile driving MVA. If ``None``, MVA
+    ///     is not computed.
     /// margin_funding_spread_bps : float | None
-    ///     Spread applied to posted IM. If ``None``, uses
+    ///     Non-negative finite spread applied to posted IM. If ``None``, uses
     ///     ``funding_spread_bps``.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If a spread or the optional IM profile violates these constraints.
     #[new]
     #[pyo3(signature = (
         funding_spread_bps,
@@ -55,15 +61,15 @@ impl PyFundingConfig {
         funding_benefit_bps: Option<f64>,
         im_profile: Option<&PyImProfile>,
         margin_funding_spread_bps: Option<f64>,
-    ) -> Self {
-        Self {
-            inner: xva::FundingConfig {
-                funding_spread_bps,
-                funding_benefit_bps,
-                im_profile: im_profile.map(|p| p.inner.clone()),
-                margin_funding_spread_bps,
-            },
-        }
+    ) -> PyResult<Self> {
+        let inner = xva::FundingConfig {
+            funding_spread_bps,
+            funding_benefit_bps,
+            im_profile: im_profile.map(|p| p.inner.clone()),
+            margin_funding_spread_bps,
+        };
+        inner.validate().map_err(core_to_py)?;
+        Ok(Self { inner })
     }
 
     /// Funding spread in basis points.
@@ -388,16 +394,15 @@ impl PyXvaResult {
         self.inner.mva
     }
 
-    /// Bilateral CVA (BCVA) = CVA - DVA, credit only (or None).
+    /// Legacy bilateral adjustment = CVA - DVA + FVA (or None).
     ///
-    /// Excludes funding adjustments — read ``total_xva`` for the all-in
-    /// number.
+    /// Uncomputed FVA contributes zero.
     #[getter]
     fn bilateral_cva(&self) -> Option<f64> {
         self.inner.bilateral_cva
     }
 
-    /// All-in adjustment = CVA - DVA + FVA + MVA (or None).
+    /// All-in adjustment = bilateral_cva + MVA (or None).
     ///
     /// Uncomputed legs contribute zero. This is the quantity subtracted from
     /// the risk-free value of the netting set.
@@ -881,11 +886,12 @@ fn compute_mva(
 /// Compute bilateral XVA: CVA, DVA, FVA, MVA, and the all-in adjustment.
 ///
 /// All legs are weighted by joint (first-to-default) survival. MVA is computed
-/// only when ``funding`` carries an ``im_profile``.
+/// only when ``funding`` carries an ``im_profile``; that posted IM also reduces
+/// ENE for bilateral DVA.
 ///
-/// The result reports ``bilateral_cva = CVA - DVA`` (credit only) and
-/// ``total_xva = CVA - DVA + FVA + MVA`` (all-in, the number subtracted from
-/// the risk-free value of the netting set).
+/// The result reports ``bilateral_cva = CVA - DVA + FVA`` for legacy
+/// compatibility and ``total_xva = bilateral_cva + MVA`` for the all-in
+/// adjustment.
 ///
 /// Parameters
 /// ----------
@@ -904,6 +910,17 @@ fn compute_mva(
 /// funding : FundingConfig | None
 ///     Funding configuration driving FVA and, when it carries an
 ///     ``im_profile``, MVA. ``None`` computes credit legs only.
+///
+/// Returns
+/// -------
+/// XvaResult
+///     Bilateral credit, funding, margin, and exposure results.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If a profile, recovery rate, funding input, or curve evaluation is
+///     invalid, including mismatched IM and exposure horizons.
 #[pyfunction]
 #[pyo3(signature = (
     exposure_profile,

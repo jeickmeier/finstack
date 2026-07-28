@@ -55,6 +55,16 @@ def _benchmark() -> list[dict[str, float | str]]:
 _CONFIG = {"period_years": 0.25}
 
 
+def test_campisi_attribution_documents_z_spread_basis_contract() -> None:
+    """Direct JSON callers are told which spread basis the snapshots require."""
+    from finstack_quant.portfolio import campisi_attribution
+
+    doc = campisi_attribution.__doc__ or ""
+    assert "z_spread" in doc
+    assert "quote-reproducing" in doc
+    assert "OAS" in doc
+
+
 def test_campisi_attribution_matches_hand_worked_golden() -> None:
     """The binding reproduces the hand-worked golden decomposition."""
     from finstack_quant.portfolio import campisi_attribution
@@ -194,8 +204,8 @@ def test_campisi_accepts_zero_and_negative_spread_levels() -> None:
     Replaces the DTS-propagation test, whose only observable behaviour was the
     old DTS rejection of a non-positive spread. The surviving spread effect
     ``-SD * delta_spread`` does not divide by the level, so zero and negative
-    spreads (Bund asset swaps, negative OAS) are ordinary inputs and must not
-    perturb any effect.
+    quote-reproducing Z-spreads (including negative levels on rich bonds) are
+    ordinary inputs and must not perturb any effect.
     """
     from finstack_quant.portfolio import campisi_carino_link_from_snapshots
 
@@ -379,6 +389,62 @@ def test_campisi_carino_link_rejects_bad_json_and_domain_errors() -> None:
     renamed["sectors"][0]["sector"] = "DIFFERENT"
     with pytest.raises(PortfolioError, match="sector ordering"):
         campisi_carino_link(json.dumps([period, renamed]))
+
+
+def test_campisi_carino_link_rejects_inconsistent_result_contract() -> None:
+    """Finite tampering of top-level and sector effects fails closed."""
+    from finstack_quant.portfolio import (
+        PortfolioError,
+        campisi_attribution,
+        campisi_carino_link,
+    )
+
+    period = json.loads(campisi_attribution(json.dumps(_portfolio()), json.dumps(_benchmark()), json.dumps(_CONFIG)))
+
+    bad_active = json.loads(json.dumps(period))
+    bad_active["active_return"] += 0.001
+    with pytest.raises(PortfolioError, match="active_return"):
+        campisi_carino_link(json.dumps([bad_active]))
+
+    bad_sector = json.loads(json.dumps(period))
+    bad_sector["sectors"][0]["selection"] += 0.001
+    bad_sector["sectors"][0]["total_active"] += 0.001
+    with pytest.raises(PortfolioError, match="total_selection"):
+        campisi_carino_link(json.dumps([bad_sector]))
+
+    bad_sector_total = json.loads(json.dumps(period))
+    bad_sector_total["sectors"][0]["total_active"] += 0.001
+    with pytest.raises(PortfolioError, match="total_active"):
+        campisi_carino_link(json.dumps([bad_sector_total]))
+
+
+def test_campisi_carino_link_accepts_huge_finite_cancelling_effects() -> None:
+    """Scaled L1 validation does not overflow when finite effects cancel."""
+    from finstack_quant.portfolio import campisi_attribution, campisi_carino_link
+
+    period = json.loads(campisi_attribution(json.dumps(_portfolio()), json.dumps(_benchmark()), json.dumps(_CONFIG)))
+    period["portfolio_return"] = 0.01
+    period["benchmark_return"] = 0.01
+    period["active_return"] = 0.0
+    for name in (
+        "total_allocation",
+        "total_active_carry",
+        "total_active_treasury",
+        "total_active_spread",
+        "total_selection",
+    ):
+        period[name] = 0.0
+    for sector in period["sectors"]:
+        for name in ("allocation", "active_carry", "active_treasury", "active_spread", "selection", "total_active"):
+            sector[name] = 0.0
+    period["total_allocation"] = 1e308
+    period["total_active_carry"] = -1e308
+    period["sectors"][0]["allocation"] = 1e308
+    period["sectors"][0]["active_carry"] = -1e308
+
+    linked = json.loads(campisi_carino_link(json.dumps([period])))
+    assert linked["linked_allocation"] == pytest.approx(1e308)
+    assert linked["linked_active_carry"] == pytest.approx(-1e308)
 
 
 def test_campisi_result_denies_unknown_fields_on_every_input_path() -> None:

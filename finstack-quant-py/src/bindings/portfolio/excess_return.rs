@@ -205,10 +205,13 @@ fn cell_returns_from_curves(
 /// Raises
 /// ------
 /// PortfolioError
-///     If ``table_json`` has no cells, a position has a non-finite
-///     weight/duration/total_return, a position's duration falls outside
-///     the table's covered range (the error names the position), or the
-///     position weights do not sum to ``1.0`` within tolerance.
+///     If ``table_json`` has no cells; a cell has an empty or duplicate
+///     label, non-finite bounds or base return, a negative lower bound, a
+///     non-positive width, non-ascending lower bounds, or overlaps its
+///     predecessor; a position has a non-finite
+///     weight/duration/total_return; a position's duration falls outside
+///     every cell, including a valid gap (the error names the position); or
+///     the position weights do not sum to ``1.0`` within tolerance.
 /// ValueError
 ///     If any JSON argument is malformed.
 ///

@@ -17,9 +17,15 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 ///     JSON array of ``FiPositionSnapshot`` objects (``sector``, ``weight``,
 ///     ``total_return``, ``yield_annual``, ``modified_duration``,
 ///     ``spread_duration``, ``spread``, ``delta_treasury_yield``,
-///     ``delta_spread``).
+///     ``delta_spread``). ``spread_duration`` must be the canonical
+///     quote-reproducing Z-spread duration, while ``spread`` and
+///     ``delta_spread`` must use the matching ``z_spread`` basis. OAS,
+///     G-spread, and discount-margin values must not be mixed into these
+///     fields. Because the direct JSON shape carries numeric values but no
+///     metric IDs, the binding cannot detect mislabeled spread provenance.
 /// benchmark_json : str
-///     JSON array of ``FiPositionSnapshot`` objects for the benchmark.
+///     JSON array of ``FiPositionSnapshot`` objects for the benchmark, subject
+///     to the same quote-reproducing Z-spread basis contract.
 /// config_json : str
 ///     JSON ``FiAttributionConfig``; ``period_years`` is its only field and is
 ///     required (no default). Unknown keys are rejected.
@@ -28,6 +34,16 @@ use crate::errors::{portfolio_to_py, serde_json_to_py};
 /// -------
 /// str
 ///     JSON-serialized ``FiAttributionResult``.
+///
+/// Raises
+/// ------
+/// PortfolioError
+///     If canonical Rust validation rejects empty sides, non-finite values,
+///     invalid weights, period length, or a sector present on either side has
+///     ``|net sector weight| <= 1e-6 * gross absolute sector weight``.
+///     Spread-basis provenance cannot be validated from the numeric JSON shape.
+/// ValueError
+///     If an input JSON string is malformed or does not match its schema.
 #[pyfunction]
 #[pyo3(text_signature = "(portfolio_json, benchmark_json, config_json)")]
 fn campisi_attribution(
@@ -73,6 +89,22 @@ fn campisi_attribution(
 /// -------
 /// str
 ///     JSON-serialized ``FiCarinoLinkedResult``.
+///
+/// Raises
+/// ------
+/// PortfolioError
+///     If no periods are supplied, sector ordering differs, a consumed
+///     top-level return/effect, per-sector linked effect, or sector
+///     ``total_active`` is non-finite; ``active_return`` disagrees with the
+///     portfolio-minus-benchmark return; a sector ``total_active`` disagrees
+///     with its five effects; sector effects do not reconcile to their
+///     declared top-level totals; the five totals do not reconcile to
+///     ``active_return`` within the overflow-safe scaled-L1 tolerance; a
+///     reconciliation residual is non-finite; or a return is outside the
+///     Carino domain.
+/// ValueError
+///     If ``periods_json`` is malformed or does not match the
+///     ``FiAttributionResult`` schema.
 #[pyfunction]
 #[pyo3(text_signature = "(periods_json)")]
 fn campisi_carino_link(py: Python<'_>, periods_json: &str) -> PyResult<String> {

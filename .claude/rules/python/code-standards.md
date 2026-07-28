@@ -100,9 +100,20 @@ the pure-Python `reporting` namespace:
 
 ```python
 __all__ = (
-    "analytics", "attribution", "cashflows", "core", "covenants",
-    "factor_model", "features", "margin", "monte_carlo", "portfolio",
-    "reporting", "scenarios", "statements", "statements_analytics",
+    "analytics",
+    "attribution",
+    "cashflows",
+    "core",
+    "covenants",
+    "factor_model",
+    "features",
+    "margin",
+    "monte_carlo",
+    "portfolio",
+    "reporting",
+    "scenarios",
+    "statements",
+    "statements_analytics",
     "valuations",
 )
 ```

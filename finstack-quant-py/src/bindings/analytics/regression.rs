@@ -27,7 +27,8 @@ use crate::errors::analytics_to_py;
 ///     Row-major factor exposure matrix, ``n_assets x n_factors``: asset
 ///     ``i``'s exposure to factor ``j`` is ``exposures[i * n_factors + j]``.
 /// n_factors : int
-///     Number of factor columns in ``exposures``; must be positive.
+///     Number of factor columns in ``exposures``; must be a positive integer
+///     representable as the platform's unsigned pointer-sized integer.
 /// returns : list[float]
 ///     Realized asset returns, length ``n_assets`` (defines ``n_assets``).
 /// weights : list[float]
@@ -45,10 +46,17 @@ use crate::errors::analytics_to_py;
 /// ------
 /// AnalyticsError
 ///     If ``n_factors`` is zero, ``returns`` is empty, ``exposures`` or
-///     ``weights`` has the wrong length, any input value is non-finite, the
-///     design matrix is rank-deficient, or ``w`` and the constraint
-///     direction are numerically orthogonal so the constraint cannot be
-///     restored by any scalar correction.
+///     ``weights`` has the wrong length, ``n_assets * n_factors`` overflows,
+///     any input value is non-finite, the design matrix is rank-deficient,
+///     coefficient rescaling or the constraint correction produces a
+///     non-finite value, or ``w`` and the constraint direction are
+///     numerically orthogonal while OLS does not already satisfy the
+///     constraint, so no scalar correction can restore it.
+/// TypeError
+///     If ``n_factors`` is not an integer.
+/// OverflowError
+///     If ``n_factors`` is negative or exceeds the platform's unsigned
+///     pointer-sized integer range.
 ///
 /// Sources
 /// -------

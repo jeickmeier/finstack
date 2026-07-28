@@ -194,6 +194,37 @@ const WEIGHT_TOLERANCE: f64 = 1e-6;
 /// that [`grid_attribution()`] returned `Ok`.
 const NET_WEIGHT_RELATIVE_TOLERANCE: f64 = 1e-6;
 
+/// Relative reconciliation tolerance for inbound linked-period effects.
+///
+/// The floor is `1e-10` in ordinary return space. For near-cancelling,
+/// long/short-generated effects whose gross magnitude is much larger than
+/// their net active return, it scales with an overflow-safe L1 effect norm so
+/// valid outputs from [`grid_attribution`] are not rejected solely because
+/// cancellation amplified floating-point noise.
+const LINK_RECONCILIATION_RELATIVE_TOLERANCE: f64 = 1e-10;
+
+/// Compute a relative tolerance from an L1 norm without forming an
+/// overflow-prone sum of absolute values.
+fn scaled_l1_tolerance(values: &[f64]) -> (f64, f64, f64) {
+    let scale = values
+        .iter()
+        .map(|value| value.abs())
+        .fold(0.0_f64, f64::max);
+    if scale == 0.0 {
+        return (LINK_RECONCILIATION_RELATIVE_TOLERANCE, 0.0, 0.0);
+    }
+
+    let normalized_sum: f64 = values.iter().map(|value| value.abs() / scale).sum();
+    let scaled_relative = LINK_RECONCILIATION_RELATIVE_TOLERANCE * scale;
+    let tolerance = if normalized_sum > f64::MAX / scaled_relative {
+        f64::MAX
+    } else {
+        scaled_relative * normalized_sum
+    }
+    .max(LINK_RECONCILIATION_RELATIVE_TOLERANCE);
+    (tolerance, scale, normalized_sum)
+}
+
 /// One position (or pre-aggregated bucket) in a duration-cell x sector grid,
 /// for one period and one side (portfolio or benchmark).
 ///
@@ -634,6 +665,89 @@ pub struct GridCarinoLinkedResult {
     pub linked_selection: f64,
 }
 
+/// Validate one externally reachable single-period result before linking.
+fn validate_grid_link_period(period: &GridAttributionResult, index: usize) -> Result<()> {
+    for (name, value) in [
+        ("portfolio_return", period.portfolio_return),
+        ("benchmark_return", period.benchmark_return),
+        ("active_return", period.active_return),
+        ("total_curve", period.total_curve),
+        ("total_sector", period.total_sector),
+        ("total_selection", period.total_selection),
+    ] {
+        if !value.is_finite() {
+            if matches!(
+                name,
+                "portfolio_return" | "benchmark_return" | "active_return"
+            ) {
+                return Err(Error::invalid_input(format!(
+                    "Grid Carino linking requires finite period returns: \
+                     period[{index}].{name} must be finite (got {value})"
+                )));
+            }
+            return Err(Error::invalid_input(format!(
+                "Grid Carino period[{index}].{name} must be finite (got {value})"
+            )));
+        }
+    }
+
+    let expected_active = period.portfolio_return - period.benchmark_return;
+    if !expected_active.is_finite() {
+        return Err(Error::invalid_input(format!(
+            "Grid Carino period[{index}] portfolio_return - benchmark_return must be finite"
+        )));
+    }
+    let return_scale = period
+        .portfolio_return
+        .abs()
+        .max(period.benchmark_return.abs())
+        .max(period.active_return.abs())
+        .max(1.0);
+    let return_tolerance = 1e-12 * return_scale;
+    let active_residual = period.active_return - expected_active;
+    if !active_residual.is_finite() {
+        return Err(Error::invalid_input(format!(
+            "Grid Carino period[{index}] active-return residual must be finite"
+        )));
+    }
+    if active_residual.abs() > return_tolerance {
+        return Err(Error::invalid_input(format!(
+            "Grid Carino period[{index}].active_return ({}) does not agree with \
+             portfolio_return - benchmark_return ({expected_active}) within return-scale \
+             tolerance {return_tolerance}",
+            period.active_return
+        )));
+    }
+
+    let effect_values = [
+        period.total_curve,
+        period.total_sector,
+        period.total_selection,
+    ];
+    let (tolerance, effect_scale, normalized_l1) = scaled_l1_tolerance(&effect_values);
+    let mut effects = NeumaierAccumulator::new();
+    for value in effect_values {
+        effects.add(value);
+    }
+    let effect_total = effects.total();
+    let reconciliation_residual = effect_total - period.active_return;
+    if !reconciliation_residual.is_finite() {
+        return Err(Error::invalid_input(format!(
+            "Grid Carino period[{index}] effect reconciliation residual must be finite"
+        )));
+    }
+    if reconciliation_residual.abs() > tolerance {
+        return Err(Error::invalid_input(format!(
+            "Grid Carino period[{index}] effect totals sum to {effect_total}, which does not \
+             reconcile to active_return {} within scale-aware tolerance {tolerance} \
+             (scaled L1 effect scale {effect_scale}, normalized L1 sum {normalized_l1})",
+            period.active_return
+        )));
+    }
+
+    Ok(())
+}
+
 /// Apply Carino (1999) smoothing to a sequence of per-period hierarchical
 /// grid attribution results ([`grid_attribution()`]) so the three top-level
 /// arithmetic effects reconstruct the *geometrically compounded* active
@@ -659,10 +773,13 @@ pub struct GridCarinoLinkedResult {
 ///
 /// # Errors
 ///
-/// Returns [`Error::InvalidInput`] if `periods` is empty, any period's
-/// `portfolio_return` or `benchmark_return` is non-finite, or any per-period
-/// or compounded return is at or below −100 % (the Carino formula's domain;
-/// see `carino_coefficient`).
+/// Returns [`Error::InvalidInput`] if `periods` is empty; any consumed return
+/// or top-level effect is non-finite; a declared `active_return` does not
+/// agree with `portfolio_return - benchmark_return`; the three effect totals
+/// do not reconcile to `active_return` within an overflow-safe, scale-aware
+/// L1 tolerance; any return identity or reconciliation residual is
+/// non-finite; or any per-period or compounded return is at or below −100 %
+/// (the Carino formula's domain; see `carino_coefficient`).
 ///
 /// # Examples
 ///
@@ -696,14 +813,8 @@ pub fn grid_carino_link(periods: &[GridAttributionResult]) -> Result<GridCarinoL
 
     let mut compounded_p = 1.0_f64;
     let mut compounded_b = 1.0_f64;
-    for p in periods {
-        if !p.portfolio_return.is_finite() || !p.benchmark_return.is_finite() {
-            return Err(Error::invalid_input(format!(
-                "Grid Carino linking requires finite period returns \
-                 (got portfolio_return = {}, benchmark_return = {})",
-                p.portfolio_return, p.benchmark_return
-            )));
-        }
+    for (index, p) in periods.iter().enumerate() {
+        validate_grid_link_period(p, index)?;
         compounded_p *= 1.0 + p.portfolio_return;
         compounded_b *= 1.0 + p.benchmark_return;
     }
@@ -1395,30 +1506,8 @@ mod tests {
         );
     }
 
-    /// `GridAttributionResult` is `Deserialize` with public fields, so a
-    /// period can be hand-built (or arrive from an external producer) whose
-    /// three totals do *not* reconcile to its own return spread — nothing in
-    /// this module enforces that invariant on the way in. The correct
-    /// implementation must report the linked totals it actually computed
-    /// from the *given* per-period totals, not silently "repair" them by
-    /// back-solving one total from the compounded active return and the
-    /// other two (indistinguishable from the correct value on any
-    /// self-consistent fixture, since the sum identity then holds by
-    /// algebra either way).
-    ///
-    /// With a single period, `k_t` and `K` are computed from *nearly*
-    /// identical inputs — the period's own returns versus the same values
-    /// round-tripped through `1.0 + r - 1.0` while compounding — so
-    /// `scale = k_t / K` is extremely close to but not bit-exactly `1.0`
-    /// (differs at the ~1e-16 relative level from that round trip). Each
-    /// `linked_*` must therefore equal its `total_*` input to float
-    /// precision, even though `0.01 + 0.01 + 0.005 = 0.025 !=
-    /// active_return (0.03)`. `1e-14` comfortably separates that ~1e-18
-    /// absolute rounding noise from the ~5e-3 discrepancy a
-    /// subtraction-based implementation would produce for any one of the
-    /// three totals.
     #[test]
-    fn non_reconciling_period_totals_are_not_repaired_by_subtraction() {
+    fn grid_link_rejects_materially_tampered_effect_totals() {
         let period = GridAttributionResult {
             portfolio_return: 0.05,
             benchmark_return: 0.02,
@@ -1431,27 +1520,119 @@ mod tests {
             total_selection: 0.005,
         };
 
-        let linked = grid_carino_link(&[period]).expect("single period is valid");
+        let err = grid_carino_link(&[period])
+            .expect_err("linking must reject inconsistent totals rather than repair them");
+        assert!(
+            err.to_string().contains("effect totals"),
+            "error must name the violated reconciliation: {err}"
+        );
+    }
 
-        close(
-            linked.linked_curve,
-            0.01,
-            1e-14,
-            "linked_curve must reflect the input total_curve as given, not a value \
-             back-solved from active_return and the other two linked totals",
+    #[test]
+    fn grid_link_rejects_active_return_mismatch() {
+        let mut period = golden_period();
+        period.active_return += 0.001;
+
+        let err = grid_carino_link(&[period])
+            .expect_err("declared active return must match portfolio minus benchmark");
+        assert!(
+            err.to_string().contains("active_return"),
+            "error must name the mismatched field: {err}"
         );
-        close(
-            linked.linked_sector,
-            0.01,
-            1e-14,
-            "linked_sector must reflect the input total_sector as given",
+    }
+
+    #[test]
+    fn grid_link_rejects_non_finite_effects() {
+        let mut period = golden_period();
+        period.total_sector = f64::NAN;
+
+        let err = grid_carino_link(&[period]).expect_err("NaN top-level effects must be rejected");
+        assert!(
+            err.to_string().contains("total_sector"),
+            "error must name the non-finite field: {err}"
         );
-        close(
-            linked.linked_selection,
-            0.005,
-            1e-14,
-            "linked_selection must reflect the input total_selection as given",
+    }
+
+    fn synthetic_grid_period(
+        portfolio_return: f64,
+        benchmark_return: f64,
+        active_return: f64,
+        effects: [f64; 3],
+    ) -> GridAttributionResult {
+        GridAttributionResult {
+            portfolio_return,
+            benchmark_return,
+            active_return,
+            curve_effects: Vec::new(),
+            sector_effects: Vec::new(),
+            selection_effects: Vec::new(),
+            total_curve: effects[0],
+            total_sector: effects[1],
+            total_selection: effects[2],
+        }
+    }
+
+    #[test]
+    fn grid_link_rejects_active_mismatch_when_additive_return_scale_overflows() {
+        let period = synthetic_grid_period(1e308, 9e307, 0.0, [0.0; 3]);
+        let err = grid_carino_link(&[period])
+            .expect_err("finite return magnitudes must not overflow the validation scale");
+        assert!(err.to_string().contains("active_return"), "{err}");
+    }
+
+    #[test]
+    fn grid_link_rejects_non_finite_expected_active_explicitly() {
+        let period = synthetic_grid_period(f64::MAX, -f64::MAX, 0.0, [0.0; 3]);
+        let err = grid_carino_link(&[period])
+            .expect_err("overflowed portfolio-minus-benchmark return must be rejected");
+        assert!(
+            err.to_string()
+                .contains("portfolio_return - benchmark_return must be finite"),
+            "{err}"
         );
+    }
+
+    #[test]
+    fn grid_link_accepts_huge_finite_cancelling_effects() {
+        let period = synthetic_grid_period(0.01, 0.01, 0.0, [f64::MAX, -f64::MAX, 0.0]);
+        let linked = grid_carino_link(&[period])
+            .expect("scaled L1 tolerance must not overflow on finite cancelling effects");
+        assert_eq!(linked.linked_curve, f64::MAX);
+        assert_eq!(linked.linked_sector, -f64::MAX);
+    }
+
+    #[test]
+    fn grid_link_rejects_non_finite_reconciliation_residual_explicitly() {
+        let period = synthetic_grid_period(0.01, 0.01, 0.0, [f64::MAX, f64::MAX, -f64::MAX]);
+        let err = grid_carino_link(&[period])
+            .expect_err("overflowed effect reconciliation must be rejected");
+        assert!(
+            err.to_string()
+                .contains("reconciliation residual must be finite"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn grid_link_accepts_generated_near_cancelling_output() {
+        let eps = 1.1e-6;
+        let portfolio = vec![pos("X", "GOVT", 0.5, 0.8), pos("Y", "GOVT", 0.5, -0.2)];
+        let benchmark = vec![
+            pos("X", "GOVT", 0.5, 1.0),
+            pos("X", "CORP", -(0.5 - eps), -0.2),
+            pos("Y", "GOVT", 1.0 - eps, 0.1),
+        ];
+        let period = grid_attribution(&portfolio, &benchmark)
+            .expect("the bucket remains just outside the near-zero rejection boundary");
+        let gross =
+            period.total_curve.abs() + period.total_sector.abs() + period.total_selection.abs();
+        assert!(
+            gross > 1_000.0,
+            "fixture must exercise cancellation between large effects (gross {gross})"
+        );
+
+        grid_carino_link(&[period])
+            .expect("scale-aware validation must accept generated near-cancelling output");
     }
 
     #[test]
@@ -1528,6 +1709,10 @@ mod tests {
 
         let mut sub_100 = golden_period();
         sub_100.portfolio_return = -1.5; // 1 + r = -0.5 <= 0, outside ln(1+r)'s domain.
+        sub_100.active_return = sub_100.portfolio_return - sub_100.benchmark_return;
+        sub_100.total_curve = sub_100.active_return;
+        sub_100.total_sector = 0.0;
+        sub_100.total_selection = 0.0;
         let err = grid_carino_link(&[sub_100]).expect_err("return <= -100% must be rejected");
         let message = err.to_string();
         assert!(

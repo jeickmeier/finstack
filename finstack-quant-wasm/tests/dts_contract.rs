@@ -366,6 +366,14 @@ fn scenarios_dts_matches_json_bridge_surface() {
 fn campisi_dts_declarations_pin_their_argument_lists() {
     let dts = index_dts();
 
+    assert!(
+        dts.contains("quote-reproducing `z_spread` basis"),
+        "Campisi TypeScript docs must state the required spread-risk basis"
+    );
+    assert!(
+        dts.contains("OAS, G-spread") && dts.contains("discount-margin values are incompatible"),
+        "Campisi TypeScript docs must name the rejected mismatched bases"
+    );
     assert!(contains_signature(
         &dts,
         "campisiAttribution(portfolioJson: string, benchmarkJson: string, configJson: string): string;",
@@ -825,7 +833,7 @@ fn credit_excess_grid_factor_brinson_dts_declarations_pin_their_argument_lists()
     ));
     assert!(contains_signature(
         &dts,
-        "factorBrinsonAttribution(inputJson: string, factorReturns: number[]): string;",
+        "factorBrinsonAttribution(inputJson: string, factorReturns: NumericArray): string;",
     ));
 
     let analytics = interface_block(&dts, "AnalyticsNamespace");

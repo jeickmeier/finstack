@@ -93,12 +93,53 @@ test('computeBilateralXva folds MVA into total_xva', () => {
   assert.ok(Math.abs(result.dva) < 1e-12);
   assert.ok(Math.abs(result.mva - 10_000.0) < 1e-6);
   assert.ok(result.fva > 0.0);
-  assert.ok(
-    Math.abs(result.total_xva - (result.cva - result.dva + result.fva + result.mva)) < 1e-9
+  assert.ok(Math.abs(result.bilateral_cva - (result.cva - result.dva + result.fva)) < 1e-9);
+  assert.ok(Math.abs(result.total_xva - (result.bilateral_cva + result.mva)) < 1e-9);
+});
+
+test('computeBilateralXva nets posted IM from bilateral DVA', () => {
+  const negativeExposureJson = JSON.stringify({
+    times: [1.0, 2.0],
+    mtm_values: [-1e6, -1e6],
+    epe: [0.0, 0.0],
+    ene: [1e6, 1e6],
+  });
+  const args = [negativeExposureJson, flatHazard(0.0), flatHazard(0.03), flatDiscount(), 0.4, 0.4];
+
+  const withoutIm = margin.computeBilateralXva(...args);
+  const withIm = margin.computeBilateralXva(
+    ...args,
+    JSON.stringify({
+      funding_spread_bps: 0.0,
+      funding_benefit_bps: 0.0,
+      im_profile: { times: [1.0, 2.0], im_values: [400_000.0, 400_000.0] },
+    })
+  );
+
+  assert.ok(withoutIm.dva > 0.0);
+  assert.ok(withIm.dva > 0.0 && withIm.dva < withoutIm.dva);
+});
+
+test('computeBilateralXva rejects an IM/exposure horizon mismatch', () => {
+  assert.throws(
+    () =>
+      margin.computeBilateralXva(
+        exposureJson,
+        flatHazard(0.02),
+        flatHazard(0.03),
+        flatDiscount(),
+        0.4,
+        0.4,
+        JSON.stringify({
+          funding_spread_bps: 50.0,
+          im_profile: { times: [1.0, 3.0], im_values: [1e6, 1e6] },
+        })
+      ),
+    /horizon/
   );
 });
 
-test('computeBilateralXva omits uncomputed legs and keeps BCVA credit-only', () => {
+test('computeBilateralXva omits uncomputed legs without funding', () => {
   const result = margin.computeBilateralXva(
     exposureJson,
     flatHazard(0.02),
@@ -139,6 +180,20 @@ test('computeBilateralXva throws on a malformed exposure payload', () => {
       flatDiscount(),
       0.4,
       0.4
+    )
+  );
+});
+
+test('computeBilateralXva rejects unknown funding fields', () => {
+  assert.throws(() =>
+    margin.computeBilateralXva(
+      exposureJson,
+      flatHazard(0.02),
+      flatHazard(0.02),
+      flatDiscount(),
+      0.4,
+      0.4,
+      JSON.stringify({ funding_spread_bps: 50.0, funding_spred_bps: 40.0 })
     )
   );
 });

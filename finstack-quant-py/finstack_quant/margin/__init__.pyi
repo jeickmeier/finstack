@@ -2517,18 +2517,26 @@ class FundingConfig:
     Parameters
     ----------
     funding_spread_bps : float
-        Funding spread in basis points.
+        Non-negative finite funding cost spread in basis points.
     funding_benefit_bps : float | None, optional
-        Funding benefit in bps; ``None`` for symmetric funding.
+        Non-negative finite funding benefit in bps, no greater than the cost
+        spread; ``None`` for symmetric funding.
     im_profile : ImProfile | None, optional
-        Expected initial-margin profile driving MVA; ``None`` disables MVA.
+        Valid expected initial-margin profile driving MVA; ``None`` disables MVA.
     margin_funding_spread_bps : float | None, optional
-        Spread applied to posted IM; ``None`` reuses ``funding_spread_bps``.
+        Non-negative finite spread applied to posted IM; ``None`` reuses
+        ``funding_spread_bps``.
 
     Returns
     -------
     FundingConfig
         Funding parameters.
+
+    Raises
+    ------
+    ValueError
+        If a spread is negative or non-finite, the benefit exceeds the funding
+        cost, or ``im_profile`` is invalid.
 
     Examples
     --------
@@ -2549,18 +2557,21 @@ class FundingConfig:
         Parameters
         ----------
         funding_spread_bps : float
-            Funding cost spread in basis points.
+            Non-negative finite funding cost spread in basis points.
         funding_benefit_bps : float | None
-            Funding benefit in basis points; ``None`` uses the funding cost spread.
+            Non-negative finite funding benefit in basis points, no greater
+            than the cost spread; ``None`` uses the funding cost spread.
         im_profile : ImProfile | None
-            Expected initial-margin profile driving MVA, or ``None``.
+            Valid expected initial-margin profile driving MVA, or ``None``.
         margin_funding_spread_bps : float | None
-            IM funding spread in bps, or ``None`` to reuse ``funding_spread_bps``.
+            Non-negative finite IM funding spread in bps, or ``None`` to reuse
+            ``funding_spread_bps``.
 
         Raises
         ------
         ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+            If a spread is negative or non-finite, the benefit exceeds the
+            funding cost, or ``im_profile`` is invalid.
         """
         ...
 
@@ -3134,8 +3145,8 @@ class XvaResult:
     """
     Result of XVA calculations (CVA, DVA, FVA, MVA, exposure profiles).
 
-    Adjustments compose additively as ``bilateral_cva = CVA - DVA`` (credit
-    only) and ``total_xva = CVA - DVA + FVA + MVA`` (all-in).
+    Adjustments compose as ``bilateral_cva = CVA - DVA + FVA`` for legacy
+    compatibility and ``total_xva = bilateral_cva + MVA`` (all-in).
 
     Parameters
     ----------
@@ -3263,10 +3274,9 @@ class XvaResult:
     @property
     def bilateral_cva(self) -> float | None:
         """
-        Bilateral CVA (BCVA) = CVA − DVA (or None).
+        Legacy bilateral adjustment = CVA − DVA + FVA (or None).
 
-        Credit only — it excludes FVA and MVA. Read :attr:`total_xva` for the
-        all-in adjustment.
+        Uncomputed FVA contributes zero.
 
         Returns
         -------
@@ -3282,7 +3292,7 @@ class XvaResult:
     @property
     def total_xva(self) -> float | None:
         """
-        All-in adjustment = CVA − DVA + FVA + MVA (or None).
+        All-in adjustment = bilateral_cva + MVA (or None).
 
         Uncomputed legs contribute zero. This is the quantity subtracted from
         the risk-free value of the netting set.
@@ -5735,11 +5745,11 @@ def compute_bilateral_xva(
 
     All legs are weighted by joint (first-to-default) survival, so the credit
     and funding components are not double-counted. MVA is computed only when
-    ``funding`` carries an ``im_profile``.
+    ``funding`` carries an ``im_profile``; that posted IM also reduces ENE for
+    bilateral DVA.
 
-    The result reports ``bilateral_cva = CVA - DVA`` (credit only) and
-    ``total_xva = CVA - DVA + FVA + MVA`` (all-in) — the latter being the
-    quantity subtracted from the risk-free value of the netting set.
+    The result reports ``bilateral_cva = CVA - DVA + FVA`` for legacy
+    compatibility and ``total_xva = bilateral_cva + MVA`` (all-in).
 
     Parameters
     ----------
@@ -5769,8 +5779,8 @@ def compute_bilateral_xva(
     ------
     ValueError
         If the exposure profile is empty or inconsistent, a recovery rate is
-        outside ``[0, 1]``, a curve evaluation is non-finite, or the supplied
-        IM profile fails validation.
+        outside ``[0, 1]``, funding inputs are invalid, the IM and exposure
+        horizons differ, or a curve evaluation is non-finite.
 
     Examples
     --------

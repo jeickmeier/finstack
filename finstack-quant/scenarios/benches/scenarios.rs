@@ -113,6 +113,7 @@ fn create_base_market() -> MarketContext {
             (5.0, 0.02),
             (10.0, 0.025),
         ])
+        .par_spreads([(1.0, 60.0), (3.0, 90.0), (5.0, 120.0), (10.0, 150.0)])
         .build()
         .unwrap();
 
@@ -126,6 +127,7 @@ fn create_base_market() -> MarketContext {
             (5.0, 0.07),
             (10.0, 0.08),
         ])
+        .par_spreads([(1.0, 350.0), (3.0, 420.0), (5.0, 490.0), (10.0, 560.0)])
         .build()
         .unwrap();
 

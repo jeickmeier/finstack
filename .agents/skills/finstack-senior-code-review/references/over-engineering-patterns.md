@@ -36,8 +36,10 @@ class BaseProcessor(ABC):
     @abstractmethod
     def process(self, data): ...
 
+
 class ActualProcessor(BaseProcessor):
     def process(self, data): ...
+
 
 # GOOD: just a class (or a function)
 class Processor:
@@ -59,6 +61,7 @@ class ModelFactory:
             return LinearModel()
         raise ValueError(f"Unknown model: {model_type}")
 
+
 # GOOD
 model = LinearModel()
 ```
@@ -72,9 +75,9 @@ model = LinearModel()
 ```python
 # BAD: config that's always the same
 config = {
-    "use_cache": True,       # has literally never been False
-    "max_retries": 3,        # has literally never been changed
-    "log_level": "INFO",     # toggled once in 2019
+    "use_cache": True,  # has literally never been False
+    "max_retries": 3,  # has literally never been changed
+    "log_level": "INFO",  # toggled once in 2019
 }
 
 # GOOD: constants or hardcoded
@@ -94,13 +97,16 @@ class TradeService:
     def execute(self, trade):
         return self.trade_executor.execute(trade)
 
+
 class TradeExecutor:
     def execute(self, trade):
         return self.order_manager.submit(trade)
 
+
 class OrderManager:
     def submit(self, trade):
         return self.broker_client.send(trade)
+
 
 # GOOD: collapse to what matters
 class TradeService:
@@ -172,12 +178,19 @@ let config = Config { host: "localhost".into(), port: 8080 };
 # BAD: 4 files for a daily job
 class PositionRepository:
     def get_positions(self): ...
+
+
 class PositionService:
     def reconcile(self): ...
+
+
 class PositionController:
     def run_reconciliation(self): ...
+
+
 class PositionReconciliationApp:
     def main(self): ...
+
 
 # GOOD: one file, one function
 def reconcile_positions():
@@ -193,9 +206,15 @@ def reconcile_positions():
 class Price:
     def __init__(self, value: float):
         self.value = value
-    def __float__(self): return self.value
-    def __add__(self, other): return Price(self.value + other.value)
+
+    def __float__(self):
+        return self.value
+
+    def __add__(self, other):
+        return Price(self.value + other.value)
+
     # ... 20 more dunder methods ...
+
 
 # GOOD (if no invariants to enforce)
 price: float = 99.50

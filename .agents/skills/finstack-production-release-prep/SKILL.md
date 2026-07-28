@@ -289,7 +289,7 @@ cargo publish -p finstack-quant-core --dry-run
 
 - [ ] `uv.lock` is committed and up to date (`uv lock --check`)
 - [ ] `package-lock.json` is committed and up to date (`cd finstack-ui && npm ci`)
-- [ ] `Cargo.lock` is gitignored (library convention — correct)
+- [ ] `Cargo.lock` is committed and current so CI's explicit OSV scan can read it
 
 ### 6f. Binary size check
 

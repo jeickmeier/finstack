@@ -392,10 +392,12 @@ def test_wasm_attribution_root_exports_are_triplet_accounted_for() -> None:
     root_exports = set(block["root_exports"])
     wasm_only = set(block.get("wasm_only", {}).get("symbols", []))
     mapped_js = set(block["python_js_map"].values())
-    unaccounted = root_exports - wasm_only - mapped_js
-    assert not unaccounted, f"attribution exports must be mapped or wasm-only: {sorted(unaccounted)}"
-    overlap = wasm_only & mapped_js
-    assert not overlap, f"attribution wasm_only overlaps python_js_map values: {sorted(overlap)}"
+    _assert_wasm_subset_root_exports_accounted(
+        "wasm_attribution_subset",
+        root_exports=root_exports,
+        mapped_js=mapped_js,
+        wasm_only=wasm_only,
+    )
 
 
 def test_wasm_cashflows_exports_match_contract() -> None:
@@ -448,7 +450,9 @@ def test_cashflows_has_no_cross_crate_symbols() -> None:
 
 
 WASM_NAMESPACE_SUBSETS = [
+    ("wasm_analytics_subset", "analytics", "finstack_quant.analytics"),
     ("wasm_features_subset", "features", "finstack_quant.features"),
+    ("wasm_margin_subset", "margin", "finstack_quant.margin"),
     ("wasm_statements_subset", "statements", "finstack_quant.statements"),
     ("wasm_statements_analytics_subset", "statements_analytics", "finstack_quant.statements_analytics"),
 ]
@@ -469,6 +473,46 @@ def test_wasm_namespace_subset_exports_match_contract(section: str, const_name: 
     )
 
 
+def _assert_wasm_subset_root_exports_accounted(
+    section: str,
+    *,
+    root_exports: set[str],
+    mapped_js: set[str],
+    wasm_only: set[str],
+) -> None:
+    overlap = wasm_only & mapped_js
+    assert not overlap, f"{section} wasm_only overlaps python_js_map values: {sorted(overlap)}"
+
+    accounted = mapped_js | wasm_only
+    assert accounted == root_exports, (
+        f"{section} mapped_js union wasm_only must equal root_exports exactly.\n"
+        f"  unaccounted root exports: {sorted(root_exports - accounted)}\n"
+        f"  accounted but not exported: {sorted(accounted - root_exports)}"
+    )
+
+
+def test_wasm_namespace_subset_accounting_rejects_extra_mapping() -> None:
+    """A mapped JS name absent from root_exports must fail the topology gate."""
+    with pytest.raises(AssertionError, match="exactly"):
+        _assert_wasm_subset_root_exports_accounted(
+            "test_subset",
+            root_exports={"liveExport"},
+            mapped_js={"liveExport", "staleExport"},
+            wasm_only=set(),
+        )
+
+
+def test_wasm_namespace_subset_accounting_rejects_overlap() -> None:
+    """A root export cannot be both mapped and explicitly WASM-only."""
+    with pytest.raises(AssertionError, match="overlaps"):
+        _assert_wasm_subset_root_exports_accounted(
+            "test_subset",
+            root_exports={"liveExport"},
+            mapped_js={"liveExport"},
+            wasm_only={"liveExport"},
+        )
+
+
 @pytest.mark.parametrize(("section", "const_name", "python_package"), WASM_NAMESPACE_SUBSETS)
 def test_wasm_namespace_subset_root_exports_are_triplet_accounted_for(
     section: str, const_name: str, python_package: str
@@ -480,10 +524,12 @@ def test_wasm_namespace_subset_root_exports_are_triplet_accounted_for(
     root_exports = set(block["root_exports"])
     wasm_only = set(block.get("wasm_only", {}).get("symbols", []))
     mapped_js = set(block["python_js_map"].values())
-    unaccounted = root_exports - wasm_only - mapped_js
-    assert not unaccounted, f"{section} exports must be mapped or wasm-only: {sorted(unaccounted)}"
-    overlap = wasm_only & mapped_js
-    assert not overlap, f"{section} wasm_only overlaps python_js_map values: {sorted(overlap)}"
+    _assert_wasm_subset_root_exports_accounted(
+        section,
+        root_exports=root_exports,
+        mapped_js=mapped_js,
+        wasm_only=wasm_only,
+    )
 
 
 @pytest.mark.parametrize(("section", "const_name", "python_package"), WASM_NAMESPACE_SUBSETS)
@@ -612,11 +658,13 @@ def test_wasm_valuations_root_exports_are_triplet_accounted_for() -> None:
     block = CONTRACT["wasm_valuations_subset"]
     root_exports = set(block["root_exports"])
     wasm_only = set(block.get("wasm_only", []))
-    mapped_js = set(block["python_js_map"].values()) | set(block.get("python_path_js_map", {}).values())
-    unaccounted = root_exports - wasm_only - mapped_js
-    assert not unaccounted, f"root_exports must appear in python_js_map or wasm_only: {sorted(unaccounted)}"
-    overlap = wasm_only & mapped_js
-    assert not overlap, f"wasm_only must not overlap python_js_map values: {sorted(overlap)}"
+    mapped_js = set(block["python_js_map"].values())
+    _assert_wasm_subset_root_exports_accounted(
+        "wasm_valuations_subset",
+        root_exports=root_exports,
+        mapped_js=mapped_js,
+        wasm_only=wasm_only,
+    )
 
 
 def test_wasm_valuations_python_only_excludes_wasm_map() -> None:
@@ -686,10 +734,12 @@ def test_wasm_portfolio_root_exports_are_triplet_accounted_for() -> None:
     root_exports = set(block["root_exports"])
     wasm_only = set(block.get("wasm_only", []))
     mapped_js = set(block["python_js_map"].values())
-    unaccounted = root_exports - wasm_only - mapped_js
-    assert not unaccounted, f"root_exports must appear in python_js_map or wasm_only: {sorted(unaccounted)}"
-    overlap = wasm_only & mapped_js
-    assert not overlap, f"wasm_only must not overlap python_js_map values: {sorted(overlap)}"
+    _assert_wasm_subset_root_exports_accounted(
+        "wasm_portfolio_subset",
+        root_exports=root_exports,
+        mapped_js=mapped_js,
+        wasm_only=wasm_only,
+    )
 
 
 def test_wasm_portfolio_python_only_excludes_wasm_map() -> None:

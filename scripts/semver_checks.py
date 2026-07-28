@@ -1,4 +1,4 @@
-"""Run cargo-semver-checks against the renamed v0.5.0 workspace layout."""
+"""Run cargo-semver-checks against the latest stable release layout."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import sys
 
-BASELINE_TAG = "v0.5.0"
+BASELINE_TAG = "v0.6.0"
 DEFAULT_MANIFEST = "finstack-quant/Cargo.toml"
 
 PACKAGE_RENAMES = {

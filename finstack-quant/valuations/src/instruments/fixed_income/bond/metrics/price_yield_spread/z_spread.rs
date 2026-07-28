@@ -4,8 +4,8 @@ use crate::instruments::fixed_income::bond::pricing::settlement::QuoteDateContex
 use crate::instruments::Bond;
 use crate::metrics::{MetricCalculator, MetricContext};
 use finstack_quant_core::dates::{Date, DayCountContext};
+use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::solver::{BrentSolver, Solver};
-use std::borrow::Cow;
 use std::cell::RefCell;
 
 /// Configuration for Z-spread solver with maturity-aware bracket sizing.
@@ -250,6 +250,59 @@ pub(crate) fn z_spread_discount_factor(
     Ok(denom.powf(-m * t))
 }
 
+pub(crate) struct BondZSpreadPricingKernel {
+    pub(crate) quote_date: Date,
+    cached_flows: Vec<(f64, f64, f64)>,
+    compounds_per_year: f64,
+}
+
+impl BondZSpreadPricingKernel {
+    pub(crate) fn new(
+        bond: &Bond,
+        curves: &MarketContext,
+        as_of: Date,
+    ) -> finstack_quant_core::Result<Self> {
+        let quote_ctx = QuoteDateContext::new(bond, curves, as_of)?;
+        let flows = bond.pricing_dated_cashflows(curves, as_of)?;
+        let (spread_flows, quote_date) = if let Some((_, workout_flows, workout_quote_date)) =
+            crate::instruments::fixed_income::bond::metrics::quoted_workout_path(
+                bond, curves, as_of, &flows,
+            )? {
+            (workout_flows, workout_quote_date)
+        } else {
+            (flows, quote_ctx.quote_date)
+        };
+        let disc = curves.get_discount(&bond.discount_curve_id)?;
+        let dc = disc.day_count();
+        let cached_flows = spread_flows
+            .iter()
+            .filter(|(date, _)| *date > quote_date)
+            .map(
+                |(date, amount)| -> finstack_quant_core::Result<(f64, f64, f64)> {
+                    let t = dc.year_fraction(quote_date, *date, DayCountContext::default())?;
+                    let df_base = disc.df_between_dates(quote_date, *date)?;
+                    Ok((t, df_base, amount.amount()))
+                },
+            )
+            .collect::<finstack_quant_core::Result<Vec<_>>>()?;
+
+        Ok(Self {
+            quote_date,
+            cached_flows,
+            compounds_per_year: bond_z_spread_compounding_frequency(bond),
+        })
+    }
+
+    pub(crate) fn price(&self, z: f64) -> finstack_quant_core::Result<f64> {
+        let mut pv = finstack_quant_core::math::summation::NeumaierAccumulator::new();
+        for (t, df_base, amount) in &self.cached_flows {
+            let df_z = z_spread_discount_factor(*df_base, *t, z, self.compounds_per_year)?;
+            pv.add(*amount * df_z);
+        }
+        Ok(pv.total())
+    }
+}
+
 impl MetricCalculator for ZSpreadCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
         // Get bond and compute quote-date context
@@ -271,45 +324,11 @@ impl MetricCalculator for ZSpreadCalculator {
             context.base_value.amount()
         };
 
-        // OPTIMIZATION: Pre-calculate cashflow times and base discount factors
-        // to avoid repeated date logic and curve lookups inside the solver loop.
-        //
-        // Use quote_date consistently as the time origin for z-spread calculation.
-        // Both year fractions and discount factors use the same origin (quote_date).
-        // Note: quote_date is the settlement date, which is the correct anchor
-        // for market-convention z-spread calculations. This ensures the z-spread
-        // shift (applied via `z_spread_discount_factor` on the periodically-
-        // compounded zero rate) is anchored to the same date as the base DFs.
-        let flows = bond.pricing_dated_cashflows(&context.curves, context.as_of)?;
-        let disc = context.curves.get_discount(&bond.discount_curve_id)?;
-        let (spread_flows, quote_date) = if let Some((_, workout_flows, workout_quote_date)) =
-            crate::instruments::fixed_income::bond::metrics::quoted_workout_path(
-                bond,
-                context.curves.as_ref(),
-                context.as_of,
-                &flows,
-            )? {
-            (Cow::Owned(workout_flows), workout_quote_date)
-        } else {
-            (Cow::Borrowed(flows.as_slice()), quote_ctx.quote_date)
-        };
-        let compounds_per_year = bond_z_spread_compounding_frequency(bond);
-        // Keep z-spread time axis on the discount-curve basis for consistency with
-        // existing solver calibration and parity tests.
-        let dc = disc.day_count();
-
-        // Cache (time_from_quote_date, df_from_quote_date, amount) for each future cashflow
-        let cached_flows: Vec<(f64, f64, f64)> = spread_flows
-            .iter()
-            .filter(|(d, _)| *d > quote_date)
-            .map(|(d, amt)| -> finstack_quant_core::Result<(f64, f64, f64)> {
-                // Year fraction from quote_date (settlement) for z-spread shift
-                let t = dc.year_fraction(quote_date, *d, DayCountContext::default())?;
-                // Discount factor from quote_date (settlement) — same origin as t
-                let df_base = disc.df_between_dates(quote_date, *d)?;
-                Ok((t, df_base, amt.amount()))
-            })
-            .collect::<finstack_quant_core::Result<Vec<_>>>()?;
+        // Build the same quote-date/workout-path repricing kernel used by
+        // price_from_z_spread and bond spread duration.
+        let pricing_kernel =
+            BondZSpreadPricingKernel::new(bond, context.curves.as_ref(), context.as_of)?;
+        let quote_date = pricing_kernel.quote_date;
 
         // Capture the first z-spread pricing error encountered inside the
         // objective so a bad-curve-data failure is surfaced as the real cause
@@ -324,25 +343,21 @@ impl MetricCalculator for ZSpreadCalculator {
         // convergence failure instead of silently propagating NaN/Inf values
         // into the PV accumulator.
         let objective = |z: f64| -> f64 {
-            let mut pv = finstack_quant_core::math::summation::NeumaierAccumulator::new();
-            for (t, df_base, amt) in &cached_flows {
-                match z_spread_discount_factor(*df_base, *t, z, compounds_per_year) {
-                    Ok(df_z) => pv.add(amt * df_z),
-                    Err(e) => {
-                        let mut slot = pricing_error.borrow_mut();
-                        if slot.is_none() {
-                            *slot = Some(e);
-                        }
-                        drop(slot);
-                        // Large positive residual: price diverges to +∞ when the
-                        // spread is extremely negative (below the compounding
-                        // floor). This keeps the residual monotone and prevents
-                        // Brent from manufacturing a fake sign-changing bracket.
-                        return 1e12;
+            match pricing_kernel.price(z) {
+                Ok(pv) => pv - target_value_ccy,
+                Err(e) => {
+                    let mut slot = pricing_error.borrow_mut();
+                    if slot.is_none() {
+                        *slot = Some(e);
                     }
+                    drop(slot);
+                    // Large positive residual: price diverges to +∞ when the
+                    // spread is extremely negative (below the compounding
+                    // floor). This keeps the residual monotone and prevents
+                    // Brent from manufacturing a fake sign-changing bracket.
+                    1e12
                 }
             }
-            pv.total() - target_value_ccy
         };
 
         // Solve using Brent with a maturity-aware bracket and production-grade

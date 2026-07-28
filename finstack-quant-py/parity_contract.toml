@@ -227,6 +227,19 @@ public = [
     "constrained_least_squares",
 ]
 
+[wasm_analytics_subset]
+status = "explicit_subset"
+note = "WASM exposes the reusable Performance handle plus the standalone constrained regression needed by factor-Brinson attribution."
+js_export_file = "../finstack-quant-wasm/exports/analytics.js"
+root_exports = [
+  "Performance",
+  "constrainedLeastSquares",
+]
+
+[wasm_analytics_subset.python_js_map]
+Performance = "Performance"
+constrained_least_squares = "constrainedLeastSquares"
+
 # ---------------------------------------------------------------------------
 # finstack-quant-cashflows  →  finstack_quant.cashflows
 # ---------------------------------------------------------------------------
@@ -379,12 +392,24 @@ public = [
 [wasm_margin_subset]
 status = "explicit_subset"
 note = "WASM margin remains a compact JSON/facade subset; full Rust/Python regulatory engines are not yet exposed in WASM."
-symbols = [
+js_export_file = "../finstack-quant-wasm/exports/margin.js"
+root_exports = [
   "csaUsdRegulatory",
   "csaEurRegulatory",
   "validateCsaJson",
   "calculateVm",
   "computeBilateralXva",
+]
+
+[wasm_margin_subset.python_js_map]
+compute_bilateral_xva = "computeBilateralXva"
+
+[wasm_margin_subset.wasm_only]
+symbols = [
+  "csaUsdRegulatory",
+  "csaEurRegulatory",
+  "validateCsaJson",
+  "calculateVm",
 ]
 
 # ---------------------------------------------------------------------------

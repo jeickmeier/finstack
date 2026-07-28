@@ -33,7 +33,6 @@ fn build_mc_model() -> FinancialModelSpec {
     let mut params = IndexMap::new();
     params.insert("mean".into(), serde_json::json!(0.05));
     params.insert("std_dev".into(), serde_json::json!(0.02));
-    params.insert("anchor".into(), serde_json::json!(100.0));
     params.insert("seed".into(), serde_json::json!(42));
 
     ModelBuilder::new("mc-model")

@@ -10,8 +10,8 @@ description = "Factor model framework for Finstack Quant with hierarchical credi
 autobenches = false
 
 [dependencies]
-finstack-quant-core = { path = "../core", version = "0.6.0" }
-finstack-quant-analytics = { path = "../analytics", version = "0.6.0" }
+finstack-quant-core = { path = "../core", version = "0.7.0" }
+finstack-quant-analytics = { path = "../analytics", version = "0.7.0" }
 serde = { workspace = true }
 thiserror = { workspace = true }
 

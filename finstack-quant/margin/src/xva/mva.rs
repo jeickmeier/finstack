@@ -35,20 +35,14 @@
 //! MVA is a positive funding cost using the same sign convention as CVA and
 //! FVA. [`crate::xva::cva::compute_bilateral_xva`] computes it automatically
 //! whenever [`crate::xva::types::FundingConfig::im_profile`] is set and reports
-//! the all-in `CVA − DVA + FVA + MVA` in
+//! the legacy funding-inclusive `CVA − DVA + FVA` in `bilateral_cva`, then
+//! reports `bilateral_cva + MVA` in
 //! [`crate::xva::types::XvaResult::total_xva`].
 //!
 //! # Model Boundaries
 //!
-//! Two boundaries of this model are not currently represented:
-//!
-//! - **DVA/MVA overlap**: bank-posted IM incurs MVA (a funding cost) but also
-//!   collateralizes the counterparty's claim against the bank on the bank's
-//!   own default. A book that computes `CVA − DVA + FVA + MVA` therefore
-//!   claims the full DVA benefit while also paying the full MVA cost on the
-//!   same posted collateral — the classic DVA/MVA overlap discussed in
-//!   Green (2015), ch. 10. `total_xva` inherits this overlap.
-//! - **Counterparty-posted dynamic IM**: only the static counterparty-posted
+//! **Counterparty-posted dynamic IM** is not currently represented: only the
+//! static counterparty-posted
 //!   `independent_amount` on `CsaTerms` reduces EPE. Dynamic
 //!   counterparty-posted SIMM IM — which
 //!   [`PathImModel`](crate::xva::mva::PathImModel) could represent on
@@ -301,7 +295,7 @@ pub struct MvaResult {
 /// survival. [`crate::xva::cva::compute_bilateral_xva`] computes MVA itself
 /// whenever [`crate::xva::types::FundingConfig::im_profile`] is set, weights it
 /// by *joint* survival (consistent with its FVA leg), and folds the result into
-/// [`crate::xva::types::XvaResult::total_xva`] as `CVA − DVA + FVA + MVA`.
+/// [`crate::xva::types::XvaResult::total_xva`] as `bilateral_cva + MVA`.
 /// Prefer that entry point for netting-set-level XVA; use this function for
 /// standalone MVA analysis.
 ///

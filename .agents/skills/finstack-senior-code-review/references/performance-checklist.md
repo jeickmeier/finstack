@@ -87,22 +87,21 @@ result = prices * quantities
 ```python
 # BAD: iterating a DataFrame row by row
 for idx, row in df.iterrows():
-    df.loc[idx, 'pnl'] = row['price'] * row['quantity']
+    df.loc[idx, "pnl"] = row["price"] * row["quantity"]
 
 # GOOD: vectorized column operation
-df['pnl'] = df['price'] * df['quantity']
+df["pnl"] = df["price"] * df["quantity"]
 ```
 
 ### Memory
 
 ```python
 # BAD: loading entire dataset when you need a slice
-df = pd.read_csv('massive_file.csv')  # 10GB in memory
-result = df[df['date'] == today]
+df = pd.read_csv("massive_file.csv")  # 10GB in memory
+result = df[df["date"] == today]
 
 # GOOD: filter during read or use chunked processing
-df = pd.read_csv('massive_file.csv', usecols=['date', 'price', 'qty'],
-                  dtype={'price': 'float32', 'qty': 'int32'})
+df = pd.read_csv("massive_file.csv", usecols=["date", "price", "qty"], dtype={"price": "float32", "qty": "int32"})
 ```
 
 ### Avoid These

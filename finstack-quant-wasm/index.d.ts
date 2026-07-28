@@ -42,7 +42,7 @@ export type {
   DatedFlowJson,
   MoneyJson,
   NotionalJson,
-} from "./types/generated/CashflowSchedule";
+} from './types/generated/CashflowSchedule';
 //
 // WASM ownership: every wasm-bindgen class exposed below owns a wasm heap
 // allocation. Call `free()` when a handle is no longer needed. On runtimes
@@ -73,10 +73,7 @@ export type InitOutput = WebAssembly.Exports;
  * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
  */
 export default function init(
-  moduleOrPath?:
-    | { module_or_path: InitInput | Promise<InitInput> }
-    | InitInput
-    | Promise<InitInput>
+  moduleOrPath?: { module_or_path: InitInput | Promise<InitInput> } | InitInput | Promise<InitInput>
 ): Promise<InitOutput>;
 
 // --- Calibration envelope types (generated from Rust via ts-rs) ---
@@ -306,6 +303,7 @@ export interface Money extends WasmOwned {
   /**
    * Currency of this amount.
    *
+   * @returns The [`JsCurrency`] this amount is tagged with.
    * @returns The [`Currency`] this amount is tagged with.
    */
   readonly currency: Currency;
@@ -1808,9 +1806,9 @@ export interface VariationMarginJson {
  * Bilateral XVA result (JSON object from Rust).
  *
  * Adjustments are positive when they cost the desk and compose as
- * `bilateral_cva = cva - dva` (credit only) and
- * `total_xva = cva - dva + fva + mva` (all-in). Optional legs are absent
- * when they were not computed.
+ * `bilateral_cva = cva - dva + fva` for legacy compatibility and
+ * `total_xva = bilateral_cva + mva` (all-in). Optional legs are absent when
+ * they were not computed.
  */
 export interface XvaResultJson {
   /**
@@ -1831,11 +1829,11 @@ export interface XvaResultJson {
    */
   mva?: number;
   /**
-   * Bilateral CVA (BCVA) = `cva - dva`, credit only.
+   * Legacy bilateral adjustment = `cva - dva + fva`.
    */
   bilateral_cva?: number;
   /**
-   * All-in adjustment = `cva - dva + fva + mva`.
+   * All-in adjustment = `bilateral_cva + mva`.
    */
   total_xva?: number;
   /**
@@ -2116,7 +2114,7 @@ export interface CoreNamespace {
     level: number,
     slope: number,
     curvature: number,
-    tenors: NumericArray,
+    tenors: NumericArray
   ): Float64Array;
   /**
    * Apply a lower-triangular factor L to a vector z, returning `L z`.
@@ -2367,7 +2365,7 @@ export interface CoreNamespace {
     newPv: number,
     consentFee: number,
     equitySweetenerValue: number,
-    exchangeType: string,
+    exchangeType: string
   ): ExchangeOfferAnalysis;
   /**
    * Compute discount capture and leverage impact for an LME transaction.
@@ -2384,7 +2382,7 @@ export interface CoreNamespace {
     notional: number,
     repurchasePricePct: number,
     optAcceptancePct: number,
-    ebitda?: number | null,
+    ebitda?: number | null
   ): LmeAnalysis;
 }
 
@@ -3007,11 +3005,11 @@ export interface AnalyticsNamespace {
    * returns consumed by `portfolio.factorBrinsonAttribution`, which
    * requires factor returns satisfying that same completeness condition.
    * @param exposures - Row-major factor exposure matrix, `n_assets x n_factors`: asset i's exposure to factor j is `exposures[i * n_factors + j]`.
-   * @param nFactors - Number of factor columns in `exposures`; must be positive.
+   * @param nFactors - Number of factor columns in `exposures`; must be a positive integer no greater than `4294967295`.
    * @param returns - Realized asset returns, length `n_assets` (defines `n_assets`).
    * @param weights - Holding weights whose weighted return `w'r` must be fully reproduced by `w'Xf` (e.g. benchmark weights for a benchmark-return attribution).
    * @returns Constrained factor returns `f`, one per factor, satisfying `w'Xf = w'r` to numerical precision.
-   * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   * @throws Error - If `nFactors` is non-finite, fractional, zero, negative, or exceeds the WebAssembly `usize` range; if vector dimensions are inconsistent (including an overflowing `n_assets * n_factors`); if any vector value is non-finite; if the design matrix is rank-deficient; if coefficient rescaling or the constraint correction produces a non-finite value; or if the correction direction is degenerate and OLS does not already satisfy the constraint.
    */
   constrainedLeastSquares(
     exposures: NumericArray,
@@ -3876,7 +3874,7 @@ export interface CorrelationNamespace {
     confidence: number,
     attachment: number,
     detachment: number,
-    poolNotional: number,
+    poolNotional: number
   ): TrancheLossStatisticsJson;
 }
 
@@ -4337,12 +4335,12 @@ export interface MarginNamespace {
    * Compute bilateral XVA: CVA, DVA, FVA, MVA, and the all-in adjustment.
    *
    * All legs are weighted by joint (first-to-default) survival. MVA is computed
-   * only when `fundingJson` carries an `im_profile`.
+   * only when `fundingJson` carries an `im_profile`; that posted IM also reduces
+   * ENE for bilateral DVA.
    *
-   * The returned object reports `bilateral_cva = CVA - DVA` (credit only) and
-   * `total_xva = CVA - DVA + FVA + MVA` (all-in) — the latter being the amount
-   * subtracted from the risk-free value of the netting set. Optional legs are
-   * absent from the payload when they were not computed.
+   * The returned object reports `bilateral_cva = CVA - DVA + FVA` for legacy
+   * compatibility and `total_xva = bilateral_cva + MVA` for the all-in amount.
+   * Optional legs are absent from the payload when they were not computed.
    *
    * @param exposureProfileJson - `ExposureProfile` JSON with `times`,
    * `mtm_values`, `epe`, and `ene` arrays of equal length.
@@ -4351,12 +4349,13 @@ export interface MarginNamespace {
    * @param discountCurve - Risk-free discount curve for present-valuing.
    * @param counterpartyRecoveryRate - Recovery on counterparty default, in `[0, 1]`.
    * @param ownRecoveryRate - Recovery on own default, in `[0, 1]`.
-   * @param fundingJson - Optional `FundingConfig` JSON driving FVA and, when it
-   * carries `im_profile`, MVA. Omit for credit legs only.
+   * @param fundingJson - Optional strict `FundingConfig` JSON driving FVA and,
+   * when it carries `im_profile`, MVA; unknown fields are rejected. Omit for
+   * credit legs only.
    * @returns The `XvaResult` as a plain object.
-   * @throws If any JSON fails to parse, a recovery rate is outside `[0, 1]`,
-   * the exposure profile is empty or inconsistent, or a curve evaluation is
-   * non-finite.
+   * @throws Error - If JSON is malformed or has unknown funding fields, a recovery
+   * rate is outside `[0, 1]`, a profile is invalid or has a mismatched IM
+   * horizon, or a curve evaluation is non-finite.
    *
    * @example
    * ```javascript
@@ -4369,11 +4368,8 @@ export interface MarginNamespace {
    *   hz, hz, df, 0.4, 0.4,
    *   JSON.stringify({ funding_spread_bps: 50.0 }),
    * );
-   * result.total_xva; // CVA - DVA + FVA + MVA
+   * result.total_xva; // bilateral_cva + MVA
    * ```
-   * @returns The `XvaResult` as a plain object.
-   * @throws Error - If any JSON fails to parse, a recovery rate is outside `[0, 1]`,
-   * the exposure profile is empty or inconsistent, or a curve evaluation is non-finite.
    */
   computeBilateralXva(
     exposureProfileJson: string,
@@ -4414,6 +4410,8 @@ export interface CashflowsNamespace {
    * @param marketJson  Optional JSON-encoded market context for floating-rate lookups.
    * @returns           JSON-encoded `CashFlowSchedule`.
    * @throws            If the spec or market JSON is malformed, or schedule construction fails.
+   * @returns JSON-encoded `CashFlowSchedule`.
+   * @throws If the spec or market JSON is malformed, or schedule construction fails.
    */
   buildCashflowScheduleJson(specJson: string, marketJson?: string | null): string;
 
@@ -4423,6 +4421,8 @@ export interface CashflowsNamespace {
    * @param scheduleJson JSON-encoded `CashFlowSchedule`.
    * @returns            Canonicalized JSON-encoded `CashFlowSchedule`.
    * @throws             If the schedule JSON is malformed or fails validation.
+   * @returns Canonicalized JSON-encoded `CashFlowSchedule`.
+   * @throws If the schedule JSON is malformed or fails validation.
    */
   validateCashflowScheduleJson(scheduleJson: string): string;
 
@@ -4451,7 +4451,6 @@ export interface CashflowsNamespace {
    * @throws If any JSON input is malformed or the accrual computation fails.
    */
   accruedInterestJson(scheduleJson: string, asOf: string, configJson?: string | null): number;
-
 }
 
 /**
@@ -4653,8 +4652,11 @@ export interface BondConstructor {
     discountCurveId: string
   ): Bond;
   /**
-   * Deserialize a bond from tagged instrument JSON (`{"type": "bond", "spec": ...}`).
-   * @param json - Canonical JSON string defining the object to deserialize or normalize.
+   * Deserialize a bond from tagged instrument JSON.
+   *
+   * Accepts the same `{"type": "bond", "spec": {...}}` payload the JSON
+   * loader accepts; the loader's validation runs on the result.
+   * @param json - Tagged instrument JSON with type `"bond"`.
    * @returns The validated bond.
    * @throws If the JSON is malformed, has a different instrument type, or fails validation.
    */
@@ -4700,14 +4702,20 @@ export interface TermLoan extends WasmOwned {
  */
 export interface TermLoanConstructor {
   /**
-   * Deserialize a term loan from tagged instrument JSON (`{"type": "term_loan", "spec": ...}`).
-   * @param json - Canonical JSON string defining the object to deserialize or normalize.
+   * Deserialize a term loan from tagged instrument JSON.
+   *
+   * Accepts the same `{"type": "term_loan", "spec": {...}}` payload the
+   * JSON loader accepts; the loader's validation runs on the result.
+   * @param json - Tagged instrument JSON with type `"term_loan"`.
    * @returns The validated term loan.
    * @throws If the JSON is malformed, has a different instrument type, or fails validation.
    */
   fromJson(json: string): TermLoan;
   /**
    * Canonical example term loan (mirrors Rust `TermLoan::example`).
+   *
+   * Returns a 5-year USD fixed-rate loan (6%, quarterly, Act/360, 2.5%
+   * per-period amortization) useful as a starting point and in tests.
    * @returns The example loan.
    * @throws If construction fails (should not occur).
    */
@@ -4773,7 +4781,7 @@ export interface ValuationInstrumentsNamespace {
     instrumentJson: string,
     marketJson: string,
     asOf: string,
-    model?: string | null,
+    model?: string | null
   ): string;
   /**
    * Price an instrument with explicit metric requests.
@@ -4922,6 +4930,7 @@ export interface ValuationInstrumentsNamespace {
    * @param targetPv - Target present value in the tranche's currency; values above model PV produce a negative result and values below model PV produce a positive result.
    * @returns The z-spread-equivalent discount margin in decimal units.
    * @throws Error - Thrown if JSON or the date is malformed, the deal is invalid, the tranche is missing or fixed-rate, targetPv is non-finite, required market data is unavailable, or the spread solve fails or exceeds ±5000 bp.
+   * @throws Error - Thrown if JSON or the date is malformed, the deal is invalid, the tranche is missing or fixed-rate, target_pv is non-finite, required market data is unavailable, or the spread solve fails or exceeds ±5000 bp.
    */
   structuredCreditTrancheDiscountMargin(
     instrumentJson: string,
@@ -7075,8 +7084,20 @@ export interface PortfolioNamespace {
    * Decomposes both sides into carry / treasury / spread / selection and
    * splits the active return into allocation plus four active component
    * effects (Campisi 2000). Returns a JSON `FiAttributionResult`.
-   * @param portfolioJson - Canonical JSON array of `FiPositionSnapshot` objects describing the portfolio side; weights must sum to 1.
-   * @param benchmarkJson - Canonical JSON array of `FiPositionSnapshot` objects describing the benchmark side; weights must sum to 1.
+   *
+   * Every snapshot must use the quote-reproducing `z_spread` basis:
+   * `spread_duration` is the canonical Z-spread duration, and `spread` plus
+   * `delta_spread` are the matching Z-spread level and move. OAS, G-spread, or
+   * discount-margin values are incompatible. The numeric JSON shape has no
+   * metric IDs, so this boundary cannot detect mislabeled spread provenance.
+   *
+   * Throws when JSON is malformed or canonical Rust validation rejects empty
+   * sides, non-finite values, invalid weights or period length, or a sector
+   * present on either side has `|net sector weight| <= 1e-6 * gross absolute
+   * sector weight`. Spread-basis provenance cannot be validated from numeric
+   * JSON alone.
+   * @param portfolioJson - Canonical JSON array of `FiPositionSnapshot` objects describing the portfolio side on the quote-reproducing Z-spread basis; weights must sum to 1.
+   * @param benchmarkJson - Canonical JSON array of `FiPositionSnapshot` objects describing the benchmark side on the quote-reproducing Z-spread basis; weights must sum to 1.
    * @param configJson - Canonical JSON `FiAttributionConfig`; `period_years` is its only field, is required (no default), and unknown keys are rejected.
    * @returns Returns the requested string representation or JSON payload.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
@@ -7090,6 +7111,15 @@ export interface PortfolioNamespace {
    * act/365 calendar months) link correctly here; prefer this entry point
    * whenever the periods are not all the same length. Returns a JSON
    * `FiCarinoLinkedResult`.
+   *
+   * Throws if no periods are supplied, sector ordering differs, a consumed
+   * top-level return/effect, per-sector linked effect, or sector `total_active`
+   * is non-finite, `active_return` disagrees with the portfolio-minus-benchmark
+   * return, a sector `total_active` disagrees with its five effects, sector
+   * effects do not reconcile to their declared top-level totals, the five
+   * totals do not reconcile to `active_return` within the overflow-safe
+   * scaled-L1 tolerance, a reconciliation residual is non-finite, or a return
+   * is outside the Carino domain.
    * @param periodsJson - Canonical JSON array of `FiAttributionResult` objects in chronological order, as returned by `campisiAttribution`.
    * @returns Returns the requested string representation or JSON payload.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
@@ -7173,6 +7203,11 @@ export interface PortfolioNamespace {
    * cell.base_return`, the credit-specific component of performance
    * isolated from the general level/shape move of the base curve. Returns a
    * JSON `ExcessReturnResult` with per-position and portfolio-level totals.
+   *
+   * Throws if the table is empty or has empty/duplicate cell labels,
+   * non-finite/negative/zero-width, non-ascending, or overlapping cells; any
+   * position is invalid or falls in no cell (including a valid gap); or
+   * position weights do not sum to one.
    * @param positionsJson - Canonical JSON array of `ExcessReturnPosition` objects (`id`, `weight`, `duration`, `total_return`); weights must sum to 1.
    * @param tableJson - Canonical JSON `DurationCellTable`, as returned by `cellReturnsFromReference` or `cellReturnsFromCurves`.
    * @returns Returns the requested string representation or JSON payload.
@@ -7208,6 +7243,13 @@ export interface PortfolioNamespace {
    * return. Only the three top-level effects are linked; per-cell /
    * per-(cell, sector) multi-period linking is out of scope. Returns a JSON
    * `GridCarinoLinkedResult`.
+   *
+   * Throws if no periods are supplied; a consumed return or top-level effect
+   * is non-finite; `active_return` disagrees with the portfolio-minus-
+   * benchmark return; the three effect totals do not reconcile to
+   * `active_return` within the overflow-safe scaled-L1 tolerance; a return-
+   * identity or reconciliation residual is non-finite; or a return is outside
+   * the Carino domain.
    * @param periodsJson - Canonical JSON array of `GridAttributionResult` objects, in chronological order, each the parsed output of `gridAttribution`.
    * @returns Returns the requested string representation or JSON payload.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
@@ -7223,11 +7265,11 @@ export interface PortfolioNamespace {
    * `FactorBrinsonResult` with `allocation`, `selection`, and their
    * per-factor / per-asset breakdowns.
    * @param inputJson - Canonical JSON `FactorBrinsonInput` with `asset_ids`, `asset_returns`, `exposures` (row-major n_assets x n_factors), `factor_names`, `portfolio_weights` and `benchmark_weights`; each weight vector must sum to 1.
-   * @param factorReturns - Caller-supplied benchmark factor returns `f_b`, length `input.factor_names`; typically fit with `analytics.constrainedLeastSquares` using benchmark weights.
+   * @param factorReturns - Caller-supplied benchmark factor returns `f_b` as a `number[]` or `Float64Array`, length `input.factor_names`; the `Float64Array` returned by `analytics.constrainedLeastSquares` can be passed directly.
    * @returns Returns the requested string representation or JSON payload.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
    */
-  factorBrinsonAttribution(inputJson: string, factorReturns: number[]): string;
+  factorBrinsonAttribution(inputJson: string, factorReturns: NumericArray): string;
   /**
    * Compute a Modified-Dietz TWRR sub-period return from period JSON.
    * @param periodJson - Canonical JSON payload representing the period consumed by this API.
@@ -7375,11 +7417,7 @@ export interface PortfolioNamespace {
    * @returns Returns the resulting `ScenarioPnlResult` value or WebAssembly handle.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
    */
-  scenarioPnl(
-    specJson: string,
-    scenarioJson: string,
-    marketJson: string
-  ): ScenarioPnlResult;
+  scenarioPnl(specJson: string, scenarioJson: string, marketJson: string): ScenarioPnlResult;
   /**
    * Compute the profit and loss attributable to a scenario for an
    * already-built [`Portfolio`] handle.

@@ -301,7 +301,10 @@ let sigma_loc = local_vol.get_vol(0.5, 105.0)?;
 
 ```python
 from finstack_quant.valuations import (
-    SABRParameters, SABRModel, SABRCalibrator, SABRSmile,
+    SABRParameters,
+    SABRModel,
+    SABRCalibrator,
+    SABRSmile,
 )
 
 # SABR: calibrate to market smile

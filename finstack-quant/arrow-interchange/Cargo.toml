@@ -9,7 +9,7 @@ repository.workspace = true
 description = "Apache Arrow interchange adapters for finstack-quant tabular outputs (TableEnvelope <-> RecordBatch / IPC stream bytes)"
 
 [dependencies]
-finstack-quant-core = { path = "../core", version = "0.6.0" }
+finstack-quant-core = { path = "../core", version = "0.7.0" }
 arrow = { workspace = true }
 serde_json = { workspace = true }
 indexmap = { workspace = true }

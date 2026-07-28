@@ -31,6 +31,7 @@ def day_count_30_360(d1: date, d2: date) -> float:
     # Missing: if day2 == 31 and day1 >= 30: day2 = 30
     return (360 * (y2 - y1) + 30 * (m2 - m1) + (day2 - day1)) / 360
 
+
 # GOOD: Proper US 30/360 Bond Basis
 def day_count_30_360(d1: date, d2: date) -> float:
     y1, m1, day1 = d1.year, d1.month, d1.day
@@ -88,12 +89,13 @@ def calculate_pv(cashflows: list[tuple[date, float]], curve) -> float:
         pv += amount * df  # Error accumulates with many cashflows
     return pv
 
+
 # BETTER: Use math.fsum for accurate summation
 import math
 
+
 def calculate_pv(cashflows: list[tuple[date, float]], curve) -> float:
-    discounted = [amount * curve.discount_factor(pay_date)
-                  for pay_date, amount in cashflows]
+    discounted = [amount * curve.discount_factor(pay_date) for pay_date, amount in cashflows]
     return math.fsum(discounted)  # Tracked summation, much more accurate
 ```
 
@@ -166,10 +168,12 @@ def calculate_dv01(pricer, curve):
     pv_up = pricer.price(curve_up)
     return (pv_up - pv_base) / bump
 
+
 # BAD: Bump size too small, causes numerical noise
 def calculate_dv01(pricer, curve):
     bump = 1e-10  # Too small - floating point noise dominates
     # ...
+
 
 # GOOD: Appropriate bump size with central difference
 def calculate_dv01(pricer, curve) -> float:
@@ -259,6 +263,7 @@ class YieldCurve:
         df2 = self.discount_factor(t2)
         tau = t2 - t1
         return (df1 / df2 - 1.0) / tau  # Could be negative!
+
 
 # GOOD: Validate and handle appropriately
 class YieldCurve:
@@ -372,13 +377,9 @@ def generate_payment_dates(start: date, end: date, frequency: int) -> list[date]
         current = add_months(current, 12 // frequency)
     return dates
 
+
 # GOOD: Include both endpoints, handle stub
-def generate_payment_dates(
-    start: date,
-    end: date,
-    frequency: int,
-    stub: StubType = StubType.SHORT_FRONT
-) -> list[date]:
+def generate_payment_dates(start: date, end: date, frequency: int, stub: StubType = StubType.SHORT_FRONT) -> list[date]:
     """Generate payment schedule from start to end.
 
     Args:

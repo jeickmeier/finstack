@@ -958,7 +958,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
         )
         .unwrap();
         let tranches = TrancheStructure::new(vec![senior]).unwrap();
-        let sc = StructuredCredit::new_clo(
+        let mut sc = StructuredCredit::new_clo(
             sc_id.clone(),
             pool,
             tranches,
@@ -967,6 +967,9 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             "USD-OIS",
         )
         .with_payment_calendar("nyse");
+        // Spread metrics require an external quote; using model dirty price
+        // as its own Z-spread target would force a circular zero spread.
+        sc.metric_pricing_overrides.quoted_price_pct = Some(98.5);
         let entity_id = format!("FUND_{}", (i % 5) + 1);
         builder = builder.position(
             Position::new(

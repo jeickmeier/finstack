@@ -156,8 +156,21 @@ pub fn carino_link(periods_json: &str) -> Result<String, JsValue> {
 /// Decomposes both sides into carry / treasury / spread / selection and
 /// splits the active return into allocation plus four active component
 /// effects (Campisi 2000). Returns a JSON `FiAttributionResult`.
-/// @param portfolio_json - Canonical JSON array of `FiPositionSnapshot` objects describing the portfolio side; weights must sum to 1.
-/// @param benchmark_json - Canonical JSON array of `FiPositionSnapshot` objects describing the benchmark side; weights must sum to 1.
+///
+/// Every snapshot must use the quote-reproducing `z_spread` basis:
+/// `spread_duration` is the canonical Z-spread duration, and `spread` plus
+/// `delta_spread` are the matching Z-spread level and move. OAS, G-spread, or
+/// discount-margin values are incompatible. The direct JSON shape contains
+/// numeric values but no metric IDs, so this binding cannot detect mislabeled
+/// spread provenance.
+///
+/// Throws when JSON is malformed or canonical Rust validation rejects empty
+/// sides, non-finite values, invalid weights or period length, or a sector
+/// present on either side has `|net sector weight| <= 1e-6 * gross absolute
+/// sector weight`. Spread-basis provenance cannot be validated from numeric
+/// JSON alone.
+/// @param portfolio_json - Canonical JSON array of `FiPositionSnapshot` objects describing the portfolio side on the quote-reproducing Z-spread basis; weights must sum to 1.
+/// @param benchmark_json - Canonical JSON array of `FiPositionSnapshot` objects describing the benchmark side on the quote-reproducing Z-spread basis; weights must sum to 1.
 /// @param config_json - Canonical JSON `FiAttributionConfig`; `period_years` is its only field, is required (no default), and unknown keys are rejected.
 #[wasm_bindgen(js_name = campisiAttribution)]
 pub fn campisi_attribution(
@@ -183,6 +196,15 @@ pub fn campisi_attribution(
 /// act/365 calendar months) link correctly here; prefer this entry point
 /// whenever the periods are not all the same length. Returns a JSON
 /// `FiCarinoLinkedResult`.
+///
+/// Throws if no periods are supplied, sector ordering differs, a consumed
+/// top-level return/effect, per-sector linked effect, or sector `total_active`
+/// is non-finite, `active_return` disagrees with the portfolio-minus-benchmark
+/// return, a sector `total_active` disagrees with its five effects, sector
+/// effects do not reconcile to their declared top-level totals, the five
+/// totals do not reconcile to `active_return` within the overflow-safe
+/// scaled-L1 tolerance, a reconciliation residual is non-finite, or a return
+/// is outside the Carino domain.
 /// @param periods_json - Canonical JSON array of `FiAttributionResult` objects in chronological order, as returned by `campisiAttribution`.
 #[wasm_bindgen(js_name = campisiCarinoLink)]
 pub fn campisi_carino_link(periods_json: &str) -> Result<String, JsValue> {
@@ -302,6 +324,11 @@ pub fn cell_returns_from_curves(
 /// cell.base_return`, the credit-specific component of performance isolated
 /// from the general level/shape move of the base curve. Returns a JSON
 /// `ExcessReturnResult` with per-position and portfolio-level totals.
+///
+/// Throws if the table is empty or has empty/duplicate cell labels,
+/// non-finite/negative/zero-width, non-ascending, or overlapping cells; any
+/// position is invalid or falls in no cell (including a valid gap); or
+/// position weights do not sum to one.
 /// @param positionsJson - Canonical JSON array of `ExcessReturnPosition` objects (`id`, `weight`, `duration`, `total_return`); weights must sum to 1.
 /// @param tableJson - Canonical JSON `DurationCellTable`, as returned by `cellReturnsFromReference` or `cellReturnsFromCurves`.
 #[wasm_bindgen(js_name = excessReturns)]
@@ -347,6 +374,13 @@ pub fn grid_attribution(portfolio_json: &str, benchmark_json: &str) -> Result<St
 /// return. Only the three top-level effects are linked; per-cell /
 /// per-(cell, sector) multi-period linking is out of scope. Returns a JSON
 /// `GridCarinoLinkedResult`.
+///
+/// Throws if no periods are supplied; a consumed return or top-level effect
+/// is non-finite; `active_return` disagrees with the portfolio-minus-
+/// benchmark return; the three effect totals do not reconcile to
+/// `active_return` within the overflow-safe scaled-L1 tolerance; a return-
+/// identity or reconciliation residual is non-finite; or a return is outside
+/// the Carino domain.
 /// @param periodsJson - Canonical JSON array of `GridAttributionResult` objects, in chronological order, each the parsed output of `gridAttribution`.
 #[wasm_bindgen(js_name = gridCarinoLink)]
 pub fn grid_carino_link(periods_json: &str) -> Result<String, JsValue> {
@@ -365,7 +399,7 @@ pub fn grid_carino_link(periods_json: &str) -> Result<String, JsValue> {
 /// `FactorBrinsonResult` with `allocation`, `selection`, and their
 /// per-factor / per-asset breakdowns.
 /// @param inputJson - Canonical JSON `FactorBrinsonInput` with `asset_ids`, `asset_returns`, `exposures` (row-major n_assets x n_factors), `factor_names`, `portfolio_weights` and `benchmark_weights`; each weight vector must sum to 1.
-/// @param factorReturns - Caller-supplied benchmark factor returns `f_b`, length `input.factor_names`; typically fit with `analytics.constrainedLeastSquares` using benchmark weights.
+/// @param factorReturns - Caller-supplied benchmark factor returns `f_b` as a `number[]` or `Float64Array`, length `input.factor_names`; the `Float64Array` returned by `analytics.constrainedLeastSquares` can be passed directly.
 #[wasm_bindgen(js_name = factorBrinsonAttribution)]
 pub fn factor_brinson_attribution(
     input_json: &str,

@@ -82,8 +82,16 @@ Rules:
 
 ```python
 __all__ = (
-    "core", "analytics", "margin", "valuations", "statements",
-    "statements_analytics", "portfolio", "scenarios", "correlation", "monte_carlo",
+    "core",
+    "analytics",
+    "margin",
+    "valuations",
+    "statements",
+    "statements_analytics",
+    "portfolio",
+    "scenarios",
+    "correlation",
+    "monte_carlo",
 )
 ```
 

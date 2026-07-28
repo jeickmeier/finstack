@@ -46,6 +46,13 @@ use nalgebra::{DMatrix, DVector};
 /// treated as `0`, which correctly flags that case as degenerate too.
 const CONSTRAINT_DEGENERACY_RELATIVE_TOLERANCE: f64 = 1e-10;
 
+/// Relative tolerance for deciding that the unconstrained OLS fit already
+/// satisfies `w'Xf = w'r`, scaled by the Cauchy-Schwarz bounds for the
+/// realized and fitted weighted returns. The comparison first normalizes the
+/// vectors by their largest absolute components so finite input scales cannot
+/// overflow the bound to infinity.
+const CONSTRAINT_SATISFACTION_RELATIVE_TOLERANCE: f64 = 1e-12;
+
 /// Relative singular-value tolerance used to detect rank-deficient design
 /// matrices in the underlying no-intercept least-squares solves.
 const RANK_TOLERANCE_FACTOR: f64 = 1.0e-10;
@@ -73,7 +80,7 @@ const RANK_TOLERANCE_FACTOR: f64 = 1.0e-10;
 ///
 /// * `exposures` - Row-major factor exposure matrix, `n_assets × n_factors`:
 ///   asset `i`'s exposure to factor `j` is `exposures[i * n_factors + j]`.
-/// * `n_factors` - Number of factor columns in `exposures`.
+/// * `n_factors` - Positive number of factor columns in `exposures`.
 /// * `returns` - Realized asset returns, length `n_assets`.
 /// * `weights` - Holding weights whose weighted return `w'r` must be fully
 ///   reproduced by `w'Xf` (e.g. benchmark weights for a benchmark-return
@@ -88,17 +95,21 @@ const RANK_TOLERANCE_FACTOR: f64 = 1.0e-10;
 ///
 /// Returns an error when:
 /// - `n_factors` is `0`, or `returns` (equivalently `n_assets`) is empty.
-/// - `exposures.len() != n_assets * n_factors` or `weights.len() != n_assets`
-///   (dimension mismatch).
+/// - `n_assets * n_factors` overflows, `exposures.len()` does not equal that
+///   product, or `weights.len() != n_assets` (dimension mismatch).
 /// - any input value is `NaN` or infinite.
 /// - the design matrix `X` is rank-deficient (either least-squares solve is
 ///   underdetermined).
+/// - coefficient rescaling, the Lagrange multiplier, or a corrected
+///   coefficient overflows to a non-finite value.
 /// - `|w'Xg|` is numerically zero *relative to* `‖w‖·‖Xg‖` (a `1e-10`
 ///   bound on the Cauchy-Schwarz ratio `|w'Xg| / (‖w‖‖Xg‖)`), meaning `w`
 ///   and the constraint direction `Xg` are (numerically) orthogonal and the
-///   constraint cannot be restored by any scalar correction. This test is
-///   scale-invariant: rescaling `weights` uniformly (e.g. percent vs.
-///   decimal) does not change whether it fires.
+///   constraint cannot be restored by any scalar correction. This rejection
+///   applies only when the OLS fit does not already satisfy the constraint to
+///   a scale-aware `1e-12` relative tolerance. The test is scale-invariant:
+///   rescaling `weights` uniformly (e.g. percent vs. decimal) does not change
+///   whether it fires.
 ///
 /// # Ill-Conditioning
 ///
@@ -147,7 +158,10 @@ pub fn constrained_least_squares(
     if n_assets == 0 || n_factors == 0 {
         return Err(InputError::Invalid.into());
     }
-    if exposures.len() != n_assets * n_factors || weights.len() != n_assets {
+    let expected_exposures = n_assets
+        .checked_mul(n_factors)
+        .ok_or(InputError::DimensionMismatch)?;
+    if exposures.len() != expected_exposures || weights.len() != n_assets {
         return Err(InputError::DimensionMismatch.into());
     }
     ensure_finite(exposures)?;
@@ -158,14 +172,48 @@ pub fn constrained_least_squares(
     let r_vector = DVector::from_row_slice(returns);
     let w_vector = DVector::from_row_slice(weights);
 
-    // f̂ = argmin ‖r − Xf‖² (unconstrained OLS fit).
-    let f_hat = no_intercept_least_squares(&x_matrix, &r_vector)?;
-    // g = argmin ‖w − Xg‖² = (X'X)⁻¹X'w (constraint-restoring direction).
-    let g = no_intercept_least_squares(&x_matrix, &w_vector)?;
+    // Solve both right-hand sides from one factorization of the scaled
+    // exposure matrix:
+    //   f̂ = argmin ‖r − Xf‖²
+    //   g = argmin ‖w − Xg‖² = (X'X)⁻¹X'w
+    let targets = DMatrix::from_columns(&[r_vector.clone(), w_vector.clone()]);
+    let solutions = no_intercept_least_squares(&x_matrix, &targets)?;
+    let f_hat = solutions.column(0).into_owned();
+    let g = solutions.column(1).into_owned();
 
     // ε̂ = r − Xf̂ (OLS residual).
-    let residual = &r_vector - &x_matrix * &f_hat;
+    let fitted = &x_matrix * &f_hat;
+    let residual = &r_vector - &fitted;
     let w_dot_residual = w_vector.dot(&residual);
+
+    // A correction direction is unnecessary when OLS already satisfies the
+    // equality constraint. Normalize weights and returns separately before
+    // comparing the Cauchy-Schwarz-scaled ratio: the common scale factors
+    // cancel, avoiding overflow in ‖w‖ * (‖r‖ + ‖Xf̂‖).
+    let weight_scale = w_vector.iter().map(|value| value.abs()).fold(0.0, f64::max);
+    let return_scale = r_vector
+        .iter()
+        .chain(fitted.iter())
+        .map(|value| value.abs())
+        .fold(0.0, f64::max);
+    let ols_satisfies_constraint = if weight_scale == 0.0 || return_scale == 0.0 {
+        true
+    } else if !return_scale.is_finite() {
+        false
+    } else {
+        let scaled_weights = &w_vector / weight_scale;
+        let scaled_returns = &r_vector / return_scale;
+        let scaled_fitted = &fitted / return_scale;
+        let scaled_residual = &scaled_returns - &scaled_fitted;
+        let scaled_bound = CONSTRAINT_SATISFACTION_RELATIVE_TOLERANCE
+            * scaled_weights.norm()
+            * (scaled_returns.norm() + scaled_fitted.norm());
+        let scaled_weighted_residual = scaled_weights.dot(&scaled_residual);
+        scaled_weighted_residual.is_finite() && scaled_weighted_residual.abs() <= scaled_bound
+    };
+    if ols_satisfies_constraint {
+        return Ok(f_hat.iter().copied().collect());
+    }
 
     let x_g = &x_matrix * &g;
     let w_dot_xg = w_vector.dot(&x_g);
@@ -186,20 +234,25 @@ pub fn constrained_least_squares(
     }
 
     let lambda = w_dot_residual / w_dot_xg;
+    ensure_finite(&[lambda])?;
     let f = f_hat + g * lambda;
+    ensure_finite(f.as_slice())?;
 
     Ok(f.iter().copied().collect())
 }
 
-/// Solve `argmin_β ‖y − Xβ‖²` via SVD, with no intercept column.
+/// Solve `argmin_B ‖Y − XB‖²` via SVD, with no intercept column.
 ///
 /// Columns of `x` are scale-normalized before the SVD so that differing
 /// factor magnitudes alone do not trigger false "singular" classifications,
 /// mirroring `benchmark::svd_least_squares`. The returned coefficients are
 /// rescaled back into the original (unscaled) units.
-fn no_intercept_least_squares(x: &DMatrix<f64>, y: &DVector<f64>) -> crate::Result<DVector<f64>> {
+fn no_intercept_least_squares(
+    x: &DMatrix<f64>,
+    targets: &DMatrix<f64>,
+) -> crate::Result<DMatrix<f64>> {
     let (n, p) = x.shape();
-    if n == 0 || p == 0 || y.len() != n {
+    if n == 0 || p == 0 || targets.nrows() != n || targets.ncols() == 0 {
         return Err(InputError::DimensionMismatch.into());
     }
 
@@ -237,12 +290,17 @@ fn no_intercept_least_squares(x: &DMatrix<f64>, y: &DVector<f64>) -> crate::Resu
         return Err(InputError::Invalid.into());
     }
 
-    let beta_scaled = svd.solve(y, tolerance).map_err(|_| InputError::Invalid)?;
+    let beta_scaled = svd
+        .solve(targets, tolerance)
+        .map_err(|_| InputError::Invalid)?;
 
     let mut beta = beta_scaled;
     for (row_idx, scale) in scales.iter().enumerate() {
-        beta[row_idx] /= *scale;
+        for col_idx in 0..beta.ncols() {
+            beta[(row_idx, col_idx)] /= *scale;
+        }
     }
+    ensure_finite(beta.as_slice())?;
     Ok(beta)
 }
 
@@ -269,7 +327,9 @@ fn ensure_finite(values: &[f64]) -> crate::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::constrained_least_squares;
+    use nalgebra::DMatrix;
+
+    use super::{constrained_least_squares, no_intercept_least_squares};
 
     #[test]
     fn binary_factor_case_matches_hand_closed_form() {
@@ -316,6 +376,64 @@ mod tests {
     }
 
     #[test]
+    fn orthogonal_weights_return_ols_when_constraint_is_already_met() {
+        let f = constrained_least_squares(&[1.0, -1.0], 1, &[0.02, -0.02], &[0.5, 0.5]).unwrap();
+        assert!((f[0] - 0.02).abs() < 1e-15);
+    }
+
+    #[test]
+    fn extreme_returns_do_not_overflow_satisfaction_tolerance() {
+        let err = constrained_least_squares(&[1.0, -1.0], 1, &[1.0e308, 1.0e308], &[0.5, 0.5])
+            .unwrap_err();
+        assert!(
+            err.to_string().to_lowercase().contains("constraint"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn coefficient_rescaling_overflow_fails_closed() {
+        let x = DMatrix::from_row_slice(2, 1, &[1.0e-154, 2.0e-154]);
+        let targets = DMatrix::from_row_slice(2, 1, &[1.0e308, 1.0e308]);
+
+        let err = no_intercept_least_squares(&x, &targets)
+            .expect_err("finite inputs must not produce an infinite rescaled coefficient");
+        assert!(err.to_string().to_lowercase().contains("finite"), "{err}");
+    }
+
+    #[test]
+    fn lambda_overflow_fails_closed() {
+        let err = constrained_least_squares(&[1.0, 0.0], 1, &[0.0, 1.0e200], &[1.0e-150, 1.0e-150])
+            .expect_err("finite inputs must not produce an infinite Lagrange multiplier");
+        assert!(err.to_string().to_lowercase().contains("finite"), "{err}");
+    }
+
+    #[test]
+    fn final_coefficient_overflow_fails_closed() {
+        let err = constrained_least_squares(&[1.0e-100, 0.0], 1, &[0.0, 1.0e308], &[1.0, 1.0])
+            .expect_err("finite inputs must not produce an infinite corrected coefficient");
+        assert!(err.to_string().to_lowercase().contains("finite"), "{err}");
+    }
+
+    #[test]
+    fn valid_extreme_scale_coefficients_remain_supported() {
+        let coefficients = constrained_least_squares(&[1.0e-100, 0.0], 1, &[0.0, 1.0], &[1.0, 1.0])
+            .expect("a large but finite constrained coefficient remains valid");
+        assert!(coefficients[0].is_finite());
+        assert!((coefficients[0] - 1.0e100).abs() / 1.0e100 < 1.0e-12);
+    }
+
+    #[test]
+    fn overflowing_exposure_dimensions_fail_closed() {
+        let err =
+            constrained_least_squares(&[], usize::MAX, &[0.02, 0.01], &[0.5, 0.5]).unwrap_err();
+        assert!(
+            err.to_string().to_lowercase().contains("dimension"),
+            "{err}"
+        );
+    }
+
+    #[test]
     fn dimension_mismatch_on_exposures_fails_closed() {
         // exposures has 5 entries but n_assets(3) * n_factors(2) = 6.
         let err = constrained_least_squares(
@@ -349,6 +467,12 @@ mod tests {
         // renders as `InputError::Invalid`, "Invalid input data"), not a
         // dimension-mismatch check.
         let err = constrained_least_squares(&[], 2, &[], &[]).unwrap_err();
+        assert!(err.to_string().to_lowercase().contains("invalid"), "{err}");
+    }
+
+    #[test]
+    fn zero_factors_fail_closed() {
+        let err = constrained_least_squares(&[], 0, &[0.02], &[1.0]).unwrap_err();
         assert!(err.to_string().to_lowercase().contains("invalid"), "{err}");
     }
 

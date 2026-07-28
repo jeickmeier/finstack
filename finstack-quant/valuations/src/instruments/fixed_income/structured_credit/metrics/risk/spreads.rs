@@ -20,6 +20,40 @@ use finstack_quant_core::Result;
 const Z_SPREAD_MIN: f64 = -0.05;
 // 5000 bps (50%) for distressed credits
 const Z_SPREAD_MAX: f64 = 0.50;
+const RELATIVE_BASE_PV_EPSILON: f64 = 1e-12;
+
+fn quoted_target_value(context: &MetricContext) -> Result<(f64, f64)> {
+    let price_pct = context
+        .get_metric_overrides()
+        .and_then(|overrides| overrides.quoted_price_pct)
+        .ok_or_else(|| {
+            finstack_quant_core::Error::Validation(
+                "structured-credit spread metrics require \
+                 MetricPricingOverrides.quoted_price_pct (price as a percentage of original \
+                 balance); a model DirtyPrice cannot be used as its own spread target"
+                    .to_string(),
+            )
+        })?;
+    if !price_pct.is_finite() {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "structured-credit quoted_price_pct must be finite; got {price_pct}"
+        )));
+    }
+
+    let notional =
+        crate::instruments::fixed_income::structured_credit::metrics::pricing::prices::get_original_notional(
+            context,
+        )?;
+    let target_value = notional * (price_pct / 100.0);
+    if !target_value.is_finite() {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "structured-credit quote-reproducing target PV must be finite; \
+             notional={notional}, quoted_price_pct={price_pct}, target PV={target_value}"
+        )));
+    }
+
+    Ok((target_value, notional))
+}
 
 /// Calculates Z-spread for structured credit.
 ///
@@ -51,21 +85,8 @@ impl MetricCalculator for ZSpreadCalculator {
         // Z-spread requires an external quote. Using model `DirtyPrice`
         // (`base_value / notional * 100`) would make the objective
         // `PV(curve + z) == PV(curve)` and force a circular zero spread.
-        let price_pct = context
-            .get_metric_overrides()
-            .and_then(|overrides| overrides.quoted_price_pct)
-            .ok_or_else(|| {
-                finstack_quant_core::Error::Validation(
-                    "structured-credit ZSpread requires \
-                     MetricPricingOverrides.quoted_price_pct (price as a percentage of original \
-                     balance); a model DirtyPrice cannot be used as its own spread target"
-                        .to_string(),
-                )
-            })?;
-
         // Convert price points back to currency using original notional.
-        let notional = crate::instruments::fixed_income::structured_credit::metrics::pricing::prices::get_original_notional(context)?;
-        let target_value = notional * (price_pct / 100.0);
+        let (target_value, _) = quoted_target_value(context)?;
 
         // Get cashflows
         let flows = context.cashflows.as_ref().ok_or_else(|| {
@@ -282,22 +303,21 @@ impl MetricCalculator for Cs01Calculator {
     }
 }
 
-/// Calculates spread duration from CS01.
+/// Calculates structured-credit spread duration from Z-spread CS01.
 ///
 /// Spread duration measures the percentage change in price for a 1 % change
 /// in spread, expressed in years; it converts CS01 into a duration-like
 /// metric.
 ///
-/// The calculation is instrument-agnostic — it reads only
-/// [`MetricId::Cs01`] and the context's base NPV — so it is registered for
-/// [`InstrumentType::Bond`] as well as the structured-credit types.
-///
-/// [`InstrumentType::Bond`]: crate::pricer::InstrumentType::Bond
+/// The normalization basis is the external quoted-price target used to solve
+/// [`MetricId::ZSpread`], not the model PV in `MetricContext::base_value`.
+/// This keeps the CS01 numerator and price denominator on the same
+/// quote-reproducing basis.
 ///
 /// # Formula
 ///
 /// ```text
-/// Spread Duration = -CS01 / (Price × 0.0001)
+/// Spread Duration = -Z-spread CS01 / (Quoted target PV × 0.0001)
 /// ```
 ///
 /// Per the workspace canonical CS01 sign convention (see
@@ -321,7 +341,6 @@ pub struct SpreadDurationCalculator;
 
 impl MetricCalculator for SpreadDurationCalculator {
     fn calculate(&self, context: &mut MetricContext) -> Result<f64> {
-        // Get CS01
         let cs01 = context
             .computed
             .get(&MetricId::Cs01)
@@ -331,15 +350,27 @@ impl MetricCalculator for SpreadDurationCalculator {
                     id: "metric:Cs01".to_string(),
                 })
             })?;
+        if !cs01.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "structured-credit Z-spread CS01 must be finite; got {cs01}"
+            )));
+        }
 
-        // Normalize the dollar CS01 by the context's base NPV.
-        let base_npv = context.base_value.amount();
-
-        if base_npv == 0.0 {
-            return Ok(0.0);
+        let (base_npv, notional) = quoted_target_value(context)?;
+        let base_pv_floor = RELATIVE_BASE_PV_EPSILON * notional.abs().max(1.0);
+        if base_npv.abs() <= base_pv_floor {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "structured-credit spread duration is undefined for zero or near-zero \
+                 quote-reproducing base PV ({base_npv}); minimum magnitude is {base_pv_floor}"
+            )));
         }
 
         let spread_duration = -cs01 / (base_npv * ONE_BASIS_POINT);
+        if !spread_duration.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "structured-credit spread duration result must be finite; got {spread_duration}"
+            )));
+        }
 
         Ok(spread_duration)
     }
@@ -701,6 +732,15 @@ mod zspread_quote_tests {
         context
     }
 
+    fn context_with_quote(quoted_price_pct: f64) -> MetricContext {
+        let mut context = context_without_quote();
+        context.set_metric_overrides(Some(MetricPricingOverrides {
+            quoted_price_pct: Some(quoted_price_pct),
+            ..Default::default()
+        }));
+        context
+    }
+
     #[test]
     fn registry_quote_dependent_spread_metrics_reject_a_missing_quote() {
         for requested in [
@@ -724,6 +764,62 @@ mod zspread_quote_tests {
     #[test]
     fn spread_duration_depends_only_on_cs01() {
         assert_eq!(SpreadDurationCalculator.dependencies(), &[MetricId::Cs01]);
+    }
+
+    #[test]
+    fn spread_duration_normalizes_by_quote_reproducing_target() {
+        let mut context = context_with_quote(90.0);
+        standard_registry()
+            .compute(&[MetricId::SpreadDuration], &mut context)
+            .expect("quoted spread duration");
+
+        let cs01 = context.computed[&MetricId::Cs01];
+        let spread_duration = context.computed[&MetricId::SpreadDuration];
+        let expected = -cs01 / (90.0 * ONE_BASIS_POINT);
+        let old_model_pv_normalization = -cs01 / (95.0 * ONE_BASIS_POINT);
+
+        assert!(
+            (spread_duration - expected).abs() < 1e-12,
+            "spread duration must normalize by the quoted target: \
+             metric={spread_duration}, expected={expected}"
+        );
+        assert!(
+            (spread_duration - old_model_pv_normalization).abs() > 1e-3,
+            "fixture must distinguish quoted-target normalization from context.base_value"
+        );
+    }
+
+    #[test]
+    fn spread_duration_rejects_zero_near_zero_and_nonfinite_quote_targets() {
+        for quoted_price_pct in [0.0, 1e-13, f64::NAN, f64::INFINITY] {
+            let mut context = context_with_quote(quoted_price_pct);
+            context.computed.insert(MetricId::Cs01, -0.01);
+
+            let err = SpreadDurationCalculator
+                .calculate(&mut context)
+                .expect_err("invalid quote target must fail closed");
+            let message = err.to_string();
+            assert!(
+                message.contains("quote") || message.contains("base PV"),
+                "error must identify the invalid normalization basis; got: {message}"
+            );
+        }
+    }
+
+    #[test]
+    fn spread_duration_rejects_nonfinite_cs01_and_result() {
+        for cs01 in [f64::NAN, f64::INFINITY] {
+            let mut context = context_with_quote(95.0);
+            context.computed.insert(MetricId::Cs01, cs01);
+
+            let err = SpreadDurationCalculator
+                .calculate(&mut context)
+                .expect_err("non-finite CS01 must fail closed");
+            assert!(
+                err.to_string().contains("CS01"),
+                "error must identify non-finite CS01; got: {err}"
+            );
+        }
     }
 
     /// An external quote breaks the model-price spread circularity.

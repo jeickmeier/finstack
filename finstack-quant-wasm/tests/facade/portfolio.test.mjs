@@ -198,6 +198,65 @@ test('portfolio.campisiCarinoLink links precomputed periods of unequal length', 
   assert.equal(linked.periods.length, 2);
 });
 
+test('portfolio.campisiCarinoLink rejects inconsistent result contracts', () => {
+  const result = JSON.parse(
+    portfolio.campisiAttribution(CAMPISI_PORTFOLIO, CAMPISI_BENCHMARK, campisiConfig(0.25))
+  );
+
+  const badActive = { ...result, active_return: result.active_return + 0.001 };
+  assert.throws(() => portfolio.campisiCarinoLink(JSON.stringify([badActive])), /active_return/);
+
+  const badSector = structuredClone(result);
+  badSector.sectors[0].selection += 0.001;
+  badSector.sectors[0].total_active += 0.001;
+  assert.throws(() => portfolio.campisiCarinoLink(JSON.stringify([badSector])), /total_selection/);
+
+  const badSectorTotal = structuredClone(result);
+  badSectorTotal.sectors[0].total_active += 0.001;
+  assert.throws(
+    () => portfolio.campisiCarinoLink(JSON.stringify([badSectorTotal])),
+    /total_active/
+  );
+});
+
+test('portfolio.campisiCarinoLink accepts huge finite cancelling effects', () => {
+  const period = JSON.parse(
+    portfolio.campisiAttribution(CAMPISI_PORTFOLIO, CAMPISI_BENCHMARK, campisiConfig(0.25))
+  );
+  period.portfolio_return = 0.01;
+  period.benchmark_return = 0.01;
+  period.active_return = 0;
+  for (const name of [
+    'total_allocation',
+    'total_active_carry',
+    'total_active_treasury',
+    'total_active_spread',
+    'total_selection',
+  ]) {
+    period[name] = 0;
+  }
+  for (const sector of period.sectors) {
+    for (const name of [
+      'allocation',
+      'active_carry',
+      'active_treasury',
+      'active_spread',
+      'selection',
+      'total_active',
+    ]) {
+      sector[name] = 0;
+    }
+  }
+  period.total_allocation = 1e308;
+  period.total_active_carry = -1e308;
+  period.sectors[0].allocation = 1e308;
+  period.sectors[0].active_carry = -1e308;
+
+  const linked = JSON.parse(portfolio.campisiCarinoLink(JSON.stringify([period])));
+  assert.equal(linked.linked_allocation, 1e308);
+  assert.equal(linked.linked_active_carry, -1e308);
+});
+
 test('portfolio.campisiCarinoLinkFromSnapshots links raw snapshot periods', () => {
   const period = {
     portfolio: JSON.parse(CAMPISI_PORTFOLIO),
@@ -383,6 +442,39 @@ test('portfolio.excessReturns fails closed on a duration outside the table range
   assert.throws(() => portfolio.excessReturns(farPosition, tableJson), /X/);
 });
 
+test('portfolio.excessReturns validates hand-built duration cell tables', () => {
+  const positions = JSON.stringify([{ id: 'P', weight: 1.0, duration: 0.75, total_return: 0.03 }]);
+  const overlapping = JSON.stringify({
+    base_label: 'CUSTOM',
+    cells: [
+      { label: 'first', lower: 0.0, upper: 1.0, base_return: 0.01, observed: true },
+      { label: 'second', lower: 0.5, upper: 1.5, base_return: 0.02, observed: true },
+    ],
+  });
+  assert.throws(() => portfolio.excessReturns(positions, overlapping), /cell\[1\].*overlaps/);
+});
+
+test('portfolio.excessReturns rejects empty and duplicate inbound cell labels', () => {
+  const positions = JSON.stringify([{ id: 'P', weight: 1.0, duration: 0.25, total_return: 0.03 }]);
+  const table = (labels) =>
+    JSON.stringify({
+      base_label: 'CUSTOM',
+      cells: [
+        { label: labels[0], lower: 0.0, upper: 1.0, base_return: 0.01, observed: true },
+        { label: labels[1], lower: 1.0, upper: 2.0, base_return: 0.02, observed: true },
+      ],
+    });
+
+  assert.throws(
+    () => portfolio.excessReturns(positions, table(['', 'long'])),
+    /cell\[0\].*non-empty/
+  );
+  assert.throws(
+    () => portfolio.excessReturns(positions, table(['duplicate', 'duplicate'])),
+    /cell\[1\].*unique/
+  );
+});
+
 test('portfolio.cellReturnsFromReference rejects an empty reference universe', () => {
   assert.throws(() => portfolio.cellReturnsFromReference('[]', 'UST', lehmanCellConfig));
 });
@@ -543,6 +635,16 @@ test('portfolio.gridCarinoLink rejects an empty period array', () => {
   assert.throws(() => portfolio.gridCarinoLink('[]'), /at least one period/);
 });
 
+test('portfolio.gridCarinoLink rejects inconsistent result contracts', () => {
+  const period = JSON.parse(portfolio.gridAttribution(GRID_PORTFOLIO, GRID_BENCHMARK));
+
+  const badActive = { ...period, active_return: period.active_return + 0.001 };
+  assert.throws(() => portfolio.gridCarinoLink(JSON.stringify([badActive])), /active_return/);
+
+  const badTotal = { ...period, total_selection: period.total_selection + 0.001 };
+  assert.throws(() => portfolio.gridCarinoLink(JSON.stringify([badTotal])), /effect totals/);
+});
+
 // Jeet & Partani (2023) Exhibits 1-2, binary sector-indicator exposures:
 // A -> Healthcare, B -> Energy, C -> Healthcare.
 const FACTOR_BRINSON_INPUT = JSON.stringify({
@@ -595,6 +697,25 @@ test('analytics.constrainedLeastSquares fails closed on orthogonal weights', () 
   );
 });
 
+test('analytics.constrainedLeastSquares returns OLS when the constraint already holds', () => {
+  const f = analytics.constrainedLeastSquares([1.0, -1.0], 1, [0.02, -0.02], [0.5, 0.5]);
+  assert.ok(Math.abs(f[0] - 0.02) < 1e-15);
+});
+
+test('analytics.constrainedLeastSquares rejects fractional nFactors before conversion', () => {
+  assert.throws(
+    () => analytics.constrainedLeastSquares([1.0, -1.0], 1.5, [0.02, -0.02], [0.5, 0.5]),
+    /nFactors.*positive integer/i
+  );
+});
+
+test('analytics.constrainedLeastSquares rejects truncating nFactors before conversion', () => {
+  assert.throws(
+    () => analytics.constrainedLeastSquares([1.0, -1.0], 2 ** 32 + 1, [0.02, -0.02], [0.5, 0.5]),
+    /nFactors.*positive integer/i
+  );
+});
+
 test('analytics.constrainedLeastSquares accepts Float64Array inputs, matching the plain-array golden', () => {
   const f = analytics.constrainedLeastSquares(
     Float64Array.from([0.0, 1.0, 1.0, 0.0, 0.0, 1.0]),
@@ -625,7 +746,7 @@ test('constrainedLeastSquares output satisfies factorBrinsonAttribution complete
     portfolio_weights: [1.25, -0.3, 0.05],
     benchmark_weights: benchmarkWeights,
   });
-  const result = JSON.parse(portfolio.factorBrinsonAttribution(input, Array.from(fB)));
+  const result = JSON.parse(portfolio.factorBrinsonAttribution(input, fB));
   assert.ok(Math.abs(result.allocation - 0.00977) < 1e-4);
   assert.ok(Math.abs(result.selection - 0.010231) < 1e-4);
   assert.ok(Math.abs(result.allocation + result.selection - result.active_return) < 1e-12);

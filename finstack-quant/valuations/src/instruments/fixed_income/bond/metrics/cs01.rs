@@ -26,14 +26,12 @@
 //!
 //! # Settlement-anchored repricing
 //!
-//! The bumped and base PVs are obtained from
-//! [`price_from_z_spread`], which discounts on the same settlement
-//! (`quote_date`) time axis and with the same compounding-aware spread shift
-//! that [`ZSpreadCalculator`] used to *solve* the z-spread. This guarantees
-//! `PV(z)` equals the dirty price the z-spread was calibrated to, so the
-//! finite difference `PV(z+1bp) − PV(z)` is taken around the correct point on
-//! the correct curve — even when the discount curve's base date differs from
-//! the valuation date or the bond has a non-zero settlement lag.
+//! The bumped and base PVs use the same pricing kernel as
+//! [`price_from_z_spread`] and [`ZSpreadCalculator`], including settlement
+//! (`quote_date`), quoted workout-path selection, and the compounding-aware
+//! spread shift. This guarantees `PV(z)` equals the dirty price the z-spread
+//! was calibrated to, so `PV(z+1bp) − PV(z)` is taken around the correct point
+//! on the correct cashflow path.
 //!
 //! Sign convention is identical to the canonical reference:
 //! - Long bond → CS01 negative (wider spreads reduce PV).
@@ -46,9 +44,42 @@
 use super::risk_view::with_bond_risk_view;
 use crate::constants::ONE_BASIS_POINT;
 use crate::instruments::common_impl::traits::Instrument;
-use crate::instruments::fixed_income::bond::pricing::quote_conversions::price_from_z_spread;
+use crate::instruments::fixed_income::bond::metrics::price_yield_spread::z_spread::BondZSpreadPricingKernel;
 use crate::instruments::Bond;
 use crate::metrics::{MetricCalculator, MetricContext, MetricId};
+
+pub(super) fn z_spread_bumped_pvs(
+    context: &MetricContext,
+) -> finstack_quant_core::Result<(f64, f64)> {
+    let base_spread = context
+        .computed
+        .get(&MetricId::ZSpread)
+        .copied()
+        .ok_or_else(|| {
+            finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
+                id: "metric:ZSpread".to_string(),
+            })
+        })?;
+    if !base_spread.is_finite() {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "bond spread risk requires a finite quote-reproducing Z-spread; got {base_spread}"
+        )));
+    }
+
+    let bond: &Bond = context.instrument_as()?;
+    let pricing_kernel =
+        BondZSpreadPricingKernel::new(bond, context.curves.as_ref(), context.as_of)?;
+    let base_npv = pricing_kernel.price(base_spread)?;
+    let bumped_npv = pricing_kernel.price(base_spread + ONE_BASIS_POINT)?;
+    if !base_npv.is_finite() || !bumped_npv.is_finite() {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "bond spread risk requires finite quote-reproducing PVs; \
+             base PV={base_npv}, bumped PV={bumped_npv}"
+        )));
+    }
+
+    Ok((base_npv, bumped_npv))
+}
 
 /// Bond parallel CS01 with z-spread fallback.
 ///
@@ -70,25 +101,14 @@ impl MetricCalculator for BondCs01Calculator {
             });
         }
 
-        let bond: &Bond = context.instrument_as()?;
-        let inst_id = bond.id();
-
-        let base_spread = context
-            .computed
-            .get(&MetricId::ZSpread)
-            .copied()
-            .ok_or_else(|| {
-                finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
-                    id: "metric:ZSpread".to_string(),
-                })
-            })?;
-
-        let bumped_spread = base_spread + ONE_BASIS_POINT;
-
-        let base_npv = price_from_z_spread(bond, &context.curves, context.as_of, base_spread)?;
-        let bumped_npv = price_from_z_spread(bond, &context.curves, context.as_of, bumped_spread)?;
-
+        let inst_id = context.instrument_as::<Bond>()?.id().to_string();
+        let (base_npv, bumped_npv) = z_spread_bumped_pvs(context)?;
         let cs01 = bumped_npv - base_npv;
+        if !cs01.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "bond Z-spread CS01 must be finite; got {cs01}"
+            )));
+        }
 
         context
             .computed

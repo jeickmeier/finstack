@@ -9,7 +9,7 @@ versions are possible but must be announced in this file.
 See [`docs/SERDE_STABILITY.md`](docs/SERDE_STABILITY.md) for the per-wire-type
 stability contract and schema-version policy.
 
-## [Unreleased]
+## [0.7.0] - 2026-07-27
 
 ### Changed (breaking, wire format)
 - **`CeclMethodology::Vintage` removed.** No cohort/vintage data model existed
@@ -22,6 +22,12 @@ stability contract and schema-version policy.
   parsed and validated but were never implemented (the calibrator always
   rejected them at runtime). Migrate to `sample` or the newly-implemented
   `ewma`.
+
+### Changed (breaking, API)
+- **`SpreadChangeMode` removed from Campisi fixed-income attribution.** Absolute
+  spread moves and the former DTS-relative representation are algebraically
+  identical for ex-post return attribution, so callers should provide the
+  realized decimal `delta_spread` directly on each `FiPositionSnapshot`.
 
 ### Changed
 - **`compute_exposure_profile` now models MPOR gap risk under a CSA.** For
@@ -40,6 +46,18 @@ stability contract and schema-version policy.
   analytic-only behavior.
 
 ### Added
+- **Fixed-income performance attribution suite** in Rust, Python, and WASM:
+  Campisi carry/treasury/spread/selection attribution with multi-period Carino
+  linking; duration-matched credit excess returns from reference securities or
+  Treasury/swap curves; hierarchical duration-cell × sector grid attribution;
+  and equality-constrained factor-Brinson attribution.
+- **Arrow interoperability for Python table results.** Statements results and
+  portfolio positions can export through `ArrowTable` to PyArrow and Polars
+  without a JSON round trip; the Rust interchange crate also supports Arrow IPC
+  stream round trips with role and metadata preservation.
+- **Bond and structured-credit `spread_duration` metric**, derived on the same
+  quote-reproducing Z-spread basis used by CS01 and available to Campisi
+  snapshots.
 - **Margin Valuation Adjustment (MVA)** (`finstack_quant_margin::xva::mva`,
   also exposed to Python as `finstack_quant.margin.{compute_mva,
   im_profile_from_simm, ImDecayProfile, ImProfile, MvaResult}`): funding cost

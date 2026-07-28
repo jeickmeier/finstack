@@ -185,8 +185,12 @@ let toggle = ToggleExerciseModel::threshold(
 
 ```python
 from finstack_quant.valuations import (
-    MertonModel, MertonMcConfig, EndogenousHazardSpec,
-    DynamicRecoverySpec, ToggleExerciseModel, Bond,
+    MertonModel,
+    MertonMcConfig,
+    EndogenousHazardSpec,
+    DynamicRecoverySpec,
+    ToggleExerciseModel,
+    Bond,
 )
 import math
 
@@ -203,13 +207,19 @@ merton = MertonModel.from_target_pd(
 
 # Build credit components
 endo = EndogenousHazardSpec.power_law(
-    base_hazard=0.02, base_leverage=0.60, exponent=2.0,
+    base_hazard=0.02,
+    base_leverage=0.60,
+    exponent=2.0,
 )
 dyn_rec = DynamicRecoverySpec.floored_inverse(
-    base_recovery=0.40, base_notional=100.0, floor=0.15,
+    base_recovery=0.40,
+    base_notional=100.0,
+    floor=0.15,
 )
 toggle = ToggleExerciseModel.threshold(
-    variable="hazard_rate", threshold=0.15, direction="above",
+    variable="hazard_rate",
+    threshold=0.15,
+    direction="above",
 )
 
 # Assemble MC config

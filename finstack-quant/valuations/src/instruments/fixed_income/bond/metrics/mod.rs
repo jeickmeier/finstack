@@ -17,8 +17,8 @@
 //! - **Convexity**: Curvature of price/yield relationship
 //! - **DV01**: Dollar value of 1bp rate change
 //! - **CS01**: Credit spread sensitivity
-//! - **Spread Duration**: CS01 normalized by NPV into years (shares the
-//!   instrument-agnostic structured-credit calculator)
+//! - **Spread Duration**: Quote-reproducing Z-spread sensitivity normalized by
+//!   the Z-spread base PV into years
 //!
 //! ## Spread Metrics
 //! - **Z-Spread**: Zero-volatility spread over discount curve
@@ -68,6 +68,8 @@ pub(crate) mod price_yield_spread;
 pub(crate) mod return_metrics;
 /// Quote-reproducing risk view for bond bump-based sensitivities
 mod risk_view;
+/// Quote-reproducing Z-spread duration
+mod spread_duration;
 /// Weighted Average Life calculator
 pub(crate) mod wal;
 /// Yield-basis DV01 calculator
@@ -86,6 +88,7 @@ pub(crate) use price_yield_spread::{
     BondVegaCalculator, CleanPriceCalculator, DirtyPriceCalculator, EmbeddedOptionValueCalculator,
     ISpreadCalculator, OasCalculator, YtmCalculator, YtwCalculator,
 };
+pub(crate) use spread_duration::BondSpreadDurationCalculator;
 pub(crate) use wal::BondWalCalculator;
 pub(crate) use yield_dv01::YieldDv01Calculator;
 
@@ -161,7 +164,6 @@ pub(crate) fn quoted_workout_path(
 /// register_bond_metrics(&mut registry);
 /// ```
 pub(crate) fn register_bond_metrics(registry: &mut crate::metrics::MetricRegistry) {
-    use crate::instruments::fixed_income::structured_credit::SpreadDurationCalculator;
     use crate::metrics::{
         make_credit_bumper, make_rates_bumper, CrossFactorCalculator, CrossFactorPair, MetricId,
     };
@@ -211,8 +213,9 @@ pub(crate) fn register_bond_metrics(registry: &mut crate::metrics::MetricRegistr
 
             (Cs01, BondCs01Calculator),
             (BucketedCs01, BondBucketedCs01Calculator),
-            // Instrument-agnostic: normalizes the bond's CS01 by NPV into years.
-            (SpreadDuration, SpreadDurationCalculator),
+            // Always quote-reproducing Z-spread risk, even when CS01 uses a
+            // hazard/par-CDS curve.
+            (SpreadDuration, BondSpreadDurationCalculator),
 
             (Moic, return_metrics::moic::MoicCalculator),
             (MoicToWorst, return_metrics::moic::MoicToWorstCalculator),

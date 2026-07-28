@@ -33,11 +33,7 @@ UV_PYTHON_DOWNLOADS = "{{ env.UV_PYTHON_DOWNLOADS | default(value='never') }}"
 
 [tasks.all]
 description = "Build, test, and lint everything (rust + python + wasm)"
-run = [
-  { task = "all-build" },
-  { task = "all-test" },
-  { task = "all-lint" },
-]
+run = [{ task = "all-build" }, { task = "all-test" }, { task = "all-lint" }]
 
 [tasks.all-build]
 description = "Build Rust workspace, Python bindings, and WASM package"
@@ -192,7 +188,7 @@ description = "Audit Rust dependencies via cargo-deny"
 run = "cargo deny check"
 
 [tasks.rust-semver-checks]
-description = "Compare the umbrella Rust crate against the normalized v0.5.0 baseline"
+description = "Compare the umbrella Rust crate against the v0.6.0 baseline"
 run = "python3 scripts/semver_checks.py"
 
 [tasks.rust-publish-checks]
