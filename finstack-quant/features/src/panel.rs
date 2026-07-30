@@ -1,4 +1,9 @@
-//! JSON orchestration for panel transform pipelines.
+//! JSON and typed-spec orchestration for panel transform pipelines.
+//!
+//! [`transform_panel`] accepts a UTF-8 JSON [`PanelTransformSpec`] and returns
+//! a JSON object mapping operation names to output columns.
+//! [`transform_panel_spec`] is the typed Rust entry point and preserves
+//! operation order in [`PanelTransformResult`].
 
 use crate::{
     transform_cross_sectional_with_op, transform_timeseries_with_op, CrossSectionalOp, TimeSeriesOp,
@@ -168,6 +173,12 @@ pub struct PanelTransformResult {
 
 impl PanelTransformResult {
     /// Look up an output column by name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Exact operation output name as supplied in the panel
+    ///   specification; lookup is case-sensitive and returns `None` when no
+    ///   column matches.
     #[must_use]
     pub fn get_column(&self, name: &str) -> Option<&[Option<f64>]> {
         self.columns

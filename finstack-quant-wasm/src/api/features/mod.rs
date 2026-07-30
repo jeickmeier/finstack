@@ -175,10 +175,10 @@ pub fn rolling_regression_residual(
 }
 
 /// Convert a signal to inverse-risk-scaled weights per timestamp.
-/// @param values - Numeric observations in the shape and order required by the selected transformation.
+/// @param values - Numeric signal observations aligned with `timeKey` and `volatility`.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
-/// @param volatility - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-/// @param params - Operation-specific parameter object defining transformation settings.
+/// @param volatility - Row-aligned risk estimates used as `signal / volatility`; zero, missing, or non-finite values yield missing weights.
+/// @param params - Reserved parameter object; accepted for API symmetry and has no effect.
 #[wasm_bindgen(js_name = riskScaledWeights)]
 pub fn risk_scaled_weights(
     values: JsValue,

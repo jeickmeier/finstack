@@ -3396,10 +3396,10 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Convert a signal to inverse-risk-scaled weights per timestamp.
-   * @param values - Numeric observations in the shape and order required by the selected transformation.
+   * @param values - Numeric signal observations aligned with `timeKey` and `volatility`.
    * @param timeKey - Cross-sectional time key shared by values evaluated in the same slice.
-   * @param volatility - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param params - Operation-specific parameter object defining transformation settings.
+   * @param volatility - Row-aligned risk estimates used as `signal / volatility`; zero, missing, or non-finite values yield missing weights.
+   * @param params - Reserved parameter object; accepted for API symmetry and has no effect.
    * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
    */

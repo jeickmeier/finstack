@@ -1,10 +1,10 @@
 """
 Feature engineering: panel-data transformations for signal research.
 
-Bindings for ``finstack_quant_core::features``. Provides time-series,
-cross-sectional, and pairwise transforms (z-score, rank, rolling mean,
-neutralization, risk-scaled weights) plus a general panel dispatcher
-:func:`transform_panel`.
+Bindings for the ``finstack-quant-features`` crate
+(``finstack_quant.features``). Provides time-series, cross-sectional, and
+pairwise transforms (z-score, rank, rolling mean, neutralization, risk-scaled
+weights) plus a general panel dispatcher :func:`transform_panel`.
 
 Examples
 --------

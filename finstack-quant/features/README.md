@@ -18,10 +18,10 @@ pipeline without sentinel values.
 | `transform_panel` | Apply a JSON-specified pipeline of named time-series and cross-sectional operations |
 | `transform_panel_spec` | Rust typed-spec variant of `transform_panel` with ordered result columns |
 
-All three return `finstack_quant_core::Result`. Outputs preserve input order and
-length; element `i` of the output corresponds to element `i` of `values`.
-The string/JSON entrypoints are retained for Python and WASM bindings. Rust
-callers can use `TimeSeriesOp`, `CrossSectionalOp`, `PairwiseOp`,
+These entry points return `finstack_quant_core::Result`. Outputs preserve input
+order and length; element `i` of the output corresponds to element `i` of
+`values`. The string/JSON entry points are retained for Python and WASM
+bindings. Rust callers can use `TimeSeriesOp`, `CrossSectionalOp`, `PairwiseOp`,
 `PanelTransformSpec`, `PanelOperation`, and `PanelTransformResult` to avoid
 string dispatch.
 
@@ -106,10 +106,12 @@ otherwise.
 | Function | Role |
 |----------|------|
 | `transform_cross_sectional_grouped` | Apply a cross-sectional op within `(time_key, group)` sub-partitions |
-| `neutralize` | Cross-sectional OLS residualization against exposure columns |
-| `transform_timeseries_pairwise` | Rolling covariance, correlation, and beta between two columns |
+| `transform_cross_sectional_grouped_with_op` | Typed-op variant of `transform_cross_sectional_grouped` |
+| `neutralize` | Cross-sectional OLS residualization against exposure columns (`fit_intercept`, default `true`) |
+| `transform_timeseries_pairwise` | Rolling covariance, correlation, and beta between two columns (`rolling_cov`, `rolling_corr`, `rolling_beta`) |
+| `transform_timeseries_pairwise_with_op` | Typed-op variant of `transform_timeseries_pairwise` |
 | `rolling_regression_residual` | Per-entity rolling OLS residuals against exposure columns |
-| `risk_scaled_weights` | Convert signal values into inverse-volatility-scaled weights |
+| `risk_scaled_weights` | Convert signal values into inverse-risk-scaled weights (`signal / volatility`, then gross-normalize) |
 | `clean_signal` | Default cross-sectional signal cleaning via quantile clipping |
 | `normalize_signal` | Normalize with a selected cross-sectional op (`method`, default `zscore`) |
 | `rank_to_weights` | Convert ranks into gross-normalized long/short weights |
@@ -237,13 +239,13 @@ The spec uses `serde(deny_unknown_fields)`; unrecognized keys are rejected.
 
 - `finstack-quant-core` — provides `Error`/`Result` used for validation failures.
 - `finstack-quant` — re-exports this crate as `finstack_quant::features`.
-- `finstack-quant-py` — exposes these functions under the `features` Python
-  submodule (`transform_timeseries`, `transform_cross_sectional`,
-  `transform_panel`).
-- `finstack-quant-wasm` — exposes the same functions through the `features`
-  namespace using camelCase names (`transformTimeseries`,
-  `transformCrossSectional`, `transformPanel`). JavaScript callers pass
-  `number | null` arrays for values and plain objects for params.
+- `finstack-quant-py` — exposes the string/JSON entry points under
+  `finstack_quant.features`, plus the pure-Python `dataframe` helpers.
+- `finstack-quant-wasm` — exposes the same string/JSON entry points through the
+  `features` namespace using camelCase names (`transformTimeseries`,
+  `transformCrossSectional`, `transformPanel`, and the multi-input helpers).
+  JavaScript callers pass `number | null` arrays for values and plain objects
+  for params.
 
 ## Verification
 

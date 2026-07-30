@@ -16,51 +16,51 @@ use std::str::FromStr;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum TimeSeriesOp {
-    /// Simple return `v_t / v_{t-periods} - 1`.
+    /// Simple return `v_t / v_{t-periods} - 1`; `None` near zero prior values.
     Returns,
-    /// Log return `ln(v_t / v_{t-periods})`.
+    /// Log return `ln(v_t / v_{t-periods})`; `None` when the ratio is not positive.
     LogReturns,
     /// Difference `v_t - v_{t-periods}`.
     Diff,
     /// Value shifted forward by `periods`.
     Lag,
-    /// Mean over the trailing window.
+    /// Mean over the trailing window of finite observations.
     RollingMean,
-    /// Sum over the trailing window.
+    /// Sum over the trailing window of finite observations.
     RollingSum,
-    /// Sample standard deviation over the trailing window.
+    /// Sample (Bessel-corrected) standard deviation; needs ≥ 2 finite points.
     RollingStd,
     /// Minimum over the trailing window.
     RollingMin,
     /// Maximum over the trailing window.
     RollingMax,
-    /// Z-score of the current value against the trailing window.
+    /// Z-score of the current value against the trailing sample mean/std.
     RollingZscore,
     /// Percentile rank of the current value against the trailing window.
     RollingRank,
-    /// Quantile over the trailing window.
+    /// Quantile over the trailing window (`quantile`, default `0.5`).
     RollingQuantile,
-    /// Skewness over the trailing window.
+    /// Skewness over the trailing window; needs ≥ 3 finite points.
     RollingSkew,
-    /// Excess kurtosis over the trailing window.
+    /// Excess kurtosis over the trailing window; needs ≥ 3 finite points.
     RollingKurtosis,
-    /// Linear trend slope over the trailing window.
+    /// Linear trend slope over the trailing window; needs ≥ 2 finite points.
     RollingSlope,
     /// Mean divided by sample standard deviation over the trailing window.
     RollingSharpe,
-    /// Clamp current values to trailing quantile bounds.
+    /// Clamp the current value to trailing quantile bounds.
     RollingWinsorize,
-    /// Peak-to-trough drawdown from the running maximum.
+    /// Drawdown `value / running_peak - 1` for a positive level series.
     Drawdown,
-    /// Hampel outlier filter over the trailing window.
+    /// Replace outliers with the trailing median (Hampel filter).
     HampelFilter,
-    /// Current observation's normalized exponential-decay weight.
+    /// Current row's normalized exponential-decay weight (`half_life` required).
     ExponentialDecayWeights,
-    /// Exponentially weighted mean using `span`.
+    /// Exponentially weighted mean with `alpha = 2 / (span + 1)`.
     EwmaMean,
-    /// Exponentially weighted volatility using `span`.
+    /// Exponentially weighted volatility of the input series (`span` required).
     EwmaVol,
-    /// Exponentially weighted z-score using `span`.
+    /// Current value z-score against EWMA mean/variance state (`span` required).
     EwmaZscore,
 }
 

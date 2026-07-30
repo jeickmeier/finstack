@@ -1,6 +1,10 @@
-"""Vectorized panel feature transforms.
+"""Vectorized panel feature transforms from ``finstack-quant-features``.
 
-Examples:
+Re-exports the compiled bindings and the optional
+:mod:`finstack_quant.features.dataframe` pandas helpers. Symbol documentation
+lives in the ``.pyi`` stubs and in ``dataframe.py``.
+
+Examples
 --------
 >>> import finstack_quant.features as features
 >>> features.__name__

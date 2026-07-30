@@ -1,4 +1,8 @@
 //! Multi-input feature transforms.
+//!
+//! Grouped cross-sectional ops, pairwise rolling statistics, OLS
+//! neutralization / residualization, and signal-to-weight helpers that operate
+//! on more than one aligned column.
 
 use crate::types::{bool_param, finite, usize_param, validate_lengths, ZERO_TOLERANCE};
 use crate::{transform_cross_sectional, CrossSectionalOp};
@@ -320,7 +324,7 @@ pub fn rolling_regression_residual(
 /// * `volatility` - Row-aligned risk estimates; zero, missing, or non-finite
 ///   values produce missing output weights.
 /// * `_params` - Reserved JSON parameter object; it is accepted for pipeline
-///   compatibility and currently has no effect.
+///   compatibility and has no effect.
 ///
 /// # Errors
 ///
@@ -427,7 +431,7 @@ pub fn normalize_signal(
 /// * `time_key` - Row-aligned labels defining independently normalized
 ///   cross-sections.
 /// * `_params` - Reserved JSON parameter object; it is accepted for pipeline
-///   compatibility and currently has no effect.
+///   compatibility and has no effect.
 ///
 /// # Errors
 ///
