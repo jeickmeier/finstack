@@ -1,11 +1,14 @@
 //! Comprehensive serialization tests for all statements types.
 
+use finstack_quant_core::contract::{ContractError, LoadLimits};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::builder::ModelBuilder;
 use finstack_quant_statements::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};
 use finstack_quant_statements::evaluator::{Evaluator, ResultsMeta, StatementResult};
-use finstack_quant_statements::types::{AmountOrScalar, FinancialModelSpec, NodeSpec, NodeType};
+use finstack_quant_statements::types::{
+    upgrade_v1_to_v2, AmountOrScalar, FinancialModelSpec, NodeSpec, NodeType,
+};
 use indexmap::IndexMap;
 
 #[test]
@@ -183,6 +186,238 @@ fn test_model_spec_full_serialization() {
         nodes_obj["revenue"].is_object(),
         "revenue node should be an object"
     );
+}
+
+#[test]
+fn financial_model_missing_version_is_legacy_v1_but_strict_loading_rejects_it() {
+    let model = ModelBuilder::new("legacy")
+        .periods("2025Q1..Q1", None)
+        .expect("periods")
+        .build()
+        .expect("model");
+    let mut json = serde_json::to_value(model).expect("model serializes");
+    json.as_object_mut()
+        .expect("model is object")
+        .remove("schema_version");
+
+    let compatibility: FinancialModelSpec =
+        serde_json::from_value(json.clone()).expect("legacy missing version is supported");
+    assert_eq!(compatibility.schema_version, 1);
+
+    let bytes = serde_json::to_vec(&json).expect("fixture serializes");
+    let error = FinancialModelSpec::from_slice_strict(&bytes, &LoadLimits::default())
+        .expect_err("strict loading requires schema_version");
+    let ContractError::Report(report) = error else {
+        panic!("expected structured report");
+    };
+    assert_eq!(report.diagnostics[0].code, "contract/version-missing");
+}
+
+#[test]
+fn financial_model_strict_loader_migrates_v1_null_capital_structure_as_absent() {
+    let model = ModelBuilder::new("legacy-null-capital-structure")
+        .periods("2025Q1..Q1", None)
+        .expect("periods")
+        .build()
+        .expect("model");
+    let mut json = serde_json::to_value(model).expect("model serializes");
+    json["schema_version"] = serde_json::json!(1);
+    json["capital_structure"] = serde_json::Value::Null;
+
+    let bytes = serde_json::to_vec(&json).expect("fixture serializes");
+    let (loaded, report) = FinancialModelSpec::from_slice_strict(&bytes, &LoadLimits::default())
+        .expect("v1 null capital structure migrates as absent");
+
+    assert_eq!(loaded.schema_version, 2);
+    assert!(loaded.capital_structure.is_none());
+    assert!(report.diagnostics.is_empty());
+}
+
+#[test]
+fn financial_model_strict_loader_rejects_zero_future_malformed_and_invalid_semantics() {
+    let model = ModelBuilder::new("strict")
+        .periods("2025Q1..Q1", None)
+        .expect("periods")
+        .build()
+        .expect("model");
+    let base = serde_json::to_value(model).expect("model serializes");
+
+    for version in [0, 3] {
+        let mut json = base.clone();
+        json.as_object_mut()
+            .expect("model is object")
+            .insert("schema_version".into(), serde_json::json!(version));
+        let bytes = serde_json::to_vec(&json).expect("fixture serializes");
+        let error = FinancialModelSpec::from_slice_strict(&bytes, &LoadLimits::default())
+            .expect_err("unsupported version must fail");
+        let ContractError::Report(report) = error else {
+            panic!("expected structured report");
+        };
+        assert_eq!(report.diagnostics[0].code, "contract/version-unsupported");
+    }
+
+    let malformed = FinancialModelSpec::from_slice_strict(b"{", &LoadLimits::default())
+        .expect_err("malformed JSON must fail");
+    let ContractError::Report(report) = malformed else {
+        panic!("expected structured report");
+    };
+    assert_eq!(report.diagnostics[0].code, "contract/parse-error");
+
+    let mut empty_periods = base;
+    empty_periods
+        .as_object_mut()
+        .expect("model is object")
+        .insert("periods".into(), serde_json::json!([]));
+    assert!(
+        FinancialModelSpec::from_slice_strict(
+            &serde_json::to_vec(&empty_periods).expect("fixture"),
+            &LoadLimits::default(),
+        )
+        .is_err(),
+        "strict loading must run semantic validation"
+    );
+}
+
+#[test]
+fn financial_model_version_matrix_fixture_drives_strict_loading_and_migration() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../data/financial_model_version_matrix.json"))
+            .expect("version matrix fixture parses");
+    let base = fixture["base"].clone();
+    let cases = fixture["cases"]
+        .as_array()
+        .expect("fixture contains version cases");
+
+    for case in cases {
+        let name = case["name"].as_str().expect("case name");
+        let mut document = case
+            .get("document")
+            .cloned()
+            .unwrap_or_else(|| base.clone());
+        if case.get("document").is_none() {
+            match case.get("schema_version") {
+                Some(serde_json::Value::Null) | None => {
+                    document
+                        .as_object_mut()
+                        .expect("model object")
+                        .remove("schema_version");
+                }
+                Some(version) => document["schema_version"] = version.clone(),
+            }
+        }
+        let bytes = serde_json::to_vec(&document).expect("case serializes");
+        let expected = case["expected"].as_str().expect("expected outcome");
+        match FinancialModelSpec::from_slice_strict(&bytes, &LoadLimits::default()) {
+            Ok((loaded, report)) => {
+                assert_eq!(expected, "ok", "{name} unexpectedly loaded");
+                assert_eq!(loaded.schema_version, 2, "{name}");
+                assert!(report.diagnostics.is_empty(), "{name}");
+                if name == "old" {
+                    let debt = &loaded
+                        .capital_structure
+                        .as_ref()
+                        .expect("old fixture retains capital structure")
+                        .debt_instruments;
+                    assert_eq!(debt[0].spec["type"], "bond");
+                    assert_eq!(debt[1].spec["type"], "revolving_credit");
+                }
+            }
+            Err(ContractError::Report(report)) => {
+                assert_eq!(report.diagnostics[0].code, expected, "{name}");
+            }
+            Err(error) => panic!("{name} returned unstructured error: {error}"),
+        }
+    }
+}
+
+#[test]
+fn financial_model_v1_upgrade_maps_historical_debt_variants_to_registry_payloads() {
+    let v1: serde_json::Value =
+        serde_json::from_str(include_str!("../data/financial_model_v1.json"))
+            .expect("v1 golden fixture");
+    let expected: serde_json::Value =
+        serde_json::from_str(include_str!("../data/financial_model_v2.json"))
+            .expect("v2 golden fixture");
+
+    let upgraded = upgrade_v1_to_v2(v1).expect("historical v1 payload upgrades");
+    assert_eq!(upgraded, expected);
+    assert_eq!(upgraded["schema_version"], 2);
+    let debt = upgraded["capital_structure"]["debt_instruments"]
+        .as_array()
+        .expect("debt array");
+    assert_eq!(debt[0]["spec"]["type"], "bond");
+    assert_eq!(debt[1]["spec"]["type"], "interest_rate_swap");
+    assert_eq!(debt[2]["spec"]["type"], "term_loan");
+    assert_eq!(debt[3]["spec"]["type"], "revolving_credit");
+    assert!(debt.iter().all(|item| item.get("type").is_none()));
+
+    #[cfg(feature = "valuation-integration")]
+    {
+        let raw_deposit = serde_json::to_value(
+            finstack_quant_valuations::instruments::Deposit::example()
+                .expect("historical generic deposit fixture"),
+        )
+        .expect("serialize historical generic payload");
+        let generic_v1 = serde_json::json!({
+            "id": "generic-migration",
+            "periods": [],
+            "nodes": {},
+            "capital_structure": {
+                "debt_instruments": [{
+                    "type": "generic",
+                    "id": "DEP",
+                    "spec": raw_deposit
+                }]
+            },
+            "schema_version": 1
+        });
+        let generic_v2 =
+            upgrade_v1_to_v2(generic_v1).expect("untagged v1 generic payload upgrades");
+        assert_eq!(
+            generic_v2["capital_structure"]["debt_instruments"][0]["spec"]["type"],
+            "deposit"
+        );
+    }
+}
+
+#[cfg(not(feature = "valuation-integration"))]
+#[test]
+fn financial_model_v1_migration_without_valuations_requires_generic_registry_tags() {
+    let tagged = serde_json::json!({
+        "id": "tagged-generic",
+        "periods": [],
+        "nodes": {},
+        "capital_structure": {
+            "debt_instruments": [{
+                "type": "generic",
+                "id": "RCF",
+                "spec": {"type": "revolving_credit", "spec": {"id": "RCF"}}
+            }]
+        },
+        "schema_version": 1
+    });
+    let upgraded = upgrade_v1_to_v2(tagged).expect("tagged generic payload is self-describing");
+    assert_eq!(
+        upgraded["capital_structure"]["debt_instruments"][0]["spec"]["type"],
+        "revolving_credit"
+    );
+
+    let untagged = serde_json::json!({
+        "id": "untagged-generic",
+        "periods": [],
+        "nodes": {},
+        "capital_structure": {
+            "debt_instruments": [{
+                "type": "generic",
+                "id": "UNKNOWN",
+                "spec": {"id": "UNKNOWN"}
+            }]
+        },
+        "schema_version": 1
+    });
+    let error = upgrade_v1_to_v2(untagged)
+        .expect_err("untagged generic payload needs valuation integration for inference");
+    assert!(error.to_string().contains("migrate it to"));
 }
 
 #[test]

@@ -17,7 +17,7 @@ export type CalibrationEnvelope = {
  */
 $schema?: string | null,
 /**
- * Schema version identifier (must be [`CALIBRATION_SCHEMA`]).
+ * Schema marker; current writers emit [`CALIBRATION_SCHEMA`].
  */
 schema: string,
 /**

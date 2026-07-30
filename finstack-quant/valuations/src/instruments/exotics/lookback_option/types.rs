@@ -104,6 +104,7 @@ impl std::str::FromStr for LookbackType {
 ///
 /// If not provided, the current spot is used as the starting extremum.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

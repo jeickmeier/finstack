@@ -34,7 +34,7 @@ fn list_template_components_for_gfc() {
 
 #[wasm_bindgen_test]
 fn apply_scenario_empty_spec() {
-    let scenario = build_scenario_spec("test", "[]", None, None, 0).unwrap();
+    let scenario = build_scenario_spec("test", "[]", None, None, 0, None).unwrap();
     let market = empty_market_json();
     let model = empty_model_json();
     let result = apply_scenario(&scenario, &market, &model, "2024-01-15").unwrap();
@@ -46,10 +46,25 @@ fn apply_scenario_empty_spec() {
 
 #[wasm_bindgen_test]
 fn apply_scenario_to_market_empty_spec() {
-    let scenario = build_scenario_spec("test", "[]", None, None, 0).unwrap();
+    let scenario = build_scenario_spec("test", "[]", None, None, 0, None).unwrap();
     let market = empty_market_json();
     let result = apply_scenario_to_market(&scenario, &market, "2024-06-01").unwrap();
     let obj: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
     assert!(obj["market_json"].as_str().is_some());
     assert_eq!(obj["operations_applied"].as_u64().unwrap(), 0);
+}
+
+#[wasm_bindgen_test]
+fn build_scenario_spec_preserves_cumulative_resolution_mode() {
+    let scenario = build_scenario_spec(
+        "cumulative",
+        "[]",
+        None,
+        None,
+        0,
+        Some("cumulative".to_string()),
+    )
+    .unwrap();
+    let value: serde_json::Value = serde_json::from_str(&scenario).unwrap();
+    assert_eq!(value["resolution_mode"], "cumulative");
 }

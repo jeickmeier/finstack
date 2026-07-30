@@ -22,9 +22,15 @@ from finstack_quant.core.table import ArrowTable
 from finstack_quant.factor_model.credit import CreditFactorModel
 
 __all__ = [
+    "ContractLimitExceededError",
+    "ContractValidationError",
     "FinstackFxError",
     "FinstackOptimizationError",
     "FinstackValuationError",
+    "InstrumentArtifactCache",
+    "MalformedContractSchemaError",
+    "MaterializationReport",
+    "MissingContractVersionError",
     "Portfolio",
     "PortfolioAttribution",
     "PortfolioCashflows",
@@ -32,6 +38,7 @@ __all__ = [
     "PortfolioMetrics",
     "PortfolioResult",
     "PortfolioValuation",
+    "UnsupportedContractVersionError",
     "aggregate_full_cashflows",
     "aggregate_metrics",
     "almgren_chriss_impact",
@@ -176,6 +183,238 @@ class FinstackOptimizationError(PortfolioError):
     'FinstackOptimizationError'
     """
 
+class ContractValidationError(ValueError):
+    """
+    Persisted contract validation failure with structured diagnostics.
+
+    ``report`` is a list of dictionaries with stable ``code`` and optional
+    RFC 6901 ``pointer`` entries suitable for form and ingestion error UIs.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import ContractValidationError
+    >>> issubclass(ContractValidationError, ValueError)
+    True
+    """
+
+    report: list[dict[str, Any]]
+
+class UnsupportedContractVersionError(ContractValidationError):
+    """
+    Persisted payload uses an unsupported positive contract version.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import UnsupportedContractVersionError
+    >>> issubclass(UnsupportedContractVersionError, ContractValidationError)
+    True
+    """
+
+class MissingContractVersionError(ContractValidationError):
+    """
+    Strict persisted payload omits its required contract version.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import MissingContractVersionError
+    >>> issubclass(MissingContractVersionError, ContractValidationError)
+    True
+    """
+
+class MalformedContractSchemaError(ContractValidationError):
+    """
+    Persisted payload has a malformed or mismatched schema marker.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import MalformedContractSchemaError
+    >>> issubclass(MalformedContractSchemaError, ContractValidationError)
+    True
+    """
+
+class ContractLimitExceededError(ContractValidationError):
+    """
+    Persisted payload exceeds a configured byte, count, or depth bound.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import ContractLimitExceededError
+    >>> issubclass(ContractLimitExceededError, ContractValidationError)
+    True
+    """
+
+class InstrumentArtifactCache:
+    """
+    Reusable bounded cache for decoded content-addressed instruments.
+
+    ``capacity`` bounds retained artifacts; encoded source data is also bounded
+    at 64 MiB. Instances are frozen and thread-safe.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import InstrumentArtifactCache
+    >>> cache = InstrumentArtifactCache(5_000)
+    >>> (len(cache), cache.size, cache.decode_count)
+    (0, 0, 0)
+    """
+
+    def __init__(self, capacity: int = 4_096) -> None:
+        """
+        Create an empty cache with an explicit artifact-entry bound.
+
+        Parameters
+        ----------
+        capacity : int, default 4096
+            Maximum decoded artifacts retained by the cache. Benchmarks should
+            pass the fixture's unique-artifact count explicitly.
+
+        Raises
+        ------
+        TypeError
+            If ``capacity`` is not an integer.
+        OverflowError
+            If ``capacity`` is negative or exceeds the native ``usize`` range.
+
+        Returns
+        -------
+        None
+            Constructors initialize the cache in place.
+        """
+    @property
+    def size(self) -> int:
+        """
+        Number of decoded artifacts currently retained.
+
+        Returns
+        -------
+        int
+            Entry count between zero and the configured capacity.
+        """
+    @property
+    def decode_count(self) -> int:
+        """
+        Cumulative number of successful cache-miss decodes.
+
+        Returns
+        -------
+        int
+            Non-negative decode count for this cache instance.
+        """
+    def __len__(self) -> int:
+        """
+        Return the number of retained decoded artifacts.
+
+        Returns
+        -------
+        int
+            Same value as :attr:`size`.
+        """
+
+class MaterializationReport:
+    """
+    Immutable outcome metadata for one successful materialization call.
+
+    Examples
+    --------
+    >>> from finstack_quant.portfolio import MaterializationReport
+    >>> MaterializationReport.__name__
+    'MaterializationReport'
+    """
+
+    @property
+    def diagnostics(self) -> list[dict[str, Any]]:
+        """
+        Return bounded non-fatal structured diagnostics.
+
+        Returns
+        -------
+        list[dict[str, Any]]
+            Diagnostic dictionaries with stable codes, phases, severities,
+            messages, optional JSON pointers, and artifact context.
+        """
+    @property
+    def truncated(self) -> bool:
+        """
+        Whether diagnostics were omitted because the bound was reached.
+
+        Returns
+        -------
+        bool
+            ``True`` when one or more diagnostics were not retained.
+        """
+    @property
+    def unique_instruments(self) -> int:
+        """
+        Number of unique instrument artifacts in the source bundle.
+
+        Returns
+        -------
+        int
+            Non-negative artifact count.
+        """
+    @property
+    def positions(self) -> int:
+        """
+        Number of ordered positions materialized.
+
+        Returns
+        -------
+        int
+            Non-negative position count.
+        """
+    @property
+    def dependencies(self) -> int:
+        """
+        Sum of normalized market-dependency keys over unique artifacts.
+
+        Returns
+        -------
+        int
+            Non-negative dependency count before position fan-out.
+        """
+    @property
+    def cache_hits(self) -> int:
+        """
+        Number of unique artifacts served from the supplied cache.
+
+        Returns
+        -------
+        int
+            Non-negative hit count no greater than ``unique_instruments``.
+        """
+    @property
+    def input_bytes(self) -> int:
+        """
+        Number of UTF-8 bytes in the supplied materialization bundle.
+
+        Returns
+        -------
+        int
+            Positive encoded byte count for the source document.
+        """
+    @property
+    def timing_available(self) -> bool:
+        """
+        Whether every phase used an available monotonic host clock.
+
+        Returns
+        -------
+        bool
+            ``True`` for native Python builds, where ``time::Instant`` backs
+            every phase measurement.
+        """
+    @property
+    def phase_nanos(self) -> dict[str, int]:
+        """
+        Return sequential materialization phase timings.
+
+        Returns
+        -------
+        dict[str, int]
+            Nanosecond timings for parse, version validation, instrument
+            decode, position build, and index build phases.
+        """
+
 class Portfolio:
     """
     Built runtime portfolio. Cheap to clone; pass directly to pipeline functions.
@@ -218,6 +457,60 @@ class Portfolio:
         >>> from finstack_quant.portfolio import Portfolio
         >>> callable(Portfolio.from_spec)
         True
+        """
+        ...
+
+    @staticmethod
+    def from_materialization(
+        bundle: str | bytes | bytearray,
+        cache: InstrumentArtifactCache | None = None,
+    ) -> tuple[Portfolio, MaterializationReport]:
+        """
+        Parse and build a strict persisted portfolio bundle in one native call.
+
+        Parsing, validation, unique instrument decoding, position construction,
+        and index rebuilding run while the GIL is released. Pass a reusable
+        cache to share decoded instruments across bundles.
+
+        Parameters
+        ----------
+        bundle : str | bytes | bytearray
+            Complete UTF-8 JSON document using the
+            ``finstack_quant.portfolio_materialization/1`` contract.
+        cache : InstrumentArtifactCache | None, default None
+            Shared artifact cache, or ``None`` to use an ephemeral bounded
+            cache for this call.
+
+        Returns
+        -------
+        tuple[Portfolio, MaterializationReport]
+            Frozen reusable portfolio handle and immutable load report.
+
+        Raises
+        ------
+        TypeError
+            If ``bundle`` is not ``str``, ``bytes``, or ``bytearray``.
+        ContractValidationError
+            If JSON parsing or structured contract validation fails. The
+            exception's ``report`` attribute contains diagnostic dictionaries.
+        ContractLimitExceededError
+            If the bundle exceeds a configured resource bound.
+        PortfolioError
+            If native portfolio construction fails outside contract validation.
+
+        Examples
+        --------
+        >>> import json
+        >>> from finstack_quant.portfolio import Portfolio
+        >>> bundle = {
+        ...     "schema": "finstack_quant.portfolio_materialization/1",
+        ...     "portfolio": {"id": "empty", "base_ccy": "USD", "as_of": "2025-01-01", "entities": {}},
+        ...     "instruments": [],
+        ...     "positions": [],
+        ... }
+        >>> built, report = Portfolio.from_materialization(json.dumps(bundle))
+        >>> (built.id, report.positions)
+        ('empty', 0)
         """
         ...
 

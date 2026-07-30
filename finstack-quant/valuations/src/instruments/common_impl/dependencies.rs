@@ -7,15 +7,21 @@ use smallvec::SmallVec;
 use crate::instruments::json_loader::InstrumentJson;
 
 /// Collection of curves used by an instrument, categorized by market role.
-#[derive(Default, Clone, Debug)]
+#[derive(
+    Default, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 pub struct InstrumentCurves {
     /// Discount curves used by the instrument (including primary and foreign).
+    #[schemars(with = "Vec<CurveId>")]
     pub discount_curves: SmallVec<[CurveId; 2]>,
     /// Forward/projection curves used by the instrument.
+    #[schemars(with = "Vec<CurveId>")]
     pub forward_curves: SmallVec<[CurveId; 2]>,
     /// Credit/hazard curves used by the instrument.
+    #[schemars(with = "Vec<CurveId>")]
     pub credit_curves: SmallVec<[CurveId; 2]>,
     /// Inflation curves or published inflation indices used by the instrument.
+    #[schemars(with = "Vec<CurveId>")]
     pub inflation_curves: SmallVec<[CurveId; 2]>,
 }
 
@@ -116,7 +122,17 @@ impl core::str::FromStr for RatesCurveKind {
 }
 
 /// FX pair identifier using base/quote currency ordering.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 pub struct FxPair {
     /// Base currency (numerator).
     pub base: Currency,
@@ -132,7 +148,7 @@ impl FxPair {
 }
 
 /// A volatility-surface dependency with the context needed for diagnostics.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct VolatilityDependency {
     /// Volatility surface identifier.
     pub surface_id: CurveId,
@@ -168,7 +184,9 @@ impl PartialEq for VolatilityDependency {
 impl Eq for VolatilityDependency {}
 
 /// Unified dependency container for instrument market data requirements.
-#[derive(Debug, Clone, Default)]
+#[derive(
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 pub struct MarketDependencies {
     /// Curve dependencies grouped by type.
     pub curves: InstrumentCurves,
@@ -384,6 +402,35 @@ mod tests {
         assert_eq!(
             left.unique_vol_surface_ids(),
             vec![CurveId::new("LEFT-VOL"), CurveId::new("RIGHT-VOL")]
+        );
+    }
+
+    #[test]
+    fn market_dependencies_roundtrip_with_schema_and_equality() {
+        let mut dependencies = MarketDependencies::new();
+        dependencies.add_discount_curve("USD-OIS");
+        dependencies.add_forward_curve("USD-SOFR-3M");
+        dependencies.add_credit_curve("ACME-HAZARD");
+        dependencies.add_inflation_curve("USD-CPI");
+        dependencies.add_spot_id("SPX");
+        dependencies.add_volatility_dependency(VolatilityDependency::new(
+            CurveId::new("SPX-VOL"),
+            Some(PriceId::new("SPX")),
+            Some(5_000.0),
+        ));
+        dependencies.add_fx_pair(Currency::USD, Currency::EUR);
+        dependencies.add_series_id("SPX-CLOSE");
+
+        let json = serde_json::to_string(&dependencies).expect("dependencies serialize");
+        let roundtripped: MarketDependencies =
+            serde_json::from_str(&json).expect("dependencies deserialize");
+        assert_eq!(roundtripped, dependencies);
+
+        let schema = schemars::schema_for!(MarketDependencies);
+        let schema_json = serde_json::to_value(schema).expect("schema serializes");
+        assert_eq!(
+            schema_json["title"],
+            serde_json::Value::String("MarketDependencies".into())
         );
     }
 }

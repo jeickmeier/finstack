@@ -676,7 +676,7 @@ pub fn execute_waterfall(
                         .map(|s| s.scheduled_principal.amount().max(0.0))
                         .collect();
                     let allocations = allocate_pro_rata(&planned, &mut remaining_cash);
-                    for (s, allocated) in staged.iter_mut().zip(allocations.into_iter()) {
+                    for (s, allocated) in staged.iter_mut().zip(allocations) {
                         s.scheduled_principal =
                             Money::new(allocated, s.scheduled_principal.currency());
                     }
@@ -692,7 +692,7 @@ pub fn execute_waterfall(
                         .map(|s| s.extra_principal.amount().max(0.0))
                         .collect();
                     let allocations = allocate_pro_rata(&planned, &mut remaining_cash);
-                    for (s, allocated) in staged.iter_mut().zip(allocations.into_iter()) {
+                    for (s, allocated) in staged.iter_mut().zip(allocations) {
                         s.extra_principal = Money::new(allocated, s.extra_principal.currency());
                     }
                     extra_principal_capped = true;

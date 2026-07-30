@@ -11,7 +11,9 @@ use crate::instruments::rates::irs::InterestRateSwap;
 use finstack_quant_core::dates::{Date, Tenor};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CreditRating;
-use finstack_quant_core::{HashMap, Result};
+use finstack_quant_core::Result;
+use indexmap::IndexMap;
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -137,11 +139,11 @@ impl DealFees {
 #[serde(deny_unknown_fields)]
 pub struct CoverageTestConfig {
     /// OC trigger levels by tranche ID
-    pub oc_triggers: HashMap<String, f64>,
+    pub oc_triggers: IndexMap<String, f64>,
     /// IC trigger levels by tranche ID
-    pub ic_triggers: HashMap<String, f64>,
+    pub ic_triggers: IndexMap<String, f64>,
     /// Haircuts by rating for OC calculations
-    pub haircuts: HashMap<CreditRating, f64>,
+    pub haircuts: BTreeMap<CreditRating, f64>,
     /// Par value test threshold (if applicable)
     pub par_value_threshold: Option<f64>,
 }
@@ -150,16 +152,19 @@ impl CoverageTestConfig {
     /// Create new empty configuration
     pub fn new() -> Self {
         Self {
-            oc_triggers: HashMap::default(),
-            ic_triggers: HashMap::default(),
+            oc_triggers: IndexMap::new(),
+            ic_triggers: IndexMap::new(),
             haircuts: Self::default_haircuts(),
             par_value_threshold: None,
         }
     }
 
     /// Standard CLO haircuts (conservative)
-    pub fn default_haircuts() -> HashMap<CreditRating, f64> {
-        assumptions_registry().coverage_haircuts()
+    pub fn default_haircuts() -> BTreeMap<CreditRating, f64> {
+        assumptions_registry()
+            .coverage_haircuts()
+            .into_iter()
+            .collect()
     }
 
     /// Add OC test for a tranche
@@ -193,8 +198,11 @@ impl CoverageTestConfig {
     }
 
     /// Set custom haircuts
-    pub fn with_haircuts(mut self, haircuts: HashMap<CreditRating, f64>) -> Self {
-        self.haircuts = haircuts;
+    pub fn with_haircuts<I>(mut self, haircuts: I) -> Self
+    where
+        I: IntoIterator<Item = (CreditRating, f64)>,
+    {
+        self.haircuts = haircuts.into_iter().collect();
         self
     }
 }
@@ -223,13 +231,13 @@ pub struct DefaultAssumptions {
     pub abs_speed_monthly: Option<f64>,
     /// Asset-type specific annual CPRs
     #[serde(default)]
-    pub cpr_by_asset_type: HashMap<String, f64>,
+    pub cpr_by_asset_type: BTreeMap<String, f64>,
     /// Asset-type specific annual CDRs
     #[serde(default)]
-    pub cdr_by_asset_type: HashMap<String, f64>,
+    pub cdr_by_asset_type: BTreeMap<String, f64>,
     /// Asset-type specific recovery rates
     #[serde(default)]
-    pub recovery_by_asset_type: HashMap<String, f64>,
+    pub recovery_by_asset_type: BTreeMap<String, f64>,
 }
 
 impl DefaultAssumptions {

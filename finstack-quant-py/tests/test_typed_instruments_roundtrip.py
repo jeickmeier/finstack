@@ -43,6 +43,12 @@ ALL_TYPED = [
     ("StructuredCredit", build_structured_credit),
 ]
 
+PUBLIC_TYPED_JSON_TAGS = {
+    "Bond": "bond",
+    "TermLoan": "term_loan",
+    **{name: json.loads(factory().to_json())["type"] for name, factory in ALL_TYPED},
+}
+
 
 @pytest.mark.parametrize(("name", "factory"), ALL_TYPED)
 def test_json_round_trip_is_stable(name: str, factory: Callable[[], Any]) -> None:
@@ -51,6 +57,31 @@ def test_json_round_trip_is_stable(name: str, factory: Callable[[], Any]) -> Non
     once = instance.to_json()
     twice = cls.from_json(once).to_json()
     assert json.loads(twice) == json.loads(once)
+
+
+@pytest.mark.parametrize(("name", "factory"), ALL_TYPED)
+def test_from_json_accepts_versioned_instrument_envelope(name: str, factory: Callable[[], Any]) -> None:
+    cls = getattr(instruments, name)
+    bare = json.loads(factory().to_json())
+    envelope = {
+        "schema": "finstack_quant.instrument/1",
+        "instrument": bare,
+    }
+
+    parsed = cls.from_json(json.dumps(envelope))
+    assert json.loads(parsed.to_json()) == bare
+
+
+@pytest.mark.parametrize(("name", "type_tag"), PUBLIC_TYPED_JSON_TAGS.items())
+def test_public_from_json_runtime_docs_describe_shared_contract(name: str, type_tag: str) -> None:
+    doc = getattr(instruments, name).from_json.__doc__
+    assert doc
+    assert "bare tagged" in doc
+    assert "envelope" in doc
+    assert "16 MiB" in doc
+    assert f'"{type_tag}"' in doc
+    assert "ValueError" in doc
+    assert "validated" in doc
 
 
 @pytest.mark.parametrize(("name", "factory"), ALL_TYPED)

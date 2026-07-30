@@ -8,6 +8,7 @@
 
 use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyList};
 
 pyo3::create_exception!(
     finstack_quant.analytics,
@@ -42,6 +43,41 @@ pyo3::create_exception!(
     FinstackOptimizationError,
     PortfolioError,
     "Portfolio optimization failure (inherits PortfolioError)."
+);
+
+pyo3::create_exception!(
+    finstack_quant.portfolio,
+    ContractValidationError,
+    PyValueError,
+    "Persisted contract validation failure with structured diagnostics (inherits ValueError)."
+);
+
+pyo3::create_exception!(
+    finstack_quant.portfolio,
+    UnsupportedContractVersionError,
+    ContractValidationError,
+    "Unsupported persisted contract version (inherits ContractValidationError)."
+);
+
+pyo3::create_exception!(
+    finstack_quant.portfolio,
+    MissingContractVersionError,
+    ContractValidationError,
+    "Missing persisted contract version (inherits ContractValidationError)."
+);
+
+pyo3::create_exception!(
+    finstack_quant.portfolio,
+    MalformedContractSchemaError,
+    ContractValidationError,
+    "Malformed persisted contract schema marker (inherits ContractValidationError)."
+);
+
+pyo3::create_exception!(
+    finstack_quant.portfolio,
+    ContractLimitExceededError,
+    ContractValidationError,
+    "Persisted contract resource limit exceeded (inherits ContractValidationError)."
 );
 
 /// Format an error and its full `source()` chain into a single string.
@@ -158,6 +194,126 @@ pub fn portfolio_to_py(e: finstack_quant_portfolio::Error) -> PyErr {
             FinstackOptimizationError::new_err(format_chain(&err))
         }
         err => PortfolioError::new_err(format_chain(&err)),
+    }
+}
+
+/// Convert a typed persisted-contract failure into a Python exception.
+///
+/// Every [`finstack_quant_core::contract::ContractError`] variant maps without
+/// message inspection. Report failures carry a public ``report`` attribute
+/// containing a list of diagnostic dictionaries.
+pub fn contract_to_py(
+    py: Python<'_>,
+    error: finstack_quant_core::contract::ContractError,
+) -> PyErr {
+    use finstack_quant_core::contract::ContractError;
+
+    match error {
+        ContractError::UnsupportedVersion { .. } => {
+            UnsupportedContractVersionError::new_err(error.to_string())
+        }
+        ContractError::MissingVersion { .. } => {
+            MissingContractVersionError::new_err(error.to_string())
+        }
+        ContractError::MalformedSchema { .. } => {
+            MalformedContractSchemaError::new_err(error.to_string())
+        }
+        ContractError::LimitExceeded { .. } => {
+            ContractLimitExceededError::new_err(error.to_string())
+        }
+        ContractError::Report(report) => contract_report_to_py(py, &report),
+        ContractError::Core(core) => core_to_py(core),
+        #[allow(unreachable_patterns)]
+        other => ContractValidationError::new_err(other.to_string()),
+    }
+}
+
+/// Convert a portfolio materialization failure without parsing its message.
+pub fn materialization_to_py(py: Python<'_>, error: finstack_quant_portfolio::Error) -> PyErr {
+    match error {
+        finstack_quant_portfolio::Error::MaterializationFailed(report) => contract_to_py(
+            py,
+            finstack_quant_core::contract::ContractError::Report(report),
+        ),
+        error @ finstack_quant_portfolio::Error::ContractLimitExceeded { .. } => {
+            ContractLimitExceededError::new_err(error.to_string())
+        }
+        finstack_quant_portfolio::Error::Core(core) => core_to_py(core),
+        other => portfolio_to_py(other),
+    }
+}
+
+fn contract_report_to_py(
+    py: Python<'_>,
+    report: &finstack_quant_core::contract::ValidationReport,
+) -> PyErr {
+    let error = ContractValidationError::new_err(format!(
+        "validation failed with {} structured diagnostic(s)",
+        report.diagnostics.len()
+    ));
+    match diagnostics_to_py(py, report) {
+        Ok(diagnostics) => {
+            if let Err(setattr_error) = error.value(py).setattr("report", diagnostics) {
+                return PyRuntimeError::new_err(format!(
+                    "failed to attach 'report' to ContractValidationError: {setattr_error}"
+                ));
+            }
+            error
+        }
+        Err(conversion_error) => conversion_error,
+    }
+}
+
+/// Convert a validation report to a Python list of diagnostic dictionaries.
+pub(crate) fn diagnostics_to_py(
+    py: Python<'_>,
+    report: &finstack_quant_core::contract::ValidationReport,
+) -> PyResult<Py<PyAny>> {
+    let diagnostics = PyList::empty(py);
+    for diagnostic in &report.diagnostics {
+        let item = PyDict::new(py);
+        item.set_item("code", &diagnostic.code)?;
+        item.set_item("phase", load_phase_name(diagnostic.phase))?;
+        item.set_item("severity", severity_name(diagnostic.severity))?;
+        item.set_item("pointer", diagnostic.pointer.as_deref())?;
+        item.set_item("message", &diagnostic.message)?;
+        item.set_item("contract", diagnostic.contract.as_deref())?;
+        item.set_item("expected_version", diagnostic.expected_version)?;
+        item.set_item("actual_version", diagnostic.actual_version)?;
+        item.set_item("artifact_hash", diagnostic.artifact_hash.as_deref())?;
+        item.set_item("revision_id", diagnostic.revision_id.as_deref())?;
+        item.set_item("instrument_id", diagnostic.instrument_id.as_deref())?;
+        item.set_item("position_id", diagnostic.position_id.as_deref())?;
+        diagnostics.append(item)?;
+    }
+    Ok(diagnostics.into_any().unbind())
+}
+
+fn load_phase_name(phase: finstack_quant_core::contract::LoadPhase) -> &'static str {
+    use finstack_quant_core::contract::LoadPhase;
+
+    match phase {
+        LoadPhase::Parse => "parse",
+        LoadPhase::Version => "version",
+        LoadPhase::Migrate => "migrate",
+        LoadPhase::Structure => "structure",
+        LoadPhase::Semantic => "semantic",
+        LoadPhase::Canonicalize => "canonicalize",
+        LoadPhase::Hash => "hash",
+        LoadPhase::Build => "build",
+        #[allow(unreachable_patterns)]
+        _ => "unknown",
+    }
+}
+
+fn severity_name(severity: finstack_quant_core::contract::Severity) -> &'static str {
+    use finstack_quant_core::contract::Severity;
+
+    match severity {
+        Severity::Error => "error",
+        Severity::Warning => "warning",
+        #[allow(unreachable_patterns)]
+        _ => "unknown",
     }
 }
 

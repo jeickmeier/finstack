@@ -1,0 +1,154 @@
+{
+  "$defs": {
+    "LoadPhase": {
+      "description": "Stage of persisted artifact loading that produced a diagnostic.",
+      "oneOf": [
+        {
+          "const": "parse",
+          "description": "Source bytes were parsed into a JSON document.",
+          "type": "string"
+        },
+        {
+          "const": "version",
+          "description": "Contract identity and version policy were checked.",
+          "type": "string"
+        },
+        {
+          "const": "migrate",
+          "description": "A supported older payload was migrated.",
+          "type": "string"
+        },
+        {
+          "const": "structure",
+          "description": "Document shape and required fields were checked.",
+          "type": "string"
+        },
+        {
+          "const": "semantic",
+          "description": "Domain invariants and references were checked.",
+          "type": "string"
+        },
+        {
+          "const": "canonicalize",
+          "description": "The validated artifact was converted to canonical JSON bytes.",
+          "type": "string"
+        },
+        {
+          "const": "hash",
+          "description": "A content digest was calculated or checked.",
+          "type": "string"
+        },
+        {
+          "const": "build",
+          "description": "Runtime domain objects were built from the validated payload.",
+          "type": "string"
+        }
+      ]
+    },
+    "Severity": {
+      "description": "Severity assigned to a persisted artifact diagnostic.",
+      "oneOf": [
+        {
+          "const": "error",
+          "description": "A finding that prevents successful loading.",
+          "type": "string"
+        },
+        {
+          "const": "warning",
+          "description": "A recoverable finding that callers should inspect.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://finstack_quant.dev/schemas/common/1/diagnostic.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One structured finding emitted while loading a persisted contract.",
+  "properties": {
+    "actual_version": {
+      "description": "Version found in the payload, when one was present.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "artifact_hash": {
+      "description": "Canonical artifact digest, including its algorithm prefix, when available.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "code": {
+      "description": "Stable machine-readable code, such as `\"contract/version-unsupported\"`.",
+      "type": "string"
+    },
+    "contract": {
+      "description": "Stable persisted contract identifier, when the finding is contract-specific.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expected_version": {
+      "description": "Version expected by the loader, when version context is available.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "instrument_id": {
+      "description": "Instrument identifier associated with the finding, when available.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "message": {
+      "description": "Human-readable explanation with source details such as parse line and column.",
+      "type": "string"
+    },
+    "phase": {
+      "$ref": "#/$defs/LoadPhase",
+      "description": "Loading stage that produced the finding."
+    },
+    "pointer": {
+      "description": "JSON Pointer locating the finding in the source document, when known.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "position_id": {
+      "description": "Portfolio-position identifier associated with the finding, when available.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "revision_id": {
+      "description": "Storage revision identifier associated with the artifact, when available.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "severity": {
+      "$ref": "#/$defs/Severity",
+      "description": "Whether the finding is fatal or recoverable."
+    }
+  },
+  "required": [
+    "code",
+    "phase",
+    "severity",
+    "message"
+  ],
+  "title": "Diagnostic",
+  "type": "object"
+}

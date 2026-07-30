@@ -4,6 +4,10 @@
 //! for loading instruments from JSON files with strict validation.
 
 use super::*;
+use finstack_quant_core::contract::{
+    deserialize_json_value, parse_json_value, ContractDescriptor, ContractError, Diagnostic,
+    LoadLimits, LoadPhase, Severity, ValidationReport,
+};
 use finstack_quant_core::Result;
 use serde::{
     de::{DeserializeOwned, Deserializer, Error as DeError},
@@ -21,6 +25,10 @@ use std::sync::Arc;
 /// `from_path`) enforce this limit before handing bytes to the JSON parser,
 /// so a multi-gigabyte file can never cause an OOM allocation.
 pub const MAX_JSON_BYTES: usize = 16 * 1024 * 1024; // 16 MiB
+
+/// Persistence contract for [`InstrumentEnvelope`].
+pub const INSTRUMENT_CONTRACT: ContractDescriptor =
+    ContractDescriptor::new("finstack_quant.instrument", 1);
 
 /// Versioned envelope for JSON instrument definitions.
 ///
@@ -94,6 +102,7 @@ pub enum InstrumentJson {
     /// Inflation swap
     InflationSwap(InflationSwap),
     /// Year-on-year inflation swap
+    #[serde(rename = "yoy_inflation_swap", alias = "yo_y_inflation_swap")]
     YoYInflationSwap(YoYInflationSwap),
     /// Inflation cap/floor
     InflationCapFloor(InflationCapFloor),
@@ -307,6 +316,30 @@ macro_rules! with_instrument_json_registry {
 }
 pub(crate) use with_instrument_json_registry;
 
+macro_rules! instrument_json_registry_tags {
+    (
+        []
+        $(plain: $variant:ident($ty:ty) => $tag:literal @ $schema_path:literal $(, $alias:literal)*;)*
+        $(boxed: $boxed_variant:ident($boxed_ty:ty) => $boxed_tag:literal @ $boxed_schema_path:literal $(, $boxed_alias:literal)*;)*
+    ) => {
+        &[
+            $(($tag, &[$($alias),*]),)*
+            $(($boxed_tag, &[$($boxed_alias),*]),)*
+        ]
+    };
+}
+
+/// Return every canonical instrument discriminator and its accepted aliases.
+///
+/// The returned slice is generated from the same registry that drives tagged
+/// JSON decoding, boxed-instrument construction, and embedded schema lookup.
+/// Canonical tags appear exactly once and aliases never replace their canonical
+/// spelling in serialized output.
+#[must_use]
+pub fn registry_tags() -> &'static [(&'static str, &'static [&'static str])] {
+    with_instrument_json_registry!(instrument_json_registry_tags)
+}
+
 macro_rules! instrument_json_into_boxed_match {
     (
         [$instrument_json:expr]
@@ -318,6 +351,30 @@ macro_rules! instrument_json_into_boxed_match {
             $(InstrumentJson::$boxed_variant(instrument) => Ok::<Box<dyn Instrument>, finstack_quant_core::Error>(Box::new(*instrument) as Box<dyn Instrument>),)*
         }
     };
+}
+
+macro_rules! instrument_json_from_any_match {
+    (
+        [$value:expr]
+        $(plain: $variant:ident($ty:ty) => $tag:literal @ $schema_path:literal $(, $alias:literal)*;)*
+        $(boxed: $boxed_variant:ident($boxed_ty:ty) => $boxed_tag:literal @ $boxed_schema_path:literal $(, $boxed_alias:literal)*;)*
+    ) => {{
+        $(
+            if let Some(instrument) = $value.downcast_ref::<$ty>() {
+                return Some(InstrumentJson::$variant(instrument.clone()));
+            }
+        )*
+        $(
+            if let Some(instrument) = $value.downcast_ref::<$boxed_ty>() {
+                return Some(InstrumentJson::$boxed_variant(Box::new(instrument.clone())));
+            }
+        )*
+        None
+    }};
+}
+
+pub(crate) fn instrument_json_from_any(value: &dyn std::any::Any) -> Option<InstrumentJson> {
+    with_instrument_json_registry!(instrument_json_from_any_match, value)
 }
 
 macro_rules! instrument_json_parse_tagged_match {
@@ -348,20 +405,6 @@ macro_rules! instrument_json_parse_tagged_match {
 
 fn validate_loaded_instrument(instrument: &dyn Instrument) -> Result<()> {
     instrument.validate_for_pricing()
-}
-
-#[cfg(test)]
-macro_rules! instrument_json_canonical_types {
-    (
-        []
-        $(plain: $variant:ident($ty:ty) => $tag:literal @ $schema_path:literal $(, $alias:literal)*;)*
-        $(boxed: $boxed_variant:ident($boxed_ty:ty) => $boxed_tag:literal @ $boxed_schema_path:literal $(, $boxed_alias:literal)*;)*
-    ) => {
-        &[
-            $($tag,)*
-            $($boxed_tag,)*
-        ]
-    };
 }
 
 impl InstrumentJson {
@@ -425,6 +468,12 @@ impl InstrumentEnvelope {
     pub const CURRENT_SCHEMA: &'static str = "finstack_quant.instrument/1";
 
     /// Create a versioned envelope from an instrument JSON payload.
+    ///
+    /// # Arguments
+    ///
+    /// * `instrument` - Fully specified tagged instrument payload to wrap with
+    ///   the current persistence schema marker.
+    #[must_use]
     pub fn new(instrument: InstrumentJson) -> Self {
         Self {
             schema: Self::CURRENT_SCHEMA.to_string(),
@@ -432,11 +481,73 @@ impl InstrumentEnvelope {
         }
     }
 
+    /// Compute the versioned SHA-256 hash of this envelope's canonical JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the envelope contains a non-finite number or cannot
+    /// be serialized to the core canonical JSON representation.
+    pub fn content_hash(&self) -> Result<String> {
+        finstack_quant_core::canonical::content_hash(self)
+    }
+
     fn validate_schema(&self) -> Result<()> {
-        if self.schema != Self::CURRENT_SCHEMA {
-            return Err(finstack_quant_core::InputError::Invalid.into());
-        }
-        Ok(())
+        INSTRUMENT_CONTRACT
+            .parse_schema(&self.schema)
+            .map(|_| ())
+            .map_err(|error| {
+                finstack_quant_core::Error::Validation(format!(
+                    "invalid instrument envelope schema {:?}; expected {:?}: {error}",
+                    self.schema,
+                    INSTRUMENT_CONTRACT.schema_string(),
+                ))
+            })
+    }
+
+    /// Load a persisted instrument envelope under strict contract policy.
+    ///
+    /// The strict path is envelope-only. The bare `{type, spec}` form remains
+    /// supported by [`Self::from_value`] and [`Self::from_str`] for public
+    /// compatibility, but is rejected here because database records require an
+    /// explicit schema identity.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Complete UTF-8 JSON encoding of an instrument envelope.
+    /// * `limits` - Resource policy bounding input size, JSON depth, and
+    ///   retained diagnostics.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ContractError`] for malformed JSON, resource-limit failures,
+    /// a missing envelope, malformed or unsupported schema markers, invalid
+    /// instrument shape, or failed instrument validation.
+    pub fn from_slice_strict(
+        bytes: &[u8],
+        limits: &LoadLimits,
+    ) -> std::result::Result<(Box<dyn Instrument>, ValidationReport), ContractError> {
+        let value = parse_json_value(bytes, limits)?;
+        let Some(schema) = value.get("schema") else {
+            let mut report = ValidationReport::default();
+            report.push_bounded(
+                limits,
+                Diagnostic::new(
+                    "contract/envelope-required",
+                    LoadPhase::Version,
+                    Severity::Error,
+                    "strict instrument loading requires an envelope with a schema marker",
+                )
+                .with_pointer("/schema")
+                .with_contract(INSTRUMENT_CONTRACT.id)
+                .with_expected_version(INSTRUMENT_CONTRACT.current),
+            );
+            return Err(ContractError::Report(Box::new(report)));
+        };
+        let schema: String = deserialize_json_value(schema.clone(), limits)?;
+        INSTRUMENT_CONTRACT.parse_schema_strict(Some(&schema), "/schema", limits)?;
+        let envelope: Self = deserialize_json_value(value, limits)?;
+        let instrument = Self::finalize_loaded_instrument(envelope.instrument.into_boxed()?)?;
+        Ok((instrument, ValidationReport::default()))
     }
 
     fn finalize_loaded_instrument(instrument: Box<dyn Instrument>) -> Result<Box<dyn Instrument>> {
@@ -460,6 +571,11 @@ impl InstrumentEnvelope {
     ///
     /// The `"schema"` key is used to route to the envelope path without
     /// cloning the entire `Value` tree.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Parsed JSON containing either a versioned instrument
+    ///   envelope or a bare tagged instrument accepted for compatibility.
     pub fn from_value(value: serde_json::Value) -> Result<Box<dyn Instrument>> {
         // Detect envelope form by presence of the "schema" key — avoids
         // cloning the entire Value tree when trying both paths.
@@ -536,8 +652,26 @@ impl InstrumentEnvelope {
     ///
     /// Convenience wrapper around `from_reader`.  The same [`MAX_JSON_BYTES`]
     /// cap applies.
+    ///
+    /// # Arguments
+    ///
+    /// * `s` - Complete UTF-8 JSON document in versioned-envelope or bare
+    ///   tagged-instrument form.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error before parsing when `s` exceeds [`MAX_JSON_BYTES`], or
+    /// when JSON, schema, instrument construction, or instrument validation
+    /// fails.
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Box<dyn Instrument>> {
+        if s.len() > MAX_JSON_BYTES {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "Instrument JSON input is {} bytes, which exceeds the {} MiB size limit",
+                s.len(),
+                MAX_JSON_BYTES / (1024 * 1024),
+            )));
+        }
         Self::from_reader(s.as_bytes())
     }
 
@@ -754,6 +888,98 @@ mod tests {
             .expect("Tagged instrument payload should deserialize without envelope");
 
         assert_eq!(instrument.id(), "TEST-BARE");
+    }
+
+    #[test]
+    fn strict_instrument_loader_requires_envelope_and_reports_schema_failures() {
+        let bond = Bond::fixed(
+            "STRICT-BOND",
+            Money::new(1_000_000.0, Currency::USD),
+            0.05,
+            Date::from_calendar_date(2024, Month::January, 1).expect("valid date"),
+            Date::from_calendar_date(2034, Month::January, 1).expect("valid date"),
+            "USD-OIS",
+        )
+        .expect("valid bond");
+        let tagged = InstrumentJson::Bond(bond);
+        let bare = serde_json::to_vec(&tagged).expect("serialize tagged instrument");
+        let error = InstrumentEnvelope::from_slice_strict(
+            &bare,
+            &finstack_quant_core::LoadLimits::default(),
+        )
+        .err()
+        .expect("strict loading rejects bare tagged instruments");
+        let finstack_quant_core::ContractError::Report(report) = error else {
+            panic!("expected structured report");
+        };
+        assert_eq!(report.diagnostics[0].code, "contract/envelope-required");
+
+        for schema in [
+            "finstack_quant.instrument/0",
+            "finstack_quant.instrument/2",
+            "finstack_quant.instrument/not-a-version",
+        ] {
+            let envelope = serde_json::json!({"schema": schema, "instrument": tagged});
+            let error = InstrumentEnvelope::from_slice_strict(
+                &serde_json::to_vec(&envelope).expect("serialize envelope"),
+                &finstack_quant_core::LoadLimits::default(),
+            )
+            .err()
+            .expect("invalid schema must fail");
+            let finstack_quant_core::ContractError::Report(report) = error else {
+                panic!("expected structured schema report");
+            };
+            assert!(
+                matches!(
+                    report.diagnostics[0].code.as_str(),
+                    "contract/version-unsupported" | "contract/schema-malformed"
+                ),
+                "precise schema diagnostic expected: {:?}",
+                report.diagnostics[0]
+            );
+        }
+    }
+
+    #[test]
+    fn instrument_version_matrix_fixture_drives_strict_loader() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../tests/data/contract_version_matrix.json"
+        ))
+        .expect("version matrix fixture parses");
+        let matrix = &fixture["instrument"];
+        let base = matrix["base"].clone();
+        let cases = matrix["cases"]
+            .as_array()
+            .expect("matrix contains schema cases");
+
+        for case in cases {
+            let name = case["name"].as_str().expect("case name");
+            let mut document = base.clone();
+            match case.get("schema") {
+                Some(serde_json::Value::Null) | None => {
+                    document
+                        .as_object_mut()
+                        .expect("envelope object")
+                        .remove("schema");
+                }
+                Some(schema) => document["schema"] = schema.clone(),
+            }
+            let bytes = serde_json::to_vec(&document).expect("case serializes");
+            let expected = case["expected"].as_str().expect("expected outcome");
+            match InstrumentEnvelope::from_slice_strict(
+                &bytes,
+                &finstack_quant_core::LoadLimits::default(),
+            ) {
+                Ok((_loaded, report)) => {
+                    assert_eq!(expected, "ok", "{name} unexpectedly loaded");
+                    assert!(report.diagnostics.is_empty(), "{name}");
+                }
+                Err(finstack_quant_core::ContractError::Report(report)) => {
+                    assert_eq!(report.diagnostics[0].code, expected, "{name}");
+                }
+                Err(error) => panic!("{name} returned unstructured error: {error}"),
+            }
+        }
     }
 
     #[test]
@@ -1462,8 +1688,7 @@ mod tests {
             .collect();
 
         // Sort both lists for comparison
-        let mut expected: Vec<&str> =
-            with_instrument_json_registry!(instrument_json_canonical_types).to_vec();
+        let mut expected: Vec<&str> = registry_tags().iter().map(|(tag, _)| *tag).collect();
         expected.sort();
         let mut actual: Vec<&str> = schema_types.clone();
         actual.sort();

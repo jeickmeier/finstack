@@ -1,61 +1,56 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "xccy_swap",
     "spec": {
-      "id": "XCCY_SWAP_001",
+      "attributes": {},
+      "id": "XCCY-USDEUR-5Y",
       "leg1": {
+        "allow_calendar_fallback": true,
+        "bdc": "modified_following",
         "currency": "USD",
+        "day_count": "Act360",
+        "discount_curve_id": "USD-OIS",
+        "end": "2029-01-03",
+        "forward_curve_id": "USD-SOFR-3M",
+        "frequency": {
+          "count": 3,
+          "unit": "months"
+        },
         "notional": {
           "amount": "10000000",
           "currency": "USD"
         },
+        "payment_lag_days": 0,
         "side": "receive",
-        "forward_curve_id": "USD-SOFR-3M",
-        "discount_curve_id": "USD-OIS",
+        "spread_bp": "0",
         "start": "2024-01-03",
+        "stub": "ShortFront"
+      },
+      "leg2": {
+        "allow_calendar_fallback": true,
+        "bdc": "modified_following",
+        "currency": "EUR",
+        "day_count": "Act360",
+        "discount_curve_id": "EUR-OIS",
         "end": "2029-01-03",
+        "forward_curve_id": "EUR-EURIBOR-3M",
         "frequency": {
           "count": 3,
           "unit": "months"
         },
-        "day_count": "Act360",
-        "bdc": "modified_following",
-        "stub": "ShortFront",
-        "spread_bp": 0.0,
-        "payment_lag_days": 0,
-        "calendar_id": "usny",
-        "allow_calendar_fallback": false
-      },
-      "leg2": {
-        "currency": "EUR",
         "notional": {
           "amount": "9200000",
           "currency": "EUR"
         },
-        "side": "pay",
-        "forward_curve_id": "EUR-EURIBOR-3M",
-        "discount_curve_id": "EUR-ESTR",
-        "start": "2024-01-03",
-        "end": "2029-01-03",
-        "frequency": {
-          "count": 3,
-          "unit": "months"
-        },
-        "day_count": "Act360",
-        "bdc": "modified_following",
-        "stub": "ShortFront",
-        "spread_bp": 10.0,
         "payment_lag_days": 0,
-        "calendar_id": "target2",
-        "allow_calendar_fallback": false
+        "side": "pay",
+        "spread_bp": "10",
+        "start": "2024-01-03",
+        "stub": "ShortFront"
       },
       "notional_exchange": "initial_and_final",
-      "reporting_currency": "USD",
-      "attributes": {
-        "tags": [],
-        "meta": {}
-      }
-    }
-  }
+      "reporting_currency": "USD"
+    },
+    "type": "xccy_swap"
+  },
+  "schema": "finstack_quant.instrument/1"
 }

@@ -37,6 +37,7 @@ use rust_decimal::Decimal;
 ///
 /// Call [`validate()`](Self::validate) to check structural invariants before pricing.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
@@ -612,6 +613,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for InflationSwap {
 ///
 /// Pays periodic inflation rates (CPI ratios over each period) versus a fixed rate.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

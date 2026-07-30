@@ -120,7 +120,7 @@ fn hazard_calibration_positive_rates() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "haz".to_string(),
@@ -194,7 +194,7 @@ fn hazard_calibration_rejects_zero_spread() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "haz".to_string(),
@@ -266,7 +266,7 @@ fn hazard_calibration_rejects_negative_spread() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "haz".to_string(),
@@ -336,7 +336,7 @@ fn hazard_calibration_rejects_non_standard_upfront_running_coupon() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "haz".to_string(),
@@ -443,7 +443,7 @@ fn hazard_calibration_handles_extreme_high_spread() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "haz".to_string(),
@@ -568,7 +568,7 @@ fn hazard_calibration_global_solve_sqrt_time_is_not_rougher_than_bootstrap() {
     let bootstrap_plan = CalibrationPlan {
         id: "plan-bootstrap".to_string(),
         description: None,
-        quote_sets: quote_sets.clone(),
+        quote_sets: quote_sets.clone().into_iter().collect(),
         settings: CalibrationConfig::default(),
         steps: vec![CalibrationStep {
             id: "haz".to_string(),
@@ -623,7 +623,7 @@ fn hazard_calibration_global_solve_sqrt_time_is_not_rougher_than_bootstrap() {
     let global_plan = CalibrationPlan {
         id: "plan-global".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: global_settings.clone(),
         steps: vec![CalibrationStep {
             id: "haz".to_string(),
@@ -725,7 +725,7 @@ fn hazard_calibration_reprices_par_spread() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "haz".to_string(),

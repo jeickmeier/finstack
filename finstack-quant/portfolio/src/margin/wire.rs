@@ -11,7 +11,10 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::HashMap;
-use finstack_quant_margin::{ImMethodology, NettingSetId, SimmRiskClass, SimmSensitivities};
+use finstack_quant_margin::{
+    ImMethodology, NettingSetId, SimmCreditSector, SimmRiskClass, SimmSensitivities,
+};
+use std::collections::BTreeMap;
 
 use crate::types::PositionId;
 
@@ -63,6 +66,14 @@ struct CurvatureEntry {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
+struct BucketedCreditEntry {
+    sector: SimmCreditSector,
+    name: String,
+    tenor_bucket: String,
+    value: f64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
 struct SimmSensitivitiesWire {
     base_currency: Currency,
     ir_delta: Vec<CurrencyTenorEntry>,
@@ -75,6 +86,8 @@ struct SimmSensitivitiesWire {
     fx_vega: Vec<CurrencyPairEntry>,
     commodity_delta: Vec<LabelEntry>,
     curvature: Vec<CurvatureEntry>,
+    #[serde(default)]
+    credit_qualifying_delta_bucketed: Vec<BucketedCreditEntry>,
 }
 
 impl From<&SimmSensitivities> for SimmSensitivitiesWire {
@@ -167,7 +180,7 @@ impl From<&SimmSensitivities> for SimmSensitivitiesWire {
                 value: v,
             })
             .collect();
-        fx_delta.sort_by(|a, b| a.currency.cmp(&b.currency));
+        fx_delta.sort_by_key(|entry| entry.currency);
 
         let mut fx_vega: Vec<CurrencyPairEntry> = s
             .fx_vega
@@ -198,7 +211,24 @@ impl From<&SimmSensitivities> for SimmSensitivitiesWire {
                 value: v,
             })
             .collect();
-        curvature.sort_by_key(|e| format!("{:?}", e.risk_class));
+        curvature.sort_by_key(|entry| simm_risk_class_key(entry.risk_class));
+
+        let mut credit_qualifying_delta_bucketed: Vec<BucketedCreditEntry> = s
+            .credit_qualifying_delta_bucketed
+            .iter()
+            .map(|((sector, name, tenor), &value)| BucketedCreditEntry {
+                sector: *sector,
+                name: name.clone(),
+                tenor_bucket: tenor.clone(),
+                value,
+            })
+            .collect();
+        credit_qualifying_delta_bucketed.sort_by(|left, right| {
+            simm_credit_sector_key(left.sector)
+                .cmp(&simm_credit_sector_key(right.sector))
+                .then_with(|| left.name.cmp(&right.name))
+                .then_with(|| left.tenor_bucket.cmp(&right.tenor_bucket))
+        });
 
         Self {
             base_currency: s.base_currency,
@@ -212,6 +242,7 @@ impl From<&SimmSensitivities> for SimmSensitivitiesWire {
             fx_vega,
             commodity_delta,
             curvature,
+            credit_qualifying_delta_bucketed,
         }
     }
 }
@@ -251,7 +282,44 @@ impl From<SimmSensitivitiesWire> for SimmSensitivities {
         for e in w.curvature {
             s.curvature.insert(e.risk_class, e.value);
         }
+        for entry in w.credit_qualifying_delta_bucketed {
+            s.credit_qualifying_delta_bucketed
+                .insert((entry.sector, entry.name, entry.tenor_bucket), entry.value);
+        }
         s
+    }
+}
+
+const fn simm_risk_class_key(risk_class: SimmRiskClass) -> u8 {
+    match risk_class {
+        SimmRiskClass::InterestRate => 0,
+        SimmRiskClass::CreditQualifying => 1,
+        SimmRiskClass::CreditNonQualifying => 2,
+        SimmRiskClass::Equity => 3,
+        SimmRiskClass::Commodity => 4,
+        SimmRiskClass::Fx => 5,
+        _ => u8::MAX,
+    }
+}
+
+const fn simm_credit_sector_key(sector: SimmCreditSector) -> u8 {
+    match sector {
+        SimmCreditSector::Sovereign => 0,
+        SimmCreditSector::Financial => 1,
+        SimmCreditSector::BasicMaterials => 2,
+        SimmCreditSector::ConsumerGoods => 3,
+        SimmCreditSector::TechnologyMedia => 4,
+        SimmCreditSector::HealthCare => 5,
+        SimmCreditSector::HighYieldSovereign => 6,
+        SimmCreditSector::HighYieldFinancial => 7,
+        SimmCreditSector::HighYieldBasicMaterials => 8,
+        SimmCreditSector::HighYieldConsumerGoods => 9,
+        SimmCreditSector::HighYieldTechnologyMedia => 10,
+        SimmCreditSector::HighYieldHealthCare => 11,
+        SimmCreditSector::Index => 12,
+        SimmCreditSector::Securitized => 13,
+        SimmCreditSector::Residual => 14,
+        _ => u8::MAX,
     }
 }
 
@@ -265,7 +333,7 @@ struct NettingSetMarginWire {
     position_count: usize,
     im_methodology: ImMethodology,
     sensitivities: Option<SimmSensitivitiesWire>,
-    im_breakdown: HashMap<String, Money>,
+    im_breakdown: BTreeMap<String, Money>,
 }
 
 impl From<&NettingSetMargin> for NettingSetMarginWire {
@@ -279,7 +347,11 @@ impl From<&NettingSetMargin> for NettingSetMarginWire {
             position_count: m.position_count,
             im_methodology: m.im_methodology,
             sensitivities: m.sensitivities.as_ref().map(SimmSensitivitiesWire::from),
-            im_breakdown: m.im_breakdown.clone(),
+            im_breakdown: m
+                .im_breakdown
+                .iter()
+                .map(|(name, amount)| (name.clone(), *amount))
+                .collect(),
         }
     }
 }
@@ -295,7 +367,7 @@ impl From<NettingSetMarginWire> for NettingSetMargin {
             position_count: w.position_count,
             im_methodology: w.im_methodology,
             sensitivities: w.sensitivities.map(SimmSensitivities::from),
-            im_breakdown: w.im_breakdown,
+            im_breakdown: w.im_breakdown.into_iter().collect(),
         }
     }
 }

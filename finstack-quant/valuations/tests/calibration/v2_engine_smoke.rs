@@ -81,7 +81,7 @@ fn test_v2_simple_usd_calibration() {
     let plan = CalibrationPlan {
         id: "test_plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: CalibrationConfig {
             use_parallel: true,
             solver: finstack_quant_valuations::calibration::SolverConfig::brent_default()

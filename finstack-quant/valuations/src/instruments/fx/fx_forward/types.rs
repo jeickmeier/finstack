@@ -60,6 +60,7 @@ use time::macros::date;
 #[derive(
     Clone,
     Debug,
+    PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
     finstack_quant_valuations_macros::FocusedPricingOverrides,
 )]

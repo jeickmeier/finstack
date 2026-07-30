@@ -93,6 +93,7 @@ impl std::str::FromStr for AveragingMethod {
 ///     .collect();
 /// ```
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

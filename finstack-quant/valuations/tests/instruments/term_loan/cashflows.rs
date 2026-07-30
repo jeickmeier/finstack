@@ -742,7 +742,7 @@ mod margin_stepup_period_semantics {
                     (accrual.start, cf.amount.amount())
                 })
                 .collect();
-            flows.sort_by(|a, b| a.0.cmp(&b.0));
+            flows.sort_by_key(|flow| flow.0);
             flows
         };
         let base_coupons = coupon_amounts(&base);

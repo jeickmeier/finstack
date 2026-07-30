@@ -1,0 +1,49 @@
+{
+  "base": {
+    "version": 2,
+    "curves": [],
+    "fx": null,
+    "surfaces": [],
+    "prices": {},
+    "series": [],
+    "inflation_indices": [],
+    "dividends": [],
+    "credit_indices": [],
+    "fx_delta_vol_surfaces": [],
+    "vol_cubes": [],
+    "collateral": {},
+    "hierarchy": null
+  },
+  "cases": [
+    {
+      "name": "current",
+      "version": 2,
+      "expected": "ok"
+    },
+    {
+      "name": "old",
+      "version": 1,
+      "expected": "ok"
+    },
+    {
+      "name": "missing",
+      "version": null,
+      "expected": "contract/version-missing"
+    },
+    {
+      "name": "zero",
+      "version": 0,
+      "expected": "contract/version-unsupported"
+    },
+    {
+      "name": "future",
+      "version": 3,
+      "expected": "contract/version-unsupported"
+    },
+    {
+      "name": "malformed",
+      "version": "two",
+      "expected": "contract/structure-invalid"
+    }
+  ]
+}

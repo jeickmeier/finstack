@@ -382,7 +382,7 @@
                 "tranche_type": "sequential"
               },
               {
-                "coupon": 0.045,
+                "coupon": 0.035,
                 "current_face": {
                   "amount": "30000000",
                   "currency": "USD"
@@ -396,7 +396,7 @@
                 "tranche_type": "sequential"
               },
               {
-                "coupon": 0.05,
+                "coupon": 0.03,
                 "current_face": {
                   "amount": "30000000",
                   "currency": "USD"

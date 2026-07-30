@@ -1,6 +1,36 @@
 import * as wasm from '../pkg/finstack_quant_wasm.js';
 
+const fromMaterializationWithCache = wasm.Portfolio.fromMaterialization.bind(wasm.Portfolio);
+const validateMaterializationWithCache = wasm.Portfolio.validateMaterializationJson.bind(
+  wasm.Portfolio
+);
+
+wasm.Portfolio.fromMaterialization = (bundle, cache = undefined) => {
+  if (cache !== undefined) {
+    return fromMaterializationWithCache(bundle, cache);
+  }
+  const ephemeral = new wasm.InstrumentArtifactCache();
+  try {
+    return fromMaterializationWithCache(bundle, ephemeral);
+  } finally {
+    ephemeral.free();
+  }
+};
+
+wasm.Portfolio.validateMaterializationJson = (bundle, cache = undefined) => {
+  if (cache !== undefined) {
+    return validateMaterializationWithCache(bundle, cache);
+  }
+  const ephemeral = new wasm.InstrumentArtifactCache();
+  try {
+    return validateMaterializationWithCache(bundle, ephemeral);
+  } finally {
+    ephemeral.free();
+  }
+};
+
 export const portfolio = {
+  InstrumentArtifactCache: wasm.InstrumentArtifactCache,
   Portfolio: wasm.Portfolio,
   parsePortfolioSpec: wasm.parsePortfolioSpec,
   brinsonFachler: wasm.brinsonFachler,

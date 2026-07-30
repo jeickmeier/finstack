@@ -82,7 +82,7 @@ pub enum CalibrationParameter {
 /// When set on [`MertonMcConfig::calibration`], the pricer runs a low-path
 /// bisection to solve for a structural parameter so that the cash base-case
 /// MC price matches the target market quote, then re-prices with full paths.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct MertonMcCalibrationSpec {
     /// Target market quote to match (interpreted at quote/settlement date).
     pub target: crate::instruments::fixed_income::bond::pricing::quote_conversions::BondQuoteInput,
@@ -159,7 +159,7 @@ pub enum PikMode {
 /// // Toggle for 3 years, then mandatory cash
 /// let toggle_window = PikSchedule::Stepped(vec![(0.0, PikMode::Toggle), (3.0, PikMode::Cash)]);
 /// ```
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub enum PikSchedule {
     /// Same mode for all coupon dates.
     Uniform(PikMode),
@@ -199,7 +199,7 @@ impl PikSchedule {
 // ---------------------------------------------------------------------------
 
 /// Configuration for Monte Carlo PIK bond pricing.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct MertonMcConfig {
     /// Merton structural credit model.
     pub merton: MertonModel,

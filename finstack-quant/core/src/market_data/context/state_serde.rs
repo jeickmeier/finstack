@@ -4,9 +4,14 @@
 //! restore market contexts, including typed curve state, FX state, and scalar
 //! containers.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use crate::collections::HashMap;
+use crate::collections::HashSet;
+use crate::contract::{
+    deserialize_json_value, parse_json_value, ContractDescriptor, ContractError, Diagnostic,
+    LoadLimits, LoadPhase, Severity, ValidationReport,
+};
 use crate::types::CurveId;
 
 use super::{CurveStorage, MarketContext};
@@ -144,8 +149,16 @@ pub struct CreditIndexState {
 /// Current schema version for [`MarketContextState`].
 pub const MARKET_CONTEXT_STATE_VERSION: u32 = 2;
 
-fn default_market_context_state_version() -> u32 {
-    MARKET_CONTEXT_STATE_VERSION
+/// Persistence contract for [`MarketContextState`].
+pub const MARKET_CONTEXT_STATE_CONTRACT: ContractDescriptor = ContractDescriptor {
+    id: "finstack_quant.market_context_state",
+    current: MARKET_CONTEXT_STATE_VERSION,
+    supported: 1..=MARKET_CONTEXT_STATE_VERSION,
+    legacy_missing: Some(1),
+};
+
+fn legacy_market_context_state_version() -> u32 {
+    1
 }
 
 /// Complete serializable state of a MarketContext.
@@ -159,7 +172,7 @@ pub struct MarketContextState {
     ///
     /// - **1**: initial stable snapshot format.
     /// - **2**: adds optional market data hierarchy snapshots.
-    #[serde(default = "default_market_context_state_version")]
+    #[serde(default = "legacy_market_context_state_version")]
     pub version: u32,
     /// All curves (discount, forward, hazard, inflation, base correlation)
     #[schemars(with = "serde_json::Value")]
@@ -199,6 +212,191 @@ pub struct MarketContextState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "serde_json::Value")]
     pub hierarchy: Option<MarketDataHierarchy>,
+}
+
+impl MarketContextState {
+    /// Compute the versioned SHA-256 hash of this state's canonical JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the state contains a non-finite number or cannot be
+    /// serialized to the core canonical JSON representation.
+    pub fn content_hash(&self) -> crate::Result<String> {
+        crate::canonical::content_hash(self)
+    }
+}
+
+fn duplicate_id_diagnostics(
+    report: &mut ValidationReport,
+    limits: &LoadLimits,
+    field: &str,
+    ids: impl IntoIterator<Item = String>,
+) {
+    let mut seen = HashSet::default();
+    for (index, id) in ids.into_iter().enumerate() {
+        if !seen.insert(id.clone()) {
+            report.push_bounded(
+                limits,
+                Diagnostic::new(
+                    "market-context/duplicate-id",
+                    LoadPhase::Semantic,
+                    Severity::Error,
+                    format!("duplicate id '{id}' in MarketContextState.{field}"),
+                )
+                .with_pointer(format!("/{field}/{index}"))
+                .with_contract(MARKET_CONTEXT_STATE_CONTRACT.id),
+            );
+        }
+    }
+}
+
+fn validate_restore_references(
+    state: &MarketContextState,
+    limits: &LoadLimits,
+) -> ValidationReport {
+    let mut report = ValidationReport::default();
+    duplicate_id_diagnostics(
+        &mut report,
+        limits,
+        "curves",
+        state.curves.iter().map(|entry| entry.id().to_string()),
+    );
+    duplicate_id_diagnostics(
+        &mut report,
+        limits,
+        "surfaces",
+        state.surfaces.iter().map(|entry| entry.id().to_string()),
+    );
+    duplicate_id_diagnostics(
+        &mut report,
+        limits,
+        "series",
+        state.series.iter().map(|entry| entry.id().to_string()),
+    );
+    duplicate_id_diagnostics(
+        &mut report,
+        limits,
+        "inflation_indices",
+        state.inflation_indices.iter().map(|entry| entry.id.clone()),
+    );
+    duplicate_id_diagnostics(
+        &mut report,
+        limits,
+        "dividends",
+        state.dividends.iter().map(|entry| entry.id.to_string()),
+    );
+    duplicate_id_diagnostics(
+        &mut report,
+        limits,
+        "credit_indices",
+        state.credit_indices.iter().map(|entry| entry.id.clone()),
+    );
+    duplicate_id_diagnostics(
+        &mut report,
+        limits,
+        "fx_delta_vol_surfaces",
+        state
+            .fx_delta_vol_surfaces
+            .iter()
+            .map(|entry| entry.id().to_string()),
+    );
+    duplicate_id_diagnostics(
+        &mut report,
+        limits,
+        "vol_cubes",
+        state.vol_cubes.iter().map(|entry| entry.id().to_string()),
+    );
+
+    let discount_ids: HashSet<&str> = state
+        .curves
+        .iter()
+        .filter_map(|entry| match entry {
+            CurveState::Discount(curve) => Some(curve.id().as_str()),
+            _ => None,
+        })
+        .collect();
+    let hazard_ids: HashSet<&str> = state
+        .curves
+        .iter()
+        .filter_map(|entry| match entry {
+            CurveState::Hazard(curve) => Some(curve.id().as_str()),
+            _ => None,
+        })
+        .collect();
+    let base_correlation_ids: HashSet<&str> = state
+        .curves
+        .iter()
+        .filter_map(|entry| match entry {
+            CurveState::BaseCorrelation(curve) => Some(curve.id().as_str()),
+            _ => None,
+        })
+        .collect();
+
+    for (csa, curve_id) in &state.collateral {
+        if !discount_ids.contains(curve_id.as_str()) {
+            report.push_bounded(
+                limits,
+                Diagnostic::new(
+                    "market-context/missing-collateral-curve",
+                    LoadPhase::Semantic,
+                    Severity::Error,
+                    format!(
+                        "collateral mapping '{csa}' references missing discount curve '{curve_id}'"
+                    ),
+                )
+                .with_pointer(format!("/collateral/{}", escape_json_pointer(csa)))
+                .with_contract(MARKET_CONTEXT_STATE_CONTRACT.id),
+            );
+        }
+    }
+
+    for (index, credit_index) in state.credit_indices.iter().enumerate() {
+        let mut check_reference = |curve_id: &str, expected: &str, suffix: &str, present: bool| {
+            if !present {
+                report.push_bounded(
+                    limits,
+                    Diagnostic::new(
+                        "market-context/missing-credit-index-reference",
+                        LoadPhase::Semantic,
+                        Severity::Error,
+                        format!(
+                            "credit index '{}' references missing {expected} curve '{curve_id}'",
+                            credit_index.id
+                        ),
+                    )
+                    .with_pointer(format!("/credit_indices/{index}/{suffix}"))
+                    .with_contract(MARKET_CONTEXT_STATE_CONTRACT.id),
+                );
+            }
+        };
+        check_reference(
+            &credit_index.index_credit_curve_id,
+            "hazard",
+            "index_credit_curve_id",
+            hazard_ids.contains(credit_index.index_credit_curve_id.as_str()),
+        );
+        check_reference(
+            &credit_index.base_correlation_curve_id,
+            "base-correlation",
+            "base_correlation_curve_id",
+            base_correlation_ids.contains(credit_index.base_correlation_curve_id.as_str()),
+        );
+        if let Some(issuer_ids) = &credit_index.issuer_credit_curve_ids {
+            for (issuer, curve_id) in issuer_ids {
+                check_reference(
+                    curve_id,
+                    "issuer hazard",
+                    &format!("issuer_credit_curve_ids/{}", escape_json_pointer(issuer)),
+                    hazard_ids.contains(curve_id.as_str()),
+                );
+            }
+        }
+    }
+    report
+}
+
+fn escape_json_pointer(segment: &str) -> String {
+    segment.replace('~', "~0").replace('/', "~1")
 }
 
 /// Build a quote-only [`FxMatrix`] from an
@@ -428,123 +626,213 @@ impl From<&MarketContext> for MarketContextState {
     }
 }
 
+fn restore_market_context(
+    state: MarketContextState,
+    limits: &LoadLimits,
+) -> Result<(MarketContext, ValidationReport), ContractError> {
+    let mut report = validate_restore_references(&state, limits);
+    if report.has_errors() {
+        return Err(ContractError::Report(Box::new(report)));
+    }
+    if !(1..=MARKET_CONTEXT_STATE_VERSION).contains(&state.version) {
+        return Err(crate::Error::Validation(format!(
+            "Unsupported MarketContextState version: {} (expected 1..={})",
+            state.version, MARKET_CONTEXT_STATE_VERSION
+        ))
+        .into());
+    }
+    let mut ctx = MarketContext::new();
+
+    // Reconstruct all curves
+    for curve_state in state.curves {
+        let storage = CurveStorage::from_state(curve_state);
+        Arc::make_mut(&mut ctx.curves).insert(storage.id().clone(), storage);
+    }
+
+    // Reconstruct all surfaces
+    for surface in state.surfaces {
+        Arc::make_mut(&mut ctx.surfaces).insert(surface.id().clone(), Arc::new(surface));
+    }
+
+    // Reconstruct FX matrix as a quote-only snapshot. Persisted state does not
+    // encode the original live provider, only the captured explicit quotes.
+    if let Some(fx_state) = state.fx {
+        tracing::info!(
+            explicit_quote_count = fx_state.quotes.len(),
+            "restoring MarketContext FX as quote-only snapshot"
+        );
+        let provider: Arc<dyn FxProvider> = Arc::new(SnapshotFxProvider::from_state(&fx_state));
+        let matrix = FxMatrix::try_with_config(Arc::clone(&provider), fx_state.config)?;
+        matrix.load_from_state(&fx_state)?;
+        ctx.fx = Some(Arc::new(matrix));
+    }
+
+    // Reconstruct prices
+    for (id_str, scalar) in state.prices {
+        Arc::make_mut(&mut ctx.prices).insert(CurveId::from(id_str), scalar);
+    }
+
+    // Reconstruct series
+    for series in state.series {
+        Arc::make_mut(&mut ctx.series).insert(series.id().clone(), series);
+    }
+
+    // Reconstruct inflation indices
+    for idx in state.inflation_indices {
+        let id = MarketContext::inflation_index_key_for_insert(idx.id.clone(), &idx);
+        Arc::make_mut(&mut ctx.inflation_indices).insert(id, Arc::new(idx));
+    }
+
+    // Reconstruct dividends
+    for schedule in state.dividends {
+        let id = schedule.id.clone();
+        Arc::make_mut(&mut ctx.dividends).insert(id, Arc::new(schedule));
+    }
+
+    // Reconstruct credit indices (resolve curve references)
+    for credit_state in state.credit_indices {
+        // Resolve hazard curve
+        let index_curve = ctx.get_hazard(&credit_state.index_credit_curve_id)?;
+
+        // Resolve base correlation curve
+        let base_corr = ctx.get_base_correlation(&credit_state.base_correlation_curve_id)?;
+
+        // Resolve issuer curves if present
+        let issuer_curves = if let Some(issuer_ids) = credit_state.issuer_credit_curve_ids {
+            let mut map = BTreeMap::new();
+            for (issuer, curve_id) in issuer_ids {
+                let curve = ctx.get_hazard(&curve_id)?;
+                map.insert(issuer, curve);
+            }
+            Some(map)
+        } else {
+            None
+        };
+
+        let data = crate::market_data::term_structures::CreditIndexData {
+            num_constituents: credit_state.num_constituents,
+            recovery_rate: credit_state.recovery_rate,
+            index_credit_curve: index_curve,
+            base_correlation_curve: base_corr,
+            issuer_credit_curves: issuer_curves,
+            issuer_recovery_rates: credit_state
+                .issuer_recovery_rates
+                .map(|m| m.into_iter().collect::<BTreeMap<_, _>>()),
+            issuer_weights: credit_state
+                .issuer_weights
+                .map(|m| m.into_iter().collect::<BTreeMap<_, _>>()),
+        };
+
+        Arc::make_mut(&mut ctx.credit_indices)
+            .insert(CurveId::from(credit_state.id), Arc::new(data));
+    }
+    let invalidated = ctx.rebind_all_credit_indices();
+    for id in invalidated {
+        report.push_bounded(
+                limits,
+                Diagnostic::new(
+                    "market-context/credit-index-rebind-failed",
+                    LoadPhase::Build,
+                    Severity::Error,
+                    format!(
+                        "credit index '{}' was dropped after its persisted curve references failed to rebind",
+                        id.as_str()
+                    ),
+                )
+                .with_pointer("/credit_indices")
+                .with_contract(MARKET_CONTEXT_STATE_CONTRACT.id),
+            );
+    }
+
+    // Reconstruct FX delta vol surfaces
+    for surface in state.fx_delta_vol_surfaces {
+        let id = surface.id().to_owned();
+        Arc::make_mut(&mut ctx.fx_delta_vol_surfaces).insert(id, Arc::new(surface));
+    }
+
+    // Reconstruct vol cubes
+    for cube in state.vol_cubes {
+        let id = cube.id().to_owned();
+        Arc::make_mut(&mut ctx.vol_cubes).insert(id, Arc::new(cube));
+    }
+
+    // Reconstruct collateral mappings
+    for (csa, curve_id_str) in state.collateral {
+        Arc::make_mut(&mut ctx.collateral).insert(csa, CurveId::from(curve_id_str));
+    }
+
+    ctx.hierarchy = state.hierarchy;
+
+    if report.has_errors() {
+        Err(ContractError::Report(Box::new(report)))
+    } else {
+        Ok((ctx, report))
+    }
+}
+
 impl TryFrom<MarketContextState> for MarketContext {
     type Error = crate::Error;
 
     fn try_from(state: MarketContextState) -> crate::Result<Self> {
-        if !(1..=MARKET_CONTEXT_STATE_VERSION).contains(&state.version) {
-            return Err(crate::Error::Validation(format!(
-                "Unsupported MarketContextState version: {} (expected 1..={})",
-                state.version, MARKET_CONTEXT_STATE_VERSION
-            )));
+        match restore_market_context(state, &LoadLimits::default()) {
+            Ok((context, _report)) => Ok(context),
+            Err(ContractError::Core(error)) => Err(error),
+            Err(ContractError::Report(report)) => Err(crate::Error::Validation(format!(
+                "MarketContextState restore failed with {report} error(s)"
+            ))),
+            Err(error) => Err(crate::Error::Validation(error.to_string())),
         }
-        let mut ctx = MarketContext::new();
+    }
+}
 
-        // Reconstruct all curves
-        for curve_state in state.curves {
-            let storage = CurveStorage::from_state(curve_state);
-            Arc::make_mut(&mut ctx.curves).insert(storage.id().clone(), storage);
-        }
-
-        // Reconstruct all surfaces
-        for surface in state.surfaces {
-            Arc::make_mut(&mut ctx.surfaces).insert(surface.id().clone(), Arc::new(surface));
-        }
-
-        // Reconstruct FX matrix as a quote-only snapshot. Persisted state does not
-        // encode the original live provider, only the captured explicit quotes.
-        if let Some(fx_state) = state.fx {
-            tracing::info!(
-                explicit_quote_count = fx_state.quotes.len(),
-                "restoring MarketContext FX as quote-only snapshot"
-            );
-            let provider: Arc<dyn FxProvider> = Arc::new(SnapshotFxProvider::from_state(&fx_state));
-            let matrix = FxMatrix::try_with_config(Arc::clone(&provider), fx_state.config)?;
-            matrix.load_from_state(&fx_state)?;
-            ctx.fx = Some(Arc::new(matrix));
-        }
-
-        // Reconstruct prices
-        for (id_str, scalar) in state.prices {
-            Arc::make_mut(&mut ctx.prices).insert(CurveId::from(id_str), scalar);
-        }
-
-        // Reconstruct series
-        for series in state.series {
-            Arc::make_mut(&mut ctx.series).insert(series.id().clone(), series);
-        }
-
-        // Reconstruct inflation indices
-        for idx in state.inflation_indices {
-            let id = MarketContext::inflation_index_key_for_insert(idx.id.clone(), &idx);
-            Arc::make_mut(&mut ctx.inflation_indices).insert(id, Arc::new(idx));
-        }
-
-        // Reconstruct dividends
-        for schedule in state.dividends {
-            let id = schedule.id.clone();
-            Arc::make_mut(&mut ctx.dividends).insert(id, Arc::new(schedule));
-        }
-
-        // Reconstruct credit indices (resolve curve references)
-        for credit_state in state.credit_indices {
-            // Resolve hazard curve
-            let index_curve = ctx.get_hazard(&credit_state.index_credit_curve_id)?;
-
-            // Resolve base correlation curve
-            let base_corr = ctx.get_base_correlation(&credit_state.base_correlation_curve_id)?;
-
-            // Resolve issuer curves if present
-            let issuer_curves = if let Some(issuer_ids) = credit_state.issuer_credit_curve_ids {
-                let mut map = HashMap::default();
-                for (issuer, curve_id) in issuer_ids {
-                    let curve = ctx.get_hazard(&curve_id)?;
-                    map.insert(issuer, curve);
-                }
-                Some(map)
-            } else {
-                None
-            };
-
-            let data = crate::market_data::term_structures::CreditIndexData {
-                num_constituents: credit_state.num_constituents,
-                recovery_rate: credit_state.recovery_rate,
-                index_credit_curve: index_curve,
-                base_correlation_curve: base_corr,
-                issuer_credit_curves: issuer_curves,
-                issuer_recovery_rates: credit_state
-                    .issuer_recovery_rates
-                    .map(|m| m.into_iter().collect::<HashMap<_, _>>()),
-                issuer_weights: credit_state
-                    .issuer_weights
-                    .map(|m| m.into_iter().collect::<HashMap<_, _>>()),
-            };
-
-            Arc::make_mut(&mut ctx.credit_indices)
-                .insert(CurveId::from(credit_state.id), Arc::new(data));
-        }
-        let _invalidated = ctx.rebind_all_credit_indices();
-
-        // Reconstruct FX delta vol surfaces
-        for surface in state.fx_delta_vol_surfaces {
-            let id = surface.id().to_owned();
-            Arc::make_mut(&mut ctx.fx_delta_vol_surfaces).insert(id, Arc::new(surface));
-        }
-
-        // Reconstruct vol cubes
-        for cube in state.vol_cubes {
-            let id = cube.id().to_owned();
-            Arc::make_mut(&mut ctx.vol_cubes).insert(id, Arc::new(cube));
-        }
-
-        // Reconstruct collateral mappings
-        for (csa, curve_id_str) in state.collateral {
-            Arc::make_mut(&mut ctx.collateral).insert(csa, CurveId::from(curve_id_str));
-        }
-
-        ctx.hierarchy = state.hierarchy;
-
-        Ok(ctx)
+impl MarketContext {
+    /// Load a persisted market-context state under strict contract policy.
+    ///
+    /// Unlike ordinary serde deserialization, this entry point requires an
+    /// explicit `version` key. It enforces encoded byte and JSON-depth limits,
+    /// validates the supported version range, and then restores the complete
+    /// market context.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Complete UTF-8 JSON encoding of a
+    ///   [`MarketContextState`].
+    /// * `limits` - Resource policy bounding input size, JSON depth, and
+    ///   retained diagnostics.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ContractError`] for malformed JSON, resource-limit failures,
+    /// missing or unsupported versions, invalid state shape, duplicate IDs,
+    /// unresolved credit-index or collateral references, or failed market
+    /// context reconstruction. Semantic findings are retained up to
+    /// [`LoadLimits::max_diagnostics`].
+    pub fn from_state_slice(
+        bytes: &[u8],
+        limits: &LoadLimits,
+    ) -> Result<(Self, ValidationReport), ContractError> {
+        let value = parse_json_value(bytes, limits)?;
+        let version = match value.get("version") {
+            Some(version) => Some(
+                deserialize_json_value::<u32>(version.clone(), limits).map_err(
+                    |error| match error {
+                        ContractError::Report(mut report) => {
+                            for diagnostic in &mut report.diagnostics {
+                                if diagnostic.pointer.is_none() {
+                                    diagnostic.pointer = Some("/version".to_string());
+                                }
+                            }
+                            ContractError::Report(report)
+                        }
+                        other => other,
+                    },
+                )?,
+            ),
+            None => None,
+        };
+        MARKET_CONTEXT_STATE_CONTRACT.resolve_strict(version, "/version", limits)?;
+        let state: MarketContextState = deserialize_json_value(value, limits)?;
+        restore_market_context(state, limits)
     }
 }
 

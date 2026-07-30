@@ -23,6 +23,7 @@ fn default_observation_bdc() -> BusinessDayConvention {
 ///
 /// Payoff: Notional * (Realized Variance - Strike Variance)
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

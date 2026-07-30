@@ -826,7 +826,7 @@ impl ParametricPositionDecomposer {
                 config.confidence,
                 n,
             );
-            for (contribution, ivar) in var_contributions.iter_mut().zip(incremental.into_iter()) {
+            for (contribution, ivar) in var_contributions.iter_mut().zip(incremental) {
                 contribution.incremental_var = Some(ivar);
             }
         } else if config.compute_incremental && n == 1 {

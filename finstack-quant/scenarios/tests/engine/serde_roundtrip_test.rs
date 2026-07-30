@@ -1,8 +1,10 @@
 //! Tests for JSON serialization stability.
 
 use finstack_quant_core::currency::Currency;
+use finstack_quant_core::{ContractError, LoadLimits};
 use finstack_quant_scenarios::{
-    CurveKind, OperationSpec, ScenarioSpec, TenorMatchMode, TimeRollMode, VolSurfaceKind,
+    CurveKind, OperationSpec, ScenarioEnvelope, ScenarioSpec, TenorMatchMode, TimeRollMode,
+    VolSurfaceKind,
 };
 use indexmap::IndexMap;
 
@@ -45,6 +47,120 @@ fn test_scenario_json_roundtrip() {
     assert_eq!(scenario.name, deserialized.name);
     assert_eq!(scenario.operations.len(), deserialized.operations.len());
     assert_eq!(scenario.priority, deserialized.priority);
+}
+
+#[test]
+fn scenario_envelope_strict_loader_enforces_schema_and_semantics() {
+    let scenario = ScenarioSpec {
+        id: "strict".into(),
+        name: None,
+        description: None,
+        operations: Vec::new(),
+        priority: 0,
+        resolution_mode: Default::default(),
+    };
+    let envelope = ScenarioEnvelope::new(scenario);
+    let bytes = serde_json::to_vec(&envelope).expect("serialize envelope");
+    let (loaded, report) =
+        ScenarioEnvelope::from_slice_strict(&bytes, &LoadLimits::default()).expect("valid");
+    assert_eq!(loaded.id, "strict");
+    assert!(report.diagnostics.is_empty());
+
+    let bare = serde_json::json!({
+        "id": "bare",
+        "operations": [],
+        "priority": 0,
+        "resolution_mode": "most_specific_wins"
+    });
+    let error = ScenarioEnvelope::from_slice_strict(
+        &serde_json::to_vec(&bare).expect("serialize bare"),
+        &LoadLimits::default(),
+    )
+    .expect_err("missing schema must fail");
+    let ContractError::Report(report) = error else {
+        panic!("expected structured report");
+    };
+    assert_eq!(report.diagnostics[0].code, "contract/version-missing");
+
+    for schema in [
+        "finstack_quant.scenario/0",
+        "finstack_quant.scenario/2",
+        "finstack_quant.scenario/not-a-version",
+    ] {
+        let value = serde_json::json!({
+            "schema": schema,
+            "scenario": {
+                "id": "strict",
+                "operations": [],
+                "priority": 0,
+                "resolution_mode": "most_specific_wins"
+            }
+        });
+        assert!(
+            ScenarioEnvelope::from_slice_strict(
+                &serde_json::to_vec(&value).expect("fixture"),
+                &LoadLimits::default(),
+            )
+            .is_err(),
+            "{schema} must fail"
+        );
+    }
+
+    let invalid = serde_json::json!({
+        "schema": "finstack_quant.scenario/1",
+        "scenario": {
+            "id": "",
+            "operations": [],
+            "priority": 0,
+            "resolution_mode": "most_specific_wins"
+        }
+    });
+    assert!(
+        ScenarioEnvelope::from_slice_strict(
+            &serde_json::to_vec(&invalid).expect("fixture"),
+            &LoadLimits::default(),
+        )
+        .is_err(),
+        "semantic validation must run"
+    );
+}
+
+#[test]
+fn scenario_version_matrix_fixture_drives_strict_loader() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../data/contract_version_matrix.json"))
+            .expect("version matrix fixture parses");
+    let matrix = &fixture["scenario"];
+    let base = matrix["base"].clone();
+    let cases = matrix["cases"]
+        .as_array()
+        .expect("matrix contains schema cases");
+
+    for case in cases {
+        let name = case["name"].as_str().expect("case name");
+        let mut document = base.clone();
+        match case.get("schema") {
+            Some(serde_json::Value::Null) | None => {
+                document
+                    .as_object_mut()
+                    .expect("envelope object")
+                    .remove("schema");
+            }
+            Some(schema) => document["schema"] = schema.clone(),
+        }
+        let bytes = serde_json::to_vec(&document).expect("case serializes");
+        let expected = case["expected"].as_str().expect("expected outcome");
+        match ScenarioEnvelope::from_slice_strict(&bytes, &LoadLimits::default()) {
+            Ok((_loaded, report)) => {
+                assert_eq!(expected, "ok", "{name} unexpectedly loaded");
+                assert!(report.diagnostics.is_empty(), "{name}");
+            }
+            Err(ContractError::Report(report)) => {
+                assert_eq!(report.diagnostics[0].code, expected, "{name}");
+            }
+            Err(error) => panic!("{name} returned unstructured error: {error}"),
+        }
+    }
 }
 
 #[test]

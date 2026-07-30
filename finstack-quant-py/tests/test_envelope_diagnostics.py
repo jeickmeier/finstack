@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 
 import pytest
@@ -11,6 +12,7 @@ from finstack_quant.valuations import (
     calibrate,
     dependency_graph_json,
     dry_run,
+    validate_calibration_json,
 )
 
 
@@ -60,6 +62,30 @@ def test_dry_run_surfaces_undefined_quote_set_with_suggestion() -> None:
     assert undef is not None, report["errors"]
     assert undef["ref_name"] == "usd_quotess"
     assert undef["suggestion"] == "usd_quotes"
+
+
+@pytest.mark.parametrize("operation", [validate_calibration_json, calibrate])
+def test_calibration_entry_points_enforce_semantic_validation(
+    operation: Callable[[str], str],
+) -> None:
+    envelope = _empty_envelope()
+    envelope["plan"]["steps"] = [
+        {
+            "id": "discount_step",
+            "quote_set": "missing_quotes",
+            "kind": "discount",
+            "curve_id": "USD-OIS",
+            "currency": "USD",
+            "base_date": "2026-05-08",
+        }
+    ]
+
+    with pytest.raises(CalibrationEnvelopeError) as excinfo:
+        operation(json.dumps(envelope))
+
+    assert excinfo.value.kind == "undefined_quote_set"
+    details = json.loads(excinfo.value.details)
+    assert details["ref_name"] == "missing_quotes"
 
 
 def test_calibration_envelope_error_inherits_runtime_error() -> None:

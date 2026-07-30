@@ -7,6 +7,7 @@
 //! Note: Curve-specific serde tests are in their respective modules
 //! (curves/discount.rs, curves/forward.rs, etc.)
 
+use finstack_quant_core::contract::{ContractError, LoadLimits};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -17,12 +18,13 @@ use finstack_quant_core::market_data::scalars::{
     InflationIndex, InflationInterpolation, InflationLag,
 };
 use finstack_quant_core::market_data::scalars::{ScalarTimeSeries, SeriesInterpolation};
-use finstack_quant_core::market_data::surfaces::VolSurface;
+use finstack_quant_core::market_data::surfaces::{FxDeltaVolSurface, VolCube, VolSurface};
 use finstack_quant_core::market_data::term_structures::BaseCorrelationCurve;
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::market_data::term_structures::ForwardCurve;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
+use finstack_quant_core::math::volatility::sabr::SabrParams;
 use finstack_quant_core::money::fx::FxQuery;
 use finstack_quant_core::money::fx::{FxConfig, FxMatrix, SimpleFxProvider};
 use finstack_quant_core::money::Money;
@@ -203,6 +205,96 @@ fn market_context_v1_snapshot_without_hierarchy_restores_with_none() {
 }
 
 #[test]
+fn market_context_missing_version_is_legacy_v1_but_strict_loading_rejects_it() {
+    let mut json = serde_json::to_value(MarketContextState::from(&MarketContext::new()))
+        .expect("state serializes");
+    json.as_object_mut()
+        .expect("state is object")
+        .remove("version");
+
+    let compatibility_state: MarketContextState =
+        serde_json::from_value(json.clone()).expect("missing version uses legacy policy");
+    assert_eq!(compatibility_state.version, 1);
+
+    let bytes = serde_json::to_vec(&json).expect("fixture serializes");
+    let error = MarketContext::from_state_slice(&bytes, &LoadLimits::default())
+        .expect_err("strict loading requires an explicit version");
+    let ContractError::Report(report) = error else {
+        panic!("expected structured report");
+    };
+    assert_eq!(report.diagnostics[0].code, "contract/version-missing");
+    assert_eq!(report.diagnostics[0].pointer.as_deref(), Some("/version"));
+}
+
+#[test]
+fn market_context_strict_loader_reports_zero_future_and_malformed_json() {
+    for version in [
+        0,
+        finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION + 1,
+    ] {
+        let mut json = serde_json::to_value(MarketContextState::from(&MarketContext::new()))
+            .expect("state serializes");
+        json.as_object_mut()
+            .expect("state is object")
+            .insert("version".into(), serde_json::json!(version));
+        let bytes = serde_json::to_vec(&json).expect("fixture serializes");
+        let error = MarketContext::from_state_slice(&bytes, &LoadLimits::default())
+            .expect_err("unsupported version must fail");
+        let ContractError::Report(report) = error else {
+            panic!("expected structured report");
+        };
+        assert_eq!(report.diagnostics[0].code, "contract/version-unsupported");
+        assert_eq!(report.diagnostics[0].actual_version, Some(version));
+    }
+
+    let error = MarketContext::from_state_slice(b"{", &LoadLimits::default())
+        .expect_err("malformed JSON must fail");
+    let ContractError::Report(report) = error else {
+        panic!("expected structured report");
+    };
+    assert_eq!(report.diagnostics[0].code, "contract/parse-error");
+}
+
+#[test]
+fn market_context_version_matrix_fixture_is_executable() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../data/market_context_version_matrix.json"))
+            .expect("version matrix fixture parses");
+    let base = fixture["base"]
+        .as_object()
+        .expect("fixture contains a realistic base document");
+    let cases = fixture["cases"]
+        .as_array()
+        .expect("fixture contains version cases");
+
+    for case in cases {
+        let name = case["name"].as_str().expect("case name");
+        let mut document = serde_json::Value::Object(base.clone());
+        match case.get("version") {
+            Some(serde_json::Value::Null) | None => {
+                document
+                    .as_object_mut()
+                    .expect("state object")
+                    .remove("version");
+            }
+            Some(version) => document["version"] = version.clone(),
+        }
+        let bytes = serde_json::to_vec(&document).expect("case serializes");
+        let expected = case["expected"].as_str().expect("expected outcome");
+        match MarketContext::from_state_slice(&bytes, &LoadLimits::default()) {
+            Ok((_context, report)) => {
+                assert_eq!(expected, "ok", "{name} unexpectedly loaded");
+                assert!(report.diagnostics.is_empty(), "{name}");
+            }
+            Err(ContractError::Report(report)) => {
+                assert_eq!(report.diagnostics[0].code, expected, "{name}");
+            }
+            Err(error) => panic!("{name} returned unstructured error: {error}"),
+        }
+    }
+}
+
+#[test]
 fn market_context_state_rejects_unsupported_versions() {
     for version in [
         0,
@@ -239,6 +331,178 @@ fn market_context_state_rejects_unknown_top_level_fields() {
 
     let result: Result<MarketContextState, _> = serde_json::from_value(json);
     assert!(result.is_err());
+}
+
+fn semantic_restore_fixture() -> MarketContextState {
+    use finstack_quant_core::market_data::context::{CreditIndexState, CurveState};
+
+    let discount = DiscountCurve::builder("USD-OIS")
+        .base_date(test_date())
+        .knots([(0.0, 1.0), (1.0, 0.97)])
+        .build()
+        .expect("discount curve");
+    let hazard = HazardCurve::builder("CDX-HAZARD")
+        .base_date(test_date())
+        .knots([(1.0, 0.01), (5.0, 0.02)])
+        .build()
+        .expect("hazard curve");
+    let base_correlation = BaseCorrelationCurve::builder("CDX-CORRELATION")
+        .knots([(3.0, 0.25), (7.0, 0.4)])
+        .build()
+        .expect("base correlation curve");
+    let surface = VolSurface::builder("EQ-VOL")
+        .expiries(&[1.0])
+        .strikes(&[100.0])
+        .row(&[0.2])
+        .build()
+        .expect("vol surface");
+    let series =
+        ScalarTimeSeries::new("SERIES", vec![(test_date(), 1.0)], None).expect("time series");
+    let inflation_index = InflationIndex::new("US-CPI", vec![(test_date(), 300.0)], Currency::USD)
+        .expect("inflation index");
+    let dividends =
+        DividendSchedule::new("EQ-DIVIDENDS").add_cash(test_date(), Money::new(1.0, Currency::USD));
+    let fx_delta_vol = FxDeltaVolSurface::new(
+        "EURUSD-DELTA-VOL",
+        vec![1.0],
+        vec![0.08],
+        vec![0.01],
+        vec![0.005],
+    )
+    .expect("FX delta vol surface");
+    let vol_cube = VolCube::from_grid(
+        "USD-SWAPTION",
+        &[1.0],
+        &[5.0],
+        &[SabrParams::new(0.035, 0.5, -0.2, 0.4).expect("SABR parameters")],
+        &[0.03],
+    )
+    .expect("vol cube");
+
+    MarketContextState {
+        version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+        curves: vec![
+            CurveState::Discount(discount),
+            CurveState::Hazard(hazard),
+            CurveState::BaseCorrelation(base_correlation),
+        ],
+        fx: None,
+        surfaces: vec![surface],
+        prices: std::collections::BTreeMap::new(),
+        series: vec![series],
+        inflation_indices: vec![inflation_index],
+        dividends: vec![dividends],
+        credit_indices: vec![CreditIndexState {
+            id: "CDX".into(),
+            num_constituents: 125,
+            recovery_rate: 0.4,
+            index_credit_curve_id: "CDX-HAZARD".into(),
+            base_correlation_curve_id: "CDX-CORRELATION".into(),
+            issuer_credit_curve_ids: None,
+            issuer_recovery_rates: None,
+            issuer_weights: None,
+        }],
+        fx_delta_vol_surfaces: vec![fx_delta_vol],
+        vol_cubes: vec![vol_cube],
+        collateral: std::collections::BTreeMap::new(),
+        hierarchy: None,
+    }
+}
+
+fn restore_report(
+    state: &MarketContextState,
+) -> Box<finstack_quant_core::contract::ValidationReport> {
+    let bytes = serde_json::to_vec(state).expect("state serializes");
+    let error = MarketContext::from_state_slice(&bytes, &LoadLimits::default())
+        .expect_err("semantic restore failures must be reported");
+    let ContractError::Report(report) = error else {
+        panic!("expected a structured report, got {error}");
+    };
+    report
+}
+
+#[test]
+fn market_context_restore_detects_duplicates_in_every_vector_state_field() {
+    for field in [
+        "curves",
+        "surfaces",
+        "series",
+        "inflation_indices",
+        "dividends",
+        "credit_indices",
+        "fx_delta_vol_surfaces",
+        "vol_cubes",
+    ] {
+        let mut value = serde_json::to_value(semantic_restore_fixture()).expect("state value");
+        let entries = value[field].as_array_mut().expect("vector state field");
+        let duplicate_index = entries.len();
+        entries.push(entries[0].clone());
+        let state: MarketContextState = serde_json::from_value(value).expect("state");
+
+        let report = restore_report(&state);
+        assert!(!report.truncated, "{field}: {report:?}");
+        assert_eq!(report.diagnostics.len(), 1, "{field}: {report:?}");
+        let diagnostic = &report.diagnostics[0];
+        assert_eq!(diagnostic.code, "market-context/duplicate-id", "{field}");
+        assert_eq!(
+            diagnostic.pointer.as_deref(),
+            Some(format!("/{field}/{duplicate_index}").as_str()),
+            "{field}"
+        );
+    }
+}
+
+#[test]
+fn market_context_restore_reports_missing_collateral_reference_without_truncation() {
+    let mut state = semantic_restore_fixture();
+    state
+        .collateral
+        .insert("USD/CSA".into(), "MISSING-DISCOUNT".into());
+
+    let report = restore_report(&state);
+    assert!(!report.truncated);
+    assert_eq!(report.diagnostics.len(), 1, "{report:?}");
+    assert_eq!(
+        report.diagnostics[0].code,
+        "market-context/missing-collateral-curve"
+    );
+    assert_eq!(
+        report.diagnostics[0].pointer.as_deref(),
+        Some("/collateral/USD~1CSA")
+    );
+}
+
+#[test]
+fn market_context_restore_reports_every_credit_index_reference_without_truncation() {
+    let mut state = semantic_restore_fixture();
+    let credit_index = &mut state.credit_indices[0];
+    credit_index.index_credit_curve_id = "MISSING-HAZARD".into();
+    credit_index.base_correlation_curve_id = "MISSING-CORRELATION".into();
+    credit_index.issuer_credit_curve_ids = Some(std::collections::BTreeMap::from([(
+        "ISSUER/A".into(),
+        "MISSING-ISSUER-HAZARD".into(),
+    )]));
+
+    let report = restore_report(&state);
+    assert!(!report.truncated);
+    assert_eq!(report.diagnostics.len(), 3, "{report:?}");
+    assert!(report
+        .diagnostics
+        .iter()
+        .all(|diagnostic| { diagnostic.code == "market-context/missing-credit-index-reference" }));
+    let pointers: std::collections::BTreeSet<&str> = report
+        .diagnostics
+        .iter()
+        .filter_map(|diagnostic| diagnostic.pointer.as_deref())
+        .collect();
+    assert_eq!(
+        pointers,
+        std::collections::BTreeSet::from([
+            "/credit_indices/0/base_correlation_curve_id",
+            "/credit_indices/0/index_credit_curve_id",
+            "/credit_indices/0/issuer_credit_curve_ids/ISSUER~1A",
+        ])
+    );
 }
 
 #[test]

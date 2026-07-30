@@ -19,7 +19,7 @@ use finstack_quant_core::market_data::term_structures::HazardCurve;
 ///
 /// Allows default model selection and configuration without
 /// constructing the full model.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
 #[serde(tag = "model", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum StochasticDefaultSpec {
@@ -85,6 +85,79 @@ pub enum StochasticDefaultSpec {
         /// Asset correlation for default distribution
         correlation: f64,
     },
+}
+
+impl serde::Serialize for StochasticDefaultSpec {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(serde::Serialize)]
+        #[serde(tag = "model")]
+        enum PersistedStochasticDefaultSpec<'a> {
+            Deterministic(&'a DefaultModelSpec),
+            Copula {
+                base_cdr: f64,
+                copula_spec: &'a CopulaSpec,
+                correlation: f64,
+            },
+            IntensityProcess {
+                base_hazard: f64,
+                factor_sensitivity: f64,
+                mean_reversion: f64,
+                volatility: f64,
+                correlation: f64,
+            },
+            FactorCorrelated {
+                base_spec: &'a DefaultModelSpec,
+                factor_loading: f64,
+                cdr_volatility: f64,
+            },
+        }
+
+        let persisted = match self {
+            Self::Deterministic(spec) => PersistedStochasticDefaultSpec::Deterministic(spec),
+            Self::Copula {
+                base_cdr,
+                copula_spec,
+                correlation,
+            } => PersistedStochasticDefaultSpec::Copula {
+                base_cdr: *base_cdr,
+                copula_spec,
+                correlation: *correlation,
+            },
+            Self::IntensityProcess {
+                base_hazard,
+                factor_sensitivity,
+                mean_reversion,
+                volatility,
+                correlation,
+            } => PersistedStochasticDefaultSpec::IntensityProcess {
+                base_hazard: *base_hazard,
+                factor_sensitivity: *factor_sensitivity,
+                mean_reversion: *mean_reversion,
+                volatility: *volatility,
+                correlation: *correlation,
+            },
+            Self::FactorCorrelated {
+                base_spec,
+                factor_loading,
+                cdr_volatility,
+            } => PersistedStochasticDefaultSpec::FactorCorrelated {
+                base_spec,
+                factor_loading: *factor_loading,
+                cdr_volatility: *cdr_volatility,
+            },
+            Self::HazardCurveBased { .. } => {
+                return Err(serde::ser::Error::custom(
+                    "StochasticDefaultSpec::HazardCurveBased is a derived calibrated-curve \
+                     artifact and cannot be persisted; reconstruct it with \
+                     build_from_hazard_curve and persist calibration prior_market instead",
+                ))
+            }
+        };
+        serde::Serialize::serialize(&persisted, serializer)
+    }
 }
 
 fn default_correlation() -> f64 {
@@ -398,11 +471,29 @@ impl StochasticDefaultSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use time::macros::date;
 
     #[test]
     fn test_spec_default() {
         let spec = StochasticDefaultSpec::default();
         assert!(!spec.is_stochastic());
+    }
+
+    #[test]
+    fn hazard_curve_variant_has_typed_persistence_error() {
+        let curve = HazardCurve::builder("ACME-HAZARD")
+            .base_date(date!(2026 - 01 - 01))
+            .knots([(1.0, 0.01), (5.0, 0.02)])
+            .build()
+            .expect("valid hazard curve");
+        let spec = StochasticDefaultSpec::from_hazard_curve(curve, 0.5);
+
+        let error =
+            serde_json::to_string(&spec).expect_err("derived hazard curves are not persisted");
+        let message = error.to_string();
+        assert!(message.contains("build_from_hazard_curve"), "{message}");
+        assert!(message.contains("prior_market"), "{message}");
+        assert!(message.contains("derived"), "{message}");
     }
 
     #[test]

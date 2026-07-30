@@ -41,6 +41,7 @@ pub mod params;
 pub mod rrao;
 pub mod types;
 pub mod vega;
+mod wire;
 
 pub use engine::{FrtbSbaEngine, FrtbSbaEngineBuilder};
 pub use types::{

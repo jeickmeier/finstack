@@ -64,6 +64,7 @@ pub enum FinalPayoffType {
 
 /// Autocallable structured product instrument.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

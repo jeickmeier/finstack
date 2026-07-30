@@ -3,7 +3,7 @@
 use finstack_quant_core::{Error, Result};
 
 /// SABR model parameters
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct SABRParameters {
     /// Initial volatility (alpha)
     pub alpha: f64,

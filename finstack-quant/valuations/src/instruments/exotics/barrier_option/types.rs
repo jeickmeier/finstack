@@ -37,6 +37,7 @@ fn default_gobet_miri() -> bool {
 /// - Broadie, Glasserman & Kou (1997), "A Continuity Correction for Discrete Barrier Options"
 /// - Gobet (2000), "Weak Approximation of Killed Diffusion Using Euler Schemes"
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

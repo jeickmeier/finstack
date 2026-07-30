@@ -73,6 +73,7 @@ use finstack_quant_core::Result;
 ///     .expect("Valid spread option");
 /// ```
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

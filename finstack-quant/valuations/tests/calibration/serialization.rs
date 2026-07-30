@@ -67,7 +67,7 @@ fn envelope_v2_roundtrips() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "step_1".to_string(),

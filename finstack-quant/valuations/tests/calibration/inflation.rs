@@ -94,7 +94,7 @@ fn inflation_quote_time_uses_lagged_fixing_date() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "infl".to_string(),
@@ -161,7 +161,7 @@ fn inflation_preflight_rejects_base_cpi_mismatch_with_fixings() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "infl".to_string(),

@@ -1,44 +1,67 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "trs_fixed_income_index",
     "spec": {
+      "attributes": {},
+      "financing": {
+        "day_count": "Act360",
+        "discount_curve_id": "USD-OIS",
+        "forward_curve_id": "USD-SOFR-3M",
+        "spread_bp": "100"
+      },
       "id": "TRS-US-CORP-1Y",
+      "initial_level": null,
       "notional": {
         "amount": "5000000",
         "currency": "USD"
       },
-      "underlying": {
-        "index_id": "US-CORP-INDEX",
-        "base_currency": "USD",
-        "yield_id": "US-CORP-YIELD",
-        "duration_id": "US-CORP-DURATION",
-        "convexity_id": "US-CORP-CONVEXITY",
-        "contract_size": 1.0
-      },
-      "financing": {
-        "discount_curve_id": "USD-OIS",
-        "forward_curve_id": "USD-SOFR-3M",
-        "spread_bp": 100.0,
-        "day_count": "Act360"
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
       },
       "schedule": {
-        "start": "2024-01-01",
         "end": "2025-01-01",
         "params": {
-          "freq": {"count": 3, "unit": "months"},
-          "dc": "Act360",
           "bdc": "following",
           "calendar_id": "weekends_only",
+          "dc": "Act360",
+          "end_of_month": false,
+          "freq": {
+            "count": 3,
+            "unit": "months"
+          },
+          "payment_lag_days": 0,
           "stub": "None"
-        }
+        },
+        "start": "2024-01-01"
       },
       "side": "receive_total_return",
-      "initial_level": null,
-      "attributes": {
-        "tags": [],
-        "meta": {}
+      "underlying": {
+        "base_currency": "USD",
+        "contract_size": 1.0,
+        "convexity_id": "US-CORP-CONVEXITY",
+        "duration_id": "US-CORP-DURATION",
+        "index_id": "US-CORP-INDEX",
+        "yield_id": "US-CORP-YIELD"
       }
-    }
-  }
+    },
+    "type": "trs_fixed_income_index"
+  },
+  "schema": "finstack_quant.instrument/1"
 }

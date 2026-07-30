@@ -27,8 +27,8 @@
 //! assert_eq!(CreditRating::BPlus.warf().unwrap(), 2220.0);
 //! ```
 
-use crate::collections::HashMap;
 use crate::credit::registry::{embedded_registry, RatingFactorTableParts};
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
@@ -505,7 +505,7 @@ fn parse_credit_rating(value: &str) -> Result<CreditRating, crate::Error> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RatingFactorTable {
     /// Factors by rating
-    factors: HashMap<CreditRating, f64>,
+    factors: BTreeMap<CreditRating, f64>,
     /// Agency name
     agency: String,
     /// Methodology description
@@ -570,7 +570,7 @@ impl RatingFactorTable {
 
     fn from_registry_parts(parts: RatingFactorTableParts) -> Self {
         Self {
-            factors: parts.factors,
+            factors: parts.factors.into_iter().collect(),
             agency: parts.agency,
             methodology: parts.methodology,
             default_factor: parts.default_factor,
@@ -824,7 +824,7 @@ mod tests {
     #[test]
     fn test_rating_factor_table_errors_when_missing() {
         let table = RatingFactorTable {
-            factors: HashMap::default(),
+            factors: BTreeMap::new(),
             agency: "Test".to_string(),
             methodology: "Test".to_string(),
             default_factor: 42.0,

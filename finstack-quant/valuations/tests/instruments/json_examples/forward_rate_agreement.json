@@ -1,26 +1,44 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "forward_rate_agreement",
     "spec": {
+      "attributes": {},
+      "day_count": "Act360",
+      "discount_curve_id": "USD-OIS",
+      "fixed_rate": "0.045",
+      "fixing_date": "2024-04-01",
+      "forward_curve_id": "USD-SOFR-3M",
       "id": "FRA-3X6-USD",
+      "maturity": "2024-07-03",
       "notional": {
         "amount": "10000000",
         "currency": "USD"
       },
-      "fixing_date": "2024-04-01",
-      "start_date": "2024-04-03",
-      "maturity": "2024-07-03",
-      "fixed_rate": 0.045,
-      "day_count": "Act360",
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
+      },
       "reset_lag": 2,
-      "discount_curve_id": "USD-OIS",
-      "forward_curve_id": "USD-SOFR-3M",
       "side": "receive",
-      "attributes": {
-        "tags": [],
-        "meta": {}
-      }
-    }
-  }
+      "start_date": "2024-04-03"
+    },
+    "type": "forward_rate_agreement"
+  },
+  "schema": "finstack_quant.instrument/1"
 }

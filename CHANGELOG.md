@@ -30,6 +30,64 @@ stability contract and schema-version policy.
   realized decimal `delta_spread` directly on each `FiPositionSnapshot`.
 
 ### Changed
+- **Persisted map output is deterministic.** Contract-visible maps now use
+  insertion-ordered or key-sorted representations according to their semantic
+  contract, and SIMM/FRTB tuple-keyed sensitivities use deterministic array
+  wire formats. JSON object shape is unchanged for ordinary string/enum-keyed
+  maps, but callers diffing raw bytes may observe stable key-order changes.
+- **Persisted JSON versions are now explicit on strict loading paths.**
+  Missing `MarketContextState.version` and
+  `FinancialModelSpec.schema_version` continue to load through ordinary serde,
+  but now map to their documented legacy version 1 instead of the current
+  version. New strict loaders require explicit contract markers and return
+  bounded structured diagnostics.
+- **Calibration envelopes now enforce their schema marker.** Current writers
+  emit `"finstack_quant.calibration/3"`. Historical request and result
+  envelopes carrying the explicit unversioned `"finstack_quant.calibration"`
+  marker remain accepted with a legacy-to-v3 warning. Missing markers and
+  malformed, unrelated, zero, or future markers are rejected. Persisted
+  `CalibrationResultEnvelope` values now also have a bounded strict loader.
+  Strict request validation and execution enforce semantic envelope checks,
+  while strict result loading validates and restores the nested final market
+  under its own explicit version and depth policy.
+- **Agency TBA JSON now persists `assumed_pool`.** The optional field is
+  additive and omitted when absent, but older binaries whose TBA reader uses
+  `deny_unknown_fields` will reject newly written payloads that include an
+  assumed pool.
+- **Persisted nested objects fail closed.** Scenario operations, factor
+  definitions, statement periods, calibration steps, market scalars, and
+  market-data hierarchies now reject unknown fields; non-finite market scalars
+  fail during deserialization. Market-context restore now reports duplicate
+  IDs, missing collateral curves, and invalid credit-index references instead
+  of silently overwriting or dropping them.
+- **Scenario host builders expose `resolution_mode`.** Python
+  `build_scenario_spec` and WASM `buildScenarioSpec` now accept
+  `most_specific_wins` (the default) or `cumulative`, validate the supplied
+  value, and persist it instead of always hard-coding the default.
+- **Embedded liquidity defaults enforce both version markers.** The portfolio
+  registry now rejects missing, malformed, zero, future, unrelated, or
+  disagreeing `schema` and numeric `version` values in
+  `liquidity_defaults.v1.json` rather than parsing and discarding them.
+- **Hazard-curve stochastic default specs fail explicitly on persistence.**
+  Serializing `StochasticDefaultSpec::HazardCurveBased` now returns a typed
+  serde error instead of silently omitting the enum variant. Persist calibration
+  `prior_market` inputs and reconstruct the runtime artifact with
+  `build_from_hazard_curve`.
+- **Covenant JSON validators return core canonical JSON.** Spec, engine, and
+  report validation entry points now recursively sort object keys and emit
+  compact canonical bytes; valid arrays retain their semantic order.
+- **Instrument dependency and validation paths are complete.** Inflation
+  curves are retained when dependencies are flattened, market dependencies are
+  serializable contract data, factor-model builds validate every matching
+  factor ID, and scenario rate bindings validate tenor/day-count strings before
+  application.
+- **Typed Python instrument `from_json` uses the shared instrument loader.**
+  Typed classes now accept either the versioned envelope or bare tagged form
+  consistently and enforce the same 16 MiB input cap as generic loaders.
+- **SIMM and FRTB tuple-keyed sensitivities use deterministic entry arrays.**
+  This fixes non-empty JSON serialization and preserves all qualifying-credit
+  SIMM buckets. Readers still accept historical empty objects; no valid
+  non-empty tuple-keyed JSON-object representation existed to migrate.
 - **`compute_exposure_profile` now models MPOR gap risk under a CSA.** For
   netting sets whose CSA has `mpor_days > 0` and whose portfolio value moves
   over the exposure horizon, collateral at time `t` is now lagged to the
@@ -45,7 +103,55 @@ stability contract and schema-version policy.
   error). Recalibrate any caller that set `num_paths > 0` expecting the old
   analytic-only behavior.
 
+### Migration
+- For unversioned calibration request/result envelopes already using the v3
+  flat shape, replace `"finstack_quant.calibration"` with
+  `"finstack_quant.calibration/3"`; the strict loader warns on the legacy
+  marker during the compatibility window. Convert historical `initial_market`
+  payloads to `market_data`/`prior_market` before stamping v3.
+- Wrap persisted bare instruments as
+  `{"schema":"finstack_quant.instrument/1","instrument":<bare>}` before using
+  strict storage loaders.
+- Stamp missing `FinancialModelSpec.schema_version` as legacy version 1 and
+  run `upgrade_v1_to_v2` (or `from_slice_strict`); stamp missing
+  `MarketContextState.version` as 1 before strict restore.
+- Convert portable `PortfolioSpec` payloads by loading once with
+  `Portfolio::from_spec` and writing `Portfolio::to_materialization`, which
+  deduplicates instruments by content hash and refuses lossy instrument
+  serialization. Full recipes are in [`docs/CONTRACTS.md`](docs/CONTRACTS.md).
+
 ### Added
+- **Database-neutral persisted-contract infrastructure.**
+  `core::contract` provides descriptors, bounded load limits, stable structured
+  diagnostics, validation reports, and typed errors. `core::canonical`
+  provides recursive key-sorted `c1` JSON, non-finite rejection, and
+  domain-separated `sha256:` content hashes that include extension metadata.
+- **Strict loaders and version envelopes** for instrument, market-context,
+  calibration request/result, financial-model, scenario, factor-model config,
+  credit-factor-model, and portfolio-materialization contracts. Existing
+  compatibility loaders remain available for in-process and legacy inputs.
+- **Content-addressed portfolio materialization** in Rust, Python, and WASM:
+  one-parse bulk loading, bounded validation, content-unique instrument decode,
+  warning-only aliases for distinct artifact IDs with identical content,
+  thread-safe artifact caching, shared instrument handles, phase reports,
+  `Portfolio::to_materialization`, Python
+  `Portfolio.from_materialization`, WASM `Portfolio.fromMaterialization`, and
+  validation-only `validateMaterializationJson`. Python and JavaScript expose
+  structured contract reports on raised errors.
+- **Registry-driven instrument persistence coverage.** All 70 canonical tags
+  have generated fixtures and schema/strict-load/canonical-round-trip/
+  dependency checks; registry tags, aliases, schema generation, and the
+  coverage manifest are cross-checked.
+- **Generated persisted-contract artifacts.** Draft 2020-12 schemas now include
+  `Diagnostic`, `ValidationReport`, and
+  `PortfolioMaterializationEnvelope`; ts-rs exports include diagnostics,
+  materialization contracts/reports, and the complete calibration surface.
+  Generation drift is gated by `mise run gen-check` locally and in CI.
+- **Reproducible materialization performance record.** Native, optimized
+  Python, and Node/WASM measurements use deterministic 5,000-position
+  fixtures, immutable baseline provenance, exact phase counters, a 10%
+  regression threshold, and a native cold-A p95 hard gate below one second.
+  See [`docs/MATERIALIZATION_BENCHMARKS.md`](docs/MATERIALIZATION_BENCHMARKS.md).
 - **Fixed-income performance attribution suite** in Rust, Python, and WASM:
   Campisi carry/treasury/spread/selection attribution with multi-period Carino
   linking; duration-matched credit excess returns from reference securities or

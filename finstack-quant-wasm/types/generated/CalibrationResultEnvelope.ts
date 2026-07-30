@@ -6,7 +6,7 @@ import type { CalibrationResult } from "./CalibrationResult";
  */
 export type CalibrationResultEnvelope = {
 /**
- * Schema version identifier (must be "finstack_quant.calibration").
+ * Schema marker; current writers emit [`CALIBRATION_SCHEMA`].
  */
 schema: string,
 /**

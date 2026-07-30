@@ -20,8 +20,8 @@
 //! - Credit correlation trading
 
 use super::{hazard_curve::HazardCurve, BaseCorrelationCurve};
-use crate::collections::HashMap;
 use crate::Result;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 /// Aggregated market data for a specific credit index.
@@ -43,13 +43,13 @@ pub struct CreditIndexData {
     pub base_correlation_curve: Arc<BaseCorrelationCurve>,
     /// Optional individual hazard curves for each constituent issuer
     /// Key is the issuer identifier (e.g., ticker or CUSIP)
-    pub issuer_credit_curves: Option<HashMap<String, Arc<HazardCurve>>>,
+    pub issuer_credit_curves: Option<BTreeMap<String, Arc<HazardCurve>>>,
     /// Optional individual recovery rates for each constituent issuer
     /// Key is the issuer identifier (e.g., ticker or CUSIP)
-    pub issuer_recovery_rates: Option<HashMap<String, f64>>,
+    pub issuer_recovery_rates: Option<BTreeMap<String, f64>>,
     /// Optional individual weights for each constituent issuer (must sum to 1.0)
     /// Key is the issuer identifier (e.g., ticker or CUSIP)
-    pub issuer_weights: Option<HashMap<String, f64>>,
+    pub issuer_weights: Option<BTreeMap<String, f64>>,
 }
 
 impl CreditIndexData {
@@ -160,9 +160,9 @@ pub struct CreditIndexDataBuilder {
     recovery_rate: Option<f64>,
     index_credit_curve: Option<Arc<HazardCurve>>,
     base_correlation_curve: Option<Arc<BaseCorrelationCurve>>,
-    issuer_credit_curves: Option<HashMap<String, Arc<HazardCurve>>>,
-    issuer_recovery_rates: Option<HashMap<String, f64>>,
-    issuer_weights: Option<HashMap<String, f64>>,
+    issuer_credit_curves: Option<BTreeMap<String, Arc<HazardCurve>>>,
+    issuer_recovery_rates: Option<BTreeMap<String, f64>>,
+    issuer_weights: Option<BTreeMap<String, f64>>,
 }
 
 impl CreditIndexDataBuilder {
@@ -192,37 +192,76 @@ impl CreditIndexDataBuilder {
 
     /// Set issuer-specific credit curves for heterogeneous portfolio modeling.
     ///
+    /// Entries are stored by issuer identifier in lexicographic order so
+    /// snapshots are deterministic. If `curves` repeats an identifier, the
+    /// last curve yielded by the iterator replaces earlier values. Validation
+    /// is deferred until [`build`](Self::build), which rejects an explicitly
+    /// empty collection and a collection larger than `num_constituents`.
+    ///
     /// # Arguments
     ///
-    /// * `curves` - Curves supplied by the caller for this operation
-    pub fn issuer_curves(mut self, curves: HashMap<String, Arc<HazardCurve>>) -> Self {
-        self.issuer_credit_curves = Some(curves);
+    /// * `curves` - Issuer identifier and hazard-curve pairs. Identifiers are
+    ///   caller-defined stable keys and must be reused by
+    ///   [`issuer_recovery_rates`](Self::issuer_recovery_rates) and
+    ///   [`issuer_weights`](Self::issuer_weights); each curve supplies that
+    ///   issuer's default-probability term structure.
+    pub fn issuer_curves<I>(mut self, curves: I) -> Self
+    where
+        I: IntoIterator<Item = (String, Arc<HazardCurve>)>,
+    {
+        self.issuer_credit_curves = Some(curves.into_iter().collect());
         self
     }
 
     /// Add a single issuer credit curve.
     pub fn add_issuer_curve(mut self, issuer_id: String, curve: Arc<HazardCurve>) -> Self {
         self.issuer_credit_curves
-            .get_or_insert_with(HashMap::default)
+            .get_or_insert_with(BTreeMap::new)
             .insert(issuer_id, curve);
         self
     }
 
     /// Set issuer-specific recovery rates for heterogeneous portfolio modeling.
     ///
-    /// Keys should match issuer identifiers used in [`issuer_curves`](Self::issuer_curves).
-    /// Values are recovery rates as fractions (e.g., 0.40 for 40%).
-    pub fn issuer_recovery_rates(mut self, rates: HashMap<String, f64>) -> Self {
-        self.issuer_recovery_rates = Some(rates);
+    /// Entries are stored in lexicographic issuer order. Repeated identifiers
+    /// use the last value yielded by the iterator. Validation is deferred until
+    /// [`build`](Self::build), which requires issuer curves, rejects unknown
+    /// identifiers, and checks each recovery lies in the inclusive `[0, 1]`
+    /// range.
+    ///
+    /// # Arguments
+    ///
+    /// * `rates` - Issuer identifier and recovery-rate pairs. Identifiers must
+    ///   match keys supplied to [`issuer_curves`](Self::issuer_curves).
+    ///   Recoveries use decimal fractions, so `0.40` means 40%, not 40
+    ///   percentage points or 4,000 basis points.
+    pub fn issuer_recovery_rates<I>(mut self, rates: I) -> Self
+    where
+        I: IntoIterator<Item = (String, f64)>,
+    {
+        self.issuer_recovery_rates = Some(rates.into_iter().collect());
         self
     }
 
     /// Set issuer-specific weights for heterogeneous portfolio modeling.
     ///
-    /// Keys should match issuer identifiers used in [`issuer_curves`](Self::issuer_curves).
-    /// Values should sum to 1.0 for proper portfolio weighting.
-    pub fn issuer_weights(mut self, weights: HashMap<String, f64>) -> Self {
-        self.issuer_weights = Some(weights);
+    /// Entries are stored in lexicographic issuer order. Repeated identifiers
+    /// use the last value yielded by the iterator. Validation is deferred until
+    /// [`build`](Self::build), which requires exact coverage of the issuer
+    /// curves, rejects unknown identifiers and negative or non-finite values,
+    /// and requires the weights to sum to `1.0` within `1e-9`.
+    ///
+    /// # Arguments
+    ///
+    /// * `weights` - Issuer identifier and portfolio-weight pairs.
+    ///   Identifiers must match keys supplied to
+    ///   [`issuer_curves`](Self::issuer_curves). Weights are non-negative
+    ///   decimal fractions, so `0.20` represents 20% of index notional.
+    pub fn issuer_weights<I>(mut self, weights: I) -> Self
+    where
+        I: IntoIterator<Item = (String, f64)>,
+    {
+        self.issuer_weights = Some(weights.into_iter().collect());
         self
     }
 
@@ -274,7 +313,7 @@ impl CreditIndexDataBuilder {
 }
 
 fn validate_issuer_curves(
-    issuer_curves: &Option<HashMap<String, Arc<HazardCurve>>>,
+    issuer_curves: &Option<BTreeMap<String, Arc<HazardCurve>>>,
     num_constituents: u16,
 ) -> Result<()> {
     if let Some(curves) = issuer_curves {
@@ -294,8 +333,8 @@ fn validate_issuer_curves(
 }
 
 fn validate_issuer_recovery_rates(
-    issuer_curves: &Option<HashMap<String, Arc<HazardCurve>>>,
-    issuer_recovery_rates: &Option<HashMap<String, f64>>,
+    issuer_curves: &Option<BTreeMap<String, Arc<HazardCurve>>>,
+    issuer_recovery_rates: &Option<BTreeMap<String, f64>>,
 ) -> Result<()> {
     let Some(recovery_rates) = issuer_recovery_rates else {
         return Ok(());
@@ -320,8 +359,8 @@ fn validate_issuer_recovery_rates(
 }
 
 fn validate_issuer_weights(
-    issuer_curves: &Option<HashMap<String, Arc<HazardCurve>>>,
-    issuer_weights: &Option<HashMap<String, f64>>,
+    issuer_curves: &Option<BTreeMap<String, Arc<HazardCurve>>>,
+    issuer_weights: &Option<BTreeMap<String, f64>>,
     num_constituents: u16,
 ) -> Result<()> {
     let Some(weights) = issuer_weights else {

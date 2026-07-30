@@ -114,7 +114,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_core::Error;
 
-use finstack_quant_core::HashMap;
+use indexmap::IndexMap;
 
 use crate::impl_instrument_base;
 use serde::{Deserialize, Serialize};
@@ -138,7 +138,7 @@ pub struct MarketConditions {
     /// Seasonal adjustment factor.
     pub seasonal_factor: Option<f64>,
     /// Custom market factors.
-    pub custom_factors: HashMap<String, f64>,
+    pub custom_factors: IndexMap<String, f64>,
 }
 
 impl Default for MarketConditions {
@@ -150,7 +150,7 @@ impl Default for MarketConditions {
             hpa: None,
             unemployment: None,
             seasonal_factor,
-            custom_factors: HashMap::default(),
+            custom_factors: IndexMap::new(),
         }
     }
 }
@@ -176,7 +176,7 @@ pub struct CreditFactors {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub annual_debt_service: Option<Money>,
     /// Additional custom factors.
-    pub custom_factors: HashMap<String, f64>,
+    pub custom_factors: IndexMap<String, f64>,
 }
 
 // ============================================================================
@@ -1681,7 +1681,7 @@ impl StructuredCredit {
             .copied()
             .unwrap_or(0.05);
 
-        let final_metrics: finstack_quant_core::HashMap<MetricId, f64> =
+        let final_metrics: std::collections::BTreeMap<MetricId, f64> =
             computed_metrics.into_iter().collect();
 
         Ok(TrancheValuation {

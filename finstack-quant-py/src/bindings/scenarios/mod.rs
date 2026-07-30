@@ -56,24 +56,75 @@ fn parse_scenario_spec(json_str: &str) -> PyResult<String> {
     to_json(&spec, "Failed to serialize ScenarioSpec")
 }
 
+/// Build and validate a scenario specification as JSON.
+///
+/// Parameters
+/// ----------
+/// id : str
+///     Stable scenario identifier written to the returned specification.
+/// operations_json : str
+///     JSON array of scenario operations in execution order.
+/// name : str, optional
+///     Optional human-readable scenario name.
+/// description : str, optional
+///     Optional human-readable explanation of the scenario.
+/// priority : int, default 0
+///     Composition priority; lower values execute first.
+/// resolution_mode : str, default "most_specific_wins"
+///     Hierarchy conflict policy. Accepted values are
+///     ``"most_specific_wins"`` and ``"cumulative"``.
+///
+/// Returns
+/// -------
+/// str
+///     Validated serialized ``ScenarioSpec`` JSON.
+///
+/// Raises
+/// ------
+/// ValueError
+///     If ``operations_json`` is malformed, ``resolution_mode`` is not one of
+///     the accepted values, the resulting scenario fails validation, or the
+///     specification cannot be serialized.
+///
+/// Examples
+/// --------
+/// >>> from finstack_quant.scenarios import build_scenario_spec
+/// >>> import json
+/// >>> spec = build_scenario_spec("stress", "[]", resolution_mode="cumulative")
+/// >>> json.loads(spec)["resolution_mode"]
+/// 'cumulative'
 #[pyfunction]
-#[pyo3(signature = (id, operations_json, name=None, description=None, priority=0))]
+#[pyo3(signature = (
+    id,
+    operations_json,
+    name=None,
+    description=None,
+    priority=0,
+    resolution_mode="most_specific_wins"
+))]
 fn build_scenario_spec(
     id: &str,
     operations_json: &str,
     name: Option<&str>,
     description: Option<&str>,
     priority: i32,
+    resolution_mode: &str,
 ) -> PyResult<String> {
     let operations: Vec<finstack_quant_scenarios::OperationSpec> =
         parse_json(operations_json, "Failed to parse operations JSON")?;
+    let resolution_mode = serde_json::from_value(serde_json::Value::String(
+        resolution_mode.to_string(),
+    ))
+    .map_err(|error| {
+        crate::errors::value_error(format!("Invalid scenario resolution_mode: {error}"))
+    })?;
     let spec = finstack_quant_scenarios::ScenarioSpec {
         id: id.to_string(),
         name: name.map(str::to_string),
         description: description.map(str::to_string),
         operations,
         priority,
-        resolution_mode: Default::default(),
+        resolution_mode,
     };
     validate_spec(&spec)?;
     to_json(&spec, "Failed to serialize ScenarioSpec")

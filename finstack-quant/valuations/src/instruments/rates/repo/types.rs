@@ -100,7 +100,7 @@ impl std::str::FromStr for CollateralType {
 }
 
 /// Specification of collateral backing a repo.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct CollateralSpec {
     /// Type of collateral (general vs special)
     pub collateral_type: CollateralType,
@@ -191,6 +191,7 @@ impl CollateralSpec {
 #[derive(
     Debug,
     Clone,
+    PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
     finstack_quant_valuations_macros::FocusedPricingOverrides,
 )]

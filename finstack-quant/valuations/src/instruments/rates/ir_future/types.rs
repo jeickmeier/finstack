@@ -45,6 +45,7 @@ use crate::instruments::Position;
 #[derive(
     Clone,
     Debug,
+    PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
     finstack_quant_valuations_macros::FocusedPricingOverrides,
 )]
@@ -116,7 +117,7 @@ pub struct InterestRateFuture {
 ///
 /// Encapsulates exchange-defined contract parameters and optional convexity
 /// adjustment for pricing.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct FutureContractSpecs {
     /// Face value of contract (e.g., $1,000,000 for Eurodollar/SOFR futures)
     pub face_value: f64,

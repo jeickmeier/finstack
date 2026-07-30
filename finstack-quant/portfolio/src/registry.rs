@@ -5,9 +5,11 @@ use std::sync::OnceLock;
 use serde::Deserialize;
 
 use crate::liquidity::LiquidityConfig;
-use finstack_quant_core::{Error, Result};
+use finstack_quant_core::{ContractDescriptor, Error, Result};
 
 const LIQUIDITY_DEFAULTS: &str = include_str!("../data/defaults/liquidity_defaults.v1.json");
+pub(crate) const LIQUIDITY_DEFAULTS_CONTRACT: ContractDescriptor =
+    ContractDescriptor::new("finstack_quant.portfolio.liquidity_defaults", 1);
 
 static EMBEDDED_LIQUIDITY_DEFAULTS: OnceLock<Result<LiquidityDefaults>> = OnceLock::new();
 
@@ -21,8 +23,8 @@ pub struct LiquidityDefaults {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct LiquidityDefaultsFile {
-    schema: Option<String>,
-    version: Option<u32>,
+    schema: String,
+    version: u32,
     default_config: LiquidityConfig,
 }
 
@@ -63,8 +65,24 @@ fn parse_liquidity_defaults() -> Result<LiquidityDefaults> {
 }
 
 fn liquidity_defaults_from_file(file: LiquidityDefaultsFile) -> Result<LiquidityDefaults> {
-    let _schema = &file.schema;
-    let _version = file.version;
+    let schema_version = LIQUIDITY_DEFAULTS_CONTRACT
+        .parse_schema(&file.schema)
+        .map_err(|error| {
+            Error::Validation(format!(
+                "invalid liquidity defaults schema {:?}; expected {:?}: {error}",
+                file.schema,
+                LIQUIDITY_DEFAULTS_CONTRACT.schema_string(),
+            ))
+        })?;
+    let version = LIQUIDITY_DEFAULTS_CONTRACT
+        .resolve(Some(file.version))
+        .map_err(|error| Error::Validation(error.to_string()))?;
+    if schema_version != version {
+        return Err(Error::Validation(format!(
+            "liquidity defaults schema version {schema_version} does not match version field \
+             {version}"
+        )));
+    }
     validate_liquidity_config(&file.default_config)?;
     Ok(LiquidityDefaults {
         default_config: file.default_config,
@@ -114,5 +132,90 @@ fn validate_unit_interval(label: &str, value: f64) -> Result<()> {
         Ok(())
     } else {
         Err(Error::Validation(format!("{label} must be in [0, 1]")))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn load_value(value: serde_json::Value) -> Result<LiquidityDefaults> {
+        let file: LiquidityDefaultsFile =
+            serde_json::from_value(value).map_err(|error| Error::Validation(error.to_string()))?;
+        liquidity_defaults_from_file(file)
+    }
+
+    #[test]
+    fn liquidity_defaults_reject_missing_zero_future_and_malformed_contract_markers() {
+        let base: serde_json::Value =
+            serde_json::from_str(LIQUIDITY_DEFAULTS).expect("embedded fixture is JSON");
+
+        let mut missing_schema = base.clone();
+        missing_schema
+            .as_object_mut()
+            .expect("object")
+            .remove("schema");
+        assert!(load_value(missing_schema).is_err());
+
+        let mut missing_version = base.clone();
+        missing_version
+            .as_object_mut()
+            .expect("object")
+            .remove("version");
+        assert!(load_value(missing_version).is_err());
+
+        for version in [0, 2] {
+            let mut value = base.clone();
+            value["version"] = serde_json::json!(version);
+            assert!(load_value(value).is_err(), "version {version} must fail");
+        }
+
+        for schema in [
+            "finstack_quant.portfolio.liquidity_defaults/0",
+            "finstack_quant.portfolio.liquidity_defaults/2",
+            "finstack_quant.portfolio.liquidity_defaults/not-a-version",
+            "other.liquidity_defaults/1",
+        ] {
+            let mut value = base.clone();
+            value["schema"] = serde_json::json!(schema);
+            assert!(load_value(value).is_err(), "schema {schema} must fail");
+        }
+    }
+
+    #[test]
+    fn liquidity_defaults_version_matrix_fixture_drives_loader() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../tests/data/liquidity_defaults_version_matrix.json"
+        ))
+        .expect("version matrix fixture parses");
+        let base = fixture["base"].clone();
+        let cases = fixture["cases"]
+            .as_array()
+            .expect("fixture contains contract cases");
+
+        for case in cases {
+            let name = case["name"].as_str().expect("case name");
+            let mut document = base.clone();
+            for field in ["schema", "version"] {
+                match case.get(field) {
+                    Some(serde_json::Value::Null) => {
+                        document
+                            .as_object_mut()
+                            .expect("defaults object")
+                            .remove(field);
+                    }
+                    Some(value) => document[field] = value.clone(),
+                    None => {}
+                }
+            }
+            let expected = case["expected"].as_str().expect("expected outcome");
+            match load_value(document) {
+                Ok(_) => assert_eq!(expected, "ok", "{name} unexpectedly loaded"),
+                Err(error) => assert!(
+                    error.to_string().contains(expected),
+                    "{name}: expected {expected} in {error}"
+                ),
+            }
+        }
     }
 }

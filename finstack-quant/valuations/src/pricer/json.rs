@@ -6,6 +6,7 @@
 //! the standard pricer registry.
 
 use super::{shared_standard_registry, ModelKey, PricerRegistry};
+use crate::instruments::json_loader::{INSTRUMENT_CONTRACT, MAX_JSON_BYTES};
 use crate::instruments::{Instrument, InstrumentEnvelope, InstrumentJson, MetricPricingOverrides};
 use crate::metrics::MetricId;
 use crate::results::ValuationResult;
@@ -29,9 +30,10 @@ pub const STANDARD_OPTION_GREEKS: &[&str] = &[
 
 /// Parse a tagged instrument JSON payload into the canonical Rust enum.
 ///
-/// This accepts the `InstrumentJson` form used by direct Rust callers. For an
-/// envelope that can also carry schema metadata, use
-/// [`parse_boxed_instrument_json`].
+/// This accepts both the compatibility `{type, spec}` form and the versioned
+/// [`InstrumentEnvelope`] form. Input size is capped at
+/// [`MAX_JSON_BYTES`], and the concrete instrument is validated before the
+/// enum is returned.
 ///
 /// # Arguments
 ///
@@ -40,11 +42,38 @@ pub const STANDARD_OPTION_GREEKS: &[&str] = &[
 ///
 /// # Errors
 ///
-/// Returns `Error::Validation` when `json` is malformed or does not match a
-/// supported tagged instrument shape.
+/// Returns `Error::Validation` when `json` exceeds the size cap, is malformed,
+/// carries an unsupported envelope schema, does not match a supported tagged
+/// instrument shape, or fails domain validation.
 pub fn parse_instrument_json(json: &str) -> finstack_quant_core::Result<InstrumentJson> {
-    serde_json::from_str(json)
-        .map_err(|e| Error::Validation(format!("invalid instrument JSON: {e}")))
+    if json.len() > MAX_JSON_BYTES {
+        return Err(Error::Validation(format!(
+            "Instrument JSON input exceeds the {} MiB size limit",
+            MAX_JSON_BYTES / (1024 * 1024)
+        )));
+    }
+    let value: Value = serde_json::from_str(json)
+        .map_err(|error| Error::Validation(format!("invalid instrument JSON: {error}")))?;
+    let instrument = if value.get("schema").is_some() {
+        let envelope: InstrumentEnvelope = serde_json::from_value(value).map_err(|error| {
+            Error::Validation(format!("invalid instrument envelope JSON: {error}"))
+        })?;
+        INSTRUMENT_CONTRACT
+            .parse_schema(&envelope.schema)
+            .map_err(|error| {
+                Error::Validation(format!(
+                    "invalid instrument envelope schema {:?}; expected {:?}: {error}",
+                    envelope.schema,
+                    INSTRUMENT_CONTRACT.schema_string()
+                ))
+            })?;
+        envelope.instrument
+    } else {
+        serde_json::from_value(value)
+            .map_err(|error| Error::Validation(format!("invalid instrument JSON: {error}")))?
+    };
+    instrument.clone().into_boxed()?.validate_for_pricing()?;
+    Ok(instrument)
 }
 
 /// Build and validate canonical tagged instrument JSON from either a bare spec
@@ -923,6 +952,22 @@ mod tests {
         let value: Value = serde_json::from_str(&canonical).expect("canonical json");
         assert_eq!(value["schema"], InstrumentEnvelope::CURRENT_SCHEMA);
         assert_eq!(value["instrument"]["type"], "bond");
+    }
+
+    #[test]
+    fn parse_instrument_json_accepts_envelope_and_enforces_size_cap() {
+        let bare = bond_instrument_json();
+        let parsed = parse_instrument_json(&bare).expect("bare payload");
+        let envelope = InstrumentEnvelope::new(parsed);
+        let json = serde_json::to_string(&envelope).expect("envelope json");
+        assert!(matches!(
+            parse_instrument_json(&json).expect("envelope payload"),
+            InstrumentJson::Bond(_)
+        ));
+
+        let oversized = " ".repeat(MAX_JSON_BYTES + 1);
+        let error = parse_instrument_json(&oversized).expect_err("oversized payload fails");
+        assert!(error.to_string().contains("size limit"), "{error}");
     }
 
     #[test]

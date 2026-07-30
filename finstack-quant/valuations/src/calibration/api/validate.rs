@@ -23,11 +23,18 @@ use serde::Serialize;
 use std::collections::{BTreeSet, HashSet};
 
 use crate::calibration::api::errors::EnvelopeError;
-use crate::calibration::api::schema::{CalibrationEnvelope, CalibrationStep};
+use crate::calibration::api::schema::{
+    legacy_calibration_schema_report, CalibrationEnvelope, CalibrationStep, CALIBRATION_CONTRACT,
+    CALIBRATION_SCHEMA, LEGACY_CALIBRATION_SCHEMA,
+};
 use crate::market::quotes::{
     bond::BondQuote, cds::CdsQuote, cds_tranche::CDSTrancheQuote, fx::FxQuote,
     inflation::InflationQuote, market_quote::MarketQuote, rates::RateQuote, vol::VolQuote,
     xccy::XccyQuote,
+};
+use finstack_quant_core::contract::{
+    ContractError, Diagnostic, LoadLimits, LoadPhase, Severity,
+    ValidationReport as ContractValidationReport,
 };
 
 /// Result of [`validate`]. Always contains the dependency graph; `errors` is
@@ -99,6 +106,65 @@ pub fn validate(envelope: &CalibrationEnvelope) -> ValidationReport {
     }
 }
 
+impl CalibrationEnvelope {
+    /// Run the complete solver-free semantic validation pass.
+    ///
+    /// The returned report contains every detected envelope error together
+    /// with the dependency graph. An empty `errors` list means the request is
+    /// semantically valid for execution.
+    #[must_use]
+    pub fn validate(&self) -> ValidationReport {
+        validate(self)
+    }
+}
+
+pub(crate) fn append_contract_diagnostics(
+    report: &mut ContractValidationReport,
+    errors: impl IntoIterator<Item = EnvelopeError>,
+    limits: &LoadLimits,
+) {
+    for error in errors {
+        report.push_bounded(limits, contract_diagnostic(&error));
+    }
+}
+
+fn contract_diagnostic(error: &EnvelopeError) -> Diagnostic {
+    let pointer = match error {
+        EnvelopeError::UnknownStepKind { step_index, .. }
+        | EnvelopeError::MissingDependency { step_index, .. }
+        | EnvelopeError::QuoteClassMismatch { step_index, .. } => {
+            format!("/plan/steps/{step_index}")
+        }
+        EnvelopeError::UndefinedQuoteSet { step_index, .. } => {
+            format!("/plan/steps/{step_index}/quote_set")
+        }
+        EnvelopeError::QuoteDataInvalid { .. } | EnvelopeError::DuplicateMarketDatumId { .. } => {
+            "/market_data".to_string()
+        }
+        EnvelopeError::QuoteIdNotInMarketData { quote_set, .. } => {
+            format!("/plan/quote_sets/{}", escape_json_pointer(quote_set))
+        }
+        EnvelopeError::JsonParse { .. }
+        | EnvelopeError::SchemaMissing { .. }
+        | EnvelopeError::MalformedSchema { .. }
+        | EnvelopeError::UnsupportedSchemaVersion { .. }
+        | EnvelopeError::JsonSerialize { .. }
+        | EnvelopeError::SolverNotConverged { .. } => "/".to_string(),
+    };
+    Diagnostic::new(
+        format!("calibration/{}", error.kind_str().replace('_', "-")),
+        LoadPhase::Semantic,
+        Severity::Error,
+        error.to_string(),
+    )
+    .with_pointer(pointer)
+    .with_contract(CALIBRATION_CONTRACT.id)
+}
+
+fn escape_json_pointer(segment: &str) -> String {
+    segment.replace('~', "~0").replace('/', "~1")
+}
+
 /// Wrap [`validate`] to take a JSON string.
 ///
 /// Returns the report serialized as pretty-printed JSON. Returns an
@@ -144,6 +210,9 @@ pub fn dependency_graph_json(envelope_json: &str) -> Result<String, EnvelopeErro
 ///   statically validate, and reserialize in canonical pretty JSON form.
 pub fn validate_calibration_json(envelope_json: &str) -> Result<String, EnvelopeError> {
     let envelope = parse_envelope(envelope_json)?;
+    if let Some(error) = envelope.validate().errors.into_iter().next() {
+        return Err(error);
+    }
     serialize_pretty_json(&envelope, "CalibrationEnvelope")
 }
 
@@ -158,7 +227,7 @@ fn serialize_pretty_json<T: Serialize>(value: &T, target: &str) -> Result<String
     })
 }
 
-/// Parse a JSON envelope, returning a friendly error for legacy v2 envelopes.
+/// Parse a JSON envelope, enforcing its calibration schema marker.
 ///
 /// The v3 envelope (see [`CalibrationEnvelope`]) replaced the v2 `initial_market`
 /// section with flat `market_data` / `prior_market` lists. Envelopes that still
@@ -168,8 +237,32 @@ fn serialize_pretty_json<T: Serialize>(value: &T, target: &str) -> Result<String
 /// # Arguments
 ///
 /// * `json` - UTF-8 JSON calibration-envelope document in the v3 flat-market
-///   shape; legacy v2 `initial_market` input is rejected with migration detail.
+///   shape. The current versioned marker and deprecated unversioned marker are
+///   accepted; legacy v2 `initial_market` input is rejected with migration
+///   detail.
 pub fn parse_envelope(json: &str) -> Result<CalibrationEnvelope, EnvelopeError> {
+    parse_envelope_with_report(json).map(|(envelope, _report)| envelope)
+}
+
+/// Parse a calibration envelope and retain compatibility diagnostics.
+///
+/// Current envelopes produce an empty report. The deprecated unversioned
+/// `"finstack_quant.calibration"` marker is mapped to version 3 and produces a
+/// warning so persistence callers can identify and rewrite legacy documents.
+///
+/// # Arguments
+///
+/// * `json` - UTF-8 JSON calibration-envelope document to parse and enforce
+///   against [`CALIBRATION_CONTRACT`].
+///
+/// # Errors
+///
+/// Returns [`EnvelopeError`] for malformed JSON, the removed v2
+/// `initial_market` shape, a missing or malformed schema marker, an unsupported
+/// schema version, or an invalid v3 envelope structure.
+pub fn parse_envelope_with_report(
+    json: &str,
+) -> Result<(CalibrationEnvelope, ContractValidationReport), EnvelopeError> {
     let value: serde_json::Value =
         serde_json::from_str(json).map_err(|e| EnvelopeError::JsonParse {
             message: e.to_string(),
@@ -186,11 +279,49 @@ pub fn parse_envelope(json: &str) -> Result<CalibrationEnvelope, EnvelopeError> 
             col: None,
         });
     }
-    serde_json::from_value(value).map_err(|e| EnvelopeError::JsonParse {
+    let schema = value
+        .get("schema")
+        .ok_or_else(|| EnvelopeError::SchemaMissing {
+            expected: CALIBRATION_SCHEMA.to_string(),
+        })?
+        .as_str()
+        .ok_or_else(|| EnvelopeError::MalformedSchema {
+            found: value["schema"].to_string(),
+            expected: CALIBRATION_SCHEMA.to_string(),
+        })?;
+
+    let report = if schema == LEGACY_CALIBRATION_SCHEMA {
+        legacy_calibration_schema_report(&LoadLimits::default())
+    } else {
+        match CALIBRATION_CONTRACT.parse_schema(schema) {
+            Ok(_) => {}
+            Err(ContractError::UnsupportedVersion {
+                found, min, max, ..
+            }) => {
+                return Err(EnvelopeError::UnsupportedSchemaVersion { found, min, max });
+            }
+            Err(ContractError::MalformedSchema { .. }) => {
+                return Err(EnvelopeError::MalformedSchema {
+                    found: schema.to_string(),
+                    expected: CALIBRATION_SCHEMA.to_string(),
+                });
+            }
+            Err(other) => {
+                return Err(EnvelopeError::MalformedSchema {
+                    found: schema.to_string(),
+                    expected: format!("{CALIBRATION_SCHEMA} ({other})"),
+                });
+            }
+        }
+        ContractValidationReport::default()
+    };
+
+    let envelope = serde_json::from_value(value).map_err(|e| EnvelopeError::JsonParse {
         message: e.to_string(),
         line: None,
         col: None,
-    })
+    })?;
+    Ok((envelope, report))
 }
 
 fn collect_initial_ids(envelope: &CalibrationEnvelope) -> HashSet<String> {
@@ -623,15 +754,16 @@ fn levenshtein(a: &str, b: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calibration::api::market_datum::MarketDatum;
+    use crate::calibration::api::market_datum::{MarketDatum, PriceDatum};
     use crate::calibration::api::schema::{
-        CalibrationPlan, CalibrationStep, DiscountCurveParams, StepParams, CALIBRATION_SCHEMA,
+        CalibrationPlan, CalibrationResultEnvelope, CalibrationStep, DiscountCurveParams,
+        StepParams, CALIBRATION_SCHEMA,
     };
     use crate::market::conventions::ids::{CdsConventionKey, CdsDocClause};
     use crate::market::quotes::ids::{Pillar, QuoteId};
     use finstack_quant_core::currency::Currency;
+    use finstack_quant_core::market_data::scalars::MarketScalar;
     use finstack_quant_core::types::IndexId;
-    use finstack_quant_core::HashMap;
 
     fn empty_envelope(id: &str) -> CalibrationEnvelope {
         CalibrationEnvelope {
@@ -640,7 +772,7 @@ mod tests {
             plan: CalibrationPlan {
                 id: id.to_string(),
                 description: None,
-                quote_sets: HashMap::default(),
+                quote_sets: Default::default(),
                 steps: Vec::new(),
                 settings: Default::default(),
             },
@@ -665,12 +797,111 @@ mod tests {
         }
     }
 
+    fn semantically_invalid_envelope() -> CalibrationEnvelope {
+        let mut envelope = empty_envelope("invalid");
+        envelope
+            .plan
+            .steps
+            .push(discount_step("first", "missing-first", "USD-OIS"));
+        envelope
+            .plan
+            .steps
+            .push(discount_step("second", "missing-second", "USD-SOFR"));
+        envelope
+    }
+
+    fn duplicate_price_envelope() -> CalibrationEnvelope {
+        let mut envelope = empty_envelope("duplicate-market-data");
+        envelope.market_data = vec![
+            MarketDatum::Price(PriceDatum {
+                id: "SPX".into(),
+                scalar: MarketScalar::Unitless(5_000.0),
+            }),
+            MarketDatum::Price(PriceDatum {
+                id: "SPX".into(),
+                scalar: MarketScalar::Unitless(5_001.0),
+            }),
+        ];
+        envelope
+    }
+
+    fn nested_json(depth: usize) -> serde_json::Value {
+        (0..depth).fold(
+            serde_json::json!("leaf"),
+            |value, _| serde_json::json!({"nested": value}),
+        )
+    }
+
     #[test]
     fn empty_envelope_validates_clean() {
         let env = empty_envelope("smoke");
         let report = validate(&env);
         assert!(report.errors.is_empty());
         assert!(report.dependency_graph.nodes.is_empty());
+        assert!(env.validate().errors.is_empty());
+    }
+
+    #[test]
+    fn request_strict_loader_aggregates_bounded_semantic_diagnostics() {
+        let envelope = semantically_invalid_envelope();
+        let bytes = serde_json::to_vec(&envelope).expect("serialize invalid request");
+        let error = CalibrationEnvelope::from_slice_strict(
+            &bytes,
+            &LoadLimits::default().with_max_diagnostics(1),
+        )
+        .expect_err("strict request loading must enforce envelope semantics");
+        let ContractError::Report(report) = error else {
+            panic!("semantic failures must be structured diagnostics");
+        };
+        assert!(report.truncated);
+        assert_eq!(report.diagnostics.len(), 1);
+        assert_eq!(
+            report.diagnostics[0].code,
+            "calibration/undefined-quote-set"
+        );
+        assert_eq!(
+            report.diagnostics[0].pointer.as_deref(),
+            Some("/plan/steps/0/quote_set")
+        );
+    }
+
+    #[test]
+    fn legacy_request_warning_is_preserved_alongside_semantic_errors() {
+        let mut envelope = semantically_invalid_envelope();
+        envelope.schema = LEGACY_CALIBRATION_SCHEMA.to_string();
+        let bytes = serde_json::to_vec(&envelope).expect("serialize legacy invalid request");
+        let error = CalibrationEnvelope::from_slice_strict(&bytes, &LoadLimits::default())
+            .expect_err("legacy compatibility does not bypass semantics");
+        let ContractError::Report(report) = error else {
+            panic!("legacy semantic failures must be structured diagnostics");
+        };
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "contract/version-legacy"));
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "calibration/undefined-quote-set"));
+    }
+
+    #[test]
+    fn validate_json_and_execute_reject_semantically_invalid_envelopes() {
+        let semantic = semantically_invalid_envelope();
+        let json = serde_json::to_string(&semantic).expect("serialize semantic fixture");
+        let error = validate_calibration_json(&json)
+            .expect_err("validate_calibration_json must enforce semantic validation");
+        assert!(matches!(error, EnvelopeError::UndefinedQuoteSet { .. }));
+
+        let duplicate = duplicate_price_envelope();
+        let error = crate::calibration::api::engine::execute_with_diagnostics(&duplicate)
+            .expect_err("execute path must not bypass envelope validation");
+        assert!(matches!(
+            error,
+            crate::calibration::api::engine::ExecuteError::Envelope(
+                EnvelopeError::DuplicateMarketDatumId { .. }
+            )
+        ));
     }
 
     #[test]
@@ -844,6 +1075,314 @@ mod tests {
             other => panic!("expected JsonParse error, got {other:?}"),
         }
     }
+
+    #[test]
+    fn calibration_schema_current_and_legacy_are_explicitly_supported() {
+        let current = serde_json::to_string(&empty_envelope("current")).expect("serialize");
+        let (parsed, report) =
+            parse_envelope_with_report(&current).expect("current schema is supported");
+        assert_eq!(parsed.schema, "finstack_quant.calibration/3");
+        assert!(report.diagnostics.is_empty());
+
+        let mut legacy = serde_json::to_value(empty_envelope("legacy")).expect("serialize");
+        legacy["schema"] = serde_json::json!("finstack_quant.calibration");
+        let (parsed, report) =
+            parse_envelope_with_report(&legacy.to_string()).expect("legacy schema is supported");
+        assert_eq!(parsed.schema, "finstack_quant.calibration");
+        assert_eq!(report.diagnostics.len(), 1);
+        assert_eq!(
+            report.diagnostics[0].severity,
+            finstack_quant_core::Severity::Warning
+        );
+        assert_eq!(report.diagnostics[0].code, "contract/version-legacy");
+    }
+
+    #[test]
+    fn calibration_schema_rejects_missing_zero_future_and_malformed_values() {
+        let base = serde_json::to_value(empty_envelope("invalid")).expect("serialize");
+        let cases = [
+            (None, "missing"),
+            (Some("finstack_quant.calibration/0"), "unsupported"),
+            (Some("finstack_quant.calibration/4"), "unsupported"),
+            (
+                Some("finstack_quant.calibration/not-a-version"),
+                "malformed",
+            ),
+            (Some("other.calibration/3"), "malformed"),
+        ];
+        for (schema, expected) in cases {
+            let mut value = base.clone();
+            match schema {
+                Some(schema) => value["schema"] = serde_json::json!(schema),
+                None => {
+                    value
+                        .as_object_mut()
+                        .expect("envelope object")
+                        .remove("schema");
+                }
+            }
+            let error = parse_envelope(&value.to_string()).expect_err("schema must fail");
+            assert!(
+                error.to_string().contains(expected),
+                "expected {expected} in {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn calibration_result_strict_loader_enforces_current_missing_zero_future_and_malformed_schema()
+    {
+        let envelope = crate::calibration::api::engine::execute(&empty_envelope("result"))
+            .expect("empty calibration executes");
+        let base = serde_json::to_value(envelope).expect("result serializes");
+        let cases = [
+            (
+                "current",
+                Some(serde_json::json!("finstack_quant.calibration/3")),
+                None,
+            ),
+            ("missing", None, Some("contract/version-missing")),
+            (
+                "zero",
+                Some(serde_json::json!("finstack_quant.calibration/0")),
+                Some("contract/version-unsupported"),
+            ),
+            (
+                "future",
+                Some(serde_json::json!("finstack_quant.calibration/4")),
+                Some("contract/version-unsupported"),
+            ),
+            (
+                "malformed",
+                Some(serde_json::json!(
+                    "finstack_quant.calibration/not-a-version"
+                )),
+                Some("contract/schema-malformed"),
+            ),
+            (
+                "wrong-type",
+                Some(serde_json::json!(3)),
+                Some("contract/schema-malformed"),
+            ),
+        ];
+
+        for (name, schema, expected_code) in cases {
+            let mut value = base.clone();
+            match schema {
+                Some(schema) => value["schema"] = schema,
+                None => {
+                    value
+                        .as_object_mut()
+                        .expect("result envelope object")
+                        .remove("schema");
+                }
+            }
+            let bytes = serde_json::to_vec(&value).expect("case serializes");
+            match expected_code {
+                None => {
+                    let (loaded, report) = CalibrationResultEnvelope::from_slice_strict(
+                        &bytes,
+                        &LoadLimits::default(),
+                    )
+                    .unwrap_or_else(|error| panic!("{name} must load: {error}"));
+                    assert_eq!(loaded.schema, CALIBRATION_SCHEMA);
+                    assert!(report.diagnostics.is_empty());
+                }
+                Some(expected_code) => {
+                    let error = CalibrationResultEnvelope::from_slice_strict(
+                        &bytes,
+                        &LoadLimits::default(),
+                    )
+                    .expect_err("invalid result schema must fail");
+                    let ContractError::Report(report) = error else {
+                        panic!("{name} must return a structured report");
+                    };
+                    assert_eq!(report.diagnostics[0].code, expected_code, "{name}");
+                }
+            }
+        }
+
+        let bytes = serde_json::to_vec(&base).expect("result serializes");
+        let limits = LoadLimits::default().with_max_bytes(bytes.len() - 1);
+        let error = CalibrationResultEnvelope::from_slice_strict(&bytes, &limits)
+            .expect_err("strict result loading enforces byte limits");
+        assert!(matches!(
+            error,
+            ContractError::LimitExceeded { what: "bytes", .. }
+        ));
+    }
+
+    #[test]
+    fn calibration_result_strict_loader_validates_nested_final_market() {
+        let envelope = crate::calibration::api::engine::execute(&empty_envelope("result-market"))
+            .expect("empty calibration executes");
+        let base = serde_json::to_value(envelope).expect("result serializes");
+
+        for (name, version, expected_code) in [
+            ("missing", None, "contract/version-missing"),
+            (
+                "future",
+                Some(serde_json::json!(3)),
+                "contract/version-unsupported",
+            ),
+            (
+                "invalid",
+                Some(serde_json::json!("two")),
+                "contract/structure-invalid",
+            ),
+        ] {
+            let mut value = base.clone();
+            match version {
+                Some(version) => value["result"]["final_market"]["version"] = version,
+                None => {
+                    value["result"]["final_market"]
+                        .as_object_mut()
+                        .expect("final_market object")
+                        .remove("version");
+                }
+            }
+            let bytes = serde_json::to_vec(&value).expect("nested version case serializes");
+            let error =
+                CalibrationResultEnvelope::from_slice_strict(&bytes, &LoadLimits::default())
+                    .expect_err("nested final market version must fail");
+            let ContractError::Report(report) = error else {
+                panic!("{name} nested version must return diagnostics");
+            };
+            let diagnostic = report
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == expected_code)
+                .unwrap_or_else(|| panic!("{name} missing {expected_code}: {report:?}"));
+            assert_eq!(
+                diagnostic.pointer.as_deref(),
+                Some("/result/final_market/version"),
+                "{name}: {diagnostic:?}"
+            );
+        }
+
+        let mut restore_failure = base;
+        restore_failure["result"]["final_market"]["collateral"] =
+            serde_json::json!({"USD-CSA": "MISSING"});
+        let bytes = serde_json::to_vec(&restore_failure).expect("restore case serializes");
+        let error = CalibrationResultEnvelope::from_slice_strict(&bytes, &LoadLimits::default())
+            .expect_err("invalid nested market references must fail");
+        let ContractError::Report(report) = error else {
+            panic!("restore failure must return diagnostics");
+        };
+        let diagnostic = report
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "market-context/missing-collateral-curve")
+            .expect("restore diagnostic");
+        assert_eq!(
+            diagnostic.pointer.as_deref(),
+            Some("/result/final_market/collateral/USD-CSA")
+        );
+    }
+
+    #[test]
+    fn calibration_result_nested_market_depth_is_bounded_and_legacy_warning_aggregates() {
+        let envelope = crate::calibration::api::engine::execute(&empty_envelope("result-depth"))
+            .expect("empty calibration executes");
+        let mut value = serde_json::to_value(envelope).expect("result serializes");
+        value["schema"] = serde_json::json!(LEGACY_CALIBRATION_SCHEMA);
+        value["result"]["final_market"]["hierarchy"] = nested_json(20);
+        let bytes = serde_json::to_vec(&value).expect("nested result serializes");
+
+        let error = CalibrationResultEnvelope::from_slice_strict(
+            &bytes,
+            &LoadLimits::default()
+                .with_max_depth(16)
+                .with_max_diagnostics(2),
+        )
+        .expect_err("nested final market depth must be enforced");
+        let ContractError::Report(report) = error else {
+            panic!("nested depth must return bounded structured diagnostics");
+        };
+        assert_eq!(report.diagnostics.len(), 2);
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "contract/version-legacy"));
+        let depth = report
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "contract/depth-limit")
+            .expect("nested depth diagnostic");
+        assert_eq!(depth.pointer.as_deref(), Some("/result/final_market"));
+    }
+
+    #[test]
+    fn calibration_version_matrix_fixture_drives_request_and_result_loaders() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/data/contract_version_matrix.json"
+        ))
+        .expect("version matrix fixture parses");
+
+        for contract in ["calibration", "calibration_result"] {
+            let matrix = &fixture[contract];
+            let base = matrix["base"].clone();
+            let cases = matrix["cases"]
+                .as_array()
+                .expect("matrix contains schema cases");
+            for case in cases {
+                let name = case["name"].as_str().expect("case name");
+                let mut document = base.clone();
+                match case.get("schema") {
+                    Some(serde_json::Value::Null) | None => {
+                        document
+                            .as_object_mut()
+                            .expect("envelope object")
+                            .remove("schema");
+                    }
+                    Some(schema) => document["schema"] = schema.clone(),
+                }
+                let expected = case["expected"].as_str().expect("expected outcome");
+                if contract == "calibration" {
+                    match parse_envelope_with_report(&document.to_string()) {
+                        Ok((_loaded, report)) => match expected {
+                            "ok" => assert!(report.diagnostics.is_empty(), "{name}"),
+                            "warning" => {
+                                assert_eq!(report.diagnostics[0].code, "contract/version-legacy")
+                            }
+                            _ => panic!("{name} unexpectedly loaded"),
+                        },
+                        Err(error) => assert!(
+                            error.to_string().contains(expected),
+                            "{name}: expected {expected} in {error}"
+                        ),
+                    }
+                } else {
+                    let bytes = serde_json::to_vec(&document).expect("case serializes");
+                    match CalibrationResultEnvelope::from_slice_strict(
+                        &bytes,
+                        &LoadLimits::default(),
+                    ) {
+                        Ok((_loaded, report)) => match expected {
+                            "ok" => assert!(report.diagnostics.is_empty(), "{name}"),
+                            "warning" => {
+                                assert_eq!(report.diagnostics.len(), 1, "{name}");
+                                assert_eq!(
+                                    report.diagnostics[0].code, "contract/version-legacy",
+                                    "{name}"
+                                );
+                                assert_eq!(
+                                    report.diagnostics[0].severity,
+                                    finstack_quant_core::Severity::Warning,
+                                    "{name}"
+                                );
+                            }
+                            _ => panic!("{name} unexpectedly loaded"),
+                        },
+                        Err(ContractError::Report(report)) => {
+                            assert_eq!(report.diagnostics[0].code, expected, "{name}");
+                        }
+                        Err(error) => panic!("{name} returned unstructured error: {error}"),
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -862,7 +1401,7 @@ mod v3_validation_tests {
             plan: CalibrationPlan {
                 id: "t".into(),
                 description: None,
-                quote_sets: HashMap::default(),
+                quote_sets: Default::default(),
                 steps: vec![],
                 settings: Default::default(),
             },
@@ -901,7 +1440,7 @@ mod v3_validation_tests {
             plan: CalibrationPlan {
                 id: "t".into(),
                 description: None,
-                quote_sets,
+                quote_sets: quote_sets.into_iter().collect(),
                 steps: vec![],
                 settings: Default::default(),
             },
@@ -928,7 +1467,7 @@ mod v3_validation_tests {
             plan: CalibrationPlan {
                 id: "canonical".into(),
                 description: None,
-                quote_sets: HashMap::default(),
+                quote_sets: Default::default(),
                 steps: vec![],
                 settings: Default::default(),
             },

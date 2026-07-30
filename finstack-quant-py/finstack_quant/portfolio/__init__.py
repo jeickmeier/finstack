@@ -63,8 +63,15 @@ PortfolioError = _portfolio.PortfolioError
 FinstackValuationError = _portfolio.FinstackValuationError
 FinstackFxError = _portfolio.FinstackFxError
 FinstackOptimizationError = _portfolio.FinstackOptimizationError
+ContractValidationError = _portfolio.ContractValidationError
+UnsupportedContractVersionError = _portfolio.UnsupportedContractVersionError
+MissingContractVersionError = _portfolio.MissingContractVersionError
+MalformedContractSchemaError = _portfolio.MalformedContractSchemaError
+ContractLimitExceededError = _portfolio.ContractLimitExceededError
 
 Portfolio = _portfolio.Portfolio
+InstrumentArtifactCache = _portfolio.InstrumentArtifactCache
+MaterializationReport = _portfolio.MaterializationReport
 PortfolioValuation = _portfolio.PortfolioValuation
 PortfolioResult = _portfolio.PortfolioResult
 PortfolioMetrics = _portfolio.PortfolioMetrics
@@ -175,6 +182,8 @@ optimize_portfolio_typed = _portfolio.optimize_portfolio_typed
 __all__: list[str] = [
     "CandidatePosition",
     "Constraint",
+    "ContractLimitExceededError",
+    "ContractValidationError",
     "CreditVolReport",
     "DecompositionConfig",
     "FactorAssignmentReport",
@@ -186,8 +195,12 @@ __all__: list[str] = [
     "FinstackOptimizationError",
     "FinstackValuationError",
     "Inequality",
+    "InstrumentArtifactCache",
     "LevelVolContribution",
+    "MalformedContractSchemaError",
+    "MaterializationReport",
     "MetricExpr",
+    "MissingContractVersionError",
     "MissingMetricPolicy",
     "Objective",
     "OptimizationStatus",
@@ -222,6 +235,7 @@ __all__: list[str] = [
     "TradeType",
     "TradeUniverse",
     "UnmatchedEntry",
+    "UnsupportedContractVersionError",
     "VolHorizon",
     "WeightingScheme",
     "WhatIfResult",

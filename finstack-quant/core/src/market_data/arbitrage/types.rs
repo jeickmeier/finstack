@@ -4,7 +4,7 @@
 //! structure used by all arbitrage checks. These types are serializable
 //! for audit trails, Python/WASM interop, and downstream reporting.
 
-use crate::HashMap;
+use std::collections::BTreeMap;
 
 /// A point on the volatility surface where an arbitrage condition is violated.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -18,7 +18,9 @@ pub struct ViolationLocation {
 }
 
 /// Classification of the arbitrage condition that was violated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum ArbitrageType {
     /// Call prices not convex in strike: C(K-d) - 2C(K) + C(K+d) < 0.
     /// Equivalently, implied density is negative at this strike.
@@ -108,9 +110,9 @@ pub struct ArbitrageReport {
     /// Whether the surface passes all checks (no violations above Negligible).
     pub passed: bool,
     /// Count of violations by type.
-    pub counts_by_type: HashMap<ArbitrageType, usize>,
+    pub counts_by_type: BTreeMap<ArbitrageType, usize>,
     /// Count of violations by severity.
-    pub counts_by_severity: HashMap<ArbitrageSeverity, usize>,
+    pub counts_by_severity: BTreeMap<ArbitrageSeverity, usize>,
     /// Wall-clock time for the full check suite (microseconds).
     ///
     /// **Non-deterministic.** This field is populated from the host's

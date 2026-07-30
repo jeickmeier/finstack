@@ -4,7 +4,7 @@
 
 use super::add_on::asset_class_add_on;
 use super::types::{SaCcrAssetClass, SaCcrNettingSetConfig, SaCcrTrade};
-use finstack_quant_core::HashMap;
+use std::collections::BTreeMap;
 
 /// PFE multiplier floor per BCBS 279 paragraph 149.
 const MULTIPLIER_FLOOR: f64 = 0.05;
@@ -33,9 +33,9 @@ const MULTIPLIER_FLOOR: f64 = 0.05;
 pub fn pfe(
     config: &SaCcrNettingSetConfig,
     trades: &[SaCcrTrade],
-) -> (f64, f64, HashMap<SaCcrAssetClass, f64>) {
+) -> (f64, f64, BTreeMap<SaCcrAssetClass, f64>) {
     // Compute add-on per asset class.
-    let mut add_on_by_class = HashMap::default();
+    let mut add_on_by_class = BTreeMap::new();
     let mut add_on_aggregate = 0.0;
     for &ac in SaCcrAssetClass::ALL {
         let ao = asset_class_add_on(ac, trades, config);

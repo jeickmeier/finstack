@@ -70,7 +70,7 @@ pub(super) fn apply_cash_cap_to_category<F>(
         })
         .collect();
     let allocations = allocate_pro_rata(&planned, remaining_cash);
-    for (s, allocated) in staged.iter_mut().zip(allocations.into_iter()) {
+    for (s, allocated) in staged.iter_mut().zip(allocations) {
         let currency = field(s).currency();
         *field(s) = Money::new(allocated, currency);
     }

@@ -63,6 +63,7 @@ fn default_fx_underlying(base_currency: Currency, quote_currency: Currency) -> F
 
 /// FX option instrument (Garman-Kohlhagen model)
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

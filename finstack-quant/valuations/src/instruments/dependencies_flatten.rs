@@ -31,6 +31,13 @@ pub fn decompose(deps: &MarketDependencies) -> Vec<MarketDependency> {
         result.push(MarketDependency::CreditCurve { id: id.clone() });
     }
 
+    for id in &deps.curves.inflation_curves {
+        result.push(MarketDependency::Curve {
+            id: id.clone(),
+            curve_type: CurveType::Inflation,
+        });
+    }
+
     for id in &deps.spot_ids {
         result.push(MarketDependency::Spot { id: id.clone() });
     }
@@ -98,6 +105,21 @@ mod tests {
             }
             _ => unreachable!("expected credit curve variant"),
         }
+    }
+
+    #[test]
+    fn test_decompose_inflation_curves() {
+        let mut deps = MarketDependencies::new();
+        deps.add_inflation_curve("USD-CPI");
+
+        let result = decompose(&deps);
+        assert_eq!(
+            result,
+            vec![MarketDependency::Curve {
+                id: CurveId::new("USD-CPI"),
+                curve_type: CurveType::Inflation,
+            }]
+        );
     }
 
     #[test]

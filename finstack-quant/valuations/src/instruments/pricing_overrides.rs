@@ -169,7 +169,9 @@ fn check_finite_fields(fields: &[(Option<f64>, bool)]) -> finstack_quant_core::R
 /// 7. `quoted_discount_margin` — decimal DM (FRNs)
 /// 8. `quoted_i_spread` — decimal I-spread
 /// 9. `quoted_asw_market` — decimal ASW (market convention)
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(default)]
 pub struct MarketQuoteOverrides {
     /// Quoted clean price as a percentage of par (e.g., `99.5` = 99.5% of par).
@@ -320,7 +322,9 @@ impl MarketQuoteOverrides {
 // ---------------------------------------------------------------------------
 
 /// Bump sizes for finite-difference sensitivity calculations.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(default)]
 pub struct BumpConfig {
     /// Rho bump size in **decimal rate** units (default `0.0001 = 1bp`).
@@ -386,14 +390,16 @@ impl BumpConfig {
 /// [`crate::instruments::fixed_income::bond::pricing::engine::merton_mc::MertonMcConfig`]
 /// that allows the pricer registry to access the MC configuration from
 /// [`InstrumentPricingOverrides`].
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(transparent)]
 pub struct MertonMcOverride(
     pub crate::instruments::fixed_income::bond::pricing::engine::merton_mc::MertonMcConfig,
 );
 
 /// Model selection and tree pricing parameters.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(default)]
 pub struct ModelConfig {
     /// Volatility surface extrapolation policy when `implied_volatility` is not set.
@@ -555,7 +561,9 @@ impl ModelConfig {
 // ---------------------------------------------------------------------------
 
 /// Instrument-owned pricing inputs that can materially change valuation.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(default)]
 pub struct InstrumentPricingOverrides {
     /// Market-quoted values (prices, implied vol, spreads, upfront payments).
@@ -741,7 +749,9 @@ pub enum BondRiskBasis {
 }
 
 /// Metric-time overrides derived from an instrument's pricing metadata.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(default)]
 pub struct MetricPricingOverrides {
     /// Bump sizes for finite-difference sensitivities.
@@ -882,7 +892,9 @@ impl MetricPricingOverrides {
 // ---------------------------------------------------------------------------
 
 /// Scenario-only valuation adjustments.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(default)]
 pub struct ScenarioPricingOverrides {
     /// Scenario price shock as decimal percentage (e.g., -0.05 for -5% price shock).

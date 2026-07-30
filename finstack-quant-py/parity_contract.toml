@@ -1027,6 +1027,8 @@ scenarios    = { python = "finstack_quant.portfolio.scenarios",    status = "mis
 public = [
   "CandidatePosition",
   "Constraint",
+  "ContractLimitExceededError",
+  "ContractValidationError",
   "CreditVolReport",
   "DecompositionConfig",
   "FactorAssignmentReport",
@@ -1038,9 +1040,13 @@ public = [
   "FinstackOptimizationError",
   "FinstackValuationError",
   "Inequality",
+  "InstrumentArtifactCache",
   "LevelVolContribution",
   "MetricExpr",
+  "MalformedContractSchemaError",
+  "MaterializationReport",
   "MissingMetricPolicy",
+  "MissingContractVersionError",
   "Objective",
   "OptimizationStatus",
   "PerPositionMetric",
@@ -1074,6 +1080,7 @@ public = [
   "TradeType",
   "TradeUniverse",
   "UnmatchedEntry",
+  "UnsupportedContractVersionError",
   "VolHorizon",
   "WeightingScheme",
   "WhatIfResult",
@@ -1145,6 +1152,7 @@ rust_module_root = "../finstack-quant-wasm/src/api/portfolio/"
 js_export_file   = "../finstack-quant-wasm/exports/portfolio.js"
 
 root_exports = [
+  "InstrumentArtifactCache",
   "Portfolio",
   "parsePortfolioSpec",
   "brinsonFachler",
@@ -1211,10 +1219,15 @@ python_only = [
   "FinstackFxError",
   "FinstackOptimizationError",
   "FinstackValuationError",
+  "ContractLimitExceededError",
+  "ContractValidationError",
   "Inequality",
   "LevelVolContribution",
   "MetricExpr",
+  "MalformedContractSchemaError",
+  "MaterializationReport",
   "MissingMetricPolicy",
+  "MissingContractVersionError",
   "Objective",
   "OptimizationStatus",
   "PerPositionMetric",
@@ -1247,6 +1260,7 @@ python_only = [
   "TradeType",
   "TradeUniverse",
   "UnmatchedEntry",
+  "UnsupportedContractVersionError",
   "VolHorizon",
   "WeightingScheme",
   "WhatIfResult",
@@ -1274,7 +1288,14 @@ wasm_only = [
   "computePnlProfilesWithMarket",
 ]
 
+[wasm_portfolio_subset.class_methods]
+Portfolio = ["fromMaterialization", "validateMaterializationJson"]
+
+[wasm_portfolio_subset.python_js_method_map]
+"Portfolio.from_materialization" = "Portfolio.fromMaterialization"
+
 [wasm_portfolio_subset.python_js_map]
+InstrumentArtifactCache = "InstrumentArtifactCache"
 Portfolio = "Portfolio"
 parse_portfolio_spec = "parsePortfolioSpec"
 brinson_fachler = "brinsonFachler"

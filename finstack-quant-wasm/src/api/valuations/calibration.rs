@@ -141,7 +141,6 @@ fn execute_error_to_js(err: ExecuteError) -> JsValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use finstack_quant_core::HashMap;
     use finstack_quant_valuations::calibration::api::schema::{
         CalibrationPlan, CALIBRATION_SCHEMA,
     };
@@ -150,7 +149,7 @@ mod tests {
         let plan = CalibrationPlan {
             id: "empty".to_string(),
             description: None,
-            quote_sets: HashMap::default(),
+            quote_sets: Default::default(),
             steps: Vec::new(),
             settings: Default::default(),
         };
@@ -169,6 +168,33 @@ mod tests {
         let json = empty_envelope_json();
         let canonical = validate_calibration_json(&json).expect("validate");
         assert!(!canonical.is_empty());
+    }
+
+    #[test]
+    fn validation_and_execution_reject_semantically_invalid_requests() {
+        let mut value: serde_json::Value =
+            serde_json::from_str(&empty_envelope_json()).expect("empty envelope parses");
+        value["plan"]["steps"] = serde_json::json!([{
+            "id": "discount_step",
+            "quote_set": "missing_quotes",
+            "kind": "discount",
+            "curve_id": "USD-OIS",
+            "currency": "USD",
+            "base_date": "2026-05-08"
+        }]);
+        let json = value.to_string();
+
+        for error in [
+            validate_calibration_json_inner(&json)
+                .expect_err("validation must reject undefined quote sets"),
+            calibrate_inner(&json).expect_err("execution must reject undefined quote sets"),
+        ] {
+            assert!(matches!(
+                error,
+                ExecuteError::Envelope(EnvelopeError::UndefinedQuoteSet { ref_name, .. })
+                    if ref_name == "missing_quotes"
+            ));
+        }
     }
 
     #[test]

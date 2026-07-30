@@ -1,0 +1,46 @@
+{
+  "id": "migration",
+  "periods": [],
+  "nodes": {},
+  "capital_structure": {
+    "debt_instruments": [
+      {
+        "id": "B",
+        "spec": {
+          "type": "bond",
+          "spec": {
+            "notional": 100
+          }
+        }
+      },
+      {
+        "id": "S",
+        "spec": {
+          "type": "interest_rate_swap",
+          "spec": {
+            "notional": 200
+          }
+        }
+      },
+      {
+        "id": "T",
+        "spec": {
+          "type": "term_loan",
+          "spec": {
+            "notional": 300
+          }
+        }
+      },
+      {
+        "id": "G",
+        "spec": {
+          "type": "revolving_credit",
+          "spec": {
+            "limit": 400
+          }
+        }
+      }
+    ]
+  },
+  "schema_version": 2
+}

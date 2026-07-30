@@ -38,6 +38,7 @@ time = { workspace = true, features = ["macros"] }
 proptest = "1.11.0"
 criterion = { workspace = true }
 rust_decimal_macros = { workspace = true }
+toml = "1.1.4"
 
 
 

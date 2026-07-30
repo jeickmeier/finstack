@@ -10,7 +10,7 @@ use crate::errors::{core_to_py, serde_json_to_py, value_error};
 use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
-use super::instruments::enum_from_str;
+use super::instruments::{enum_from_str, parse_typed_instrument_json};
 
 type EquityOptionBuilderInner =
     finstack_quant_valuations::instruments::equity::equity_option::EquityOptionBuilder;
@@ -62,23 +62,27 @@ impl PyEquityOption {
         }
     }
 
-    /// Deserialize from tagged instrument JSON (``{"type": "equity_option", ...}``).
+    /// Deserialize a validated equity option from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"equity_option"``.
+    ///     Bare tagged JSON with exact type ``"equity_option"``, or a full
+    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
+    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
+    ///     performed.
     ///
     /// Returns
     /// -------
     /// EquityOption
-    ///     The validated equity option.
+    ///     The validated equity option represented by the exact ``"equity_option"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries another type, or fails equity-option
+    ///     validation.
     ///
     /// Examples
     /// --------
@@ -88,9 +92,7 @@ impl PyEquityOption {
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match serde_json::from_str::<InstrumentJson>(json)
-            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
-        {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::EquityOption(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })

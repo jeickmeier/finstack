@@ -13,6 +13,7 @@ use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 /// Quanto options have payoffs that depend on an underlying asset in one currency
 /// but are settled in another currency, creating FX exposure.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

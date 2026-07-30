@@ -104,12 +104,45 @@ impl std::str::FromStr for SeriesInterpolation {
 /// }
 /// ```
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(try_from = "RawMarketScalar", into = "RawMarketScalar")]
 pub enum MarketScalar {
     /// Unitless numeric (e.g., equity beta, recovery rate assumption)
     Unitless(f64),
     /// Monetary price or amount with currency
     Price(crate::money::Money),
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+enum RawMarketScalar {
+    Unitless(f64),
+    Price(crate::money::Money),
+}
+
+impl TryFrom<RawMarketScalar> for MarketScalar {
+    type Error = crate::Error;
+
+    fn try_from(raw: RawMarketScalar) -> std::result::Result<Self, Self::Error> {
+        match raw {
+            RawMarketScalar::Unitless(value) if value.is_finite() => Ok(Self::Unitless(value)),
+            RawMarketScalar::Unitless(_) => Err(crate::Error::Validation(
+                "MarketScalar unitless value must be finite".into(),
+            )),
+            RawMarketScalar::Price(value) if value.amount().is_finite() => Ok(Self::Price(value)),
+            RawMarketScalar::Price(_) => Err(crate::Error::Validation(
+                "MarketScalar price amount must be finite".into(),
+            )),
+        }
+    }
+}
+
+impl From<MarketScalar> for RawMarketScalar {
+    fn from(value: MarketScalar) -> Self {
+        match value {
+            MarketScalar::Unitless(value) => Self::Unitless(value),
+            MarketScalar::Price(value) => Self::Price(value),
+        }
+    }
 }
 
 /// Date-indexed time series with flexible interpolation.
@@ -593,6 +626,13 @@ impl TryFrom<RawScalarTimeSeries> for ScalarTimeSeries {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn market_scalar_shadow_rejects_non_finite_values() {
+        assert!(MarketScalar::try_from(RawMarketScalar::Unitless(f64::NAN)).is_err());
+        assert!(MarketScalar::try_from(RawMarketScalar::Unitless(f64::INFINITY)).is_err());
+        assert!(crate::money::Money::try_new(f64::NEG_INFINITY, Currency::USD).is_err());
+    }
 
     #[test]
     fn series_step_and_linear() {

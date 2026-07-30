@@ -1,25 +1,43 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "fx_swap",
     "spec": {
-      "id": "FXSWAP-EURUSD-6M",
+      "attributes": {},
       "base_currency": "EUR",
-      "quote_currency": "USD",
-      "near_date": "2024-01-05",
-      "far_date": "2024-07-05",
       "base_notional": {
         "amount": "1000000",
         "currency": "EUR"
       },
       "domestic_discount_curve_id": "USD-OIS",
-      "foreign_discount_curve_id": "EUR-OIS",
-      "near_rate": 1.1,
+      "far_date": "2024-07-05",
       "far_rate": 1.12,
-      "attributes": {
-        "tags": [],
-        "meta": {}
-      }
-    }
-  }
+      "foreign_discount_curve_id": "EUR-OIS",
+      "id": "FXSWAP-EURUSD-6M",
+      "near_date": "2024-01-05",
+      "near_rate": 1.1,
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
+      },
+      "quote_currency": "USD"
+    },
+    "type": "fx_swap"
+  },
+  "schema": "finstack_quant.instrument/1"
 }

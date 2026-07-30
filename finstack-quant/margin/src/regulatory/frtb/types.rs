@@ -5,6 +5,7 @@
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::HashMap;
+use std::collections::BTreeMap;
 
 // ---------------------------------------------------------------------------
 // Risk class enum
@@ -14,7 +15,9 @@ use finstack_quant_core::HashMap;
 ///
 /// These differ from SIMM risk classes: GIRR replaces IR, CSR is split
 /// into three sub-types for securitization treatment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 #[non_exhaustive]
 pub enum FrtbRiskClass {
     /// General Interest Rate Risk
@@ -69,7 +72,9 @@ impl std::fmt::Display for FrtbRiskClass {
 /// The final SBA capital charge is max(low, medium, high).
 /// Low and high scenarios scale prescribed correlations per BCBS d457,
 /// floored/capped by the scenario-specific Basel formulas.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum CorrelationScenario {
     /// `rho_low = max(2 * rho_medium - 1, 0.75 * rho_medium)`
     Low,
@@ -244,7 +249,7 @@ pub struct RraoPosition {
 /// - CSR securitization sub-type separation
 /// - Curvature shock direction (up/down) per risk factor
 /// - Bucket assignment metadata required for FRTB aggregation
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FrtbSensitivities {
     /// Base/reporting currency.
     pub base_currency: Currency,
@@ -328,6 +333,24 @@ pub struct FrtbSensitivities {
     // -- RRAO --
     /// Notional amounts for exotic instruments subject to RRAO.
     pub rrao_exotic_notionals: Vec<RraoPosition>,
+}
+
+impl serde::Serialize for FrtbSensitivities {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        super::wire::serialize(self, serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for FrtbSensitivities {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        super::wire::deserialize(deserializer)
+    }
 }
 
 impl FrtbSensitivities {
@@ -728,11 +751,11 @@ pub struct FrtbSbaResult {
     /// Total capital charge (sum of all components).
     pub total: f64,
     /// Delta risk charge by risk class.
-    pub delta_by_risk_class: HashMap<FrtbRiskClass, f64>,
+    pub delta_by_risk_class: BTreeMap<FrtbRiskClass, f64>,
     /// Vega risk charge by risk class.
-    pub vega_by_risk_class: HashMap<FrtbRiskClass, f64>,
+    pub vega_by_risk_class: BTreeMap<FrtbRiskClass, f64>,
     /// Curvature risk charge by risk class.
-    pub curvature_by_risk_class: HashMap<FrtbRiskClass, f64>,
+    pub curvature_by_risk_class: BTreeMap<FrtbRiskClass, f64>,
     /// Default Risk Charge (credit + equity).
     pub drc: f64,
     /// Residual Risk Add-On.
@@ -740,5 +763,5 @@ pub struct FrtbSbaResult {
     /// Which correlation scenario produced the binding charge for each component.
     pub binding_scenario: CorrelationScenario,
     /// Delta+Vega+Curvature charge under each scenario (for transparency).
-    pub scenario_charges: HashMap<CorrelationScenario, f64>,
+    pub scenario_charges: BTreeMap<CorrelationScenario, f64>,
 }

@@ -325,6 +325,17 @@
           "$ref": "#/$defs/AgencyProgram",
           "description": "Agency program (FNMA, FHLMC, GNMA)."
         },
+        "assumed_pool": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgencyMbsPassthrough"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional assumed pool for valuation.\nIf not provided, generic pool characteristics are assumed."
+        },
         "attributes": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
           "default": {},
@@ -12181,7 +12192,7 @@
               "$ref": "#/$defs/YoYInflationSwap"
             },
             "type": {
-              "const": "yo_y_inflation_swap",
+              "const": "yoy_inflation_swap",
               "type": "string"
             }
           },

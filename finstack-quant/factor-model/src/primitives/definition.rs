@@ -48,6 +48,7 @@ pub enum MarketMapping {
 
 /// Complete definition of a risk factor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FactorDefinition {
     /// Unique factor identifier.
     pub id: FactorId,

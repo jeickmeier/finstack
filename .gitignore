@@ -1,5 +1,5 @@
 # Rust
-/target/
+**/target/
 /target-nextest/
 # Commit the workspace lockfile for CI/OSV reproducibility; nested fuzz
 # workspaces keep their independently generated lockfiles local.

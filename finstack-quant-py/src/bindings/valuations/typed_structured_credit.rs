@@ -33,7 +33,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
-use super::instruments::{enum_from_str, json_field};
+use super::instruments::{enum_from_str, json_field, parse_typed_instrument_json};
 
 type TrancheBuilderInner =
     finstack_quant_valuations::instruments::fixed_income::structured_credit::TrancheBuilder;
@@ -1000,23 +1000,27 @@ impl PyStructuredCredit {
         Ok(Self { inner })
     }
 
-    /// Deserialize from tagged instrument JSON (``{"type": "structured_credit", ...}``).
+    /// Deserialize a validated deal from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"structured_credit"``.
+    ///     Bare tagged JSON with exact type ``"structured_credit"``, or a
+    ///     full ``finstack_quant.instrument/1`` envelope containing that
+    ///     payload. The UTF-8 input must not exceed 16 MiB; cross-type
+    ///     coercion is not performed.
     ///
     /// Returns
     /// -------
     /// StructuredCredit
-    ///     The validated deal.
+    ///     The validated deal represented by the exact ``"structured_credit"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries another type, or fails structured-credit
+    ///     validation.
     ///
     /// Examples
     /// --------
@@ -1026,9 +1030,7 @@ impl PyStructuredCredit {
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match serde_json::from_str::<InstrumentJson>(json)
-            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
-        {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::StructuredCredit(inner) => {
                 let inner = *inner;
                 inner.validate_for_pricing().map_err(core_to_py)?;

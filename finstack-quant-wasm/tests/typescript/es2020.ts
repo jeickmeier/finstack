@@ -1,7 +1,19 @@
-import { analytics, core, portfolio, type WasmOwned } from '../../index.js';
+import {
+  analytics,
+  core,
+  portfolio,
+  type MaterializationPhases,
+  type MaterializationReport,
+  type WasmOwned,
+} from '../../index.js';
 
 const numberValues: number[] = [0, 1, 1, 0.99];
 const typedValues = new Float64Array(numberValues);
+declare const materializationReport: MaterializationReport;
+const materializationPhases: MaterializationPhases = materializationReport.phase_nanos;
+const materializationParseNanos: number = materializationPhases.parse;
+const materializationTimingAvailable: boolean = materializationReport.timing_available;
+const materializationDependencies: number = materializationReport.dependencies;
 
 const discountFromArray = new core.DiscountCurve('USD-OIS', '2025-01-01', numberValues);
 const discountFromTyped = new core.DiscountCurve('USD-OIS-TYPED', '2025-01-01', typedValues);
@@ -83,3 +95,6 @@ void projectionGrid;
 void expiries;
 void pillarVols;
 void factorAttributionJson;
+void materializationParseNanos;
+void materializationTimingAvailable;
+void materializationDependencies;

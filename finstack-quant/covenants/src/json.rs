@@ -2,6 +2,7 @@
 
 use crate::templates;
 use crate::{CovenantEngine, CovenantReport, CovenantSpec, HashMapMetricSource};
+use finstack_quant_core::canonical::to_canonical_bytes;
 use finstack_quant_core::dates::parse_iso_date;
 use finstack_quant_core::Result;
 use serde::de::DeserializeOwned;
@@ -14,8 +15,15 @@ where
     let value: T = serde_json::from_str(json).map_err(|e| {
         finstack_quant_core::Error::Validation(format!("Invalid covenant JSON: {e}"))
     })?;
-    serde_json::to_string(&value).map_err(|e| {
-        finstack_quant_core::Error::Validation(format!("Serialize covenant JSON: {e}"))
+    canonical_json(&value)
+}
+
+fn canonical_json<T: Serialize>(value: &T) -> Result<String> {
+    let bytes = to_canonical_bytes(value)?;
+    String::from_utf8(bytes).map_err(|error| {
+        finstack_quant_core::Error::Validation(format!(
+            "Canonical covenant JSON was not UTF-8: {error}"
+        ))
     })
 }
 
@@ -24,9 +32,9 @@ where
 /// `json` must describe a complete covenant specification, including a
 /// compatible covenant type, test, measurement frequency, and any required
 /// metric identifier. The returned string is semantically equivalent to the
-/// input but has the canonical field ordering and omission rules produced by
-/// `serde_json`; callers should persist or compare the returned value rather
-/// than the original text when a stable representation is needed.
+/// input but is encoded with [`finstack_quant_core::canonical`]: object keys are
+/// sorted recursively, arrays retain semantic order, and insignificant
+/// whitespace is removed.
 ///
 /// # Arguments
 ///
@@ -44,9 +52,7 @@ pub fn validate_covenant_spec_json(json: &str) -> Result<String> {
         finstack_quant_core::Error::Validation(format!("Invalid covenant JSON: {e}"))
     })?;
     value.validate()?;
-    serde_json::to_string(&value).map_err(|e| {
-        finstack_quant_core::Error::Validation(format!("Serialize covenant JSON: {e}"))
-    })
+    canonical_json(&value)
 }
 
 /// Decode and canonicalize one [`CovenantReport`] encoded as JSON.
@@ -55,8 +61,8 @@ pub fn validate_covenant_spec_json(json: &str) -> Result<String> {
 /// produced or stored. Unlike [`validate_covenant_spec_json`] and
 /// [`validate_covenant_engine_json`], it does not re-run business-rule
 /// validation because a report is an observed evaluation result, not a
-/// configuration. The returned string uses the serializer's canonical JSON
-/// representation.
+/// configuration. The returned string uses the core canonical JSON
+/// representation with recursively sorted object keys.
 ///
 /// # Arguments
 ///
@@ -93,9 +99,7 @@ pub fn validate_covenant_engine_json(json: &str) -> Result<String> {
         finstack_quant_core::Error::Validation(format!("Invalid covenant JSON: {e}"))
     })?;
     value.validate()?;
-    serde_json::to_string(&value).map_err(|e| {
-        finstack_quant_core::Error::Validation(format!("Serialize covenant JSON: {e}"))
-    })
+    canonical_json(&value)
 }
 
 /// Evaluate a covenant engine against a string-keyed JSON metric map.
@@ -157,7 +161,7 @@ pub fn evaluate_engine_json(engine_json: &str, metrics_json: &str, as_of: &str) 
     })
 }
 
-/// Build the standard leveraged-buyout covenant package as canonical JSON.
+/// Build the standard leveraged-buyout covenant package as compact JSON.
 ///
 /// The package contains quarterly maintenance tests for maximum Debt / EBITDA
 /// (`initial_leverage`), minimum interest coverage (`interest_coverage`), and
@@ -201,7 +205,7 @@ pub fn lbo_standard_json(
     })
 }
 
-/// Build the covenant-lite leveraged-loan package as canonical JSON.
+/// Build the covenant-lite leveraged-loan package as compact JSON.
 ///
 /// The package contains quarterly *incurrence* tests, not maintenance tests:
 /// maximum total leverage (`max_leverage`) and maximum senior leverage
@@ -227,7 +231,7 @@ pub fn cov_lite_json(max_leverage: f64, max_senior_leverage: f64) -> Result<Stri
     })
 }
 
-/// Build the commercial-real-estate covenant package as canonical JSON.
+/// Build the commercial-real-estate covenant package as compact JSON.
 ///
 /// The package defines quarterly maintenance tests for minimum debt-service
 /// coverage ratio (`min_dscr`), minimum debt yield (`min_debt_yield`), and
@@ -257,7 +261,7 @@ pub fn real_estate_json(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Res
     })
 }
 
-/// Build the infrastructure or project-finance package as canonical JSON.
+/// Build the infrastructure or project-finance package as compact JSON.
 ///
 /// The package contains quarterly maintenance tests for: a minimum default
 /// DSCR (`min_dscr`), a higher minimum DSCR that locks distributions

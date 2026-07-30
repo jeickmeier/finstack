@@ -229,6 +229,7 @@ pub struct OvernightCouponConvention {
 /// backward-compatible defaults. Prefer those construction APIs for forward
 /// compatibility.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

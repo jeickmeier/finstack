@@ -1014,18 +1014,21 @@ pub trait Instrument: CashflowProvider + Send + Sync {
 
     /// Convert this instrument to its JSON representation for serialization.
     ///
-    /// This method enables serialization of instruments by converting them to
-    /// the `InstrumentJson` tagged union. Instruments that support serialization
-    /// should override this method to return `Some(instrument_json)`.
+    /// Converts this instrument to the registry-backed
+    /// [`InstrumentJson`](crate::instruments::InstrumentJson) tagged union.
     ///
-    /// Default implementation returns `None`, indicating that serialization
-    /// is not supported for this instrument type.
+    /// The default implementation recognizes every concrete runtime type in the
+    /// instrument registry and clones it into its canonical tagged-union variant.
+    /// Custom or otherwise unregistered [`Instrument`] implementations return
+    /// `None`. Conversion itself is infallible; serialization of the returned
+    /// tagged union may still fail through the serializer used by the caller.
     ///
     /// # Returns
     ///
-    /// `Some(InstrumentJson)` if conversion is supported, `None` otherwise
+    /// `Some(InstrumentJson)` for a registered runtime type, or `None` for an
+    /// unregistered implementation.
     fn to_instrument_json(&self) -> Option<crate::instruments::InstrumentJson> {
-        None
+        crate::instruments::json_loader::instrument_json_from_any(self.as_any())
     }
 
     /// Get the instrument's expiry or maturity date, if applicable.

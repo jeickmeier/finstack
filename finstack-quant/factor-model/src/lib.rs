@@ -76,6 +76,8 @@ pub mod config;
 pub mod covariance;
 /// Credit factor hierarchy artifacts, calibration, and decomposition.
 pub mod credit;
+/// Versioned persistence envelope for factor-model configuration.
+pub mod envelope;
 /// Factor-model specific error and unmatched-dependency policy types.
 pub mod error;
 /// Matching primitives and built-in matcher components.
@@ -88,6 +90,7 @@ pub mod sensitivity_matrix;
 
 pub use config::{BumpSizeConfig, FactorBumpUnit, FactorModelConfig, PricingMode, RiskMeasure};
 pub use covariance::FactorCovarianceMatrix;
+pub use envelope::{FactorModelConfigEnvelope, FACTOR_MODEL_CONFIG_CONTRACT};
 pub use error::{FactorModelError, UnmatchedPolicy};
 pub use finstack_quant_core::{Error, Result};
 pub use matching::{

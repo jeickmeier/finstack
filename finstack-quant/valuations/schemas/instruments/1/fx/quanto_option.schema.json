@@ -68,7 +68,7 @@
           },
           "quote_currency": "USD",
           "spot_id": "NKY-SPOT",
-          "underlying_quantity": 100.0,
+          "underlying_quantity": 4000.0,
           "underlying_ticker": "NKY",
           "vol_surface_id": "NKY-VOL"
         },

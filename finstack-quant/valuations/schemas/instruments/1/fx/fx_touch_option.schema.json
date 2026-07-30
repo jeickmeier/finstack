@@ -63,6 +63,7 @@
           "expiry": "2024-06-21",
           "foreign_discount_curve_id": "EUR-OIS",
           "id": "FXTOUCH-EURUSD-OT",
+          "monitoring_start_date": "2024-01-02",
           "payout_amount": {
             "amount": "1000000",
             "currency": "USD"

@@ -13,7 +13,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CreditRating;
 use finstack_quant_core::{Error, HashMap, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
 const EMBEDDED_STRUCTURED_CREDIT_ASSUMPTIONS: &str =
@@ -218,9 +218,9 @@ impl StructuredCreditAssumptionRegistry {
     pub(crate) fn default_assumptions(&self, id: &str) -> Result<DefaultAssumptions> {
         Ok(default_assumptions_from_record(
             &self.deal_profile(id)?.assumptions,
-            HashMap::default(),
-            HashMap::default(),
-            HashMap::default(),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            BTreeMap::new(),
         ))
     }
 
@@ -809,9 +809,9 @@ fn validate_registry(
 
 fn default_assumptions_from_record(
     record: &AssumptionRecord,
-    cpr_by_asset_type: HashMap<String, f64>,
-    cdr_by_asset_type: HashMap<String, f64>,
-    recovery_by_asset_type: HashMap<String, f64>,
+    cpr_by_asset_type: BTreeMap<String, f64>,
+    cdr_by_asset_type: BTreeMap<String, f64>,
+    recovery_by_asset_type: BTreeMap<String, f64>,
 ) -> DefaultAssumptions {
     DefaultAssumptions {
         base_cdr_annual: record.base_cdr_annual,
@@ -826,8 +826,8 @@ fn default_assumptions_from_record(
     }
 }
 
-fn assumption_map(records: &[AssetTypeAssumptionRecord]) -> HashMap<String, f64> {
-    let mut assumptions = HashMap::default();
+fn assumption_map(records: &[AssetTypeAssumptionRecord]) -> BTreeMap<String, f64> {
+    let mut assumptions = BTreeMap::new();
     for record in records {
         assumptions.insert(record.asset_type.clone(), record.value);
     }

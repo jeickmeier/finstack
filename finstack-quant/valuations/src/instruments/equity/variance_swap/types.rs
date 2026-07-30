@@ -64,6 +64,7 @@ fn default_observation_bdc() -> BusinessDayConvention {
 /// - Demeterfi, K. et al. (1999). "More Than You Ever Wanted to Know About Volatility Swaps."
 /// - Carr, P. & Madan, D. (1998). "Towards a Theory of Volatility Trading."
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

@@ -79,8 +79,14 @@ export default function init(
 // --- Calibration envelope types (generated from Rust via ts-rs) ---
 import type { CalibrationEnvelope } from './types/generated/CalibrationEnvelope';
 import type { CalibrationResultEnvelope } from './types/generated/CalibrationResultEnvelope';
+import type { MaterializationReport } from './types/generated/MaterializationReport';
+import type { ValidationReport } from './types/generated/ValidationReport';
 
 export type { CalibrationEnvelope, CalibrationResultEnvelope };
+export type { Diagnostic } from './types/generated/Diagnostic';
+export type { MaterializationPhases } from './types/generated/MaterializationPhases';
+export type { MaterializationReport } from './types/generated/MaterializationReport';
+export type { ValidationReport } from './types/generated/ValidationReport';
 export type { CalibrationPlan } from './types/generated/CalibrationPlan';
 export type { CalibrationStep } from './types/generated/CalibrationStep';
 export type { StepParams } from './types/generated/StepParams';
@@ -4370,6 +4376,7 @@ export interface MarginNamespace {
    * );
    * result.total_xva; // bilateral_cva + MVA
    * ```
+   * @throws Error - If JSON is malformed or has unknown funding fields, a recovery rate
    */
   computeBilateralXva(
     exposureProfileJson: string,
@@ -7018,17 +7025,124 @@ export interface ScenarioPnlResult {
 }
 
 /**
+ * Browser-native materialization input accepted without Node.js APIs.
+ */
+export type MaterializationBundleInput = string | Uint8Array;
+
+/**
+ * Typed error thrown when a persisted contract cannot be loaded.
+ */
+export interface ContractValidationError extends Error {
+  /**
+   * Stable public error class name.
+   */
+  name: 'ContractValidationError';
+  /**
+   * Typed Rust contract-error variant in snake_case.
+   */
+  kind:
+    | 'unsupported_version'
+    | 'missing_version'
+    | 'malformed_schema'
+    | 'limit_exceeded'
+    | 'report'
+    | 'core'
+    | 'contract';
+  /**
+   * Structured diagnostics when `kind` is `"report"`.
+   */
+  report?: ValidationReport;
+}
+
+/**
+ * Successful strict materialization result.
+ */
+export interface PortfolioMaterializationResult {
+  /**
+   * Reusable WebAssembly portfolio handle.
+   */
+  portfolio: Portfolio;
+  /**
+   * Structured counts, diagnostics, cache hits, and phase timings.
+   */
+  report: MaterializationReport;
+}
+
+/**
+ * Reusable bounded cache of decoded content-addressed instruments.
+ *
+ * @example
+ * ```typescript
+ * const cache = new portfolio.InstrumentArtifactCache(5_000);
+ * console.log(cache.size);
+ * cache.free();
+ * ```
+ */
+export declare class InstrumentArtifactCache {
+  /**
+   * Create an empty cache with explicit bounds.
+   * @param capacity - Maximum retained entries; defaults to 4,096.
+   */
+  constructor(capacity?: number);
+  /**
+   * Number of decoded artifacts currently retained.
+   * @returns A non-negative entry count.
+   */
+  readonly size: number;
+  /**
+   * Cumulative number of successful cache-miss decodes.
+   * @returns A non-negative decode count.
+   */
+  readonly decodeCount: number;
+  /** Release the underlying wasm heap allocation. Do not use this handle afterward. */
+  free(): void;
+}
+
+/**
  * Typed handle to a built portfolio. Construct once via
  * `Portfolio.fromSpec` and reuse it across cashflow / valuation calls to
  * skip the per-call `PortfolioSpec` parse + rebuild cost.
  */
 export declare class Portfolio {
   private constructor();
+  /**
+   * Build a runtime portfolio from a portable embedded specification.
+   * @param specJson - Canonical portfolio specification JSON defining positions, quantities, and base currency.
+   * @returns A reusable portfolio handle.
+   * @throws Error - If the specification is malformed or violates portfolio invariants.
+   */
   static fromSpec(specJson: string): Portfolio;
+  /**
+   * Build a runtime portfolio from one strict persisted materialization bundle.
+   * @param bundle - Complete UTF-8 JSON as a browser string or `Uint8Array`.
+   * @param cache - Optional reusable decoded-instrument cache.
+   * @returns The reusable portfolio handle and structured load report.
+   * @throws ContractValidationError - If the contract is malformed, unsupported, invalid, or exceeds resource limits.
+   */
+  static fromMaterialization(
+    bundle: MaterializationBundleInput,
+    cache?: InstrumentArtifactCache
+  ): PortfolioMaterializationResult;
+  /**
+   * Validate a materialization bundle and return diagnostics for form UIs.
+   * @param bundle - Complete UTF-8 JSON as a browser string or `Uint8Array`.
+   * @param cache - Optional reusable decoded-instrument cache.
+   * @returns On success, counters and validation-only phase timings; on contract failure, bounded diagnostics.
+   * @throws ContractValidationError - If validation cannot produce a report.
+   */
+  static validateMaterializationJson(
+    bundle: MaterializationBundleInput,
+    cache?: InstrumentArtifactCache
+  ): MaterializationReport | ValidationReport;
+  /** Portfolio identifier. @returns Stable portfolio ID. */
   readonly id: string;
+  /** ISO-8601 valuation date. @returns Portfolio as-of date. */
   readonly asOf: string;
+  /** Reporting currency. @returns ISO-4217 base currency code. */
   readonly baseCcy: string;
+  /** Return the number of positions. @returns Non-negative position count. */
   numPositions(): number;
+  /** Serialize the portable portfolio specification. @returns Canonical JSON string. */
   toSpecJson(): string;
   /** Release the underlying wasm heap allocation. Do not use this handle after calling `free()`. */
   free(): void;
@@ -7045,6 +7159,10 @@ export declare class Portfolio {
  * ```
  */
 export interface PortfolioNamespace {
+  /**
+   * Reusable bounded decoded-instrument cache constructor.
+   */
+  InstrumentArtifactCache: typeof InstrumentArtifactCache;
   /**
    * Typed handle for cached portfolio builds.
    */
@@ -7880,6 +7998,8 @@ export interface ScenariosNamespace {
    * @param name - Optional human-readable scenario name.
    * @param description - Optional human-readable description of the scenario purpose.
    * @param priority - Execution priority; lower values run earlier during composition.
+   * @param resolutionMode - Optional hierarchy conflict policy. Use `"most_specific_wins"`
+   * (default) or `"cumulative"`.
    * @returns Returns the requested string representation or JSON payload.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
    */
@@ -7888,7 +8008,8 @@ export interface ScenariosNamespace {
     operationsJson: string,
     name?: string,
     description?: string,
-    priority?: number
+    priority?: number,
+    resolutionMode?: "most_specific_wins" | "cumulative"
   ): string;
   /**
    * Apply a scenario to a market context and financial model.

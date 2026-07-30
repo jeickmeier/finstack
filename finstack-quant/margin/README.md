@@ -159,6 +159,9 @@ assert!(im.amount.amount() >= 0.0);
 - Schedule IM, cleared-IM proxy, and internal-model paths invoked through
   `ImCalculator` need `Marginable::im_exposure_base` (or an external CCP source);
   they do not fall back to MTM as notional.
+- Persisted SIMM and FRTB tuple-keyed sensitivities use deterministic sorted
+  entry arrays. Readers continue to accept the historical empty-object form,
+  but non-empty tuple-keyed maps were never valid JSON objects.
 
 ## Embedded data
 
@@ -204,14 +207,18 @@ Config overlay shape (legacy-compatible extension key `valuations.margin_registr
 
 ## XVA scope
 
-Deterministic exposure (crate-internal today) rolls constant curves forward,
-revalues instruments, applies close-out netting and CSA collateral reduction, and
-produces EPE, ENE, effective EPE, and PFE-shaped series. Under that engine,
-`PFE` matches `EPE`; wrong-way risk, MPOR gap risk, and scenario carry are not
-modeled.
+Deterministic exposure rolls constant curves forward, revalues instruments,
+applies close-out netting, and models CSA collateral with MPOR lag against the
+interpolated portfolio value at `t - mpor_days / 365`. It produces EPE, ENE,
+effective EPE, and PFE-shaped series; under this deterministic engine, `PFE`
+matches `EPE`. Wrong-way risk and scenario carry remain out of scope.
 
-Stochastic exposure uses `finstack-quant-monte-carlo` (`compute_stochastic_exposure_profile`
-in crate tests). Defaults for path count and PFE quantile live in
+Stochastic exposure uses `finstack-quant-monte-carlo` through the public
+`compute_stochastic_exposure_profile` and
+`compute_stochastic_exposure_with_valuer` entry points. The latter reprices a
+caller-supplied `PathValuer`, applies close-out netting and MPOR-lagged CSA
+collateral per path, and can carry path-dependent initial margin through a
+`PathImModel`. Defaults for path count and PFE quantile live in
 `xva_defaults.v1.json`.
 
 ## Verification

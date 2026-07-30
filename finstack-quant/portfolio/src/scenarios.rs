@@ -217,7 +217,7 @@ fn replace_portfolio_instruments(
     }
 
     // Update portfolio positions with modified instruments (move boxes into `Arc`, no extra clone).
-    for (position, modified_inst) in portfolio.positions.iter_mut().zip(instruments.into_iter()) {
+    for (position, modified_inst) in portfolio.positions.iter_mut().zip(instruments) {
         position.instrument = Arc::from(modified_inst);
     }
     portfolio.rebuild_index();

@@ -52,7 +52,7 @@ fn envelope_for_step(
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![step],
     };
@@ -290,7 +290,7 @@ fn base_correlation_preflight_rejects_invalid_attachment_detachment() {
     let err = engine::execute(&envelope).expect_err("invalid tranche should fail");
     let msg = err.to_string();
     assert!(
-        msg.contains("attachment/detachment"),
+        msg.contains("attachment must be less than detachment"),
         "unexpected error: {msg}"
     );
 }
@@ -415,7 +415,7 @@ fn base_correlation_preflight_rejects_non_monotone_tranche_points() {
     let err = engine::execute(&envelope).expect_err("invalid tranche attachment should fail");
     let msg = err.to_string();
     assert!(
-        msg.contains("attachment/detachment"),
+        msg.contains("attachment must be less than detachment"),
         "unexpected error: {msg}"
     );
 }

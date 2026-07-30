@@ -604,7 +604,6 @@ mod tests {
         FactorCorrelationMatrix, FactorVolModel, GenericFactorSpec, HierarchyDimension,
         IdiosyncraticVolModel, IssuerBetaPolicy, LevelsAtAnchor, VolState,
     };
-    use finstack_quant_factor_model::matching::CreditHierarchicalConfig;
     use finstack_quant_factor_model::{
         FactorCovarianceMatrix, FactorDefinition, FactorId, FactorModelConfig, FactorType,
         MarketMapping, MatchingConfig, PricingMode, RiskMeasure,
@@ -889,16 +888,9 @@ mod tests {
 
     #[test]
     fn factor_model_at_uses_horizon_covariance() {
-        // Use a hierarchical matching config so the rebuilt FactorModel has
-        // a valid matcher for the configured factors. The factors stay
-        // unchanged but the covariance is now horizon-scaled.
-        let mut model = two_factor_model();
-        model.config.matching = MatchingConfig::CreditHierarchical(CreditHierarchicalConfig {
-            dependency_filter: Default::default(),
-            hierarchy: model.hierarchy.clone(),
-            issuer_betas: vec![],
-        });
-
+        // The fixture's empty mapping table references no additional factor
+        // IDs, so the rebuilt model remains valid while covariance is scaled.
+        let model = two_factor_model();
         let forecast = FactorCovarianceForecast::new(&model);
         let fm = forecast
             .factor_model_at(VolHorizon::OneStep, RiskMeasure::Volatility)

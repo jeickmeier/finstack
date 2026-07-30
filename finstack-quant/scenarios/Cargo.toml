@@ -15,6 +15,7 @@ finstack-quant-core = { path = "../core", version = "0.7.0" }
 finstack-quant-statements = { path = "../statements", version = "0.7.0" }
 finstack-quant-valuations = { path = "../valuations", version = "0.7.0" }
 indexmap = { workspace = true, features = ["serde"] }
+schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

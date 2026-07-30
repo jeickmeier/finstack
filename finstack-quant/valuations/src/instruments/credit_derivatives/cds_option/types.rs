@@ -72,6 +72,7 @@ pub enum ProtectionStartConvention {
 /// time so deserialized instruments cannot silently fall through to the
 /// Black-on-spreads engine.
 #[derive(
+    PartialEq,
     Debug,
     Clone,
     finstack_quant_valuations_macros::FinancialBuilder,

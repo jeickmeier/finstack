@@ -1,46 +1,64 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "basket",
     "spec": {
-      "id": "BASKET-60-40",
+      "attributes": {},
       "constituents": [
         {
           "id": "EQ-AAPL",
           "reference": {
-            "price_id": "AAPL-SPOT",
-            "asset_type": "equity"
+            "asset_type": "equity",
+            "price_id": "AAPL-SPOT"
           },
-          "weight": 0.6,
+          "ticker": "AAPL",
           "units": null,
-          "ticker": "AAPL"
+          "weight": 0.6
         },
         {
           "id": "BOND-UST10",
           "reference": {
-            "price_id": "UST10Y-PRICE",
-            "asset_type": "bond"
+            "asset_type": "bond",
+            "price_id": "UST10Y-PRICE"
           },
-          "weight": 0.4,
+          "ticker": "UST10Y",
           "units": null,
-          "ticker": "UST10Y"
+          "weight": 0.4
         }
       ],
-      "expense_ratio": 0.0025,
       "currency": "USD",
+      "discount_curve_id": "USD-OIS",
+      "expense_ratio": 0.0025,
+      "id": "BASKET-60-40",
       "notional": {
         "amount": "1000000",
         "currency": "USD"
       },
-      "discount_curve_id": "USD-OIS",
-      "attributes": {
-        "tags": [],
-        "meta": {}
-      },
       "pricing_config": {
         "days_in_year": 365.25,
         "fx_policy": "cashflow_date"
+      },
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
       }
-    }
-  }
+    },
+    "type": "basket"
+  },
+  "schema": "finstack_quant.instrument/1"
 }

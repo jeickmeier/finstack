@@ -57,6 +57,7 @@ const MAX_REASONABLE_RATE: f64 = 0.50;
 #[derive(
     Debug,
     Clone,
+    PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
     finstack_quant_valuations_macros::FocusedPricingOverrides,
 )]

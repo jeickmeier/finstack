@@ -12,6 +12,7 @@ use rust_decimal::Decimal;
 
 /// CMS option instrument (cap/floor on CMS rates).
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

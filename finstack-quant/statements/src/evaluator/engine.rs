@@ -321,7 +321,7 @@ impl Evaluator {
                     )?
                 };
 
-            all_warnings.extend(period_warnings.into_iter());
+            all_warnings.extend(period_warnings);
 
             // Store in results
             for (node_id, value) in &period_results {

@@ -1,9 +1,9 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "repo",
     "spec": {
-      "id": "REPO-GC-7D",
+      "attributes": {},
+      "bdc": "following",
+      "calendar_id": "usny",
       "cash_amount": {
         "amount": "10000000",
         "currency": "USD"
@@ -11,23 +11,41 @@
       "collateral": {
         "collateral_type": "General",
         "instrument_id": "UST-10Y",
-        "quantity": 10000.0,
-        "market_value_id": "UST_10Y_PRICE"
+        "market_value_id": "UST_10Y_PRICE",
+        "quantity": 10000.0
       },
-      "repo_rate": 0.0525,
-      "start_date": "2024-01-02",
-      "maturity": "2024-01-09",
-      "haircut": 0.02,
-      "repo_type": "Term",
-      "triparty": false,
       "day_count": "Act360",
-      "bdc": "following",
-      "calendar_id": "target2",
       "discount_curve_id": "USD-OIS",
-      "attributes": {
-        "tags": [],
-        "meta": {}
-      }
-    }
-  }
+      "haircut": 0.02,
+      "id": "REPO-GC-7D",
+      "maturity": "2024-01-09",
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
+      },
+      "repo_rate": "0.0525",
+      "repo_type": "Term",
+      "start_date": "2024-01-02",
+      "triparty": false
+    },
+    "type": "repo"
+  },
+  "schema": "finstack_quant.instrument/1"
 }

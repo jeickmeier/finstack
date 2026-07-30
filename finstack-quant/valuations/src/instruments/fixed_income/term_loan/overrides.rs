@@ -4,7 +4,9 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 
 /// Term loan specific overrides for covenants and schedule adjustments.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(deny_unknown_fields)]
 pub struct TermLoanOverrides {
     /// Additional margin step-ups by date (bps)

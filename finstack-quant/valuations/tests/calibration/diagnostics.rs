@@ -1,6 +1,5 @@
 //! Tests for `EnvelopeError` and the static envelope validator.
 
-use finstack_quant_core::HashMap;
 use finstack_quant_valuations::calibration::api::errors::EnvelopeError;
 use finstack_quant_valuations::calibration::api::schema::{
     CalibrationEnvelope, CalibrationPlan, CalibrationStep, DiscountCurveParams, StepParams,
@@ -17,7 +16,7 @@ fn empty_envelope(id: &str) -> CalibrationEnvelope {
         plan: CalibrationPlan {
             id: id.to_string(),
             description: None,
-            quote_sets: HashMap::default(),
+            quote_sets: Default::default(),
             steps: Vec::new(),
             settings: Default::default(),
         },

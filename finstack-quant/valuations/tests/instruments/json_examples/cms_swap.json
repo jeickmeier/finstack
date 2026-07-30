@@ -1,0 +1,79 @@
+{
+  "instrument": {
+    "spec": {
+      "attributes": {},
+      "cms_accrual_fractions": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "cms_day_count": "Act365F",
+      "cms_fixing_dates": [
+        "2025-03-20",
+        "2025-06-20",
+        "2025-09-22",
+        "2025-12-22"
+      ],
+      "cms_payment_dates": [
+        "2025-06-20",
+        "2025-09-22",
+        "2025-12-22",
+        "2026-03-20"
+      ],
+      "cms_spread": 0.0,
+      "cms_tenor": 10.0,
+      "discount_curve_id": "USD-OIS",
+      "forward_curve_id": "USD-LIBOR-3M",
+      "funding_leg": {
+        "accrual_fractions": [
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ],
+        "day_count": "Thirty360",
+        "payment_dates": [
+          "2025-06-20",
+          "2025-09-22",
+          "2025-12-22",
+          "2026-03-20"
+        ],
+        "rate": 0.03,
+        "type": "Fixed"
+      },
+      "id": "CMSSWAP-10Y-USD",
+      "notional": {
+        "amount": "10000000",
+        "currency": "USD"
+      },
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
+      },
+      "side": "pay",
+      "swap_convention": "u_s_d_standard",
+      "swap_float_day_count": "Act360",
+      "vol_surface_id": "USD-CMS10Y-VOL"
+    },
+    "type": "cms_swap"
+  },
+  "schema": "finstack_quant.instrument/1"
+}

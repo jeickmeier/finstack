@@ -48,6 +48,7 @@ use crate::api::core::market_data::JsDiscountCurve;
 use crate::utils::{to_js_err, to_js_value};
 use wasm_bindgen::prelude::*;
 
+pub mod materialization;
 pub mod sensitivity;
 
 // ---------------------------------------------------------------------------

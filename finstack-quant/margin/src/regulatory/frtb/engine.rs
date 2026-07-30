@@ -113,13 +113,13 @@ impl FrtbSbaEngine {
 
         Ok(FrtbSbaResult {
             total,
-            delta_by_risk_class: best_delta,
-            vega_by_risk_class: best_vega,
-            curvature_by_risk_class: best_curvature,
+            delta_by_risk_class: best_delta.into_iter().collect(),
+            vega_by_risk_class: best_vega.into_iter().collect(),
+            curvature_by_risk_class: best_curvature.into_iter().collect(),
             drc,
             rrao,
             binding_scenario: best_scenario,
-            scenario_charges,
+            scenario_charges: scenario_charges.into_iter().collect(),
         })
     }
 }

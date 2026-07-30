@@ -26,7 +26,7 @@ fn missing_quote_set_fails_fast() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets: HashMap::default(),
+        quote_sets: Default::default(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "step_1".to_string(),
@@ -55,7 +55,11 @@ fn missing_quote_set_fails_fast() {
     };
 
     let err = engine::execute(&envelope).expect_err("missing quote set should error");
-    assert!(matches!(err, finstack_quant_core::Error::Input(_)));
+    assert!(matches!(
+        err,
+        finstack_quant_core::Error::Calibration { category, .. }
+            if category == "undefined_quote_set"
+    ));
 }
 
 #[test]
@@ -80,7 +84,7 @@ fn plan_and_envelope_serde_roundtrip() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: Some("serde smoke".to_string()),
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "step_1".to_string(),
@@ -171,7 +175,7 @@ fn two_step_envelope(use_parallel: bool) -> CalibrationEnvelope {
     let plan = CalibrationPlan {
         id: "parallel-plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: CalibrationConfig {
             use_parallel,
             ..Default::default()

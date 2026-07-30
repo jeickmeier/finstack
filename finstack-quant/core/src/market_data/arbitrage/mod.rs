@@ -62,7 +62,7 @@ pub use types::{
 };
 
 use crate::market_data::surfaces::VolSurface;
-use crate::HashMap;
+use std::collections::BTreeMap;
 
 /// Configuration for the arbitrage detection suite.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -242,11 +242,11 @@ pub fn check_surface(
     all_violations.retain(|v| v.severity >= config.min_severity);
 
     // Sort: critical first
-    all_violations.sort_by(|a, b| b.severity.cmp(&a.severity));
+    all_violations.sort_by_key(|violation| std::cmp::Reverse(violation.severity));
 
     // Build aggregation maps
-    let mut counts_by_type: HashMap<ArbitrageType, usize> = HashMap::default();
-    let mut counts_by_severity: HashMap<ArbitrageSeverity, usize> = HashMap::default();
+    let mut counts_by_type: BTreeMap<ArbitrageType, usize> = BTreeMap::new();
+    let mut counts_by_severity: BTreeMap<ArbitrageSeverity, usize> = BTreeMap::new();
     for v in &all_violations {
         *counts_by_type.entry(v.violation_type).or_insert(0) += 1;
         *counts_by_severity.entry(v.severity).or_insert(0) += 1;
@@ -429,7 +429,7 @@ pub fn check_surface_grid(
 fn refresh_report_summary(report: &mut ArbitrageReport) {
     report
         .violations
-        .sort_by(|a, b| b.severity.cmp(&a.severity));
+        .sort_by_key(|violation| std::cmp::Reverse(violation.severity));
 
     report.counts_by_type.clear();
     report.counts_by_severity.clear();

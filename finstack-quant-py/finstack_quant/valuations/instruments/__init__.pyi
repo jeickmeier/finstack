@@ -1,6 +1,11 @@
 """
 Python bindings for the corresponding finstack-quant Rust API.
 
+Every typed instrument ``from_json`` classmethod accepts either canonical bare
+``{"type": ..., "spec": ...}`` JSON or a versioned
+``{"schema": "finstack_quant.instrument/1", "instrument": ...}`` envelope.
+Inputs larger than 16 MiB raise ``ValueError`` before parsing.
+
 Examples
 --------
 >>> import finstack_quant.valuations.instruments as instruments
@@ -219,13 +224,14 @@ class Bond:
     @classmethod
     def from_json(cls, json: str) -> Bond:
         """
-        Deserialize a bond from tagged instrument JSON.
+        Deserialize a validated bond from bare tagged JSON or a versioned envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"bond"``
-            (``{"type": "bond", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"bond"``, or a full
+            ``finstack_quant.instrument/1`` envelope containing that payload.
+            Input is capped at 16 MiB and cross-type coercion is not performed.
 
         Returns
         -------
@@ -235,8 +241,8 @@ class Bond:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails bond validation.
 
         Examples
         --------
@@ -292,13 +298,14 @@ class TermLoan:
     @classmethod
     def from_json(cls, json: str) -> TermLoan:
         """
-        Deserialize a term loan from tagged instrument JSON.
+        Deserialize a validated term loan from bare tagged JSON or an envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"term_loan"``
-            (``{"type": "term_loan", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"term_loan"``, or a full
+            ``finstack_quant.instrument/1`` envelope containing that payload.
+            Input is capped at 16 MiB and cross-type coercion is not performed.
 
         Returns
         -------
@@ -308,8 +315,8 @@ class TermLoan:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails term-loan validation.
 
         Examples
         --------
@@ -732,13 +739,15 @@ class InterestRateSwap:
     @classmethod
     def from_json(cls, json: str) -> InterestRateSwap:
         """
-        Deserialize from tagged instrument JSON.
+        Deserialize a validated swap from bare tagged JSON or a versioned envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"interest_rate_swap"``
-            (``{"type": "interest_rate_swap", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"interest_rate_swap"``, or a
+            full ``finstack_quant.instrument/1`` envelope containing that
+            payload. Input is capped at 16 MiB and cross-type coercion is not
+            performed.
 
         Returns
         -------
@@ -748,8 +757,8 @@ class InterestRateSwap:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails swap validation.
 
         Examples
         --------
@@ -1035,13 +1044,14 @@ class Swaption:
     @classmethod
     def from_json(cls, json: str) -> Swaption:
         """
-        Deserialize from tagged instrument JSON.
+        Deserialize a validated swaption from bare tagged JSON or a versioned envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"swaption"``
-            (``{"type": "swaption", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"swaption"``, or a full
+            ``finstack_quant.instrument/1`` envelope containing that payload.
+            Input is capped at 16 MiB and cross-type coercion is not performed.
 
         Returns
         -------
@@ -1051,8 +1061,8 @@ class Swaption:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails swaption validation.
 
         Examples
         --------
@@ -1508,13 +1518,14 @@ class CapFloor:
     @classmethod
     def from_json(cls, json: str) -> CapFloor:
         """
-        Deserialize from tagged instrument JSON.
+        Deserialize a validated cap/floor from bare tagged JSON or an envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"cap_floor"``
-            (``{"type": "cap_floor", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"cap_floor"``, or a full
+            ``finstack_quant.instrument/1`` envelope containing that payload.
+            Input is capped at 16 MiB and cross-type coercion is not performed.
 
         Returns
         -------
@@ -1524,8 +1535,8 @@ class CapFloor:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails cap/floor validation.
 
         Examples
         --------
@@ -2078,13 +2089,15 @@ class CreditDefaultSwap:
     @classmethod
     def from_json(cls, json: str) -> CreditDefaultSwap:
         """
-        Deserialize from tagged instrument JSON.
+        Deserialize a validated CDS from bare tagged JSON or a versioned envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"credit_default_swap"``
-            (``{"type": "credit_default_swap", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"credit_default_swap"``, or a
+            full ``finstack_quant.instrument/1`` envelope containing that
+            payload. Input is capped at 16 MiB and cross-type coercion is not
+            performed.
 
         Returns
         -------
@@ -2094,8 +2107,8 @@ class CreditDefaultSwap:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails CDS validation.
 
         Examples
         --------
@@ -2469,13 +2482,14 @@ class CDSIndex:
     @classmethod
     def from_json(cls, json: str) -> CDSIndex:
         """
-        Deserialize from tagged instrument JSON.
+        Deserialize a validated CDS index from bare tagged JSON or an envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"cds_index"``
-            (``{"type": "cds_index", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"cds_index"``, or a full
+            ``finstack_quant.instrument/1`` envelope containing that payload.
+            Input is capped at 16 MiB and cross-type coercion is not performed.
 
         Returns
         -------
@@ -2485,8 +2499,8 @@ class CDSIndex:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails CDS-index validation.
 
         Examples
         --------
@@ -2984,13 +2998,14 @@ class CDSTranche:
     @classmethod
     def from_json(cls, json: str) -> CDSTranche:
         """
-        Deserialize from tagged instrument JSON.
+        Deserialize a validated CDS tranche from bare tagged JSON or an envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"cds_tranche"``
-            (``{"type": "cds_tranche", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"cds_tranche"``, or a full
+            ``finstack_quant.instrument/1`` envelope containing that payload.
+            Input is capped at 16 MiB and cross-type coercion is not performed.
 
         Returns
         -------
@@ -3000,8 +3015,8 @@ class CDSTranche:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails CDS-tranche validation.
 
         Examples
         --------
@@ -3610,13 +3625,14 @@ class ConvertibleBond:
     @classmethod
     def from_json(cls, json: str) -> ConvertibleBond:
         """
-        Deserialize from tagged instrument JSON.
+        Deserialize a validated convertible bond from bare tagged JSON or an envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"convertible_bond"``
-            (``{"type": "convertible_bond", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"convertible_bond"``, or a full
+            ``finstack_quant.instrument/1`` envelope containing that payload.
+            Input is capped at 16 MiB and cross-type coercion is not performed.
 
         Returns
         -------
@@ -3626,8 +3642,9 @@ class ConvertibleBond:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails convertible-bond
+            validation.
 
         Examples
         --------
@@ -4149,13 +4166,14 @@ class FxForward:
     @classmethod
     def from_json(cls, json: str) -> FxForward:
         """
-        Deserialize from tagged instrument JSON.
+        Deserialize a validated FX forward from bare tagged JSON or an envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"fx_forward"``
-            (``{"type": "fx_forward", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"fx_forward"``, or a full
+            ``finstack_quant.instrument/1`` envelope containing that payload.
+            Input is capped at 16 MiB and cross-type coercion is not performed.
 
         Returns
         -------
@@ -4165,8 +4183,8 @@ class FxForward:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails FX-forward validation.
 
         Examples
         --------
@@ -4599,13 +4617,14 @@ class FxOption:
     @classmethod
     def from_json(cls, json: str) -> FxOption:
         """
-        Deserialize from tagged instrument JSON.
+        Deserialize a validated FX option from bare tagged JSON or an envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"fx_option"``
-            (``{"type": "fx_option", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"fx_option"``, or a full
+            ``finstack_quant.instrument/1`` envelope containing that payload.
+            Input is capped at 16 MiB and cross-type coercion is not performed.
 
         Returns
         -------
@@ -4615,8 +4634,8 @@ class FxOption:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails FX-option validation.
 
         Examples
         --------
@@ -5045,13 +5064,14 @@ class EquityOption:
     @classmethod
     def from_json(cls, json: str) -> EquityOption:
         """
-        Deserialize from tagged instrument JSON.
+        Deserialize a validated equity option from bare tagged JSON or an envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"equity_option"``
-            (``{"type": "equity_option", "spec": {...}}``).
+            Bare tagged JSON with exact type ``"equity_option"``, or a full
+            ``finstack_quant.instrument/1`` envelope containing that payload.
+            Input is capped at 16 MiB and cross-type coercion is not performed.
 
         Returns
         -------
@@ -5061,8 +5081,8 @@ class EquityOption:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails equity-option validation.
 
         Examples
         --------
@@ -6357,12 +6377,15 @@ class StructuredCredit:
     @classmethod
     def from_json(cls, json: str) -> StructuredCredit:
         """
-        Deserialize from tagged instrument JSON (``{"type": "structured_credit", ...}``).
+        Deserialize a validated deal from bare tagged JSON or a versioned envelope.
 
         Parameters
         ----------
         json : str
-            Tagged instrument JSON with type ``"structured_credit"``.
+            Bare tagged JSON with exact type ``"structured_credit"``, or a
+            full ``finstack_quant.instrument/1`` envelope containing that
+            payload. Input is capped at 16 MiB and cross-type coercion is not
+            performed.
 
         Returns
         -------
@@ -6372,8 +6395,9 @@ class StructuredCredit:
         Raises
         ------
         ValueError
-            If the JSON is malformed, has a different instrument type, or
-            fails validation.
+            If input exceeds 16 MiB, is malformed, uses an unsupported
+            envelope schema, carries another type, or fails structured-credit
+            validation.
 
         Examples
         --------

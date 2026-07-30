@@ -282,3 +282,11 @@ pub use valuation::{
     revalue_affected, value_portfolio, PortfolioValuation, PortfolioValuationOptions,
     PositionValue, RequestedMetrics,
 };
+
+/// Strict versioned portfolio materialization bundles and native bulk loading.
+pub mod materialization;
+pub use materialization::{
+    InstrumentArtifact, InstrumentArtifactCache, MarketDependenciesSpec, MaterializationPhases,
+    MaterializationReport, MaterializedPosition, MaterializerInfo, PortfolioHeader,
+    PortfolioMaterializationEnvelope, PORTFOLIO_MATERIALIZATION_CONTRACT,
+};

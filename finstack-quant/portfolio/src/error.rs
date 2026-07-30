@@ -77,6 +77,21 @@ pub enum Error {
     /// Invalid input data
     #[error("Invalid input: {0}")]
     InvalidInput(String),
+
+    /// A persisted contract exceeded a configured resource bound.
+    #[error("input exceeds limit: {what} {found} > {limit}")]
+    ContractLimitExceeded {
+        /// Resource whose bound was exceeded.
+        what: String,
+        /// Observed resource count or byte size.
+        found: usize,
+        /// Configured maximum count or byte size.
+        limit: usize,
+    },
+
+    /// Structured portfolio materialization diagnostics.
+    #[error("Portfolio materialization failed: {0:?}")]
+    MaterializationFailed(Box<finstack_quant_core::contract::ValidationReport>),
 }
 
 impl Error {
@@ -174,6 +189,26 @@ impl Error {
     /// [`Error::InvalidInput`] carrying the supplied message.
     pub fn invalid_input(msg: impl Into<String>) -> Self {
         Self::InvalidInput(msg.into())
+    }
+
+    /// Create a typed persisted-contract resource-limit error.
+    ///
+    /// # Arguments
+    ///
+    /// * `what` - Stable resource label such as `"bytes"`, `"artifacts"`, or
+    ///   `"positions"`.
+    /// * `found` - Observed byte or item count that exceeded the bound.
+    /// * `limit` - Configured maximum byte or item count.
+    ///
+    /// # Returns
+    ///
+    /// [`Error::ContractLimitExceeded`] retaining structured limit context.
+    pub fn contract_limit_exceeded(what: impl Into<String>, found: usize, limit: usize) -> Self {
+        Self::ContractLimitExceeded {
+            what: what.into(),
+            found,
+            limit,
+        }
     }
 
     /// Create a scenario error.

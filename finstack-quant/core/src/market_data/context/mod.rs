@@ -125,7 +125,7 @@ pub enum ContextScratchBump {
 
 pub use state_serde::{
     build_snapshot_fx_matrix, CreditIndexState, CurveState, MarketContextState,
-    MARKET_CONTEXT_STATE_VERSION,
+    MARKET_CONTEXT_STATE_CONTRACT, MARKET_CONTEXT_STATE_VERSION,
 };
 
 use crate::collections::{HashMap, HashSet};

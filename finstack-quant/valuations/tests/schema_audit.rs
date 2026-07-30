@@ -823,7 +823,7 @@ mod generated_schema_contract {
     }
 }
 
-mod fx_schema_drift {
+mod instrument_schema_drift {
     use finstack_quant_valuations::instruments::*;
     use schemars::JsonSchema;
     use serde_json::{Map, Value};
@@ -850,6 +850,16 @@ mod fx_schema_drift {
 
     fn common_schema_ref(def_name: &str) -> Option<String> {
         common_schema_filename(def_name).map(|filename| format!("{COMMON_SCHEMA_BASE}{filename}"))
+    }
+
+    fn external_schema_ref(def_name: &str) -> Option<String> {
+        common_schema_ref(def_name)
+            .or_else(|| finstack_quant_cashflows::schema::definition_uri(def_name))
+    }
+
+    fn is_externalized_def(def_name: &str) -> bool {
+        common_schema_filename(def_name).is_some()
+            || finstack_quant_cashflows::schema::definition_uri(def_name).is_some()
     }
 
     fn is_date_like_property(name: &str) -> bool {
@@ -948,10 +958,10 @@ mod fx_schema_drift {
                     .get("$ref")
                     .and_then(Value::as_str)
                     .and_then(|reference| reference.strip_prefix("#/$defs/"))
-                    .and_then(common_schema_ref);
-                if let Some(common_ref) = replacement {
+                    .and_then(external_schema_ref);
+                if let Some(external_ref) = replacement {
                     if let Some(reference) = map.get_mut("$ref") {
-                        *reference = Value::String(common_ref);
+                        *reference = Value::String(external_ref);
                     }
                 }
 
@@ -997,7 +1007,7 @@ mod fx_schema_drift {
 
     fn prune_common_defs(value: &mut Value) {
         if let Some(defs) = value.get_mut("$defs").and_then(Value::as_object_mut) {
-            defs.retain(|def_name, _| common_schema_filename(def_name).is_none());
+            defs.retain(|def_name, _| !is_externalized_def(def_name));
             if defs.is_empty() {
                 if let Some(obj) = value.as_object_mut() {
                     obj.remove("$defs");
@@ -1048,12 +1058,12 @@ mod fx_schema_drift {
         prune_unreachable_defs(value);
     }
 
-    fn checked_in_spec(name: &str) -> Value {
+    fn checked_in_spec(category: &str, name: &str) -> Value {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("schemas")
             .join("instruments")
             .join("1")
-            .join("fx")
+            .join(category)
             .join(format!("{name}.schema.json"));
         let content = std::fs::read_to_string(&path)
             .unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
@@ -1070,7 +1080,16 @@ mod fx_schema_drift {
         let mut generated = serde_json::to_value(schema).expect("serialize generated schema");
         postprocess_schema(&mut generated);
         let mut spec = Map::new();
-        for key in ["properties", "required", "type", "additionalProperties"] {
+        for key in [
+            "properties",
+            "required",
+            "type",
+            "additionalProperties",
+            "oneOf",
+            "anyOf",
+            "allOf",
+            "not",
+        ] {
             if let Some(value) = generated.get(key) {
                 spec.insert(key.to_string(), value.clone());
             }
@@ -1078,25 +1097,118 @@ mod fx_schema_drift {
         Value::Object(spec)
     }
 
-    fn assert_fx_schema_current<T: JsonSchema>(name: &str) {
+    fn assert_instrument_schema_current<T: JsonSchema>(category: &str, name: &str) {
         assert_eq!(
-            checked_in_spec(name),
+            checked_in_spec(category, name),
             generated_spec::<T>(),
-            "FX schema {name}.schema.json is stale; run `cargo run -p finstack-quant-valuations --bin gen_schemas`"
+            "{category} schema {name}.schema.json is stale; run `cargo run -p finstack-quant-valuations --bin gen_schemas`"
         );
     }
 
     #[test]
-    fn fx_instrument_schemas_match_schemars_output() {
-        assert_fx_schema_current::<FxSpot>("fx_spot");
-        assert_fx_schema_current::<FxSwap>("fx_swap");
-        assert_fx_schema_current::<FxForward>("fx_forward");
-        assert_fx_schema_current::<Ndf>("ndf");
-        assert_fx_schema_current::<FxOption>("fx_option");
-        assert_fx_schema_current::<FxDigitalOption>("fx_digital_option");
-        assert_fx_schema_current::<FxTouchOption>("fx_touch_option");
-        assert_fx_schema_current::<FxBarrierOption>("fx_barrier_option");
-        assert_fx_schema_current::<FxVarianceSwap>("fx_variance_swap");
-        assert_fx_schema_current::<QuantoOption>("quanto_option");
+    fn all_instrument_schemas_match_schemars_output() {
+        assert_instrument_schema_current::<Bond>("fixed_income", "bond");
+        assert_instrument_schema_current::<ConvertibleBond>("fixed_income", "convertible_bond");
+        assert_instrument_schema_current::<InflationLinkedBond>(
+            "fixed_income",
+            "inflation_linked_bond",
+        );
+        assert_instrument_schema_current::<TermLoan>("fixed_income", "term_loan");
+        assert_instrument_schema_current::<RevolvingCredit>("fixed_income", "revolving_credit");
+        assert_instrument_schema_current::<BondFuture>("fixed_income", "bond_future");
+        assert_instrument_schema_current::<AgencyMbsPassthrough>(
+            "fixed_income",
+            "agency_mbs_passthrough",
+        );
+        assert_instrument_schema_current::<AgencyTba>("fixed_income", "agency_tba");
+        assert_instrument_schema_current::<AgencyCmo>("fixed_income", "agency_cmo");
+        assert_instrument_schema_current::<DollarRoll>("fixed_income", "dollar_roll");
+        assert_instrument_schema_current::<FIIndexTotalReturnSwap>(
+            "fixed_income",
+            "trs_fixed_income_index",
+        );
+        assert_instrument_schema_current::<StructuredCredit>("fixed_income", "structured_credit");
+
+        assert_instrument_schema_current::<InterestRateSwap>("rates", "interest_rate_swap");
+        assert_instrument_schema_current::<BasisSwap>("rates", "basis_swap");
+        assert_instrument_schema_current::<XccySwap>("rates", "xccy_swap");
+        assert_instrument_schema_current::<InflationSwap>("rates", "inflation_swap");
+        assert_instrument_schema_current::<YoYInflationSwap>("rates", "yoy_inflation_swap");
+        assert_instrument_schema_current::<InflationCapFloor>("rates", "inflation_cap_floor");
+        assert_instrument_schema_current::<ForwardRateAgreement>("rates", "forward_rate_agreement");
+        assert_instrument_schema_current::<Swaption>("rates", "swaption");
+        assert_instrument_schema_current::<BermudanSwaption>("rates", "bermudan_swaption");
+        assert_instrument_schema_current::<InterestRateFuture>("rates", "interest_rate_future");
+        assert_instrument_schema_current::<CapFloor>("rates", "cap_floor");
+        assert_instrument_schema_current::<CmsOption>("rates", "cms_option");
+        assert_instrument_schema_current::<CmsSpreadOption>("rates", "cms_spread_option");
+        assert_instrument_schema_current::<CmsSwap>("rates", "cms_swap");
+        assert_instrument_schema_current::<IrFutureOption>("rates", "ir_future_option");
+        assert_instrument_schema_current::<Deposit>("rates", "deposit");
+        assert_instrument_schema_current::<Repo>("rates", "repo");
+        assert_instrument_schema_current::<RangeAccrual>("rates", "range_accrual");
+        assert_instrument_schema_current::<CallableRangeAccrual>("rates", "callable_range_accrual");
+        assert_instrument_schema_current::<Snowball>("rates", "snowball");
+        assert_instrument_schema_current::<Tarn>("rates", "tarn");
+
+        assert_instrument_schema_current::<CreditDefaultSwap>(
+            "credit_derivatives",
+            "credit_default_swap",
+        );
+        assert_instrument_schema_current::<CDSIndex>("credit_derivatives", "cds_index");
+        assert_instrument_schema_current::<CDSTranche>("credit_derivatives", "cds_tranche");
+        assert_instrument_schema_current::<CDSOption>("credit_derivatives", "cds_option");
+
+        assert_instrument_schema_current::<Equity>("equity", "equity");
+        assert_instrument_schema_current::<EquityOption>("equity", "equity_option");
+        assert_instrument_schema_current::<Autocallable>("equity", "autocallable");
+        assert_instrument_schema_current::<CliquetOption>("equity", "cliquet_option");
+        assert_instrument_schema_current::<VarianceSwap>("equity", "variance_swap");
+        assert_instrument_schema_current::<EquityIndexFuture>("equity", "equity_index_future");
+        assert_instrument_schema_current::<VolatilityIndexFuture>(
+            "equity",
+            "volatility_index_future",
+        );
+        assert_instrument_schema_current::<VolatilityIndexOption>(
+            "equity",
+            "volatility_index_option",
+        );
+        assert_instrument_schema_current::<EquityTotalReturnSwap>("equity", "trs_equity");
+        assert_instrument_schema_current::<PrivateMarketsFund>("equity", "private_markets_fund");
+        assert_instrument_schema_current::<RealEstateAsset>("equity", "real_estate_asset");
+        assert_instrument_schema_current::<DiscountedCashFlow>("equity", "discounted_cash_flow");
+        assert_instrument_schema_current::<LeveredRealEstateEquity>(
+            "equity",
+            "levered_real_estate_equity",
+        );
+
+        assert_instrument_schema_current::<FxSpot>("fx", "fx_spot");
+        assert_instrument_schema_current::<FxSwap>("fx", "fx_swap");
+        assert_instrument_schema_current::<FxForward>("fx", "fx_forward");
+        assert_instrument_schema_current::<Ndf>("fx", "ndf");
+        assert_instrument_schema_current::<FxOption>("fx", "fx_option");
+        assert_instrument_schema_current::<FxDigitalOption>("fx", "fx_digital_option");
+        assert_instrument_schema_current::<FxTouchOption>("fx", "fx_touch_option");
+        assert_instrument_schema_current::<FxBarrierOption>("fx", "fx_barrier_option");
+        assert_instrument_schema_current::<FxVarianceSwap>("fx", "fx_variance_swap");
+        assert_instrument_schema_current::<QuantoOption>("fx", "quanto_option");
+
+        assert_instrument_schema_current::<CommodityOption>("commodity", "commodity_option");
+        assert_instrument_schema_current::<CommodityAsianOption>(
+            "commodity",
+            "commodity_asian_option",
+        );
+        assert_instrument_schema_current::<CommodityForward>("commodity", "commodity_forward");
+        assert_instrument_schema_current::<CommoditySwap>("commodity", "commodity_swap");
+        assert_instrument_schema_current::<CommoditySwaption>("commodity", "commodity_swaption");
+        assert_instrument_schema_current::<CommoditySpreadOption>(
+            "commodity",
+            "commodity_spread_option",
+        );
+
+        assert_instrument_schema_current::<AsianOption>("exotics", "asian_option");
+        assert_instrument_schema_current::<BarrierOption>("exotics", "barrier_option");
+        assert_instrument_schema_current::<LookbackOption>("exotics", "lookback_option");
+        assert_instrument_schema_current::<Basket>("exotics", "basket");
     }
 }

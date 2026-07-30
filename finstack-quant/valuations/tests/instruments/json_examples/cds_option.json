@@ -1,45 +1,51 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "cds_option",
     "spec": {
-      "id": "CDSOPT-CALL-CORP-5Y",
-      "strike": "0.01",
-      "option_type": "call",
+      "attributes": {},
+      "cds_maturity": "2030-06-20",
+      "credit_curve_id": "CORP-HAZARD",
+      "discount_curve_id": "USD-OIS",
       "exercise_style": "european",
       "expiry": "2025-06-20",
-      "cds_maturity": "2030-06-20",
+      "id": "CDSOPT-CALL-CORP-5Y",
+      "index_factor": null,
+      "knockout": false,
       "notional": {
         "amount": "10000000",
         "currency": "USD"
       },
-      "settlement": "cash",
-      "recovery_rate": 0.4,
-      "discount_curve_id": "USD-OIS",
-      "credit_curve_id": "CORP-HAZARD",
-      "vol_surface_id": "CDSOPT-VOL",
+      "option_type": "call",
       "pricing_overrides": {
-        "quoted_clean_price": null,
-        "rho_bump_decimal": null,
-        "vega_bump_decimal": null,
-        "implied_volatility": null,
-        "cds_quote_bp": null,
-        "upfront_payment": null,
-        "ytm_bump_decimal": null,
-        "theta_period": null,
-        "mc_seed_scenario": null,
         "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_act360_include_last_day": false,
+        "cds_aod_half_day_bias": false,
+        "credit_spread_bump_bp": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "oas_price_basis": "settlement_dirty",
+        "oas_quote_compounding": "continuous",
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
         "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
         "vol_bump_pct": null,
-        "rate_bump_bp": null
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
       },
-      "attributes": {
-        "tags": [],
-        "meta": {}
-      },
+      "protection_start_convention": "spot",
+      "recovery_rate": 0.4,
+      "settlement": "cash",
+      "strike": "0.01",
+      "underlying_cds_coupon": null,
+      "underlying_convention": "isda_na",
       "underlying_is_index": false,
-      "index_factor": null,
-      "realized_index_loss": null
-    }
-  }
+      "vol_surface_id": "CDSOPT-VOL"
+    },
+    "type": "cds_option"
+  },
+  "schema": "finstack_quant.instrument/1"
 }

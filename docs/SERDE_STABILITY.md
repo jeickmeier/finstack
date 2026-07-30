@@ -9,7 +9,13 @@ those persisted bytes must be upgraded.
 
 Pre-1.0. Breaking changes across minor versions are possible. Every breaking
 change must be documented in `CHANGELOG.md` and, for types tracked below,
-gated by a bumped `schema_version`.
+gated by a bumped explicit version marker. Maintained contracts use one of
+three forms: an envelope `schema` string with a version suffix, a numeric
+`version`, or a numeric/string `schema_version`.
+
+The operational contract catalog, migration recipes, schemas, and examples live
+in [`CONTRACTS.md`](CONTRACTS.md). Keep both documents in sync whenever a
+persisted top-level type changes.
 
 ## Scope
 
@@ -26,6 +32,38 @@ Types that are strictly intermediate (private module items, dev-only helpers,
 in-process DTOs between Rust and a binding layer that always re-serializes in
 one process) are outside this contract.
 
+## Maintained contract matrix
+
+`Strict missing` describes the bounded database-oriented loader, not raw
+`serde_json::from_*`. Strict loaders always require an explicit version marker:
+an envelope `schema`, numeric `version`, or numeric/string `schema_version`.
+
+| Persisted contract | Marker | Current | Accepted | Ordinary missing-marker behavior | Strict missing-marker behavior |
+|---|---|---:|---|---|---|
+| `InstrumentEnvelope` | `schema = "finstack_quant.instrument/1"` | 1 | 1 | compatibility loaders accept the bare `{type,spec}` form | reject with `contract/envelope-required` |
+| `CalibrationEnvelope` / `CalibrationResultEnvelope` | `schema = "finstack_quant.calibration/3"` | 3 | 3; exact legacy `finstack_quant.calibration` is read with a warning | serde requires a string but does not validate it by itself | reject missing; legacy marker yields `contract/version-legacy` |
+| `MarketContextState` | numeric `version` | 2 | 1–2 | missing maps to legacy version 1 | reject with `contract/version-missing` |
+| `FinancialModelSpec` | numeric `schema_version` | 2 | 1–2 | missing maps to legacy version 1 | reject; explicit v1 is migrated to v2 |
+| `ScenarioEnvelope` | `schema = "finstack_quant.scenario/1"` | 1 | 1 | bare `ScenarioSpec` remains an in-process compatibility shape | reject with `contract/version-missing` |
+| `FactorModelConfigEnvelope` | `schema = "finstack_quant.factor_model_config/1"` | 1 | 1 | bare `FactorModelConfig` remains an in-process compatibility shape | reject with `contract/version-missing` |
+| `CreditFactorModel` | `schema_version = "finstack_quant.credit_factor_model/1"` | 1 | 1 | the field is required, but raw serde does not run semantic validation | reject missing or mismatched marker |
+| `PortfolioMaterializationEnvelope` | `schema = "finstack_quant.portfolio_materialization/1"` | 1 | 1 | no compatibility form for this normalized contract | reject with `contract/version-missing` |
+
+Scenario-template documents are internal registry inputs. Their missing
+`schema` maps to legacy `finstack_quant.scenario_template/1`; this is not a
+public persistence promise.
+
+Versioned result outputs remain consumer-checked rather than strict inbound
+database contracts:
+
+| Result type | Marker | Current | Missing-marker behavior |
+|---|---|---:|---|
+| `ValuationResult` | numeric `schema_version` | 1 | ordinary serde defaults to 1 |
+| `StatementResult` | numeric `schema_version` | 1 | ordinary serde defaults to 1 |
+| `PortfolioResult` | numeric `schema_version` | 1 | ordinary serde defaults to 1 |
+| `PortfolioOptimizationResult` | numeric `schema_version` | 1 | write-only canonical result shape; no general deserializer |
+| `CreditFactorModel` | string `schema_version` | 1 | required; use its strict loader |
+
 ## The contract
 
 For every in-scope type:
@@ -38,9 +76,14 @@ For every in-scope type:
     equivalent to the pre-change behavior, AND
   - The change is recorded in `CHANGELOG.md`.
 
+  For a strict persisted contract using `deny_unknown_fields`, an additive
+  field is forward-incompatible with an older reader. It therefore requires
+  either a version bump or a coordinated reader-first rollout in which every
+  reader accepts the field before any writer emits it.
+
 - **Non-additive changes** (rename a field, change a field type, reorder or
   remove an enum variant, tighten a validation invariant) require:
-  - A `schema_version` bump on the type (see below), AND
+  - An explicit version-marker bump on the type or envelope (see below), AND
   - A `CHANGELOG.md` entry explaining the migration path, AND
   - A migration helper (either a `serde(alias = "…")` for the simple rename
     case, or a `From<OldShape> for NewShape` helper for complex cases).
@@ -54,12 +97,54 @@ For every in-scope type:
 - **`#[non_exhaustive]` on a public error enum or result type** is expected
   unless there is a specific reason not to — this is the workspace default.
 
-## Schema-versioned result types
+### Strict rollout rules
 
-The following types carry an explicit `schema_version: u32` field so that
-consumers reading persisted payloads can detect a mismatch and refuse /
-upgrade / fall back rather than silently misinterpreting bytes. The
-corresponding `const` lives in the same module and is the source of truth.
+1. Add or upgrade strict readers first.
+2. Verify old and new fixtures against the supported-version matrix.
+3. Deploy writers only after all persisted-data readers understand the new
+   shape.
+4. Reject unknown, zero, malformed, and future versions. Never infer current
+   version from a missing marker on a strict path.
+5. Preserve old tags and aliases during the documented migration window.
+6. Bump the contract version for required-field changes, semantic changes, and
+   additive fields that cannot use a coordinated reader-first rollout.
+
+## Canonical JSON and content hashes
+
+Canonical algorithm version `c1` is implemented by
+`finstack_quant_core::canonical`:
+
+- Serialize the typed value once and reject every non-finite `f32` or `f64`.
+- Sort every JSON object recursively by UTF-8 key bytes. Preserve array order.
+- Emit compact JSON with no insignificant whitespace.
+- Preserve JSON integers. Finite floats use serde_json/Ryu's shortest
+  representation.
+- Preserve strings, producer date/enum conventions, decimal strings, and
+  serde-omitted fields exactly. Canonicalization does not perform domain
+  normalization.
+- Include extension and `meta` maps in the bytes and digest.
+
+`content_hash(value)` hashes this exact preimage:
+
+```text
+b"finstack-canon/" || b"c1" || b"\0" || canonical_json_bytes
+```
+
+The result is `sha256:` followed by 64 lowercase hexadecimal digits.
+`CANONICAL_VERSION` is a separate manifest/cache-key axis, so a future
+canonical algorithm can coexist with SHA-256 identifiers.
+
+Decimal scale is intentionally not normalized globally: producer strings
+`"100.0"` and `"100"` hash differently even when their decimal values compare
+equal. New envelope producers should normalize decimals before hashing when
+cross-producer identity is required. Legacy payloads hash as produced.
+
+## Schema-versioned result and model types
+
+The following result and model types carry an explicit numeric or string
+version marker so consumers can detect a mismatch and refuse, upgrade, or fall
+back rather than silently misinterpreting bytes. The corresponding constant or
+descriptor lives in the same module and is the source of truth.
 
 | Type | Module | Const | Current version |
 |---|---|---|---|
@@ -68,8 +153,10 @@ corresponding `const` lives in the same module and is the source of truth.
 | `PortfolioResult` | `finstack_quant_portfolio::results` | `PORTFOLIO_RESULT_SCHEMA_VERSION` | 1 |
 | `PortfolioOptimizationResult` | `finstack_quant_portfolio::optimization::result` | `PORTFOLIO_OPTIMIZATION_RESULT_SCHEMA_VERSION` | 1 |
 | `CreditFactorModel` | `finstack_quant_factor_model::credit::hierarchy` | `"finstack_quant.credit_factor_model/1"` (string tag, not a `u32` const) | 1 |
+| `MarketContextState` | `finstack_quant_core::market_data::context` | `MARKET_CONTEXT_STATE_VERSION` | 2 |
+| `FinancialModelSpec` | `finstack_quant_statements::types` | `CURRENT_SCHEMA_VERSION` | 2 |
 
-### When to bump `schema_version`
+### When to bump an explicit version marker
 
 Bump (i.e. increment the `const`) in any of these cases:
 
@@ -82,7 +169,8 @@ Bump (i.e. increment the `const`) in any of these cases:
 
 Do NOT bump for:
 
-- Adding a new field with `#[serde(default)]`.
+- Adding a new field with `#[serde(default)]` when the strict reader-first
+  rollout rule above is satisfied.
 - Adding a new enum variant at the end.
 - Adding a new `impl` block or deriving a new trait.
 - Documentation changes.
@@ -120,7 +208,7 @@ if payload.schema_version > VALUATION_RESULT_SCHEMA_VERSION {
 
 Everything else under `pub` serde types in the workspace follows the
 "additive changes only between minor versions" rule, but does not (yet) carry
-a version tag. If you persist them, pin a specific workspace version in your
+an explicit version marker. If you persist them, pin a specific workspace version in your
 consumer or be prepared to handle deserialization errors on upgrade.
 
 Notable in this category:
@@ -131,9 +219,10 @@ Notable in this category:
   (sub-envelope of `PortfolioResult`)
 - `finstack_quant_portfolio::factor_model::whatif::{WhatIfResult, StressResult}`
   (no versioning yet — track upstream)
-- All `*Spec`, `*Config`, `*Envelope` types used as inputs to pricing,
-  calibration, scenarios, and statements. These are user-authored payloads;
-  the workspace treats added fields as additive only.
+- Bare `PortfolioSpec`, `ScenarioSpec`, and `FactorModelConfig` compatibility
+  shapes. Persist their versioned envelope forms for strict storage.
+- User-authored nested `*Spec` and `*Config` values that are not one of the
+  top-level contracts in the maintained matrix.
 
 ### Credit factor hierarchy types (additive, no schema-version constant)
 
@@ -152,11 +241,15 @@ minor versions without a schema-version bump.
 - `PositionResidualContribution` (`finstack_quant_portfolio::factor_model`) —
   additive, opt-in field on `RiskDecomposition`.
 - `CreditCalibrationInputs`, `CreditCalibrationConfig`
-  (`finstack_quant_factor_model::credit::calibration`) — versioned serde
-  (round-trippable) but carry no `schema_version` constant yet; safe to
-  persist when the workspace version is pinned.
+  (`finstack_quant_factor_model::credit::calibration`) — round-trippable nested
+  inputs without an independent top-level marker; persist them inside a
+  versioned owning artifact or pin the workspace version.
 
-Bumping any of these to a versioned shape is a planned follow-up.
+Persist these nested types only inside a versioned owning artifact, or pin the
+workspace version in the consumer. If one becomes an independently persisted
+top-level contract, introduce an explicit version marker, strict loader,
+canonical fixture, and migration policy before shipping that persistence
+surface.
 
 ## MSRV and toolchain
 
@@ -173,7 +266,10 @@ Bumping any of these to a versioned shape is a planned follow-up.
   output whenever the Rust side changes.
 - **In-memory layout of Rust structs.** `#[repr(Rust)]` is the default and
   layout is not a stability contract. Do not `mem::transmute` finstack types.
-- **Benchmarks / criterion baselines.** Those are throwaway artifacts.
+- **Generic Criterion scratch output.** The named portfolio-materialization
+  baseline manifest and release result record are maintained acceptance
+  artifacts documented in
+  [`MATERIALIZATION_BENCHMARKS.md`](MATERIALIZATION_BENCHMARKS.md).
 
 ## Getting clarity
 

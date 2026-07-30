@@ -538,7 +538,7 @@ impl<'a> EquityWaterfallEngine<'a> {
     pub fn run(&self, events: &[FundEvent]) -> finstack_quant_core::Result<AllocationLedger> {
         // Validate and sort events
         let mut sorted_events = events.to_vec();
-        sorted_events.sort_by(|a, b| a.date.cmp(&b.date));
+        sorted_events.sort_by_key(|event| event.date);
 
         // Currency-safety: the waterfall performs raw f64 arithmetic across event
         // amounts, so every event must share a single currency. Reject mixed

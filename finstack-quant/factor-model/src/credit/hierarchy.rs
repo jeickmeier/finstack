@@ -60,10 +60,18 @@
 //!   the same inputs produce byte-identical JSON.
 
 use crate::{FactorId, FactorModelConfig};
+use finstack_quant_core::contract::{
+    deserialize_json_value, parse_json_value, ContractDescriptor, ContractError, Diagnostic,
+    LoadLimits, LoadPhase, Severity, ValidationReport,
+};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::types::IssuerId;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+
+/// Persistence contract for [`CreditFactorModel`].
+pub const CREDIT_FACTOR_MODEL_CONTRACT: ContractDescriptor =
+    ContractDescriptor::new("finstack_quant.credit_factor_model", 1);
 
 // ---------------------------------------------------------------------------
 // dimension_key helper — lives here so CreditHierarchySpec can use it
@@ -774,6 +782,55 @@ impl CreditFactorModel {
     /// Canonical schema version for this artifact format.
     pub const SCHEMA_VERSION: &'static str = "finstack_quant.credit_factor_model/1";
 
+    /// Load and validate a persisted credit-factor-model artifact.
+    ///
+    /// This entry point fuses bounded JSON deserialization, explicit schema
+    /// enforcement, and [`Self::validate`] so callers cannot accidentally use
+    /// an unchecked artifact.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Complete UTF-8 JSON encoding of a credit factor model.
+    /// * `limits` - Resource policy bounding input size, JSON depth, and
+    ///   retained diagnostics.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ContractError`] for malformed JSON, resource-limit failures,
+    /// missing, malformed, or unsupported schema markers, invalid artifact
+    /// shape, or failed internal-consistency validation.
+    pub fn from_slice_strict(
+        bytes: &[u8],
+        limits: &LoadLimits,
+    ) -> Result<(Self, ValidationReport), ContractError> {
+        let value = parse_json_value(bytes, limits)?;
+        let schema = match value.get("schema_version") {
+            Some(schema) => Some(deserialize_json_value::<String>(schema.clone(), limits)?),
+            None => None,
+        };
+        CREDIT_FACTOR_MODEL_CONTRACT.parse_schema_strict(
+            schema.as_deref(),
+            "/schema_version",
+            limits,
+        )?;
+        let model: Self = deserialize_json_value(value, limits)?;
+        model.validate().map_err(|error| {
+            let mut report = ValidationReport::default();
+            report.push_bounded(
+                limits,
+                Diagnostic::new(
+                    "contract/semantic-invalid",
+                    LoadPhase::Semantic,
+                    Severity::Error,
+                    error.to_string(),
+                )
+                .with_contract(CREDIT_FACTOR_MODEL_CONTRACT.id),
+            );
+            ContractError::Report(Box::new(report))
+        })?;
+        Ok((model, ValidationReport::default()))
+    }
+
     /// Validate the artifact's schema version and internal consistency.
     ///
     /// # Errors
@@ -975,6 +1032,99 @@ mod tests {
         // Second serialization must be byte-identical (determinism)
         let json2 = serde_json::to_string(&back).unwrap();
         assert_eq!(json, json2);
+    }
+
+    #[test]
+    fn strict_loader_fuses_schema_deserialization_and_validation() {
+        let model = minimal_model();
+        let bytes = serde_json::to_vec(&model).expect("serialize model");
+        let (loaded, report) = CreditFactorModel::from_slice_strict(
+            &bytes,
+            &finstack_quant_core::LoadLimits::default(),
+        )
+        .expect("valid model");
+        assert_eq!(loaded.schema_version, CreditFactorModel::SCHEMA_VERSION);
+        assert!(report.diagnostics.is_empty());
+
+        let base = serde_json::to_value(model).expect("serialize fixture");
+        for schema in [
+            None,
+            Some("finstack_quant.credit_factor_model/0"),
+            Some("finstack_quant.credit_factor_model/2"),
+            Some("finstack_quant.credit_factor_model/not-a-version"),
+        ] {
+            let mut value = base.clone();
+            match schema {
+                Some(schema) => value["schema_version"] = serde_json::json!(schema),
+                None => {
+                    value
+                        .as_object_mut()
+                        .expect("model object")
+                        .remove("schema_version");
+                }
+            }
+            assert!(
+                CreditFactorModel::from_slice_strict(
+                    &serde_json::to_vec(&value).expect("serialize fixture"),
+                    &finstack_quant_core::LoadLimits::default(),
+                )
+                .is_err(),
+                "invalid schema must fail"
+            );
+        }
+
+        let mut invalid = base;
+        invalid["hierarchy"]["levels"] = serde_json::json!(["rating", "rating"]);
+        assert!(
+            CreditFactorModel::from_slice_strict(
+                &serde_json::to_vec(&invalid).expect("serialize fixture"),
+                &finstack_quant_core::LoadLimits::default(),
+            )
+            .is_err(),
+            "semantic validation must run"
+        );
+    }
+
+    #[test]
+    fn credit_factor_model_version_matrix_fixture_drives_strict_loader() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../tests/data/contract_version_matrix.json"
+        ))
+        .expect("version matrix fixture parses");
+        let matrix = &fixture["credit"];
+        let base = matrix["base"].clone();
+        let cases = matrix["cases"]
+            .as_array()
+            .expect("matrix contains schema cases");
+
+        for case in cases {
+            let name = case["name"].as_str().expect("case name");
+            let mut document = base.clone();
+            match case.get("schema_version") {
+                Some(serde_json::Value::Null) | None => {
+                    document
+                        .as_object_mut()
+                        .expect("credit model object")
+                        .remove("schema_version");
+                }
+                Some(schema) => document["schema_version"] = schema.clone(),
+            }
+            let bytes = serde_json::to_vec(&document).expect("case serializes");
+            let expected = case["expected"].as_str().expect("expected outcome");
+            match CreditFactorModel::from_slice_strict(
+                &bytes,
+                &finstack_quant_core::LoadLimits::default(),
+            ) {
+                Ok((_loaded, report)) => {
+                    assert_eq!(expected, "ok", "{name} unexpectedly loaded");
+                    assert!(report.diagnostics.is_empty(), "{name}");
+                }
+                Err(finstack_quant_core::ContractError::Report(report)) => {
+                    assert_eq!(report.diagnostics[0].code, expected, "{name}");
+                }
+                Err(error) => panic!("{name} returned unstructured error: {error}"),
+            }
+        }
     }
 
     // ------------------------------------------------------------------

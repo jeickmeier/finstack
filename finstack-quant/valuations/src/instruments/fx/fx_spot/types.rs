@@ -89,6 +89,7 @@ use finstack_quant_core::Result;
 #[derive(
     Clone,
     Debug,
+    PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
     finstack_quant_valuations_macros::FocusedPricingOverrides,
 )]

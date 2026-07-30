@@ -1,4 +1,5 @@
 {
+  "schema": "finstack_quant.scenario_template/1",
   "metadata": {
     "id": "rate_shock_2022",
     "name": "2022 Fed Hiking Cycle",

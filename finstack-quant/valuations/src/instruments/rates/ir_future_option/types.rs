@@ -65,6 +65,7 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
 /// Priced using Black-76 on the futures price. The underlying is the futures
 /// price itself (100 - rate), so no convexity adjustment is needed.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

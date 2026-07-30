@@ -48,6 +48,7 @@ pub enum RealEstateValuationMethod {
 ///
 /// Supports DCF (explicit NOI schedule) and direct capitalization valuation.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

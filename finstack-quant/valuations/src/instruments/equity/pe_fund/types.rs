@@ -18,6 +18,7 @@ use time::macros::date;
 /// discounting when a `discount_curve_id` is provided, or falls back to
 /// last-event date for IRR-only workflows.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

@@ -1,0 +1,241 @@
+{
+  "calibration": {
+    "base": {
+      "schema": "finstack_quant.calibration/3",
+      "plan": {
+        "id": "usd-rates-close",
+        "description": "Empty but executable calibration plan fixture",
+        "quote_sets": {},
+        "steps": [],
+        "settings": {}
+      },
+      "market_data": [],
+      "prior_market": []
+    },
+    "cases": [
+      {
+        "name": "current",
+        "schema": "finstack_quant.calibration/3",
+        "expected": "ok"
+      },
+      {
+        "name": "old",
+        "schema": "finstack_quant.calibration",
+        "expected": "warning"
+      },
+      {
+        "name": "missing",
+        "schema": null,
+        "expected": "missing"
+      },
+      {
+        "name": "zero",
+        "schema": "finstack_quant.calibration/0",
+        "expected": "unsupported"
+      },
+      {
+        "name": "future",
+        "schema": "finstack_quant.calibration/4",
+        "expected": "unsupported"
+      },
+      {
+        "name": "malformed",
+        "schema": "finstack_quant.calibration/not-a-version",
+        "expected": "malformed"
+      },
+      {
+        "name": "wrong-type",
+        "schema": 3,
+        "expected": "malformed"
+      }
+    ]
+  },
+  "calibration_result": {
+    "base": {
+      "schema": "finstack_quant.calibration/3",
+      "result": {
+        "final_market": {
+          "version": 2,
+          "curves": [],
+          "fx": null,
+          "surfaces": [],
+          "prices": {},
+          "series": [],
+          "inflation_indices": [],
+          "dividends": [],
+          "credit_indices": [],
+          "fx_delta_vol_surfaces": [],
+          "vol_cubes": [],
+          "collateral": {}
+        },
+        "report": {
+          "success": true,
+          "iterations": 0,
+          "objective_value": 0.0,
+          "rmse": 0.0,
+          "max_residual": 0.0,
+          "residuals": {},
+          "convergence_reason": "Plan execution completed",
+          "solver_config": {
+            "tolerance": 1e-12,
+            "max_iterations": 100,
+            "bracket_min": -1000000.0,
+            "bracket_max": 1000000.0,
+            "bracket_expansion": 2.0,
+            "initial_bracket_size": null
+          },
+          "metadata": {
+            "type": "plan_execution",
+            "method": "plan_execution",
+            "solver_tolerance": "1.00e-12"
+          },
+          "validation_passed": true,
+          "results_meta": {
+            "version": "0.7.0",
+            "numeric_mode": "F64",
+            "rounding": {
+              "version": 1,
+              "mode": "Bankers",
+              "ingest_scale_by_ccy": {},
+              "output_scale_by_ccy": {},
+              "tolerances": {
+                "rate_epsilon": 1e-12,
+                "generic_epsilon": 1e-10
+              }
+            },
+            "fx_policy_applied": null
+          }
+        },
+        "step_reports": {},
+        "results_meta": {
+          "version": "0.7.0",
+          "numeric_mode": "F64",
+          "rounding": {
+            "version": 1,
+            "mode": "Bankers",
+            "ingest_scale_by_ccy": {},
+            "output_scale_by_ccy": {},
+            "tolerances": {
+              "rate_epsilon": 1e-12,
+              "generic_epsilon": 1e-10
+            }
+          },
+          "fx_policy_applied": null
+        }
+      }
+    },
+    "cases": [
+      {
+        "name": "current",
+        "schema": "finstack_quant.calibration/3",
+        "expected": "ok"
+      },
+      {
+        "name": "old",
+        "schema": "finstack_quant.calibration",
+        "expected": "warning"
+      },
+      {
+        "name": "missing",
+        "schema": null,
+        "expected": "contract/version-missing"
+      },
+      {
+        "name": "zero",
+        "schema": "finstack_quant.calibration/0",
+        "expected": "contract/version-unsupported"
+      },
+      {
+        "name": "future",
+        "schema": "finstack_quant.calibration/4",
+        "expected": "contract/version-unsupported"
+      },
+      {
+        "name": "malformed",
+        "schema": "finstack_quant.calibration/not-a-version",
+        "expected": "contract/schema-malformed"
+      },
+      {
+        "name": "wrong-type",
+        "schema": 3,
+        "expected": "contract/schema-malformed"
+      }
+    ]
+  },
+  "instrument": {
+    "base": {
+      "schema": "finstack_quant.instrument/1",
+      "instrument": {
+        "type": "bond",
+        "spec": {
+          "id": "US912828XG33",
+          "notional": {
+            "amount": "1000000",
+            "currency": "USD"
+          },
+          "issue_date": "2024-01-15",
+          "maturity": "2034-01-15",
+          "cashflow_spec": {
+            "Fixed": {
+              "coupon_type": "Cash",
+              "rate": 0.0425,
+              "freq": {
+                "count": 6,
+                "unit": "months"
+              },
+              "dc": "Thirty360",
+              "bdc": "following",
+              "calendar_id": "weekends_only",
+              "stub": "None"
+            }
+          },
+          "discount_curve_id": "USD-TREASURY",
+          "credit_curve_id": null,
+          "pricing_overrides": {
+            "adaptive_bumps": false
+          },
+          "call_put": null,
+          "accrual_method": "Linear",
+          "attributes": {
+            "tags": [],
+            "meta": {}
+          },
+          "settlement_days": null,
+          "ex_coupon_days": null
+        }
+      }
+    },
+    "cases": [
+      {
+        "name": "current",
+        "schema": "finstack_quant.instrument/1",
+        "expected": "ok"
+      },
+      {
+        "name": "missing",
+        "schema": null,
+        "expected": "contract/envelope-required"
+      },
+      {
+        "name": "zero",
+        "schema": "finstack_quant.instrument/0",
+        "expected": "contract/version-unsupported"
+      },
+      {
+        "name": "future",
+        "schema": "finstack_quant.instrument/2",
+        "expected": "contract/version-unsupported"
+      },
+      {
+        "name": "malformed",
+        "schema": "finstack_quant.instrument/not-a-version",
+        "expected": "contract/schema-malformed"
+      },
+      {
+        "name": "wrong-type",
+        "schema": 1,
+        "expected": "contract/structure-invalid"
+      }
+    ]
+  }
+}

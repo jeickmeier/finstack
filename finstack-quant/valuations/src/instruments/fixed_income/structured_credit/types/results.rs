@@ -7,7 +7,7 @@ use crate::cashflow::traits::DatedFlows;
 use crate::metrics::MetricId;
 use finstack_quant_core::cashflow::CashFlow;
 use finstack_quant_core::money::Money;
-use finstack_quant_core::HashMap;
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -84,7 +84,7 @@ pub struct TrancheValuation {
     /// Yield to maturity.
     pub ytm: f64,
     /// Additional metrics.
-    pub metrics: HashMap<MetricId, f64>,
+    pub metrics: BTreeMap<MetricId, f64>,
 }
 
 #[cfg(test)]

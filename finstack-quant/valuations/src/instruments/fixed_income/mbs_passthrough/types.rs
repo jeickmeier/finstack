@@ -271,6 +271,7 @@ pub enum PoolType {
 ///     .expect("Valid MBS");
 /// ```
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

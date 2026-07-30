@@ -1,45 +1,74 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "interest_rate_swap",
     "spec": {
+      "attributes": {},
+      "fixed": {
+        "bdc": "modified_following",
+        "calendar_id": null,
+        "compounding_simple": true,
+        "day_count": "Thirty360",
+        "discount_curve_id": "USD-OIS",
+        "end": "2029-01-01",
+        "end_of_month": false,
+        "frequency": {
+          "count": 6,
+          "unit": "months"
+        },
+        "par_method": null,
+        "payment_lag_days": 0,
+        "rate": "0.03",
+        "start": "2024-01-01",
+        "stub": "None"
+      },
+      "float": {
+        "bdc": "modified_following",
+        "calendar_id": null,
+        "compounding": "Simple",
+        "day_count": "Act360",
+        "discount_curve_id": "USD-OIS",
+        "end": "2029-01-01",
+        "end_of_month": false,
+        "fixing_calendar_id": null,
+        "forward_curve_id": "USD-SOFR-3M",
+        "frequency": {
+          "count": 3,
+          "unit": "months"
+        },
+        "payment_lag_days": 0,
+        "reset_lag_days": 0,
+        "spread_bp": "0",
+        "start": "2024-01-01",
+        "stub": "None"
+      },
       "id": "IRS-5Y-USD",
       "notional": {
         "amount": "10000000",
         "currency": "USD"
       },
-      "side": "pay",
-      "fixed": {
-        "discount_curve_id": "USD-OIS",
-        "rate": 0.03,
-        "frequency": {"count": 6, "unit": "months"},
-        "day_count": "Thirty360",
-        "bdc": "modified_following",
-        "calendar_id": null,
-        "stub": "None",
-        "start": "2024-01-01",
-        "end": "2029-01-01",
-        "par_method": null,
-        "compounding_simple": true
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
       },
-      "float": {
-        "discount_curve_id": "USD-OIS",
-        "forward_curve_id": "USD-SOFR-3M",
-        "spread_bp": 0.0,
-        "frequency": {"count": 3, "unit": "months"},
-        "day_count": "Act360",
-        "bdc": "modified_following",
-        "calendar_id": null,
-        "stub": "None",
-        "reset_lag_days": 2,
-        "start": "2024-01-01",
-        "end": "2029-01-01",
-        "compounding": "Simple"
-      },
-      "attributes": {
-        "tags": [],
-        "meta": {}
-      }
-    }
-  }
+      "side": "pay"
+    },
+    "type": "interest_rate_swap"
+  },
+  "schema": "finstack_quant.instrument/1"
 }

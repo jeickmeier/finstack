@@ -153,6 +153,7 @@ impl std::str::FromStr for PayoutTiming {
 ///   *Risk Magazine*, 4(9), 75-83.
 /// - Wystup, U. (2006). *FX Options and Structured Products*. Wiley.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

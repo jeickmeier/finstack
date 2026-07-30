@@ -43,6 +43,45 @@ fn common_schemas_dir() -> PathBuf {
     all_schemas_dir().join("common").join("1")
 }
 
+/// Locate the canonical instrument fixture directory.
+fn instrument_examples_dir() -> PathBuf {
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be set");
+    Path::new(&manifest_dir)
+        .join("tests")
+        .join("instruments")
+        .join("json_examples")
+}
+
+fn generated_instrument_fixture(name: &str) -> Value {
+    let instrument = match name {
+        "bermudan_swaption" => InstrumentJson::BermudanSwaption(BermudanSwaption::example()),
+        "callable_range_accrual" => {
+            InstrumentJson::CallableRangeAccrual(Box::new(CallableRangeAccrual::example()))
+        }
+        "cms_spread_option" => InstrumentJson::CmsSpreadOption(CmsSpreadOption::example()),
+        "snowball" => InstrumentJson::Snowball(Snowball::example_snowball()),
+        "tarn" => InstrumentJson::Tarn(Tarn::example()),
+        _ => panic!("instrument schema {name} must contain examples[0]"),
+    };
+    serde_json::to_value(InstrumentEnvelope::new(instrument))
+        .unwrap_or_else(|error| panic!("serialize generated fixture {name}: {error}"))
+}
+
+fn write_instrument_fixture(name: &str, schema: &Value) {
+    let path = instrument_examples_dir().join(format!("{name}.json"));
+    let example = schema
+        .get("examples")
+        .and_then(Value::as_array)
+        .and_then(|examples| examples.first())
+        .cloned()
+        .unwrap_or_else(|| generated_instrument_fixture(name));
+    let json = serde_json::to_string_pretty(&example)
+        .unwrap_or_else(|error| panic!("serialize fixture {}: {error}", path.display()));
+    std::fs::write(&path, json + "\n")
+        .unwrap_or_else(|error| panic!("write fixture {}: {error}", path.display()));
+    println!("  updated {}", path.display());
+}
+
 /// Convert a snake_case name to a Title Case display name.
 fn to_title(name: &str) -> String {
     name.split('_')
@@ -401,11 +440,13 @@ fn update_schema_file(name: &str, category: &str, mut generated_schema: Value) {
 
     output.insert("required".to_string(), json!(["schema", "instrument"]));
 
-    let json_str = serde_json::to_string_pretty(&Value::Object(output)).expect("serialize output");
+    let output = Value::Object(output);
+    let json_str = serde_json::to_string_pretty(&output).expect("serialize output");
 
     // serde_json default pretty-print uses 2-space indent, which is what we want
     std::fs::write(&path, json_str + "\n")
         .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    write_instrument_fixture(name, &output);
 
     println!("  updated {}", path.display());
 }
@@ -640,6 +681,18 @@ fn main() {
         "User-defined tags and key-value metadata for classification.",
         finstack_quant_core::types::Attributes,
         "attributes.schema.json"
+    );
+    gen_common_schema!(
+        "Diagnostic",
+        "One structured finding emitted while loading a persisted contract.",
+        finstack_quant_core::contract::Diagnostic,
+        "diagnostic.schema.json"
+    );
+    gen_common_schema!(
+        "Validation Report",
+        "Bounded structured diagnostics emitted by persisted-contract validation.",
+        finstack_quant_core::contract::ValidationReport,
+        "validation_report.schema.json"
     );
     gen_common_schema!(
         "Business Day Convention",
@@ -998,9 +1051,17 @@ fn main() {
     );
     gen_schema!(instrument_entries, "basket", Basket, "exotics");
 
+    let registry_names: BTreeSet<&str> = registry_tags().iter().map(|(tag, _)| *tag).collect();
+    let generated_names: BTreeSet<&str> =
+        instrument_entries.iter().map(|entry| entry.name).collect();
+    assert_eq!(
+        generated_names, registry_names,
+        "schema generator entries must match the canonical instrument registry exactly"
+    );
+    let registry_count = registry_names.len();
     update_instrument_union_schema_file(&instrument_entries);
 
-    println!("\nDone! Updated 70 instrument schema files.");
+    println!("\nDone! Updated {registry_count} instrument schema files.");
 
     // =========================================================================
     // Non-instrument schemas owned by valuations (calibration, market, results)

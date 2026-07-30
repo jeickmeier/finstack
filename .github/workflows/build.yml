@@ -94,6 +94,9 @@ jobs:
           uv run pre-commit run --all-files
           uv run pre-commit run --all-files --hook-stage pre-push
 
+      - name: Check generated schemas and bindings
+        run: mise run gen-check
+
   # ============================================
   # Test Rust — cargo nextest
   # ============================================

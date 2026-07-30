@@ -3,11 +3,98 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::bumps::BumpUnits;
 use finstack_quant_core::types::CurveId;
+use finstack_quant_core::{ContractError, LoadLimits};
 use finstack_quant_factor_model::{
     AttributeFilter, BumpSizeConfig, DependencyFilter, DependencyType, FactorCovarianceMatrix,
-    FactorDefinition, FactorId, FactorModelConfig, FactorType, MappingRule, MarketMapping,
-    MatchingConfig, PricingMode, RiskMeasure, UnmatchedPolicy,
+    FactorDefinition, FactorId, FactorModelConfig, FactorModelConfigEnvelope, FactorType,
+    MappingRule, MarketMapping, MatchingConfig, PricingMode, RiskMeasure, UnmatchedPolicy,
 };
+
+#[test]
+fn factor_model_config_envelope_strict_loader_enforces_schema_and_validation() {
+    let config = FactorModelConfig {
+        factors: Vec::new(),
+        covariance: FactorCovarianceMatrix::new(Vec::new(), Vec::new())
+            .expect("empty covariance is valid"),
+        matching: MatchingConfig::MappingTable(Vec::new()),
+        pricing_mode: PricingMode::DeltaBased,
+        risk_measure: RiskMeasure::Variance,
+        bump_size: None,
+        unmatched_policy: None,
+    };
+    let envelope = FactorModelConfigEnvelope::new(config);
+    let bytes = serde_json::to_vec(&envelope).expect("serialize envelope");
+    let (loaded, report) =
+        FactorModelConfigEnvelope::from_slice_strict(&bytes, &LoadLimits::default())
+            .expect("valid envelope");
+    assert!(loaded.factors.is_empty());
+    assert!(report.diagnostics.is_empty());
+
+    let bare = serde_json::to_value(&loaded).expect("serialize bare config");
+    let error = FactorModelConfigEnvelope::from_slice_strict(
+        &serde_json::to_vec(&bare).expect("serialize fixture"),
+        &LoadLimits::default(),
+    )
+    .expect_err("strict loading requires schema");
+    let ContractError::Report(report) = error else {
+        panic!("expected structured report");
+    };
+    assert_eq!(report.diagnostics[0].code, "contract/version-missing");
+
+    for schema in [
+        "finstack_quant.factor_model_config/0",
+        "finstack_quant.factor_model_config/2",
+        "finstack_quant.factor_model_config/not-a-version",
+    ] {
+        let value = serde_json::json!({"schema": schema, "config": loaded});
+        assert!(
+            FactorModelConfigEnvelope::from_slice_strict(
+                &serde_json::to_vec(&value).expect("serialize fixture"),
+                &LoadLimits::default(),
+            )
+            .is_err(),
+            "{schema} must fail"
+        );
+    }
+}
+
+#[test]
+fn factor_model_config_version_matrix_fixture_drives_strict_loader() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("data/contract_version_matrix.json"))
+            .expect("version matrix fixture parses");
+    let matrix = &fixture["config"];
+    let base = matrix["base"].clone();
+    let cases = matrix["cases"]
+        .as_array()
+        .expect("matrix contains schema cases");
+
+    for case in cases {
+        let name = case["name"].as_str().expect("case name");
+        let mut document = base.clone();
+        match case.get("schema") {
+            Some(serde_json::Value::Null) | None => {
+                document
+                    .as_object_mut()
+                    .expect("envelope object")
+                    .remove("schema");
+            }
+            Some(schema) => document["schema"] = schema.clone(),
+        }
+        let bytes = serde_json::to_vec(&document).expect("case serializes");
+        let expected = case["expected"].as_str().expect("expected outcome");
+        match FactorModelConfigEnvelope::from_slice_strict(&bytes, &LoadLimits::default()) {
+            Ok((_loaded, report)) => {
+                assert_eq!(expected, "ok", "{name} unexpectedly loaded");
+                assert!(report.diagnostics.is_empty(), "{name}");
+            }
+            Err(ContractError::Report(report)) => {
+                assert_eq!(report.diagnostics[0].code, expected, "{name}");
+            }
+            Err(error) => panic!("{name} returned unstructured error: {error}"),
+        }
+    }
+}
 
 #[test]
 fn factor_model_config_supports_multi_asset_factor_universe() {

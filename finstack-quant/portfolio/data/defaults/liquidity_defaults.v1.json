@@ -1,5 +1,5 @@
 {
-  "schema": "finstack_quant.portfolio.liquidity_defaults.v1",
+  "schema": "finstack_quant.portfolio.liquidity_defaults/1",
   "version": 1,
   "default_config": {
     "participation_rate": 0.10,

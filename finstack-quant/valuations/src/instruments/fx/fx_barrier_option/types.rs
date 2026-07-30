@@ -15,6 +15,7 @@ use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 
 /// FX barrier option instrument.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

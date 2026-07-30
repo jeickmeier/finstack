@@ -51,6 +51,32 @@ pub enum EnvelopeError {
         /// 1-based column number of the parse failure, when available.
         col: Option<u32>,
     },
+    /// Required calibration schema marker is absent.
+    #[error("missing calibration schema; expected {expected:?}")]
+    SchemaMissing {
+        /// Current schema marker required for newly written envelopes.
+        expected: String,
+    },
+    /// Calibration schema marker is malformed or names another contract.
+    #[error("malformed calibration schema {found:?}; expected {expected:?}")]
+    MalformedSchema {
+        /// Rejected schema marker.
+        found: String,
+        /// Expected stable contract identifier and version shape.
+        expected: String,
+    },
+    /// Calibration schema version is outside the supported range.
+    #[error(
+        "unsupported calibration schema version {found}; supported versions are {min}..={max}"
+    )]
+    UnsupportedSchemaVersion {
+        /// Unsupported version parsed from the schema marker.
+        found: u32,
+        /// Lowest version accepted by this build.
+        min: u32,
+        /// Highest version accepted by this build.
+        max: u32,
+    },
     /// A step's `kind` discriminator is not a recognized variant.
     #[error("step[{step_index}] '{step_id}': unknown kind '{found}'; expected one of: {}", expected_one_of.join(", "))]
     UnknownStepKind {
@@ -174,6 +200,9 @@ impl EnvelopeError {
     pub fn kind_str(&self) -> &'static str {
         match self {
             EnvelopeError::JsonParse { .. } => "json_parse",
+            EnvelopeError::SchemaMissing { .. } => "schema_missing",
+            EnvelopeError::MalformedSchema { .. } => "malformed_schema",
+            EnvelopeError::UnsupportedSchemaVersion { .. } => "unsupported_schema_version",
             EnvelopeError::UnknownStepKind { .. } => "unknown_step_kind",
             EnvelopeError::MissingDependency { .. } => "missing_dependency",
             EnvelopeError::UndefinedQuoteSet { .. } => "undefined_quote_set",
@@ -199,6 +228,9 @@ impl EnvelopeError {
             | EnvelopeError::SolverNotConverged { step_id, .. }
             | EnvelopeError::QuoteDataInvalid { step_id, .. } => Some(step_id),
             EnvelopeError::JsonParse { .. }
+            | EnvelopeError::SchemaMissing { .. }
+            | EnvelopeError::MalformedSchema { .. }
+            | EnvelopeError::UnsupportedSchemaVersion { .. }
             | EnvelopeError::DuplicateMarketDatumId { .. }
             | EnvelopeError::QuoteIdNotInMarketData { .. }
             | EnvelopeError::JsonSerialize { .. } => None,

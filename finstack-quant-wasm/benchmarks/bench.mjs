@@ -6,7 +6,9 @@
  * Requires: npm run build:node
  */
 
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -14,6 +16,57 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_NODE_DIR = join(__dirname, '..', 'pkg-node');
 const WASM_JS = join(PKG_NODE_DIR, 'finstack_quant_wasm.js');
 const WASM_BIN = join(PKG_NODE_DIR, 'finstack_quant_wasm_bg.wasm');
+const REPO_ROOT = join(__dirname, '..', '..');
+const MATERIALIZATION_FIXTURE_DIR = join(REPO_ROOT, 'target', 'materialization-benchmarks');
+const MATERIALIZATION_FIXTURE_A = join(
+  MATERIALIZATION_FIXTURE_DIR,
+  'materialization-a-5000-unique.json'
+);
+const MATERIALIZATION_FIXTURE_B = join(
+  MATERIALIZATION_FIXTURE_DIR,
+  'materialization-b-5000-50.json'
+);
+
+function materializationSampleCount() {
+  const raw = process.env.FQ_MATERIALIZATION_P95_SAMPLES ?? '100';
+  const samples = Number(raw);
+  if (!Number.isFinite(samples) || !Number.isInteger(samples)) {
+    throw new Error(`FQ_MATERIALIZATION_P95_SAMPLES must be a finite integer, got ${raw}`);
+  }
+  const minimum = process.env.FQ_MATERIALIZATION_SMOKE === '1' ? 1 : 100;
+  if (samples < minimum) {
+    throw new Error(`FQ_MATERIALIZATION_P95_SAMPLES must be at least ${minimum}, got ${samples}`);
+  }
+  return samples;
+}
+
+const MATERIALIZATION_SAMPLES = materializationSampleCount();
+const MATERIALIZATION_ONLY = process.argv.includes('--materialization-only');
+
+function loadMaterializationFixtures() {
+  const generated = spawnSync(
+    'cargo',
+    [
+      'run',
+      '--release',
+      '--quiet',
+      '-p',
+      'finstack-quant-portfolio',
+      '--example',
+      'materialization_fixtures',
+      '--',
+      MATERIALIZATION_FIXTURE_DIR,
+    ],
+    { cwd: REPO_ROOT, stdio: 'inherit' }
+  );
+  if (generated.status !== 0) {
+    throw new Error(`materialization fixture generation failed with status ${generated.status}`);
+  }
+  return {
+    a: readFileSync(MATERIALIZATION_FIXTURE_A, 'utf8'),
+    b: readFileSync(MATERIALIZATION_FIXTURE_B, 'utf8'),
+  };
+}
 
 function printHelp() {
   console.log(`finstack-quant-wasm benchmarks (Node.js)
@@ -23,6 +76,8 @@ Usage:
 
 Options:
   --help, -h    Show this message
+  --materialization-only
+                Run only validation and materialization benchmarks
 
 Prerequisites:
   The wasm-pack Node build must exist under pkg-node/. If missing, run:
@@ -56,7 +111,7 @@ const FINANCIAL_MODEL_JSON = JSON.stringify({
       id: '2025Q1',
       start: '2025-01-01',
       end: '2025-04-01',
-      is_actual: true,
+      is_actual: false,
     },
   ],
   nodes: {
@@ -305,21 +360,27 @@ async function main() {
    * @param {number} iterations
    * @param {() => void} fn
    */
-  function measureRuns(iterations, fn) {
+  function measureRuns(iterations, fn, setup = () => undefined, cleanup = () => {}) {
     const samples = new Array(iterations);
+    let lastResult;
     for (let i = 0; i < iterations; i++) {
+      const resource = setup();
       const t0 = performance.now();
-      fn();
+      lastResult = fn(resource);
       samples[i] = performance.now() - t0;
+      cleanup(resource, lastResult);
     }
     const total = samples.reduce((a, b) => a + b, 0);
     const avg = total / iterations;
     const best = Math.min(...samples);
+    const sorted = [...samples].sort((a, b) => a - b);
+    const median = sorted[Math.ceil(sorted.length * 0.5) - 1];
+    const p95 = sorted[Math.ceil(sorted.length * 0.95) - 1];
     const opsPerSec = avg > 0 ? 1000 / avg : 0;
-    return { best, avg, opsPerSec, iterations };
+    return { best, avg, median, p95, opsPerSec, iterations, samples, lastResult };
   }
 
-  /** @type {{ domain: string; name: string; best: number; avg: number; opsPerSec: number; iterations: number }[]} */
+  /** @type {{ domain: string; name: string; best: number; avg: number; p95: number; opsPerSec: number; iterations: number }[]} */
   const rows = [];
 
   /**
@@ -328,8 +389,8 @@ async function main() {
    * @param {number} iterations
    * @param {() => void} fn
    */
-  function bench(domain, name, iterations, fn) {
-    const r = measureRuns(iterations, fn);
+  function bench(domain, name, iterations, fn, setup = () => undefined, cleanup = () => {}) {
+    const r = measureRuns(iterations, fn, setup, cleanup);
     rows.push({ domain, name, ...r });
   }
 
@@ -345,6 +406,7 @@ async function main() {
       name: `${name} (skipped)`,
       best: 0,
       avg: 0,
+      p95: 0,
       opsPerSec: 0,
       iterations: 0,
     });
@@ -364,6 +426,138 @@ async function main() {
       return;
     }
     bench(domain, name, iterations, fn);
+  }
+
+  function runMaterializationBenchmarks() {
+    const materializationFixtures = loadMaterializationFixtures();
+    const warmMaterializationCache = new w.InstrumentArtifactCache(50);
+    const warmSetup = w.Portfolio.fromMaterialization(
+      materializationFixtures.b,
+      warmMaterializationCache
+    );
+    console.log(
+      `[materialization fixture] input_bytes=${warmSetup.report.input_bytes} ` +
+        `unique_artifacts=${warmSetup.report.unique_instruments} ` +
+        `positions=${warmSetup.report.positions} dependencies=${warmSetup.report.dependencies}`
+    );
+    warmSetup.portfolio.free();
+
+    bench(
+      'portfolio_materialization',
+      'validateMaterializationJson B (5000/50)',
+      MATERIALIZATION_SAMPLES,
+      (cache) => w.Portfolio.validateMaterializationJson(materializationFixtures.b, cache),
+      () => new w.InstrumentArtifactCache(50),
+      (cache) => cache.free()
+    );
+
+    bench(
+      'portfolio_materialization',
+      'fromMaterialization cold A (5000/5000)',
+      MATERIALIZATION_SAMPLES,
+      (cache) => w.Portfolio.fromMaterialization(materializationFixtures.a, cache),
+      () => new w.InstrumentArtifactCache(5_000),
+      (cache, loaded) => {
+        loaded.portfolio.free();
+        cache.free();
+      }
+    );
+
+    bench(
+      'portfolio_materialization',
+      'fromMaterialization cold B (5000/50)',
+      MATERIALIZATION_SAMPLES,
+      (cache) => w.Portfolio.fromMaterialization(materializationFixtures.b, cache),
+      () => new w.InstrumentArtifactCache(50),
+      (cache, loaded) => {
+        loaded.portfolio.free();
+        cache.free();
+      }
+    );
+
+    bench(
+      'portfolio_materialization',
+      'fromMaterialization warm B (5000/50)',
+      MATERIALIZATION_SAMPLES,
+      () => {
+        const loaded = w.Portfolio.fromMaterialization(
+          materializationFixtures.b,
+          warmMaterializationCache
+        );
+        return loaded;
+      },
+      () => undefined,
+      (_unused, loaded) => {
+        loaded.portfolio.free();
+      }
+    );
+    warmMaterializationCache.free();
+
+    const output = process.env.FQ_MATERIALIZATION_RAW_OUTPUT;
+    if (output !== undefined) {
+      const outputPath = output.startsWith('/') ? output : join(REPO_ROOT, output);
+      mkdirSync(dirname(outputPath), { recursive: true });
+      const materializationRows = Object.fromEntries(
+        rows
+          .filter((row) => row.domain === 'portfolio_materialization')
+          .map((row) => [
+            row.name,
+            {
+              samples: row.samples,
+              counters:
+                row.lastResult?.portfolio === undefined ? row.lastResult : row.lastResult.report,
+            },
+          ])
+      );
+      writeFileSync(
+        outputPath,
+        `${JSON.stringify(
+          {
+            language: 'wasm',
+            timing_boundary:
+              'fixture string and explicitly-sized cache exist before start; elapsed surrounds the WASM binding call and JavaScript result conversion; handle cleanup is after stop',
+            fixture_sha256: {
+              a: createHash('sha256').update(materializationFixtures.a).digest('hex'),
+              b: createHash('sha256').update(materializationFixtures.b).digest('hex'),
+            },
+            cases: materializationRows,
+          },
+          null,
+          2
+        )}\n`
+      );
+    }
+  }
+
+  function printRows() {
+    const dW = Math.max(12, ...rows.map((r) => r.domain.length));
+    const nW = Math.max(36, ...rows.map((r) => r.name.length));
+
+    console.log('\nfinstack-quant-wasm benchmarks (pkg-node)\n');
+    console.log(
+      `${'Domain'.padEnd(dW)}  ${'Benchmark'.padEnd(nW)}  ${'Iter'.padStart(5)}  ${'Best (ms)'.padStart(10)}  ${'Avg (ms)'.padStart(10)}  ${'p95 (ms)'.padStart(10)}  ${'Ops/sec'.padStart(12)}`
+    );
+    console.log(
+      `${''.padEnd(dW, '-')}  ${''.padEnd(nW, '-')}  ${''.padStart(5, '-')}  ${''.padStart(10, '-')}  ${''.padStart(10, '-')}  ${''.padStart(10, '-')}  ${''.padStart(12, '-')}`
+    );
+
+    for (const r of rows) {
+      const bestStr = r.iterations ? r.best.toFixed(4) : '—';
+      const avgStr = r.iterations ? r.avg.toFixed(4) : '—';
+      const p95Str = r.iterations ? r.p95.toFixed(4) : '—';
+      const opsStr = r.iterations ? r.opsPerSec.toFixed(0) : '—';
+      const iterStr = r.iterations ? String(r.iterations) : '—';
+      console.log(
+        `${r.domain.padEnd(dW)}  ${r.name.padEnd(nW)}  ${iterStr.padStart(5)}  ${bestStr.padStart(10)}  ${avgStr.padStart(10)}  ${p95Str.padStart(10)}  ${opsStr.padStart(12)}`
+      );
+    }
+    console.log('');
+  }
+
+  if (MATERIALIZATION_ONLY) {
+    runMaterializationBenchmarks();
+    printRows();
+    return;
   }
 
   const usd = new w.Currency('USD');
@@ -485,6 +679,8 @@ async function main() {
     w.portfolioResultTotalValue(PORTFOLIO_RESULT_JSON);
   });
 
+  runMaterializationBenchmarks();
+
   bench('valuations', 'validateInstrumentJson', 2000, () => {
     w.validateInstrumentJson(INSTRUMENT_JSON);
   });
@@ -512,6 +708,7 @@ async function main() {
       name: 'buildFromTemplate (skipped — no templates)',
       best: 0,
       avg: 0,
+      p95: 0,
       opsPerSec: 0,
       iterations: 0,
     });
@@ -544,7 +741,7 @@ async function main() {
   bench('core', 'FxMatrix setQuote + rate', 4000, () => {
     const fx = new w.FxMatrix();
     fx.setQuote('USD', 'EUR', 0.92);
-    fx.rate('USD', 'EUR', '2024-01-02');
+    fx.rateDefault('USD', 'EUR', '2024-01-02');
   });
 
   const cholFactor = w.choleskyDecomposition(cholMat);
@@ -861,27 +1058,7 @@ async function main() {
     w.applyScenarioToMarket(SCENARIO_SPEC_JSON, MARKET_CONTEXT_JSON, '2024-01-02');
   });
 
-  const dW = Math.max(12, ...rows.map((r) => r.domain.length));
-  const nW = Math.max(36, ...rows.map((r) => r.name.length));
-
-  console.log('\nfinstack-quant-wasm benchmarks (pkg-node)\n');
-  console.log(
-    `${'Domain'.padEnd(dW)}  ${'Benchmark'.padEnd(nW)}  ${'Iter'.padStart(5)}  ${'Best (ms)'.padStart(10)}  ${'Avg (ms)'.padStart(10)}  ${'Ops/sec'.padStart(12)}`
-  );
-  console.log(
-    `${''.padEnd(dW, '-')}  ${''.padEnd(nW, '-')}  ${''.padStart(5, '-')}  ${''.padStart(10, '-')}  ${''.padStart(10, '-')}  ${''.padStart(12, '-')}`
-  );
-
-  for (const r of rows) {
-    const bestStr = r.iterations ? r.best.toFixed(4) : '—';
-    const avgStr = r.iterations ? r.avg.toFixed(4) : '—';
-    const opsStr = r.iterations ? r.opsPerSec.toFixed(0) : '—';
-    const iterStr = r.iterations ? String(r.iterations) : '—';
-    console.log(
-      `${r.domain.padEnd(dW)}  ${r.name.padEnd(nW)}  ${iterStr.padStart(5)}  ${bestStr.padStart(10)}  ${avgStr.padStart(10)}  ${opsStr.padStart(12)}`
-    );
-  }
-  console.log('');
+  printRows();
 }
 
 main().catch((err) => {

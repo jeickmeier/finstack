@@ -1160,7 +1160,7 @@ fn test_sabr_calibrate_with_derivatives_recovers_known_smile() {
         .expect("derivative calibration should succeed");
 
     let model = SABRModel::new(params);
-    for (strike, market_vol) in strikes.into_iter().zip(market_vols.into_iter()) {
+    for (strike, market_vol) in strikes.into_iter().zip(market_vols) {
         let fitted = model
             .implied_volatility(forward, strike, expiry)
             .expect("model vol should compute");

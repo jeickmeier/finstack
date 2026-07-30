@@ -1051,12 +1051,11 @@ impl TryFrom<TermLoanSpec> for TermLoan {
                 Some(
                     super::spec::OidPolicy::WithheldPct(bp)
                     | super::spec::OidPolicy::SeparatePct(bp),
-                ) => {
-                    if *bp < 0 {
-                        return Err(InputError::Invalid.into());
-                    }
-                }
-                None => {}
+                ) if *bp < 0 => return Err(InputError::Invalid.into()),
+                Some(
+                    super::spec::OidPolicy::WithheldPct(_) | super::spec::OidPolicy::SeparatePct(_),
+                )
+                | None => {}
             }
         }
 

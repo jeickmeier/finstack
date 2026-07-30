@@ -1,29 +1,54 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "variance_swap",
     "spec": {
+      "attributes": {},
+      "close_series_id": null,
+      "day_count": "Act365F",
+      "discount_curve_id": "USD-OIS",
+      "high_series_id": null,
       "id": "VARSPX-1Y",
-      "underlying_ticker": "SPX",
+      "low_series_id": null,
+      "maturity": "2025-01-01",
       "notional": {
         "amount": "1000000",
         "currency": "USD"
       },
-      "strike_variance": 0.04,
-      "start_date": "2024-01-01",
-      "maturity": "2025-01-01",
-      "observation_freq": {"count": 1, "unit": "days"},
-      "observation_calendar_id": "USNY",
       "observation_bdc": "following",
+      "observation_calendar_id": "USNY",
       "observation_end_of_month": false,
-      "realized_var_method": "Parkinson",
+      "observation_freq": {
+        "count": 1,
+        "unit": "days"
+      },
+      "open_series_id": null,
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
+      },
+      "realized_var_method": "CloseToClose",
       "side": "receive",
-      "discount_curve_id": "USD-OIS",
-      "day_count": "Act365F",
-      "attributes": {
-        "tags": [],
-        "meta": {}
-      }
-    }
-  }
+      "start_date": "2024-01-01",
+      "strike_variance": 0.04,
+      "underlying_ticker": "SPX"
+    },
+    "type": "variance_swap"
+  },
+  "schema": "finstack_quant.instrument/1"
 }

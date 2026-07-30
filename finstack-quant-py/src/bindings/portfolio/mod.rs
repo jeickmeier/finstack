@@ -15,6 +15,7 @@ mod fi_attribution;
 mod grid_attribution;
 mod json_bridge;
 mod liquidity;
+mod materialization;
 mod matrix_input;
 mod optimization;
 mod optimization_spec;
@@ -53,8 +54,29 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "FinstackOptimizationError",
         py.get_type::<crate::errors::FinstackOptimizationError>(),
     )?;
+    m.add(
+        "ContractValidationError",
+        py.get_type::<crate::errors::ContractValidationError>(),
+    )?;
+    m.add(
+        "UnsupportedContractVersionError",
+        py.get_type::<crate::errors::UnsupportedContractVersionError>(),
+    )?;
+    m.add(
+        "MissingContractVersionError",
+        py.get_type::<crate::errors::MissingContractVersionError>(),
+    )?;
+    m.add(
+        "MalformedContractSchemaError",
+        py.get_type::<crate::errors::MalformedContractSchemaError>(),
+    )?;
+    m.add(
+        "ContractLimitExceededError",
+        py.get_type::<crate::errors::ContractLimitExceededError>(),
+    )?;
 
     types::register(py, &m)?;
+    materialization::register(py, &m)?;
     spec::register(py, &m)?;
     pipeline::register(py, &m)?;
     attribution::register(py, &m)?;
@@ -78,7 +100,14 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "FinstackValuationError",
         "FinstackFxError",
         "FinstackOptimizationError",
+        "ContractValidationError",
+        "UnsupportedContractVersionError",
+        "MissingContractVersionError",
+        "MalformedContractSchemaError",
+        "ContractLimitExceededError",
         "Portfolio",
+        "InstrumentArtifactCache",
+        "MaterializationReport",
         "PortfolioValuation",
         "PortfolioResult",
         "PortfolioMetrics",

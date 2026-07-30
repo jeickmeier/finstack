@@ -1,0 +1,138 @@
+{
+  "config": {
+    "base": {
+      "schema": "finstack_quant.factor_model_config/1",
+      "config": {
+        "factors": [],
+        "covariance": {
+          "factor_ids": [],
+          "n": 0,
+          "data": []
+        },
+        "matching": {
+          "MappingTable": []
+        },
+        "pricing_mode": "delta_based",
+        "risk_measure": "variance"
+      }
+    },
+    "cases": [
+      {
+        "name": "current",
+        "schema": "finstack_quant.factor_model_config/1",
+        "expected": "ok"
+      },
+      {
+        "name": "missing",
+        "schema": null,
+        "expected": "contract/version-missing"
+      },
+      {
+        "name": "zero",
+        "schema": "finstack_quant.factor_model_config/0",
+        "expected": "contract/version-unsupported"
+      },
+      {
+        "name": "future",
+        "schema": "finstack_quant.factor_model_config/2",
+        "expected": "contract/version-unsupported"
+      },
+      {
+        "name": "malformed",
+        "schema": "finstack_quant.factor_model_config/not-a-version",
+        "expected": "contract/schema-malformed"
+      },
+      {
+        "name": "wrong-type",
+        "schema": 1,
+        "expected": "contract/structure-invalid"
+      }
+    ]
+  },
+  "credit": {
+    "base": {
+      "schema_version": "finstack_quant.credit_factor_model/1",
+      "as_of": "2024-03-29",
+      "calibration_window": {
+        "start": "2022-03-29",
+        "end": "2024-03-29"
+      },
+      "policy": "globally_off",
+      "generic_factor": {
+        "name": "CDX IG 5Y",
+        "series_id": "cdx.ig.5y"
+      },
+      "hierarchy": {
+        "levels": [
+          "rating",
+          "region",
+          "sector"
+        ]
+      },
+      "config": {
+        "factors": [],
+        "covariance": {
+          "factor_ids": [],
+          "n": 0,
+          "data": []
+        },
+        "matching": {
+          "MappingTable": []
+        },
+        "pricing_mode": "delta_based",
+        "risk_measure": "variance"
+      },
+      "issuer_betas": [],
+      "anchor_state": {
+        "pc": 0.0,
+        "by_level": []
+      },
+      "static_correlation": {
+        "factor_ids": [],
+        "data": []
+      },
+      "vol_state": {
+        "factors": {},
+        "idiosyncratic": {}
+      },
+      "diagnostics": {
+        "mode_counts": {},
+        "bucket_sizes_per_level": [],
+        "fold_ups": [],
+        "tag_taxonomy": {}
+      }
+    },
+    "cases": [
+      {
+        "name": "current",
+        "schema_version": "finstack_quant.credit_factor_model/1",
+        "expected": "ok"
+      },
+      {
+        "name": "missing",
+        "schema_version": null,
+        "expected": "contract/version-missing"
+      },
+      {
+        "name": "zero",
+        "schema_version": "finstack_quant.credit_factor_model/0",
+        "expected": "contract/version-unsupported"
+      },
+      {
+        "name": "future",
+        "schema_version": "finstack_quant.credit_factor_model/2",
+        "expected": "contract/version-unsupported"
+      },
+      {
+        "name": "malformed",
+        "schema_version": "finstack_quant.credit_factor_model/not-a-version",
+        "expected": "contract/schema-malformed"
+      },
+      {
+        "name": "wrong-type",
+        "schema_version": 1,
+        "expected": "contract/structure-invalid"
+      }
+    ]
+  }
+}

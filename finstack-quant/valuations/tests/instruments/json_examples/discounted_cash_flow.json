@@ -1,0 +1,64 @@
+{
+  "instrument": {
+    "spec": {
+      "attributes": {},
+      "currency": "USD",
+      "discount_curve_id": "USD-OIS",
+      "flows": [
+        [
+          "2026-01-01",
+          5000000.0
+        ],
+        [
+          "2027-01-01",
+          5750000.0
+        ],
+        [
+          "2028-01-01",
+          6500000.0
+        ],
+        [
+          "2029-01-01",
+          7250000.0
+        ],
+        [
+          "2030-01-01",
+          8000000.0
+        ]
+      ],
+      "id": "DCF-TECH-CO",
+      "mid_year_convention": true,
+      "net_debt": 15000000.0,
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
+      },
+      "shares_outstanding": 10000000.0,
+      "terminal_value": {
+        "growth_rate": 0.02,
+        "type": "gordon_growth"
+      },
+      "valuation_date": "2025-01-01",
+      "wacc": 0.1
+    },
+    "type": "discounted_cash_flow"
+  },
+  "schema": "finstack_quant.instrument/1"
+}

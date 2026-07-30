@@ -182,7 +182,7 @@ fn svi_surface_grid_is_calendar_monotone_under_nonflat_curve() {
     let plan = CalibrationPlan {
         id: "svi_surface_plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: CalibrationConfig::default(),
         steps: vec![CalibrationStep {
             id: "svi_step".to_string(),

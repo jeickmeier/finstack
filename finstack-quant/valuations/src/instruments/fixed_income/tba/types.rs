@@ -117,6 +117,7 @@ pub struct TbaSettlement {
 ///     .expect("Valid TBA");
 /// ```
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
@@ -171,7 +172,7 @@ pub struct AgencyTba {
     /// Optional assumed pool for valuation.
     /// If not provided, generic pool characteristics are assumed.
     #[builder(optional)]
-    #[serde(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub assumed_pool: Option<Box<AgencyMbsPassthrough>>,
     /// Discount curve identifier.
     pub discount_curve_id: CurveId,
@@ -445,6 +446,39 @@ mod tests {
             deps.curves.discount_curves.as_slice(),
             &[tba.discount_curve_id, pool_discount_curve_id]
         );
+    }
+
+    #[test]
+    fn assumed_pool_roundtrip_preserves_dependencies_and_nested_strictness() {
+        let mut tba = AgencyTba::example().expect("example TBA");
+        let mut pool = AgencyMbsPassthrough::example().expect("example pool");
+        pool.discount_curve_id = CurveId::new("USD-MBS-DISC");
+        tba.assumed_pool = Some(Box::new(pool));
+        let expected_dependencies =
+            crate::instruments::Instrument::market_dependencies(&tba).expect("dependencies");
+
+        let value = serde_json::to_value(&tba).expect("TBA serializes");
+        assert!(
+            value.get("assumed_pool").is_some(),
+            "assumed_pool must be persisted"
+        );
+        let roundtripped: AgencyTba =
+            serde_json::from_value(value.clone()).expect("TBA roundtrips");
+        assert!(roundtripped.assumed_pool.is_some());
+        assert_eq!(
+            crate::instruments::Instrument::market_dependencies(&roundtripped)
+                .expect("roundtripped dependencies"),
+            expected_dependencies
+        );
+
+        let mut tampered = value;
+        tampered["assumed_pool"]
+            .as_object_mut()
+            .expect("assumed pool is an object")
+            .insert("__nonexistent__".into(), serde_json::json!(true));
+        let error =
+            serde_json::from_value::<AgencyTba>(tampered).expect_err("nested unknown field fails");
+        assert!(error.to_string().contains("unknown field"), "{error}");
     }
 
     #[test]

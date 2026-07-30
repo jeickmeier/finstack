@@ -1,43 +1,46 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "fx_option",
     "spec": {
-      "id": "FXOPT-EURUSD-CALL",
+      "attributes": {},
       "base_currency": "EUR",
-      "quote_currency": "USD",
-      "strike": 1.12,
-      "option_type": "call",
+      "day_count": "Act365F",
+      "domestic_discount_curve_id": "USD-OIS",
       "exercise_style": "european",
       "expiry": "2024-06-21",
-      "day_count": "Act365F",
+      "foreign_discount_curve_id": "EUR-OIS",
+      "id": "FXOPT-EURUSD-CALL",
       "notional": {
         "amount": "1000000",
         "currency": "EUR"
       },
-      "settlement": "cash",
-      "domestic_discount_curve_id": "USD-OIS",
-      "foreign_discount_curve_id": "EUR-OIS",
-      "vol_surface_id": "EURUSD-VOL",
+      "option_type": "call",
       "pricing_overrides": {
-        "quoted_clean_price": null,
-        "rho_bump_decimal": null,
-        "vega_bump_decimal": null,
-        "implied_volatility": null,
-        "cds_quote_bp": null,
-        "upfront_payment": null,
-        "ytm_bump_decimal": null,
-        "theta_period": null,
-        "mc_seed_scenario": null,
         "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
         "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
         "vol_bump_pct": null,
-        "rate_bump_bp": null
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
       },
-      "attributes": {
-        "tags": [],
-        "meta": {}
-      }
-    }
-  }
+      "quote_currency": "USD",
+      "settlement": "cash",
+      "strike": 1.12,
+      "vol_surface_id": "EURUSD-VOL"
+    },
+    "type": "fx_option"
+  },
+  "schema": "finstack_quant.instrument/1"
 }

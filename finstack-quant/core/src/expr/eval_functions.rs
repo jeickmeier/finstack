@@ -572,7 +572,7 @@ impl CompiledExpr {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let tmp = &mut guard.tmp;
-        tmp.truncate(0);
+        tmp.clear();
         tmp.extend(data.iter().copied().filter(|v| !v.is_nan()));
         let median = Self::median_of_unsorted(tmp);
         out.fill(median);
@@ -711,7 +711,7 @@ impl CompiledExpr {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let wbuf = &mut guard.window;
         Self::rolling_apply_into(base, win, out, &mut |w| {
-            wbuf.truncate(0);
+            wbuf.clear();
             wbuf.extend(w.iter().copied().filter(|v| !v.is_nan()));
             Self::median_of_unsorted(wbuf)
         });

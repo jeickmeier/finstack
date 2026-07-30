@@ -780,7 +780,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         let mut expiries_bp = Vec::new();
         let mut tenors_bp = Vec::new();
 
-        for (key, _) in sabr_params.iter() {
+        for key in sabr_params.keys() {
             let (exp_bp, ten_bp) = *key;
             expiries_bp.push(exp_bp);
             tenors_bp.push(ten_bp);

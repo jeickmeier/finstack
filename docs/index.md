@@ -26,6 +26,12 @@ notes.
   materialization targets.
 - [`SERDE_STABILITY.md`](SERDE_STABILITY.md): serialization compatibility rules
   and stability expectations.
+- [`CONTRACTS.md`](CONTRACTS.md): current persisted-contract matrix, strict
+  loaders, migration recipes, canonical JSON, generated schemas, structured
+  diagnostics, and materialization API links.
+- [`MATERIALIZATION_BENCHMARKS.md`](MATERIALIZATION_BENCHMARKS.md): reproducible
+  portfolio materialization fixtures, performance gates, profiling procedure,
+  and reference results.
 - [`../finstack-quant-py/DOCS_STYLE.md`](../finstack-quant-py/DOCS_STYLE.md):
   Python binding documentation style for PyO3 comments, `.pyi` docstrings, and
   examples.
@@ -66,6 +72,8 @@ mise run python-examples
   invariants that must hold across releases.
 - [`SERDE_STABILITY.md`](SERDE_STABILITY.md): wire-format and schema-version
   policy for persisted payloads.
+- [`CONTRACTS.md`](CONTRACTS.md): maintained contract and migration catalog,
+  including generation and CI drift checks.
 - [`superpowers/specs/`](superpowers/specs/): design specs for planned or
   recently implemented feature work.
 - [`superpowers/plans/`](superpowers/plans/): implementation plans. Do not edit

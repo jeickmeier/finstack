@@ -163,6 +163,8 @@ pub fn build_template_component(template_id: &str, component_id: &str) -> Result
 /// @param name - Optional human-readable scenario name.
 /// @param description - Optional human-readable description of the scenario purpose.
 /// @param priority - Execution priority; lower values run earlier during composition.
+/// @param resolution_mode - Optional hierarchy conflict policy:
+///   `"most_specific_wins"` (default) or `"cumulative"`.
 #[wasm_bindgen(js_name = buildScenarioSpec)]
 pub fn build_scenario_spec(
     id: &str,
@@ -170,16 +172,22 @@ pub fn build_scenario_spec(
     name: Option<String>,
     description: Option<String>,
     priority: i32,
+    resolution_mode: Option<String>,
 ) -> Result<String, JsValue> {
     let operations: Vec<finstack_quant_scenarios::OperationSpec> =
         serde_json::from_str(operations_json).map_err(to_js_err)?;
+    let resolution_mode = resolution_mode
+        .map(|value| serde_json::from_value(serde_json::Value::String(value)))
+        .transpose()
+        .map_err(to_js_err)?
+        .unwrap_or_default();
     let spec = finstack_quant_scenarios::ScenarioSpec {
         id: id.to_string(),
         name,
         description,
         operations,
         priority,
-        resolution_mode: Default::default(),
+        resolution_mode,
     };
     spec.validate().map_err(to_js_err)?;
     serde_json::to_string(&spec).map_err(to_js_err)
@@ -363,8 +371,9 @@ mod tests {
 
     #[test]
     fn build_validate_parse_compose_roundtrip_empty_operations() {
-        let spec_json = build_scenario_spec("test_id", "[]", Some("Test".to_string()), None, 0)
-            .expect("build_scenario_spec");
+        let spec_json =
+            build_scenario_spec("test_id", "[]", Some("Test".to_string()), None, 0, None)
+                .expect("build_scenario_spec");
         assert!(validate_scenario_spec(&spec_json).expect("validate"));
         let parsed = parse_scenario_spec(&spec_json).expect("parse");
         let before: serde_json::Value = serde_json::from_str(&spec_json).expect("before");
@@ -383,17 +392,19 @@ mod tests {
             Some("Stress scenario".to_string()),
             Some("A description".to_string()),
             10,
+            Some("cumulative".to_string()),
         )
         .expect("build");
         let parsed: serde_json::Value = serde_json::from_str(&spec_json).expect("json");
         assert_eq!(parsed["id"], "stress_1");
         assert_eq!(parsed["priority"], 10);
+        assert_eq!(parsed["resolution_mode"], "cumulative");
     }
 
     #[test]
     fn compose_multiple_scenarios() {
-        let s1 = build_scenario_spec("s1", "[]", None, None, 0).expect("s1");
-        let s2 = build_scenario_spec("s2", "[]", None, None, 1).expect("s2");
+        let s1 = build_scenario_spec("s1", "[]", None, None, 0, None).expect("s1");
+        let s2 = build_scenario_spec("s2", "[]", None, None, 1, None).expect("s2");
         let arr = format!("[{s1},{s2}]");
         let composed = compose_scenarios(&arr).expect("compose");
         assert!(validate_scenario_spec(&composed).expect("valid"));

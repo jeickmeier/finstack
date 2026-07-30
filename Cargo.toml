@@ -60,6 +60,7 @@ ignore-filename-regex = ["tests?/", "target/", "\\.cargo/", ".*finstack-quant-py
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
+sha2 = "0.11.0"
 thiserror = "2"
 time = { version = "0.3" }
 indexmap = "2"

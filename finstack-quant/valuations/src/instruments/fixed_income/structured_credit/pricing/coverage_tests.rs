@@ -12,6 +12,7 @@ use finstack_quant_core::types::CreditRating;
 use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
 use finstack_quant_core::{Error as CoreError, InputError};
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -488,7 +489,7 @@ pub struct TestContext<'a> {
     /// Interest collections.
     pub interest_collections: Money,
     /// Optional rating haircuts for collateral.
-    pub haircuts: Option<&'a HashMap<CreditRating, f64>>,
+    pub haircuts: Option<&'a BTreeMap<CreditRating, f64>>,
     /// Optional par value threshold (ratio).
     pub par_value_threshold: Option<f64>,
     /// Optional market context for floating rate index lookups in IC tests.
@@ -553,7 +554,7 @@ pub struct TestResult {
 fn collateral_balance_with_haircuts(
     pool: &AssetPool,
     performing_only: bool,
-    haircuts: Option<&HashMap<CreditRating, f64>>,
+    haircuts: Option<&BTreeMap<CreditRating, f64>>,
     current_balances: Option<&[f64]>,
 ) -> Result<Money> {
     if let Some(balances) = current_balances {
@@ -1073,8 +1074,8 @@ mod haircut_tests {
     }
 
     /// Carry CCC collateral at 50% of par — the standard CLO convention.
-    fn ccc_haircuts() -> HashMap<CreditRating, f64> {
-        let mut m = HashMap::default();
+    fn ccc_haircuts() -> BTreeMap<CreditRating, f64> {
+        let mut m = BTreeMap::new();
         m.insert(CreditRating::CCC, 0.5);
         m
     }

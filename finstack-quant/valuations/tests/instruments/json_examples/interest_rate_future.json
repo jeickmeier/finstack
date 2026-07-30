@@ -1,34 +1,49 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "interest_rate_future",
     "spec": {
+      "attributes": {},
+      "contract_specs": {
+        "convexity_adjustment": 0.0,
+        "delivery_months": 3,
+        "face_value": 1000000.0,
+        "tick_size": 0.0025,
+        "tick_value": 6.25
+      },
+      "day_count": "Act360",
+      "discount_curve_id": "USD-OIS",
+      "expiry": "2025-03-17",
+      "forward_curve_id": "USD-SOFR-3M",
       "id": "IRF-ED-3M-MAR25",
       "notional": {
         "amount": "1000000",
         "currency": "USD"
       },
-      "expiry": "2025-03-17",
-      "fixing_date": "2025-03-17",
-      "period_start": "2025-03-19",
-      "period_end": "2025-06-18",
-      "quoted_price": 95.5,
-      "day_count": "Act360",
       "position": "long",
-      "contract_specs": {
-        "face_value": 1000000.0,
-        "tick_size": 0.0025,
-        "tick_value": 6.25,
-        "delivery_months": 3,
-        "convexity_adjustment": 0.0
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
       },
-      "discount_curve_id": "USD-OIS",
-      "forward_curve_id": "USD-SOFR-3M",
-      "vol_surface_id": null,
-      "attributes": {
-        "tags": [],
-        "meta": {}
-      }
-    }
-  }
+      "quoted_price": 95.5,
+      "vol_surface_id": null
+    },
+    "type": "interest_rate_future"
+  },
+  "schema": "finstack_quant.instrument/1"
 }

@@ -356,7 +356,9 @@ pub(crate) fn asset_swap_projection_rate(
 /// Quote input for the bond quote engine.
 ///
 /// All spreads are expressed in **decimal** (`0.01 = 100bp`).
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum BondQuoteInput {
     /// Clean price quoted as percentage of par (e.g., 99.5 = 99.5% of par).

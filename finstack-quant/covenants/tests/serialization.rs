@@ -336,6 +336,23 @@ fn validate_report_json_rejects_unknown_fields() {
 }
 
 #[test]
+fn validate_report_json_returns_core_canonical_order() {
+    let report = r#"{
+        "threshold": 4.0,
+        "passed": true,
+        "covenant_type": "Debt/EBITDA <= 5.00x",
+        "actual_value": 3.5
+    }"#;
+
+    let canonical = validate_covenant_report_json(report).expect("valid report");
+
+    assert_eq!(
+        canonical,
+        r#"{"actual_value":3.5,"covenant_type":"Debt/EBITDA <= 5.00x","details":null,"headroom":null,"passed":true,"threshold":4.0}"#
+    );
+}
+
+#[test]
 fn consequence_application_roundtrip() {
     let application = ConsequenceApplication {
         consequence_type: "Rate Increase".to_string(),

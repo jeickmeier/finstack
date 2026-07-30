@@ -17,11 +17,9 @@ use crate::bindings::core::types::{PyBps, PyRate};
 use crate::errors::{core_to_py, serde_json_to_py};
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
-/// Parse tagged instrument JSON through the JSON-loader path and run the
-/// same pricing-boundary validation the loader applies.
-fn parse_tagged(json: &str) -> PyResult<InstrumentJson> {
-    serde_json::from_str::<InstrumentJson>(json)
-        .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))
+/// Parse bare or enveloped typed-instrument JSON through the shared Rust path.
+pub(crate) fn parse_typed_instrument_json(json: &str) -> PyResult<InstrumentJson> {
+    finstack_quant_valuations::pricer::json::parse_instrument_json(json).map_err(core_to_py)
 }
 
 // ---------------------------------------------------------------------------
@@ -256,30 +254,37 @@ impl PyBond {
         Ok(Self { inner })
     }
 
-    /// Deserialize a bond from tagged instrument JSON.
-    ///
-    /// Accepts the same ``{"type": "bond", "spec": {...}}`` payload the
-    /// JSON loader accepts; the loader's validation runs on the result.
+    /// Deserialize a validated bond from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"bond"``.
+    ///     Bare tagged JSON with exact type ``"bond"``, or a full
+    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
+    ///     The UTF-8 input must not exceed 16 MiB. Cross-type coercion is not
+    ///     performed.
     ///
     /// Returns
     /// -------
     /// Bond
-    ///     The validated bond.
+    ///     The validated bond represented by the exact ``"bond"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries a type other than ``"bond"``, or fails
+    ///     bond validation.
+    ///
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.valuations.instruments import Bond
+    /// >>> callable(Bond.from_json)
+    /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match parse_tagged(json)? {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::Bond(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })
@@ -350,30 +355,37 @@ impl PyTermLoan {
 
 #[pymethods]
 impl PyTermLoan {
-    /// Deserialize a term loan from tagged instrument JSON.
-    ///
-    /// Accepts the same ``{"type": "term_loan", "spec": {...}}`` payload the
-    /// JSON loader accepts; the loader's validation runs on the result.
+    /// Deserialize a validated term loan from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"term_loan"``.
+    ///     Bare tagged JSON with exact type ``"term_loan"``, or a full
+    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
+    ///     The UTF-8 input must not exceed 16 MiB. Cross-type coercion is not
+    ///     performed.
     ///
     /// Returns
     /// -------
     /// TermLoan
-    ///     The validated term loan.
+    ///     The validated term loan represented by the exact ``"term_loan"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries a type other than ``"term_loan"``, or
+    ///     fails term-loan validation.
+    ///
+    /// Examples
+    /// --------
+    /// >>> from finstack_quant.valuations.instruments import TermLoan
+    /// >>> callable(TermLoan.from_json)
+    /// True
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match parse_tagged(json)? {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::TermLoan(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })

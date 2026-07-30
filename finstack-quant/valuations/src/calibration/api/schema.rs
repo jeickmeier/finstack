@@ -10,23 +10,207 @@ use crate::calibration::CalibrationReport;
 use crate::instruments::credit_derivatives::cds::CdsValuationConvention;
 use crate::market::quotes::ids::QuoteId;
 use finstack_quant_core::config::ResultsMeta;
+use finstack_quant_core::contract::{
+    deserialize_json_value, parse_json_value, ContractDescriptor, ContractError, Diagnostic,
+    LoadLimits, LoadPhase, Severity, ValidationReport as ContractValidationReport,
+};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::BusinessDayConvention;
 use finstack_quant_core::dates::{Date, DayCount, Tenor};
-use finstack_quant_core::market_data::context::MarketContextState;
+use finstack_quant_core::market_data::context::{MarketContext, MarketContextState};
 use finstack_quant_core::market_data::term_structures::{
     NelsonSiegelModel, NsVariant, ParInterp, Seniority,
 };
 use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
 use finstack_quant_core::types::{CurveId, IndexId};
-use finstack_quant_core::HashMap;
+use indexmap::IndexMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "ts_export")]
 use ts_rs::TS;
 
-/// Schema version identifier for calibration API.
-pub const CALIBRATION_SCHEMA: &str = "finstack_quant.calibration";
+/// Current schema version identifier for the calibration API.
+pub const CALIBRATION_SCHEMA: &str = "finstack_quant.calibration/3";
+/// Deprecated unversioned calibration marker accepted for compatibility.
+pub const LEGACY_CALIBRATION_SCHEMA: &str = "finstack_quant.calibration";
+/// Persistence contract for calibration request and result envelopes.
+pub const CALIBRATION_CONTRACT: ContractDescriptor =
+    ContractDescriptor::new("finstack_quant.calibration", 3);
+const FINAL_MARKET_POINTER: &str = "/result/final_market";
+
+fn calibration_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "string",
+        "enum": [CALIBRATION_SCHEMA, LEGACY_CALIBRATION_SCHEMA],
+    })
+}
+
+pub(crate) fn legacy_calibration_schema_report(limits: &LoadLimits) -> ContractValidationReport {
+    let mut report = ContractValidationReport::default();
+    report.push_bounded(
+        limits,
+        Diagnostic::new(
+            "contract/version-legacy",
+            LoadPhase::Version,
+            Severity::Warning,
+            format!(
+                "deprecated calibration schema {LEGACY_CALIBRATION_SCHEMA:?} maps to \
+                 {CALIBRATION_SCHEMA:?}"
+            ),
+        )
+        .with_pointer("/schema")
+        .with_contract(CALIBRATION_CONTRACT.id)
+        .with_expected_version(CALIBRATION_CONTRACT.current)
+        .with_actual_version(CALIBRATION_CONTRACT.current),
+    );
+    report
+}
+
+fn append_prefixed_report(
+    target: &mut ContractValidationReport,
+    source: ContractValidationReport,
+    limits: &LoadLimits,
+    prefix: &str,
+) {
+    for mut diagnostic in source.diagnostics {
+        diagnostic.pointer = Some(prefix_json_pointer(prefix, diagnostic.pointer.as_deref()));
+        target.push_bounded(limits, diagnostic);
+    }
+    target.truncated |= source.truncated;
+}
+
+fn prefix_json_pointer(prefix: &str, child: Option<&str>) -> String {
+    match child {
+        None | Some("") => prefix.to_string(),
+        Some(pointer) if pointer.starts_with('/') => format!("{prefix}{pointer}"),
+        Some(pointer) => format!("{prefix}/{}", pointer.replace('~', "~0").replace('/', "~1")),
+    }
+}
+
+#[cfg(test)]
+mod pointer_tests {
+    use super::{prefix_json_pointer, FINAL_MARKET_POINTER};
+
+    #[test]
+    fn nested_diagnostic_pointer_join_is_rfc_6901_safe() {
+        assert_eq!(
+            prefix_json_pointer(FINAL_MARKET_POINTER, Some("/version")),
+            "/result/final_market/version"
+        );
+        assert_eq!(
+            prefix_json_pointer(FINAL_MARKET_POINTER, Some("/")),
+            "/result/final_market/"
+        );
+        assert_eq!(
+            prefix_json_pointer(FINAL_MARKET_POINTER, Some("desk/USD~CSA")),
+            "/result/final_market/desk~1USD~0CSA"
+        );
+        assert_eq!(
+            prefix_json_pointer(FINAL_MARKET_POINTER, None),
+            FINAL_MARKET_POINTER
+        );
+    }
+}
+
+fn validate_final_market(
+    value: &serde_json::Value,
+    report: &mut ContractValidationReport,
+    limits: &LoadLimits,
+) {
+    let Some(final_market) = value
+        .get("result")
+        .and_then(|result| result.get("final_market"))
+    else {
+        return;
+    };
+    let bytes = match serde_json::to_vec(final_market) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            report.push_bounded(
+                limits,
+                Diagnostic::new(
+                    "market-context/structure-invalid",
+                    LoadPhase::Structure,
+                    Severity::Error,
+                    error.to_string(),
+                )
+                .with_pointer(FINAL_MARKET_POINTER),
+            );
+            return;
+        }
+    };
+    match MarketContext::from_state_slice(&bytes, limits) {
+        Ok((_market, nested_report)) => {
+            append_prefixed_report(report, nested_report, limits, FINAL_MARKET_POINTER);
+        }
+        Err(ContractError::Report(nested_report)) => {
+            append_prefixed_report(report, *nested_report, limits, FINAL_MARKET_POINTER);
+        }
+        Err(ContractError::LimitExceeded {
+            what: "JSON depth",
+            found,
+            limit,
+        }) => {
+            report.push_bounded(
+                limits,
+                Diagnostic::new(
+                    "contract/depth-limit",
+                    LoadPhase::Parse,
+                    Severity::Error,
+                    format!("nested final_market JSON depth {found} exceeds limit {limit}"),
+                )
+                .with_pointer(FINAL_MARKET_POINTER),
+            );
+        }
+        Err(ContractError::Core(error)) => {
+            report.push_bounded(
+                limits,
+                Diagnostic::new(
+                    "market-context/restore-failed",
+                    LoadPhase::Build,
+                    Severity::Error,
+                    error.to_string(),
+                )
+                .with_pointer(FINAL_MARKET_POINTER),
+            );
+        }
+        Err(error) => {
+            report.push_bounded(
+                limits,
+                Diagnostic::new(
+                    "market-context/load-failed",
+                    LoadPhase::Build,
+                    Severity::Error,
+                    error.to_string(),
+                )
+                .with_pointer(FINAL_MARKET_POINTER),
+            );
+        }
+    }
+}
+
+fn parse_result_value(
+    bytes: &[u8],
+    limits: &LoadLimits,
+) -> Result<serde_json::Value, ContractError> {
+    let relaxed_depth = (*limits).with_max_depth(usize::MAX);
+    let value = parse_json_value(bytes, &relaxed_depth)?;
+
+    let mut outer = value.clone();
+    if let Some(final_market) = outer
+        .get_mut("result")
+        .and_then(|result| result.get_mut("final_market"))
+    {
+        *final_market = serde_json::Value::Null;
+    }
+    let outer_bytes = serde_json::to_vec(&outer).map_err(|error| {
+        finstack_quant_core::Error::Validation(format!(
+            "failed to inspect calibration result depth: {error}"
+        ))
+    })?;
+    parse_json_value(&outer_bytes, limits)?;
+    Ok(value)
+}
 
 /// Complete calibration result with market snapshot and diagnostics.
 #[cfg_attr(feature = "ts_export", derive(TS))]
@@ -59,7 +243,8 @@ pub struct CalibrationResult {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationResultEnvelope {
-    /// Schema version identifier (must be "finstack_quant.calibration").
+    /// Schema marker; current writers emit [`CALIBRATION_SCHEMA`].
+    #[schemars(schema_with = "calibration_schema_marker")]
     pub schema: String,
     /// The calibration result.
     pub result: CalibrationResult,
@@ -67,11 +252,92 @@ pub struct CalibrationResultEnvelope {
 
 impl CalibrationResultEnvelope {
     /// Create a new result envelope.
+    ///
+    /// # Arguments
+    ///
+    /// * `result` - Completed calibration output, including the final market
+    ///   snapshot, reports, and result metadata.
     pub fn new(result: CalibrationResult) -> Self {
         Self {
             schema: CALIBRATION_SCHEMA.to_string(),
             result,
         }
+    }
+
+    /// Compute the versioned SHA-256 hash of this result envelope's canonical JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the result contains a non-finite number or cannot
+    /// be serialized to the core canonical JSON representation.
+    pub fn content_hash(&self) -> finstack_quant_core::Result<String> {
+        finstack_quant_core::canonical::content_hash(self)
+    }
+
+    /// Strictly load a persisted calibration result envelope.
+    ///
+    /// This persistence entry point requires an explicit schema marker. It
+    /// accepts the historical unversioned calibration marker with a legacy
+    /// warning, requires the current version for slash-versioned markers,
+    /// enforces the supplied resource limits, and strictly restores the nested
+    /// final market so its version and references cannot bypass validation.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Complete UTF-8 JSON encoding of a calibration result
+    ///   envelope.
+    /// * `limits` - Resource policy bounding input size, JSON depth, and
+    ///   retained diagnostics.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ContractError`] for malformed JSON, resource-limit failures,
+    /// a missing or non-string schema marker, an unsupported schema version,
+    /// an invalid result-envelope shape, or a nested final market with an
+    /// invalid version, excessive depth, or unresolved restore references.
+    pub fn from_slice_strict(
+        bytes: &[u8],
+        limits: &LoadLimits,
+    ) -> Result<(Self, ContractValidationReport), ContractError> {
+        let value = parse_result_value(bytes, limits)?;
+        let mut report = match value.get("schema") {
+            Some(serde_json::Value::String(schema)) if schema == LEGACY_CALIBRATION_SCHEMA => {
+                legacy_calibration_schema_report(limits)
+            }
+            Some(serde_json::Value::String(schema)) => {
+                CALIBRATION_CONTRACT.parse_schema_strict(Some(schema), "/schema", limits)?;
+                ContractValidationReport::default()
+            }
+            Some(found) => {
+                let mut report = ContractValidationReport::default();
+                report.push_bounded(
+                    limits,
+                    Diagnostic::new(
+                        "contract/schema-malformed",
+                        LoadPhase::Version,
+                        Severity::Error,
+                        format!(
+                            "malformed schema marker {}; expected a string in {:?} format",
+                            found, CALIBRATION_SCHEMA
+                        ),
+                    )
+                    .with_pointer("/schema")
+                    .with_contract(CALIBRATION_CONTRACT.id)
+                    .with_expected_version(CALIBRATION_CONTRACT.current),
+                );
+                return Err(ContractError::Report(Box::new(report)));
+            }
+            None => {
+                CALIBRATION_CONTRACT.parse_schema_strict(None, "/schema", limits)?;
+                ContractValidationReport::default()
+            }
+        };
+        validate_final_market(&value, &mut report, limits);
+        if report.has_errors() {
+            return Err(ContractError::Report(Box::new(report)));
+        }
+        let envelope: Self = deserialize_json_value(value, limits)?;
+        Ok((envelope, report))
     }
 }
 
@@ -90,7 +356,8 @@ pub struct CalibrationEnvelope {
     #[serde(rename = "$schema", default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts_export", ts(type = "string | null"))]
     pub schema_url: Option<String>,
-    /// Schema version identifier (must be [`CALIBRATION_SCHEMA`]).
+    /// Schema marker; current writers emit [`CALIBRATION_SCHEMA`].
+    #[schemars(schema_with = "calibration_schema_marker")]
     pub schema: String,
     /// The calibration plan containing steps and quote-set references.
     pub plan: CalibrationPlan,
@@ -102,6 +369,112 @@ pub struct CalibrationEnvelope {
     /// Pre-built calibrated objects from a prior run.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub prior_market: Vec<PriorMarketObject>,
+}
+
+impl CalibrationEnvelope {
+    /// Create a current-version calibration request envelope.
+    ///
+    /// # Arguments
+    ///
+    /// * `plan` - Ordered calibration plan, quote-set references, and solver
+    ///   settings to execute.
+    /// * `market_data` - Flat market-data inputs addressable by the plan.
+    /// * `prior_market` - Previously calibrated objects available as initial
+    ///   dependencies.
+    #[must_use]
+    pub fn new(
+        plan: CalibrationPlan,
+        market_data: Vec<MarketDatum>,
+        prior_market: Vec<PriorMarketObject>,
+    ) -> Self {
+        Self {
+            schema_url: None,
+            schema: CALIBRATION_SCHEMA.to_string(),
+            plan,
+            market_data,
+            prior_market,
+        }
+    }
+
+    /// Compute the versioned SHA-256 hash of this request envelope's canonical JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request contains a non-finite number or cannot
+    /// be serialized to the core canonical JSON representation.
+    pub fn content_hash(&self) -> finstack_quant_core::Result<String> {
+        finstack_quant_core::canonical::content_hash(self)
+    }
+
+    /// Strictly load a persisted calibration request envelope.
+    ///
+    /// The loader enforces resource limits and requires an explicit calibration
+    /// schema marker. The deprecated unversioned marker remains readable with a
+    /// compatibility warning; slash-versioned markers must match the supported
+    /// calibration contract. Typed requests also run the complete solver-free
+    /// semantic validation pass before they are returned.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Complete UTF-8 JSON encoding of a calibration request
+    ///   envelope in the v3 flat-market shape.
+    /// * `limits` - Resource policy bounding input bytes, JSON nesting depth,
+    ///   and retained compatibility diagnostics.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ContractError`] for malformed JSON, resource-limit failures,
+    /// a missing or malformed schema marker, an unsupported schema version, or
+    /// an invalid calibration-envelope shape, or semantic failures such as
+    /// undefined quote sets, duplicate market-data IDs, or missing dependencies.
+    pub fn from_slice_strict(
+        bytes: &[u8],
+        limits: &LoadLimits,
+    ) -> Result<(Self, ContractValidationReport), ContractError> {
+        let value = parse_json_value(bytes, limits)?;
+        let mut report = match value.get("schema") {
+            Some(serde_json::Value::String(schema)) if schema == LEGACY_CALIBRATION_SCHEMA => {
+                legacy_calibration_schema_report(limits)
+            }
+            Some(serde_json::Value::String(schema)) => {
+                CALIBRATION_CONTRACT.parse_schema_strict(Some(schema), "/schema", limits)?;
+                ContractValidationReport::default()
+            }
+            Some(found) => {
+                let mut report = ContractValidationReport::default();
+                report.push_bounded(
+                    limits,
+                    Diagnostic::new(
+                        "contract/schema-malformed",
+                        LoadPhase::Version,
+                        Severity::Error,
+                        format!(
+                            "malformed schema marker {}; expected a string in {:?} format",
+                            found, CALIBRATION_SCHEMA
+                        ),
+                    )
+                    .with_pointer("/schema")
+                    .with_contract(CALIBRATION_CONTRACT.id)
+                    .with_expected_version(CALIBRATION_CONTRACT.current),
+                );
+                return Err(ContractError::Report(Box::new(report)));
+            }
+            None => {
+                CALIBRATION_CONTRACT.parse_schema_strict(None, "/schema", limits)?;
+                ContractValidationReport::default()
+            }
+        };
+        let envelope: Self = deserialize_json_value(value, limits)?;
+        super::validate::append_contract_diagnostics(
+            &mut report,
+            envelope.validate().errors,
+            limits,
+        );
+        if report.has_errors() {
+            return Err(ContractError::Report(Box::new(report)));
+        }
+        Ok((envelope, report))
+    }
 }
 
 /// A calibration plan containing quote sets and execution steps.
@@ -121,7 +494,7 @@ pub struct CalibrationPlan {
     /// Named ID lists; each ID must resolve to a quote in `market_data`.
     #[serde(default)]
     #[cfg_attr(feature = "ts_export", ts(type = "Record<string, Array<string>>"))]
-    pub quote_sets: HashMap<String, Vec<QuoteId>>,
+    pub quote_sets: IndexMap<String, Vec<QuoteId>>,
     /// Sequence of calibration steps to execute.
     pub steps: Vec<CalibrationStep>,
     /// Global settings for the calibration process.
@@ -135,7 +508,7 @@ pub struct CalibrationPlan {
 /// (e.g., a yield curve) using a specified set of quotes.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct CalibrationStep {
     /// Unique identifier for the object being calibrated in this step.
     pub id: String,
@@ -144,6 +517,30 @@ pub struct CalibrationStep {
     /// Step-specific parameters and configuration.
     #[serde(flatten)]
     pub params: StepParams,
+}
+
+impl<'de> Deserialize<'de> for CalibrationStep {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct CalibrationStepWire {
+            id: String,
+            quote_set: String,
+            #[serde(flatten)]
+            params: serde_json::Map<String, serde_json::Value>,
+        }
+
+        let wire = CalibrationStepWire::deserialize(deserializer)?;
+        let params = StepParams::deserialize(serde_json::Value::Object(wire.params))
+            .map_err(serde::de::Error::custom)?;
+        Ok(Self {
+            id: wire.id,
+            quote_set: wire.quote_set,
+            params,
+        })
+    }
 }
 
 /// Polymorphic parameters for different calibration step types.

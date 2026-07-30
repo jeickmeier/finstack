@@ -49,6 +49,7 @@ impl std::str::FromStr for TrancheSide {
 
 /// CDS Tranche instrument definition (boilerplate)
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

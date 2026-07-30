@@ -1,4 +1,5 @@
 {
+  "schema": "finstack_quant.scenario_template/1",
   "metadata": {
     "id": "covid_2020",
     "name": "COVID 2020 Market Shock",

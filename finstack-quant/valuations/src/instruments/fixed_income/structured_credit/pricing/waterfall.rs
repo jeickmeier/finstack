@@ -406,8 +406,16 @@ fn execute_waterfall_core(
         payment_date: context.payment_date,
         total_available: context.available_cash,
         tier_allocations: tier_allocations.clone(),
-        distributions: allocation_output.distributions.clone(),
-        principal_distributions: allocation_output.principal_distributions.clone(),
+        distributions: allocation_output
+            .distributions
+            .iter()
+            .map(|(recipient, amount)| (recipient.clone(), *amount))
+            .collect(),
+        principal_distributions: allocation_output
+            .principal_distributions
+            .iter()
+            .map(|(recipient, amount)| (recipient.clone(), *amount))
+            .collect(),
         payment_records: allocation_output.payment_records.clone(),
         coverage_tests: coverage_tests_public.clone(),
         diverted_cash: total_diverted,

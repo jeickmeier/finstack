@@ -79,7 +79,7 @@ fn forward_only_envelope(
         plan: CalibrationPlan {
             id: "forward-global-reprice".to_string(),
             description: None,
-            quote_sets,
+            quote_sets: quote_sets.into_iter().collect(),
             settings: CalibrationConfig::default(),
             steps: vec![CalibrationStep {
                 id: "fwd".to_string(),
@@ -151,7 +151,7 @@ fn discount_curve_deposit_repricing() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings,
         steps: vec![CalibrationStep {
             id: "disc".to_string(),
@@ -267,7 +267,7 @@ fn discount_curve_swap_repricing() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings,
         steps: vec![CalibrationStep {
             id: "disc".to_string(),
@@ -398,7 +398,7 @@ fn forward_curve_fra_repricing() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings,
         steps: vec![
             CalibrationStep {
@@ -721,7 +721,7 @@ fn hazard_curve_cds_repricing() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![
             CalibrationStep {
@@ -844,7 +844,7 @@ fn hazard_curve_step_report_matches_market_built_cds_repricing() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![
             CalibrationStep {
@@ -1002,7 +1002,7 @@ fn hazard_curve_standard_upfront_cds_repricing() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![
             CalibrationStep {
@@ -1135,7 +1135,7 @@ fn inflation_curve_swap_repricing() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![
             CalibrationStep {

@@ -14,6 +14,10 @@
 #[macro_use]
 #[path = "instruments/common/mod.rs"]
 mod common;
+#[path = "instruments/registry_coverage.rs"]
+mod registry_coverage;
+#[path = "instruments/serde_skip_guard.rs"]
+mod serde_skip_guard;
 
 #[allow(clippy::expect_used, clippy::unwrap_used, dead_code, unused_imports)]
 mod finstack_quant_test_utils {

@@ -223,6 +223,23 @@ mod tests {
     }
 
     #[test]
+    fn assumed_pool_json_roundtrip_preserves_pricing_behavior() {
+        let mut tba = AgencyTba::example().expect("AgencyTba example is valid");
+        tba.assumed_pool = Some(Box::new(
+            AgencyMbsPassthrough::example().expect("assumed pool"),
+        ));
+        let roundtripped: AgencyTba =
+            serde_json::from_str(&serde_json::to_string(&tba).expect("serialize TBA"))
+                .expect("deserialize TBA");
+        let as_of = Date::from_calendar_date(2027, Month::January, 15).expect("valid");
+        let market = create_test_market(as_of);
+
+        let original = price_tba(&tba, &market, as_of).expect("original price");
+        let restored = price_tba(&roundtripped, &market, as_of).expect("restored price");
+        assert_eq!(restored, original);
+    }
+
+    #[test]
     fn test_tba_expired() {
         let mut tba = AgencyTba::example().expect("AgencyTba example is valid");
         tba.settlement_year = 2026;

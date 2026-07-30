@@ -217,7 +217,7 @@ pub struct SimmSensitivitiesJson {
 
 impl From<&SimmSensitivities> for SimmSensitivitiesJson {
     fn from(sens: &SimmSensitivities) -> Self {
-        Self {
+        let mut json = Self {
             base_currency: sens.base_currency,
             ir_delta: sens
                 .ir_delta
@@ -276,7 +276,74 @@ impl From<&SimmSensitivities> for SimmSensitivitiesJson {
                     (*sector, name.clone(), tenor.clone(), *amount)
                 })
                 .collect(),
+        };
+        for entries in [&mut json.ir_delta, &mut json.ir_vega] {
+            entries.sort_by(|left, right| {
+                left.0
+                    .numeric()
+                    .cmp(&right.0.numeric())
+                    .then_with(|| left.1.cmp(&right.1))
+            });
         }
+        for entries in [
+            &mut json.credit_qualifying_delta,
+            &mut json.credit_non_qualifying_delta,
+        ] {
+            entries.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+        }
+        for entries in [&mut json.equity_delta, &mut json.equity_vega] {
+            entries.sort_by(|left, right| left.0.cmp(&right.0));
+        }
+        json.fx_delta.sort_by_key(|entry| entry.0.numeric());
+        json.fx_vega.sort_by(|left, right| {
+            left.0
+                .numeric()
+                .cmp(&right.0.numeric())
+                .then_with(|| left.1.numeric().cmp(&right.1.numeric()))
+        });
+        json.commodity_delta
+            .sort_by(|left, right| left.0.cmp(&right.0));
+        json.curvature
+            .sort_by_key(|entry| simm_risk_class_sort_key(entry.0));
+        json.credit_qualifying_delta_bucketed
+            .sort_by(|left, right| {
+                simm_credit_sector_sort_key(left.0)
+                    .cmp(&simm_credit_sector_sort_key(right.0))
+                    .then_with(|| left.1.cmp(&right.1))
+                    .then_with(|| left.2.cmp(&right.2))
+            });
+        json
+    }
+}
+
+const fn simm_risk_class_sort_key(risk_class: SimmRiskClass) -> u8 {
+    match risk_class {
+        SimmRiskClass::InterestRate => 0,
+        SimmRiskClass::CreditQualifying => 1,
+        SimmRiskClass::CreditNonQualifying => 2,
+        SimmRiskClass::Equity => 3,
+        SimmRiskClass::Commodity => 4,
+        SimmRiskClass::Fx => 5,
+    }
+}
+
+const fn simm_credit_sector_sort_key(sector: SimmCreditSector) -> u8 {
+    match sector {
+        SimmCreditSector::Sovereign => 0,
+        SimmCreditSector::Financial => 1,
+        SimmCreditSector::BasicMaterials => 2,
+        SimmCreditSector::ConsumerGoods => 3,
+        SimmCreditSector::TechnologyMedia => 4,
+        SimmCreditSector::HealthCare => 5,
+        SimmCreditSector::HighYieldSovereign => 6,
+        SimmCreditSector::HighYieldFinancial => 7,
+        SimmCreditSector::HighYieldBasicMaterials => 8,
+        SimmCreditSector::HighYieldConsumerGoods => 9,
+        SimmCreditSector::HighYieldTechnologyMedia => 10,
+        SimmCreditSector::HighYieldHealthCare => 11,
+        SimmCreditSector::Index => 12,
+        SimmCreditSector::Securitized => 13,
+        SimmCreditSector::Residual => 14,
     }
 }
 
@@ -780,6 +847,111 @@ pub fn ordered_credit_sector_pair(
 mod tests {
     use super::*;
 
+    fn insert_entries<K>(map: &mut HashMap<K, f64>, mut entries: [(K, f64); 2], reverse: bool)
+    where
+        K: Eq + Hash,
+    {
+        if reverse {
+            entries.reverse();
+        }
+        map.extend(entries);
+    }
+
+    fn populated_simm_sensitivities(reverse: bool) -> SimmSensitivities {
+        let mut sensitivities = SimmSensitivities::new(Currency::USD);
+        insert_entries(
+            &mut sensitivities.ir_delta,
+            [
+                ((Currency::USD, "10Y".to_string()), 10.0),
+                ((Currency::EUR, "2Y".to_string()), 20.0),
+            ],
+            reverse,
+        );
+        insert_entries(
+            &mut sensitivities.ir_vega,
+            [
+                ((Currency::USD, "5Y".to_string()), 30.0),
+                ((Currency::EUR, "1Y".to_string()), 40.0),
+            ],
+            reverse,
+        );
+        insert_entries(
+            &mut sensitivities.credit_qualifying_delta,
+            [
+                (("ZETA".to_string(), "5Y".to_string()), 50.0),
+                (("ALPHA".to_string(), "3Y".to_string()), 60.0),
+            ],
+            reverse,
+        );
+        insert_entries(
+            &mut sensitivities.credit_non_qualifying_delta,
+            [
+                (("HY_ZETA".to_string(), "5Y".to_string()), 70.0),
+                (("HY_ALPHA".to_string(), "3Y".to_string()), 80.0),
+            ],
+            reverse,
+        );
+        insert_entries(
+            &mut sensitivities.equity_delta,
+            [("MSFT".to_string(), 90.0), ("AAPL".to_string(), 100.0)],
+            reverse,
+        );
+        insert_entries(
+            &mut sensitivities.equity_vega,
+            [("MSFT".to_string(), 110.0), ("AAPL".to_string(), 120.0)],
+            reverse,
+        );
+        insert_entries(
+            &mut sensitivities.fx_delta,
+            [(Currency::USD, 130.0), (Currency::EUR, 140.0)],
+            reverse,
+        );
+        insert_entries(
+            &mut sensitivities.fx_vega,
+            [
+                ((Currency::USD, Currency::JPY), 150.0),
+                ((Currency::EUR, Currency::USD), 160.0),
+            ],
+            reverse,
+        );
+        insert_entries(
+            &mut sensitivities.commodity_delta,
+            [("Power".to_string(), 170.0), ("Crude".to_string(), 180.0)],
+            reverse,
+        );
+        insert_entries(
+            &mut sensitivities.curvature,
+            [
+                (SimmRiskClass::Equity, 190.0),
+                (SimmRiskClass::InterestRate, 200.0),
+            ],
+            reverse,
+        );
+        insert_entries(
+            &mut sensitivities.credit_qualifying_delta_bucketed,
+            [
+                (
+                    (
+                        SimmCreditSector::Financial,
+                        "BANK".to_string(),
+                        "5Y".to_string(),
+                    ),
+                    210.0,
+                ),
+                (
+                    (
+                        SimmCreditSector::Sovereign,
+                        "UST".to_string(),
+                        "10Y".to_string(),
+                    ),
+                    220.0,
+                ),
+            ],
+            reverse,
+        );
+        sensitivities
+    }
+
     #[test]
     fn test_simm_sensitivities_creation() {
         let mut sens = SimmSensitivities::new(Currency::USD);
@@ -838,6 +1010,32 @@ mod tests {
         assert_eq!(round_tripped.fx_vega[&(Currency::EUR, Currency::USD)], 25.0);
         assert_eq!(round_tripped.commodity_delta["energy"], 10.0);
         assert_eq!(round_tripped.curvature[&SimmRiskClass::Equity], 5.0);
+    }
+
+    #[test]
+    fn simm_pretty_json_sorts_every_sensitivity_family() {
+        let first = populated_simm_sensitivities(false);
+        let second = populated_simm_sensitivities(true);
+        let first_json = first.to_json_pretty().expect("first order serializes");
+        let second_json = second.to_json_pretty().expect("reverse order serializes");
+        assert_eq!(first_json, second_json);
+
+        let json: SimmSensitivitiesJson =
+            serde_json::from_str(&first_json).expect("canonical DTO parses");
+        assert_eq!(json.ir_delta[0].0, Currency::USD);
+        assert_eq!(json.ir_vega[0].0, Currency::USD);
+        assert_eq!(json.credit_qualifying_delta[0].0, "ALPHA");
+        assert_eq!(json.credit_non_qualifying_delta[0].0, "HY_ALPHA");
+        assert_eq!(json.equity_delta[0].0, "AAPL");
+        assert_eq!(json.equity_vega[0].0, "AAPL");
+        assert_eq!(json.fx_delta[0].0, Currency::USD);
+        assert_eq!(json.fx_vega[0].0, Currency::USD);
+        assert_eq!(json.commodity_delta[0].0, "Crude");
+        assert_eq!(json.curvature[0].0, SimmRiskClass::InterestRate);
+        assert_eq!(
+            json.credit_qualifying_delta_bucketed[0].0,
+            SimmCreditSector::Sovereign
+        );
     }
 
     #[test]

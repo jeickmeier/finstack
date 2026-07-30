@@ -10,7 +10,7 @@ Examples
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from finstack_quant.attribution import PnlAttribution
 
@@ -70,6 +70,7 @@ def build_scenario_spec(
     name: str | None = None,
     description: str | None = None,
     priority: int = 0,
+    resolution_mode: Literal["most_specific_wins", "cumulative"] = "most_specific_wins",
 ) -> str:
     """
     Construct a ``ScenarioSpec`` from fields plus a JSON operations list.
@@ -86,6 +87,9 @@ def build_scenario_spec(
         Long description.
     priority : int, default 0
         Composition priority (lower runs first).
+    resolution_mode : str, default "most_specific_wins"
+        Hierarchy conflict policy. Accepted values are
+        ``"most_specific_wins"`` and ``"cumulative"``.
 
     Returns
     -------
@@ -95,13 +99,16 @@ def build_scenario_spec(
     Raises
     ------
     ValueError
-        If ``operations_json`` is not valid JSON or fails validation.
+        If ``operations_json`` is not valid JSON, ``resolution_mode`` is not
+        recognized, or the resulting scenario fails validation.
 
     Examples
     --------
     >>> from finstack_quant.scenarios import build_scenario_spec
-    >>> build_scenario_spec("s1", "[]")  # doctest: +SKIP
-        ''
+    >>> import json
+    >>> built = build_scenario_spec("s1", "[]", resolution_mode="cumulative")
+    >>> json.loads(built)["resolution_mode"]
+    'cumulative'
     """
     ...
 

@@ -14,6 +14,7 @@ use finstack_quant_core::explain::ExplanationTrace;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CreditRating;
 use finstack_quant_core::HashMap;
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +23,9 @@ use serde::{Deserialize, Serialize};
 // ============================================================================
 
 /// Recipient of waterfall payments
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 pub enum RecipientType {
@@ -39,7 +42,9 @@ pub enum RecipientType {
 }
 
 /// Type of management fee
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
 pub enum ManagementFeeType {
@@ -646,7 +651,7 @@ pub struct WaterfallDistribution {
     pub tier_allocations: Vec<(String, Money)>,
 
     /// Distributions by recipient
-    pub distributions: HashMap<RecipientType, Money>,
+    pub distributions: BTreeMap<RecipientType, Money>,
     /// The PRINCIPAL portion of `distributions`, per recipient.
     ///
     /// SC-M28: `distributions` aggregates a tranche's interest and principal
@@ -660,7 +665,7 @@ pub struct WaterfallDistribution {
     /// The waterfall already knows the answer: `PaymentCalculation`
     /// distinguishes `TranchePrincipal` from `TrancheInterest`. Reporting it
     /// here makes the classification authoritative instead of reconstructed.
-    pub principal_distributions: HashMap<RecipientType, Money>,
+    pub principal_distributions: BTreeMap<RecipientType, Money>,
     /// Detailed payment records
     pub payment_records: Vec<PaymentRecord>,
 
@@ -740,16 +745,19 @@ pub struct PaymentRecord {
 #[serde(deny_unknown_fields)]
 pub struct CoverageTestRules {
     /// Haircuts applied by collateral rating
-    pub haircuts: HashMap<CreditRating, f64>,
+    pub haircuts: BTreeMap<CreditRating, f64>,
     /// Optional par-value threshold ratio (collateral / liabilities)
     pub par_value_threshold: Option<f64>,
 }
 
 impl CoverageTestRules {
     /// Create new coverage rules.
-    pub fn new(haircuts: HashMap<CreditRating, f64>, par_value_threshold: Option<f64>) -> Self {
+    pub fn new<I>(haircuts: I, par_value_threshold: Option<f64>) -> Self
+    where
+        I: IntoIterator<Item = (CreditRating, f64)>,
+    {
         Self {
-            haircuts,
+            haircuts: haircuts.into_iter().collect(),
             par_value_threshold,
         }
     }
@@ -757,7 +765,7 @@ impl CoverageTestRules {
     /// Empty/default rules (no haircuts, no threshold).
     pub fn empty() -> Self {
         Self {
-            haircuts: HashMap::default(),
+            haircuts: BTreeMap::new(),
             par_value_threshold: None,
         }
     }

@@ -24,6 +24,7 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
 #[derive(
     Clone,
     Debug,
+    PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
     finstack_quant_valuations_macros::FocusedPricingOverrides,
 )]

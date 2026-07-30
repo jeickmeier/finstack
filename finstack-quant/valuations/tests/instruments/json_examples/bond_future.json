@@ -1,0 +1,62 @@
+{
+  "instrument": {
+    "spec": {
+      "attributes": {},
+      "contract_specs": {
+        "calendar_id": "nyse",
+        "contract_size": 100000.0,
+        "repo_day_count_basis": "act360",
+        "settlement_days": 2,
+        "standard_coupon": 0.06,
+        "standard_maturity_years": 10.0,
+        "tick_size": 0.015625,
+        "tick_value": 15.625
+      },
+      "ctd_bond_id": "US91282CJL54",
+      "deliverable_basket": [
+        {
+          "bond_id": "US91282CJL54",
+          "conversion_factor": 0.8234
+        },
+        {
+          "bond_id": "US91282CHT18",
+          "conversion_factor": 0.7915
+        }
+      ],
+      "delivery_end": "2025-09-30",
+      "delivery_start": "2025-09-22",
+      "discount_curve_id": "USD-TREASURY",
+      "expiry": "2025-09-19",
+      "id": "TYU5",
+      "notional": {
+        "amount": "1000000",
+        "currency": "USD"
+      },
+      "position": "long",
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
+      },
+      "quoted_price": 112.25
+    },
+    "type": "bond_future"
+  },
+  "schema": "finstack_quant.instrument/1"
+}

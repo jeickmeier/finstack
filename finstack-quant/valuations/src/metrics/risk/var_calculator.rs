@@ -55,7 +55,7 @@ pub enum VarMethod {
 ///
 /// Controls statistical properties such as confidence level and pricing method.
 /// The historical window/observation count is derived from [`MarketHistory`].
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(default)]
 pub struct VarConfig {
     /// Confidence level (e.g., 0.95 for 95% VaR, 0.99 for 99% VaR)

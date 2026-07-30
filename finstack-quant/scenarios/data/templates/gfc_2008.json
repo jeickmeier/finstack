@@ -1,4 +1,5 @@
 {
+  "schema": "finstack_quant.scenario_template/1",
   "metadata": {
     "id": "gfc_2008",
     "name": "Global Financial Crisis 2008",

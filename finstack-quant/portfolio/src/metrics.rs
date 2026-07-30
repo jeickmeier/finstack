@@ -472,7 +472,7 @@ fn aggregate_collected_metrics(collected: Vec<PositionMetricData>) -> PortfolioM
         IndexMap::with_capacity(metric_values.len());
 
     for (metric_id, values) in metric_values {
-        let total = neumaier_sum(values.into_iter());
+        let total = neumaier_sum(values);
 
         let by_entity: IndexMap<EntityId, f64> = entity_values
             .shift_remove(&metric_id)
@@ -480,7 +480,7 @@ fn aggregate_collected_metrics(collected: Vec<PositionMetricData>) -> PortfolioM
             .flat_map(|entity_map| {
                 entity_map
                     .into_iter()
-                    .map(|(eid, vals)| (eid, neumaier_sum(vals.into_iter())))
+                    .map(|(eid, vals)| (eid, neumaier_sum(vals)))
             })
             .collect();
 

@@ -26,7 +26,7 @@ use finstack_quant_core::market_data::context::{
 };
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::types::CurveId;
-use finstack_quant_core::HashMap;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 /// Materialize a [`MarketContext`] from the v3 envelope inputs.
@@ -177,7 +177,7 @@ pub fn build_initial_context(
         let base_corr = ctx.get_base_correlation(&credit_state.base_correlation_curve_id)?;
         let issuer_curves = if let Some(issuer_ids) = credit_state.issuer_credit_curve_ids.as_ref()
         {
-            let mut map = HashMap::default();
+            let mut map = BTreeMap::new();
             for (issuer, curve_id) in issuer_ids {
                 let curve = ctx.get_hazard(curve_id)?;
                 map.insert(issuer.clone(), curve);

@@ -221,58 +221,15 @@ fn external_schema_resources() -> finstack_quant_core::Result<Vec<(String, jsons
     Ok(resources)
 }
 
-/// Return the canonical instrument discriminators advertised by the envelope schema.
+/// Return canonical instrument discriminators from the tagged-JSON registry.
 ///
-/// # Errors
-///
-/// Returns `Error::Validation` if the embedded schema JSON is malformed.
+/// The registry is the source of truth for decoding and schema generation, so
+/// this accessor does not infer type names by parsing checked-in `$ref` paths.
 pub fn instrument_types() -> finstack_quant_core::Result<Vec<String>> {
-    let schema = instrument_envelope_schema()?;
-    if let Some(values) = schema
-        .pointer("/properties/instrument/properties/type/enum")
-        .and_then(serde_json::Value::as_array)
-    {
-        return values
-            .iter()
-            .map(|value| {
-                value.as_str().map(str::to_owned).ok_or_else(|| {
-                    finstack_quant_core::Error::Validation(
-                        "instrument schema enum contains a non-string value".to_string(),
-                    )
-                })
-            })
-            .collect();
-    }
-
-    let Some(variants) = schema.get("oneOf").and_then(Value::as_array) else {
-        return Err(finstack_quant_core::Error::Validation(
-            "instrument schema oneOf union is missing".to_string(),
-        ));
-    };
-
-    variants
+    Ok(crate::instruments::json_loader::registry_tags()
         .iter()
-        .map(|variant| {
-            let reference = variant.get("$ref").and_then(Value::as_str).ok_or_else(|| {
-                finstack_quant_core::Error::Validation(
-                    "instrument schema oneOf entry is missing $ref".to_string(),
-                )
-            })?;
-            let filename = reference.rsplit('/').next().ok_or_else(|| {
-                finstack_quant_core::Error::Validation(format!(
-                    "instrument schema $ref has no filename: {reference}"
-                ))
-            })?;
-            filename
-                .strip_suffix(".schema.json")
-                .map(str::to_owned)
-                .ok_or_else(|| {
-                    finstack_quant_core::Error::Validation(format!(
-                        "instrument schema $ref is not a schema file: {reference}"
-                    ))
-                })
-        })
-        .collect()
+        .map(|(tag, _)| (*tag).to_string())
+        .collect())
 }
 
 /// Get the JSON Schema for a single instrument type.
@@ -493,6 +450,11 @@ mod tests {
     #[test]
     fn test_instrument_types_lists_supported_tags() {
         let types = instrument_types().expect("instrument types should parse");
+        let expected: Vec<String> = crate::instruments::json_loader::registry_tags()
+            .iter()
+            .map(|(tag, _)| (*tag).to_string())
+            .collect();
+        assert_eq!(types, expected);
         assert!(types.iter().any(|ty| ty == "bond"));
         assert!(types.iter().any(|ty| ty == "cms_swap"));
     }

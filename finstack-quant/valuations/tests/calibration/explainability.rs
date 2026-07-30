@@ -70,7 +70,7 @@ fn explanation_not_computed_by_default() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: CalibrationConfig::default(),
         steps: vec![CalibrationStep {
             id: "fwd".to_string(),
@@ -124,7 +124,7 @@ fn explanation_is_present_when_enabled() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings,
         steps: vec![CalibrationStep {
             id: "fwd".to_string(),

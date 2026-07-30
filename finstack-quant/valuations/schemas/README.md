@@ -1,22 +1,53 @@
-# Finstack JSON Schemas
+# Valuations JSON Schemas
 
-JSON Schema Draft 2020-12 definitions for all Finstack data types. These schemas are **auto-generated from Rust types** via [schemars](https://github.com/GREsau/schemars) and should not be edited by hand.
+This directory contains JSON Schema Draft 2020-12 definitions owned by the
+valuations crate: instruments, calibration, market quotes, valuation results,
+credit factor-model artifacts, and shared definitions needed by those schemas.
+The Rust serde types and strict loaders are authoritative.
+
+Cashflow schemas are owned under `finstack-quant/cashflows/schemas/`; portfolio
+materialization schemas are owned under `finstack-quant/portfolio/schemas/`.
+Valuations schemas may reference those separately generated artifacts.
 
 ## Regenerating Schemas
 
 ```bash
-# Regenerate all typed schemas from Rust serde types
+# Regenerate cashflows, valuations, and portfolio schemas, then apply overrides
 mise run rust-gen-schemas
 
-# Or directly:
+# Regenerate only valuations-owned schemas
 cargo run -p finstack-quant-valuations --bin gen_schemas
+
+# Run the other owning generators directly when needed
+cargo run -p finstack-quant-cashflows --bin gen_cashflow_schemas
+cargo run -p finstack-quant-portfolio --bin gen_materialization_schemas
+
+# Reapply only the deterministic valuations override layer
+mise run rust-sync-schemas
+
+# Validate schema parity and the checked-in schema audit
+mise run rust-check-schemas
+
+# Regenerate all maintained schema/binding artifacts and check path/content drift
+mise run gen-check
 ```
 
-## Directory Structure
+The Rust generators always write their schemars output first.
+`scripts/sync_instrument_schema_overrides.py` then reapplies two deterministic,
+checked-in documentation/example corrections to the generated bond and
+interest-rate-future schemas. `rust-sync-schemas` does not regenerate schemas;
+it only reapplies that override layer to existing generated files. Keep the
+generator output and override script synchronized, and never hand-edit their
+combined output. JSON Schema validation is supplementary: strict Rust loaders
+still own version-marker, resource-limit, migration, and semantic checks.
+
+## Directory structure
 
 ```
 schemas/
   common/1/                # Shared schemas referenced by generated artifacts
+    diagnostic.schema.json
+    validation_report.schema.json
   instruments/1/           # Financial instrument definitions (v1)
     instrument.schema.json # Full envelope union of all instrument schemas
     fixed_income/          # Bonds, loans, structured credit, MBS
@@ -167,7 +198,12 @@ Calibration uses a plan-based approach:
 
 ## Versioning
 
-Schema versions are encoded in directory paths (`/1/`, `/2/`, `/3/`). The `schema` field in envelopes (for example, `"finstack_quant.instrument/1"` and `"finstack_quant.calibration/3"`) enforces version compatibility at parse time.
+Schema versions are encoded in directory paths (`/1/`, `/2/`, `/3/`). On
+database-oriented paths, the strict Rust loaders enforce the `schema` field
+(for example, `"finstack_quant.instrument/1"` and
+`"finstack_quant.calibration/3"`). Raw `serde_json` deserialization and generic
+JSON Schema validators only check what their caller invokes; they do not
+replace strict loader version, resource-limit, migration, or semantic checks.
 
 `schema_version` is reserved for internal model/data payloads whose Rust type
 owns that field. Current exceptions are valuation results and credit factor
@@ -191,3 +227,8 @@ schema directories. Validating `instrument.schema.json` requires registering all
 per-instrument schema files as resources.
 
 In Rust, use the `finstack_quant_valuations::schema::validate_instrument_envelope_json()` function for runtime validation against the embedded schemas.
+
+For persistence loading, use
+`finstack_quant_valuations::instruments::InstrumentEnvelope::from_slice_strict`
+or the contract-specific strict loader listed in
+[`docs/CONTRACTS.md`](../../../docs/CONTRACTS.md).

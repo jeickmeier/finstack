@@ -142,7 +142,7 @@ fn bench_discount_and_forward_steps(c: &mut Criterion) {
             let plan = CalibrationPlan {
                 id: "bench_discount".to_string(),
                 description: None,
-                quote_sets,
+                quote_sets: quote_sets.into_iter().collect(),
                 steps: vec![CalibrationStep {
                     id: "disc".to_string(),
                     quote_set: "disc".to_string(),
@@ -171,7 +171,7 @@ fn bench_discount_and_forward_steps(c: &mut Criterion) {
             let plan = CalibrationPlan {
                 id: "bench_disc_fwd".to_string(),
                 description: None,
-                quote_sets,
+                quote_sets: quote_sets.into_iter().collect(),
                 steps: vec![
                     CalibrationStep {
                         id: "disc".to_string(),
@@ -260,7 +260,7 @@ fn bench_residual_normalization(c: &mut Criterion) {
             let plan = CalibrationPlan {
                 id: "residual_notional_small".to_string(),
                 description: None,
-                quote_sets,
+                quote_sets: quote_sets.into_iter().collect(),
                 steps: vec![CalibrationStep {
                     id: "disc".to_string(),
                     quote_set: "disc".to_string(),
@@ -301,7 +301,7 @@ fn bench_residual_normalization(c: &mut Criterion) {
             let plan = CalibrationPlan {
                 id: "residual_notional_large".to_string(),
                 description: None,
-                quote_sets,
+                quote_sets: quote_sets.into_iter().collect(),
                 steps: vec![CalibrationStep {
                     id: "disc".to_string(),
                     quote_set: "disc".to_string(),

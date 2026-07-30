@@ -21,9 +21,14 @@ Save and compare a portfolio baseline::
 from __future__ import annotations
 
 from datetime import date, timedelta
+from functools import lru_cache
 from itertools import accumulate
 import json
 import math
+import os
+from pathlib import Path
+import shutil
+import subprocess
 
 import numpy as np
 import pytest
@@ -54,6 +59,7 @@ from finstack_quant.monte_carlo import (
     price_european_call,
 )
 from finstack_quant.portfolio import (
+    InstrumentArtifactCache,
     Portfolio,
     aggregate_full_cashflows,
     aggregate_metrics,
@@ -127,6 +133,70 @@ _PERFORMANCE_10K = Performance.from_arrays(
 )
 
 DATA_10K: list[float] = [float(i) * 0.01 for i in range(10_000)]
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_MATERIALIZATION_FIXTURE_DIR = _REPO_ROOT / "target" / "materialization-benchmarks"
+_CARGO = shutil.which("cargo")
+
+
+def _materialization_sample_count() -> int:
+    raw = os.environ.get("FQ_MATERIALIZATION_P95_SAMPLES", "100")
+    try:
+        samples = int(raw)
+    except ValueError as error:
+        raise ValueError(f"FQ_MATERIALIZATION_P95_SAMPLES must be a finite integer, got {raw!r}") from error
+    minimum = 1 if os.environ.get("FQ_MATERIALIZATION_SMOKE") == "1" else 100
+    if samples < minimum:
+        raise ValueError(f"FQ_MATERIALIZATION_P95_SAMPLES must be at least {minimum}, got {samples}")
+    return samples
+
+
+_MATERIALIZATION_BENCH_ROUNDS = _materialization_sample_count()
+
+
+@lru_cache(maxsize=2)
+def _materialization_fixture_bytes(name: str) -> bytes:
+    _regenerate_materialization_fixtures()
+    fixture_path = _MATERIALIZATION_FIXTURE_DIR / f"{name}.json"
+    if not fixture_path.exists():
+        raise FileNotFoundError(
+            "materialization benchmark fixtures are missing; run "
+            "`cargo run --release -p finstack-quant-portfolio --example "
+            "materialization_fixtures -- target/materialization-benchmarks`"
+        )
+    return fixture_path.read_bytes()
+
+
+@lru_cache(maxsize=1)
+def _regenerate_materialization_fixtures() -> None:
+    if _CARGO is None:
+        raise RuntimeError("cargo is required to regenerate materialization fixtures")
+    subprocess.run(  # noqa: S603 -- resolved executable and fixed argument vector
+        [
+            _CARGO,
+            "run",
+            "--release",
+            "--quiet",
+            "-p",
+            "finstack-quant-portfolio",
+            "--example",
+            "materialization_fixtures",
+            "--",
+            str(_MATERIALIZATION_FIXTURE_DIR),
+        ],
+        cwd=_REPO_ROOT,
+        check=True,
+    )
+
+
+def _record_materialization_report(benchmark, report) -> None:
+    benchmark.extra_info["input_bytes"] = report.input_bytes
+    benchmark.extra_info["unique_artifacts"] = report.unique_instruments
+    benchmark.extra_info["positions"] = report.positions
+    benchmark.extra_info["dependencies"] = report.dependencies
+    benchmark.extra_info["cache_hits"] = report.cache_hits
+    benchmark.extra_info["phase_nanos"] = report.phase_nanos
+
 
 SPD_5X5: list[list[float]] = [
     [4.0, 2.0, 1.0, 0.5, 0.25],
@@ -855,6 +925,52 @@ class TestStatementsAnalyticsBenchmarks:
 @pytest.mark.perf
 class TestPortfolioBenchmarks:
     """Portfolio JSON pipeline: parse + build."""
+
+    def test_from_materialization_cold_5000_unique(self, benchmark) -> None:
+        """Cold-cache binding path for 5,000 unique schedule-rich artifacts."""
+        payload = _materialization_fixture_bytes("materialization-a-5000-unique")
+        _, report = Portfolio.from_materialization(payload, InstrumentArtifactCache(5_000))
+        _record_materialization_report(benchmark, report)
+
+        def setup():
+            return (payload, InstrumentArtifactCache(5_000)), {}
+
+        benchmark.pedantic(
+            Portfolio.from_materialization,
+            setup=setup,
+            rounds=_MATERIALIZATION_BENCH_ROUNDS,
+            warmup_rounds=0,
+        )
+
+    def test_from_materialization_cold_5000_dedup(self, benchmark) -> None:
+        """Cold-cache binding path for 5,000 positions over 50 artifacts."""
+        payload = _materialization_fixture_bytes("materialization-b-5000-50")
+        _, report = Portfolio.from_materialization(payload, InstrumentArtifactCache(50))
+        _record_materialization_report(benchmark, report)
+
+        def setup():
+            return (payload, InstrumentArtifactCache(50)), {}
+
+        benchmark.pedantic(
+            Portfolio.from_materialization,
+            setup=setup,
+            rounds=_MATERIALIZATION_BENCH_ROUNDS,
+            warmup_rounds=0,
+        )
+
+    def test_from_materialization_warm_5000_dedup(self, benchmark) -> None:
+        """Warm-cache binding path for 5,000 positions over 50 artifacts."""
+        payload = _materialization_fixture_bytes("materialization-b-5000-50")
+        cache = InstrumentArtifactCache(50)
+        Portfolio.from_materialization(payload, cache)
+        _, report = Portfolio.from_materialization(payload, cache)
+        _record_materialization_report(benchmark, report)
+        benchmark.pedantic(
+            Portfolio.from_materialization,
+            args=(payload, cache),
+            rounds=_MATERIALIZATION_BENCH_ROUNDS,
+            warmup_rounds=0,
+        )
 
     def test_parse_and_build(self, benchmark) -> None:
         def _parse_build():

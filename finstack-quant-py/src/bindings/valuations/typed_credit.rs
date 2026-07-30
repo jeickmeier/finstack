@@ -17,7 +17,7 @@ use finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::Tra
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 use finstack_quant_valuations::market::conventions::ids::CdsDocClause;
 
-use super::instruments::{enum_from_str, json_field};
+use super::instruments::{enum_from_str, json_field, parse_typed_instrument_json};
 use super::typed_legs::{PyPremiumLegSpec, PyProtectionLegSpec};
 
 type CdsBuilderInner =
@@ -76,23 +76,26 @@ impl PyCreditDefaultSwap {
         }
     }
 
-    /// Deserialize from tagged instrument JSON (``{"type": "credit_default_swap", ...}``).
+    /// Deserialize a validated CDS from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"credit_default_swap"``.
+    ///     Bare tagged JSON with exact type ``"credit_default_swap"``, or a
+    ///     full ``finstack_quant.instrument/1`` envelope containing that
+    ///     payload. The UTF-8 input must not exceed 16 MiB; cross-type
+    ///     coercion is not performed.
     ///
     /// Returns
     /// -------
     /// CreditDefaultSwap
-    ///     The validated CDS.
+    ///     The validated CDS represented by the exact ``"credit_default_swap"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries another type, or fails CDS validation.
     ///
     /// Examples
     /// --------
@@ -102,9 +105,7 @@ impl PyCreditDefaultSwap {
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match serde_json::from_str::<InstrumentJson>(json)
-            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
-        {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::CreditDefaultSwap(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })
@@ -419,23 +420,26 @@ impl PyCDSIndex {
         }
     }
 
-    /// Deserialize from tagged instrument JSON (``{"type": "cds_index", ...}``).
+    /// Deserialize a validated CDS index from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"cds_index"``.
+    ///     Bare tagged JSON with exact type ``"cds_index"``, or a full
+    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
+    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
+    ///     performed.
     ///
     /// Returns
     /// -------
     /// CDSIndex
-    ///     The validated CDS index.
+    ///     The validated CDS index represented by the exact ``"cds_index"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries another type, or fails CDS-index validation.
     ///
     /// Examples
     /// --------
@@ -445,9 +449,7 @@ impl PyCDSIndex {
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match serde_json::from_str::<InstrumentJson>(json)
-            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
-        {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::CDSIndex(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })
@@ -865,23 +867,26 @@ impl PyCDSTranche {
         }
     }
 
-    /// Deserialize from tagged instrument JSON (``{"type": "cds_tranche", ...}``).
+    /// Deserialize a validated CDS tranche from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"cds_tranche"``.
+    ///     Bare tagged JSON with exact type ``"cds_tranche"``, or a full
+    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
+    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
+    ///     performed.
     ///
     /// Returns
     /// -------
     /// CDSTranche
-    ///     The validated CDS tranche.
+    ///     The validated CDS tranche represented by the exact ``"cds_tranche"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries another type, or fails CDS-tranche validation.
     ///
     /// Examples
     /// --------
@@ -891,9 +896,7 @@ impl PyCDSTranche {
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match serde_json::from_str::<InstrumentJson>(json)
-            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
-        {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::CDSTranche(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })
@@ -1367,23 +1370,27 @@ impl PyConvertibleBond {
         }
     }
 
-    /// Deserialize from tagged instrument JSON (``{"type": "convertible_bond", ...}``).
+    /// Deserialize a validated convertible bond from bare tagged JSON or an envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"convertible_bond"``.
+    ///     Bare tagged JSON with exact type ``"convertible_bond"``, or a full
+    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
+    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
+    ///     performed.
     ///
     /// Returns
     /// -------
     /// ConvertibleBond
-    ///     The validated convertible bond.
+    ///     The validated bond represented by the exact ``"convertible_bond"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries another type, or fails convertible-bond
+    ///     validation.
     ///
     /// Examples
     /// --------
@@ -1393,9 +1400,7 @@ impl PyConvertibleBond {
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match serde_json::from_str::<InstrumentJson>(json)
-            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
-        {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::ConvertibleBond(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })

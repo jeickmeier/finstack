@@ -161,7 +161,7 @@ fn swaption_vol_step_builds_and_inserts_surface() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings,
         steps: vec![CalibrationStep {
             id: "swpt".to_string(),
@@ -244,7 +244,7 @@ fn calibrated_swaption_surface_is_not_silently_reused_as_strike_surface() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "swpt".to_string(),
@@ -329,7 +329,7 @@ fn swaption_vol_out_of_bounds_targets_error_by_default() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "swpt".to_string(),
@@ -388,7 +388,7 @@ fn swaption_vol_out_of_bounds_targets_can_clamp_when_configured() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "swpt".to_string(),

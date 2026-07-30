@@ -158,7 +158,7 @@ impl ScenarioSpec {
 /// [`crate::engine::ScenarioEngine::apply`] using the market hierarchy attached
 /// to the execution context.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OperationSpec {
     /// FX rate percent shift.
     ///
@@ -958,6 +958,36 @@ pub struct RateBindingSpec {
     pub day_count: Option<String>,
 }
 
+impl RateBindingSpec {
+    /// Validate identifiers and eagerly parse persisted rate conventions.
+    ///
+    /// This standalone check is also used by [`OperationSpec::validate`] so
+    /// callers validating a binding before embedding it receive identical
+    /// tenor and day-count diagnostics.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::error::Error::Validation`] when `node_id` or
+    /// `curve_id` is blank, `tenor` is not accepted by
+    /// [`finstack_quant_core::dates::Tenor::parse`], or `day_count` contains an
+    /// unsupported override alias.
+    pub fn validate(&self) -> crate::error::Result<()> {
+        check_id(self.node_id.as_str(), "node_id")?;
+        check_id(self.curve_id.as_str(), "curve_id")?;
+        if self.tenor.trim().is_empty() {
+            return Err(crate::error::Error::Validation(
+                "RateBinding tenor cannot be empty".into(),
+            ));
+        }
+        finstack_quant_core::dates::Tenor::parse(self.tenor.trim())
+            .map_err(|error| crate::error::Error::InvalidTenor(error.to_string()))?;
+        if let Some(day_count) = &self.day_count {
+            crate::utils::parse_day_count_override(day_count)?;
+        }
+        Ok(())
+    }
+}
+
 /// Compounding convention for rate conversions.
 ///
 /// Used when extracting rates from curves to convert between
@@ -1137,13 +1167,7 @@ impl OperationSpec {
                 check_finite(*value, "value")?;
             }
             OperationSpec::RateBinding { binding } => {
-                check_id(binding.node_id.as_str(), "node_id")?;
-                check_id(binding.curve_id.as_str(), "curve_id")?;
-                if binding.tenor.trim().is_empty() {
-                    return Err(crate::error::Error::Validation(
-                        "RateBinding tenor cannot be empty".into(),
-                    ));
-                }
+                binding.validate()?;
             }
             OperationSpec::InstrumentSpreadBpByAttr { attrs, bp } => {
                 if attrs.is_empty() {

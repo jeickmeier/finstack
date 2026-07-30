@@ -27,6 +27,7 @@ const { portfolio, analytics, core } = facade;
 await init({ module_or_path: readFileSync(WASM_BG) });
 
 const EXPORTED_KEYS = [
+  'InstrumentArtifactCache',
   'Portfolio',
   'aggregateFullCashflows',
   'aggregateFullCashflowsBuilt',

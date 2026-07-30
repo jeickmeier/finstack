@@ -115,7 +115,7 @@
     {
       "instrument": {
         "spec": {
-          "allow_calendar_fallback": false,
+          "allow_calendar_fallback": true,
           "allow_same_curve": false,
           "attributes": {},
           "id": "BASIS-SWAP-USD-3M1M-5Y",

@@ -108,7 +108,7 @@ fn run_discount_plan(base_date: Date, quotes: Vec<MarketQuote>) -> DiscountCurve
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "disc".to_string(),
@@ -160,7 +160,7 @@ fn run_hazard_plan(
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: Default::default(),
         steps: vec![CalibrationStep {
             id: "haz".to_string(),
@@ -286,7 +286,7 @@ fn discount_curve_global_solve_smoke() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: settings.clone(),
         steps: vec![CalibrationStep {
             id: "disc".to_string(),

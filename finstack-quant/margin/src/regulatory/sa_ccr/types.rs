@@ -5,13 +5,15 @@
 
 use crate::types::NettingSetId;
 use finstack_quant_core::dates::Date;
-use finstack_quant_core::HashMap;
+use std::collections::BTreeMap;
 
 /// SA-CCR asset class for add-on computation.
 ///
 /// Each derivative trade is assigned to exactly one asset class.
 /// The add-on formula and supervisory parameters differ by class.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 #[non_exhaustive]
 pub enum SaCcrAssetClass {
     /// Interest rate derivatives.
@@ -223,7 +225,7 @@ pub struct EadResult {
     /// Aggregate add-on before multiplier.
     pub add_on_aggregate: f64,
     /// Add-on by asset class.
-    pub add_on_by_asset_class: HashMap<SaCcrAssetClass, f64>,
+    pub add_on_by_asset_class: BTreeMap<SaCcrAssetClass, f64>,
     /// Alpha multiplier (1.4 per regulation).
     pub alpha: f64,
     /// Maturity factor applied.

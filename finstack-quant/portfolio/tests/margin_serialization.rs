@@ -2,7 +2,10 @@
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
-use finstack_quant_margin::{ImMethodology, NettingSetId, SimmRiskClass, SimmSensitivities};
+use finstack_quant_core::HashMap;
+use finstack_quant_margin::{
+    ImMethodology, NettingSetId, SimmCreditSector, SimmRiskClass, SimmSensitivities,
+};
 use finstack_quant_portfolio::types::PositionId;
 use finstack_quant_portfolio::{CurrencyMismatchError, NettingSetMargin, PortfolioMarginResult};
 use time::macros::date;
@@ -55,7 +58,134 @@ fn sample_simm_sensitivities() -> SimmSensitivities {
     sensitivities
         .curvature
         .insert(SimmRiskClass::InterestRate, -75.0);
+    sensitivities.credit_qualifying_delta_bucketed.insert(
+        (
+            SimmCreditSector::Financial,
+            "BANK_A".to_string(),
+            "5Y".to_string(),
+        ),
+        725.0,
+    );
     sensitivities
+}
+
+#[test]
+fn simm_sensitivities_serialize_deterministically_across_insertion_orders() {
+    let mut first = sample_simm_sensitivities();
+    first.credit_qualifying_delta_bucketed.insert(
+        (
+            SimmCreditSector::Sovereign,
+            "UST".to_string(),
+            "10Y".to_string(),
+        ),
+        350.0,
+    );
+
+    let mut second = first.clone();
+    second.ir_delta.clear();
+    second
+        .ir_delta
+        .insert((Currency::EUR, "2Y".to_string()), -2_500.0);
+    second
+        .ir_delta
+        .insert((Currency::USD, "5Y".to_string()), 12_500.0);
+    second.credit_qualifying_delta_bucketed.clear();
+    second.credit_qualifying_delta_bucketed.insert(
+        (
+            SimmCreditSector::Sovereign,
+            "UST".to_string(),
+            "10Y".to_string(),
+        ),
+        350.0,
+    );
+    second.credit_qualifying_delta_bucketed.insert(
+        (
+            SimmCreditSector::Financial,
+            "BANK_A".to_string(),
+            "5Y".to_string(),
+        ),
+        725.0,
+    );
+
+    let make_margin = |sensitivities| {
+        NettingSetMargin::new(
+            NettingSetId::bilateral("BANK_A", "CSA_01"),
+            date!(2025 - 01 - 15),
+            Money::new(1_250_000.0, Currency::USD),
+            Money::new(150_000.0, Currency::USD),
+            4,
+            ImMethodology::Simm,
+        )
+        .with_simm_breakdown(sensitivities, Default::default())
+    };
+
+    let first_json = serde_json::to_vec(&make_margin(first)).expect("first order serializes");
+    let second_json = serde_json::to_vec(&make_margin(second)).expect("second order serializes");
+    assert_eq!(first_json, second_json);
+}
+
+#[test]
+fn im_breakdown_serializes_in_sorted_order_across_reversed_insertions() {
+    let make_margin = |reverse: bool| {
+        let mut entries = [
+            ("InterestRate", 875_000.0),
+            ("CreditQualifying", 125_000.0),
+            ("Equity", 50_000.0),
+        ];
+        if reverse {
+            entries.reverse();
+        }
+        let mut breakdown = HashMap::default();
+        for (name, amount) in entries {
+            breakdown.insert(name.to_string(), Money::new(amount, Currency::USD));
+        }
+        NettingSetMargin::new(
+            NettingSetId::bilateral("BANK_A", "CSA_01"),
+            date!(2025 - 01 - 15),
+            Money::new(1_250_000.0, Currency::USD),
+            Money::new(150_000.0, Currency::USD),
+            4,
+            ImMethodology::Simm,
+        )
+        .with_simm_breakdown(sample_simm_sensitivities(), breakdown)
+    };
+
+    let first_json = serde_json::to_vec(&make_margin(false)).expect("first order serializes");
+    let second_json = serde_json::to_vec(&make_margin(true)).expect("reverse order serializes");
+    assert_eq!(first_json, second_json);
+    let text = String::from_utf8(first_json).expect("margin JSON is UTF-8");
+    let breakdown = text
+        .split_once("\"im_breakdown\":")
+        .expect("IM breakdown exists")
+        .1;
+    let credit = breakdown
+        .find("CreditQualifying")
+        .expect("credit entry exists");
+    let equity = breakdown.find("Equity").expect("equity entry exists");
+    let rates = breakdown.find("InterestRate").expect("rates entry exists");
+    assert!(credit < equity && equity < rates);
+    let restored: NettingSetMargin =
+        serde_json::from_str(&text).expect("sorted IM breakdown deserializes");
+    assert_eq!(restored.im_breakdown.len(), 3);
+    assert_eq!(
+        restored.im_breakdown["CreditQualifying"],
+        Money::new(125_000.0, Currency::USD)
+    );
+}
+
+#[test]
+fn legacy_simm_margin_without_bucketed_credit_deserializes() {
+    let margin: NettingSetMargin = serde_json::from_str(include_str!(
+        "data/legacy_simm_margin_without_bucketed_credit.json"
+    ))
+    .expect("legacy SIMM margin deserializes");
+
+    let sensitivities = margin.sensitivities.expect("legacy sensitivities exist");
+    assert_eq!(
+        sensitivities.ir_delta[&(Currency::USD, "5Y".to_string())],
+        1_000.0
+    );
+    assert!(sensitivities.credit_qualifying_delta_bucketed.is_empty());
 }
 
 #[test]
@@ -92,6 +222,13 @@ fn test_netting_set_margin_json_roundtrip() {
     assert!(json.get("sensitivities").is_some());
     assert!(json["sensitivities"]["ir_delta"].is_array());
     assert!(json["sensitivities"]["fx_vega"].is_array());
+    assert_eq!(
+        json["sensitivities"]["credit_qualifying_delta_bucketed"]
+            .as_array()
+            .expect("bucketed credit delta is an array")
+            .len(),
+        1
+    );
 }
 
 #[test]

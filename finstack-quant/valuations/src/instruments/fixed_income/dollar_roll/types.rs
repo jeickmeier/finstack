@@ -57,6 +57,7 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
 ///     .expect("Valid dollar roll");
 /// ```
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

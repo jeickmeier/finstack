@@ -51,9 +51,8 @@ impl Evaluator {
         &self,
         model: &FinancialModelSpec,
     ) -> Result<Option<Instruments>> {
-        let cs_spec = match &model.capital_structure {
-            Some(cs) => cs,
-            None => return Ok(None),
+        let Some(cs_spec) = &model.capital_structure else {
+            return Ok(None);
         };
 
         if cs_spec.debt_instruments.is_empty() {

@@ -89,6 +89,8 @@
 pub(crate) mod adapters;
 /// Scenario execution engine and context.
 pub mod engine;
+/// Versioned persistence envelope for scenario specifications.
+pub mod envelope;
 /// Error types for scenario evaluation.
 pub mod error;
 /// Horizon total return analysis.
@@ -106,6 +108,7 @@ pub use adapters::time_roll::apply_time_roll_forward;
 pub use adapters::time_roll::RollForwardReport;
 pub use adapters::vol::ArbitrageViolation;
 pub use engine::{ApplicationEnvelope, ApplicationReport, ExecutionContext, ScenarioEngine};
+pub use envelope::{ScenarioEnvelope, SCENARIO_CONTRACT};
 pub use error::{Error, Result};
 pub use horizon::{HorizonAnalysis, HorizonResult};
 pub use spec::{

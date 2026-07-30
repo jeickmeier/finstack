@@ -178,7 +178,7 @@ fn discount_envelope(
         plan: CalibrationPlan {
             id: format!("global_disc_{curve_suffix}"),
             description: None,
-            quote_sets,
+            quote_sets: quote_sets.into_iter().collect(),
             settings: CalibrationConfig::default(),
             steps: vec![CalibrationStep {
                 id: "disc".to_string(),
@@ -226,7 +226,7 @@ fn hazard_envelope(
         plan: CalibrationPlan {
             id: format!("global_hazard_{suffix}"),
             description: None,
-            quote_sets,
+            quote_sets: quote_sets.into_iter().collect(),
             settings: CalibrationConfig::default(),
             steps: vec![
                 CalibrationStep {

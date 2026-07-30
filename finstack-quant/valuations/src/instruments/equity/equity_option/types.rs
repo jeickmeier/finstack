@@ -81,6 +81,7 @@ use crate::instruments::common_impl::validation;
 
 /// Equity option instrument
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

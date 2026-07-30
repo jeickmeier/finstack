@@ -1,0 +1,39 @@
+{
+  "schema": "finstack_quant.materialization_rust_baseline/1",
+  "baseline_name": "materialization-v1",
+  "base_revision": "b43fd9b0f41a455187293838f835ca0dcc1de3d2",
+  "tree_revision": "b43fd9b0f41a455187293838f835ca0dcc1de3d2-tree-8430f5a872f02473df6bdec75f19b9590adae6dd5f949b8de7325132d9869989",
+  "fixture_sha256": "378abf6307873a97e65599e4e7f9add41a41c4ad1f8a524ed28e555b1d09aa63",
+  "fixtures": {
+    "a": "7f208e80ba69670a991674233ffd8d3b355e81383269785cfa935c8cc3b838a7",
+    "b": "09bf16ce28b594e2b6d4d6c575eadd79045624edd7f1ad19d33e53138bc91465"
+  },
+  "expected_cases": [
+    "cold_a_5000_unique",
+    "cold_b_5000_50",
+    "warm_b_5000_50",
+    "validation_b_5000_50"
+  ],
+  "medians_ms": {
+    "cold_a_5000_unique": {
+      "point": 189.603438,
+      "lower": 189.228042,
+      "upper": 190.2555
+    },
+    "cold_b_5000_50": {
+      "point": 4.587556909090909,
+      "lower": 4.563629829545454,
+      "upper": 4.601842772727274
+    },
+    "warm_b_5000_50": {
+      "point": 4.354875,
+      "lower": 4.277171531818182,
+      "upper": 4.382970469318182
+    },
+    "validation_b_5000_50": {
+      "point": 3.01794275,
+      "lower": 2.947479,
+      "upper": 3.11989032578125
+    }
+  }
+}

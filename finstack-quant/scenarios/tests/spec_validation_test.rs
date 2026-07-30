@@ -373,3 +373,40 @@ fn engine_apply_rejects_invalid_spec() {
         .expect_err("empty-id spec should be rejected by engine.apply");
     assert!(err.to_string().contains("Scenario ID cannot be empty"));
 }
+
+#[test]
+fn operation_spec_rejects_unknown_variant_fields() {
+    let value = serde_json::json!({
+        "kind": "market_fx_pct",
+        "base": "USD",
+        "quote": "EUR",
+        "pct": 5.0,
+        "__nonexistent__": true
+    });
+
+    let error =
+        serde_json::from_value::<OperationSpec>(value).expect_err("unknown operation fields fail");
+    assert!(error.to_string().contains("unknown field"), "{error}");
+}
+
+#[test]
+fn rate_binding_validate_eagerly_parses_tenor_and_day_count() {
+    let invalid_tenor = RateBindingSpec {
+        node_id: "InterestExpense".into(),
+        curve_id: "USD-SOFR".into(),
+        tenor: "tomorrow-ish".into(),
+        compounding: Compounding::Continuous,
+        day_count: None,
+    };
+    assert!(invalid_tenor.validate().is_err());
+
+    let invalid_day_count = RateBindingSpec {
+        tenor: "1Y".into(),
+        day_count: Some("actual/made-up".into()),
+        ..invalid_tenor
+    };
+    let error = invalid_day_count
+        .validate()
+        .expect_err("unsupported day count must fail");
+    assert!(error.to_string().contains("day count"), "{error}");
+}

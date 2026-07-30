@@ -129,7 +129,7 @@ fn credit_grades_default_probability(
 /// - `payout_rate` (q): Continuous dividend / payout yield on assets.
 /// - `barrier_type`: Terminal or first-passage barrier monitoring.
 /// - `dynamics`: Asset return dynamics specification.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct MertonModel {
     asset_value: f64,
     asset_vol: f64,

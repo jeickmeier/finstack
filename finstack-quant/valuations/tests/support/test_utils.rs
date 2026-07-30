@@ -681,7 +681,7 @@ pub mod calibration {
         let plan = CalibrationPlan {
             id: "test-plan".to_string(),
             description: None,
-            quote_sets,
+            quote_sets: quote_sets.into_iter().collect(),
             steps: vec![CalibrationStep {
                 id: "step-0".to_string(),
                 quote_set: "default".to_string(),

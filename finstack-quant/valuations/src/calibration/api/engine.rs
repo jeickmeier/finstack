@@ -36,11 +36,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// [`execute_with_diagnostics`] directly.
 #[derive(Debug, thiserror::Error)]
 pub enum ExecuteError {
-    /// Structured envelope-shaped failure (currently only solver
-    /// non-convergence). Static envelope validation is a separate,
-    /// opt-in pass exposed via [`super::validate::validate`] and the
-    /// `dry_run` / `dependency_graph_json` bindings; `execute` does not
-    /// run it automatically.
+    /// Structured envelope validation or solver non-convergence failure.
     #[error(transparent)]
     Envelope(EnvelopeError),
     /// Other (legacy, stringly-typed) errors from the engine pipeline:
@@ -533,10 +529,11 @@ pub fn execute(envelope: &CalibrationEnvelope) -> Result<CalibrationResultEnvelo
 /// Execute a full [`CalibrationEnvelope`] plan, preserving structured
 /// envelope errors.
 ///
-/// Returns [`ExecuteError::Envelope`] for solver non-convergence (carries
-/// `worst_quote_id`, `tolerance`, etc.) and [`ExecuteError::Other`] for the
-/// remaining stringly-typed failures from the engine pipeline. Callers that
-/// don't need the structured detail can use [`execute`] instead.
+/// Returns [`ExecuteError::Envelope`] for static request-validation failures
+/// or solver non-convergence (which carries `worst_quote_id`, `tolerance`,
+/// etc.), and [`ExecuteError::Other`] for the remaining stringly-typed
+/// failures from the engine pipeline. Callers that don't need the structured
+/// detail can use [`execute`] instead.
 ///
 /// # Arguments
 ///
@@ -552,6 +549,9 @@ pub fn execute_with_diagnostics(
     )
     .entered();
 
+    if let Some(error) = envelope.validate().errors.into_iter().next() {
+        return Err(ExecuteError::Envelope(error));
+    }
     let plan = &envelope.plan;
     plan.settings.validate().map_err(ExecuteError::Other)?;
     let mut context = context_builder::build_initial_context(

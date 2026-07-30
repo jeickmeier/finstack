@@ -59,6 +59,12 @@ serde_contract!(
         .expect("example")
 );
 serde_contract!(
+    serde_interest_rate_swap,
+    finstack_quant_valuations::instruments::rates::irs::InterestRateSwap,
+    finstack_quant_valuations::instruments::rates::irs::InterestRateSwap::example_standard()
+        .expect("example")
+);
+serde_contract!(
     serde_ir_future,
     finstack_quant_valuations::instruments::rates::ir_future::InterestRateFuture,
     finstack_quant_valuations::instruments::rates::ir_future::InterestRateFuture::example()
@@ -126,6 +132,11 @@ serde_contract!(
     serde_tarn,
     finstack_quant_valuations::instruments::rates::tarn::Tarn,
     finstack_quant_valuations::instruments::rates::tarn::Tarn::example()
+);
+serde_contract!(
+    serde_snowball,
+    finstack_quant_valuations::instruments::rates::snowball::Snowball,
+    finstack_quant_valuations::instruments::rates::snowball::Snowball::example_snowball()
 );
 serde_contract!(
     serde_xccy_swap,

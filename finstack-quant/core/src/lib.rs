@@ -61,6 +61,8 @@
 //! - [`types`]: Core type definitions (IDs, rates, etc.)
 //! - [`prelude`]: Convenient re-exports of commonly used types
 //! - [`cashflow`]: Cashflow primitives and discounting
+//! - [`canonical`]: Deterministic JSON bytes and content hashes
+//! - [`contract`]: Persisted-contract descriptors, limits, and diagnostics
 //! - [`credit`]: Credit risk primitives (migration models, generator extraction, CTMC simulation)
 //! - [`math`]: Numerical utilities and interpolation
 //! - [`expr`]: Expression engine for formula evaluation
@@ -88,11 +90,15 @@
 // API note: `collections` is intentionally kept as an internal module to avoid
 // committing to a public submodule layout. Downstream crates should import the
 // aliases directly from the crate root (`finstack_quant_core::HashMap`).
+/// Deterministic JSON canonicalization and content hashing.
+pub mod canonical;
 /// Foundational cashflow primitives and discounting helpers.
 pub mod cashflow;
 pub(crate) mod collections;
 /// Global configuration and environment settings.
 pub mod config;
+/// Persisted-contract descriptors, loading limits, and diagnostics.
+pub mod contract;
 /// Credit risk modeling primitives (migration models, generator extraction, CTMC simulation).
 pub mod credit;
 /// Currency types and ISO-4217 definitions.
@@ -151,6 +157,16 @@ pub use collections::HashMap;
 ///
 /// Uses `rustc_hash::FxHashSet` for fast deterministic hashing.
 pub use collections::HashSet;
+
+// Re-export persistence contract APIs for convenient downstream use.
+pub use canonical::{
+    canonical_bytes_of_value, content_hash, to_canonical_bytes, CANONICAL_VERSION,
+};
+pub use contract::{
+    ContractDescriptor, ContractError, Diagnostic, LoadLimits, LoadPhase, Severity,
+    ValidationReport, DEFAULT_MAX_ARTIFACTS, DEFAULT_MAX_BYTES, DEFAULT_MAX_DEPTH,
+    DEFAULT_MAX_DIAGNOSTICS, DEFAULT_MAX_POSITIONS,
+};
 
 // Re-export main error types for convenience.
 pub use error::{Error, InputError, NonFiniteKind, Result};

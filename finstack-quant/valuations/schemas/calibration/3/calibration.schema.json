@@ -3493,7 +3493,11 @@
       "type": "array"
     },
     "schema": {
-      "description": "Schema version identifier (must be [`CALIBRATION_SCHEMA`]).",
+      "description": "Schema marker; current writers emit [`CALIBRATION_SCHEMA`].",
+      "enum": [
+        "finstack_quant.calibration/3",
+        "finstack_quant.calibration"
+      ],
       "type": "string"
     }
   },

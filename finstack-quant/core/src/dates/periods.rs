@@ -659,6 +659,7 @@ impl FiscalConfig {
 
 /// A concrete period with start/end dates and actual/forecast flag.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Period {
     /// Identifier of this period.
     pub id: PeriodId,

@@ -12,7 +12,9 @@ use crate::errors::{core_to_py, serde_json_to_py, value_error};
 use finstack_quant_core::types::{CalendarId, CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
-use super::instruments::{decimal_from_f64, enum_from_str, json_field};
+use super::instruments::{
+    decimal_from_f64, enum_from_str, json_field, parse_typed_instrument_json,
+};
 use super::typed_legs::{PyFixedLegSpec, PyFloatLegSpec};
 
 type IrsBuilder = finstack_quant_valuations::instruments::rates::irs::InterestRateSwapBuilder;
@@ -64,23 +66,26 @@ impl PyInterestRateSwap {
         }
     }
 
-    /// Deserialize from tagged instrument JSON (``{"type": "interest_rate_swap", ...}``).
+    /// Deserialize a validated swap from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"interest_rate_swap"``.
+    ///     Bare tagged JSON with exact type ``"interest_rate_swap"``, or a
+    ///     full ``finstack_quant.instrument/1`` envelope containing that
+    ///     payload. The UTF-8 input must not exceed 16 MiB; cross-type
+    ///     coercion is not performed.
     ///
     /// Returns
     /// -------
     /// InterestRateSwap
-    ///     The validated swap.
+    ///     The validated swap represented by the exact ``"interest_rate_swap"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries another type, or fails swap validation.
     ///
     /// Examples
     /// --------
@@ -90,9 +95,7 @@ impl PyInterestRateSwap {
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match serde_json::from_str::<InstrumentJson>(json)
-            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
-        {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::InterestRateSwap(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })
@@ -322,23 +325,26 @@ impl PySwaption {
         }
     }
 
-    /// Deserialize from tagged instrument JSON (``{"type": "swaption", ...}``).
+    /// Deserialize a validated swaption from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"swaption"``.
+    ///     Bare tagged JSON with exact type ``"swaption"``, or a full
+    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
+    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
+    ///     performed.
     ///
     /// Returns
     /// -------
     /// Swaption
-    ///     The validated swaption.
+    ///     The validated swaption represented by the exact ``"swaption"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries another type, or fails swaption validation.
     ///
     /// Examples
     /// --------
@@ -348,9 +354,7 @@ impl PySwaption {
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match serde_json::from_str::<InstrumentJson>(json)
-            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
-        {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::Swaption(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })
@@ -756,23 +760,26 @@ impl PyCapFloor {
         }
     }
 
-    /// Deserialize from tagged instrument JSON (``{"type": "cap_floor", ...}``).
+    /// Deserialize a validated cap/floor from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"cap_floor"``.
+    ///     Bare tagged JSON with exact type ``"cap_floor"``, or a full
+    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
+    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
+    ///     performed.
     ///
     /// Returns
     /// -------
     /// CapFloor
-    ///     The validated cap/floor.
+    ///     The validated cap/floor represented by the exact ``"cap_floor"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries another type, or fails cap/floor validation.
     ///
     /// Examples
     /// --------
@@ -782,9 +789,7 @@ impl PyCapFloor {
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match serde_json::from_str::<InstrumentJson>(json)
-            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
-        {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::CapFloor(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })

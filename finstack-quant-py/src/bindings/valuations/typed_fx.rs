@@ -11,7 +11,7 @@ use crate::errors::{core_to_py, serde_json_to_py, value_error};
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
-use super::instruments::enum_from_str;
+use super::instruments::{enum_from_str, parse_typed_instrument_json};
 
 type FxForwardBuilderInner =
     finstack_quant_valuations::instruments::fx::fx_forward::FxForwardBuilder;
@@ -64,23 +64,26 @@ impl PyFxForward {
         }
     }
 
-    /// Deserialize from tagged instrument JSON (``{"type": "fx_forward", ...}``).
+    /// Deserialize a validated FX forward from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"fx_forward"``.
+    ///     Bare tagged JSON with exact type ``"fx_forward"``, or a full
+    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
+    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
+    ///     performed.
     ///
     /// Returns
     /// -------
     /// FxForward
-    ///     The validated FX forward.
+    ///     The validated FX forward represented by the exact ``"fx_forward"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries another type, or fails FX-forward validation.
     ///
     /// Examples
     /// --------
@@ -90,9 +93,7 @@ impl PyFxForward {
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match serde_json::from_str::<InstrumentJson>(json)
-            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
-        {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::FxForward(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })
@@ -448,23 +449,26 @@ impl PyFxOption {
         }
     }
 
-    /// Deserialize from tagged instrument JSON (``{"type": "fx_option", ...}``).
+    /// Deserialize a validated FX option from bare tagged JSON or a versioned envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Tagged instrument JSON with type ``"fx_option"``.
+    ///     Bare tagged JSON with exact type ``"fx_option"``, or a full
+    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
+    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
+    ///     performed.
     ///
     /// Returns
     /// -------
     /// FxOption
-    ///     The validated FX option.
+    ///     The validated FX option represented by the exact ``"fx_option"`` payload.
     ///
     /// Raises
     /// ------
     /// ValueError
-    ///     If the JSON is malformed, has a different instrument type, or
-    ///     fails validation.
+    ///     If the input exceeds 16 MiB, is malformed, has an unsupported
+    ///     envelope schema, carries another type, or fails FX-option validation.
     ///
     /// Examples
     /// --------
@@ -474,9 +478,7 @@ impl PyFxOption {
     #[classmethod]
     #[pyo3(text_signature = "(cls, json)")]
     fn from_json(_cls: &Bound<'_, PyType>, json: &str) -> PyResult<Self> {
-        match serde_json::from_str::<InstrumentJson>(json)
-            .map_err(|err| serde_json_to_py(err, "invalid instrument JSON"))?
-        {
+        match parse_typed_instrument_json(json)? {
             InstrumentJson::FxOption(inner) => {
                 inner.validate_for_pricing().map_err(core_to_py)?;
                 Ok(Self { inner })

@@ -145,7 +145,7 @@ fn run_parametric_ns_with_config(
     let plan = CalibrationPlan {
         id: "parametric_ns_plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings,
         steps: vec![CalibrationStep {
             id: "ns_step".to_string(),

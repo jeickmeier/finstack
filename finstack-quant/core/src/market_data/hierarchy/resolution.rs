@@ -6,6 +6,7 @@
 use super::{HierarchyNode, MarketDataHierarchy};
 use crate::collections::{HashMap, HashSet};
 use crate::types::CurveId;
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,7 +56,7 @@ pub enum TagPredicate {
 
 impl TagPredicate {
     /// Check if a node's tags satisfy this predicate.
-    pub fn matches(&self, tags: &HashMap<String, String>) -> bool {
+    pub fn matches(&self, tags: &IndexMap<String, String>) -> bool {
         match self {
             TagPredicate::Equals { key, value } => tags.get(key).is_some_and(|v| v == value),
             TagPredicate::In { key, values } => tags.get(key).is_some_and(|v| values.contains(v)),
@@ -73,7 +74,7 @@ pub struct TagFilter {
 
 impl TagFilter {
     /// Check if a node's tags satisfy all predicates.
-    pub fn matches(&self, tags: &HashMap<String, String>) -> bool {
+    pub fn matches(&self, tags: &IndexMap<String, String>) -> bool {
         self.predicates.iter().all(|p| p.matches(tags))
     }
 

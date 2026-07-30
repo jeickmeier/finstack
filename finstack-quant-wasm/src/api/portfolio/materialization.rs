@@ -1,0 +1,177 @@
+//! Browser-safe WASM wrappers for strict portfolio materialization.
+
+use std::sync::Arc;
+
+use finstack_quant_core::contract::LoadLimits;
+use finstack_quant_portfolio::{InstrumentArtifactCache, Portfolio as RustPortfolio};
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+
+use super::JsPortfolio;
+use crate::utils::{materialization_to_js_error, structured_js_error, to_js_value_with_kind};
+
+/// Reusable bounded cache for decoded content-addressed instrument artifacts.
+///
+/// @example
+/// ```typescript
+/// const cache = new portfolio.InstrumentArtifactCache(5000);
+/// const first = portfolio.Portfolio.fromMaterialization(bundle, cache);
+/// const second = portfolio.Portfolio.fromMaterialization(bundle, cache);
+/// cache.free();
+/// ```
+#[wasm_bindgen(js_name = InstrumentArtifactCache)]
+pub struct JsInstrumentArtifactCache {
+    inner: Arc<InstrumentArtifactCache>,
+}
+
+impl Default for JsInstrumentArtifactCache {
+    fn default() -> Self {
+        Self {
+            inner: Arc::new(InstrumentArtifactCache::new()),
+        }
+    }
+}
+
+#[wasm_bindgen(js_class = InstrumentArtifactCache)]
+impl JsInstrumentArtifactCache {
+    /// Create an empty cache with an explicit entry capacity.
+    ///
+    /// # Arguments
+    ///
+    /// * `capacity` - Maximum retained artifacts. Omit to use the native
+    ///   default of 4,096.
+    ///
+    /// @param capacity - Maximum retained artifacts; defaults to 4,096.
+    /// @returns A reusable cache with a 64 MiB encoded-source byte bound.
+    #[wasm_bindgen(constructor)]
+    pub fn new(capacity: Option<usize>) -> JsInstrumentArtifactCache {
+        Self {
+            inner: Arc::new(
+                capacity
+                    .map(InstrumentArtifactCache::with_capacity)
+                    .unwrap_or_default(),
+            ),
+        }
+    }
+
+    /// Number of decoded artifacts currently retained.
+    ///
+    /// @returns A non-negative entry count.
+    #[wasm_bindgen(getter)]
+    pub fn size(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Cumulative number of successful cache-miss decodes.
+    ///
+    /// @returns A non-negative decode count for this cache instance.
+    #[wasm_bindgen(getter, js_name = decodeCount)]
+    pub fn decode_count(&self) -> usize {
+        self.inner.decode_count()
+    }
+}
+
+#[wasm_bindgen(js_class = Portfolio)]
+impl JsPortfolio {
+    /// Build a reusable portfolio from one strict materialization bundle.
+    ///
+    /// Accepts browser-native strings and `Uint8Array` values. The returned
+    /// object contains `{ portfolio, report }`, where `portfolio` is a reusable
+    /// WASM handle and `report` is plain structured JavaScript data.
+    ///
+    /// # Arguments
+    ///
+    /// * `bundle` - Complete UTF-8 materialization JSON as a JavaScript string
+    ///   or `Uint8Array`.
+    /// * `cache` - Explicit cache created outside any timed validation region.
+    /// * `cache` - Optional reusable decoded-artifact cache.
+    ///
+    /// # Errors
+    ///
+    /// Throws `TypeError` for unsupported input types. Contract failures throw
+    /// `ContractValidationError` with typed `kind` and structured `report`
+    /// properties.
+    ///
+    /// @param bundle - Complete UTF-8 materialization JSON string or byte array.
+    /// @param cache - Optional reusable artifact cache.
+    /// @returns An object containing the reusable portfolio and load report.
+    /// @throws ContractValidationError - If the persisted contract is malformed,
+    /// invalid, unsupported, or exceeds a resource limit.
+    #[wasm_bindgen(js_name = fromMaterialization)]
+    pub fn from_materialization(
+        bundle: JsValue,
+        cache: &JsInstrumentArtifactCache,
+    ) -> Result<JsValue, JsValue> {
+        let bytes = extract_bundle_bytes(bundle)?;
+        let (portfolio, report) =
+            RustPortfolio::from_materialization(&bytes, &cache.inner, &LoadLimits::default())
+                .map_err(materialization_to_js_error)?;
+
+        let result = js_sys::Object::new();
+        let portfolio = JsPortfolio {
+            inner: Arc::new(portfolio),
+        };
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("portfolio"),
+            &JsValue::from(portfolio),
+        )?;
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("report"),
+            &to_js_value_with_kind(&report, "serialization")?,
+        )?;
+        Ok(result.into())
+    }
+
+    /// Validate a strict materialization bundle for ingestion-form feedback.
+    ///
+    /// Contract diagnostics are returned as a plain `ValidationReport` rather
+    /// than thrown. Unsupported input types, resource-limit failures, and
+    /// non-contract native failures still throw.
+    ///
+    /// # Arguments
+    ///
+    /// * `bundle` - Complete UTF-8 materialization JSON as a JavaScript string
+    ///   or `Uint8Array`.
+    ///
+    /// # Errors
+    ///
+    /// Throws `TypeError` for unsupported input types or a structured
+    /// `ContractValidationError` when validation cannot produce a report.
+    ///
+    /// @param bundle - Complete UTF-8 materialization JSON string or byte array.
+    /// @param cache - Reusable artifact cache.
+    /// @returns A materialization report whose build/index phase counters are zero.
+    /// @throws ContractValidationError - If validation cannot produce a report.
+    #[wasm_bindgen(js_name = validateMaterializationJson)]
+    pub fn validate_materialization_json(
+        bundle: JsValue,
+        cache: &JsInstrumentArtifactCache,
+    ) -> Result<JsValue, JsValue> {
+        let bytes = extract_bundle_bytes(bundle)?;
+        match RustPortfolio::validate_materialization(&bytes, &cache.inner, &LoadLimits::default())
+        {
+            Ok(report) => to_js_value_with_kind(&report, "serialization"),
+            Err(finstack_quant_portfolio::Error::MaterializationFailed(report)) => {
+                to_js_value_with_kind(&report, "serialization")
+            }
+            Err(error) => Err(materialization_to_js_error(error)),
+        }
+    }
+}
+
+fn extract_bundle_bytes(bundle: JsValue) -> Result<Vec<u8>, JsValue> {
+    if let Some(text) = bundle.as_string() {
+        return Ok(text.into_bytes());
+    }
+    if bundle.is_instance_of::<js_sys::Uint8Array>() {
+        return Ok(js_sys::Uint8Array::new(&bundle).to_vec());
+    }
+    Err(structured_js_error(
+        "TypeError",
+        "bundle must be a string or Uint8Array",
+        Some("invalid_type"),
+        None,
+    ))
+}

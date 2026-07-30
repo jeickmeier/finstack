@@ -121,12 +121,14 @@ impl FactorModelBuilder {
     /// # Errors
     ///
     /// Returns [`crate::Error::InvalidInput`] when the configuration is missing,
-    /// the risk measure is invalid, or the covariance axes do not align with
-    /// the configured factors.
+    /// matching rules reference undeclared factor IDs, the risk measure is
+    /// invalid, or the covariance axes do not align with the configured
+    /// factors.
     pub fn build(self) -> Result<FactorModel> {
         let config = self
             .config
             .ok_or_else(|| Error::invalid_input("FactorModelConfig is required"))?;
+        config.validate_matching_factor_ids()?;
         config.risk_measure.validate()?;
         let factor_ids: Vec<_> = config
             .factors
@@ -1163,6 +1165,21 @@ mod tests {
             .build();
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_builder_rejects_matching_factor_ids_not_declared_by_config() {
+        let mut config = simple_config();
+        config.matching = MatchingConfig::MappingTable(vec![MappingRule {
+            dependency_filter: DependencyFilter::default(),
+            attribute_filter: finstack_quant_factor_model::AttributeFilter::default(),
+            factor_id: FactorId::new("MissingFactor"),
+        }]);
+
+        let Err(error) = FactorModelBuilder::new().config(config).build() else {
+            panic!("builder must validate matching factor IDs");
+        };
+        assert!(error.to_string().contains("MissingFactor"), "{error}");
     }
 
     #[test]

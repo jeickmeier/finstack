@@ -1,0 +1,1 @@
+{"scenario":{"description":"Executable scenario envelope fixture","id":"usd-equity-selloff","name":"USD equity selloff","operations":[{"attrs":{"desk":"rates","region":"us"},"kind":"instrument_price_pct_by_attr","pct":-3.0}],"priority":0,"resolution_mode":"most_specific_wins"},"schema":"finstack_quant.scenario/1"}

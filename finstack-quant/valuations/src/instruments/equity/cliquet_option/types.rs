@@ -9,6 +9,7 @@ use time::macros::date;
 
 /// Cliquet option instrument.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

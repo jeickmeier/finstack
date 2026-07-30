@@ -240,7 +240,7 @@ fn base_correlation_step_builds_curve_and_updates_credit_index_data() {
     let plan = CalibrationPlan {
         id: "plan".to_string(),
         description: None,
-        quote_sets,
+        quote_sets: quote_sets.into_iter().collect(),
         settings: CalibrationConfig {
             solver: finstack_quant_valuations::calibration::SolverConfig::brent_default()
                 .with_tolerance(tolerances::BASE_CORR_SOLVER_TOL)

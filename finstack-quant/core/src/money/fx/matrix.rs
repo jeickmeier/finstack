@@ -637,7 +637,7 @@ impl FxMatrix {
         };
 
         // Deterministic snapshots: sort by pair key, not by LRU order.
-        quote_vec.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+        quote_vec.sort_by_key(|quote| (quote.0, quote.1));
         pinned_vec.sort_by_key(|q| (q.0, q.1, q.2, q.3 as u8));
         FxMatrixState {
             config: self.config,

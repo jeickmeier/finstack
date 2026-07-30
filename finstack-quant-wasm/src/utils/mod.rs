@@ -43,6 +43,15 @@ pub fn to_js_value<T: serde::Serialize>(value: &T) -> Result<JsValue, JsValue> {
         .map_err(to_js_err)
 }
 
+pub(crate) fn to_js_value_with_kind<T: serde::Serialize>(
+    value: &T,
+    kind: &'static str,
+) -> Result<JsValue, JsValue> {
+    value
+        .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
+        .map_err(|error| structured_js_error("FinstackError", &error.to_string(), Some(kind), None))
+}
+
 /// Build a named JS `Error` with optional structured `kind` and `cause`
 /// properties.
 pub fn structured_js_error(
@@ -71,6 +80,102 @@ pub fn structured_js_error(
         let _ = (name, message, kind, cause_json);
         JsValue::NULL
     }
+}
+
+/// Convert a typed persisted-contract failure to a structured JavaScript error.
+///
+/// The public ``kind`` value comes directly from the Rust enum variant. Report
+/// failures additionally expose the serialized [`ValidationReport`] as
+/// ``error.report``.
+///
+/// # Arguments
+///
+/// * `error` - Typed contract failure to map without inspecting its message.
+pub fn contract_to_js_error(error: finstack_quant_core::contract::ContractError) -> JsValue {
+    use finstack_quant_core::contract::ContractError;
+
+    let kind = contract_error_kind(&error);
+    match error {
+        ContractError::Report(report) => validation_report_js_error(&report),
+        other => contract_error_without_report(&other.to_string(), kind),
+    }
+}
+
+fn contract_error_kind(error: &finstack_quant_core::contract::ContractError) -> &'static str {
+    use finstack_quant_core::contract::ContractError;
+
+    match error {
+        ContractError::UnsupportedVersion { .. } => "unsupported_version",
+        ContractError::MissingVersion { .. } => "missing_version",
+        ContractError::MalformedSchema { .. } => "malformed_schema",
+        ContractError::LimitExceeded { .. } => "limit_exceeded",
+        ContractError::Report(_) => "report",
+        ContractError::Core(_) => "core",
+        #[allow(unreachable_patterns)]
+        _ => "contract",
+    }
+}
+
+/// Convert a portfolio materialization failure without message classification.
+///
+/// # Arguments
+///
+/// * `error` - Typed portfolio error returned by the materialization API.
+pub fn materialization_to_js_error(error: finstack_quant_portfolio::Error) -> JsValue {
+    let kind = materialization_error_kind(&error);
+    match error {
+        finstack_quant_portfolio::Error::MaterializationFailed(report) => {
+            validation_report_js_error(&report)
+        }
+        error @ finstack_quant_portfolio::Error::ContractLimitExceeded { .. } => {
+            contract_error_without_report(&error.to_string(), kind)
+        }
+        other => structured_js_error("FinstackError", &other.to_string(), Some(kind), None),
+    }
+}
+
+fn materialization_error_kind(error: &finstack_quant_portfolio::Error) -> &'static str {
+    use finstack_quant_portfolio::Error;
+
+    match error {
+        Error::UnknownEntity { .. } => "unknown_entity",
+        Error::ValidationFailed(_) => "validation",
+        Error::FxConversionFailed { .. } => "fx_conversion",
+        Error::ValuationError { .. } => "valuation",
+        Error::ScenarioError(_) => "scenario",
+        Error::MissingMarketData(_) => "missing_market_data",
+        Error::OptimizationError(_) => "optimization",
+        Error::Core(_) => "core",
+        Error::LiquidityError(_) => "liquidity",
+        Error::InvalidInput(_) => "invalid_input",
+        Error::ContractLimitExceeded { .. } => "limit_exceeded",
+        Error::MaterializationFailed(_) => "report",
+        #[allow(unreachable_patterns)]
+        _ => "portfolio",
+    }
+}
+
+fn validation_report_js_error(report: &finstack_quant_core::contract::ValidationReport) -> JsValue {
+    let error = structured_js_error(
+        "ContractValidationError",
+        &format!(
+            "validation failed with {} structured diagnostic(s)",
+            report.diagnostics.len()
+        ),
+        Some("report"),
+        None,
+    );
+    #[cfg(target_arch = "wasm32")]
+    {
+        if let Ok(value) = to_js_value_with_kind(report, "serialization") {
+            let _ = js_sys::Reflect::set(&error, &JsValue::from_str("report"), &value);
+        }
+    }
+    error
+}
+
+fn contract_error_without_report(message: &str, kind: &str) -> JsValue {
+    structured_js_error("ContractValidationError", message, Some(kind), None)
 }
 
 fn js_value_from_message(msg: String) -> JsValue {
@@ -197,6 +302,136 @@ mod tests {
             format_error_chain(&err),
             "calibration failed: solver diverged after 1000 iterations"
         );
+    }
+
+    #[test]
+    fn contract_error_kind_is_selected_from_variant_not_message() {
+        use finstack_quant_core::contract::{
+            ContractError, Diagnostic, LoadPhase, Severity, ValidationReport,
+        };
+
+        let mut report = ValidationReport::default();
+        report.diagnostics.push(Diagnostic::new(
+            "test/misleading",
+            LoadPhase::Build,
+            Severity::Error,
+            "missing curve but this is still a report variant",
+        ));
+        let cases = [
+            (
+                ContractError::UnsupportedVersion {
+                    contract: "missing curve".to_string(),
+                    found: 3,
+                    min: 1,
+                    max: 2,
+                },
+                "unsupported_version",
+            ),
+            (
+                ContractError::MissingVersion {
+                    contract: "malformed validation".to_string(),
+                },
+                "missing_version",
+            ),
+            (
+                ContractError::MalformedSchema {
+                    value: "missing curve".to_string(),
+                    expected: "not found".to_string(),
+                },
+                "malformed_schema",
+            ),
+            (
+                ContractError::LimitExceeded {
+                    what: "malformed validation",
+                    found: 2,
+                    limit: 1,
+                },
+                "limit_exceeded",
+            ),
+            (ContractError::Report(Box::new(report)), "report"),
+            (
+                ContractError::Core(finstack_quant_core::Error::Internal(
+                    "missing curve malformed validation".to_string(),
+                )),
+                "core",
+            ),
+        ];
+
+        for (error, expected) in cases {
+            assert_eq!(contract_error_kind(&error), expected);
+        }
+    }
+
+    #[test]
+    fn materialization_error_kind_is_selected_from_variant_not_message() {
+        use finstack_quant_portfolio::Error;
+
+        let cases = [
+            (
+                Error::UnknownEntity {
+                    position_id: "position".into(),
+                    entity_id: "entity".into(),
+                },
+                "unknown_entity",
+            ),
+            (
+                Error::ValidationFailed("missing curve".to_string()),
+                "validation",
+            ),
+            (
+                Error::FxConversionFailed {
+                    from: finstack_quant_core::currency::Currency::USD,
+                    to: finstack_quant_core::currency::Currency::EUR,
+                },
+                "fx_conversion",
+            ),
+            (
+                Error::ValuationError {
+                    position_id: "position".into(),
+                    message: "malformed validation".to_string(),
+                },
+                "valuation",
+            ),
+            (
+                Error::ScenarioError("missing curve".to_string()),
+                "scenario",
+            ),
+            (
+                Error::MissingMarketData("malformed validation".to_string()),
+                "missing_market_data",
+            ),
+            (
+                Error::OptimizationError("missing curve".to_string()),
+                "optimization",
+            ),
+            (
+                Error::Core(finstack_quant_core::Error::Internal(
+                    "missing curve malformed validation".to_string(),
+                )),
+                "core",
+            ),
+            (
+                Error::LiquidityError("missing curve".to_string()),
+                "liquidity",
+            ),
+            (
+                Error::InvalidInput("not found malformed validation".to_string()),
+                "invalid_input",
+            ),
+            (
+                Error::ContractLimitExceeded {
+                    what: "missing curve malformed validation".to_string(),
+                    found: 2,
+                    limit: 1,
+                },
+                "limit_exceeded",
+            ),
+            (Error::MaterializationFailed(Box::default()), "report"),
+        ];
+
+        for (error, expected) in cases {
+            assert_eq!(materialization_error_kind(&error), expected);
+        }
     }
 
     #[test]

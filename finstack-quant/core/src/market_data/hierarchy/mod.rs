@@ -58,14 +58,15 @@ pub(crate) fn parse_path(path: &str) -> crate::Result<Vec<String>> {
 /// Nodes form a tree: each has a name, optional key-value tags for cross-cutting
 /// queries, ordered children, and leaf `CurveId` references.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HierarchyNode {
     /// Node name. Populated from the parent map key during deserialization.
     /// Skipped during serde to match the spec's JSON format where the name
     /// is the map key (e.g., `{ "Rates": { "children": { "USD": ... } } }`).
     #[serde(skip)]
     name: String,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    tags: HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    tags: IndexMap<String, String>,
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     children: IndexMap<String, HierarchyNode>,
     #[serde(default, rename = "curves", skip_serializing_if = "Vec::is_empty")]
@@ -77,7 +78,7 @@ impl HierarchyNode {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            tags: HashMap::default(),
+            tags: IndexMap::new(),
             children: IndexMap::new(),
             curve_ids: Vec::new(),
         }
@@ -89,7 +90,7 @@ impl HierarchyNode {
     }
 
     /// Tags attached to this node (key-value metadata).
-    pub fn tags(&self) -> &HashMap<String, String> {
+    pub fn tags(&self) -> &IndexMap<String, String> {
         &self.tags
     }
 
@@ -153,6 +154,7 @@ pub struct MarketDataHierarchy {
 impl<'de> Deserialize<'de> for MarketDataHierarchy {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct Raw {
             roots: IndexMap<String, HierarchyNode>,
         }

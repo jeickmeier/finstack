@@ -99,6 +99,7 @@ impl std::str::FromStr for InflationCapFloorType {
 
 /// YoY inflation cap/floor instrument.
 #[derive(
+    PartialEq,
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,

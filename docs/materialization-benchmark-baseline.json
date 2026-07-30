@@ -1,0 +1,32 @@
+{
+  "schema": "finstack_quant.materialization_benchmark_baseline_manifest/2",
+  "base_revision": "b43fd9b0f41a455187293838f835ca0dcc1de3d2",
+  "fixture_sha256": "378abf6307873a97e65599e4e7f9add41a41c4ad1f8a524ed28e555b1d09aa63",
+  "fixtures": {
+    "a": "7f208e80ba69670a991674233ffd8d3b355e81383269785cfa935c8cc3b838a7",
+    "b": "09bf16ce28b594e2b6d4d6c575eadd79045624edd7f1ad19d33e53138bc91465"
+  },
+  "median_regression_threshold": 0.1,
+  "provenance": "Captured from base revision b43fd9b0f41a455187293838f835ca0dcc1de3d2 with the exact dirty-tree revisions retained in each immutable baseline artifact.",
+  "rust_baseline_path": "docs/benchmarks/materialization-rust-baseline.json",
+  "python_baseline_path": "docs/benchmarks/materialization-python-baseline.json",
+  "rust_baseline_name": "materialization-v1",
+  "rust_baseline_tree_revision": "b43fd9b0f41a455187293838f835ca0dcc1de3d2-tree-8430f5a872f02473df6bdec75f19b9590adae6dd5f949b8de7325132d9869989",
+  "rust_baseline_fixture_sha256": "378abf6307873a97e65599e4e7f9add41a41c4ad1f8a524ed28e555b1d09aa63",
+  "rust_baseline_sha256": "f9b9159eb77691cc2e9c40fcd860d3647ba5b7fc8fbb01a45637ebc599b831b7",
+  "rust_baseline_cases": [
+    "cold_a_5000_unique",
+    "cold_b_5000_50",
+    "warm_b_5000_50",
+    "validation_b_5000_50"
+  ],
+  "python_baseline_name": "python-materialization-v1",
+  "python_baseline_tree_revision": "b43fd9b0f41a455187293838f835ca0dcc1de3d2-tree-c2072419990f49a74544405c636d723a278f130e3523db87fba74a39d351695b",
+  "python_baseline_fixture_sha256": "378abf6307873a97e65599e4e7f9add41a41c4ad1f8a524ed28e555b1d09aa63",
+  "python_baseline_sha256": "d1d381afc9ca8502884cd1386c78af67894eb04cfa19121333dc255d68e29d09",
+  "python_baseline_cases": [
+    "cold_a_5000_unique",
+    "cold_b_5000_50",
+    "warm_b_5000_50"
+  ]
+}

@@ -1,11 +1,73 @@
 {
-  "schema": "finstack_quant.instrument/1",
   "instrument": {
-    "type": "private_markets_fund",
     "spec": {
-      "id": "PMF-EXAMPLE",
+      "attributes": {},
       "currency": "USD",
+      "discount_curve_id": "USD-OIS",
+      "events": [
+        {
+          "amount": {
+            "amount": "5000000",
+            "currency": "USD"
+          },
+          "date": "2024-01-15",
+          "deal_id": null,
+          "kind": "contribution"
+        },
+        {
+          "amount": {
+            "amount": "2000000",
+            "currency": "USD"
+          },
+          "date": "2024-06-15",
+          "deal_id": null,
+          "kind": "contribution"
+        },
+        {
+          "amount": {
+            "amount": "4000000",
+            "currency": "USD"
+          },
+          "date": "2026-03-01",
+          "deal_id": "DEAL-1",
+          "kind": "proceeds"
+        },
+        {
+          "amount": {
+            "amount": "4000000",
+            "currency": "USD"
+          },
+          "date": "2027-01-01",
+          "deal_id": null,
+          "kind": "distribution"
+        }
+      ],
+      "id": "PMF-EXAMPLE",
+      "pricing_overrides": {
+        "adaptive_bumps": false,
+        "call_friction_cents": null,
+        "cds_quote_bp": null,
+        "credit_spread_bump_bp": null,
+        "implied_volatility": null,
+        "mc_seed_scenario": null,
+        "mean_reversion": null,
+        "quoted_clean_price": null,
+        "rate_bump_bp": null,
+        "rho_bump_decimal": null,
+        "spot_bump_pct": null,
+        "theta_period": null,
+        "tree_steps": null,
+        "upfront_payment": null,
+        "use_gobet_miri": false,
+        "vega_bump_decimal": null,
+        "vol_bump_pct": null,
+        "vol_surface_extrapolation": "error",
+        "ytm_bump_decimal": null
+      },
       "waterfall_spec": {
+        "catchup_mode": "full",
+        "clawback": null,
+        "irr_basis": "Act365F",
         "style": "european",
         "tranches": [
           "return_of_capital",
@@ -21,63 +83,19 @@
           },
           {
             "promote_tier": {
+              "gp_share": 0.2,
               "hurdle": {
                 "irr": {
                   "rate": 0.12
                 }
               },
-              "lp_share": 0.8,
-              "gp_share": 0.2
+              "lp_share": 0.8
             }
           }
-        ],
-        "clawback": null,
-        "irr_basis": "Act365F",
-        "catchup_mode": "full"
-      },
-      "events": [
-        {
-          "date": "2024-01-15",
-          "amount": {
-            "amount": "5000000",
-            "currency": "USD"
-          },
-          "kind": "contribution",
-          "deal_id": null
-        },
-        {
-          "date": "2024-06-15",
-          "amount": {
-            "amount": "2000000",
-            "currency": "USD"
-          },
-          "kind": "contribution",
-          "deal_id": null
-        },
-        {
-          "date": "2026-03-01",
-          "amount": {
-            "amount": "4000000",
-            "currency": "USD"
-          },
-          "kind": "proceeds",
-          "deal_id": "DEAL-1"
-        },
-        {
-          "date": "2027-01-01",
-          "amount": {
-            "amount": "4000000",
-            "currency": "USD"
-          },
-          "kind": "distribution",
-          "deal_id": null
-        }
-      ],
-      "discount_curve_id": "USD-OIS",
-      "attributes": {
-        "tags": [],
-        "meta": {}
+        ]
       }
-    }
-  }
+    },
+    "type": "private_markets_fund"
+  },
+  "schema": "finstack_quant.instrument/1"
 }
