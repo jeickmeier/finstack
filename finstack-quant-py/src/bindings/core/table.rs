@@ -91,7 +91,11 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "table")?;
     m.setattr(
         "__doc__",
-        "Arrow interchange surface for finstack-quant tabular results.",
+        "Arrow interchange surface for finstack-quant tabular results.\n\n\
+         Exposes ArrowTable, a RecordBatch wrapper implementing the Arrow \
+         PyCapsule C-stream protocol so pyarrow, polars, duckdb, and pandas \
+         can consume finstack tabular outputs. Backed by the supporting \
+         finstack-quant-arrow Rust crate (TableEnvelope <-> RecordBatch).",
     )?;
     m.add_class::<PyArrowTable>()?;
     let all = PyList::new(py, ["ArrowTable"])?;

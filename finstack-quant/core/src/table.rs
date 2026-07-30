@@ -4,6 +4,11 @@
 //! a third-party DataFrame type from Rust APIs. Callers can inspect columns
 //! directly, serialize them for Python/WASM consumers, or convert them into a
 //! host-language table type at the binding layer.
+//!
+//! For Apache Arrow / IPC conversion, use the supporting
+//! `finstack-quant-arrow` crate (`finstack_quant_arrow::{to_record_batch,
+//! from_record_batch, to_ipc_bytes, from_ipc_bytes}`). That crate is not
+//! re-exported by the umbrella package.
 
 use crate::{Error, Result};
 use indexmap::IndexMap;
@@ -267,6 +272,59 @@ pub enum TableColumnRole {
     Attribute,
 }
 
+impl TableColumnRole {
+    /// Serde / Arrow metadata wire name (`snake_case`).
+    ///
+    /// Kept in lockstep with `#[serde(rename_all = "snake_case")]` so Arrow
+    /// field metadata and JSON serialization share one spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Dimension => "dimension",
+            Self::Index => "index",
+            Self::Measure => "measure",
+            Self::Attribute => "attribute",
+        }
+    }
+
+    /// Parse a serde snake_case role name.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Wire-format role name (`dimension`, `index`, `measure`, or
+    ///   `attribute`), matching `#[serde(rename_all = "snake_case")]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when `value` is not one of the known role names.
+    pub fn from_str_name(value: &str) -> std::result::Result<Self, String> {
+        match value {
+            "dimension" => Ok(Self::Dimension),
+            "index" => Ok(Self::Index),
+            "measure" => Ok(Self::Measure),
+            "attribute" => Ok(Self::Attribute),
+            other => Err(format!(
+                "unknown column role '{other}' \
+                 (expected dimension|index|measure|attribute)"
+            )),
+        }
+    }
+}
+
+impl std::fmt::Display for TableColumnRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for TableColumnRole {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Self::from_str_name(s)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -350,5 +408,23 @@ mod tests {
         assert!(column.is_empty());
         assert!(column.data.is_empty());
         assert_eq!(table.column("missing"), None);
+    }
+
+    #[test]
+    fn column_role_as_str_matches_serde_rename() {
+        for role in [
+            TableColumnRole::Dimension,
+            TableColumnRole::Index,
+            TableColumnRole::Measure,
+            TableColumnRole::Attribute,
+        ] {
+            let json = serde_json::to_string(&role).expect("serializes");
+            assert_eq!(json, format!("\"{}\"", role.as_str()));
+            assert_eq!(
+                TableColumnRole::from_str_name(role.as_str()).expect("parses"),
+                role
+            );
+        }
+        assert!(TableColumnRole::from_str_name("bogus").is_err());
     }
 }

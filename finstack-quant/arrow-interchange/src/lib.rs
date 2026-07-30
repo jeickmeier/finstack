@@ -1,12 +1,48 @@
 //! Apache Arrow interchange for finstack-quant tabular outputs.
 //!
 //! Converts [`finstack_quant_core::table::TableEnvelope`] to and from Arrow
-//! [`RecordBatch`] values and Arrow IPC
-//! stream bytes. Column roles and metadata round-trip losslessly through
-//! Arrow field/schema metadata (keys `finstack:role` and `finstack:metadata`).
+//! [`RecordBatch`] values and Arrow IPC stream bytes. Column roles and
+//! metadata round-trip losslessly through Arrow field/schema metadata
+//! ([`ROLE_METADATA_KEY`] / [`METADATA_KEY`]).
 //!
 //! This is a supporting crate: it is not re-exported by the `finstack-quant`
 //! umbrella crate and has no WASM binding (arrow-rs is not built for wasm32).
+//! Python bindings use it to back `finstack_quant.core.table.ArrowTable`.
+//! The crate `README.md` documents the full type map, metadata contract, and
+//! host-interop notes.
+//!
+//! # Public API
+//!
+//! - [`to_record_batch`] / [`from_record_batch`] — in-process Arrow batches
+//! - [`to_ipc_bytes`] / [`from_ipc_bytes`] — Arrow IPC **stream-format** bytes
+//! - [`ROLE_METADATA_KEY`] / [`METADATA_KEY`] — field/schema metadata key names
+//!
+//! # Supported Arrow types
+//!
+//! **Outbound** (`to_record_batch` / `to_ipc_bytes`) always emits plain
+//! `Utf8`, `Float64`, `UInt32`, and `Int64` columns.
+//!
+//! **Inbound** (`from_record_batch` / `from_ipc_bytes`) accepts that same set,
+//! plus common foreign string encodings that decode into the envelope's
+//! `String` / `NullableString` variants:
+//!
+//! - `Utf8`, `LargeUtf8`, `Utf8View`
+//! - `Dictionary(_, Utf8 | LargeUtf8 | Utf8View)` (decoded via cast to `Utf8`)
+//!
+//! Other Arrow types (dates, timestamps, booleans, nested types, …) are
+//! rejected; cast them to a supported type before calling inbound APIs.
+//!
+//! Nullability is schema-driven: a nullable field with zero nulls restores the
+//! nullable envelope variant. Non-nullable fields that contain nulls are
+//! rejected. Non-finite floats (`NaN`, `±∞`) round-trip.
+//!
+//! # Metadata keys
+//!
+//! | Key | Location | Value |
+//! |-----|----------|-------|
+//! | [`ROLE_METADATA_KEY`] (`finstack:role`) | field metadata | `dimension` / `index` / `measure` / `attribute` |
+//! | [`METADATA_KEY`] (`finstack:metadata`) | field metadata | JSON object of per-column metadata |
+//! | [`METADATA_KEY`] (`finstack:metadata`) | schema metadata | JSON object of table-level metadata |
 //!
 //! # Quick Example
 //! ```rust
@@ -44,8 +80,11 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use arrow::array::{Array, ArrayRef, Float64Array, Int64Array, StringArray, UInt32Array};
-use arrow::compute::concat_batches;
+use arrow::array::{
+    Array, ArrayRef, Float64Array, GenericStringArray, Int64Array, OffsetSizeTrait, StringArray,
+    StringViewArray, UInt32Array,
+};
+use arrow::compute::{cast, concat_batches};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::error::ArrowError;
 use arrow::ipc::reader::StreamReader;
@@ -55,24 +94,23 @@ use finstack_quant_core::table::{TableColumn, TableColumnData, TableColumnRole, 
 use finstack_quant_core::{Error, Result};
 use indexmap::IndexMap;
 
-/// Metadata key carrying a column's semantic role on an Arrow field.
+/// Arrow field-metadata key for a column's [`TableColumnRole`] wire name.
+///
+/// Value is one of `dimension`, `index`, `measure`, or `attribute` — the same
+/// snake_case spelling used by `TableColumnRole` serde and
+/// [`TableColumnRole::as_str`].
 pub const ROLE_METADATA_KEY: &str = "finstack:role";
-/// Metadata key carrying serialized envelope/column metadata.
+
+/// Arrow metadata key for serialized JSON metadata maps.
+///
+/// On a **field**, the value is the column's `metadata`
+/// (`IndexMap<String, serde_json::Value>` as JSON). On the **schema**, the
+/// value is the table-level `TableEnvelope::metadata` map.
 pub const METADATA_KEY: &str = "finstack:metadata";
 
 /// Map an [`ArrowError`] into the core validation error with context.
 fn arrow_err(context: &str, err: &ArrowError) -> Error {
     Error::Validation(format!("arrow {context}: {err}"))
-}
-
-/// Serde snake_case name for a column role (matches `TableColumnRole` serde).
-fn role_to_str(role: TableColumnRole) -> &'static str {
-    match role {
-        TableColumnRole::Dimension => "dimension",
-        TableColumnRole::Index => "index",
-        TableColumnRole::Measure => "measure",
-        TableColumnRole::Attribute => "attribute",
-    }
 }
 
 /// Build the Arrow field + array for one envelope column.
@@ -124,7 +162,7 @@ fn column_to_arrow(column: &TableColumn) -> Result<(Field, ArrayRef)> {
 
     let mut metadata = HashMap::new();
     if let Some(role) = column.role {
-        metadata.insert(ROLE_METADATA_KEY.to_string(), role_to_str(role).to_string());
+        metadata.insert(ROLE_METADATA_KEY.to_string(), role.as_str().to_string());
     }
     if !column.metadata.is_empty() {
         let json = serde_json::to_string(&column.metadata).map_err(|e| {
@@ -194,20 +232,6 @@ pub fn to_record_batch(table: &TableEnvelope) -> Result<RecordBatch> {
         .map_err(|e| arrow_err("record batch construction", &e))
 }
 
-/// Parse a serde snake_case role name back into [`TableColumnRole`].
-fn role_from_str(value: &str) -> Result<TableColumnRole> {
-    match value {
-        "dimension" => Ok(TableColumnRole::Dimension),
-        "index" => Ok(TableColumnRole::Index),
-        "measure" => Ok(TableColumnRole::Measure),
-        "attribute" => Ok(TableColumnRole::Attribute),
-        other => Err(Error::Validation(format!(
-            "unknown '{ROLE_METADATA_KEY}' value '{other}' \
-             (expected dimension|index|measure|attribute)"
-        ))),
-    }
-}
-
 /// Downcast an Arrow array to a concrete type with a contextual error.
 fn downcast<'a, T: 'static>(name: &str, array: &'a ArrayRef) -> Result<&'a T> {
     array.as_any().downcast_ref::<T>().ok_or_else(|| {
@@ -215,6 +239,85 @@ fn downcast<'a, T: 'static>(name: &str, array: &'a ArrayRef) -> Result<&'a T> {
             "column '{name}': array does not match its declared data type"
         ))
     })
+}
+
+/// True for Arrow string physical types we map onto envelope string columns.
+fn is_string_arrow_type(data_type: &DataType) -> bool {
+    matches!(
+        data_type,
+        DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View
+    )
+}
+
+/// Collect owned strings from a `GenericStringArray` (`Utf8` / `LargeUtf8`).
+///
+/// Non-nullable columns use `value(i)` after the caller has rejected nulls, so
+/// a future refactor cannot silently drop rows via `.flatten()`.
+fn string_data_from_generic_string<O: OffsetSizeTrait>(
+    array: &GenericStringArray<O>,
+    nullable: bool,
+) -> TableColumnData {
+    if nullable {
+        TableColumnData::NullableString(array.iter().map(|v| v.map(str::to_owned)).collect())
+    } else {
+        let mut values = Vec::with_capacity(array.len());
+        for i in 0..array.len() {
+            values.push(array.value(i).to_owned());
+        }
+        TableColumnData::String(values)
+    }
+}
+
+/// Collect owned strings from a [`StringViewArray`] (`Utf8View`).
+fn string_data_from_string_view(array: &StringViewArray, nullable: bool) -> TableColumnData {
+    if nullable {
+        TableColumnData::NullableString(array.iter().map(|v| v.map(str::to_owned)).collect())
+    } else {
+        let mut values = Vec::with_capacity(array.len());
+        for i in 0..array.len() {
+            values.push(array.value(i).to_owned());
+        }
+        TableColumnData::String(values)
+    }
+}
+
+/// Decode an Arrow string (or string-dictionary) array into envelope column data.
+fn string_data_from_arrow(
+    name: &str,
+    data_type: &DataType,
+    array: &ArrayRef,
+    nullable: bool,
+) -> Result<TableColumnData> {
+    match data_type {
+        DataType::Utf8 => Ok(string_data_from_generic_string(
+            downcast::<StringArray>(name, array)?,
+            nullable,
+        )),
+        DataType::LargeUtf8 => Ok(string_data_from_generic_string(
+            downcast::<GenericStringArray<i64>>(name, array)?,
+            nullable,
+        )),
+        DataType::Utf8View => Ok(string_data_from_string_view(
+            downcast::<StringViewArray>(name, array)?,
+            nullable,
+        )),
+        DataType::Dictionary(_, value_type) if is_string_arrow_type(value_type.as_ref()) => {
+            let utf8 = cast(array, &DataType::Utf8).map_err(|e| {
+                Error::Validation(format!(
+                    "column '{name}': dictionary to Utf8 cast failed: {e}"
+                ))
+            })?;
+            Ok(string_data_from_generic_string(
+                downcast::<StringArray>(name, &utf8)?,
+                nullable,
+            ))
+        }
+        other => Err(Error::Validation(format!(
+            "column '{name}': unsupported Arrow type {other}; \
+             supported types are Utf8, LargeUtf8, Utf8View, \
+             Dictionary(*→string), Float64, UInt32, Int64"
+        ))),
+    }
 }
 
 /// Rebuild one envelope column from an Arrow field + array.
@@ -228,49 +331,44 @@ fn column_from_arrow(field: &Field, array: &ArrayRef) -> Result<TableColumn> {
         )));
     }
 
-    let data = match (field.data_type(), nullable) {
-        (DataType::Utf8, false) => TableColumnData::String(
-            downcast::<StringArray>(&name, array)?
-                .iter()
-                .flatten()
-                .map(str::to_owned)
-                .collect(),
-        ),
-        (DataType::Utf8, true) => TableColumnData::NullableString(
-            downcast::<StringArray>(&name, array)?
-                .iter()
-                .map(|v| v.map(str::to_owned))
-                .collect(),
-        ),
-        (DataType::Float64, false) => {
+    let data = match field.data_type() {
+        dt if is_string_arrow_type(dt)
+            || matches!(dt, DataType::Dictionary(_, v) if is_string_arrow_type(v)) =>
+        {
+            string_data_from_arrow(&name, dt, array, nullable)?
+        }
+        DataType::Float64 if !nullable => {
             TableColumnData::Float64(downcast::<Float64Array>(&name, array)?.values().to_vec())
         }
-        (DataType::Float64, true) => TableColumnData::NullableFloat64(
+        DataType::Float64 => TableColumnData::NullableFloat64(
             downcast::<Float64Array>(&name, array)?.iter().collect(),
         ),
-        (DataType::UInt32, false) => {
+        DataType::UInt32 if !nullable => {
             TableColumnData::UInt32(downcast::<UInt32Array>(&name, array)?.values().to_vec())
         }
-        (DataType::UInt32, true) => {
+        DataType::UInt32 => {
             TableColumnData::NullableUInt32(downcast::<UInt32Array>(&name, array)?.iter().collect())
         }
-        (DataType::Int64, false) => {
+        DataType::Int64 if !nullable => {
             TableColumnData::Int64(downcast::<Int64Array>(&name, array)?.values().to_vec())
         }
-        (DataType::Int64, true) => {
+        DataType::Int64 => {
             TableColumnData::NullableInt64(downcast::<Int64Array>(&name, array)?.iter().collect())
         }
-        (other, _) => {
+        other => {
             return Err(Error::Validation(format!(
                 "column '{name}': unsupported Arrow type {other}; \
-                 supported types are Utf8, Float64, UInt32, Int64"
+                 supported types are Utf8, LargeUtf8, Utf8View, \
+                 Dictionary(*→string), Float64, UInt32, Int64"
             )));
         }
     };
 
     let mut column = TableColumn::new(name, data);
     if let Some(role) = field.metadata().get(ROLE_METADATA_KEY) {
-        column = column.with_role(role_from_str(role)?);
+        let parsed = TableColumnRole::from_str_name(role)
+            .map_err(|e| Error::Validation(format!("unknown '{ROLE_METADATA_KEY}' value: {e}")))?;
+        column = column.with_role(parsed);
     }
     if let Some(meta_json) = field.metadata().get(METADATA_KEY) {
         let metadata: IndexMap<String, serde_json::Value> = serde_json::from_str(meta_json)
@@ -298,11 +396,12 @@ fn column_from_arrow(field: &Field, array: &ArrayRef) -> Result<TableColumn> {
 ///
 /// # Errors
 ///
-/// Returns [`Error::Validation`] for unsupported Arrow types, nulls in a
-/// non-nullable field, unknown role values, malformed metadata JSON, a
-/// zero-column batch with a nonzero row count (not representable, since
-/// [`TableEnvelope`] derives `row_count` from its first column), or
-/// envelope validation failures (duplicate names, mismatched lengths).
+/// Returns [`Error::Validation`] for unsupported Arrow types (see crate-level
+/// supported-type list), nulls in a non-nullable field, unknown role values,
+/// malformed metadata JSON, a zero-column batch with a nonzero row count (not
+/// representable, since [`TableEnvelope`] derives `row_count` from its first
+/// column), or envelope validation failures (duplicate names, mismatched
+/// lengths).
 ///
 /// # Examples
 /// ```rust
@@ -862,5 +961,102 @@ mod tests {
             }
             other => panic!("expected NullableFloat64, got {other:?}"),
         }
+    }
+
+    /// Foreign Arrow producers often emit `LargeUtf8`; inbound decode must
+    /// accept it as a string column without requiring a pre-cast.
+    #[test]
+    fn large_utf8_column_decodes_to_string() {
+        use arrow::array::LargeStringArray;
+        use arrow::datatypes::{Field, Schema};
+        use arrow::record_batch::RecordBatch;
+        use std::sync::Arc;
+
+        let field = Field::new("id", DataType::LargeUtf8, false);
+        let schema = Arc::new(Schema::new(vec![field]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![Arc::new(LargeStringArray::from(vec!["a", "b"])) as _],
+        )
+        .unwrap();
+
+        let table = from_record_batch(&batch).unwrap();
+        assert_eq!(
+            table.column("id").unwrap().as_strings(),
+            Some(["a".to_string(), "b".to_string()].as_slice())
+        );
+    }
+
+    /// Nullable `LargeUtf8` must keep the nullable envelope variant.
+    #[test]
+    fn large_utf8_nullable_column_decodes() {
+        use arrow::array::LargeStringArray;
+        use arrow::datatypes::{Field, Schema};
+        use arrow::record_batch::RecordBatch;
+        use std::sync::Arc;
+
+        let field = Field::new("label", DataType::LargeUtf8, true);
+        let schema = Arc::new(Schema::new(vec![field]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![Arc::new(LargeStringArray::from(vec![Some("x"), None])) as _],
+        )
+        .unwrap();
+
+        let table = from_record_batch(&batch).unwrap();
+        assert_eq!(
+            table.column("label").unwrap().as_nullable_strings(),
+            Some([Some("x".to_string()), None].as_slice())
+        );
+    }
+
+    /// `Utf8View` is increasingly common in recent Arrow; decode into strings.
+    #[test]
+    fn utf8_view_column_decodes_to_string() {
+        use arrow::array::StringViewArray;
+        use arrow::datatypes::{Field, Schema};
+        use arrow::record_batch::RecordBatch;
+        use std::sync::Arc;
+
+        let field = Field::new("id", DataType::Utf8View, false);
+        let schema = Arc::new(Schema::new(vec![field]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![Arc::new(StringViewArray::from(vec!["alpha", "beta"])) as _],
+        )
+        .unwrap();
+
+        let table = from_record_batch(&batch).unwrap();
+        assert_eq!(
+            table.column("id").unwrap().as_strings(),
+            Some(["alpha".to_string(), "beta".to_string()].as_slice())
+        );
+    }
+
+    /// Dictionary-encoded string columns (common from Parquet / DuckDB) decode
+    /// into plain envelope strings.
+    #[test]
+    fn dictionary_utf8_column_decodes_to_string() {
+        use arrow::array::{DictionaryArray, Int32Array, StringArray};
+        use arrow::datatypes::{DataType, Field, Schema};
+        use arrow::record_batch::RecordBatch;
+        use std::sync::Arc;
+
+        let values = Arc::new(StringArray::from(vec!["usd", "eur"]));
+        let keys = Int32Array::from(vec![0, 1, 0]);
+        let dict = DictionaryArray::try_new(keys, values).unwrap();
+        let field = Field::new(
+            "ccy",
+            DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+            false,
+        );
+        let schema = Arc::new(Schema::new(vec![field]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(dict) as _]).unwrap();
+
+        let table = from_record_batch(&batch).unwrap();
+        assert_eq!(
+            table.column("ccy").unwrap().as_strings(),
+            Some(["usd".to_string(), "eur".to_string(), "usd".to_string()].as_slice())
+        );
     }
 }
