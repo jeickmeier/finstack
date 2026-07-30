@@ -12,7 +12,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::*;
 
 const API_INVARIANTS_FIXTURE: &str =
-    include_str!("../../finstack-quant/analytics/src/api_invariants_data.json");
+    include_str!("../../finstack-quant/analytics/tests/data/api_invariants_data.json");
 
 #[derive(Deserialize)]
 struct AnalyticsFixture {

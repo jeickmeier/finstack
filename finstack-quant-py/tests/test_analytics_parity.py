@@ -21,7 +21,14 @@ from finstack_quant.analytics import Performance
 
 
 def _fixture() -> dict[str, Any]:
-    path = Path(__file__).resolve().parents[2] / "finstack-quant" / "analytics" / "src" / "api_invariants_data.json"
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "finstack-quant"
+        / "analytics"
+        / "tests"
+        / "data"
+        / "api_invariants_data.json"
+    )
     return json.loads(path.read_text())
 
 

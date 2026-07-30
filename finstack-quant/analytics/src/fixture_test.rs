@@ -9,7 +9,7 @@ use crate::dates::Date;
 use crate::risk_metrics::{cagr, expected_shortfall, sharpe, sortino, value_at_risk, CagrBasis};
 use serde::Deserialize;
 
-const API_INVARIANTS_FIXTURE: &str = include_str!("api_invariants_data.json");
+const API_INVARIANTS_FIXTURE: &str = include_str!("../tests/data/api_invariants_data.json");
 
 #[derive(Deserialize)]
 struct Fixture {
