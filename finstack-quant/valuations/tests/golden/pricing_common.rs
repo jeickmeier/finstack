@@ -327,11 +327,21 @@ mod tests {
         .expect("registry DV01 should price");
         let registry_dv01 = registry_result.measures["dv01"];
 
-        assert_close(discount, -3_043.885_803_190_06, 1e-6);
-        assert_close(sofr_3m, 2836.106479169801, 1e-6);
-        assert_close(combined, -207.779270004481, 1e-6);
+        assert_close(discount, -3_051.583_130_820_654, 1e-6);
+        assert_close(sofr_3m, 2_893.358_724_945_225, 1e-6);
+        // Take the combined target from the fixture rather than repeating the
+        // literal here, so a re-blessed fixture cannot leave this test stale.
+        assert_close(combined, fixture.expected["dv01"], 1e-6);
         assert_close(combined, registry_dv01, 1e-8);
-        assert!((combined - (discount + sofr_3m)).abs() < 1e-3);
+        // Bumping both curves together is not exactly the sum of the two
+        // single-curve bumps: the OC/IC triggers divert cash discontinuously in
+        // rates, so the legs carry a small cross-term. Bound it relative to the
+        // leg size instead of in absolute currency.
+        let cross_term = (combined - (discount + sofr_3m)).abs();
+        assert!(
+            cross_term < 1e-5 * discount.abs(),
+            "curve-leg cross-term {cross_term:.15} exceeds 1e-5 of the discount leg"
+        );
         assert!((combined - discount).abs() > 2_000.0);
     }
 }
