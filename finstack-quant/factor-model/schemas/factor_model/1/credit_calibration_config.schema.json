@@ -1,0 +1,312 @@
+{
+  "$defs": {
+    "BetaShrinkage": {
+      "description": "OLS β shrinkage rule.",
+      "oneOf": [
+        {
+          "const": "none",
+          "description": "No shrinkage; use the OLS estimate directly.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Convex shrinkage toward 1.0: `β ← (1 - α) · β_fit + α · 1.0`.",
+          "properties": {
+            "toward_one": {
+              "properties": {
+                "alpha": {
+                  "description": "Shrinkage weight in `[0, 1]`.",
+                  "maximum": 1.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "alpha"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "toward_one"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "BucketSizeThresholds": {
+      "additionalProperties": false,
+      "description": "Per-level minimum-bucket-size thresholds used to gate fold-up of sparse\nhierarchy buckets.",
+      "properties": {
+        "per_level": {
+          "description": "Threshold per hierarchy level. Levels beyond `per_level.len()` use the\ndefault of 5.",
+          "items": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "per_level"
+      ],
+      "type": "object"
+    },
+    "CovarianceStrategy": {
+      "description": "Strategy for assembling the factor covariance matrix.",
+      "oneOf": [
+        {
+          "const": "diagonal",
+          "description": "Diagonal Σ = diag(σ²) under identity correlation.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Sample correlation (PSD-repaired if needed) plus diagonal ridge:\nΣ = D·ρ·D + α·I. Requires `alpha >= 0`. See design spec §4.1.",
+          "properties": {
+            "ridge": {
+              "properties": {
+                "alpha": {
+                  "description": "Ridge regularisation parameter; must be `>= 0`.",
+                  "minimum": 0.0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "alpha"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "ridge"
+          ],
+          "type": "object"
+        },
+        {
+          "const": "full_sample_repaired",
+          "description": "Full sample covariance with PSD repair via nearest-correlation projection:\nΣ = D·ρ_repaired·D. See design spec §4.1.",
+          "type": "string"
+        },
+        {
+          "const": "ledoit_wolf",
+          "description": "Ledoit-Wolf (2004) identity-target shrinkage over complete-case\nobservations: `Σ = annualization_factor · (δ*·μ·I + (1 − δ*)·S)` with\nthe analytic optimal intensity `δ*`, and `ρ` derived from `Σ`.\n\nOnly dates where **every** factor is observed enter the estimate;\ncalibration fails with a validation error when fewer than 2 such dates\nexist (use [`CovarianceStrategy::Ridge`] or\n[`CovarianceStrategy::FullSampleRepaired`] for very sparse panels).\n\nThe resulting `config.covariance` is authoritative for point-in-time\nrisk but diverges from the vol-forecast rebuild `D·ρ·D` on both the\ndiagonal and off-diagonal, because `vol_state` variances come from a\ndifferent estimator (the configured\n[`VolModelChoice`]) over a different observation set (per-factor\nall-available rows, not the complete-case rows used here). See\n[`CreditFactorModel::static_correlation`][crate::credit::hierarchy::CreditFactorModel::static_correlation]\nfor the full explanation.\n\nReference: Ledoit, O., & Wolf, M. (2004). \"A well-conditioned estimator\nfor large-dimensional covariance matrices.\" *Journal of Multivariate\nAnalysis*, 88(2), 365–411.",
+          "type": "string"
+        }
+      ]
+    },
+    "CreditHierarchySpec": {
+      "additionalProperties": false,
+      "description": "Ordered list of hierarchy dimensions, broadest → narrowest.\n\nThe ordering is significant: factor IDs and beta vectors are indexed\npositionally from level 0 (broadest) to `levels.len()-1` (narrowest).",
+      "properties": {
+        "levels": {
+          "description": "Ordered hierarchy levels, broadest first.",
+          "items": {
+            "$ref": "#/$defs/HierarchyDimension"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "levels"
+      ],
+      "type": "object"
+    },
+    "HierarchyDimension": {
+      "description": "A single level in the credit factor hierarchy.\n\nBuilt-in variants (`Rating`, `Region`, `Sector`) have canonical tag keys.\n`Custom(key)` reads `issuer_tags[key]` for arbitrary user-defined dimensions\nsuch as `\"Currency\"` or `\"AssetType\"`.",
+      "oneOf": [
+        {
+          "const": "rating",
+          "description": "Credit rating bucket (e.g. `\"IG\"`, `\"HY\"`, `\"NR\"`).",
+          "type": "string"
+        },
+        {
+          "const": "region",
+          "description": "Geographic region (e.g. `\"EU\"`, `\"NA\"`, `\"APAC\"`).",
+          "type": "string"
+        },
+        {
+          "const": "sector",
+          "description": "Industry sector (e.g. `\"FIN\"`, `\"ENERGY\"`, `\"TECH\"`).",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "User-defined dimension reading `issuer_tags[key]`.",
+          "properties": {
+            "custom": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "custom"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "IssuerBetaOverride": {
+      "description": "Per-issuer regression behavior override supplied by the user before calibration.\n\nThis is the *input* override; the *resolved* outcome is [`IssuerBetaMode`].\n\n- `Auto` — let the calibration decide based on `min_history`.\n- `ForceIssuerBeta` — always run per-issuer regression regardless of history.\n- `ForceBucketOnly` — never run per-issuer regression for this issuer.",
+      "oneOf": [
+        {
+          "const": "auto",
+          "description": "Let calibration decide based on available history.",
+          "type": "string"
+        },
+        {
+          "const": "force_issuer_beta",
+          "description": "Force per-issuer OLS regression even with limited history.",
+          "type": "string"
+        },
+        {
+          "const": "force_bucket_only",
+          "description": "Suppress per-issuer regression; use bucket average only.",
+          "type": "string"
+        }
+      ]
+    },
+    "IssuerBetaPolicy": {
+      "description": "Calibration policy governing which issuers receive a per-issuer regression.\n\n- `Dynamic` — apply a minimum-history threshold and honour per-issuer overrides.\n- `GloballyOff` — every issuer is treated as `BucketOnly`; no per-issuer\n  regression is run.  Useful for simpler factor models or data-sparse periods.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Regression is gated on a minimum history threshold with per-issuer overrides.",
+          "properties": {
+            "dynamic": {
+              "properties": {
+                "min_history": {
+                  "description": "Minimum number of monthly return observations needed to attempt OLS.\n\nDefault is 24 months.",
+                  "format": "uint",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "overrides": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/IssuerBetaOverride"
+                  },
+                  "description": "Per-issuer overrides that can force or suppress per-issuer regression.\n\nKeys without an entry default to [`IssuerBetaOverride::Auto`].",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "min_history",
+                "overrides"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "dynamic"
+          ],
+          "type": "object"
+        },
+        {
+          "const": "globally_off",
+          "description": "Every issuer treated as `BucketOnly`; no per-issuer regression is run.",
+          "type": "string"
+        }
+      ]
+    },
+    "PanelSpace": {
+      "description": "Whether the calibrator works in price-difference (return) or raw-level space.\n\n`Returns` (the default) matches the spec's reference math: `r_i(t) =\nS_i(t) - S_i(t-1)` and the generic factor is differenced the same way.",
+      "oneOf": [
+        {
+          "const": "returns",
+          "description": "Difference consecutive observations into a return panel before peeling.",
+          "type": "string"
+        },
+        {
+          "const": "levels",
+          "description": "Use the raw level panel as-is.",
+          "type": "string"
+        }
+      ]
+    },
+    "VolModelChoice": {
+      "description": "Volatility model selector for the per-factor variance forecast.\n\n`Sample` is the plain (unbiased) sample variance. `Ewma` is the RiskMetrics\nfinite-window exponentially weighted variance estimator (Longerstaey &\nSpencer, 1996, §5.2): both are fully supported by the calibrator.\n\nThe two differ in centering: `Sample` demeans the series before squaring\n(the usual `Var(x) = E[(x − x̄)²]`), while `Ewma` does not — it recurses\ndirectly on squared observations (`σ²_t = λσ²_{t−1} + (1−λ)r²_{t−1}`),\nmatching the RiskMetrics convention of treating financial return series as\nzero-mean. That convention only holds for a *return* panel; combining\n`Ewma` with a raw levels panel\n([`PanelSpace::Levels`]) is rejected by\n`validate_calibration_config` because the squared-level mean-square is\ndominated by the level itself, not its dispersion.",
+      "oneOf": [
+        {
+          "const": "sample",
+          "description": "Plain sample variance (unbiased, Bessel-corrected); demeans before\nsquaring.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "RiskMetrics exponentially weighted moving-average variance.\n\nUncentered (zero-mean) squared returns, no demeaning step — see the\nenum-level docs above. Implemented by `ewma_variance`. `lambda` must\nbe in the open interval `(0, 1)`; validated by\n`validate_calibration_config`.\n\n# References\n\n- Longerstaey, J., & Spencer, M. (1996). *RiskMetrics — Technical\n  Document* (4th ed.). J.P. Morgan/Reuters. §5.2.",
+          "properties": {
+            "ewma": {
+              "properties": {
+                "lambda": {
+                  "description": "Smoothing parameter λ ∈ (0, 1) (RiskMetrics daily default 0.94).",
+                  "exclusiveMaximum": 1.0,
+                  "exclusiveMinimum": 0.0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "lambda"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "ewma"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://finstack_quant.dev/schemas/factor_model/1/credit_calibration_config.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Configuration for the deterministic credit factor-model calibrator.",
+  "properties": {
+    "annualization_factor": {
+      "description": "Annualization factor for sample variance (default 12.0 ≈ monthly data).",
+      "exclusiveMinimum": 0.0,
+      "type": "number"
+    },
+    "beta_shrinkage": {
+      "$ref": "#/$defs/BetaShrinkage",
+      "description": "Optional shrinkage applied to OLS β estimates."
+    },
+    "covariance_strategy": {
+      "$ref": "#/$defs/CovarianceStrategy",
+      "description": "Covariance assembly strategy."
+    },
+    "hierarchy": {
+      "$ref": "#/$defs/CreditHierarchySpec",
+      "description": "Hierarchy specification (broadest → narrowest)."
+    },
+    "min_bucket_size_per_level": {
+      "$ref": "#/$defs/BucketSizeThresholds",
+      "description": "Per-level minimum-bucket-size thresholds."
+    },
+    "policy": {
+      "$ref": "#/$defs/IssuerBetaPolicy",
+      "description": "Issuer-beta classification policy."
+    },
+    "use_returns_or_levels": {
+      "$ref": "#/$defs/PanelSpace",
+      "description": "Whether to differentiate the panel before peeling."
+    },
+    "vol_model": {
+      "$ref": "#/$defs/VolModelChoice",
+      "description": "Vol-model choice for the per-factor variance forecast (sample or EWMA)."
+    }
+  },
+  "required": [
+    "policy",
+    "hierarchy",
+    "min_bucket_size_per_level",
+    "vol_model",
+    "covariance_strategy",
+    "beta_shrinkage",
+    "use_returns_or_levels",
+    "annualization_factor"
+  ],
+  "title": "CreditCalibrationConfig",
+  "type": "object"
+}

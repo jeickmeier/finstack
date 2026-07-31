@@ -7,6 +7,13 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 use std::fmt;
 
+fn date_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "string",
+        "format": "date",
+    })
+}
+
 /// Type of margin call.
 ///
 /// Classifies the nature of a margin call for proper processing
@@ -89,11 +96,11 @@ impl std::str::FromStr for MarginCallType {
 #[serde(deny_unknown_fields)]
 pub struct MarginCall {
     /// Date the margin call is issued
-    #[schemars(with = "String")]
+    #[schemars(schema_with = "date_schema")]
     pub call_date: Date,
 
     /// Settlement date for the margin transfer
-    #[schemars(with = "String")]
+    #[schemars(schema_with = "date_schema")]
     pub settlement_date: Date,
 
     /// Type of margin call

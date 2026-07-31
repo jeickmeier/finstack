@@ -11,13 +11,14 @@ use super::matching::MatchingConfig;
 use super::primitives::definition::FactorDefinition;
 use super::primitives::factor_types::{FactorId, FactorType};
 use super::UnmatchedPolicy;
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
 /// Strategy used when extracting factor sensitivities.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PricingMode {
@@ -61,8 +62,16 @@ impl FromStr for PricingMode {
     }
 }
 
+fn risk_confidence_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "number",
+        "exclusiveMinimum": 0.5,
+        "exclusiveMaximum": 1.0,
+    })
+}
+
 /// Risk measure used when aggregating factor exposures.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 #[non_exhaustive]
@@ -87,6 +96,7 @@ pub enum RiskMeasure {
     #[serde(rename = "var")]
     VaR {
         /// Confidence level in the open interval `(0.5, 1)`.
+        #[schemars(schema_with = "risk_confidence_schema")]
         confidence: f64,
     },
     /// Aggregate exposures using expected shortfall at a fixed one-sided loss confidence level.
@@ -96,6 +106,7 @@ pub enum RiskMeasure {
     /// **negative** number using the P&L sign convention.
     ExpectedShortfall {
         /// Confidence level in the open interval `(0.5, 1)`.
+        #[schemars(schema_with = "risk_confidence_schema")]
         confidence: f64,
     },
 }
@@ -170,7 +181,7 @@ impl<'de> Deserialize<'de> for RiskMeasure {
 /// Unknown fields are rejected on deserialization: every field here has a
 /// serde default, so a typo'd key (e.g. `"credit_bps"`) would otherwise be
 /// silently dropped and the bump would silently revert to 1.0.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BumpSizeConfig {
     /// Default rates bump in basis points.
@@ -278,7 +289,7 @@ impl BumpSizeConfig {
 ///
 /// The variants intentionally mirror [`finstack_quant_core::market_data::bumps::BumpUnits`]
 /// plus `VolPoint` and `Absolute`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum FactorBumpUnit {
@@ -355,7 +366,7 @@ impl FactorBumpUnit {
 /// The `factors` vector defines the canonical factor ordering. The covariance
 /// matrix must use the same factor IDs and ordering, and the matching
 /// configuration is expected to emit exposures against that same universe.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FactorModelConfig {
     /// Factor definitions spanning the model universe.

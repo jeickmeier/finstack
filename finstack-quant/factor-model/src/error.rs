@@ -6,6 +6,7 @@
 //! unmatched dependency is a hard error or a skipped entry.
 
 use super::{FactorId, MarketDependency};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -82,6 +83,26 @@ pub enum UnmatchedPolicy {
     /// failure would be too disruptive.
     #[serde(alias = "Warn")]
     Warn,
+}
+
+impl JsonSchema for UnmatchedPolicy {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("UnmatchedPolicy")
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": "string",
+            "enum": [
+                "strict",
+                "residual",
+                "warn",
+                "Strict",
+                "Residual",
+                "Warn",
+            ],
+        })
+    }
 }
 
 impl fmt::Display for UnmatchedPolicy {

@@ -19,6 +19,7 @@ mod otc;
 mod repo_cashflows;
 /// Repo-specific margining conventions and helper calculations.
 pub mod repo_margin;
+mod serde_validation;
 /// SIMM risk-class and sensitivity container types.
 pub mod simm_types;
 mod thresholds;

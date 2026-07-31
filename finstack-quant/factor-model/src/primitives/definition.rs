@@ -4,10 +4,11 @@ use super::{FactorId, FactorType};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::bumps::BumpUnits;
 use finstack_quant_core::types::CurveId;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// How a factor movement translates to market-data perturbations.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub enum MarketMapping {
     /// Parallel shift to one or more curves.
     CurveParallel {
@@ -47,7 +48,7 @@ pub enum MarketMapping {
 }
 
 /// Complete definition of a risk factor.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FactorDefinition {
     /// Unique factor identifier.

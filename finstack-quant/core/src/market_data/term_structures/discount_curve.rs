@@ -130,7 +130,7 @@ pub const DEFAULT_MIN_FORWARD_TENOR: f64 = 1e-6;
 /// This is optional sidecar data for risk calculations that need to shock the
 /// original benchmark quotes and re-bootstrap instead of applying direct
 /// zero-rate bumps to the fitted curve.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DiscountCurveRateCalibration {
     /// Rate index used by the benchmark instruments.
@@ -142,7 +142,7 @@ pub struct DiscountCurveRateCalibration {
 }
 
 /// A single benchmark rate quote used to calibrate a discount curve.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DiscountCurveRateQuote {
     /// Instrument type represented by the quote.
@@ -154,7 +154,7 @@ pub struct DiscountCurveRateQuote {
 }
 
 /// Supported benchmark quote instruments for discount-curve quote metadata.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DiscountCurveRateQuoteType {
     /// Money-market deposit quote.
@@ -164,7 +164,7 @@ pub enum DiscountCurveRateQuoteType {
 }
 
 /// Piece-wise discount factor curve supporting several interpolation styles.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "RawDiscountCurve", into = "RawDiscountCurve")]
 pub struct DiscountCurve {
     pub(crate) id: CurveId,
@@ -211,12 +211,13 @@ pub struct DiscountCurve {
 }
 
 /// Raw serializable state of DiscountCurve
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawDiscountCurve {
     /// Curve identifier
     pub id: String,
     /// Base date
+    #[schemars(with = "String")]
     pub base: Date,
     /// Day count convention for discount time basis
     #[serde(default = "default_day_count")]

@@ -90,7 +90,7 @@ pub struct FxDeltaVolSurface {
 /// Mirrors the serialized field layout exactly so the wire format is
 /// unchanged; conversion runs the same validation as the public
 /// constructors and rejects unknown fields.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawFxDeltaVolSurface {
     /// Surface identifier.
@@ -107,6 +107,16 @@ struct RawFxDeltaVolSurface {
     rr_10d: Option<Vec<f64>>,
     /// Optional 10-delta butterfly per expiry.
     bf_10d: Option<Vec<f64>>,
+}
+
+impl schemars::JsonSchema for FxDeltaVolSurface {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "FxDeltaVolSurface".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <RawFxDeltaVolSurface as schemars::JsonSchema>::json_schema(generator)
+    }
 }
 
 impl TryFrom<RawFxDeltaVolSurface> for FxDeltaVolSurface {

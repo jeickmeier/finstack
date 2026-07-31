@@ -2,12 +2,13 @@
 //!
 use crate::primitives::dependency::{CurveType, DependencyType, MarketDependency};
 use finstack_quant_core::types::Attributes;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Filters on instrument metadata.
 ///
 /// All configured conditions are combined with logical AND.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttributeFilter {
     /// Tags that must all be present on the instrument.
@@ -32,7 +33,7 @@ impl AttributeFilter {
 }
 
 /// Filters on an individual market dependency.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DependencyFilter {
     /// Dependency classification that the dependency must match, when present.

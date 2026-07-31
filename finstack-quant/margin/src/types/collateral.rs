@@ -8,6 +8,7 @@ use std::fmt;
 
 use crate::registry::margin_registry_from_config;
 use crate::registry::{embedded_registry, embedded_registry_or_panic, AssetClassDefault};
+use crate::types::serde_validation;
 use finstack_quant_core::config::FinstackConfig;
 use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -92,7 +93,9 @@ impl schemars::JsonSchema for CollateralAssetClass {
 
     fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
         schemars::json_schema!({
-            "type": "string"
+            "type": "string",
+            "description": "Collateral asset class identifier. Canonical values are cash, government_bonds, agency_bonds, covered_bonds, corporate_bonds, equity, gold, and mutual_funds. Custom values are also accepted and normalized to lowercase snake_case during deserialization.",
+            "examples": ["cash", "government_bonds", "custom_collateral"]
         })
     }
 }
@@ -197,8 +200,20 @@ impl CollateralAssetClass {
 #[serde(deny_unknown_fields)]
 pub struct MaturityConstraints {
     /// Minimum remaining years to maturity (if any)
+    #[serde(
+        default,
+        deserialize_with = "serde_validation::min_remaining_years::deserialize",
+        serialize_with = "serde_validation::min_remaining_years::serialize"
+    )]
+    #[schemars(range(min = 0.0))]
     pub min_remaining_years: Option<f64>,
     /// Maximum remaining years to maturity (if any)
+    #[serde(
+        default,
+        deserialize_with = "serde_validation::max_remaining_years::deserialize",
+        serialize_with = "serde_validation::max_remaining_years::serialize"
+    )]
+    #[schemars(range(min = 0.0))]
     pub max_remaining_years: Option<f64>,
 }
 
@@ -260,18 +275,34 @@ pub struct CollateralEligibility {
     pub maturity_constraints: Option<MaturityConstraints>,
 
     /// Haircut as decimal (e.g., 0.02 = 2%)
+    #[serde(
+        deserialize_with = "serde_validation::haircut::deserialize",
+        serialize_with = "serde_validation::haircut::serialize"
+    )]
+    #[schemars(range(min = 0.0, max = 1.0))]
     pub haircut: f64,
 
     /// Additional FX haircut for currency mismatch (decimal)
     ///
     /// Applied when collateral currency differs from settlement currency.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "serde_validation::fx_haircut_addon::deserialize",
+        serialize_with = "serde_validation::fx_haircut_addon::serialize"
+    )]
+    #[schemars(range(min = 0.0, max = 1.0))]
     pub fx_haircut_addon: f64,
 
     /// Concentration limit as fraction of total collateral (optional)
     ///
     /// E.g., 0.30 means max 30% of collateral can be this type.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "serde_validation::concentration_limit::deserialize",
+        serialize_with = "serde_validation::concentration_limit::serialize"
+    )]
+    #[schemars(range(min = 0.0, max = 1.0))]
     pub concentration_limit: Option<f64>,
 }
 
@@ -377,7 +408,13 @@ pub struct EligibleCollateralSchedule {
     /// Default haircut for unlisted collateral (if accepted)
     ///
     /// If None, only explicitly listed collateral types are accepted.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "serde_validation::default_haircut::deserialize",
+        serialize_with = "serde_validation::default_haircut::serialize"
+    )]
+    #[schemars(range(min = 0.0, max = 1.0))]
     pub default_haircut: Option<f64>,
 
     /// Whether rehypothecation of posted collateral is permitted

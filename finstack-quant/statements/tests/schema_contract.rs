@@ -1,0 +1,330 @@
+//! JSON Schema contract tests for statement model inputs and results.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::dates::PeriodId;
+use finstack_quant_core::money::Money;
+use finstack_quant_statements::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};
+use finstack_quant_statements::checks::{
+    CheckCategory, CheckFinding, CheckReport, CheckResult, CheckSummary, Materiality, Severity,
+};
+use finstack_quant_statements::evaluator::{EvalWarning, ResultsMeta, StatementResult};
+use finstack_quant_statements::schema::{
+    financial_model_spec_schema, generated_schema, statement_result_schema, STATEMENTS_SCHEMA_BASE,
+};
+use finstack_quant_statements::types::{NodeValueType, FINANCIAL_MODEL_CONTRACT};
+use finstack_quant_statements::FinancialModelSpec;
+use indexmap::IndexMap;
+use serde_json::{json, Value};
+
+const INSTRUMENT_JSON_REF: &str =
+    "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json#/$defs/InstrumentJson";
+const CANONICAL_DECIMAL_PATTERN: &str = r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$";
+
+fn validate_fixture(schema: &Value, fixture: &Value) {
+    let validator = jsonschema::validator_for(schema).expect("checked-in schema must compile");
+    let errors: Vec<_> = validator
+        .iter_errors(fixture)
+        .map(|error| error.to_string())
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "fixture failed schema validation: {errors:#?}"
+    );
+}
+
+fn collect_schema_files(directory: &Path, paths: &mut Vec<PathBuf>) {
+    let mut entries: Vec<_> = fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("read schema directory {}: {error}", directory.display()))
+        .map(|entry| {
+            entry
+                .unwrap_or_else(|error| {
+                    panic!("read schema entry in {}: {error}", directory.display())
+                })
+                .path()
+        })
+        .collect();
+    entries.sort();
+    for path in entries {
+        if path.is_dir() {
+            collect_schema_files(&path, paths);
+        } else if path.extension().and_then(|extension| extension.to_str()) == Some("json") {
+            paths.push(path);
+        }
+    }
+}
+
+fn external_schema_resources() -> Vec<(String, jsonschema::Resource)> {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let roots = [
+        manifest_dir.join("../cashflows/schemas/cashflow/1"),
+        manifest_dir.join("../valuations/schemas/common/1"),
+        manifest_dir.join("../valuations/schemas/instruments/1"),
+    ];
+    let mut paths = Vec::new();
+    for root in roots {
+        collect_schema_files(&root, &mut paths);
+    }
+    paths
+        .into_iter()
+        .map(|path| {
+            let raw = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read schema {}: {error}", path.display()));
+            let schema: Value = serde_json::from_str(&raw)
+                .unwrap_or_else(|error| panic!("parse schema {}: {error}", path.display()));
+            let id = schema
+                .get("$id")
+                .and_then(Value::as_str)
+                .unwrap_or_else(|| panic!("schema {} is missing $id", path.display()))
+                .to_string();
+            let resource = jsonschema::Resource::from_contents(schema)
+                .unwrap_or_else(|error| panic!("build resource {}: {error}", path.display()));
+            (id, resource)
+        })
+        .collect()
+}
+
+fn validate_model_fixture(fixture: &Value) -> Result<(), Vec<String>> {
+    let validator = jsonschema::options()
+        .with_resources(external_schema_resources().into_iter())
+        .build(financial_model_spec_schema().expect("financial model schema parses"))
+        .expect("financial model schema and external references compile");
+    let errors: Vec<_> = validator
+        .iter_errors(fixture)
+        .map(|error| error.to_string())
+        .collect();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn model_fixture_with_bond() -> Value {
+    let mut model: Value =
+        serde_json::from_str(include_str!("data/canonical/financial_model.json"))
+            .expect("canonical financial model fixture parses");
+    let bond_envelope: Value = serde_json::from_str(include_str!(
+        "../../valuations/tests/instruments/json_examples/bond.json"
+    ))
+    .expect("canonical bond fixture parses");
+    model["capital_structure"] = json!({
+        "debt_instruments": [{
+            "id": "US912828XG33",
+            "spec": bond_envelope["instrument"].clone()
+        }]
+    });
+    model
+}
+
+fn representative_statement_result() -> StatementResult {
+    let period = PeriodId::quarter(2025, 1);
+    let usd = Money::new(100_000.0, Currency::USD);
+    let mut result = StatementResult::default();
+    result
+        .nodes
+        .insert("revenue".to_string(), IndexMap::from([(period, 100_000.0)]));
+    result
+        .monetary_nodes
+        .insert("revenue".to_string(), IndexMap::from([(period, usd)]));
+    result.node_value_types.insert(
+        "revenue".to_string(),
+        NodeValueType::Monetary {
+            currency: Currency::USD,
+        },
+    );
+
+    let breakdown = CashflowBreakdown {
+        interest_expense_cash: Money::new(5_000.0, Currency::USD),
+        interest_income_cash: Some(Money::new(250.0, Currency::USD)),
+        interest_expense_pik: Money::new(500.0, Currency::USD),
+        principal_payment: Money::new(10_000.0, Currency::USD),
+        fees: Money::new(100.0, Currency::USD),
+        debt_balance: Money::new(990_000.0, Currency::USD),
+        accrued_interest: Money::new(1_000.0, Currency::USD),
+    };
+    let mut cashflows = CapitalStructureCashflows::new();
+    cashflows.by_instrument.insert(
+        "US912828XG33".to_string(),
+        IndexMap::from([(period, breakdown.clone())]),
+    );
+    cashflows.totals.insert(period, breakdown);
+    cashflows.reporting_currency = Some(Currency::USD);
+    cashflows
+        .equity_distribution
+        .insert(period, Money::new(25_000.0, Currency::USD));
+    result.cs_cashflows = Some(cashflows);
+
+    result.check_report = Some(CheckReport {
+        results: vec![CheckResult {
+            check_id: "balance-sheet".to_string(),
+            check_name: "Balance sheet balances".to_string(),
+            category: CheckCategory::AccountingIdentity,
+            passed: false,
+            findings: vec![CheckFinding {
+                check_id: "balance-sheet".to_string(),
+                severity: Severity::Warning,
+                message: "Assets differ from liabilities and equity".to_string(),
+                period: Some(period),
+                materiality: Some(Materiality {
+                    absolute: 100.0,
+                    relative_pct: 0.01,
+                    reference_value: 1_000_000.0,
+                    reference_label: "total_assets".to_string(),
+                }),
+                nodes: vec!["total_assets".into(), "total_liabilities".into()],
+            }],
+        }],
+        summary: CheckSummary {
+            total_checks: 1,
+            passed: 0,
+            failed: 1,
+            errors: 0,
+            warnings: 1,
+            infos: 0,
+        },
+    });
+    result.meta = ResultsMeta {
+        eval_time_ms: Some(3),
+        num_nodes: 1,
+        num_periods: 1,
+        parallel: false,
+        warnings: vec![EvalWarning::DivisionByZero {
+            node_id: "interest_coverage".to_string(),
+            period,
+        }],
+        ..ResultsMeta::default()
+    };
+    result
+}
+
+fn expected_schema<T: schemars::JsonSchema>(
+    filename: &str,
+    title: &str,
+    description: &str,
+) -> Value {
+    generated_schema::<T>(filename, title, description).expect("generated schema assembles")
+}
+
+#[test]
+fn root_types_generate_typed_schemas() {
+    let model = serde_json::to_value(schemars::schema_for!(FinancialModelSpec))
+        .expect("financial model schema serializes");
+    let result = serde_json::to_value(schemars::schema_for!(StatementResult))
+        .expect("statement result schema serializes");
+
+    assert_eq!(model["title"], "FinancialModelSpec");
+    assert_eq!(result["title"], "StatementResult");
+    assert!(model["properties"]["periods"]["items"].is_object());
+    assert!(result["properties"]["meta"].is_object());
+    assert_eq!(
+        model["$defs"]["DebtInstrumentSpec"]["properties"]["spec"]["$ref"],
+        INSTRUMENT_JSON_REF
+    );
+    assert_eq!(model["properties"]["schema_version"]["minimum"], 1);
+    assert_eq!(
+        model["properties"]["schema_version"]["maximum"],
+        FINANCIAL_MODEL_CONTRACT.current
+    );
+}
+
+#[test]
+fn checked_in_schemas_have_stable_metadata() {
+    let model = financial_model_spec_schema().expect("financial model schema parses");
+    let result = statement_result_schema().expect("statement result schema parses");
+
+    assert_eq!(
+        model["$id"],
+        format!("{STATEMENTS_SCHEMA_BASE}financial_model_spec.schema.json")
+    );
+    assert_eq!(
+        result["$id"],
+        format!("{STATEMENTS_SCHEMA_BASE}statement_result.schema.json")
+    );
+    assert_eq!(
+        model["$schema"],
+        "https://json-schema.org/draft/2020-12/schema"
+    );
+    assert_eq!(
+        result["$schema"],
+        "https://json-schema.org/draft/2020-12/schema"
+    );
+}
+
+#[test]
+fn checked_in_schemas_apply_canonical_decimal_and_date_normalization() {
+    let model = financial_model_spec_schema().expect("financial model schema parses");
+
+    assert_eq!(
+        model.pointer("/$defs/Money/properties/amount/pattern"),
+        Some(&json!(CANONICAL_DECIMAL_PATTERN))
+    );
+    assert_eq!(
+        model.pointer("/properties/periods/items/properties/start/format"),
+        Some(&json!("date"))
+    );
+}
+
+#[test]
+fn checked_in_schemas_match_generated_types() {
+    let expected_model = expected_schema::<FinancialModelSpec>(
+        "financial_model_spec.schema.json",
+        "FinancialModelSpec",
+        "Versioned financial statement model specification.",
+    );
+    let expected_result = expected_schema::<StatementResult>(
+        "statement_result.schema.json",
+        "StatementResult",
+        "Versioned financial statement evaluation result.",
+    );
+
+    assert_eq!(
+        financial_model_spec_schema().expect("financial model schema parses"),
+        &expected_model
+    );
+    assert_eq!(
+        statement_result_schema().expect("statement result schema parses"),
+        &expected_result
+    );
+}
+
+#[test]
+fn checked_in_schemas_validate_canonical_fixtures() {
+    let model_fixture = model_fixture_with_bond();
+    let result_fixture = serde_json::to_value(representative_statement_result())
+        .expect("representative result serializes");
+
+    validate_model_fixture(&model_fixture)
+        .unwrap_or_else(|errors| panic!("financial model fixture failed validation: {errors:#?}"));
+    validate_fixture(
+        statement_result_schema().expect("statement result schema parses"),
+        &result_fixture,
+    );
+    assert_eq!(result_fixture["schema_version"], 1);
+}
+
+#[test]
+fn financial_model_schema_rejects_invalid_versions_and_debt_specs() {
+    let mut fixture = model_fixture_with_bond();
+    fixture["schema_version"] = json!(0);
+    assert!(
+        validate_model_fixture(&fixture).is_err(),
+        "schema_version 0 must be rejected"
+    );
+
+    fixture["schema_version"] = json!(FINANCIAL_MODEL_CONTRACT.current + 1);
+    assert!(
+        validate_model_fixture(&fixture).is_err(),
+        "schema versions above the current version must be rejected"
+    );
+
+    fixture["schema_version"] = json!(FINANCIAL_MODEL_CONTRACT.current);
+    fixture["capital_structure"]["debt_instruments"][0]["spec"] =
+        json!({"type": "bond", "spec": {}});
+    assert!(
+        validate_model_fixture(&fixture).is_err(),
+        "typed debt instruments must satisfy the canonical instrument schema"
+    );
+}

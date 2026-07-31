@@ -7,27 +7,39 @@ Database schemas, SQL migrations, orchestration, and storage adapters belong to
 the external Scaffold project.
 
 Compatibility policy is defined in
-[`SERDE_STABILITY.md`](SERDE_STABILITY.md). Generated schemas are documentation
-and editor/validator inputs; strict Rust loaders remain authoritative because
-they also enforce resource limits and semantic invariants.
+[`SERDE_STABILITY.md`](SERDE_STABILITY.md). Checked-in generated schemas are the
+source-derived structural publication artifacts and are drift-checked against
+their Rust types. Strict Rust loaders remain authoritative for trusted ingress
+because they additionally enforce versions, resource limits, migrations, and
+semantic invariants.
 
 ## Checked-in contract matrix
 
-| Contract | Current marker | Supported input | Strict Rust entry point | Checked-in schema or fixture |
-|---|---|---|---|---|
-| Instrument | `finstack_quant.instrument/1` | v1 envelope only; compatibility APIs also accept bare tagged instruments | `InstrumentEnvelope::from_slice_strict` | [canonical v1 fixture](../finstack-quant/valuations/tests/data/canonical/instrument.json) |
-| Calibration request/result | `finstack_quant.calibration/3` | v3; exact unversioned legacy marker accepted with warning | `CalibrationEnvelope::from_slice_strict`, `CalibrationResultEnvelope::from_slice_strict` | [canonical v3 fixture](../finstack-quant/valuations/tests/data/canonical/calibration.json) |
-| Market context state | numeric `version = 2` | versions 1–2 | `MarketContext::from_state_slice` | [canonical v2 fixture](../finstack-quant/core/tests/data/canonical/market_context_state.json) |
-| Financial model | numeric `schema_version = 2` | versions 1–2; v1 upgrades during strict load | `FinancialModelSpec::from_slice_strict` | [canonical v2 fixture](../finstack-quant/statements/tests/data/canonical/financial_model.json) |
-| Scenario | `finstack_quant.scenario/1` | v1 envelope | `ScenarioEnvelope::from_slice_strict` | [canonical v1 fixture](../finstack-quant/scenarios/tests/data/canonical/scenario.json) |
-| Factor-model configuration | `finstack_quant.factor_model_config/1` | v1 envelope | `FactorModelConfigEnvelope::from_slice_strict` | [canonical fixture](../finstack-quant/factor-model/tests/data/canonical/factor_model_config.json) |
-| Credit factor model | `finstack_quant.credit_factor_model/1` in `schema_version` | v1 artifact | `CreditFactorModel::from_slice_strict` | [canonical v1 fixture](../finstack-quant/factor-model/tests/data/canonical/credit_factor_model.json) |
-| Portfolio materialization | `finstack_quant.portfolio_materialization/1` | v1 envelope | `Portfolio::from_materialization` | [canonical v1 fixture](../finstack-quant/portfolio/tests/data/canonical/portfolio_materialization.json) |
+| Contract | Current marker | Supported input | Strict Rust entry point | Schema status / artifact | Canonical fixture |
+|---|---|---|---|---|---|
+| Instrument | `finstack_quant.instrument/1` | v1 envelope only; compatibility APIs also accept bare tagged instruments | `InstrumentEnvelope::from_slice_strict` | generated + drift-checked: [instrument union and per-type schemas](../finstack-quant/valuations/schemas/instruments/1/) | [v1](../finstack-quant/valuations/tests/data/canonical/instrument.json) |
+| Calibration request | `finstack_quant.calibration/3` | v3; exact unversioned legacy marker accepted with warning | `CalibrationEnvelope::from_slice_strict` | generated + drift-checked: [v3 request schema](../finstack-quant/valuations/schemas/calibration/3/calibration.schema.json) | [v3](../finstack-quant/valuations/tests/data/canonical/calibration.json) |
+| Calibration result | `finstack_quant.calibration/3` | v3; exact unversioned legacy marker accepted with warning | `CalibrationResultEnvelope::from_slice_strict` | derived but no standalone artifact | none |
+| Market context state | numeric `version = 2` | versions 1–2 | `MarketContext::from_state_slice` | derived but no standalone artifact; typed where embedded, including the [attribution schema](../finstack-quant/attribution/schemas/attribution/1/attribution.schema.json) | [v2](../finstack-quant/core/tests/data/canonical/market_context_state.json) |
+| Financial model | numeric `schema_version = 2` | versions 1–2; v1 upgrades during strict load | `FinancialModelSpec::from_slice_strict` | generated + drift-checked: [financial model schema](../finstack-quant/statements/schemas/statements/1/financial_model_spec.schema.json) | [v2](../finstack-quant/statements/tests/data/canonical/financial_model.json) |
+| Scenario | `finstack_quant.scenario/1` | v1 envelope | `ScenarioEnvelope::from_slice_strict` | generated + drift-checked: [scenario schema](../finstack-quant/scenarios/schemas/scenarios/1/scenario.schema.json) | [v1](../finstack-quant/scenarios/tests/data/canonical/scenario.json) |
+| Factor-model configuration | `finstack_quant.factor_model_config/1` | v1 envelope | `FactorModelConfigEnvelope::from_slice_strict` | generated + drift-checked: [factor-model configuration schema](../finstack-quant/factor-model/schemas/factor_model/1/factor_model_config.schema.json) | [v1](../finstack-quant/factor-model/tests/data/canonical/factor_model_config.json) |
+| Credit factor model | `finstack_quant.credit_factor_model/1` in `schema_version` | v1 artifact | `CreditFactorModel::from_slice_strict` | generated + drift-checked: [credit factor model schema](../finstack-quant/factor-model/schemas/factor_model/1/credit_factor_model.schema.json) | [v1](../finstack-quant/factor-model/tests/data/canonical/credit_factor_model.json) |
+| Portfolio materialization | `finstack_quant.portfolio_materialization/1` | v1 envelope | `Portfolio::from_materialization` | generated + drift-checked: [portfolio materialization schema](../finstack-quant/portfolio/schemas/portfolio/1/portfolio_materialization.schema.json) | [v1](../finstack-quant/portfolio/tests/data/canonical/portfolio_materialization.json) |
 
-Versioned result outputs remain consumer-checked contracts:
-`ValuationResult`, `StatementResult`, `PortfolioResult`, and
-`PortfolioOptimizationResult` are version 1. See the maintained result matrix
-in [`SERDE_STABILITY.md`](SERDE_STABILITY.md#maintained-contract-matrix).
+### Consumer-checked versioned result outputs
+
+These outputs remain consumer-checked contracts:
+
+| Result output | Current marker | Read contract | Schema status / artifact |
+|---|---|---|---|
+| `ValuationResult` | numeric `schema_version = 1` | ordinary serde defaults a missing marker to 1 | generated + drift-checked: [valuation result schema](../finstack-quant/valuations/schemas/results/1/valuation_result.schema.json) |
+| `StatementResult` | numeric `schema_version = 1` | ordinary serde defaults a missing marker to 1 | generated + drift-checked: [statement result schema](../finstack-quant/statements/schemas/statements/1/statement_result.schema.json) |
+| `PortfolioResult` | numeric `schema_version = 1` | ordinary serde defaults a missing marker to 1 | derived but no standalone artifact |
+| `PortfolioOptimizationResult` | numeric `schema_version = 1` | serialize-only; no general deserializer | serialize-only; manual `JsonSchema` implementation; no standalone artifact |
+
+See the compatibility details in the
+[consumer-checked versioned result matrix](SERDE_STABILITY.md#consumer-checked-versioned-result-outputs).
 
 Strict loaders reject missing, malformed, zero, unrelated, and future markers.
 They enforce [`LoadLimits`](../finstack-quant/core/src/contract/limits.rs) and
@@ -35,6 +47,24 @@ return bounded
 [`ValidationReport`](../finstack-quant/core/src/contract/diagnostics.rs)
 findings. Raw serde is a compatibility mechanism, not a database trust
 boundary.
+
+### Generated serde contracts without bounded loaders
+
+`AttributionEnvelope` and `AttributionResultEnvelope` both require the exact
+`finstack_quant.attribution/1` marker during ordinary serde deserialization;
+missing and mismatched markers fail. Their generated request and result schemas
+use the same marker constant. They do not currently provide a separate bounded
+strict loader, so callers handling untrusted bytes must impose their own input
+limits before deserialization.
+
+The [margin schema](../finstack-quant/margin/schemas/margin/1/margin.schema.json)
+is a synthetic `oneOf` bundle for `OtcMarginSpec`, `CsaSpec`, and `MarginCall`.
+There is no corresponding margin envelope type or strict root loader. The
+schema's MPOR, maturity, haircut, concentration, default-haircut, and
+notification-hour constraints are enforced by the nested Rust types during
+ordinary serde serialization and deserialization. This prevents public struct
+literals and permissive constructors from emitting JSON that those same types
+cannot read back.
 
 ## Migration recipes
 
@@ -267,15 +297,16 @@ Max (18 physical/logical cores), rustc 1.91.1, CPython 3.12.13, and Node
 fixture digests, and commands are source-backed by the machine record linked
 above.
 
-## Known MarketContextState schema limitation
+## MarketContextState schema publication
 
-`MarketContextState` has a strict bounded loader, reference validation,
-canonical hashing, and canonical fixtures, but it does not yet have a useful
-full JSON Schema. Eleven curve/surface/hierarchy fields use
-`schemars(with = "serde_json::Value")`; generating a nominal schema today would
-hide the actual nested contracts. Full schema publication is deferred until
-those curve and surface types have real `JsonSchema` implementations. This does
-not weaken runtime strict loading or hashing.
+`MarketContextState` schema derivation is complete (`JsonSchema`), but no
+standalone file is maintained. Generated contracts that embed the type
+directly, including the
+[attribution request schema](../finstack-quant/attribution/schemas/attribution/1/attribution.schema.json),
+publish its typed curve, FX, scalar, time-series, surface, dividend,
+credit-index, volatility-cube, and hierarchy fields. The strict bounded loader
+remains authoritative for semantic checks, cross-references, resource limits,
+and supported-version handling that JSON Schema cannot express.
 
 ## Scaffold and PRD supersession
 
@@ -303,11 +334,20 @@ Run:
 
 ```bash
 mise run rust-gen-schemas
+mise run rust-check-schemas
 mise run wasm-gen-bindings
 mise run gen-check
 ```
 
-`gen-check` regenerates schemas and TypeScript artifacts and compares a
-content/path digest before and after generation. It therefore detects
+`rust-check-schemas` runs the public serde/`JsonSchema` audit and focused schema
+parity suites for cashflows, portfolio materialization, margin, attribution,
+statements, scenarios, factor-model, and valuations. `rust-gen-schemas`
+registers the owning generators, including the factor-model, scenarios, and
+statements trees; factor-model schemas are owned by
+[`factor-model/schemas`](../finstack-quant/factor-model/schemas/), not
+`valuations`.
+
+`gen-check` regenerates schemas and TypeScript artifacts and compares the
+manifested content/path digest before and after generation. It detects
 second-run drift without mistaking intended uncommitted generated outputs for
 drift. CI runs the same task.

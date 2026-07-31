@@ -740,7 +740,6 @@ mod generated_schema_contract {
             let schema = read_schema(&path);
             if schema.pointer("/properties/schema_version").is_some()
                 && !path.ends_with("results/1/valuation_result.schema.json")
-                && !path.ends_with("factor_model/1/credit_factor_model.schema.json")
             {
                 public_schema_version_paths.push(path.display().to_string());
             }
@@ -824,14 +823,12 @@ mod generated_schema_contract {
 }
 
 mod instrument_schema_drift {
+    use finstack_quant_core::schema::postprocess_schema;
     use finstack_quant_valuations::instruments::*;
     use schemars::JsonSchema;
     use serde_json::{Map, Value};
-    use std::collections::BTreeSet;
     use std::path::Path;
 
-    const DECIMAL_PATTERN: &str = r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$";
-    const SCHEMARS_DECIMAL_PATTERN: &str = r"^-?\d+(\.\d+)?([eE]\d+)?$";
     const COMMON_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/common/1/";
 
     fn common_schema_filename(def_name: &str) -> Option<&'static str> {
@@ -857,228 +854,52 @@ mod instrument_schema_drift {
             .or_else(|| finstack_quant_cashflows::schema::definition_uri(def_name))
     }
 
-    fn is_externalized_def(def_name: &str) -> bool {
-        common_schema_filename(def_name).is_some()
-            || finstack_quant_cashflows::schema::definition_uri(def_name).is_some()
-    }
-
-    fn is_date_like_property(name: &str) -> bool {
-        name == "date"
-            || name.ends_with("_date")
-            || name == "maturity"
-            || name.ends_with("_maturity")
-            || name == "expiry"
-            || name.ends_with("_expiry")
-    }
-
-    fn schema_accepts_string(value: &Value) -> bool {
-        match value.get("type") {
-            Some(Value::String(schema_type)) => schema_type == "string",
-            Some(Value::Array(schema_types)) => schema_types.iter().any(|schema_type| {
-                schema_type
-                    .as_str()
-                    .is_some_and(|schema_type| schema_type == "string")
-            }),
-            _ => false,
-        }
-    }
-
-    fn normalize_decimal_patterns(value: &mut Value) {
-        match value {
-            Value::Object(map) => {
-                let accepts_string = match map.get("type") {
-                    Some(Value::String(schema_type)) => schema_type == "string",
-                    Some(Value::Array(schema_types)) => schema_types.iter().any(|schema_type| {
-                        schema_type
-                            .as_str()
-                            .is_some_and(|schema_type| schema_type == "string")
-                    }),
-                    _ => false,
-                };
-                if accepts_string
-                    && map
-                        .get("pattern")
-                        .and_then(Value::as_str)
-                        .is_some_and(|pattern| pattern == SCHEMARS_DECIMAL_PATTERN)
-                {
-                    map.insert(
-                        "pattern".to_string(),
-                        Value::String(DECIMAL_PATTERN.to_string()),
-                    );
-                }
-
-                for child in map.values_mut() {
-                    normalize_decimal_patterns(child);
-                }
-            }
-            Value::Array(items) => {
-                for child in items {
-                    normalize_decimal_patterns(child);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn annotate_date_formats(value: &mut Value) {
-        match value {
-            Value::Object(map) => {
-                if let Some(properties) = map.get_mut("properties").and_then(Value::as_object_mut) {
-                    for (property, schema) in properties {
-                        if is_date_like_property(property) && schema_accepts_string(schema) {
-                            if let Some(schema_obj) = schema.as_object_mut() {
-                                schema_obj
-                                    .entry("format".to_string())
-                                    .or_insert_with(|| Value::String("date".to_string()));
-                            }
-                        }
-                        annotate_date_formats(schema);
-                    }
-                }
-
-                for (key, child) in map {
-                    if key != "properties" {
-                        annotate_date_formats(child);
-                    }
-                }
-            }
-            Value::Array(items) => {
-                for child in items {
-                    annotate_date_formats(child);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn rewrite_common_refs(value: &mut Value) {
-        match value {
-            Value::Object(map) => {
-                let replacement = map
-                    .get("$ref")
-                    .and_then(Value::as_str)
-                    .and_then(|reference| reference.strip_prefix("#/$defs/"))
-                    .and_then(external_schema_ref);
-                if let Some(external_ref) = replacement {
-                    if let Some(reference) = map.get_mut("$ref") {
-                        *reference = Value::String(external_ref);
-                    }
-                }
-
-                for child in map.values_mut() {
-                    rewrite_common_refs(child);
-                }
-            }
-            Value::Array(items) => {
-                for child in items {
-                    rewrite_common_refs(child);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn json_pointer_unescape(segment: &str) -> String {
-        segment.replace("~1", "/").replace("~0", "~")
-    }
-
-    fn collect_local_def_refs(value: &Value, out: &mut BTreeSet<String>) {
-        match value {
-            Value::Object(map) => {
-                if let Some(reference) = map.get("$ref").and_then(Value::as_str) {
-                    if let Some(rest) = reference.strip_prefix("#/$defs/") {
-                        if let Some(segment) = rest.split('/').next() {
-                            out.insert(json_pointer_unescape(segment));
-                        }
-                    }
-                }
-                for child in map.values() {
-                    collect_local_def_refs(child, out);
-                }
-            }
-            Value::Array(items) => {
-                for child in items {
-                    collect_local_def_refs(child, out);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn prune_common_defs(value: &mut Value) {
-        if let Some(defs) = value.get_mut("$defs").and_then(Value::as_object_mut) {
-            defs.retain(|def_name, _| !is_externalized_def(def_name));
-            if defs.is_empty() {
-                if let Some(obj) = value.as_object_mut() {
-                    obj.remove("$defs");
-                }
-            }
-        }
-    }
-
-    fn prune_unreachable_defs(value: &mut Value) {
-        let Some(defs) = value.get("$defs").and_then(Value::as_object) else {
-            return;
-        };
-
-        let mut root = value.clone();
-        if let Some(root_obj) = root.as_object_mut() {
-            root_obj.remove("$defs");
-        }
-
-        let mut discovered = BTreeSet::new();
-        collect_local_def_refs(&root, &mut discovered);
-
-        let mut reachable = BTreeSet::new();
-        while let Some(next) = discovered.iter().next().cloned() {
-            discovered.remove(&next);
-            if !reachable.insert(next.clone()) {
-                continue;
-            }
-            if let Some(definition) = defs.get(&next) {
-                collect_local_def_refs(definition, &mut discovered);
-            }
-        }
-
-        if let Some(defs) = value.get_mut("$defs").and_then(Value::as_object_mut) {
-            defs.retain(|def_name, _| reachable.contains(def_name));
-            if defs.is_empty() {
-                if let Some(obj) = value.as_object_mut() {
-                    obj.remove("$defs");
-                }
-            }
-        }
-    }
-
-    fn postprocess_schema(value: &mut Value) {
-        normalize_decimal_patterns(value);
-        annotate_date_formats(value);
-        rewrite_common_refs(value);
-        prune_common_defs(value);
-        prune_unreachable_defs(value);
-    }
-
-    fn checked_in_spec(category: &str, name: &str) -> Value {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+    fn schema_path(category: &str, name: &str) -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("schemas")
             .join("instruments")
             .join("1")
             .join(category)
-            .join(format!("{name}.schema.json"));
-        let content = std::fs::read_to_string(&path)
-            .unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
-        let schema: Value = serde_json::from_str(&content)
-            .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()));
-        schema
-            .pointer("/properties/instrument/properties/spec")
-            .unwrap_or_else(|| panic!("{} missing instrument spec schema", path.display()))
-            .clone()
+            .join(format!("{name}.schema.json"))
     }
 
-    fn generated_spec<T: JsonSchema>() -> Value {
+    fn checked_in_schema(category: &str, name: &str) -> Value {
+        let path = schema_path(category, name);
+        let content = std::fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+        serde_json::from_str(&content)
+            .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
+    }
+
+    fn checked_in_generated_content(category: &str, name: &str) -> Value {
+        let schema = checked_in_schema(category, name);
+        let mut content = Map::new();
+        if let Some(defs) = schema.get("$defs") {
+            content.insert("$defs".to_string(), defs.clone());
+        }
+        content.insert(
+            "spec".to_string(),
+            schema
+                .pointer("/properties/instrument/properties/spec")
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{} missing instrument spec schema",
+                        schema_path(category, name).display()
+                    )
+                })
+                .clone(),
+        );
+        Value::Object(content)
+    }
+
+    fn generated_content<T: JsonSchema>() -> Value {
         let schema = schemars::schema_for!(T);
         let mut generated = serde_json::to_value(schema).expect("serialize generated schema");
-        postprocess_schema(&mut generated);
+        postprocess_schema(&mut generated, external_schema_ref);
+        let mut content = Map::new();
+        if let Some(defs) = generated.get("$defs") {
+            content.insert("$defs".to_string(), defs.clone());
+        }
         let mut spec = Map::new();
         for key in [
             "properties",
@@ -1094,15 +915,86 @@ mod instrument_schema_drift {
                 spec.insert(key.to_string(), value.clone());
             }
         }
-        Value::Object(spec)
+        content.insert("spec".to_string(), Value::Object(spec));
+        Value::Object(content)
     }
 
     fn assert_instrument_schema_current<T: JsonSchema>(category: &str, name: &str) {
         assert_eq!(
-            checked_in_spec(category, name),
-            generated_spec::<T>(),
+            checked_in_generated_content(category, name),
+            generated_content::<T>(),
             "{category} schema {name}.schema.json is stale; run `cargo run -p finstack-quant-valuations --bin gen_schemas`"
         );
+    }
+
+    fn assert_f64(schema: &Value, path: &str, expected: f64, context: &str) {
+        assert_eq!(
+            schema.pointer(path).and_then(Value::as_f64),
+            Some(expected),
+            "{context}: expected {path} to equal {expected}"
+        );
+    }
+
+    fn assert_margin_metadata(schema: &Value, context: &str, has_csa_fields: bool) {
+        let asset_class = schema
+            .pointer("/$defs/CollateralAssetClass")
+            .unwrap_or_else(|| panic!("{context}: missing CollateralAssetClass"));
+        assert!(
+            asset_class["description"]
+                .as_str()
+                .is_some_and(|description| description.contains("Custom values are also accepted")),
+            "{context}: CollateralAssetClass must document custom values"
+        );
+        assert_eq!(
+            asset_class["examples"],
+            serde_json::json!(["cash", "government_bonds", "custom_collateral"]),
+            "{context}: CollateralAssetClass examples changed"
+        );
+
+        for field in ["concentration_limit", "fx_haircut_addon", "haircut"] {
+            let base = format!("/$defs/CollateralEligibility/properties/{field}");
+            assert_f64(schema, &format!("{base}/minimum"), 0.0, context);
+            assert_f64(schema, &format!("{base}/maximum"), 1.0, context);
+        }
+        assert_f64(
+            schema,
+            "/$defs/EligibleCollateralSchedule/properties/default_haircut/minimum",
+            0.0,
+            context,
+        );
+        assert_f64(
+            schema,
+            "/$defs/EligibleCollateralSchedule/properties/default_haircut/maximum",
+            1.0,
+            context,
+        );
+        for field in ["min_remaining_years", "max_remaining_years"] {
+            assert_f64(
+                schema,
+                &format!("/$defs/MaturityConstraints/properties/{field}/minimum"),
+                0.0,
+                context,
+            );
+        }
+
+        if has_csa_fields {
+            assert_eq!(
+                schema
+                    .pointer("/$defs/ImParameters/properties/mpor_days/minimum")
+                    .and_then(Value::as_u64),
+                Some(1),
+                "{context}: IM MPOR must be at least one day"
+            );
+            assert_eq!(
+                schema
+                    .pointer(
+                        "/$defs/MarginCallTiming/properties/notification_deadline_hours/maximum",
+                    )
+                    .and_then(Value::as_u64),
+                Some(23),
+                "{context}: notification deadline must be a valid hour"
+            );
+        }
     }
 
     #[test]
@@ -1210,5 +1102,22 @@ mod instrument_schema_drift {
         assert_instrument_schema_current::<BarrierOption>("exotics", "barrier_option");
         assert_instrument_schema_current::<LookbackOption>("exotics", "lookback_option");
         assert_instrument_schema_current::<Basket>("exotics", "basket");
+    }
+
+    #[test]
+    fn intended_margin_metadata_is_frozen_in_affected_instrument_schemas() {
+        for (category, name, has_csa_fields) in [
+            ("credit_derivatives", "cds_index", true),
+            ("credit_derivatives", "credit_default_swap", true),
+            ("equity", "levered_real_estate_equity", true),
+            ("equity", "trs_equity", true),
+            ("fixed_income", "structured_credit", true),
+            ("fixed_income", "trs_fixed_income_index", true),
+            ("rates", "interest_rate_swap", true),
+            ("rates", "repo", false),
+        ] {
+            let schema = checked_in_schema(category, name);
+            assert_margin_metadata(&schema, &format!("{category}/{name}"), has_csa_fields);
+        }
     }
 }

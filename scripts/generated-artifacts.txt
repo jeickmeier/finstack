@@ -66,6 +66,8 @@ finstack-quant-wasm/types/generated/VolSurfaceParams.ts
 finstack-quant-wasm/types/generated/XccyBasisParams.ts
 finstack-quant-wasm/types/generated/XccyQuote.ts
 finstack-quant-wasm/types/generated/index.ts
+finstack-quant/attribution/schemas/attribution/1/attribution.schema.json
+finstack-quant/attribution/schemas/attribution/1/attribution_result.schema.json
 finstack-quant/cashflows/schemas/cashflow/1/amortization_spec.schema.json
 finstack-quant/cashflows/schemas/cashflow/1/coupon_specs.schema.json
 finstack-quant/cashflows/schemas/cashflow/1/default_model_spec.schema.json
@@ -73,7 +75,15 @@ finstack-quant/cashflows/schemas/cashflow/1/fee_specs.schema.json
 finstack-quant/cashflows/schemas/cashflow/1/prepayment_model_spec.schema.json
 finstack-quant/cashflows/schemas/cashflow/1/recovery_model_spec.schema.json
 finstack-quant/cashflows/schemas/cashflow/1/schedule_params.schema.json
+finstack-quant/factor-model/schemas/factor_model/1/credit_calibration_config.schema.json
+finstack-quant/factor-model/schemas/factor_model/1/credit_calibration_inputs.schema.json
+finstack-quant/factor-model/schemas/factor_model/1/credit_factor_model.schema.json
+finstack-quant/factor-model/schemas/factor_model/1/factor_model_config.schema.json
+finstack-quant/margin/schemas/margin/1/margin.schema.json
 finstack-quant/portfolio/schemas/portfolio/1/portfolio_materialization.schema.json
+finstack-quant/scenarios/schemas/scenarios/1/scenario.schema.json
+finstack-quant/statements/schemas/statements/1/financial_model_spec.schema.json
+finstack-quant/statements/schemas/statements/1/statement_result.schema.json
 finstack-quant/valuations/schemas/README.md
 finstack-quant/valuations/schemas/calibration/2/calibration.schema.json
 finstack-quant/valuations/schemas/calibration/2/examples/discount_curve_simple.json
@@ -92,9 +102,6 @@ finstack-quant/valuations/schemas/common/1/money.schema.json
 finstack-quant/valuations/schemas/common/1/pricing_overrides.schema.json
 finstack-quant/valuations/schemas/common/1/tenor.schema.json
 finstack-quant/valuations/schemas/common/1/validation_report.schema.json
-finstack-quant/valuations/schemas/factor_model/1/credit_calibration_config.schema.json
-finstack-quant/valuations/schemas/factor_model/1/credit_calibration_inputs.schema.json
-finstack-quant/valuations/schemas/factor_model/1/credit_factor_model.schema.json
 finstack-quant/valuations/schemas/instruments/1/commodity/commodity_asian_option.schema.json
 finstack-quant/valuations/schemas/instruments/1/commodity/commodity_forward.schema.json
 finstack-quant/valuations/schemas/instruments/1/commodity/commodity_option.schema.json

@@ -118,7 +118,7 @@ pub struct VolCube {
 // ---------------------------------------------------------------------------
 
 /// Raw serializable state of a VolCube.
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawVolCube {
     pub id: String,
@@ -128,6 +128,16 @@ struct RawVolCube {
     pub forwards: Vec<f64>,
     #[serde(default)]
     pub interpolation_mode: VolInterpolationMode,
+}
+
+impl schemars::JsonSchema for VolCube {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "VolCube".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <RawVolCube as schemars::JsonSchema>::json_schema(generator)
+    }
 }
 
 impl From<VolCube> for RawVolCube {

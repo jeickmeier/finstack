@@ -8,11 +8,12 @@ use crate::position::Position;
 use crate::types::{Entity, PositionId};
 use finstack_quant_core::config::ResultsMeta;
 use indexmap::IndexMap;
+use schemars::JsonSchema;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
 
 /// Status of an optimization run.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum OptimizationStatus {
     /// Found optimal solution.
     Optimal,
@@ -50,7 +51,7 @@ impl OptimizationStatus {
 }
 
 /// Direction of a trade.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum TradeDirection {
     /// Buy more of the instrument (increase exposure).
     Buy,
@@ -61,7 +62,7 @@ pub enum TradeDirection {
 }
 
 /// Whether a trade is for an existing position or a new candidate.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum TradeType {
     /// Adjusting an existing portfolio position.
     Existing,
@@ -72,7 +73,7 @@ pub enum TradeType {
 }
 
 /// Trade specification for a single position.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct TradeSpec {
     /// Position identifier in the optimized portfolio.
     pub position_id: PositionId,
@@ -335,6 +336,15 @@ impl PortfolioOptimizationResult {
 /// Wire-format schema version for serialized `PortfolioOptimizationResult`.
 pub const PORTFOLIO_OPTIMIZATION_RESULT_SCHEMA_VERSION: u32 = 1;
 
+fn portfolio_optimization_result_schema_marker(
+    _: &mut schemars::SchemaGenerator,
+) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "integer",
+        "const": PORTFOLIO_OPTIMIZATION_RESULT_SCHEMA_VERSION,
+    })
+}
+
 impl Serialize for PortfolioOptimizationResult {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let binding_constraints: Vec<String> = self
@@ -363,5 +373,37 @@ impl Serialize for PortfolioOptimizationResult {
         st.serialize_field("binding_constraints", &binding_constraints)?;
         st.serialize_field("label", &self.problem.label)?;
         st.end()
+    }
+}
+
+impl JsonSchema for PortfolioOptimizationResult {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("PortfolioOptimizationResult")
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct PortfolioOptimizationResultWire {
+            #[schemars(schema_with = "portfolio_optimization_result_schema_marker")]
+            schema_version: u32,
+            status: OptimizationStatus,
+            status_label: String,
+            is_feasible: bool,
+            objective_value: f64,
+            turnover: f64,
+            optimal_weights: IndexMap<PositionId, f64>,
+            current_weights: IndexMap<PositionId, f64>,
+            weight_deltas: IndexMap<PositionId, f64>,
+            implied_quantities: IndexMap<PositionId, f64>,
+            metric_values: IndexMap<String, f64>,
+            trades: Vec<TradeSpec>,
+            dual_values: IndexMap<String, f64>,
+            constraint_slacks: IndexMap<String, f64>,
+            binding_constraints: Vec<String>,
+            label: String,
+        }
+
+        <PortfolioOptimizationResultWire as JsonSchema>::json_schema(generator)
     }
 }

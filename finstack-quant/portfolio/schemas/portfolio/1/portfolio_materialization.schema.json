@@ -849,6 +849,7 @@
           "description": "Optional producer dependency claim, checked against runtime extraction."
         },
         "envelope": {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
           "description": "Full strict [`finstack_quant_valuations::instruments::InstrumentEnvelope`]\nJSON retained without constructing a duplicate generic JSON tree during\nthe outer bundle parse."
         }
       },
@@ -1029,6 +1030,7 @@
       "properties": {
         "as_of": {
           "description": "Valuation date for the materialized portfolio.",
+          "format": "date",
           "type": "string"
         },
         "base_ccy": {

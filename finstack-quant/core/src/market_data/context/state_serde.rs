@@ -44,7 +44,7 @@ macro_rules! define_curve_state {
         /// Serializable state representation for any curve type.
         ///
         /// Produced when persisting market data snapshots through serde.
-        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
         #[serde(tag = "type", rename_all = "snake_case")]
         pub enum CurveState {
             $(
@@ -121,7 +121,7 @@ impl<'de> serde::Deserialize<'de> for CurveStorage {
 ///
 /// Instead of serializing `Arc<Curve>` directly, we store curve IDs that
 /// reference curves present in the `MarketContextState`.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreditIndexState {
     /// Unique identifier for this credit index
@@ -175,42 +175,31 @@ pub struct MarketContextState {
     #[serde(default = "legacy_market_context_state_version")]
     pub version: u32,
     /// All curves (discount, forward, hazard, inflation, base correlation)
-    #[schemars(with = "serde_json::Value")]
     pub curves: Vec<CurveState>,
     /// FX matrix state (optional)
-    #[schemars(with = "serde_json::Value")]
     pub fx: Option<FxMatrixState>,
     /// Volatility surfaces
-    #[schemars(with = "serde_json::Value")]
     pub surfaces: Vec<VolSurface>,
     /// Market scalars and prices
-    #[schemars(with = "serde_json::Value")]
     pub prices: std::collections::BTreeMap<String, MarketScalar>,
     /// Generic time series
-    #[schemars(with = "serde_json::Value")]
     pub series: Vec<ScalarTimeSeries>,
     /// Inflation indices
-    #[schemars(with = "serde_json::Value")]
     pub inflation_indices: Vec<InflationIndex>,
     /// Dividend schedules
-    #[schemars(with = "serde_json::Value")]
     pub dividends: Vec<DividendSchedule>,
     /// Credit index aggregates (references curves by ID)
-    #[schemars(with = "serde_json::Value")]
     pub credit_indices: Vec<CreditIndexState>,
     /// FX delta-quoted volatility surfaces
     #[serde(default)]
-    #[schemars(with = "serde_json::Value")]
     pub fx_delta_vol_surfaces: Vec<FxDeltaVolSurface>,
     /// SABR volatility cubes
     #[serde(default)]
-    #[schemars(with = "serde_json::Value")]
     pub vol_cubes: Vec<VolCube>,
     /// Collateral CSA mappings
     pub collateral: std::collections::BTreeMap<String, String>,
     /// Optional market data hierarchy snapshot.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "serde_json::Value")]
     pub hierarchy: Option<MarketDataHierarchy>,
 }
 

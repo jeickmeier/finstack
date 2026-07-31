@@ -135,12 +135,13 @@ description = "Run Rust tests via cargo-nextest"
 run = "cargo nextest run --workspace --exclude finstack-quant-py --lib --test '*' --no-fail-fast"
 
 [tasks.rust-doc]
-description = "Build workspace docs, enforce input docs, and run core doctests"
+description = "Build workspace docs, enforce input docs, and run contract doctests"
 run = [
   "RUSTDOCFLAGS='-D warnings' cargo doc --workspace --exclude finstack-quant-py --exclude finstack-quant-wasm --no-deps",
   "uv run python scripts/check_public_api_input_docs.py",
   "uv run python scripts/check_deprecated_annotations.py",
   "cargo test -p finstack-quant-core --doc",
+  "cargo test -p finstack-quant-portfolio --doc",
 ]
 
 [tasks.rust-test-slow]
@@ -442,19 +443,39 @@ run = "uv run maturin build --release --find-interpreter -o target/wheels"
 # Schemas
 # ─────────────────────────────────────────────────────────────────
 
+[tasks.rust-serde-audit]
+description = "Audit public Rust contract types for serde and JsonSchema coverage"
+run = [
+  "uv run pytest scripts/tests/test_serde_audit.py -q",
+  "uv run python scripts/serde_audit.py --check",
+]
+
 [tasks.rust-check-schemas]
 description = "Verify JSON schemas match Rust types"
 run = [
+  "mise run rust-serde-audit",
   "uv run python scripts/sync_instrument_schema_overrides.py",
-  "cargo nextest run -p finstack-quant-valuations schema_parity --no-fail-fast",
-  "cargo test -p finstack-quant-valuations test_instrument_schema_enum_parity --no-fail-fast",
+  "cargo test -p finstack-quant-cashflows --test cashflows schema_roundtrip:: --no-fail-fast",
+  "cargo test -p finstack-quant-portfolio --test materialization_schema --no-fail-fast",
+  "cargo test -p finstack-quant-margin --test schema_parity --no-fail-fast",
+  "cargo test -p finstack-quant-attribution --test attribution attribution::schema_contract:: --no-fail-fast",
+  "cargo test -p finstack-quant-statements --test schema_contract --no-fail-fast",
+  "cargo test -p finstack-quant-scenarios --test schema_contract --no-fail-fast",
+  "cargo test -p finstack-quant-factor-model --test schema_contract --no-fail-fast",
+  "cargo test -p finstack-quant-valuations --test integration schema_parity --no-fail-fast",
+  "cargo test -p finstack-quant-valuations --lib test_instrument_schema_union_parity --no-fail-fast",
   "cargo test -p finstack-quant-valuations --test schema_audit --no-fail-fast",
 ]
 
 [tasks.rust-gen-schemas]
 description = "Regenerate typed JSON schemas from Rust types"
 run = [
+  "cargo run -p finstack-quant-attribution --bin gen_attribution_schemas",
   "cargo run -p finstack-quant-cashflows --bin gen_cashflow_schemas",
+  "cargo run -p finstack-quant-factor-model --bin gen_factor_model_schemas",
+  "cargo run -p finstack-quant-margin --bin gen_margin_schema",
+  "cargo run -p finstack-quant-scenarios --bin gen_scenario_schemas",
+  "cargo run -p finstack-quant-statements --bin gen_statement_schemas",
   "cargo run -p finstack-quant-valuations --bin gen_schemas",
   "cargo run -p finstack-quant-portfolio --bin gen_materialization_schemas",
   "uv run python scripts/sync_instrument_schema_overrides.py",
@@ -468,6 +489,7 @@ run = "uv run python scripts/sync_instrument_schema_overrides.py"
 description = "Regenerate schemas and bindings; fail on second-run drift"
 run = """
 set -eu
+mise run rust-serde-audit
 uv run --no-sync python scripts/generation_digest.py --check-manifest
 before_digest=$(uv run --no-sync python scripts/generation_digest.py)
 mise run rust-gen-schemas

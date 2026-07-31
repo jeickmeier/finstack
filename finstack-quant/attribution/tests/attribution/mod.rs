@@ -23,6 +23,7 @@ mod convertible_attribution;
 mod coverage_gaps;
 mod credit_factor_linear;
 mod credit_factor_waterfall_parallel;
+mod credit_schema_compatibility;
 mod dump_baseline;
 mod factors_snapshot;
 mod fx_attribution;

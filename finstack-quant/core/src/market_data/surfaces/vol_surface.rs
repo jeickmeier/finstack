@@ -75,7 +75,9 @@ use crate::{
 /// workflows materialize ATM matrices on `expiry × tenor`. Keeping the axis type
 /// explicit prevents consumers from accidentally interpreting tenor buckets as
 /// strikes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum VolSurfaceAxis {
@@ -105,7 +107,17 @@ impl std::fmt::Display for VolSurfaceAxis {
 /// Black), so misreading one as the other silently mis-prices. Tagging the
 /// quote type lets consumers enforce their convention via
 /// [`VolSurface::require_quote_type`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+    Default,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum VolQuoteType {
     /// Black (lognormal) implied volatility, relative units (the default).
@@ -125,7 +137,17 @@ impl std::fmt::Display for VolQuoteType {
 }
 
 /// Interpolation contract for vol surfaces.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum VolInterpolationMode {
     /// Interpolate implied volatility directly (the default).
@@ -173,7 +195,7 @@ pub struct VolSurface {
 }
 
 /// Raw serializable state of a VolSurface
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawVolSurface {
     /// Surface identifier
@@ -193,6 +215,16 @@ struct RawVolSurface {
     pub interpolation_mode: VolInterpolationMode,
     /// Volatility values in row-major order
     pub vols_row_major: Vec<f64>,
+}
+
+impl schemars::JsonSchema for VolSurface {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "VolSurface".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <RawVolSurface as schemars::JsonSchema>::json_schema(generator)
+    }
 }
 
 impl From<VolSurface> for RawVolSurface {

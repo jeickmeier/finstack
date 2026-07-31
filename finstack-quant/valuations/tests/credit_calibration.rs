@@ -1892,11 +1892,11 @@ fn full_sample_repaired_preserves_determinism() {
 // PR-5b Test 5: Golden artifact regression test
 // ---------------------------------------------------------------------------
 
-const REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV: &str = "FINSTACK_REGEN_CREDIT_FACTOR_MODEL_GOLDEN";
+const REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV: &str = "FQ_UPDATE_CANONICAL_GOLDENS";
 
-/// Generate (or regenerate) the golden artifact file.
+/// Generate (or regenerate) the factor-model-owned canonical artifact and hash.
 /// Run manually with:
-/// `FINSTACK_REGEN_CREDIT_FACTOR_MODEL_GOLDEN=1 cargo test -p finstack-quant-valuations --test credit_calibration generate_golden_artifact -- --nocapture`
+/// `FQ_UPDATE_CANONICAL_GOLDENS=1 cargo test -p finstack-quant-valuations --test credit_calibration generate_golden_artifact -- --nocapture`
 #[test]
 fn generate_golden_artifact() {
     if std::env::var_os(REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV).is_none() {
@@ -1905,7 +1905,11 @@ fn generate_golden_artifact() {
 
     let golden_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/schema_fixtures/credit_factor_model_v1.json"
+        "/../factor-model/tests/data/canonical/credit_factor_model.json"
+    );
+    let hash_path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../factor-model/tests/data/canonical/credit_factor_model.sha256"
     );
 
     let cfg = CreditCalibrationConfig {
@@ -1927,16 +1931,20 @@ fn generate_golden_artifact() {
         .calibrate(fixture_panel().into_inputs())
         .expect("golden fixture calibration must succeed");
 
-    let json = serde_json::to_string_pretty(&model).expect("serialize to pretty JSON");
+    let json =
+        finstack_quant_core::to_canonical_bytes(&model).expect("serialize canonical model JSON");
+    let hash = finstack_quant_core::content_hash(&model).expect("hash canonical model JSON");
     std::fs::create_dir_all(std::path::Path::new(golden_path).parent().unwrap())
         .expect("create golden dir");
     std::fs::write(golden_path, &json).expect("write golden file");
-    println!("Golden file written to {golden_path}");
+    std::fs::write(hash_path, format!("{hash}\n")).expect("write golden hash");
+    println!("Canonical fixture written to {golden_path}");
 }
 
 /// Calibrate with the canonical fixture (Diagonal + Sample), serialize to
 /// pretty-printed JSON, and compare byte-for-byte against the checked-in
-/// schema fixture at `tests/schema_fixtures/credit_factor_model_v1.json`.
+/// factor-model fixture at
+/// `../factor-model/tests/data/canonical/credit_factor_model.json`.
 ///
 /// On first run after generating the golden file, this test confirms the
 /// file matches a fresh calibration. On subsequent runs it catches any
@@ -1945,7 +1953,7 @@ fn generate_golden_artifact() {
 fn golden_credit_factor_model_matches_checked_in_json() {
     let golden_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/schema_fixtures/credit_factor_model_v1.json"
+        "/../factor-model/tests/data/canonical/credit_factor_model.json"
     );
 
     let cfg = CreditCalibrationConfig {
@@ -2059,10 +2067,8 @@ fn calibration_config_round_trips_through_json() {
 /// `credit_calibration_config.schema.json`.
 #[test]
 fn calibration_config_serialization_matches_schema() {
-    let schema_content =
-        include_str!("../schemas/factor_model/1/credit_calibration_config.schema.json");
-    let schema: serde_json::Value =
-        serde_json::from_str(schema_content).expect("schema must be valid JSON");
+    let schema = finstack_quant_factor_model::schema::credit_calibration_config_schema()
+        .expect("embedded schema must be valid JSON");
 
     // Use a non-trivial config so validation exercises required fields.
     let cfg = CreditCalibrationConfig {
@@ -2082,7 +2088,7 @@ fn calibration_config_serialization_matches_schema() {
         serde_json::from_str(&serde_json::to_string(&cfg).expect("serialize config"))
             .expect("re-parse as Value");
 
-    let validator = jsonschema::validator_for(&schema).expect("schema must compile");
+    let validator = jsonschema::validator_for(schema).expect("schema must compile");
     let errors: Vec<String> = validator
         .iter_errors(&instance)
         .map(|e| {

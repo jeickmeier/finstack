@@ -4,6 +4,7 @@ use crate::types::NodeValueType;
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_core::money::Money;
 use indexmap::IndexMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
@@ -53,17 +54,19 @@ fn default_statement_result_schema_version() -> u32 {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct StatementResult {
     /// Wire-format schema version. Current wire format: `STATEMENT_RESULT_SCHEMA_VERSION`.
     #[serde(default = "default_statement_result_schema_version")]
     pub schema_version: u32,
 
     /// Map of node_id → (period_id → value) [f64 for scalar results]
+    #[schemars(with = "IndexMap<String, IndexMap<String, f64>>")]
     pub nodes: IndexMap<String, IndexMap<PeriodId, f64>>,
 
     /// Map of node_id → (period_id → Money) for monetary nodes
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    #[schemars(with = "IndexMap<String, IndexMap<String, Money>>")]
     pub monetary_nodes: IndexMap<String, IndexMap<PeriodId, Money>>,
 
     /// Track value types for each node
@@ -83,7 +86,7 @@ pub struct StatementResult {
 }
 
 /// Metadata about evaluation results.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ResultsMeta {
     /// Evaluation time in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -130,7 +133,7 @@ impl Default for ResultsMeta {
 }
 
 /// Numeric mode used for evaluation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum NumericMode {
     /// f64 floating-point mode (current default)
@@ -381,13 +384,14 @@ fn monetary_map_skipping_nonfinite(
 }
 
 /// Warning emitted during evaluation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub enum EvalWarning {
     /// Division by zero encountered
     DivisionByZero {
         /// Identifier of the node that triggered the warning.
         node_id: String,
         /// Period in which the warning occurred.
+        #[schemars(with = "String")]
         period: PeriodId,
     },
     /// NaN value bubbled up to a node result
@@ -395,6 +399,7 @@ pub enum EvalWarning {
         /// Identifier of the node that produced the NaN value.
         node_id: String,
         /// Period in which the warning occurred.
+        #[schemars(with = "String")]
         period: PeriodId,
     },
     /// Non-finite value (NaN, Inf, -Inf) detected when storing a node result.
@@ -405,6 +410,7 @@ pub enum EvalWarning {
         /// Identifier of the node that produced the non-finite value.
         node_id: String,
         /// Period in which the warning occurred.
+        #[schemars(with = "String")]
         period: PeriodId,
         /// The actual non-finite value (NaN, Inf, or -Inf).
         value: f64,
@@ -412,6 +418,7 @@ pub enum EvalWarning {
     /// Capital-structure cashflow classification was ignored during statement extraction.
     CapitalStructureCashflowIgnored {
         /// Period in which the ignored cashflow was encountered.
+        #[schemars(with = "String")]
         period: PeriodId,
         /// Ignored cashflow kind.
         kind: String,
@@ -428,6 +435,7 @@ pub enum EvalWarning {
         /// Identifier of the node whose aggregate dropped inputs.
         node_id: String,
         /// Period in which the drop occurred.
+        #[schemars(with = "String")]
         period: PeriodId,
         /// Name of the aggregate function that dropped values.
         function: String,

@@ -94,7 +94,7 @@ use crate::{
 /// # Thread Safety
 ///
 /// Immutable after construction; safe to share via `Arc<PriceCurve>`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "RawPriceCurve", into = "RawPriceCurve")]
 pub struct PriceCurve {
     id: CurveId,
@@ -111,12 +111,13 @@ pub struct PriceCurve {
 }
 
 /// Raw serializable state of PriceCurve
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawPriceCurve {
     /// Curve identifier
     pub id: String,
     /// Base date
+    #[schemars(with = "String")]
     pub base: Date,
     /// Day count convention
     pub day_count: DayCount,

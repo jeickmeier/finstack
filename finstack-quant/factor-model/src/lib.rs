@@ -85,6 +85,8 @@ pub mod matching;
 mod parse;
 /// Generic factor identifiers, definitions, and market dependencies.
 pub mod primitives;
+/// JSON Schema generation helpers for factor-model contracts.
+pub mod schema;
 /// Positions × factors sensitivity matrix storage.
 pub mod sensitivity_matrix;
 

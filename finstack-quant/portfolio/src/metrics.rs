@@ -25,13 +25,14 @@ use finstack_quant_core::money::fx::FxQuery;
 use finstack_quant_core::{HashMap, HashSet};
 use finstack_quant_valuations::metrics::MetricId;
 use indexmap::IndexMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 
 /// Aggregated metric across the portfolio.
 ///
 /// Contains portfolio-wide totals as well as breakdowns by entity.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AggregatedMetric {
     /// Metric identifier
     pub metric_id: String,
@@ -47,7 +48,7 @@ pub struct AggregatedMetric {
 ///
 /// Holds both aggregated metrics and per-position values returned
 /// by `aggregate_metrics`.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PortfolioMetrics {
     /// Aggregated metrics (summable only)
     pub aggregated: IndexMap<String, AggregatedMetric>,
@@ -65,7 +66,7 @@ pub struct PortfolioMetrics {
 }
 
 /// Position-level metrics with explicit native currency context.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PositionMetrics {
     /// Native currency for this position's valuation and non-summable metrics.
     pub currency: Currency,
@@ -139,7 +140,7 @@ impl PortfolioMetrics {
 
 /// A metric value that was excluded from portfolio aggregation because it was
 /// non-finite (NaN or ±Inf).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct SkippedMetric {
     /// Position that produced the non-finite value.
     pub position_id: PositionId,

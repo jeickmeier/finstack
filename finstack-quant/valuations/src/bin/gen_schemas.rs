@@ -7,15 +7,16 @@
 //!    (discriminator `type` const + generated `spec` schema)
 //! 4. Writes back the updated schema file, preserving all other fields
 
+use finstack_quant_core::schema::{
+    assemble_schema, postprocess_schema, write_schema as write_schema_file, JSON_SCHEMA_DIALECT,
+};
 use finstack_quant_valuations::instruments::*;
 use serde_json::{json, Map, Value};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-const JSON_SCHEMA_DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
-const DECIMAL_PATTERN: &str = r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$";
-const SCHEMARS_DECIMAL_PATTERN: &str = r"^-?\d+(\.\d+)?([eE]\d+)?$";
 const COMMON_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/common/1/";
+const DECIMAL_PATTERN: &str = r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$";
 
 #[derive(Clone, Copy)]
 struct InstrumentSchemaEntry {
@@ -99,28 +100,6 @@ fn to_title(name: &str) -> String {
         .join(" ")
 }
 
-/// Return true for field names that conventionally carry ISO calendar dates.
-fn is_date_like_property(name: &str) -> bool {
-    name == "date"
-        || name.ends_with("_date")
-        || name == "maturity"
-        || name.ends_with("_maturity")
-        || name == "expiry"
-        || name.ends_with("_expiry")
-}
-
-fn schema_accepts_string(value: &Value) -> bool {
-    match value.get("type") {
-        Some(Value::String(schema_type)) => schema_type == "string",
-        Some(Value::Array(schema_types)) => schema_types.iter().any(|schema_type| {
-            schema_type
-                .as_str()
-                .is_some_and(|schema_type| schema_type == "string")
-        }),
-        _ => false,
-    }
-}
-
 fn common_schema_filename(def_name: &str) -> Option<&'static str> {
     match def_name {
         "Attributes" => Some("attributes.schema.json"),
@@ -144,188 +123,6 @@ fn external_schema_ref(def_name: &str) -> Option<String> {
         .or_else(|| finstack_quant_cashflows::schema::definition_uri(def_name))
 }
 
-fn is_externalized_def(def_name: &str) -> bool {
-    common_schema_filename(def_name).is_some()
-        || finstack_quant_cashflows::schema::definition_uri(def_name).is_some()
-}
-
-fn rewrite_common_refs(value: &mut Value) {
-    match value {
-        Value::Object(map) => {
-            let replacement = map
-                .get("$ref")
-                .and_then(Value::as_str)
-                .and_then(|reference| reference.strip_prefix("#/$defs/"))
-                .and_then(external_schema_ref);
-            if let Some(external_ref) = replacement {
-                if let Some(reference) = map.get_mut("$ref") {
-                    *reference = Value::String(external_ref);
-                }
-            }
-
-            for child in map.values_mut() {
-                rewrite_common_refs(child);
-            }
-        }
-        Value::Array(items) => {
-            for child in items {
-                rewrite_common_refs(child);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn json_pointer_unescape(segment: &str) -> String {
-    segment.replace("~1", "/").replace("~0", "~")
-}
-
-fn collect_local_def_refs(value: &Value, out: &mut BTreeSet<String>) {
-    match value {
-        Value::Object(map) => {
-            if let Some(reference) = map.get("$ref").and_then(Value::as_str) {
-                if let Some(rest) = reference.strip_prefix("#/$defs/") {
-                    if let Some(segment) = rest.split('/').next() {
-                        out.insert(json_pointer_unescape(segment));
-                    }
-                }
-            }
-            for child in map.values() {
-                collect_local_def_refs(child, out);
-            }
-        }
-        Value::Array(items) => {
-            for child in items {
-                collect_local_def_refs(child, out);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn prune_unreachable_defs(value: &mut Value) {
-    let Some(defs) = value.get("$defs").and_then(Value::as_object) else {
-        return;
-    };
-
-    let mut root = value.clone();
-    if let Some(root_obj) = root.as_object_mut() {
-        root_obj.remove("$defs");
-    }
-
-    let mut discovered = BTreeSet::new();
-    collect_local_def_refs(&root, &mut discovered);
-
-    let mut reachable = BTreeSet::new();
-    while let Some(next) = discovered.iter().next().cloned() {
-        discovered.remove(&next);
-        if !reachable.insert(next.clone()) {
-            continue;
-        }
-        if let Some(definition) = defs.get(&next) {
-            collect_local_def_refs(definition, &mut discovered);
-        }
-    }
-
-    if let Some(defs) = value.get_mut("$defs").and_then(Value::as_object_mut) {
-        defs.retain(|def_name, _| reachable.contains(def_name));
-        if defs.is_empty() {
-            if let Some(obj) = value.as_object_mut() {
-                obj.remove("$defs");
-            }
-        }
-    }
-}
-
-fn prune_common_defs(value: &mut Value) {
-    if let Some(defs) = value.get_mut("$defs").and_then(Value::as_object_mut) {
-        defs.retain(|def_name, _| !is_externalized_def(def_name));
-        if defs.is_empty() {
-            if let Some(obj) = value.as_object_mut() {
-                obj.remove("$defs");
-            }
-        }
-    }
-}
-
-fn postprocess_schema(value: &mut Value) {
-    normalize_decimal_patterns(value);
-    annotate_date_formats(value);
-    rewrite_common_refs(value);
-    prune_common_defs(value);
-    prune_unreachable_defs(value);
-}
-
-/// Normalize `rust_decimal::Decimal` schemas emitted by schemars.
-fn normalize_decimal_patterns(value: &mut Value) {
-    match value {
-        Value::Object(map) => {
-            let accepts_string = match map.get("type") {
-                Some(Value::String(schema_type)) => schema_type == "string",
-                Some(Value::Array(schema_types)) => schema_types.iter().any(|schema_type| {
-                    schema_type
-                        .as_str()
-                        .is_some_and(|schema_type| schema_type == "string")
-                }),
-                _ => false,
-            };
-            if accepts_string
-                && map
-                    .get("pattern")
-                    .and_then(Value::as_str)
-                    .is_some_and(|pattern| pattern == SCHEMARS_DECIMAL_PATTERN)
-            {
-                map.insert(
-                    "pattern".to_string(),
-                    Value::String(DECIMAL_PATTERN.to_string()),
-                );
-            }
-
-            for child in map.values_mut() {
-                normalize_decimal_patterns(child);
-            }
-        }
-        Value::Array(items) => {
-            for child in items {
-                normalize_decimal_patterns(child);
-            }
-        }
-        _ => {}
-    }
-}
-
-/// Add `format: "date"` to generated date-like string properties.
-fn annotate_date_formats(value: &mut Value) {
-    match value {
-        Value::Object(map) => {
-            if let Some(properties) = map.get_mut("properties").and_then(Value::as_object_mut) {
-                for (property, schema) in properties {
-                    if is_date_like_property(property) && schema_accepts_string(schema) {
-                        if let Some(schema_obj) = schema.as_object_mut() {
-                            schema_obj
-                                .entry("format".to_string())
-                                .or_insert_with(|| Value::String("date".to_string()));
-                        }
-                    }
-                    annotate_date_formats(schema);
-                }
-            }
-
-            for (key, child) in map {
-                if key != "properties" {
-                    annotate_date_formats(child);
-                }
-            }
-        }
-        Value::Array(items) => {
-            for child in items {
-                annotate_date_formats(child);
-            }
-        }
-        _ => {}
-    }
-}
-
 /// Read an existing schema file, merge the generated instrument schema, and write back.
 fn update_schema_file(name: &str, category: &str, mut generated_schema: Value) {
     let base = schemas_dir();
@@ -346,7 +143,7 @@ fn update_schema_file(name: &str, category: &str, mut generated_schema: Value) {
     let existing_obj = existing
         .as_object()
         .expect("existing schema must be an object");
-    postprocess_schema(&mut generated_schema);
+    postprocess_schema(&mut generated_schema, external_schema_ref);
 
     // Extract the generated schema's properties and required fields for embedding
     // into the spec sub-schema. Generated refs are document-root pointers
@@ -441,11 +238,8 @@ fn update_schema_file(name: &str, category: &str, mut generated_schema: Value) {
     output.insert("required".to_string(), json!(["schema", "instrument"]));
 
     let output = Value::Object(output);
-    let json_str = serde_json::to_string_pretty(&output).expect("serialize output");
-
-    // serde_json default pretty-print uses 2-space indent, which is what we want
-    std::fs::write(&path, json_str + "\n")
-        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    write_schema_file(&path, &output)
+        .unwrap_or_else(|error| panic!("write {}: {error}", path.display()));
     write_instrument_fixture(name, &output);
 
     println!("  updated {}", path.display());
@@ -480,26 +274,38 @@ fn update_instrument_union_schema_file(entries: &[InstrumentSchemaEntry]) {
     );
     let mut entries = entries.to_vec();
     entries.sort_by_key(|entry| entry.name);
+    let instrument_ref = |entry: &InstrumentSchemaEntry, fragment: &str| {
+        json!({
+            "$ref": format!(
+                "https://finstack_quant.dev/schemas/instrument/1/{}/{}.schema.json{fragment}",
+                entry.category, entry.name
+            )
+        })
+    };
+    output.insert(
+        "$defs".to_string(),
+        json!({
+            "InstrumentJson": {
+                "description": "Canonical tagged instrument payload without the persistence envelope.",
+                "oneOf": entries
+                    .iter()
+                    .map(|entry| instrument_ref(entry, "#/properties/instrument"))
+                    .collect::<Vec<_>>()
+            }
+        }),
+    );
     output.insert(
         "oneOf".to_string(),
         Value::Array(
             entries
                 .iter()
-                .map(|entry| {
-                    json!({
-                        "$ref": format!(
-                            "https://finstack_quant.dev/schemas/instrument/1/{}/{}.schema.json",
-                            entry.category, entry.name
-                        )
-                    })
-                })
+                .map(|entry| instrument_ref(entry, ""))
                 .collect(),
         ),
     );
 
-    let json_str = serde_json::to_string_pretty(&Value::Object(output)).expect("serialize output");
-    std::fs::write(&path, json_str + "\n")
-        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    write_schema_file(&path, &Value::Object(output))
+        .unwrap_or_else(|error| panic!("write {}: {error}", path.display()));
     println!("  updated {}", path.display());
 }
 
@@ -509,7 +315,7 @@ fn update_standalone_schema_file(name: &str, subdir: &str, filename: &str, gener
     let base = all_schemas_dir();
     let path = base.join(subdir).join(format!("{filename}.schema.json"));
     let mut generated = generated;
-    postprocess_schema(&mut generated);
+    postprocess_schema(&mut generated, external_schema_ref);
 
     let existing: Value = if path.exists() {
         let content = std::fs::read_to_string(&path)
@@ -526,55 +332,23 @@ fn update_standalone_schema_file(name: &str, subdir: &str, filename: &str, gener
         })
     };
 
-    let existing_obj = existing
-        .as_object()
-        .expect("existing schema must be an object");
-
-    let mut output = Map::new();
-
-    // Preserve metadata from existing file
-    for key in ["$id", "title", "description"] {
-        if let Some(val) = existing_obj.get(key) {
-            output.insert(key.to_string(), val.clone());
-        }
-    }
-    output.insert(
-        "$schema".to_string(),
-        Value::String(JSON_SCHEMA_DIALECT.to_string()),
-    );
-
-    // Preserve examples if present
-    if let Some(examples) = existing_obj.get("examples") {
-        output.insert("examples".to_string(), examples.clone());
-    }
-
-    // Insert generated schema properties
-    if let Some(t) = generated.get("type") {
-        output.insert("type".to_string(), t.clone());
-    }
-    if let Some(props) = generated.get("properties") {
-        output.insert("properties".to_string(), props.clone());
-    }
-    if let Some(req) = generated.get("required") {
-        output.insert("required".to_string(), req.clone());
-    }
-    if let Some(defs) = generated.get("$defs") {
-        output.insert("$defs".to_string(), defs.clone());
-    }
-    if let Some(additional) = generated.get("additionalProperties") {
-        output.insert("additionalProperties".to_string(), additional.clone());
-    }
-    // For enums (oneOf, anyOf)
-    if let Some(one_of) = generated.get("oneOf") {
-        output.insert("oneOf".to_string(), one_of.clone());
-    }
-    if let Some(any_of) = generated.get("anyOf") {
-        output.insert("anyOf".to_string(), any_of.clone());
-    }
-
-    let json_str = serde_json::to_string_pretty(&Value::Object(output)).expect("serialize output");
-    std::fs::write(&path, json_str + "\n")
-        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    let output = assemble_schema(
+        &existing,
+        &generated,
+        &["$id", "title", "description", "examples"],
+        &[
+            "type",
+            "properties",
+            "required",
+            "$defs",
+            "additionalProperties",
+            "oneOf",
+            "anyOf",
+        ],
+    )
+    .unwrap_or_else(|error| panic!("assemble {name} schema: {error}"));
+    write_schema_file(&path, &output)
+        .unwrap_or_else(|error| panic!("write {}: {error}", path.display()));
 
     println!("  updated {}", path.display());
 }
@@ -582,31 +356,19 @@ fn update_standalone_schema_file(name: &str, subdir: &str, filename: &str, gener
 /// Update a shared common schema file from a schemars-generated type schema.
 fn update_common_schema_file(title: &str, description: &str, filename: &str, generated: Value) {
     let dir = common_schemas_dir();
-    std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("create {}: {e}", dir.display()));
     let path = dir.join(filename);
     let mut schema = generated;
-    normalize_decimal_patterns(&mut schema);
-    annotate_date_formats(&mut schema);
-    rewrite_common_refs(&mut schema);
-    prune_common_defs(&mut schema);
-
-    let mut output = Map::new();
-    output.insert(
-        "$id".to_string(),
-        Value::String(format!("{COMMON_SCHEMA_BASE}{filename}")),
-    );
-    output.insert(
-        "$schema".to_string(),
-        Value::String(JSON_SCHEMA_DIALECT.to_string()),
-    );
-    output.insert("title".to_string(), Value::String(title.to_string()));
-    output.insert(
-        "description".to_string(),
-        Value::String(description.to_string()),
-    );
-
-    if let Some(obj) = schema.as_object() {
-        for key in [
+    postprocess_schema(&mut schema, external_schema_ref);
+    let metadata = json!({
+        "$id": format!("{COMMON_SCHEMA_BASE}{filename}"),
+        "title": title,
+        "description": description,
+    });
+    let output = assemble_schema(
+        &metadata,
+        &schema,
+        &["$id", "title", "description"],
+        &[
             "type",
             "format",
             "pattern",
@@ -617,26 +379,19 @@ fn update_common_schema_file(title: &str, description: &str, filename: &str, gen
             "anyOf",
             "enum",
             "$defs",
-        ] {
-            if let Some(value) = obj.get(key) {
-                output.insert(key.to_string(), value.clone());
-            }
-        }
-    }
-
-    let json_str = serde_json::to_string_pretty(&Value::Object(output)).expect("serialize output");
-    std::fs::write(&path, json_str + "\n")
-        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+        ],
+    )
+    .unwrap_or_else(|error| panic!("assemble {title} schema: {error}"));
+    write_schema_file(&path, &output)
+        .unwrap_or_else(|error| panic!("write {}: {error}", path.display()));
     println!("  updated {}", path.display());
 }
 
 fn update_manual_common_schema_file(filename: &str, schema: Value) {
     let dir = common_schemas_dir();
-    std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("create {}: {e}", dir.display()));
     let path = dir.join(filename);
-    let json_str = serde_json::to_string_pretty(&schema).expect("serialize output");
-    std::fs::write(&path, json_str + "\n")
-        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    write_schema_file(&path, &schema)
+        .unwrap_or_else(|error| panic!("write {}: {error}", path.display()));
     println!("  updated {}", path.display());
 }
 

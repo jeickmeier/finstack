@@ -7,7 +7,12 @@ import hashlib
 from pathlib import Path
 
 DEFAULT_PATHS = (
+    Path("finstack-quant/attribution/schemas"),
     Path("finstack-quant/cashflows/schemas"),
+    Path("finstack-quant/factor-model/schemas"),
+    Path("finstack-quant/margin/schemas"),
+    Path("finstack-quant/scenarios/schemas"),
+    Path("finstack-quant/statements/schemas"),
     Path("finstack-quant/valuations/schemas"),
     Path("finstack-quant/valuations/tests/instruments/json_examples"),
     Path("finstack-quant/portfolio/schemas"),

@@ -1,40 +1,110 @@
-//! Schema parity tests for checked-in margin JSON schemas.
+//! Schema contract tests for the checked-in margin JSON Schema.
 
-use serde_json::Value;
+use finstack_quant_core::currency::Currency;
+use finstack_quant_core::money::Money;
+use finstack_quant_margin::schema::{
+    generated_margin_schema, MARGIN_SCHEMA_BASE, MARGIN_SCHEMA_DESCRIPTION, MARGIN_SCHEMA_FILENAME,
+    MARGIN_SCHEMA_TITLE,
+};
+use finstack_quant_margin::{
+    CollateralAssetClass, CollateralEligibility, CsaSpec, EligibleCollateralSchedule, ImParameters,
+    MarginCall, MarginCallTiming, MaturityConstraints, OtcMarginSpec,
+};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use serde_json::{json, Value};
+use std::fmt::Debug;
+use time::macros::date;
 
-const JSON_SCHEMA_2020_12: &str = "https://json-schema.org/draft/2020-12/schema";
+const CANONICAL_DECIMAL_PATTERN: &str = r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$";
 
 fn margin_schema() -> Value {
-    let schema_json = include_str!("../schemas/margin/1/margin.schema.json");
-    serde_json::from_str(schema_json).expect("Schema JSON should be valid")
+    serde_json::from_str(include_str!("../schemas/margin/1/margin.schema.json"))
+        .expect("schema JSON should be valid")
 }
 
-/// Extract enum variant names from a schemars-generated enum schema.
-fn extract_enum_values(schema: &Value) -> Vec<&str> {
-    if let Some(arr) = schema.get("enum").and_then(|v| v.as_array()) {
-        return arr.iter().filter_map(|v| v.as_str()).collect();
+fn validate_fixture(schema: &Value, fixture: &Value) -> Result<(), Vec<String>> {
+    let validator = jsonschema::options()
+        .should_validate_formats(true)
+        .build(schema)
+        .expect("checked-in schema should compile");
+    let errors = validator
+        .iter_errors(fixture)
+        .map(|error| error.to_string())
+        .collect::<Vec<_>>();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
     }
-    if let Some(arr) = schema.get("oneOf").and_then(|v| v.as_array()) {
-        return arr
-            .iter()
-            .filter_map(|v| v.get("const").and_then(|c| c.as_str()))
-            .collect();
-    }
-    Vec::new()
 }
 
-fn assert_enum_parity(schema_name: &str, mut actual: Vec<&str>, expected: &[&str]) {
-    let mut expected: Vec<&str> = expected.to_vec();
-    expected.sort();
-    actual.sort();
+fn csa_fixture() -> Value {
+    json!({
+        "schema": "finstack_quant.margin/1",
+        "csa_spec": CsaSpec::usd_regulatory().expect("embedded margin registry should load"),
+    })
+}
 
-    if actual != expected {
-        let missing: Vec<&&str> = expected.iter().filter(|t| !actual.contains(t)).collect();
-        let extra: Vec<&&str> = actual.iter().filter(|t| !expected.contains(t)).collect();
-        panic!(
-            "{schema_name} schema enum mismatch!\n  Expected: {expected:?}\n  Actual:   {actual:?}\n  Missing:  {missing:?}\n  Extra:    {extra:?}"
+fn margin_call_fixture() -> Value {
+    json!({
+        "schema": "finstack_quant.margin/1",
+        "margin_call": MarginCall::vm_delivery(
+            date!(2026 - 07 - 30),
+            date!(2026 - 07 - 31),
+            Money::new(1_000_000.0, Currency::USD),
+            Money::new(1_250_000.0, Currency::USD),
+            Money::new(0.0, Currency::USD),
+            Money::new(250_000.0, Currency::USD),
+        ),
+    })
+}
+
+fn assert_fixtures_rejected(schema: &Value, fixtures: Vec<(&str, Value)>) {
+    let accepted = fixtures
+        .into_iter()
+        .filter_map(|(name, fixture)| validate_fixture(schema, &fixture).is_ok().then_some(name))
+        .collect::<Vec<_>>();
+    assert!(
+        accepted.is_empty(),
+        "invalid fixtures were accepted: {accepted:?}"
+    );
+}
+
+fn assert_csa_fixtures_rejected_by_schema_and_serde(
+    schema: &Value,
+    fixtures: Vec<(&str, &str, Value)>,
+) {
+    for (name, field, fixture) in fixtures {
+        assert!(
+            validate_fixture(schema, &fixture).is_err(),
+            "{name} must be rejected by the published schema"
+        );
+        let error = serde_json::from_value::<CsaSpec>(fixture["csa_spec"].clone())
+            .expect_err("invalid CSA must fail deserialization");
+        assert!(
+            error.to_string().contains(field),
+            "{name} deserialization error must identify {field}: {error}"
         );
     }
+}
+
+fn assert_round_trip<T>(value: &T)
+where
+    T: Debug + DeserializeOwned + PartialEq + Serialize,
+{
+    let json = serde_json::to_value(value).expect("valid margin value must serialize");
+    let round_tripped =
+        serde_json::from_value::<T>(json).expect("serialized margin value must deserialize");
+    assert_eq!(&round_tripped, value);
+}
+
+fn assert_serialization_rejects<T: Serialize>(value: &T, field: &str) {
+    let error = serde_json::to_value(value).expect_err("invalid margin value must not serialize");
+    assert!(
+        error.to_string().contains(field),
+        "serialization error must identify {field}: {error}"
+    );
 }
 
 fn assert_described_one_of_enum(schema_name: &str, schema: &Value) {
@@ -55,51 +125,81 @@ fn assert_described_one_of_enum(schema_name: &str, schema: &Value) {
     );
 }
 
-/// Canonical IM methodologies (schemars uses the serde variant names).
-const CANONICAL_IM_METHODOLOGIES: &[&str] = &[
-    "ClearingHouse",
-    "Haircut",
-    "InternalModel",
-    "Schedule",
-    "Simm",
-];
-
-const CANONICAL_MARGIN_TENORS: &[&str] = &["Daily", "Monthly", "OnDemand", "Weekly"];
-
 #[test]
-fn margin_schema_declares_2020_12_dialect() {
-    let schema = margin_schema();
+fn checked_in_schema_matches_generated_margin_contract() {
     assert_eq!(
-        schema.get("$schema").and_then(Value::as_str),
-        Some(JSON_SCHEMA_2020_12),
-        "margin schema declares the wrong JSON Schema dialect"
+        margin_schema(),
+        generated_margin_schema().expect("margin schema should generate")
     );
 }
 
 #[test]
-fn margin_im_methodology_schema_parity() {
+fn margin_schema_preserves_canonical_metadata_and_nested_types() {
     let schema = margin_schema();
-
-    let im = schema
-        .pointer("/$defs/ImMethodology")
-        .or_else(|| schema.pointer("/definitions/ImMethodology"))
-        .expect("ImMethodology should exist in schema");
-
-    let values = extract_enum_values(im);
-    assert_enum_parity("ImMethodology", values, CANONICAL_IM_METHODOLOGIES);
+    assert_eq!(
+        schema["$id"],
+        format!("{MARGIN_SCHEMA_BASE}{MARGIN_SCHEMA_FILENAME}")
+    );
+    assert_eq!(
+        schema["$schema"],
+        "https://json-schema.org/draft/2020-12/schema"
+    );
+    assert_eq!(schema["title"], MARGIN_SCHEMA_TITLE);
+    assert_eq!(schema["description"], MARGIN_SCHEMA_DESCRIPTION);
+    let root_variants = schema["oneOf"]
+        .as_array()
+        .expect("published root should remain a oneOf union");
+    assert_eq!(root_variants.len(), 3);
+    for variant in root_variants {
+        assert_eq!(variant["additionalProperties"], false);
+        assert_eq!(
+            variant["properties"]["schema"]["const"],
+            "finstack_quant.margin/1"
+        );
+    }
+    assert_eq!(
+        schema["$defs"]["OtcMarginSpec"]["properties"]["csa"]["$ref"],
+        "#/$defs/CsaSpec"
+    );
+    assert!(
+        schema["$defs"]["Money"]["properties"]["amount"].is_object(),
+        "Money amounts should retain their generated representation"
+    );
+    assert_eq!(
+        schema["$defs"]["MarginCall"]["properties"]["call_type"]["$ref"],
+        "#/$defs/MarginCallType"
+    );
+    let asset_class = &schema["$defs"]["CollateralAssetClass"];
+    assert!(
+        asset_class["description"]
+            .as_str()
+            .is_some_and(|description| {
+                description.contains("cash")
+                    && description.contains("government_bonds")
+                    && description.contains("Custom")
+            }),
+        "collateral asset-class schema should document canonical and custom values"
+    );
+    assert!(
+        asset_class["examples"]
+            .as_array()
+            .is_some_and(|examples| !examples.is_empty()),
+        "collateral asset-class schema should provide representative values"
+    );
 }
 
 #[test]
-fn margin_tenor_schema_parity() {
+fn margin_schema_applies_canonical_decimal_and_date_normalization() {
     let schema = margin_schema();
 
-    let mt = schema
-        .pointer("/$defs/MarginTenor")
-        .or_else(|| schema.pointer("/definitions/MarginTenor"))
-        .expect("MarginTenor should exist in schema");
-
-    let values = extract_enum_values(mt);
-    assert_enum_parity("MarginTenor", values, CANONICAL_MARGIN_TENORS);
+    assert_eq!(
+        schema.pointer("/$defs/Money/properties/amount/pattern"),
+        Some(&json!(CANONICAL_DECIMAL_PATTERN))
+    );
+    assert_eq!(
+        schema.pointer("/$defs/MarginCall/properties/call_date/format"),
+        Some(&json!("date"))
+    );
 }
 
 #[test]
@@ -107,8 +207,287 @@ fn described_margin_enums_use_one_of_const_style() {
     let schema = margin_schema();
     for schema_name in ["ImMethodology", "MarginTenor", "MarginCallType"] {
         let enum_schema = schema
-            .pointer(&format!("/definitions/{schema_name}"))
+            .pointer(&format!("/$defs/{schema_name}"))
             .unwrap_or_else(|| panic!("{schema_name} should exist in schema"));
         assert_described_one_of_enum(schema_name, enum_schema);
     }
+}
+
+#[test]
+fn synthetic_margin_schema_validates_representative_union_variants() {
+    let schema = margin_schema();
+    let csa = CsaSpec::usd_regulatory().expect("embedded margin registry should load");
+    let csa_json = serde_json::to_value(&csa).expect("representative CSA serializes");
+    serde_json::from_value::<CsaSpec>(csa_json)
+        .expect("representative CSA must satisfy serde constraints");
+    let otc = OtcMarginSpec::bilateral_simm(csa.clone());
+    let margin_call = MarginCall::vm_delivery(
+        date!(2026 - 07 - 30),
+        date!(2026 - 07 - 31),
+        Money::new(1_000_000.0, Currency::USD),
+        Money::new(1_250_000.0, Currency::USD),
+        Money::new(0.0, Currency::USD),
+        Money::new(250_000.0, Currency::USD),
+    );
+    let fixtures = [
+        json!({
+            "schema": "finstack_quant.margin/1",
+            "otc_margin_spec": otc,
+        }),
+        json!({
+            "schema": "finstack_quant.margin/1",
+            "csa_spec": csa,
+        }),
+        json!({
+            "schema": "finstack_quant.margin/1",
+            "margin_call": margin_call,
+        }),
+    ];
+
+    for fixture in fixtures {
+        validate_fixture(&schema, &fixture)
+            .unwrap_or_else(|errors| panic!("valid fixture was rejected: {errors:#?}"));
+    }
+}
+
+#[test]
+fn constrained_public_margin_values_serialize_and_round_trip() {
+    let maturity = MaturityConstraints {
+        min_remaining_years: Some(0.0),
+        max_remaining_years: Some(30.0),
+    };
+    let eligibility = CollateralEligibility {
+        asset_class: CollateralAssetClass::GovernmentBonds,
+        min_rating: Some("A-".to_string()),
+        maturity_constraints: Some(maturity.clone()),
+        haircut: 0.02,
+        fx_haircut_addon: 0.08,
+        concentration_limit: Some(0.5),
+    };
+    let schedule = EligibleCollateralSchedule {
+        eligible: vec![eligibility.clone()],
+        default_haircut: Some(0.25),
+        rehypothecation_allowed: false,
+    };
+    let im =
+        ImParameters::simm_standard(Currency::USD).expect("embedded margin registry should load");
+    let timing = MarginCallTiming {
+        notification_deadline_hours: 13,
+        response_deadline_hours: 2,
+        dispute_resolution_days: 1,
+        delivery_grace_days: 1,
+    };
+
+    assert_round_trip(&maturity);
+    assert_round_trip(&MaturityConstraints::max_maturity(10.0));
+    assert_round_trip(&eligibility);
+    assert_round_trip(&CollateralEligibility::government_bonds(0.02));
+    assert_round_trip(&schedule);
+    assert_round_trip(&im);
+    assert_round_trip(&timing);
+}
+
+#[test]
+fn constrained_public_margin_values_fail_serialization_with_field_names() {
+    assert_serialization_rejects(
+        &MaturityConstraints::max_maturity(-0.01),
+        "max_remaining_years",
+    );
+
+    let maturity = MaturityConstraints {
+        min_remaining_years: Some(-0.01),
+        ..MaturityConstraints::default()
+    };
+    assert_serialization_rejects(&maturity, "min_remaining_years");
+
+    let mut eligibility = CollateralEligibility::government_bonds(-0.01);
+    assert_serialization_rejects(&eligibility, "haircut");
+    eligibility.haircut = 0.02;
+    eligibility.fx_haircut_addon = 1.01;
+    assert_serialization_rejects(&eligibility, "fx_haircut_addon");
+    eligibility.fx_haircut_addon = 0.08;
+    eligibility.concentration_limit = Some(-0.01);
+    assert_serialization_rejects(&eligibility, "concentration_limit");
+
+    let schedule = EligibleCollateralSchedule {
+        default_haircut: Some(1.01),
+        ..EligibleCollateralSchedule::default()
+    };
+    assert_serialization_rejects(&schedule, "default_haircut");
+
+    let mut im =
+        ImParameters::simm_standard(Currency::USD).expect("embedded margin registry should load");
+    im.mpor_days = 0;
+    assert_serialization_rejects(&im, "mpor_days");
+
+    let timing = MarginCallTiming {
+        notification_deadline_hours: 24,
+        response_deadline_hours: 2,
+        dispute_resolution_days: 1,
+        delivery_grace_days: 1,
+    };
+    assert_serialization_rejects(&timing, "notification_deadline_hours");
+}
+
+#[test]
+fn margin_schema_rejects_invalid_versions_shapes_and_nested_values() {
+    let schema = margin_schema();
+    let csa = CsaSpec::usd_regulatory().expect("embedded margin registry should load");
+    let invalid_fixtures = [
+        json!({
+            "schema": "finstack_quant.margin/2",
+            "csa_spec": csa,
+        }),
+        json!({
+            "schema": "finstack_quant.margin/1",
+            "otc_margin_spec": {
+                "settlement_lag": 1
+            },
+        }),
+        json!({
+            "schema": "finstack_quant.margin/1",
+            "margin_call": {
+                "call_date": "2026-07-30",
+                "settlement_date": "2026-07-31",
+                "call_type": "UnknownCallType",
+                "amount": {"amount": "1000000", "currency": "USD"},
+                "mtm_trigger": {"amount": "1250000", "currency": "USD"},
+                "threshold": {"amount": "0", "currency": "USD"},
+                "mta_applied": {"amount": "250000", "currency": "USD"}
+            },
+        }),
+    ];
+
+    for fixture in invalid_fixtures {
+        assert!(
+            validate_fixture(&schema, &fixture).is_err(),
+            "invalid fixture was accepted: {fixture}"
+        );
+    }
+}
+
+#[test]
+fn margin_schema_and_serde_reject_non_positive_mpor() {
+    let schema = margin_schema();
+    let mut fixture = csa_fixture();
+    fixture["csa_spec"]["im_params"]["mpor_days"] = json!(0);
+
+    assert_csa_fixtures_rejected_by_schema_and_serde(
+        &schema,
+        vec![("zero mpor_days", "mpor_days", fixture)],
+    );
+}
+
+#[test]
+fn margin_schema_rejects_non_iso_margin_call_dates() {
+    let schema = margin_schema();
+    let mut invalid_call_date = margin_call_fixture();
+    invalid_call_date["margin_call"]["call_date"] = json!("not-a-date");
+    let mut invalid_settlement_date = margin_call_fixture();
+    invalid_settlement_date["margin_call"]["settlement_date"] = json!("07/31/2026");
+
+    assert_fixtures_rejected(
+        &schema,
+        vec![
+            ("non-ISO call_date", invalid_call_date),
+            ("non-ISO settlement_date", invalid_settlement_date),
+        ],
+    );
+}
+
+#[test]
+fn margin_schema_and_serde_reject_out_of_range_collateral_ratios() {
+    let schema = margin_schema();
+    let mut negative_haircut = csa_fixture();
+    negative_haircut["csa_spec"]["eligible_collateral"]["eligible"][0]["haircut"] = json!(-0.01);
+    let mut excessive_haircut = csa_fixture();
+    excessive_haircut["csa_spec"]["eligible_collateral"]["eligible"][0]["haircut"] = json!(1.01);
+    let mut negative_fx_addon = csa_fixture();
+    negative_fx_addon["csa_spec"]["eligible_collateral"]["eligible"][0]["fx_haircut_addon"] =
+        json!(-0.01);
+    let mut excessive_fx_addon = csa_fixture();
+    excessive_fx_addon["csa_spec"]["eligible_collateral"]["eligible"][0]["fx_haircut_addon"] =
+        json!(1.01);
+    let mut negative_concentration = csa_fixture();
+    negative_concentration["csa_spec"]["eligible_collateral"]["eligible"][0]
+        ["concentration_limit"] = json!(-0.01);
+    let mut excessive_concentration = csa_fixture();
+    excessive_concentration["csa_spec"]["eligible_collateral"]["eligible"][0]
+        ["concentration_limit"] = json!(1.01);
+    let mut negative_default_haircut = csa_fixture();
+    negative_default_haircut["csa_spec"]["eligible_collateral"]["default_haircut"] = json!(-0.01);
+    let mut excessive_default_haircut = csa_fixture();
+    excessive_default_haircut["csa_spec"]["eligible_collateral"]["default_haircut"] = json!(1.01);
+
+    assert_csa_fixtures_rejected_by_schema_and_serde(
+        &schema,
+        vec![
+            ("negative haircut", "haircut", negative_haircut),
+            ("excessive haircut", "haircut", excessive_haircut),
+            (
+                "negative FX haircut add-on",
+                "fx_haircut_addon",
+                negative_fx_addon,
+            ),
+            (
+                "excessive FX haircut add-on",
+                "fx_haircut_addon",
+                excessive_fx_addon,
+            ),
+            (
+                "negative concentration limit",
+                "concentration_limit",
+                negative_concentration,
+            ),
+            (
+                "excessive concentration limit",
+                "concentration_limit",
+                excessive_concentration,
+            ),
+            (
+                "negative default haircut",
+                "default_haircut",
+                negative_default_haircut,
+            ),
+            (
+                "excessive default haircut",
+                "default_haircut",
+                excessive_default_haircut,
+            ),
+        ],
+    );
+}
+
+#[test]
+fn margin_schema_and_serde_reject_negative_maturity_years_and_late_notification_hour() {
+    let schema = margin_schema();
+    let mut negative_minimum_maturity = csa_fixture();
+    negative_minimum_maturity["csa_spec"]["eligible_collateral"]["eligible"][0]
+        ["maturity_constraints"] = json!({"min_remaining_years": -0.01});
+    let mut negative_maximum_maturity = csa_fixture();
+    negative_maximum_maturity["csa_spec"]["eligible_collateral"]["eligible"][0]
+        ["maturity_constraints"] = json!({"max_remaining_years": -0.01});
+    let mut invalid_notification_hour = csa_fixture();
+    invalid_notification_hour["csa_spec"]["call_timing"]["notification_deadline_hours"] = json!(24);
+
+    assert_csa_fixtures_rejected_by_schema_and_serde(
+        &schema,
+        vec![
+            (
+                "negative minimum maturity",
+                "min_remaining_years",
+                negative_minimum_maturity,
+            ),
+            (
+                "negative maximum maturity",
+                "max_remaining_years",
+                negative_maximum_maturity,
+            ),
+            (
+                "notification hour after 23:00",
+                "notification_deadline_hours",
+                invalid_notification_hour,
+            ),
+        ],
+    );
 }

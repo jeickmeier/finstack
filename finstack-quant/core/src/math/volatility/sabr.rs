@@ -73,7 +73,9 @@
 /// let vol = params.implied_vol_lognormal(fwd, strike, expiry).expect("valid checked inputs");
 /// assert!(vol > 0.0);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(try_from = "RawSabrParams")]
 pub struct SabrParams {
     /// Alpha (α): initial volatility level.
@@ -95,7 +97,7 @@ pub struct SabrParams {
 /// Mirrors the serialized field layout exactly so the wire format is
 /// unchanged; conversion runs [`SabrParams::new`] validation and rejects
 /// unknown fields.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawSabrParams {
     /// Initial volatility level.

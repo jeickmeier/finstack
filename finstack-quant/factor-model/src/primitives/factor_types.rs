@@ -1,11 +1,14 @@
 //! Core identifiers and definitions used by the factor model.
 //!
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
 /// Unique identifier for a risk factor.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 pub struct FactorId(String);
 
 impl FactorId {
@@ -29,7 +32,7 @@ impl fmt::Display for FactorId {
 }
 
 /// Broad classification of a risk factor.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub enum FactorType {
     /// Interest-rate factor.
     Rates,

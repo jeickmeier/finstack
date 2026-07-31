@@ -86,7 +86,7 @@ use crate::{
 /// This optional sidecar lets risk calculations shock the original projection
 /// quotes and re-bootstrap the curve instead of directly bumping fitted forward
 /// knots.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ForwardCurveRateCalibration {
     /// Rate index used by the projection instruments.
@@ -100,7 +100,7 @@ pub struct ForwardCurveRateCalibration {
 }
 
 /// A single benchmark rate quote used to calibrate a forward curve.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ForwardCurveRateQuote {
     /// Money-market deposit quote.
@@ -113,8 +113,10 @@ pub enum ForwardCurveRateQuote {
     /// Forward-rate agreement quote.
     Fra {
         /// FRA start date.
+        #[schemars(with = "String")]
         start: Date,
         /// FRA end date.
+        #[schemars(with = "String")]
         end: Date,
         /// Quoted rate in decimal form.
         rate: f64,
@@ -152,7 +154,7 @@ pub enum ForwardCurveRateQuote {
 /// # Thread Safety
 ///
 /// Immutable after construction; safe to share via `Arc<ForwardCurve>`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "RawForwardCurve", into = "RawForwardCurve")]
 pub struct ForwardCurve {
     id: CurveId,
@@ -179,12 +181,13 @@ pub struct ForwardCurve {
 }
 
 /// Raw serializable state of ForwardCurve
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawForwardCurve {
     /// Curve identifier
     pub id: String,
     /// Base date
+    #[schemars(with = "String")]
     pub base: Date,
     /// Reset lag in business days
     pub reset_lag: i32,

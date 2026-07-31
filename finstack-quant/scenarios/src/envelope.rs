@@ -13,14 +13,22 @@ use crate::ScenarioSpec;
 pub const SCENARIO_CONTRACT: ContractDescriptor =
     ContractDescriptor::new("finstack_quant.scenario", 1);
 
+fn scenario_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    let marker = SCENARIO_CONTRACT.schema_string();
+    schemars::json_schema!({
+        "type": "string",
+        "const": marker,
+    })
+}
+
 /// Versioned wrapper used when persisting a scenario specification.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScenarioEnvelope {
     /// Exact scenario contract marker.
+    #[schemars(schema_with = "scenario_schema_marker")]
     pub schema: String,
     /// Bare scenario specification used by in-process APIs.
-    #[schemars(with = "serde_json::Value")]
     pub scenario: ScenarioSpec,
 }
 

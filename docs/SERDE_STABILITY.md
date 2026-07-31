@@ -38,31 +38,98 @@ one process) are outside this contract.
 `serde_json::from_*`. Strict loaders always require an explicit version marker:
 an envelope `schema`, numeric `version`, or numeric/string `schema_version`.
 
-| Persisted contract | Marker | Current | Accepted | Ordinary missing-marker behavior | Strict missing-marker behavior |
-|---|---|---:|---|---|---|
-| `InstrumentEnvelope` | `schema = "finstack_quant.instrument/1"` | 1 | 1 | compatibility loaders accept the bare `{type,spec}` form | reject with `contract/envelope-required` |
-| `CalibrationEnvelope` / `CalibrationResultEnvelope` | `schema = "finstack_quant.calibration/3"` | 3 | 3; exact legacy `finstack_quant.calibration` is read with a warning | serde requires a string but does not validate it by itself | reject missing; legacy marker yields `contract/version-legacy` |
-| `MarketContextState` | numeric `version` | 2 | 1–2 | missing maps to legacy version 1 | reject with `contract/version-missing` |
-| `FinancialModelSpec` | numeric `schema_version` | 2 | 1–2 | missing maps to legacy version 1 | reject; explicit v1 is migrated to v2 |
-| `ScenarioEnvelope` | `schema = "finstack_quant.scenario/1"` | 1 | 1 | bare `ScenarioSpec` remains an in-process compatibility shape | reject with `contract/version-missing` |
-| `FactorModelConfigEnvelope` | `schema = "finstack_quant.factor_model_config/1"` | 1 | 1 | bare `FactorModelConfig` remains an in-process compatibility shape | reject with `contract/version-missing` |
-| `CreditFactorModel` | `schema_version = "finstack_quant.credit_factor_model/1"` | 1 | 1 | the field is required, but raw serde does not run semantic validation | reject missing or mismatched marker |
-| `PortfolioMaterializationEnvelope` | `schema = "finstack_quant.portfolio_materialization/1"` | 1 | 1 | no compatibility form for this normalized contract | reject with `contract/version-missing` |
+| Persisted contract | Marker | Current | Accepted | Ordinary missing-marker behavior | Strict missing-marker behavior | Schema status / artifact |
+|---|---|---:|---|---|---|---|
+| `InstrumentEnvelope` | `schema = "finstack_quant.instrument/1"` | 1 | 1 | compatibility loaders accept the bare `{type,spec}` form | reject with `contract/envelope-required` | generated + drift-checked: [instrument union and per-type schemas](../finstack-quant/valuations/schemas/instruments/1/) |
+| `CalibrationEnvelope` | `schema = "finstack_quant.calibration/3"` | 3 | 3; exact legacy `finstack_quant.calibration` is read with a warning | serde requires a string but does not validate it by itself | reject missing; legacy marker yields `contract/version-legacy` | generated + drift-checked: [v3 request schema](../finstack-quant/valuations/schemas/calibration/3/calibration.schema.json) |
+| `CalibrationResultEnvelope` | `schema = "finstack_quant.calibration/3"` | 3 | 3; exact legacy `finstack_quant.calibration` is read with a warning | serde requires a string but does not validate it by itself | reject missing; legacy marker yields `contract/version-legacy` | derived but no standalone artifact |
+| `MarketContextState` | numeric `version` | 2 | 1–2 | missing maps to legacy version 1 | reject with `contract/version-missing` | derived but no standalone artifact; typed where embedded, including the [attribution schema](../finstack-quant/attribution/schemas/attribution/1/attribution.schema.json) |
+| `FinancialModelSpec` | numeric `schema_version` | 2 | 1–2 | missing maps to legacy version 1 | reject; explicit v1 is migrated to v2 | generated + drift-checked: [financial model schema](../finstack-quant/statements/schemas/statements/1/financial_model_spec.schema.json) |
+| `ScenarioEnvelope` | `schema = "finstack_quant.scenario/1"` | 1 | 1 | bare `ScenarioSpec` remains an in-process compatibility shape | reject with `contract/version-missing` | generated + drift-checked: [scenario schema](../finstack-quant/scenarios/schemas/scenarios/1/scenario.schema.json) |
+| `FactorModelConfigEnvelope` | `schema = "finstack_quant.factor_model_config/1"` | 1 | 1 | bare `FactorModelConfig` remains an in-process compatibility shape | reject with `contract/version-missing` | generated + drift-checked: [factor-model configuration schema](../finstack-quant/factor-model/schemas/factor_model/1/factor_model_config.schema.json) |
+| `CreditFactorModel` | `schema_version = "finstack_quant.credit_factor_model/1"` | 1 | 1 | the field is required, but raw serde does not run semantic validation | reject missing or mismatched marker | generated + drift-checked: [credit factor model schema](../finstack-quant/factor-model/schemas/factor_model/1/credit_factor_model.schema.json) |
+| `PortfolioMaterializationEnvelope` | `schema = "finstack_quant.portfolio_materialization/1"` | 1 | 1 | no compatibility form for this normalized contract | reject with `contract/version-missing` | generated + drift-checked: [portfolio materialization schema](../finstack-quant/portfolio/schemas/portfolio/1/portfolio_materialization.schema.json) |
+
+`AttributionEnvelope` and `AttributionResultEnvelope` are generated serde
+contracts without a separate bounded strict loader. Ordinary serde itself
+requires the exact `finstack_quant.attribution/1` marker for both types; missing
+or mismatched markers fail, matching the `const` in the checked-in request and
+result schemas. The margin schema is a synthetic bundle of nested contract
+types rather than a Rust envelope and does not imply a margin strict loader.
+Its published numeric bounds are enforced symmetrically during serialization
+and deserialization of the nested Rust types.
 
 Scenario-template documents are internal registry inputs. Their missing
 `schema` maps to legacy `finstack_quant.scenario_template/1`; this is not a
 public persistence promise.
 
-Versioned result outputs remain consumer-checked rather than strict inbound
-database contracts:
+### Consumer-checked versioned result outputs
 
-| Result type | Marker | Current | Missing-marker behavior |
-|---|---|---:|---|
-| `ValuationResult` | numeric `schema_version` | 1 | ordinary serde defaults to 1 |
-| `StatementResult` | numeric `schema_version` | 1 | ordinary serde defaults to 1 |
-| `PortfolioResult` | numeric `schema_version` | 1 | ordinary serde defaults to 1 |
-| `PortfolioOptimizationResult` | numeric `schema_version` | 1 | write-only canonical result shape; no general deserializer |
-| `CreditFactorModel` | string `schema_version` | 1 | required; use its strict loader |
+These outputs remain consumer-checked rather than strict inbound database
+contracts:
+
+| Result type | Marker | Current | Missing-marker behavior | Schema status / artifact |
+|---|---|---:|---|---|
+| `ValuationResult` | numeric `schema_version` | 1 | ordinary serde defaults to 1 | generated + drift-checked: [valuation result schema](../finstack-quant/valuations/schemas/results/1/valuation_result.schema.json) |
+| `StatementResult` | numeric `schema_version` | 1 | ordinary serde defaults to 1 | generated + drift-checked: [statement result schema](../finstack-quant/statements/schemas/statements/1/statement_result.schema.json) |
+| `PortfolioResult` | numeric `schema_version` | 1 | ordinary serde defaults to 1 | derived but no standalone artifact |
+| `PortfolioOptimizationResult` | numeric `schema_version` | 1 | serialize-only canonical result shape; no general deserializer | serialize-only; manual `JsonSchema` implementation; no standalone artifact |
+
+## Serialize-only public output views
+
+A public type that implements `Serialize` but not `Deserialize` is a one-way
+output contract, not a persisted round-trip contract. These values may be
+written to JSON for bindings, reports, or terminal artifacts, but this
+workspace does not promise to rehydrate them. New one-way DTOs should use
+`View`, `Result`, or `Report` naming rather than `Envelope`; `Envelope` is
+reserved for an explicitly versioned inbound/outbound contract. Private wire
+helpers and nested serializer-only implementation types are not public
+contracts and are excluded from this inventory.
+
+The current public inventory contains 28 one-way types:
+
+- **Attribution reports (5):**
+  `ReturnContributionResult`, `InstrumentContribution`,
+  `GroupContribution`, `FactorContribution`, and
+  `BenchmarkRelativeContribution`
+  (re-exported from the `finstack_quant_attribution` crate root).
+- **Factor-model decomposition outputs (4):**
+  `LevelValuesAtDate`, `LevelsAtDate`, `LevelValuesDelta`, and
+  `PeriodDecomposition`
+  (`finstack_quant_factor_model::credit::decomposition`).
+- **Portfolio factor-risk and allocation outputs (9):**
+  `PositionEsContributionView`, `ParametricEsDecompositionView`,
+  `PositionVarContributionView`, `ParametricVarDecompositionView`,
+  `PositionBudgetEntryView`, `RiskBudgetResultView`,
+  `WeightAllocationResult`, `StrategyAllocation`, and
+  `AllocationDiagnostics`
+  (`finstack_quant_portfolio::factor_model`).
+- **Portfolio scenario and sensitivity views (4):**
+  `ScenarioRevalueView`, `ScenarioPnlView`,
+  `SensitivityMatrixJson`, and `FactorPnlProfileJson`
+  (`finstack_quant_portfolio::{scenarios,sensitivity}`).
+- **Portfolio optimization result (1):**
+  `PortfolioOptimizationResult`
+  (`finstack_quant_portfolio::optimization`); its schema marker identifies the
+  emitted shape but does not make the result deserializable.
+- **Statement-analysis reports (2):**
+  `CreditAssessmentPoint` and `CreditAssessment`
+  (`finstack_quant_statements_analytics::analysis::reports`).
+- **Valuation validation reports (3):**
+  `ValidationReport`, `DependencyGraph`, and `DependencyNode`
+  (`finstack_quant_valuations::calibration::api::validate`).
+
+This list is based on effective trait support, not derive syntax alone. Types
+with a hand-written `Deserialize` implementation remain round-trippable even
+when their declaration only derives `Serialize`; they belong under the
+persisted or additive-contract rules elsewhere in this document.
+
+The pre-1.0 `ScenarioRevalueEnvelope` and `ScenarioPnlEnvelope` names were
+removed without aliases in favor of `ScenarioRevalueView` and
+`ScenarioPnlView`; their helpers are `apply_and_revalue_view` and
+`scenario_pnl_view`. The old Rust identifiers were not exposed by the Python
+or WASM APIs, and retaining them would preserve the false impression that
+these outputs are accepted round-trip persistence envelopes.
 
 ## The contract
 
@@ -146,15 +213,15 @@ version marker so consumers can detect a mismatch and refuse, upgrade, or fall
 back rather than silently misinterpreting bytes. The corresponding constant or
 descriptor lives in the same module and is the source of truth.
 
-| Type | Module | Const | Current version |
-|---|---|---|---|
-| `ValuationResult` | `finstack_quant_valuations::results` | `VALUATION_RESULT_SCHEMA_VERSION` | 1 |
-| `StatementResult` | `finstack_quant_statements::evaluator::results` | `STATEMENT_RESULT_SCHEMA_VERSION` | 1 |
-| `PortfolioResult` | `finstack_quant_portfolio::results` | `PORTFOLIO_RESULT_SCHEMA_VERSION` | 1 |
-| `PortfolioOptimizationResult` | `finstack_quant_portfolio::optimization::result` | `PORTFOLIO_OPTIMIZATION_RESULT_SCHEMA_VERSION` | 1 |
-| `CreditFactorModel` | `finstack_quant_factor_model::credit::hierarchy` | `"finstack_quant.credit_factor_model/1"` (string tag, not a `u32` const) | 1 |
-| `MarketContextState` | `finstack_quant_core::market_data::context` | `MARKET_CONTEXT_STATE_VERSION` | 2 |
-| `FinancialModelSpec` | `finstack_quant_statements::types` | `CURRENT_SCHEMA_VERSION` | 2 |
+| Type | Module | Const | Current version | Schema status / artifact |
+|---|---|---|---:|---|
+| `ValuationResult` | `finstack_quant_valuations::results` | `VALUATION_RESULT_SCHEMA_VERSION` | 1 | generated + drift-checked: [schema](../finstack-quant/valuations/schemas/results/1/valuation_result.schema.json) |
+| `StatementResult` | `finstack_quant_statements::evaluator::results` | `STATEMENT_RESULT_SCHEMA_VERSION` | 1 | generated + drift-checked: [schema](../finstack-quant/statements/schemas/statements/1/statement_result.schema.json) |
+| `PortfolioResult` | `finstack_quant_portfolio::results` | `PORTFOLIO_RESULT_SCHEMA_VERSION` | 1 | derived but no standalone artifact |
+| `PortfolioOptimizationResult` | `finstack_quant_portfolio::optimization::result` | `PORTFOLIO_OPTIMIZATION_RESULT_SCHEMA_VERSION` | 1 | serialize-only; manual `JsonSchema` implementation; no standalone artifact |
+| `CreditFactorModel` | `finstack_quant_factor_model::credit::hierarchy` | `"finstack_quant.credit_factor_model/1"` (string tag, not a `u32` const) | 1 | generated + drift-checked: [schema](../finstack-quant/factor-model/schemas/factor_model/1/credit_factor_model.schema.json) |
+| `MarketContextState` | `finstack_quant_core::market_data::context` | `MARKET_CONTEXT_STATE_VERSION` | 2 | derived but no standalone artifact |
+| `FinancialModelSpec` | `finstack_quant_statements::types` | `CURRENT_SCHEMA_VERSION` | 2 | generated + drift-checked: [schema](../finstack-quant/statements/schemas/statements/1/financial_model_spec.schema.json) |
 
 ### When to bump an explicit version marker
 

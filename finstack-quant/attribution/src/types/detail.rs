@@ -356,7 +356,7 @@ pub struct ModelParamsAttribution {
 ///   - the full `SourceLine` shape (`total` + optional `rates_part` / `credit_part`)
 ///
 /// New JSON serialization always uses the `SourceLine` shape.
-#[derive(Debug, Clone, Serialize, PartialEq, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct SourceLine {
     /// Total signed amount for this line (always populated).
     pub total: Money,
@@ -368,6 +368,35 @@ pub struct SourceLine {
     /// drove the split).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credit_part: Option<Money>,
+}
+
+impl schemars::JsonSchema for SourceLine {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("SourceLine")
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        let money = generator.subschema_for::<Money>();
+        schemars::json_schema!({
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": ["total"],
+                    "additionalProperties": false,
+                    "properties": {
+                        "total": money,
+                        "rates_part": {
+                            "anyOf": [money, {"type": "null"}]
+                        },
+                        "credit_part": {
+                            "anyOf": [money, {"type": "null"}]
+                        }
+                    }
+                },
+                money
+            ]
+        })
+    }
 }
 
 impl SourceLine {

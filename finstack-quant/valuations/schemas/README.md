@@ -2,12 +2,14 @@
 
 This directory contains JSON Schema Draft 2020-12 definitions owned by the
 valuations crate: instruments, calibration, market quotes, valuation results,
-credit factor-model artifacts, and shared definitions needed by those schemas.
-The Rust serde types and strict loaders are authoritative.
+and shared definitions needed by those schemas. The Rust serde types and strict
+loaders are authoritative.
 
 Cashflow schemas are owned under `finstack-quant/cashflows/schemas/`; portfolio
 materialization schemas are owned under `finstack-quant/portfolio/schemas/`.
-Valuations schemas may reference those separately generated artifacts.
+Credit factor-model schemas are owned under
+`finstack-quant/factor-model/schemas/factor_model/`. Valuations schemas may
+reference those separately generated artifacts.
 
 ## Regenerating Schemas
 
@@ -59,7 +61,6 @@ schemas/
     exotics/               # Asian, barrier, lookback, basket options
   calibration/2/           # Frozen calibration schema (v2)
   calibration/3/           # Current calibration schema (v3)
-  factor_model/1/          # Credit factor-model schemas (v1)
   market/1/                # Market quote schemas (v1)
   results/1/               # Valuation result schema (v1)
 ```
@@ -206,8 +207,9 @@ JSON Schema validators only check what their caller invokes; they do not
 replace strict loader version, resource-limit, migration, or semantic checks.
 
 `schema_version` is reserved for internal model/data payloads whose Rust type
-owns that field. Current exceptions are valuation results and credit factor
-model artifacts; public envelopes should use `schema`.
+owns that field. The valuation-result schema is the exception in this tree;
+credit factor-model artifacts live in the owning factor-model crate. Public
+envelopes should use `schema`.
 
 ## Validation
 

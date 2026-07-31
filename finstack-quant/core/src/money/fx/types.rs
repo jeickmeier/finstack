@@ -128,7 +128,9 @@ impl Default for FxPolicyMeta {
 ///
 /// Controls triangulation and caching.
 ///
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(deny_unknown_fields)]
 #[serde(default)]
 pub struct FxConfig {
@@ -174,7 +176,7 @@ pub struct FxRateResult {
 
 /// Serializable state of an FxMatrix.
 /// Contains the configuration and cached quotes that can be persisted and restored.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FxMatrixState {
     /// Matrix configuration, including pivot and cache capacity.
@@ -188,5 +190,6 @@ pub struct FxMatrixState {
     /// those dates from the provider. The field is serde-additive
     /// (`default`), so older payloads without it still deserialize.
     #[serde(default)]
+    #[schemars(with = "Vec<(Currency, Currency, String, FxConversionPolicy, f64)>")]
     pub pinned_quotes: Vec<(Currency, Currency, Date, FxConversionPolicy, f64)>,
 }

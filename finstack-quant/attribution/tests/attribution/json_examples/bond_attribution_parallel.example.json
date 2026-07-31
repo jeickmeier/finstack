@@ -44,8 +44,8 @@
           "tags": [],
           "meta": {}
         },
-        "settlement_days": null,
-        "ex_coupon_days": null
+        "settlement_days": 0,
+        "ex_coupon_days": 0
       }
     },
     "market_t0": {

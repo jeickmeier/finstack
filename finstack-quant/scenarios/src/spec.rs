@@ -28,6 +28,7 @@
 use finstack_quant_core::market_data::hierarchy::ResolutionMode;
 use finstack_quant_core::types::CurveId;
 use indexmap::IndexMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Re-export [`HierarchyTarget`] for hierarchy-targeted operations.
@@ -74,7 +75,7 @@ pub use finstack_quant_statements::types::NodeId;
 ///     resolution_mode: ResolutionMode::default(),
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScenarioSpec {
     /// Unique identifier for this scenario.
@@ -157,7 +158,7 @@ impl ScenarioSpec {
 /// Hierarchy-targeted variants are resolved into direct identifiers during
 /// [`crate::engine::ScenarioEngine::apply`] using the market hierarchy attached
 /// to the execution context.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OperationSpec {
     /// FX rate percent shift.
@@ -788,7 +789,7 @@ fn default_true() -> bool {
 /// let kind = CurveKind::Discount;
 /// assert_eq!(format!("{:?}", kind), "Discount");
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CurveKind {
     /// Discount factor curve.
@@ -818,7 +819,7 @@ pub enum CurveKind {
 ///
 /// assert!(matches!(VolSurfaceKind::Swaption, VolSurfaceKind::Swaption));
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum VolSurfaceKind {
     /// Equity volatility surface.
@@ -849,7 +850,7 @@ pub enum VolSurfaceKind {
 /// let mode = TenorMatchMode::Interpolate;
 /// assert_eq!(format!("{:?}", mode), "Interpolate");
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TenorMatchMode {
     /// Match exact pillar only (errors if not found).
@@ -887,7 +888,7 @@ pub enum TenorMatchMode {
 /// [`TimeRollMode::BusinessDays`] or [`TimeRollMode::CalendarDays`], which
 /// both resolve the target date via [`finstack_quant_core::dates::Tenor`] and are
 /// additive modulo the chosen business-day convention.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TimeRollMode {
     /// Business-day-adjusted roll (ModifiedFollowing).
@@ -937,7 +938,7 @@ pub enum TimeRollMode {
 ///     day_count: None, // Use curve's day count
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RateBindingSpec {
     /// Statement node ID to receive the rate.
@@ -994,7 +995,7 @@ impl RateBindingSpec {
 /// different quoting conventions (for example from continuous zeros to annual
 /// or simple statement rates). The output remains a decimal annualized rate;
 /// only the compounding basis changes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Compounding {
     /// Simple interest (no compounding).

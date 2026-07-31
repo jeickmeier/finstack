@@ -39,7 +39,17 @@ use time::Duration as TimeDuration;
 /// let mid_date = Date::from_calendar_date(2024, Month::January, 15).expect("Valid date");
 /// assert_eq!(stepped.value_on(mid_date).expect("Value lookup should succeed"), 100.0);
 /// ```
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum SeriesInterpolation {
     /// Last observation carried forward
@@ -112,11 +122,21 @@ pub enum MarketScalar {
     Price(crate::money::Money),
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 enum RawMarketScalar {
     Unitless(f64),
     Price(crate::money::Money),
+}
+
+impl schemars::JsonSchema for MarketScalar {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "MarketScalar".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        RawMarketScalar::json_schema(generator)
+    }
 }
 
 impl TryFrom<RawMarketScalar> for MarketScalar {
@@ -588,7 +608,7 @@ fn from_days(days: i32) -> Date {
 }
 
 /// Raw serializable state of a ScalarTimeSeries
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawScalarTimeSeries {
     /// Series identifier
@@ -596,9 +616,20 @@ struct RawScalarTimeSeries {
     /// Optional currency
     pub currency: Option<Currency>,
     /// Observations as (date, value) pairs
+    #[schemars(with = "Vec<(String, f64)>")]
     pub observations: Vec<(Date, f64)>,
     /// Interpolation method
     pub interpolation: SeriesInterpolation,
+}
+
+impl schemars::JsonSchema for ScalarTimeSeries {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ScalarTimeSeries".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        RawScalarTimeSeries::json_schema(generator)
+    }
 }
 
 impl From<ScalarTimeSeries> for RawScalarTimeSeries {

@@ -36,6 +36,7 @@ use finstack_quant_core::math::NeumaierAccumulator;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::{Error, Result};
+use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::instruments::fixed_income::inflation_linked_bond::InflationLinkedBond;
@@ -52,7 +53,7 @@ use crate::pricer::{shared_standard_registry, ModelKey, PricerKey};
 // ---------------------------------------------------------------------------
 
 /// Top-level JSON envelope returned by [`instrument_cashflows_json`].
-#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize, JsonSchema)]
 pub struct InstrumentCashflowEnvelope {
     /// Instrument identifier.
     pub instrument_id: String,
@@ -61,6 +62,7 @@ pub struct InstrumentCashflowEnvelope {
     /// Model key used (`"discounting"` or `"hazard_rate"`).
     pub model: String,
     /// Valuation date.
+    #[schemars(with = "String")]
     pub as_of: Date,
     /// Discount curve ID used.
     pub discount_curve_id: CurveId,
@@ -82,9 +84,10 @@ pub struct InstrumentCashflowEnvelope {
 }
 
 /// Single-row enriched cashflow view.
-#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize, JsonSchema)]
 pub struct CashflowRow {
     /// Payment date.
+    #[schemars(with = "String")]
     pub date: Date,
     /// Signed cashflow amount in row currency.
     pub amount: f64,
@@ -101,6 +104,7 @@ pub struct CashflowRow {
     pub rate: Option<f64>,
     /// Reset date when the flow is a floating-rate fixing.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
     pub reset_date: Option<Date>,
     /// `df(as_of, date)`.
     pub discount_factor: f64,

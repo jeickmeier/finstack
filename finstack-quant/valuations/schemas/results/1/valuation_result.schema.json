@@ -667,6 +667,7 @@
   "properties": {
     "as_of": {
       "description": "Valuation date (T+0) for the calculation.",
+      "format": "date",
       "type": "string"
     },
     "covenants": {

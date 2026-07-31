@@ -104,7 +104,7 @@ use crate::{
 /// # Thread Safety
 ///
 /// Immutable after construction; safe to share via `Arc<VolatilityIndexCurve>`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "RawVolatilityIndexCurve", into = "RawVolatilityIndexCurve")]
 pub struct VolatilityIndexCurve {
     id: CurveId,
@@ -121,12 +121,13 @@ pub struct VolatilityIndexCurve {
 }
 
 /// Raw serializable state of VolatilityIndexCurve
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawVolatilityIndexCurve {
     /// Curve identifier
     pub id: String,
     /// Base date
+    #[schemars(with = "String")]
     pub base: Date,
     /// Day count convention
     pub day_count: DayCount,

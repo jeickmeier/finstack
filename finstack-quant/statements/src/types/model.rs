@@ -12,6 +12,7 @@ use finstack_quant_valuations::instruments::{
     Bond, Deposit, ForwardRateAgreement, InstrumentJson, InterestRateSwap, Repo, TermLoan,
 };
 use indexmap::IndexMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
 /// Current on-disk schema version for [`FinancialModelSpec`].
@@ -29,6 +30,46 @@ pub const FINANCIAL_MODEL_CONTRACT: ContractDescriptor = ContractDescriptor {
     legacy_missing: Some(1),
 };
 
+const INSTRUMENT_JSON_SCHEMA_REF: &str =
+    "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json#/$defs/InstrumentJson";
+
+fn instrument_json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "$ref": INSTRUMENT_JSON_SCHEMA_REF
+    })
+}
+
+fn periods_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "array",
+        "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Period identifier such as 2025Q1"
+                },
+                "start": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Inclusive ISO 8601 start date"
+                },
+                "end": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Exclusive ISO 8601 end date"
+                },
+                "is_actual": {
+                    "type": "boolean",
+                    "description": "Whether the period contains actual rather than forecast data"
+                }
+            },
+            "required": ["id", "start", "end", "is_actual"]
+        }
+    })
+}
+
 /// Top-level financial model specification.
 ///
 /// This is the wire format for a complete financial statement model.
@@ -37,7 +78,7 @@ pub const FINANCIAL_MODEL_CONTRACT: ContractDescriptor = ContractDescriptor {
 /// Period order in [`FinancialModelSpec::periods`] defines the evaluation timeline:
 /// engines iterate periods in this sequence when resolving dependencies and rolling
 /// windows.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FinancialModelSpec {
     /// Unique model identifier
@@ -47,6 +88,7 @@ pub struct FinancialModelSpec {
     ///
     /// Evaluation follows this order end-to-end (dependency resolution and time-series
     /// helpers assume a single coherent timeline).
+    #[schemars(schema_with = "periods_schema")]
     pub periods: Vec<Period>,
 
     /// Map of node_id → NodeSpec
@@ -69,6 +111,7 @@ pub struct FinancialModelSpec {
         default = "default_schema_version",
         deserialize_with = "deserialize_schema_version"
     )]
+    #[schemars(range(min = 1, max = 2))]
     pub schema_version: u32,
 }
 
@@ -556,7 +599,7 @@ fn validation_report_error(error: Error, phase: LoadPhase, limits: &LoadLimits) 
 }
 
 /// Capital structure specification.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CapitalStructureSpec {
     /// Debt instruments (bonds, loans, swaps)
@@ -594,12 +637,13 @@ pub struct CapitalStructureSpec {
 /// default `valuation-integration` feature, the `spec` value is resolved through
 /// the valuations instrument registry from the tagged form
 /// `{"type": "<tag>", "spec": {...}}`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DebtInstrumentSpec {
     /// Instrument identifier (key within the capital structure).
     pub id: String,
     /// Canonical tagged instrument payload: `{"type": "...", "spec": {...}}`.
+    #[schemars(schema_with = "instrument_json_schema")]
     pub spec: serde_json::Value,
 }
 

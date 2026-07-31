@@ -77,7 +77,16 @@
 macro_rules! define_string_id {
     ($(#[$meta:meta])* $vis:vis struct $name:ident;) => {
         $(#[$meta])*
-        #[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            Eq,
+            Hash,
+            serde::Serialize,
+            serde::Deserialize,
+            schemars::JsonSchema,
+        )]
         #[repr(transparent)]
         $vis struct $name(String);
 

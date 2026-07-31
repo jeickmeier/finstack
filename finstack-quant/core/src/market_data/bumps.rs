@@ -96,7 +96,9 @@ pub enum BumpType {
 }
 
 /// Units for the bump magnitude. These control normalization to fraction or factor.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum BumpUnits {

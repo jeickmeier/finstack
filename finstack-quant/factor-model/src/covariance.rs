@@ -6,6 +6,7 @@
 
 use super::FactorId;
 use finstack_quant_core::HashMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
 /// User-supplied factor covariance matrix with row-major storage.
@@ -32,6 +33,28 @@ pub struct FactorCovarianceMatrix {
     data: Vec<f64>,
     #[serde(skip)]
     index: HashMap<FactorId, usize>,
+}
+
+impl JsonSchema for FactorCovarianceMatrix {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("FactorCovarianceMatrix")
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        let factor_ids = generator.subschema_for::<Vec<FactorId>>();
+        let n = generator.subschema_for::<usize>();
+        let data = generator.subschema_for::<Vec<f64>>();
+        schemars::json_schema!({
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "factor_ids": factor_ids,
+                "n": n,
+                "data": data,
+            },
+            "required": ["factor_ids", "n", "data"],
+        })
+    }
 }
 
 impl FactorCovarianceMatrix {

@@ -55,6 +55,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::credit::hierarchy::{
@@ -79,6 +80,53 @@ use finstack_quant_core::types::IssuerId;
 
 use finstack_quant_core::{Error, Result};
 
+fn date_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "string",
+        "format": "date",
+    })
+}
+
+fn date_array_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "array",
+        "items": {
+            "type": "string",
+            "format": "date",
+        },
+    })
+}
+
+fn open_unit_interval_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "number",
+        "exclusiveMinimum": 0.0,
+        "exclusiveMaximum": 1.0,
+    })
+}
+
+fn non_negative_number_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "number",
+        "minimum": 0.0,
+    })
+}
+
+fn closed_unit_interval_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "number",
+        "minimum": 0.0,
+        "maximum": 1.0,
+    })
+}
+
+fn positive_number_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "number",
+        "exclusiveMinimum": 0.0,
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Public configuration types
 // ---------------------------------------------------------------------------
@@ -87,7 +135,7 @@ use finstack_quant_core::{Error, Result};
 ///
 /// `Returns` (the default) matches the spec's reference math: `r_i(t) =
 /// S_i(t) - S_i(t-1)` and the generic factor is differenced the same way.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PanelSpace {
@@ -113,7 +161,7 @@ pub enum PanelSpace {
 /// ([`PanelSpace::Levels`]) is rejected by
 /// `validate_calibration_config` because the squared-level mean-square is
 /// dominated by the level itself, not its dispersion.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum VolModelChoice {
@@ -133,13 +181,14 @@ pub enum VolModelChoice {
     ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2.
     Ewma {
         /// Smoothing parameter λ ∈ (0, 1) (RiskMetrics daily default 0.94).
+        #[schemars(schema_with = "open_unit_interval_schema")]
         lambda: f64,
     },
 }
 
 /// Strategy for assembling the factor covariance matrix.
 ///
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CovarianceStrategy {
@@ -149,6 +198,7 @@ pub enum CovarianceStrategy {
     /// Σ = D·ρ·D + α·I. Requires `alpha >= 0`. See design spec §4.1.
     Ridge {
         /// Ridge regularisation parameter; must be `>= 0`.
+        #[schemars(schema_with = "non_negative_number_schema")]
         alpha: f64,
     },
     /// Full sample covariance with PSD repair via nearest-correlation projection:
@@ -179,7 +229,7 @@ pub enum CovarianceStrategy {
 }
 
 /// OLS β shrinkage rule.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum BetaShrinkage {
@@ -188,13 +238,14 @@ pub enum BetaShrinkage {
     /// Convex shrinkage toward 1.0: `β ← (1 - α) · β_fit + α · 1.0`.
     TowardOne {
         /// Shrinkage weight in `[0, 1]`.
+        #[schemars(schema_with = "closed_unit_interval_schema")]
         alpha: f64,
     },
 }
 
 /// Per-level minimum-bucket-size thresholds used to gate fold-up of sparse
 /// hierarchy buckets.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BucketSizeThresholds {
     /// Threshold per hierarchy level. Levels beyond `per_level.len()` use the
@@ -217,7 +268,7 @@ impl BucketSizeThresholds {
 }
 
 /// Configuration for the calibrator.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreditCalibrationConfig {
     /// Issuer-beta classification policy.
@@ -235,6 +286,7 @@ pub struct CreditCalibrationConfig {
     /// Whether to differentiate the panel before peeling.
     pub use_returns_or_levels: PanelSpace,
     /// Annualization factor for sample variance (default 12.0 ≈ monthly data).
+    #[schemars(schema_with = "positive_number_schema")]
     pub annualization_factor: f64,
 }
 
@@ -262,17 +314,18 @@ impl Default for CreditCalibrationConfig {
 /// `dates` is the sorted observation grid. `spreads[issuer]` has length
 /// `dates.len()`; entries are `Some(spread)` when the issuer was observed at
 /// that date and `None` otherwise.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryPanel {
     /// Observation dates (sorted ascending).
+    #[schemars(schema_with = "date_array_schema")]
     pub dates: Vec<Date>,
     /// Per-issuer spread series aligned with [`dates`][Self::dates].
     pub spreads: BTreeMap<IssuerId, Vec<Option<f64>>>,
 }
 
 /// Point-in-time issuer tags at the calibration `as_of`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssuerTagPanel {
     /// Tag map keyed by issuer.
@@ -280,7 +333,7 @@ pub struct IssuerTagPanel {
 }
 
 /// Generic (PC) factor reference and aligned values.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GenericFactorSeries {
     /// Reference (name + series_id) embedded into the artifact.
@@ -290,7 +343,7 @@ pub struct GenericFactorSeries {
 }
 
 /// All inputs the calibrator needs for a single calibration run.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreditCalibrationInputs {
     /// Sparse issuer-spread history.
@@ -300,6 +353,7 @@ pub struct CreditCalibrationInputs {
     /// Generic factor series + spec.
     pub generic_factor: GenericFactorSeries,
     /// Calibration anchor date (must appear in `history_panel.dates`).
+    #[schemars(schema_with = "date_schema")]
     pub as_of: Date,
     /// Issuer spreads at `as_of` (level space).
     pub asof_spreads: BTreeMap<IssuerId, f64>,

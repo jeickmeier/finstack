@@ -434,7 +434,10 @@ finstack_quant.credit_factor_model/1
 - The v1 root JSON schema uses `"additionalProperties": false` and a
   `"const"` schema-version value.
 - The schema file is
-  `finstack-quant/valuations/schemas/factor_model/1/credit_factor_model.schema.json`.
+  `finstack-quant/factor-model/schemas/factor_model/1/credit_factor_model.schema.json`.
+- The published schema URI remains under
+  `https://finstack_quant.dev/schemas/factor_model/1/`; moving Rust ownership
+  must not change that stable identifier.
 - Compatibility semantics are locked by unit tests: an unknown root key fails
   to deserialize, an unknown `CalibrationDiagnostics` key succeeds, and a
   wrong `schema_version` deserializes but fails `validate()`
@@ -457,7 +460,7 @@ finstack_quant.credit_factor_model/1
 - Field removal, type change, semantic change, required-field addition, or
   root-key addition requires a new identifier such as
   `finstack_quant.credit_factor_model/2`, a schema under
-  `finstack-quant/valuations/schemas/factor_model/2/`, migration guidance,
+  `finstack-quant/factor-model/schemas/factor_model/2/`, migration guidance,
   and compatibility tests.
 - `#[serde(default)]` lets newer readers consume older payloads. It does not
   make older closed readers accept newer payloads.

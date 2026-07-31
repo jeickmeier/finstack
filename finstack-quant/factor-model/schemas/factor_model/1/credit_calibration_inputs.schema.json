@@ -1,0 +1,152 @@
+{
+  "$defs": {
+    "GenericFactorSeries": {
+      "additionalProperties": false,
+      "description": "Generic (PC) factor reference and aligned values.",
+      "properties": {
+        "spec": {
+          "$ref": "#/$defs/GenericFactorSpec",
+          "description": "Reference (name + series_id) embedded into the artifact."
+        },
+        "values": {
+          "description": "Generic factor values aligned with [`HistoryPanel::dates`].",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "spec",
+        "values"
+      ],
+      "type": "object"
+    },
+    "GenericFactorSpec": {
+      "additionalProperties": false,
+      "description": "Reference to the generic (PC) time series used as the first factor.\n\nValues are not stored here; they live in\n[`FactorHistories`] under the key `\"credit::generic\"`.",
+      "properties": {
+        "name": {
+          "description": "Human-readable name for the generic factor (e.g. `\"CDX IG 5Y\"`).",
+          "type": "string"
+        },
+        "series_id": {
+          "description": "Caller's time-series identifier, used to look up the input data.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "series_id"
+      ],
+      "type": "object"
+    },
+    "HistoryPanel": {
+      "additionalProperties": false,
+      "description": "Sparse issuer-spread history aligned to a sorted date grid.\n\n`dates` is the sorted observation grid. `spreads[issuer]` has length\n`dates.len()`; entries are `Some(spread)` when the issuer was observed at\nthat date and `None` otherwise.",
+      "properties": {
+        "dates": {
+          "description": "Observation dates (sorted ascending).",
+          "items": {
+            "format": "date",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "spreads": {
+          "additionalProperties": {
+            "items": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": "array"
+          },
+          "description": "Per-issuer spread series aligned with [`dates`][Self::dates].",
+          "type": "object"
+        }
+      },
+      "required": [
+        "dates",
+        "spreads"
+      ],
+      "type": "object"
+    },
+    "IssuerTagPanel": {
+      "additionalProperties": false,
+      "description": "Point-in-time issuer tags at the calibration `as_of`.",
+      "properties": {
+        "tags": {
+          "additionalProperties": {
+            "$ref": "#/$defs/IssuerTags"
+          },
+          "description": "Tag map keyed by issuer.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "tags"
+      ],
+      "type": "object"
+    },
+    "IssuerTags": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Flat key-value taxonomy tags for an issuer.\n\nUses `BTreeMap` so that serialization is deterministic and two artifacts\nbuilt from identical inputs produce byte-identical JSON.",
+      "type": "object"
+    }
+  },
+  "$id": "https://finstack_quant.dev/schemas/factor_model/1/credit_calibration_inputs.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Typed issuer histories, tags, generic factor series, anchor date, and overrides for one credit calibration run.",
+  "properties": {
+    "as_of": {
+      "description": "Calibration anchor date (must appear in `history_panel.dates`).",
+      "format": "date",
+      "type": "string"
+    },
+    "asof_spreads": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "description": "Issuer spreads at `as_of` (level space).",
+      "type": "object"
+    },
+    "generic_factor": {
+      "$ref": "#/$defs/GenericFactorSeries",
+      "description": "Generic factor series + spec."
+    },
+    "history_panel": {
+      "$ref": "#/$defs/HistoryPanel",
+      "description": "Sparse issuer-spread history."
+    },
+    "idiosyncratic_overrides": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "description": "Optional caller-supplied idiosyncratic vol overrides.\n\nCaller-supplied values take precedence over history, peer-proxy, and\nglobal-default adder-vol estimates.",
+      "type": "object"
+    },
+    "issuer_tags": {
+      "$ref": "#/$defs/IssuerTagPanel",
+      "description": "Per-issuer hierarchy tags (point-in-time)."
+    }
+  },
+  "required": [
+    "history_panel",
+    "issuer_tags",
+    "generic_factor",
+    "as_of",
+    "asof_spreads",
+    "idiosyncratic_overrides"
+  ],
+  "title": "CreditCalibrationInputs",
+  "type": "object"
+}

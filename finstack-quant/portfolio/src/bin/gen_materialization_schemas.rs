@@ -2,10 +2,9 @@
 
 use std::path::{Path, PathBuf};
 
+use finstack_quant_core::schema::{generated_schema, write_schema};
 use finstack_quant_portfolio::PortfolioMaterializationEnvelope;
-use serde_json::{Map, Value};
 
-const JSON_SCHEMA_DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
 const PORTFOLIO_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/portfolio/1/";
 
 fn schemas_dir() -> PathBuf {
@@ -17,49 +16,17 @@ fn schemas_dir() -> PathBuf {
         .join("1")
 }
 
-fn write_schema(filename: &str, title: &str, description: &str, generated: schemars::Schema) {
-    let directory = schemas_dir();
-    std::fs::create_dir_all(&directory)
-        .unwrap_or_else(|error| panic!("create {}: {error}", directory.display()));
-    let path = directory.join(filename);
-    let generated =
-        serde_json::to_value(generated).expect("serialize portfolio materialization schema");
-    let generated = generated
-        .as_object()
-        .expect("generated portfolio schema must be an object");
-
-    let mut output = Map::new();
-    output.insert(
-        "$id".to_string(),
-        Value::String(format!("{PORTFOLIO_SCHEMA_BASE}{filename}")),
-    );
-    output.insert(
-        "$schema".to_string(),
-        Value::String(JSON_SCHEMA_DIALECT.to_string()),
-    );
-    output.insert("title".to_string(), Value::String(title.to_string()));
-    output.insert(
-        "description".to_string(),
-        Value::String(description.to_string()),
-    );
-    for (key, value) in generated {
-        if !matches!(key.as_str(), "$id" | "$schema" | "title" | "description") {
-            output.insert(key.clone(), value.clone());
-        }
-    }
-
-    let json = serde_json::to_string_pretty(&Value::Object(output))
-        .expect("encode portfolio materialization schema");
-    std::fs::write(&path, json + "\n")
-        .unwrap_or_else(|error| panic!("write {}: {error}", path.display()));
-    println!("updated {}", path.display());
-}
-
 fn main() {
-    write_schema(
-        "portfolio_materialization.schema.json",
+    let filename = "portfolio_materialization.schema.json";
+    let path = schemas_dir().join(filename);
+    let schema = generated_schema::<PortfolioMaterializationEnvelope>(
+        PORTFOLIO_SCHEMA_BASE,
+        filename,
         "Portfolio Materialization Envelope",
         "Strict, versioned, content-addressed portfolio materialization bundle.",
-        schemars::schema_for!(PortfolioMaterializationEnvelope),
-    );
+    )
+    .unwrap_or_else(|error| panic!("generate portfolio materialization schema: {error}"));
+    write_schema(&path, &schema)
+        .unwrap_or_else(|error| panic!("write {}: {error}", path.display()));
+    println!("updated {}", path.display());
 }

@@ -5,6 +5,7 @@
 
 use super::collateral::EligibleCollateralSchedule;
 use super::enums::ImMethodology;
+use super::serde_validation;
 use super::thresholds::{ImParameters, VmParameters};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::types::CurveId;
@@ -21,6 +22,11 @@ use finstack_quant_core::config::FinstackConfig;
 #[serde(deny_unknown_fields)]
 pub struct MarginCallTiming {
     /// Notification deadline (hours after valuation, e.g., 13:00 local time)
+    #[serde(
+        deserialize_with = "serde_validation::notification_deadline_hours::deserialize",
+        serialize_with = "serde_validation::notification_deadline_hours::serialize"
+    )]
+    #[schemars(range(max = 23))]
     pub notification_deadline_hours: u8,
 
     /// Response deadline (hours after notification)

@@ -4,7 +4,7 @@ Re-exports the compiled bindings and the optional
 :mod:`finstack_quant.features.dataframe` pandas helpers. Symbol documentation
 lives in the ``.pyi`` stubs and in ``dataframe.py``.
 
-Examples
+Examples:
 --------
 >>> import finstack_quant.features as features
 >>> features.__name__

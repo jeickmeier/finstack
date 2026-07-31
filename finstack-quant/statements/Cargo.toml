@@ -16,6 +16,7 @@ finstack-quant-valuations = { path = "../valuations", version = "0.7.0", optiona
 serde = { workspace = true }
 serde_json = { workspace = true }
 indexmap = { workspace = true, features = ["serde"] }
+schemars = { workspace = true }
 thiserror = { workspace = true }
 nom = "8.0"
 tracing = { version = "0.1", default-features = false }
@@ -37,7 +38,12 @@ time = { workspace = true, features = ["macros"] }
 criterion = { workspace = true }
 proptest = "1.11.0"
 finstack-quant-test-utils = { path = "../test-utils", version = "0.7.0" }
+jsonschema = { version = "0.28", default-features = false }
 smallvec = { version = "1.15", default-features = false }
+
+[[bin]]
+name = "gen_statement_schemas"
+path = "src/bin/gen_schemas.rs"
 
 [[bench]]
 name = "statements_operations"

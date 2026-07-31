@@ -4,6 +4,7 @@ use crate::metrics::PortfolioMetrics;
 use crate::valuation::PortfolioValuation;
 use finstack_quant_core::config::ResultsMeta;
 use finstack_quant_core::money::Money;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Wire-format schema version for [`PortfolioResult`].
@@ -19,7 +20,7 @@ fn default_portfolio_result_schema_version() -> u32 {
 /// Complete results from portfolio evaluation.
 ///
 /// Contains valuation, metrics, and metadata about the calculation.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PortfolioResult {
     /// Wire-format schema version (see [`PORTFOLIO_RESULT_SCHEMA_VERSION`]).
     #[serde(default = "default_portfolio_result_schema_version")]

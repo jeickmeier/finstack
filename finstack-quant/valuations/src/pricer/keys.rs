@@ -15,6 +15,7 @@
     Hash,
     serde::Serialize,
     serde::Deserialize,
+    schemars::JsonSchema,
     strum::EnumIter,
 )]
 #[repr(u16)]

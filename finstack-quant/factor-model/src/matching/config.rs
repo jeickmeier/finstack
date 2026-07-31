@@ -7,10 +7,11 @@ use super::matchers::{
     MappingTableMatcher,
 };
 use crate::primitives::factor_types::FactorId;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Declarative configuration for a dependency-scoped hierarchical matcher.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HierarchicalConfig {
     /// Dependency filter applied before any tree traversal.
@@ -21,7 +22,7 @@ pub struct HierarchicalConfig {
 }
 
 /// Declarative matcher configuration that can be serialized and rebuilt.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub enum MatchingConfig {

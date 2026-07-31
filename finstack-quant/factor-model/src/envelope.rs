@@ -13,14 +13,22 @@ use crate::FactorModelConfig;
 pub const FACTOR_MODEL_CONFIG_CONTRACT: ContractDescriptor =
     ContractDescriptor::new("finstack_quant.factor_model_config", 1);
 
+fn factor_model_config_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    let marker = FACTOR_MODEL_CONFIG_CONTRACT.schema_string();
+    schemars::json_schema!({
+        "type": "string",
+        "const": marker,
+    })
+}
+
 /// Versioned wrapper used when persisting factor-model configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FactorModelConfigEnvelope {
     /// Exact factor-model configuration contract marker.
+    #[schemars(schema_with = "factor_model_config_schema_marker")]
     pub schema: String,
     /// Bare configuration used by in-process analysis APIs.
-    #[schemars(with = "serde_json::Value")]
     pub config: FactorModelConfig,
 }
 

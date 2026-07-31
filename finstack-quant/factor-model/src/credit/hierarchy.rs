@@ -66,8 +66,33 @@ use finstack_quant_core::contract::{
 };
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::types::IssuerId;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+
+fn date_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "string",
+        "format": "date",
+    })
+}
+
+fn date_array_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "array",
+        "items": {
+            "type": "string",
+            "format": "date",
+        },
+    })
+}
+
+fn credit_factor_model_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "string",
+        "const": CreditFactorModel::SCHEMA_VERSION,
+    })
+}
 
 /// Persistence contract for [`CreditFactorModel`].
 pub const CREDIT_FACTOR_MODEL_CONTRACT: ContractDescriptor =
@@ -105,12 +130,14 @@ pub fn dimension_key(dim: &HierarchyDimension) -> String {
 /// A closed calendar-date interval `[start, end]`.
 ///
 /// Used to record the history window consumed by calibration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DateRange {
     /// First date of the window (inclusive).
+    #[schemars(schema_with = "date_schema")]
     pub start: Date,
     /// Last date of the window (inclusive).
+    #[schemars(schema_with = "date_schema")]
     pub end: Date,
 }
 
@@ -125,7 +152,7 @@ pub struct DateRange {
 /// - `Auto` — let the calibration decide based on `min_history`.
 /// - `ForceIssuerBeta` — always run per-issuer regression regardless of history.
 /// - `ForceBucketOnly` — never run per-issuer regression for this issuer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum IssuerBetaOverride {
@@ -140,7 +167,7 @@ pub enum IssuerBetaOverride {
 /// Resolved regression mode stored in the calibrated artifact.
 ///
 /// A `BucketOnly` issuer's betas are all 1.0 and carry no fit statistics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum IssuerBetaMode {
@@ -155,7 +182,7 @@ pub enum IssuerBetaMode {
 /// - `Dynamic` — apply a minimum-history threshold and honour per-issuer overrides.
 /// - `GloballyOff` — every issuer is treated as `BucketOnly`; no per-issuer
 ///   regression is run.  Useful for simpler factor models or data-sparse periods.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum IssuerBetaPolicy {
@@ -183,7 +210,7 @@ pub enum IssuerBetaPolicy {
 /// Built-in variants (`Rating`, `Region`, `Sector`) have canonical tag keys.
 /// `Custom(key)` reads `issuer_tags[key]` for arbitrary user-defined dimensions
 /// such as `"Currency"` or `"AssetType"`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum HierarchyDimension {
@@ -201,7 +228,7 @@ pub enum HierarchyDimension {
 ///
 /// The ordering is significant: factor IDs and beta vectors are indexed
 /// positionally from level 0 (broadest) to `levels.len()-1` (narrowest).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreditHierarchySpec {
     /// Ordered hierarchy levels, broadest first.
@@ -243,7 +270,7 @@ impl CreditHierarchySpec {
 ///
 /// Uses `BTreeMap` so that serialization is deterministic and two artifacts
 /// built from identical inputs produce byte-identical JSON.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 pub struct IssuerTags(pub BTreeMap<String, String>);
 
 /// Factor beta loadings for a single issuer.
@@ -252,7 +279,7 @@ pub struct IssuerTags(pub BTreeMap<String, String>);
 /// `levels[i]` is the loading on the bucket factor at hierarchy level `i`.
 ///
 /// For `BucketOnly` issuers every component is `1.0` by convention.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssuerBetas {
     /// Beta on the generic credit PC factor.
@@ -262,7 +289,7 @@ pub struct IssuerBetas {
 }
 
 /// Source provenance of an issuer's idiosyncratic vol estimate.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum AdderVolSource {
@@ -282,7 +309,7 @@ pub enum AdderVolSource {
 /// Regression quality statistics for a single issuer.
 ///
 /// Only present for `IssuerBeta` mode; `None` for `BucketOnly`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FitQuality {
     /// In-sample coefficient of determination (R²).
@@ -298,7 +325,7 @@ pub struct FitQuality {
 /// Rows are stored sorted by `issuer_id` for wire stability: two calibrations
 /// on identical inputs serialize to byte-identical JSON regardless of
 /// iteration order inside the calibration loop.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssuerBetaRow {
     /// Unique issuer identifier (e.g. LEI or internal code).
@@ -324,7 +351,7 @@ pub struct IssuerBetaRow {
 // ---------------------------------------------------------------------------
 
 /// Factor level values for a single hierarchy level at the calibration anchor date.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LevelAnchor {
     /// Zero-based index of this level in [`CreditHierarchySpec::levels`].
@@ -340,7 +367,7 @@ pub struct LevelAnchor {
 /// Snapshot of all factor levels at the calibration anchor date.
 ///
 /// Used as the carry term in attribution: `L(t) = L_anchor + ΔL(t)`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LevelsAtAnchor {
     /// Value of the generic PC factor at `as_of`.
@@ -359,7 +386,7 @@ pub struct LevelsAtAnchor {
 /// `factor_ids` defines the row/column ordering; `data[i][j]` is
 /// `ρ_{factor_ids[i], factor_ids[j]}`. The matrix must be square, symmetric,
 /// and have unit diagonal.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FactorCorrelationMatrix {
     /// Factor IDs in row/column order.
@@ -515,7 +542,7 @@ impl FactorCorrelationMatrix {
 /// persists the smoothing parameter used at calibration time.
 /// The enum intentionally omits `#[serde(deny_unknown_fields)]` to allow
 /// additive extension without breaking readers of older writers.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum FactorVolModel {
@@ -551,7 +578,7 @@ pub enum FactorVolModel {
 ///
 /// Mirrors [`FactorVolModel`] in structure; kept separate so per-issuer and
 /// per-factor models can diverge independently in later PRs.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum IdiosyncraticVolModel {
@@ -587,7 +614,7 @@ pub enum IdiosyncraticVolModel {
 /// Complete vol state for all factors and all issuers at the calibration date.
 ///
 /// Feeds `Σ(t) = D(t) · ρ · D(t)` and per-issuer idiosyncratic vol forecasts.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct VolState {
     /// EWMA or sample vol model for each systematic factor.
     ///
@@ -611,9 +638,10 @@ pub struct VolState {
 ///
 /// `BTreeMap<FactorId, Vec<f64>>` for deterministic serialization. All value
 /// vectors must have the same length as `dates`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct FactorHistories {
     /// Ordered sequence of observation dates (aligned with value vectors).
+    #[schemars(schema_with = "date_array_schema")]
     pub dates: Vec<Date>,
     /// Factor return series keyed by factor ID.
     ///
@@ -629,7 +657,7 @@ pub struct FactorHistories {
 ///
 /// When a bucket lacks sufficient coverage, its issuers are promoted to a
 /// coarser level. Each such event is logged here for auditability.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FoldUpRecord {
     /// Issuer that was folded up.
@@ -651,7 +679,7 @@ pub struct FoldUpRecord {
 ///
 /// This struct omits `#[serde(deny_unknown_fields)]` to allow additive
 /// diagnostic fields in future calibration versions.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct CalibrationDiagnostics {
     /// Count of resolved [`IssuerBetaMode`] values.
     ///
@@ -687,7 +715,7 @@ pub struct CalibrationDiagnostics {
 ///
 /// Values are not stored here; they live in
 /// [`FactorHistories`] under the key `"credit::generic"`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GenericFactorSpec {
     /// Human-readable name for the generic factor (e.g. `"CDX IG 5Y"`).
@@ -719,12 +747,14 @@ pub struct GenericFactorSpec {
 /// - [`issuer_betas`][Self::issuer_betas] sorted by `issuer_id`.
 /// - All maps using `BTreeMap`.
 /// - [`crate::FactorModelConfig`] respecting its own factor ordering.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreditFactorModel {
     /// Schema version string; must equal [`SCHEMA_VERSION`][Self::SCHEMA_VERSION].
+    #[schemars(schema_with = "credit_factor_model_schema_marker")]
     pub schema_version: String,
     /// Calibration anchor date (`as_of`).
+    #[schemars(schema_with = "date_schema")]
     pub as_of: Date,
     /// History window consumed by calibration.
     pub calibration_window: DateRange,

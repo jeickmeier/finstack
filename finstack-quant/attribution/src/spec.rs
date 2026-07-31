@@ -22,6 +22,13 @@ use serde_json::json;
 /// Schema version for attribution serialization.
 pub const ATTRIBUTION_SCHEMA_V1: &str = "finstack_quant.attribution/1";
 
+fn attribution_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "string",
+        "const": ATTRIBUTION_SCHEMA_V1,
+    })
+}
+
 /// Top-level envelope for attribution specifications.
 ///
 /// Mirrors the calibration and instrument envelope patterns with schema versioning
@@ -30,6 +37,8 @@ pub const ATTRIBUTION_SCHEMA_V1: &str = "finstack_quant.attribution/1";
 #[serde(deny_unknown_fields)]
 pub struct AttributionEnvelope {
     /// Schema version identifier (currently "finstack_quant.attribution/1")
+    #[serde(deserialize_with = "validate_attribution_schema")]
+    #[schemars(schema_with = "attribution_schema_marker")]
     pub schema: String,
     /// The attribution specification
     pub attribution: AttributionSpec,
@@ -37,6 +46,11 @@ pub struct AttributionEnvelope {
 
 impl AttributionEnvelope {
     /// Create a new attribution envelope with the current schema version.
+    ///
+    /// # Arguments
+    ///
+    /// * `attribution` - Complete single-run attribution specification to wrap
+    ///   in the current persistence envelope.
     pub fn new(attribution: AttributionSpec) -> Self {
         Self {
             schema: ATTRIBUTION_SCHEMA_V1.to_string(),
@@ -73,10 +87,8 @@ pub struct AttributionSpec {
     /// Instrument to attribute (as JSON envelope)
     pub instrument: InstrumentJson,
     /// Market context at T₀
-    #[schemars(with = "serde_json::Value")]
     pub market_t0: MarketContextState,
     /// Market context at T₁
-    #[schemars(with = "serde_json::Value")]
     pub market_t1: MarketContextState,
     /// Valuation date at T₀
     #[schemars(with = "String")]
@@ -98,7 +110,6 @@ pub struct AttributionSpec {
     /// generic / per-level / adder P&L additively decomposing
     /// `credit_curves_pnl`. PR-7 wires metrics-based and Taylor methods.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(skip)]
     pub credit_factor_model: Option<Box<CreditFactorModel>>,
     /// Detail/payload options for `credit_factor_detail`. Inert when
     /// `credit_factor_model` is `None`.
@@ -256,8 +267,8 @@ pub struct AttributionResult {
     pub results_meta: ResultsMeta,
 }
 
-/// Deserialization gate for [`AttributionResultEnvelope::schema`].
-fn validate_result_schema<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
+/// Deserialization gate for attribution envelope schema markers.
+fn validate_attribution_schema<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -265,7 +276,7 @@ where
     let schema = String::deserialize(deserializer)?;
     if schema != ATTRIBUTION_SCHEMA_V1 {
         return Err(D::Error::custom(format!(
-            "unsupported attribution result schema {schema:?}; expected {ATTRIBUTION_SCHEMA_V1:?}"
+            "unsupported attribution schema {schema:?}; expected {ATTRIBUTION_SCHEMA_V1:?}"
         )));
     }
     Ok(schema)
@@ -275,9 +286,12 @@ where
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttributionResultEnvelope {
-    /// Schema version identifier. Validated on DESERIALIZE (    /// minor): a result envelope read back from storage with an unknown
-    /// schema version is rejected instead of silently re-interpreted.
-    #[serde(deserialize_with = "validate_result_schema")]
+    /// Schema version identifier.
+    ///
+    /// Deserialization rejects unknown versions instead of silently
+    /// re-interpreting them as the current result contract.
+    #[serde(deserialize_with = "validate_attribution_schema")]
+    #[schemars(schema_with = "attribution_schema_marker")]
     pub schema: String,
     /// The attribution result
     pub result: AttributionResult,
@@ -285,6 +299,11 @@ pub struct AttributionResultEnvelope {
 
 impl AttributionResultEnvelope {
     /// Create a new result envelope with the current schema version.
+    ///
+    /// # Arguments
+    ///
+    /// * `result` - Completed attribution result and execution metadata to
+    ///   wrap in the current persistence envelope.
     pub fn new(result: AttributionResult) -> Self {
         Self {
             schema: ATTRIBUTION_SCHEMA_V1.to_string(),

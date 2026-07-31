@@ -33,6 +33,12 @@
       ]
     },
     "CollateralAssetClass": {
+      "description": "Collateral asset class identifier. Canonical values are cash, government_bonds, agency_bonds, covered_bonds, corporate_bonds, equity, gold, and mutual_funds. Custom values are also accepted and normalized to lowercase snake_case during deserialization.",
+      "examples": [
+        "cash",
+        "government_bonds",
+        "custom_collateral"
+      ],
       "type": "string"
     },
     "CollateralEligibility": {
@@ -46,6 +52,8 @@
         "concentration_limit": {
           "description": "Concentration limit as fraction of total collateral (optional)\n\nE.g., 0.30 means max 30% of collateral can be this type.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
@@ -55,11 +63,15 @@
           "default": 0.0,
           "description": "Additional FX haircut for currency mismatch (decimal)\n\nApplied when collateral currency differs from settlement currency.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": "number"
         },
         "haircut": {
           "description": "Haircut as decimal (e.g., 0.02 = 2%)",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": "number"
         },
         "maturity_constraints": {
@@ -149,6 +161,8 @@
         "default_haircut": {
           "description": "Default haircut for unlisted collateral (if accepted)\n\nIf None, only explicitly listed collateral types are accepted.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
@@ -305,7 +319,7 @@
         "mpor_days": {
           "description": "Margin Period of Risk in business days.\n\nStandard is 10 days under BCBS-IOSCO. CCPs may use shorter periods.",
           "format": "uint32",
-          "minimum": 0,
+          "minimum": 1,
           "type": "integer"
         },
         "mta": {
@@ -351,7 +365,7 @@
         "notification_deadline_hours": {
           "description": "Notification deadline (hours after valuation, e.g., 13:00 local time)",
           "format": "uint8",
-          "maximum": 255,
+          "maximum": 23,
           "minimum": 0,
           "type": "integer"
         },
@@ -401,16 +415,20 @@
       "description": "Maturity constraints for eligible collateral.\n\nSome CSAs restrict collateral based on remaining maturity to limit\nduration risk in the collateral portfolio.",
       "properties": {
         "max_remaining_years": {
+          "default": null,
           "description": "Maximum remaining years to maturity (if any)",
           "format": "double",
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
           ]
         },
         "min_remaining_years": {
+          "default": null,
           "description": "Minimum remaining years to maturity (if any)",
           "format": "double",
+          "minimum": 0.0,
           "type": [
             "number",
             "null"

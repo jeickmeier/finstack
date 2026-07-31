@@ -293,7 +293,7 @@ impl NelsonSiegelModel {
 /// # Thread Safety
 ///
 /// Immutable after construction; safe to share via `Arc<ParametricCurve>`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "RawParametricCurve", into = "RawParametricCurve")]
 pub struct ParametricCurve {
     id: CurveId,
@@ -303,12 +303,13 @@ pub struct ParametricCurve {
 }
 
 /// Raw serializable state of ParametricCurve.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawParametricCurve {
     /// Curve identifier.
     id: String,
     /// Base date.
+    #[schemars(with = "String")]
     base_date: Date,
     /// Day count convention.
     day_count: DayCount,

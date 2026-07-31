@@ -106,7 +106,7 @@ use crate::{
 /// # Thread Safety
 ///
 /// Immutable after construction; safe to share via `Arc<HazardCurve>`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "RawHazardCurve", into = "RawHazardCurve")]
 pub struct HazardCurve {
     id: CurveId,
@@ -141,12 +141,13 @@ pub struct HazardCurve {
 }
 
 /// Raw serializable state of a HazardCurve
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawHazardCurve {
     /// Curve identifier
     pub id: String,
     /// Base date
+    #[schemars(with = "String")]
     pub base: Date,
     /// Time/value pairs used to construct the curve
     pub knot_points: Vec<(f64, f64)>,

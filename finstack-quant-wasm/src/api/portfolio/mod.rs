@@ -599,7 +599,7 @@ pub fn apply_scenario_and_revalue_built(
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;
     let config = finstack_quant_core::config::FinstackConfig::default();
-    let out = finstack_quant_portfolio::scenarios::apply_and_revalue_envelope(
+    let out = finstack_quant_portfolio::scenarios::apply_and_revalue_view(
         &portfolio.inner,
         &scenario,
         &market,
@@ -647,7 +647,7 @@ pub fn scenario_pnl_built(
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;
     let config = finstack_quant_core::config::FinstackConfig::default();
-    let out = finstack_quant_portfolio::scenarios::scenario_pnl_envelope(
+    let out = finstack_quant_portfolio::scenarios::scenario_pnl_view(
         &portfolio.inner,
         &scenario,
         &market,

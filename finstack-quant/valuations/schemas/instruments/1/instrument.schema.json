@@ -1,4 +1,221 @@
 {
+  "$defs": {
+    "InstrumentJson": {
+      "description": "Canonical tagged instrument payload without the persistence envelope.",
+      "oneOf": [
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/agency_cmo.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/agency_mbs_passthrough.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/agency_tba.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/exotics/asian_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/autocallable.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/exotics/barrier_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/basis_swap.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/exotics/basket.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/bermudan_swaption.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/bond.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/bond_future.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/callable_range_accrual.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/cap_floor.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/credit_derivatives/cds_index.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/credit_derivatives/cds_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/credit_derivatives/cds_tranche.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/cliquet_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/cms_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/cms_spread_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/cms_swap.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_asian_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_forward.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_spread_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_swap.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_swaption.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/convertible_bond.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/credit_derivatives/credit_default_swap.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/deposit.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/discounted_cash_flow.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/dollar_roll.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/equity.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/equity_index_future.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/equity_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/forward_rate_agreement.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_barrier_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_digital_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_forward.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_spot.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_swap.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_touch_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_variance_swap.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/inflation_cap_floor.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/inflation_linked_bond.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/inflation_swap.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/interest_rate_future.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/interest_rate_swap.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/ir_future_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/levered_real_estate_equity.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/exotics/lookback_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fx/ndf.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/private_markets_fund.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fx/quanto_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/range_accrual.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/real_estate_asset.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/repo.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/revolving_credit.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/snowball.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/structured_credit.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/swaption.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/tarn.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/term_loan.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/trs_equity.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/trs_fixed_income_index.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/variance_swap.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/volatility_index_future.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/equity/volatility_index_option.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/xccy_swap.schema.json#/properties/instrument"
+        },
+        {
+          "$ref": "https://finstack_quant.dev/schemas/instrument/1/rates/yoy_inflation_swap.schema.json#/properties/instrument"
+        }
+      ]
+    }
+  },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Tagged union of all supported financial instruments",

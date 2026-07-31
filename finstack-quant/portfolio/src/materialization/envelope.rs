@@ -14,10 +14,19 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::value::RawValue;
 
+const INSTRUMENT_ENVELOPE_SCHEMA_URI: &str =
+    "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json";
+
 fn materialization_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
     schemars::json_schema!({
         "type": "string",
         "const": super::PORTFOLIO_MATERIALIZATION_CONTRACT.schema_string(),
+    })
+}
+
+fn instrument_envelope_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "$ref": INSTRUMENT_ENVELOPE_SCHEMA_URI,
     })
 }
 
@@ -271,7 +280,7 @@ pub struct InstrumentArtifact {
     /// Full strict [`finstack_quant_valuations::instruments::InstrumentEnvelope`]
     /// JSON retained without constructing a duplicate generic JSON tree during
     /// the outer bundle parse.
-    #[schemars(with = "serde_json::Value")]
+    #[schemars(schema_with = "instrument_envelope_schema")]
     #[cfg_attr(feature = "ts_export", ts(type = "unknown"))]
     pub envelope: Box<RawValue>,
     /// Optional producer dependency claim, checked against runtime extraction.
