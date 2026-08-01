@@ -36,7 +36,6 @@ ts_export = ["dep:ts-rs", "finstack-quant-core/ts_export"]
 criterion = { workspace = true }
 rust_decimal = { workspace = true }
 rust_decimal_macros = { workspace = true }
-finstack-quant-test-utils = { path = "../test-utils", version = "0.7.0" }
 jsonschema = { version = "0.28", default-features = false }
 smallvec = { version = "1.15", default-features = false }
 

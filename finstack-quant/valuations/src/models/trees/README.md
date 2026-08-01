@@ -345,7 +345,7 @@ Tree models are used throughout the instrument pricing layer:
 | Term loans | `ShortRateTree`, `RatesCreditTree` | `term_loan/pricing/` |
 | Bermudan swaptions | `HullWhiteTree` | `rates/swaption/pricer.rs` |
 | Convertible bonds | `BinomialTree`, `TrinomialTree` | `fixed_income/convertible/` |
-| Barrier options | `BinomialTree` with `BarrierSpec` | `tests/support/tree_barrier.rs` |
+| Barrier options | `BinomialTree` with `BarrierSpec` | `models/trees/binomial_tree.rs` |
 
 ## Serialization Policy
 

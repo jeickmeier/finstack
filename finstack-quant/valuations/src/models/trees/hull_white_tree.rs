@@ -1436,6 +1436,83 @@ mod tests {
     }
 
     #[test]
+    fn root_forward_swap_rate_matches_curve_par_rate_within_one_bp() {
+        let curve = test_discount_curve();
+        let tree = HullWhiteTree::calibrate(HullWhiteTreeConfig::new(0.03, 0.01, 80), &curve, 5.0)
+            .expect("calibration should succeed");
+        let payment_times: Vec<f64> = (1..=10).map(|period| period as f64 * 0.5).collect();
+        let accrual_fractions = [0.5; 10];
+
+        let tree_forward =
+            tree.forward_swap_rate(0, 0, 0.0, 5.0, &payment_times, &accrual_fractions, &curve);
+        let market_annuity: f64 = payment_times
+            .iter()
+            .zip(accrual_fractions.iter())
+            .map(|(&payment_time, &accrual)| accrual * curve.df(payment_time))
+            .sum();
+        let market_forward = (curve.df(0.0) - curve.df(5.0)) / market_annuity;
+        let error_bp = (tree_forward - market_forward).abs() * 10_000.0;
+
+        assert!(
+            tree_forward.is_finite() && error_bp < 1.0,
+            "root tree forward {tree_forward:.8} must match curve par rate \
+             {market_forward:.8} within 1 bp; error={error_bp:.4} bp"
+        );
+    }
+
+    #[test]
+    fn low_kappa_tree_calibrates_and_clamps_time_mapping() {
+        let curve = test_discount_curve();
+        let steps = 80;
+        let tree =
+            HullWhiteTree::calibrate(HullWhiteTreeConfig::new(0.01, 0.01, steps), &curve, 10.0)
+                .expect("low-kappa calibration should succeed");
+
+        assert_eq!(tree.time_to_step(-1.0), 0);
+        assert_eq!(tree.time_to_step(0.0), 0);
+        assert_eq!(tree.time_to_step(5.0), steps / 2);
+        assert_eq!(tree.time_to_step(10.0), steps);
+        assert_eq!(tree.time_to_step(15.0), steps);
+
+        let midpoint = tree.time_to_step(5.0);
+        let state_price_sum: f64 = (0..tree.num_nodes(midpoint))
+            .map(|node| tree.state_price(midpoint, node))
+            .sum();
+        let target_df = curve.df(5.0);
+        let error_bp = ((state_price_sum - target_df) / target_df).abs() * 10_000.0;
+        assert!(
+            error_bp < 1.0,
+            "low-kappa tree must preserve the curve within 1 bp at 5Y; \
+             error={error_bp:.4} bp"
+        );
+    }
+
+    #[test]
+    fn higher_volatility_increases_node_rate_dispersion() {
+        let curve = test_discount_curve();
+        let steps = 60;
+        let low_vol =
+            HullWhiteTree::calibrate(HullWhiteTreeConfig::new(0.03, 0.005, steps), &curve, 5.0)
+                .expect("low-volatility calibration should succeed");
+        let high_vol =
+            HullWhiteTree::calibrate(HullWhiteTreeConfig::new(0.03, 0.02, steps), &curve, 5.0)
+                .expect("high-volatility calibration should succeed");
+        let midpoint = steps / 2;
+
+        let low_spread = low_vol.rate_at_node(midpoint, low_vol.num_nodes(midpoint) - 1)
+            - low_vol.rate_at_node(midpoint, 0);
+        let high_spread = high_vol.rate_at_node(midpoint, high_vol.num_nodes(midpoint) - 1)
+            - high_vol.rate_at_node(midpoint, 0);
+
+        assert!(low_spread.is_finite() && high_spread.is_finite());
+        assert!(
+            high_spread > low_spread,
+            "higher Hull-White sigma must widen node-rate dispersion: \
+             low={low_spread:.8}, high={high_spread:.8}"
+        );
+    }
+
+    #[test]
     fn backward_induction_rejects_mis_sized_terminal_values() {
         let config = HullWhiteTreeConfig::new(0.03, 0.01, 50);
         let curve = test_discount_curve();

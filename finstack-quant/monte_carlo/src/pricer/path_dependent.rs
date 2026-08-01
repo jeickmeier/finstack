@@ -1057,7 +1057,9 @@ mod tests {
         assert!(err.to_string().contains("num_paths"));
     }
 
+    use crate::paths::PathSamplingMethod;
     use crate::payoff::asian::{AsianCall, AveragingMethod};
+    use crate::payoff::vanilla::EuropeanCall;
     use crate::process::gbm::{GbmParams, GbmProcess};
     use crate::rng::sobol::MAX_SOBOL_DIMENSION;
     use crate::time_grid::TimeGrid;
@@ -1085,6 +1087,41 @@ mod tests {
         // Should get reasonable Asian option value
         assert!(result.mean.amount() > 0.0);
         assert!(result.mean.amount() < 20.0);
+    }
+
+    #[test]
+    fn test_sampled_path_capture_prices_and_records_subset() {
+        let config = PathDependentPricerConfig::new(256)
+            .with_seed(42)
+            .with_parallel(false)
+            .with_antithetic(false)
+            .capture_sample_paths(32, 17);
+        let pricer = PathDependentPricer::new(config);
+        let gbm = GbmProcess::new(GbmParams::new(0.05, 0.02, 0.2).expect("valid GBM parameters"));
+        let call = EuropeanCall::new(100.0, 1.0, 4);
+
+        let result = pricer
+            .price_with_paths(&gbm, 100.0, 1.0, 4, &call, Currency::USD, 0.95)
+            .expect("sampled path capture should succeed");
+
+        assert!(result.estimate.mean.amount().is_finite());
+        assert!(result.estimate.mean.amount() > 0.0);
+        let captured = result.paths.as_ref().expect("sampled paths should exist");
+        assert_eq!(captured.num_paths_total, 256);
+        assert_eq!(
+            captured.sampling_method,
+            PathSamplingMethod::RandomSample {
+                count: 32,
+                seed: 17,
+            }
+        );
+        assert!(!captured.is_complete());
+        assert!(
+            (16..=48).contains(&captured.num_captured()),
+            "target sample size 32 should yield an approximate sample, got {}",
+            captured.num_captured()
+        );
+        assert!(captured.paths.iter().all(|path| path.points.len() == 5));
     }
 
     /// LRM Greeks must use the joint path-density score, not the terminal
@@ -1151,7 +1188,6 @@ mod tests {
     /// "stderr" over dependent Sobol points has no such guarantee.)
     #[test]
     fn test_sobol_rqmc_stderr_covers_true_error() {
-        use crate::payoff::vanilla::EuropeanCall;
         use crate::variance_reduction::control_variate::black_scholes_call;
 
         let (s0, k, r, q, sigma, t) = (100.0, 100.0, 0.05, 0.0, 0.2, 1.0);
@@ -1248,17 +1284,38 @@ mod tests {
         let fixing_steps = vec![1, 2, 3, 4];
         let asian = AsianCall::new(100.0, 1.0, AveragingMethod::Arithmetic, fixing_steps);
 
-        let result = pricer
+        let first = pricer
             .price_with_paths(&gbm, 100.0, 1.0, 4, &asian, Currency::USD, 1.0)
             .expect("Sobol path capture should succeed for multiple paths");
+        let second = pricer
+            .price_with_paths(&gbm, 100.0, 1.0, 4, &asian, Currency::USD, 1.0)
+            .expect("repeated Sobol path capture should succeed");
 
-        assert_eq!(result.estimate.num_paths, 8);
+        assert_eq!(first.estimate.num_paths, 8);
         assert_eq!(
-            result.paths.as_ref().map(|p| p.num_captured()).unwrap_or(0),
+            first.paths.as_ref().map(|p| p.num_captured()).unwrap_or(0),
             8
         );
 
-        let captured = result.paths.as_ref().expect("paths should be captured");
+        let captured = first.paths.as_ref().expect("paths should be captured");
+        let repeated = second
+            .paths
+            .as_ref()
+            .expect("repeated paths should be captured");
+        assert_eq!(captured.num_captured(), repeated.num_captured());
+        for (path_a, path_b) in captured.paths.iter().zip(&repeated.paths) {
+            assert_eq!(path_a.path_id, path_b.path_id);
+            assert_eq!(path_a.final_value.to_bits(), path_b.final_value.to_bits());
+            assert_eq!(path_a.points.len(), path_b.points.len());
+            for (point_a, point_b) in path_a.points.iter().zip(&path_b.points) {
+                assert_eq!(point_a.step, point_b.step);
+                assert_eq!(point_a.time.to_bits(), point_b.time.to_bits());
+                assert_eq!(point_a.state, point_b.state);
+                assert_eq!(point_a.payoff_value, point_b.payoff_value);
+                assert_eq!(point_a.cashflows, point_b.cashflows);
+            }
+        }
+
         let mut final_values: Vec<f64> =
             captured.paths.iter().map(|path| path.final_value).collect();
         final_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -1272,11 +1329,11 @@ mod tests {
         let expected_p25 = interpolated_percentile(&final_values, 0.25);
         let expected_p75 = interpolated_percentile(&final_values, 0.75);
 
-        assert_eq!(result.estimate.median, Some(expected_median));
-        assert_eq!(result.estimate.percentile_25, Some(expected_p25));
-        assert_eq!(result.estimate.percentile_75, Some(expected_p75));
-        assert_eq!(result.estimate.min, Some(final_values[0]));
-        assert_eq!(result.estimate.max, Some(final_values[len - 1]));
+        assert_eq!(first.estimate.median, Some(expected_median));
+        assert_eq!(first.estimate.percentile_25, Some(expected_p25));
+        assert_eq!(first.estimate.percentile_75, Some(expected_p75));
+        assert_eq!(first.estimate.min, Some(final_values[0]));
+        assert_eq!(first.estimate.max, Some(final_values[len - 1]));
     }
 
     #[test]

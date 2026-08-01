@@ -128,7 +128,9 @@ mod tests {
         let dt = 0.01; // 1% of a year
         let mut x = vec![100.0];
         let z = vec![0.5]; // Half a std dev
-        let mut work = vec![0.0; disc.work_size(&process)];
+        let work_size = disc.work_size(&process);
+        assert_eq!(work_size, 2 * process.dim());
+        let mut work = vec![0.0; work_size];
 
         disc.step(&process, t, dt, &mut x, &z, &mut work);
 

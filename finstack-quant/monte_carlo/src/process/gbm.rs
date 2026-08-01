@@ -504,6 +504,14 @@ mod tests {
         assert_eq!(gbm.dim(), 1);
         assert!((gbm.drift_rate() - 0.03).abs() < 1e-10); // r - q
         assert!((gbm.volatility() - 0.2).abs() < 1e-10);
+
+        let metadata = gbm.metadata();
+        assert_eq!(metadata.process_type, "GBM");
+        assert_eq!(metadata.parameters.get("r"), Some(&0.05));
+        assert_eq!(metadata.parameters.get("q"), Some(&0.02));
+        assert_eq!(metadata.parameters.get("sigma"), Some(&0.2));
+        assert_eq!(metadata.factor_names, vec!["spot".to_string()]);
+        assert!(metadata.correlation.is_none());
     }
 
     #[test]

@@ -229,6 +229,7 @@ mod tests {
     use super::*;
     use crate::payoff::vanilla::EuropeanCall;
     use crate::process::gbm::GbmParams;
+    use finstack_quant_core::math::volatility::{black_scholes_spot_call, black_scholes_spot_put};
 
     #[test]
     fn test_european_pricer_basic() {
@@ -279,5 +280,134 @@ mod tests {
 
         // Should be close to intrinsic value of 50
         assert!((result.mean.amount() - 50.0).abs() < 5.0);
+    }
+
+    #[test]
+    fn test_philox_exact_gbm_european_prices_match_black_scholes() {
+        struct Case {
+            name: &'static str,
+            is_call: bool,
+            spot: f64,
+            strike: f64,
+            rate: f64,
+            dividend_yield: f64,
+            volatility: f64,
+            expiry: f64,
+        }
+
+        let cases = [
+            Case {
+                name: "atm_call_with_dividend",
+                is_call: true,
+                spot: 100.0,
+                strike: 100.0,
+                rate: 0.05,
+                dividend_yield: 0.02,
+                volatility: 0.20,
+                expiry: 1.0,
+            },
+            Case {
+                name: "atm_put_with_dividend",
+                is_call: false,
+                spot: 100.0,
+                strike: 100.0,
+                rate: 0.05,
+                dividend_yield: 0.02,
+                volatility: 0.20,
+                expiry: 1.0,
+            },
+            Case {
+                name: "short_dated_otm_call",
+                is_call: true,
+                spot: 80.0,
+                strike: 100.0,
+                rate: 0.01,
+                dividend_yield: 0.0,
+                volatility: 0.30,
+                expiry: 0.25,
+            },
+            Case {
+                name: "long_dated_itm_put",
+                is_call: false,
+                spot: 80.0,
+                strike: 100.0,
+                rate: 0.03,
+                dividend_yield: 0.01,
+                volatility: 0.35,
+                expiry: 3.0,
+            },
+        ];
+
+        let pricer = EuropeanPricer::new(50_000)
+            .with_seed(42)
+            .with_parallel(false);
+
+        for case in cases {
+            let (result, expected) = if case.is_call {
+                (
+                    pricer
+                        .price_gbm_call(
+                            case.spot,
+                            case.strike,
+                            case.rate,
+                            case.dividend_yield,
+                            case.volatility,
+                            case.expiry,
+                            1,
+                            Currency::USD,
+                        )
+                        .expect("call pricing should succeed"),
+                    black_scholes_spot_call(
+                        case.spot,
+                        case.strike,
+                        case.rate,
+                        case.dividend_yield,
+                        case.volatility,
+                        case.expiry,
+                    ),
+                )
+            } else {
+                (
+                    pricer
+                        .price_gbm_put(
+                            case.spot,
+                            case.strike,
+                            case.rate,
+                            case.dividend_yield,
+                            case.volatility,
+                            case.expiry,
+                            1,
+                            Currency::USD,
+                        )
+                        .expect("put pricing should succeed"),
+                    black_scholes_spot_put(
+                        case.spot,
+                        case.strike,
+                        case.rate,
+                        case.dividend_yield,
+                        case.volatility,
+                        case.expiry,
+                    ),
+                )
+            };
+
+            assert!(
+                result.stderr.is_finite() && result.stderr > 0.0,
+                "{}: expected a finite positive standard error, got {}",
+                case.name,
+                result.stderr
+            );
+            let error = (result.mean.amount() - expected).abs();
+            let tolerance = 6.0 * result.stderr;
+            assert!(
+                error <= tolerance,
+                "{}: MC={} BS={} error={} exceeds 6*stderr={}",
+                case.name,
+                result.mean.amount(),
+                expected,
+                error,
+                tolerance
+            );
+        }
     }
 }

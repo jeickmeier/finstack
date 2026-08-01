@@ -144,3 +144,35 @@ impl Default for PathCaptureConfig {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn capture_modes_cover_disabled_all_and_deterministic_sampling() {
+        let disabled = PathCaptureConfig::default();
+        assert!(!disabled.enabled);
+        assert!(!(0..100).any(|path_id| disabled.should_capture(path_id, 100)));
+
+        let all = PathCaptureConfig::all();
+        assert!(all.enabled);
+        assert_eq!(all.capture_mode, PathCaptureMode::All);
+        assert!((0..100).all(|path_id| all.should_capture(path_id, 100)));
+
+        let sampled = PathCaptureConfig::sample(100, 42);
+        let selected: Vec<usize> = (0..1_000)
+            .filter(|&path_id| sampled.should_capture(path_id, 1_000))
+            .collect();
+        let repeated: Vec<usize> = (0..1_000)
+            .filter(|&path_id| sampled.should_capture(path_id, 1_000))
+            .collect();
+
+        assert_eq!(selected, repeated, "sample selection must be deterministic");
+        assert!(
+            (70..=130).contains(&selected.len()),
+            "target sample size 100 should yield an approximate sample, got {}",
+            selected.len()
+        );
+    }
+}
