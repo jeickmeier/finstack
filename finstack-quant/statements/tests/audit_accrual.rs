@@ -35,8 +35,6 @@ use indexmap::IndexMap;
 use std::sync::Arc;
 use time::Month;
 
-mod common;
-
 /// Verify accrued interest accumulation and reset for a semi-annual bond.
 ///
 /// This test validates the core accrual mechanics for a fixed-rate bond:

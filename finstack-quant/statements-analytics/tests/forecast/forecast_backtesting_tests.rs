@@ -2,10 +2,20 @@
 
 use finstack_quant_statements_analytics::analysis::{backtest_forecast, ForecastMetrics};
 
-use crate::common;
-use common::assert_close;
-
 const METRICS_TOLERANCE: f64 = 1e-10;
+
+fn assert_close(actual: f64, expected: f64, tolerance: f64, message: &str) {
+    let diff = (actual - expected).abs();
+    assert!(
+        diff < tolerance,
+        "{}: expected {}, got {} (diff: {}, tolerance: {})",
+        message,
+        expected,
+        actual,
+        diff,
+        tolerance
+    );
+}
 
 // ============================================================================
 // Basic Metrics Tests
