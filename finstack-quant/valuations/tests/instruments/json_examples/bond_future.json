@@ -5,7 +5,7 @@
       "contract_specs": {
         "calendar_id": "nyse",
         "contract_size": 100000.0,
-        "repo_day_count_basis": "act360",
+        "repo_day_count": "act_360",
         "settlement_days": 2,
         "standard_coupon": 0.06,
         "standard_maturity_years": 10.0,

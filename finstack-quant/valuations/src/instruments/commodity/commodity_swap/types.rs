@@ -66,6 +66,7 @@ use rust_decimal::Decimal;
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[schemars(deny_unknown_fields)]
 pub struct CommoditySwap {
     /// Unique instrument identifier.
     pub id: InstrumentId,
@@ -73,8 +74,13 @@ pub struct CommoditySwap {
     #[serde(flatten)]
     pub underlying: CommodityUnderlyingParams,
     /// Notional quantity per period.
+    #[serde(
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub quantity: f64,
     /// Fixed price per unit.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub fixed_price: Decimal,
     /// Floating index ID for price lookups.
@@ -84,9 +90,11 @@ pub struct CommoditySwap {
     #[serde(default = "default_pay_receive")]
     pub side: PayReceive,
     /// Start date of the swap.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// End date of the swap.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Payment frequency as a Tenor.
@@ -119,6 +127,7 @@ pub struct CommoditySwap {
     /// after the valuation date project from the price curve.
     #[builder(default)]
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub realized_fixings: Vec<(Date, f64)>,
     /// Instrument-owned pricing inputs.
@@ -150,7 +159,7 @@ pub struct CommoditySwap {
     #[serde(flatten)]
     #[schemars(skip)]
     #[builder(default)]
-    pub(crate) unknown_fields: crate::instruments::common_impl::serde_guard::UnknownFieldGuard,
+    pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }
 
 fn default_pay_receive() -> PayReceive {

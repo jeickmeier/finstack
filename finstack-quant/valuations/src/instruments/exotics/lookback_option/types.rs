@@ -124,6 +124,7 @@ pub struct LookbackOption {
     /// Lookback type (fixed or floating strike)
     pub lookback_type: LookbackType,
     /// Option expiry date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Terminal underlying fixing observed at expiry.

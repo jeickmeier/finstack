@@ -1,6 +1,8 @@
 //! Deterministic JSON Schema assembly helpers.
 
 use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
@@ -13,30 +15,69 @@ pub const JSON_SCHEMA_DIALECT: &str = "https://json-schema.org/draft/2020-12/sch
 /// Stable base URI for shared schema definitions.
 pub const COMMON_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/common/1/";
 
-/// Return the canonical schema URI for a shared schemars definition.
+/// Runtime serde contract that may own a generated JSON Schema artifact.
 ///
-/// # Arguments
-///
-/// * `name` - Exact generated schemars definition name; unsupported names
-///   return `None`.
-#[must_use]
-pub fn common_definition_uri(name: &str) -> Option<String> {
-    let filename = match name {
-        "Attributes" => "attributes.schema.json",
-        "BusinessDayConvention" => "business_day_convention.schema.json",
-        "Currency" => "currency.schema.json",
-        "Date" | "DateWire" => "date.schema.json",
-        "DayCount" => "day_count.schema.json",
-        "Decimal" | "DecimalWire" => "decimal.schema.json",
-        "Diagnostic" => "diagnostic.schema.json",
-        "Id" => "id.schema.json",
-        "Money" => "money.schema.json",
-        "Tenor" => "tenor.schema.json",
-        "ValidationReport" => "validation_report.schema.json",
-        _ => return None,
-    };
-    Some(format!("{COMMON_SCHEMA_BASE}{filename}"))
-}
+/// Requiring all three traits prevents schema-only shadow roots from entering
+/// a registry: every root must be serializable, deserializable, and derivable.
+pub trait SerdeSchema: Serialize + DeserializeOwned + JsonSchema {}
+
+impl<T> SerdeSchema for T where T: Serialize + DeserializeOwned + JsonSchema {}
+
+/// Typed common definitions eligible for assertion-checked externalization.
+pub const COMMON_SCHEMA_DEFINITIONS: &[ExternalSchemaDefinition] = &[
+    ExternalSchemaDefinition::new::<crate::types::Attributes>(
+        "Attributes",
+        "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::dates::BusinessDayConvention>(
+        "BusinessDayConvention",
+        "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::currency::Currency>(
+        "Currency",
+        "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::wire::DateWire>(
+        "Date",
+        "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::wire::DateWire>(
+        "DateWire",
+        "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::dates::DayCount>(
+        "DayCount",
+        "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::wire::DecimalWire>(
+        "Decimal",
+        "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::wire::DecimalWire>(
+        "DecimalWire",
+        "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::contract::Diagnostic>(
+        "Diagnostic",
+        "https://finstack_quant.dev/schemas/common/1/diagnostic.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::types::InstrumentId>(
+        "Id",
+        "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::money::Money>(
+        "Money",
+        "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::dates::Tenor>(
+        "Tenor",
+        "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
+    ),
+    ExternalSchemaDefinition::new::<crate::contract::ValidationReport>(
+        "ValidationReport",
+        "https://finstack_quant.dev/schemas/common/1/validation_report.schema.json",
+    ),
+];
 
 /// Build a generated schema with stable canonical metadata.
 ///
@@ -57,7 +98,7 @@ pub fn common_definition_uri(name: &str) -> Option<String> {
 ///
 /// Returns [`Error::Internal`] if schemars output cannot be serialized as a
 /// JSON object.
-pub fn generated_schema<T: JsonSchema>(
+pub fn generated_schema<T: SerdeSchema>(
     schema_base: &str,
     filename: &str,
     title: &str,
@@ -108,7 +149,7 @@ pub struct SchemaArtifact {
     pub description: &'static str,
     generator: fn(&SchemaArtifact) -> Result<Value>,
     examples: fn() -> Result<Vec<Value>>,
-    packager: fn(&mut Value),
+    packager: fn(&mut Value) -> Result<()>,
 }
 
 impl SchemaArtifact {
@@ -121,7 +162,7 @@ impl SchemaArtifact {
     /// * `title` - Stable human-readable schema title.
     /// * `description` - Stable description of the persisted contract.
     #[must_use]
-    pub const fn new<T: JsonSchema>(
+    pub const fn new<T: SerdeSchema>(
         relative_path: &'static str,
         id: &'static str,
         title: &'static str,
@@ -158,7 +199,7 @@ impl SchemaArtifact {
     /// * `packager` - Function that may externalize equivalent `$defs`
     ///   references and prune definitions made unreachable by that rewrite.
     #[must_use]
-    pub const fn with_packager(mut self, packager: fn(&mut Value)) -> Self {
+    pub const fn with_packager(mut self, packager: fn(&mut Value) -> Result<()>) -> Self {
         self.packager = packager;
         self
     }
@@ -172,9 +213,11 @@ fn empty_examples() -> Result<Vec<Value>> {
     Ok(Vec::new())
 }
 
-fn no_op_packager(_: &mut Value) {}
+fn no_op_packager(_: &mut Value) -> Result<()> {
+    Ok(())
+}
 
-fn generate_artifact<T: JsonSchema>(artifact: &SchemaArtifact) -> Result<Value> {
+fn generate_artifact<T: SerdeSchema>(artifact: &SchemaArtifact) -> Result<Value> {
     let (schema_base, filename) = artifact.id.rsplit_once('/').ok_or_else(|| {
         Error::Internal(format!(
             "schema id must contain a filename: {}",
@@ -187,7 +230,7 @@ fn generate_artifact<T: JsonSchema>(artifact: &SchemaArtifact) -> Result<Value> 
         artifact.title,
         artifact.description,
     )?;
-    (artifact.packager)(&mut schema);
+    (artifact.packager)(&mut schema)?;
     let examples = (artifact.examples)()?;
     if !examples.is_empty() {
         schema
@@ -585,27 +628,195 @@ fn remove_empty_directories(directory: &Path, owned_root: &Path) -> Result<bool>
     Ok(empty)
 }
 
-/// Externalize selected local definitions without changing validation assertions.
+/// Typed external definition that a packaging pass may reference.
 ///
-/// The packaging traversal replaces selected local definition references and
-/// removes definitions that are no longer reachable from the document root.
+/// The generated schema for `T` is compared with the local `$defs` subgraph
+/// before any reference is rewritten, so a reused definition name cannot
+/// silently substitute a different validation contract.
+#[derive(Clone, Copy)]
+pub struct ExternalSchemaDefinition {
+    name: &'static str,
+    uri: &'static str,
+    generator: fn() -> Result<Value>,
+}
+
+impl ExternalSchemaDefinition {
+    /// Declare one typed external schema definition.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Exact local Schemars `$defs` name to externalize.
+    /// * `uri` - Canonical absolute `$id` of the equivalent artifact.
+    #[must_use]
+    pub const fn new<T: SerdeSchema>(name: &'static str, uri: &'static str) -> Self {
+        Self {
+            name,
+            uri,
+            generator: raw_schema::<T>,
+        }
+    }
+}
+
+fn raw_schema<T: SerdeSchema>() -> Result<Value> {
+    serde_json::to_value(schemars::schema_for!(T))
+        .map_err(|error| Error::Internal(format!("serialize derived schema: {error}")))
+}
+
+/// Externalize only definitions proven equivalent to typed serde contracts.
+///
+/// The comparison recursively resolves local `$defs` references and removes
+/// annotation-only keywords before comparing validation assertions. A name
+/// collision or shape mismatch fails generation before the schema is changed.
+/// Definitions that are not present in this particular derived document are
+/// ignored, allowing one canonical definition list to serve a whole registry.
 ///
 /// # Arguments
 ///
-/// * `schema` - Mutable derived schema document to package.
-/// * `external_ref` - Resolver called with each local `$defs` name. Returning
-///   a URI externalizes that definition and preserves any nested JSON Pointer
-///   suffix as a fragment; returning `None` keeps it local. Definition names
-///   are JSON Pointer-decoded before the resolver is called.
+/// * `schema` - Mutable schema derived from a registered serde root.
+/// * `definitions` - Typed external definitions eligible for replacement.
+///
+/// # Errors
+///
+/// Returns [`Error::Validation`] for duplicate names, unresolved references,
+/// or assertion mismatches. Recursive definitions are compared as typed schema
+/// graphs, including their cycle edges. Returns [`Error::Internal`] if a typed
+/// comparison schema cannot be serialized.
 pub fn externalize_schema_definitions(
     schema: &mut Value,
-    external_ref: impl Fn(&str) -> Option<String>,
-) {
-    externalize_refs(schema, &external_ref);
+    definitions: &[ExternalSchemaDefinition],
+) -> Result<()> {
+    let local_defs = schema
+        .get("$defs")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let mut external_refs = BTreeMap::new();
+    for definition in definitions {
+        if external_refs.contains_key(definition.name) {
+            return Err(Error::Validation(format!(
+                "duplicate external schema definition: {}",
+                definition.name
+            )));
+        }
+        let Some(local) = local_defs.get(definition.name) else {
+            continue;
+        };
+        let mut local_stack = vec![definition.name.to_string()];
+        let mut local_validation = validation_view(local, &local_defs, &mut local_stack)?;
+
+        let external = (definition.generator)()?;
+        let external_defs = external
+            .get("$defs")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
+        let mut external_validation = validation_view(&external, &external_defs, &mut Vec::new())?;
+        sort_json(&mut local_validation);
+        sort_json(&mut external_validation);
+        if local_validation != external_validation {
+            return Err(Error::Validation(format!(
+                "local $defs/{} is not assertion-equivalent to {}",
+                definition.name, definition.uri
+            )));
+        }
+        external_refs.insert(definition.name.to_string(), definition.uri.to_string());
+    }
+
+    externalize_refs(schema, &external_refs);
     prune_unreachable_defs(schema);
+    Ok(())
 }
 
-fn externalize_refs(value: &mut Value, external_ref: &impl Fn(&str) -> Option<String>) {
+fn validation_view(
+    value: &Value,
+    definitions: &Map<String, Value>,
+    stack: &mut Vec<String>,
+) -> Result<Value> {
+    match value {
+        Value::Object(map) => {
+            let mut assertions = Map::new();
+            for (key, child) in map {
+                if matches!(
+                    key.as_str(),
+                    "$schema"
+                        | "$id"
+                        | "$defs"
+                        | "$comment"
+                        | "title"
+                        | "description"
+                        | "default"
+                        | "deprecated"
+                        | "examples"
+                        | "readOnly"
+                        | "writeOnly"
+                ) {
+                    continue;
+                }
+                assertions.insert(key.clone(), child.clone());
+            }
+
+            if let Some(reference) = assertions
+                .get("$ref")
+                .and_then(Value::as_str)
+                .and_then(local_definition_ref)
+                .map(|(name, suffix)| (name, suffix.map(str::to_string)))
+            {
+                let (name, suffix) = reference;
+                if stack.iter().any(|entry| entry == &name) {
+                    assertions.remove("$ref");
+                    let recursive_reference = match suffix.as_deref() {
+                        Some(suffix) => format!("#/$defs/{name}/{suffix}"),
+                        None => format!("#/$defs/{name}"),
+                    };
+                    let expanded = serde_json::json!({
+                        "$recursiveRef": recursive_reference
+                    });
+                    if assertions.is_empty() {
+                        return Ok(expanded);
+                    }
+                    let siblings = validation_view(&Value::Object(assertions), definitions, stack)?;
+                    return Ok(serde_json::json!({ "allOf": [expanded, siblings] }));
+                }
+                let target = definitions.get(&name).ok_or_else(|| {
+                    Error::Validation(format!("unresolved local schema definition {name}"))
+                })?;
+                let target = match suffix.as_deref() {
+                    Some(suffix) => target.pointer(&format!("/{suffix}")).ok_or_else(|| {
+                        Error::Validation(format!(
+                            "unresolved schema pointer #/$defs/{name}/{suffix}"
+                        ))
+                    })?,
+                    None => target,
+                };
+                stack.push(name);
+                let expanded = validation_view(target, definitions, stack)?;
+                stack.pop();
+                assertions.remove("$ref");
+                if assertions.is_empty() {
+                    return Ok(expanded);
+                }
+                let siblings = validation_view(&Value::Object(assertions), definitions, stack)?;
+                return Ok(serde_json::json!({ "allOf": [expanded, siblings] }));
+            }
+
+            assertions
+                .into_iter()
+                .map(|(key, child)| {
+                    validation_view(&child, definitions, stack).map(|child| (key, child))
+                })
+                .collect::<Result<Map<_, _>>>()
+                .map(Value::Object)
+        }
+        Value::Array(items) => items
+            .iter()
+            .map(|item| validation_view(item, definitions, stack))
+            .collect::<Result<Vec<_>>>()
+            .map(Value::Array),
+        _ => Ok(value.clone()),
+    }
+}
+
+fn externalize_refs(value: &mut Value, external_refs: &BTreeMap<String, String>) {
     match value {
         Value::Object(map) => {
             let replacement = map
@@ -613,21 +824,21 @@ fn externalize_refs(value: &mut Value, external_ref: &impl Fn(&str) -> Option<St
                 .and_then(Value::as_str)
                 .and_then(local_definition_ref)
                 .and_then(|(name, suffix)| {
-                    external_ref(&name).map(|reference| match suffix {
+                    external_refs.get(&name).map(|reference| match suffix {
                         Some(suffix) => format!("{reference}#/{suffix}"),
-                        None => reference,
+                        None => reference.clone(),
                     })
                 });
             if let Some(reference) = replacement {
                 map.insert("$ref".to_string(), Value::String(reference));
             }
             for child in map.values_mut() {
-                externalize_refs(child, external_ref);
+                externalize_refs(child, external_refs);
             }
         }
         Value::Array(items) => {
             for item in items {
-                externalize_refs(item, external_ref);
+                externalize_refs(item, external_refs);
             }
         }
         _ => {}
@@ -703,6 +914,37 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    #[allow(dead_code)]
+    #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+    #[serde(transparent)]
+    #[schemars(transparent)]
+    struct ExternalText(String);
+
+    #[allow(dead_code)]
+    #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+    struct SuffixProbe {
+        value: String,
+    }
+
+    #[allow(dead_code)]
+    #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+    struct RecursiveProbe {
+        value: String,
+        child: Option<Box<RecursiveProbe>>,
+    }
+
+    #[allow(dead_code)]
+    #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+    struct RecursiveEnvelope {
+        probe: RecursiveProbe,
+    }
+
+    #[allow(dead_code)]
+    #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
+    struct RecursiveContainer {
+        envelope: RecursiveEnvelope,
+    }
+
     #[test]
     fn packaging_externalizes_refs_and_prunes_defs() {
         let mut schema = json!({
@@ -716,7 +958,7 @@ mod tests {
             },
             "$defs": {
                 "Money": {
-                    "type": "object"
+                    "type": "string"
                 },
                 "Local": {
                     "$ref": "#/$defs/Nested"
@@ -730,9 +972,14 @@ mod tests {
             }
         });
 
-        externalize_schema_definitions(&mut schema, |name| {
-            (name == "Money").then(|| "https://example.test/money.schema.json".to_string())
-        });
+        externalize_schema_definitions(
+            &mut schema,
+            &[ExternalSchemaDefinition::new::<ExternalText>(
+                "Money",
+                "https://example.test/money.schema.json",
+            )],
+        )
+        .expect("equivalent definition externalizes");
 
         assert_eq!(
             schema["properties"]["money"]["$ref"],
@@ -746,7 +993,6 @@ mod tests {
 
     #[test]
     fn packaging_decodes_nested_definition_name_and_preserves_suffix() {
-        let seen = std::cell::RefCell::new(Vec::new());
         let mut schema = json!({
             "properties": {
                 "nested": {
@@ -760,17 +1006,21 @@ mod tests {
                             "type": "string"
                         }
                     },
+                    "required": ["value"],
                     "type": "object"
                 }
             }
         });
 
-        externalize_schema_definitions(&mut schema, |name| {
-            seen.borrow_mut().push(name.to_string());
-            (name == "Foo/Bar~Baz").then(|| "https://example.test/foo.schema.json".to_string())
-        });
+        externalize_schema_definitions(
+            &mut schema,
+            &[ExternalSchemaDefinition::new::<SuffixProbe>(
+                "Foo/Bar~Baz",
+                "https://example.test/foo.schema.json",
+            )],
+        )
+        .expect("equivalent escaped definition externalizes");
 
-        assert_eq!(seen.into_inner(), vec!["Foo/Bar~Baz"]);
         assert_eq!(
             schema["properties"]["nested"]["$ref"],
             "https://example.test/foo.schema.json#/properties/value"
@@ -801,7 +1051,8 @@ mod tests {
             }
         });
 
-        externalize_schema_definitions(&mut schema, |_| None);
+        externalize_schema_definitions(&mut schema, &[])
+            .expect("empty external definition list is valid");
 
         assert!(schema["$defs"].get("Foo/Bar~Baz").is_some());
         assert!(schema["$defs"].get("Unused").is_none());
@@ -812,9 +1063,56 @@ mod tests {
     }
 
     #[test]
+    fn packaging_rejects_name_only_shape_substitution() {
+        let mut schema = json!({
+            "$ref": "#/$defs/Money",
+            "$defs": {
+                "Money": { "type": "object" }
+            }
+        });
+        let original = schema.clone();
+        let error = externalize_schema_definitions(
+            &mut schema,
+            &[ExternalSchemaDefinition::new::<ExternalText>(
+                "Money",
+                "https://example.test/money.schema.json",
+            )],
+        )
+        .expect_err("same definition name with different assertions must fail");
+        assert!(error.to_string().contains("not assertion-equivalent"));
+        assert_eq!(
+            schema, original,
+            "failed packaging must not mutate the schema"
+        );
+    }
+
+    #[test]
+    fn packaging_compares_recursive_typed_definition_graphs() {
+        let mut schema = serde_json::to_value(schemars::schema_for!(RecursiveContainer))
+            .expect("recursive derived schema serializes");
+
+        externalize_schema_definitions(
+            &mut schema,
+            &[ExternalSchemaDefinition::new::<RecursiveEnvelope>(
+                "RecursiveEnvelope",
+                "https://example.test/recursive_envelope.schema.json",
+            )],
+        )
+        .expect("equivalent recursive definition externalizes");
+
+        assert!(
+            schema
+                .to_string()
+                .contains("https://example.test/recursive_envelope.schema.json"),
+            "the recursive edge must use the typed external schema"
+        );
+        assert!(schema.get("$defs").is_none());
+    }
+
+    #[test]
     fn generated_schema_preserves_derived_assertions() {
         #[allow(dead_code)]
-        #[derive(JsonSchema)]
+        #[derive(serde::Serialize, serde::Deserialize, JsonSchema)]
         struct DerivedProbe {
             value: String,
         }

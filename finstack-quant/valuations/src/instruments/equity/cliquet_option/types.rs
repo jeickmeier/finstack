@@ -25,9 +25,11 @@ pub struct CliquetOption {
     /// Underlying asset ticker symbol
     pub underlying_ticker: String,
     /// Reset dates for periodic return locking
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub reset_dates: Vec<Date>,
     /// Explicit terminal expiry date for the structure.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Local cap on individual period returns
@@ -73,6 +75,7 @@ pub struct CliquetOption {
     /// cap/floor applied) and only the remaining future periods are simulated.
     #[builder(default)]
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub past_fixings: Vec<(Date, f64)>,
     /// Pricing overrides (manual price, yield, spread)
@@ -132,8 +135,10 @@ pub enum CliquetPayoffType {
 struct CliquetOptionUnchecked {
     id: InstrumentId,
     underlying_ticker: String,
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     reset_dates: Vec<Date>,
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     expiry: Date,
     local_cap: f64,
@@ -150,6 +155,7 @@ struct CliquetOptionUnchecked {
     #[serde(default)]
     initial_level: Option<f64>,
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     past_fixings: Vec<(Date, f64)>,
     #[serde(default)]

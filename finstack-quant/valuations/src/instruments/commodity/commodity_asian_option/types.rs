@@ -58,6 +58,7 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[schemars(deny_unknown_fields)]
 pub struct CommodityAsianOption {
     /// Unique instrument identifier.
     pub id: InstrumentId,
@@ -65,6 +66,10 @@ pub struct CommodityAsianOption {
     #[serde(flatten)]
     pub underlying: CommodityUnderlyingParams,
     /// Strike price per unit.
+    #[serde(
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub strike: f64,
     /// Option type (call or put).
     pub option_type: OptionType,
@@ -73,16 +78,23 @@ pub struct CommodityAsianOption {
     /// Dates on which the commodity price is observed for averaging.
     ///
     /// **Note**: These dates should be pre-adjusted for business day conventions.
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub fixing_dates: Vec<Date>,
     /// Already observed fixings for seasoned options (ex-date, price pairs).
     #[builder(default)]
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub realized_fixings: Vec<(Date, f64)>,
     /// Contract quantity in commodity units.
+    #[serde(
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub quantity: f64,
     /// Option expiry/settlement date for the payoff.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Forward/futures price curve ID.
@@ -126,7 +138,7 @@ pub struct CommodityAsianOption {
     #[serde(flatten)]
     #[schemars(skip)]
     #[builder(default)]
-    pub(crate) unknown_fields: crate::instruments::common_impl::serde_guard::UnknownFieldGuard,
+    pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }
 
 impl CommodityAsianOption {

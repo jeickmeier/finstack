@@ -23,6 +23,7 @@ class Generator:
 
 
 GENERATORS = (
+    Generator(Path("finstack-quant/core"), "finstack-quant-core", "gen_core_schemas"),
     Generator(Path("finstack-quant/attribution"), "finstack-quant-attribution", "gen_attribution_schemas"),
     Generator(Path("finstack-quant/cashflows"), "finstack-quant-cashflows", "gen_cashflow_schemas"),
     Generator(Path("finstack-quant/factor-model"), "finstack-quant-factor-model", "gen_factor_model_schemas"),

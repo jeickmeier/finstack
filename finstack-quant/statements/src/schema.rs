@@ -2,10 +2,10 @@
 
 use std::sync::OnceLock;
 
-use schemars::JsonSchema;
 use serde_json::Value;
 
 use crate::{Error, Result};
+use finstack_quant_core::schema::SerdeSchema;
 
 /// Stable base URI for statements-owned schemas.
 pub const STATEMENTS_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/statements/1/";
@@ -27,7 +27,7 @@ pub const STATEMENTS_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/sta
 /// Returns [`Error::Serde`] if the schemars output cannot be represented as a
 /// JSON object.
 #[doc(hidden)]
-pub fn generated_schema<T: JsonSchema>(
+pub fn generated_schema<T: SerdeSchema>(
     filename: &str,
     title: &str,
     description: &str,

@@ -50,6 +50,7 @@ pub struct ThreeFactorPathData {
     ///
     /// The compatibility name is retained because this payload predates the
     /// separation of accrual and adjusted payment dates.
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub payment_dates: Vec<Date>,
     /// Whether `short_rate_path` was simulated by a stochastic rate process

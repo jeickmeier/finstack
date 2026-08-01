@@ -68,6 +68,7 @@ pub enum InflationQuote {
         id: QuoteId,
         /// Swap maturity
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         maturity: Date,
         /// Fixed rate (decimal)
@@ -85,6 +86,7 @@ pub enum InflationQuote {
         id: QuoteId,
         /// Swap maturity
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         maturity: Date,
         /// Fixed rate (decimal)

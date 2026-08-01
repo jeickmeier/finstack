@@ -411,6 +411,7 @@ impl std::fmt::Display for ScheduleWarning {
 )]
 pub struct Schedule {
     /// The generated sequence of dates, monotonically increasing.
+    #[serde(with = "crate::wire::dates")]
     #[schemars(with = "Vec<crate::wire::DateWire>")]
     pub dates: Vec<Date>,
     /// Warnings generated during schedule construction.
@@ -975,9 +976,11 @@ impl<'a> ScheduleBuilder<'a> {
 /// from configuration files and converted to a runtime [`ScheduleBuilder`].
 pub struct ScheduleSpec {
     /// Start date of the schedule.
+    #[serde(with = "crate::wire::date")]
     #[schemars(with = "crate::wire::DateWire")]
     pub start: Date,
     /// End date (maturity) of the schedule.
+    #[serde(with = "crate::wire::date")]
     #[schemars(with = "crate::wire::DateWire")]
     pub end: Date,
     /// Payment frequency (e.g., quarterly, monthly).
@@ -1002,8 +1005,10 @@ pub struct ScheduleSpec {
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct ScheduleSpecWire {
+    #[serde(with = "crate::wire::date")]
     #[schemars(with = "crate::wire::DateWire")]
     start: Date,
+    #[serde(with = "crate::wire::date")]
     #[schemars(with = "crate::wire::DateWire")]
     end: Date,
     frequency: Tenor,

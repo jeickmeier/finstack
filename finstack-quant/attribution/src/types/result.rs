@@ -340,10 +340,12 @@ pub struct AttributionMeta {
     pub method: AttributionMethod,
 
     /// Start date (T₀).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub t0: Date,
 
     /// End date (T₁).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub t1: Date,
 

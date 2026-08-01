@@ -57,6 +57,7 @@ pub struct PositionValue {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PortfolioValuation {
     /// Valuation date carried through from the portfolio.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of: finstack_quant_core::dates::Date,
 

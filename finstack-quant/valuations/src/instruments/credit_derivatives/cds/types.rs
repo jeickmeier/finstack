@@ -603,6 +603,7 @@ pub struct CreditDefaultSwap {
     /// - If positive: Buyer pays Seller.
     /// - If negative: Seller pays Buyer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_dated_money")]
     #[schemars(with = "Option<(finstack_quant_core::wire::DateWire, Money)>")]
     pub upfront: Option<(Date, Money)>,
     /// ISDA documentation clause for restructuring credit events.
@@ -632,6 +633,7 @@ pub struct CreditDefaultSwap {
     ///
     /// When `None`, protection starts on the premium leg start date (standard CDS).
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub protection_effective_date: Option<Date>,
     /// Optional OTC margin specification for VM/IM.

@@ -404,6 +404,29 @@ def serde_enum_naming_findings(files: list[Path]) -> list[str]:
     return findings
 
 
+def optional_wire_adapter_findings(files: list[Path]) -> list[str]:
+    """Reject optional serde adapters that accidentally require omitted fields."""
+    findings: list[str] = []
+    field_pattern = re.compile(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?P<name>[A-Za-z_]\w*)\s*:")
+
+    for path in files:
+        if path.suffix != ".rs":
+            continue
+        contents = path.read_text(encoding="utf-8")
+        relative = path.relative_to(ROOT).as_posix()
+        for match in field_pattern.finditer(contents):
+            attributes = " ".join(preceding_attributes(contents, match.start()))
+            if not re.search(r'wire::optional_[A-Za-z0-9_]+(?:"|\b)', attributes):
+                continue
+            if re.search(r"serde\s*\([^\]]*\bdefault\b", attributes):
+                continue
+            findings.append(
+                f"{relative}:{line_number(contents, match.start())}: optional wire adapter "
+                f"for {match.group('name')} lacks a serde default"
+            )
+    return findings
+
+
 def is_explicit_rejection_test(contents: str, match: re.Match[str]) -> bool:
     """Return whether a retired spelling is intentionally tested for rejection."""
     line_start = contents.rfind("\n", 0, match.start()) + 1
@@ -448,6 +471,7 @@ def main() -> int:
                     )
 
     findings.extend(serde_enum_naming_findings(sources))
+    findings.extend(optional_wire_adapter_findings(sources))
 
     for path in contract_files():
         contents = path.read_text(encoding="utf-8")

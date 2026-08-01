@@ -94,6 +94,7 @@ pub struct FxOption {
     #[builder(default)]
     pub exercise_style: ExerciseStyle,
     /// Option expiry date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Day count convention

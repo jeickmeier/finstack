@@ -77,6 +77,7 @@ struct RawBasisSpreadCurve {
     /// Curve identifier.
     pub id: String,
     /// Base date.
+    #[serde(with = "crate::wire::date")]
     #[schemars(with = "crate::wire::DateWire")]
     pub base: Date,
     /// Day count convention.

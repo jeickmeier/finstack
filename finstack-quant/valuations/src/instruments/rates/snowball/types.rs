@@ -72,6 +72,7 @@ pub struct Snowball {
     /// Notional amount.
     pub notional: Money,
     /// Coupon payment dates (must be sorted ascending).
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub coupon_dates: Vec<Date>,
     /// Floating rate index identifier.

@@ -15,6 +15,13 @@
         }
       ]
     },
+    "CorrelationWire": {
+      "description": "Finite correlation coefficient in the closed interval `[-1, 1]`.",
+      "format": "double",
+      "maximum": 1.0,
+      "minimum": -1.0,
+      "type": "number"
+    },
     "InstrumentSchema": {
       "description": "Canonical schema marker for persisted instrument envelopes.",
       "oneOf": [
@@ -26,12 +33,12 @@
       ]
     },
     "QuantoSpec": {
+      "additionalProperties": false,
       "description": "Quanto adjustment parameters for instruments where payoff currency differs from\nunderlying currency.",
       "properties": {
         "correlation": {
-          "description": "Correlation between the underlying asset and the FX rate.\nMust be in [-1, 1].",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/CorrelationWire",
+          "description": "Correlation between the underlying asset and the FX rate.\nMust be in [-1, 1]."
         },
         "fx_spot_id": {
           "description": "FX spot price identifier (for proper quanto vol lookup).\nFalls back to ATM approximation (1.0) if not provided.",
@@ -145,6 +152,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Optional payment date (defaults to last observation date)"
         },
         "projection_curve_id": {

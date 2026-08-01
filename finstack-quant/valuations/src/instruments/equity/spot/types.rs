@@ -51,6 +51,7 @@ pub struct Equity {
     /// Optional discrete cash dividends `(ex_date, amount)` for single-name forwards.
     #[serde(default)]
     #[builder(default)]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Discount curve ID for pricing

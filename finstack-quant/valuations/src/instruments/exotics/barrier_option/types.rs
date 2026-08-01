@@ -74,6 +74,7 @@ pub struct BarrierOption {
     /// Barrier type (up/down, in/out)
     pub barrier_type: BarrierType,
     /// Option expiry date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Terminal underlying fixing observed at expiry.

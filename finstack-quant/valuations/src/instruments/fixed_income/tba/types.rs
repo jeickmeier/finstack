@@ -65,9 +65,11 @@ impl std::fmt::Display for TbaTerm {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct TbaSettlement {
     /// Good delivery (settlement) date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub settlement_date: Date,
     /// Last trading day (48 hours before settlement)
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub notification_date: Date,
 }
@@ -155,6 +157,7 @@ pub struct AgencyTba {
     /// pricing consistent with explicit roll settlement dates.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub settlement_date: Option<Date>,
     /// Trade notional (par amount).
@@ -164,6 +167,7 @@ pub struct AgencyTba {
     /// Trade date.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub trade_date: Option<Date>,
     /// Expected pool factor for valuation.

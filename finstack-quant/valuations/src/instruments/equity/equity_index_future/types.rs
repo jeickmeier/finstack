@@ -213,9 +213,11 @@ pub struct EquityIndexFuture {
     /// Notional exposure in settlement currency.
     pub notional: Money,
     /// Future expiry/settlement date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Last trading date (typically one day before expiry).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub last_trading_date: Date,
     /// Entry price at trade inception (optional for new trades).
@@ -250,6 +252,7 @@ pub struct EquityIndexFuture {
     /// continuous dividend yield as zero to avoid double counting.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Attributes for tagging and selection.

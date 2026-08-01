@@ -659,6 +659,7 @@
       ]
     },
     "PremiumLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for CDS premium legs",
       "properties": {
         "business_day_convention": {
@@ -714,6 +715,7 @@
       "type": "object"
     },
     "ProtectionLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for CDS protection legs",
       "properties": {
         "credit_curve_id": {

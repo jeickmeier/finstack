@@ -298,16 +298,19 @@ pub struct RoundingPolicy {
 /// tol.rate_epsilon = 1e-14;
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, schemars::JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct ToleranceConfig {
     /// Epsilon for rate comparisons (default: 1e-12).
     ///
     /// Used when comparing interest rates, yields, and other small ratios.
     #[serde(default = "default_rate_epsilon")]
+    #[schemars(with = "crate::wire::PositiveF64Wire")]
     pub rate_epsilon: f64,
     /// Epsilon for generic floating-point comparisons (default: 1e-10).
     ///
     /// Used for general numerical comparisons where higher tolerance is acceptable.
     #[serde(default = "default_generic_epsilon")]
+    #[schemars(with = "crate::wire::PositiveF64Wire")]
     pub generic_epsilon: f64,
 }
 
@@ -771,9 +774,15 @@ mod tests {
         for json in [
             r#"{"rate_epsilon":0.0,"generic_epsilon":1e-10}"#,
             r#"{"rate_epsilon":1e-12,"generic_epsilon":-1.0}"#,
+            r#"{"rate_epsilon":1e-12,"generic_epsilon":1e-10,"extra":true}"#,
         ] {
             assert!(serde_json::from_str::<ToleranceConfig>(json).is_err());
         }
+
+        let schema =
+            serde_json::to_value(schemars::schema_for!(ToleranceConfig)).expect("tolerance schema");
+        assert_eq!(schema["additionalProperties"], false);
+        assert_eq!(schema["$defs"]["PositiveF64Wire"]["exclusiveMinimum"], 0.0);
 
         let valid = ToleranceConfig::new(1e-12, 1e-10).unwrap();
         let json = serde_json::to_string(&valid).unwrap();

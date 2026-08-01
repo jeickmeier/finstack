@@ -102,6 +102,7 @@ pub enum CommodityPricingModel {
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[schemars(deny_unknown_fields)]
 pub struct CommodityOption {
     /// Unique instrument identifier.
     pub id: InstrumentId,
@@ -109,6 +110,10 @@ pub struct CommodityOption {
     #[serde(flatten)]
     pub underlying: CommodityUnderlyingParams,
     /// Strike price per unit.
+    #[serde(
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub strike: f64,
     /// Option type (call or put).
     pub option_type: OptionType,
@@ -121,14 +126,24 @@ pub struct CommodityOption {
     /// Required when `exercise_style == ExerciseStyle::Bermudan`.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_dates")]
     #[schemars(with = "Option<Vec<finstack_quant_core::wire::DateWire>>")]
     pub exercise_schedule: Option<Vec<Date>>,
     /// Option expiry date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Contract quantity in units.
+    #[serde(
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub quantity: f64,
     /// Contract multiplier (typically 1.0 for OTC options).
+    #[serde(
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub multiplier: f64,
     /// Settlement type (physical or cash).
     ///
@@ -199,7 +214,7 @@ pub struct CommodityOption {
     #[serde(flatten)]
     #[schemars(skip)]
     #[builder(default)]
-    pub(crate) unknown_fields: crate::instruments::common_impl::serde_guard::UnknownFieldGuard,
+    pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }
 
 impl CommodityOption {

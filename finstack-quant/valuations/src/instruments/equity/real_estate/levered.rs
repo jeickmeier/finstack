@@ -52,6 +52,7 @@ pub struct LeveredRealEstateEquity {
     /// Optional explicit exit/sale date. Defaults to the last NOI date on/after `as_of`.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub exit_date: Option<Date>,
     /// Discount curve identifier for equity PV attribution (typically same as asset curve).

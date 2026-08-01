@@ -72,15 +72,19 @@ pub struct ForwardRateAgreement {
     /// Rate fixing date. If `None`, inferred from `start_date - reset_lag` business days.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub fixing_date: Option<Date>,
     /// Interest period start date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Interest period end date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Fixed rate (decimal, e.g., 0.05 for 5%)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub fixed_rate: Decimal,
     /// Day count convention for interest accrual

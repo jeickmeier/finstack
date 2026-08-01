@@ -85,6 +85,7 @@ pub enum CalibrationParameter {
 /// bisection to solve for a structural parameter so that the cash base-case
 /// MC price matches the target market quote, then re-prices with full paths.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct MertonMcCalibrationSpec {
     /// Target market quote to match (interpreted at quote/settlement date).
     pub target: crate::instruments::fixed_income::bond::pricing::quote_conversions::BondQuoteInput,
@@ -204,6 +205,7 @@ impl PikSchedule {
 
 /// Configuration for Monte Carlo PIK bond pricing.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct MertonMcConfig {
     /// Merton structural credit model.
     pub merton: MertonModel,

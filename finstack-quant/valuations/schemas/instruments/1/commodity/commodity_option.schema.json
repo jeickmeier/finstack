@@ -46,6 +46,7 @@
       ]
     },
     "CommodityOption": {
+      "additionalProperties": false,
       "description": "Commodity option (option on commodity forward or spot).\n\n# Pricing\n\n- **European options**: Black-76 model using the forward price from the `PriceCurve`\n- **American options**: Binomial tree (Leisen-Reimer) with cost-of-carry derived from\n  the forward/spot relationship\n\n# American Option Assumptions\n\nFor American exercise, the model requires a spot price to build the binomial tree.\nIf `spot_id` is provided, it uses that spot price. Otherwise, the forward\nprice is used as a proxy for spot, which may underestimate early exercise value.\nThe convenience yield (cost-of-carry) is implied from the forward/spot ratio:\n`q = r - ln(F/S)/T`\n\nBermudan exercise uses the configured exercise schedule and a binomial\ntree. The schedule must contain at least one strictly future date when the\noption is priced before expiry.\n\n# Forward Price Retrieval\n\nForward prices are retrieved from a `PriceCurve` (not a `ForwardCurve`).\nThe curve must be added via `MarketContext::insert_price_curve()`.\nIf `quoted_forward` is provided, it overrides the curve lookup.",
       "properties": {
         "attributes": {
@@ -117,9 +118,8 @@
           "description": "Metric-only pricing controls."
         },
         "multiplier": {
-          "description": "Contract multiplier (typically 1.0 for OTC options).",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Contract multiplier (typically 1.0 for OTC options)."
         },
         "option_type": {
           "$ref": "#/$defs/OptionType",
@@ -135,9 +135,8 @@
           ]
         },
         "quantity": {
-          "description": "Contract quantity in units.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Contract quantity in units."
         },
         "quoted_forward": {
           "description": "Optional quoted forward price (overrides curve lookup).",
@@ -164,9 +163,8 @@
           ]
         },
         "strike": {
-          "description": "Strike price per unit.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Strike price per unit."
         },
         "ticker": {
           "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
@@ -242,6 +240,12 @@
           "type": "string"
         }
       ]
+    },
+    "PositiveF64Wire": {
+      "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
+      "exclusiveMinimum": 0.0,
+      "format": "double",
+      "type": "number"
     },
     "SettlementType": {
       "description": "Settlement type for options",

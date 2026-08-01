@@ -5,6 +5,7 @@ use crate::position::PositionUnit;
 use crate::types::{AttributeValue, Entity, EntityId, PositionId};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
+use finstack_quant_core::wire::PercentageQuantityWire;
 use finstack_quant_valuations::instruments::{InstrumentEnvelope, MarketDependencies};
 use indexmap::IndexMap;
 use schemars::JsonSchema;
@@ -60,6 +61,7 @@ pub struct PortfolioHeader {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_currency: Currency,
     /// Valuation date for the materialized portfolio.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub as_of: Date,
@@ -99,10 +101,72 @@ pub struct InstrumentArtifact {
     pub dependencies: Option<MarketDependencies>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+enum MaterializedPositionWire {
+    Percentage(PercentageMaterializedPositionWire),
+    NonPercentage(NonPercentageMaterializedPositionWire),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct PercentageMaterializedPositionWire {
+    #[schemars(with = "String")]
+    id: PositionId,
+    #[schemars(with = "String")]
+    entity_id: EntityId,
+    instrument_id: String,
+    artifact_id: String,
+    quantity: PercentageQuantityWire,
+    unit: PercentagePositionUnitWire,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    attributes: IndexMap<String, AttributeValue>,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    meta: IndexMap<String, serde_json::Value>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct NonPercentageMaterializedPositionWire {
+    #[schemars(with = "String")]
+    id: PositionId,
+    #[schemars(with = "String")]
+    entity_id: EntityId,
+    instrument_id: String,
+    artifact_id: String,
+    quantity: f64,
+    unit: NonPercentagePositionUnitWire,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    attributes: IndexMap<String, AttributeValue>,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    meta: IndexMap<String, serde_json::Value>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+enum PercentagePositionUnitWire {
+    Percentage,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged, deny_unknown_fields)]
+enum NonPercentagePositionUnitWire {
+    Named(NonPercentagePositionUnitName),
+    Notional { notional: Option<Currency> },
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+enum NonPercentagePositionUnitName {
+    Units,
+    FaceValue,
+}
+
 /// Lightweight position referencing a unique instrument artifact.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
-#[serde(deny_unknown_fields)]
+#[serde(from = "MaterializedPositionWire")]
+#[schemars(with = "MaterializedPositionWire")]
 pub struct MaterializedPosition {
     /// Stable position identifier.
     #[schemars(with = "String")]
@@ -130,6 +194,43 @@ pub struct MaterializedPosition {
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     #[cfg_attr(feature = "ts_export", ts(type = "Record<string, unknown>"))]
     pub meta: IndexMap<String, serde_json::Value>,
+}
+
+impl From<MaterializedPositionWire> for MaterializedPosition {
+    fn from(value: MaterializedPositionWire) -> Self {
+        match value {
+            MaterializedPositionWire::Percentage(position) => Self {
+                id: position.id,
+                entity_id: position.entity_id,
+                instrument_id: position.instrument_id,
+                artifact_id: position.artifact_id,
+                quantity: position.quantity.into_inner(),
+                unit: PositionUnit::Percentage,
+                attributes: position.attributes,
+                meta: position.meta,
+            },
+            MaterializedPositionWire::NonPercentage(position) => Self {
+                id: position.id,
+                entity_id: position.entity_id,
+                instrument_id: position.instrument_id,
+                artifact_id: position.artifact_id,
+                quantity: position.quantity,
+                unit: match position.unit {
+                    NonPercentagePositionUnitWire::Named(NonPercentagePositionUnitName::Units) => {
+                        PositionUnit::Units
+                    }
+                    NonPercentagePositionUnitWire::Named(
+                        NonPercentagePositionUnitName::FaceValue,
+                    ) => PositionUnit::FaceValue,
+                    NonPercentagePositionUnitWire::Notional { notional } => {
+                        PositionUnit::Notional(notional)
+                    }
+                },
+                attributes: position.attributes,
+                meta: position.meta,
+            },
+        }
+    }
 }
 
 /// Producer and compiler version stamps for reproducibility.

@@ -58,9 +58,11 @@ pub struct CmsSwap {
     /// CMS tenor in years (e.g., 10.0 for 10Y swap rate).
     pub cms_tenor: f64,
     /// Fixing dates for CMS rate observations.
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub cms_fixing_dates: Vec<Date>,
     /// Payment dates for the CMS leg.
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub cms_payment_dates: Vec<Date>,
     /// Accrual fractions for each CMS period.
@@ -152,6 +154,7 @@ pub enum FundingLeg {
         /// Fixed coupon rate (decimal, e.g., 0.03 = 3%).
         rate: f64,
         /// Payment dates for each period.
+        #[serde(with = "finstack_quant_core::wire::dates")]
         #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
         payment_dates: Vec<Date>,
         /// Accrual fractions for each period.
@@ -176,6 +179,7 @@ pub enum FundingLeg {
         spread: f64,
         /// Payment dates for each period. Each is also treated as the period's
         /// accrual-end date (no payment lag — see the variant docs).
+        #[serde(with = "finstack_quant_core::wire::dates")]
         #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
         payment_dates: Vec<Date>,
         /// Accrual fractions for each period.

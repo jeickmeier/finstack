@@ -45,15 +45,18 @@ pub struct BondSettlementConvention {
     serde::Serialize,
     schemars::JsonSchema,
 )]
+#[schemars(deny_unknown_fields)]
 pub struct Bond {
     /// Unique identifier for the bond.
     pub id: InstrumentId,
     /// Principal amount of the bond.
     pub notional: Money,
     /// Issue date of the bond.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue_date: Date,
     /// Maturity date of the bond.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Cashflow specification (fixed, floating, or amortizing).
@@ -240,11 +243,13 @@ impl<'de> serde::Deserialize<'de> for Bond {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct CallPut {
     /// First date when the option can be exercised.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Last date when the option can be exercised, inclusive.
     ///
     /// Use the same value as `start_date` for one-day/discrete exercise.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end_date: Date,
     /// Redemption price as percentage of par amount.
@@ -272,6 +277,7 @@ pub struct CallPut {
 /// - High-yield: typically Treasury + 50-100 bp
 /// - Convertibles: typically Treasury + 50 bp
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct MakeWholeSpec {
     /// Reference curve identifier (e.g., "USD-TREASURY").
     pub reference_curve_id: CurveId,

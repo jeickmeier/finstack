@@ -281,6 +281,7 @@ pub struct InflationLinkedBond {
     /// Notional amount (in real terms)
     pub notional: Money,
     /// Real coupon rate (as decimal)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub real_coupon: Decimal,
     /// Coupon frequency
@@ -288,14 +289,17 @@ pub struct InflationLinkedBond {
     /// Day count convention
     pub day_count: DayCount,
     /// Issue date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue_date: Date,
     /// Maturity date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Base CPI/index value at issue
     pub base_index: f64,
     /// Base date for index (may differ from issue date)
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub base_date: Date,
     /// Indexation method

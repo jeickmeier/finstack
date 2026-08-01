@@ -1068,56 +1068,15 @@
       "type": "object"
     },
     "MaterializedPosition": {
-      "additionalProperties": false,
-      "description": "Lightweight position referencing a unique instrument artifact.",
-      "properties": {
-        "artifact_id": {
-          "description": "Artifact ID resolved against\n[`PortfolioMaterializationEnvelope::instruments`].",
-          "type": "string"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PercentageMaterializedPositionWire"
         },
-        "attributes": {
-          "additionalProperties": {
-            "$ref": "#/$defs/AttributeValue"
-          },
-          "description": "Position attributes used for grouping, filtering, and constraints.",
-          "type": "object"
-        },
-        "entity_id": {
-          "description": "Stable ID of the entity that owns the position.",
-          "type": "string"
-        },
-        "id": {
-          "description": "Stable position identifier.",
-          "type": "string"
-        },
-        "instrument_id": {
-          "description": "Instrument identifier exposed by portfolio lookup and reports.",
-          "type": "string"
-        },
-        "meta": {
-          "additionalProperties": true,
-          "description": "Extension metadata retained with the position.",
-          "type": "object"
-        },
-        "quantity": {
-          "description": "Signed holding quantity interpreted according to [`PositionUnit`].",
-          "format": "double",
-          "type": "number"
-        },
-        "unit": {
-          "$ref": "#/$defs/PositionUnit",
-          "description": "Scaling convention applied to `quantity`."
+        {
+          "$ref": "#/$defs/NonPercentageMaterializedPositionWire"
         }
-      },
-      "required": [
-        "id",
-        "entity_id",
-        "instrument_id",
-        "artifact_id",
-        "quantity",
-        "unit"
       ],
-      "type": "object"
+      "description": "Lightweight position referencing a unique instrument artifact."
     },
     "MaterializerInfo": {
       "additionalProperties": false,
@@ -1149,6 +1108,134 @@
         "finstack_version"
       ],
       "type": "object"
+    },
+    "NonPercentageMaterializedPositionWire": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "type": "string"
+        },
+        "attributes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AttributeValue"
+          },
+          "type": "object"
+        },
+        "entity_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "instrument_id": {
+          "type": "string"
+        },
+        "meta": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "quantity": {
+          "format": "double",
+          "type": "number"
+        },
+        "unit": {
+          "$ref": "#/$defs/NonPercentagePositionUnitWire"
+        }
+      },
+      "required": [
+        "id",
+        "entity_id",
+        "instrument_id",
+        "artifact_id",
+        "quantity",
+        "unit"
+      ],
+      "type": "object"
+    },
+    "NonPercentagePositionUnitName": {
+      "enum": [
+        "units",
+        "face_value"
+      ],
+      "type": "string"
+    },
+    "NonPercentagePositionUnitWire": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NonPercentagePositionUnitName"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "notional": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Currency"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "PercentageMaterializedPositionWire": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "type": "string"
+        },
+        "attributes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AttributeValue"
+          },
+          "type": "object"
+        },
+        "entity_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "instrument_id": {
+          "type": "string"
+        },
+        "meta": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "quantity": {
+          "$ref": "#/$defs/PercentageQuantityWire"
+        },
+        "unit": {
+          "$ref": "#/$defs/PercentagePositionUnitWire"
+        }
+      },
+      "required": [
+        "id",
+        "entity_id",
+        "instrument_id",
+        "artifact_id",
+        "quantity",
+        "unit"
+      ],
+      "type": "object"
+    },
+    "PercentagePositionUnitWire": {
+      "enum": [
+        "percentage"
+      ],
+      "type": "string"
+    },
+    "PercentageQuantityWire": {
+      "description": "Finite percentage-position quantity in the closed interval `[-100, 100]`.",
+      "format": "double",
+      "maximum": 100.0,
+      "minimum": -100.0,
+      "type": "number"
     },
     "PortfolioHeader": {
       "additionalProperties": false,
@@ -1221,46 +1308,6 @@
     "PositionId": {
       "description": "Position identifier.",
       "type": "string"
-    },
-    "PositionUnit": {
-      "description": "Unit of position measurement.\n\nThe unit describes how the `quantity` on a [`Position`] should be interpreted.\nCallers should treat it as part of the valuation contract, not display-only\nmetadata.\n\n# Scaling contract\n\nPosition value is computed as ``scale_factor(unit) * per_unit_pv``, where the\nper-unit PV is the monetary value returned by the underlying instrument's\npricing. Each variant defines the scale factor explicitly:\n\n| Variant       | Scale factor              | Per-unit PV interpretation           |\n|---------------|---------------------------|--------------------------------------|\n| `Units`       | `quantity`                | PV of one instrument unit/share      |\n| `Notional(_)` | `quantity`                | PV of **one unit of notional** (``$1`` / 1 FX unit) |\n| `FaceValue`   | `quantity`                | PV per one face-value unit           |\n| `Percentage`  | `quantity / 100`          | PV of 100% of the instrument         |\n\n## `Notional` semantics (important)\n\n`Notional(ccy)` means *\"position notional multiplied by per-unit PV\"*. The\nper-unit PV MUST therefore be priced assuming **unit notional size = 1**\n(``$1``, £1, 1 unit of the notional currency). The binding builders for\nnotional-quoted instruments (swaps, FX forwards, CDS, etc.) follow this\nconvention by default; do not double-count by pricing the instrument with\nits full deal notional and then scaling by `quantity`, as that yields\n``quantity * notional * per-unit PV`` instead of the intended\n``quantity * per-unit PV``.\n\nThe optional [`Currency`] records the notional currency for validation; it\ndoes not change the scale factor. A warning is emitted when it disagrees\nwith the instrument's valuation currency.",
-      "oneOf": [
-        {
-          "const": "units",
-          "description": "Number of units/shares (for equities, baskets). Scale factor = `quantity`.",
-          "type": "string"
-        },
-        {
-          "additionalProperties": false,
-          "description": "Notional amount, optionally tagged with a currency (for derivatives, FX).\n\nScale factor = `quantity`. The per-unit PV must be computed with a\nunit notional of 1 (e.g., ``$1`` notional swap PV). The optional\n[`Currency`] is a validation tag and does not alter scaling.",
-          "properties": {
-            "notional": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/Currency"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "required": [
-            "notional"
-          ],
-          "type": "object"
-        },
-        {
-          "const": "face_value",
-          "description": "Face value of debt instruments (for bonds, loans). Scale factor = `quantity`.",
-          "type": "string"
-        },
-        {
-          "const": "percentage",
-          "description": "Percentage of ownership where the value represents percentage points.\n\nFor example, 50.0 means 50%, not 0.50. The scaling logic always divides\nby 100 to convert to a decimal multiplier.",
-          "type": "string"
-        }
-      ]
     },
     "VolatilityDependency": {
       "additionalProperties": false,

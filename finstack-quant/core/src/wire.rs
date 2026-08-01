@@ -60,6 +60,411 @@ impl From<DateWire> for Date {
     }
 }
 
+/// Serde field adapter for a canonical [`DateWire`].
+pub mod date {
+    use super::{Date, DateWire, Deserialize, Serialize};
+
+    /// Serialize a domain date through its canonical wire type.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Calendar date to encode as an ISO `YYYY-MM-DD` string.
+    /// * `serializer` - Serde serializer that receives the canonical date string.
+    pub fn serialize<S>(value: &Date, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        DateWire::from(*value).serialize(serializer)
+    }
+
+    /// Deserialize a canonical wire date into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying an ISO `YYYY-MM-DD` date string.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Date, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        DateWire::deserialize(deserializer).map(Into::into)
+    }
+}
+
+/// Serde field adapter for an optional canonical date.
+pub mod optional_date {
+    use super::{Date, DateWire, Deserialize, Serialize};
+
+    /// Serialize an optional domain date through its canonical wire type.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Optional calendar date to encode as an ISO string or JSON `null`.
+    /// * `serializer` - Serde serializer that receives the canonical optional date.
+    pub fn serialize<S>(value: &Option<Date>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        value.map(DateWire::from).serialize(serializer)
+    }
+
+    /// Deserialize an optional canonical wire date into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying an ISO date string or JSON `null`.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Date>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Option::<DateWire>::deserialize(deserializer).map(|value| value.map(Into::into))
+    }
+}
+
+/// Serde field adapter for an optional pair of canonical dates.
+pub mod optional_date_pair {
+    use super::{Date, DateWire, Deserialize, Serialize};
+
+    /// Serialize an optional domain-date pair through canonical wire dates.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Optional `(start, end)` pair to encode as ISO date strings or JSON `null`.
+    /// * `serializer` - Serde serializer that receives the canonical optional date pair.
+    pub fn serialize<S>(value: &Option<(Date, Date)>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        value
+            .map(|(start, end)| (DateWire::from(start), DateWire::from(end)))
+            .serialize(serializer)
+    }
+
+    /// Deserialize an optional canonical date pair into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying two ISO date strings or JSON `null`.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<(Date, Date)>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Option::<(DateWire, DateWire)>::deserialize(deserializer)
+            .map(|value| value.map(|(start, end)| (Date::from(start), Date::from(end))))
+    }
+}
+
+/// Serde field adapter for a vector of canonical dates.
+pub mod dates {
+    use super::{Date, DateWire, Deserialize, Serialize};
+
+    /// Serialize domain dates through canonical wire dates.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Ordered calendar dates to encode as ISO `YYYY-MM-DD` strings.
+    /// * `serializer` - Serde serializer that receives the canonical date array.
+    pub fn serialize<S>(value: &[Date], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        value
+            .iter()
+            .copied()
+            .map(DateWire::from)
+            .collect::<Vec<_>>()
+            .serialize(serializer)
+    }
+
+    /// Deserialize canonical wire dates into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying an array of ISO date strings.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<Date>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Vec::<DateWire>::deserialize(deserializer)
+            .map(|values| values.into_iter().map(Into::into).collect())
+    }
+}
+
+/// Serde field adapter for an optional vector of canonical dates.
+pub mod optional_dates {
+    use super::{Date, DateWire, Deserialize, Serialize};
+
+    /// Serialize optional domain dates through canonical wire dates.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Optional ordered dates to encode as ISO strings or JSON `null`.
+    /// * `serializer` - Serde serializer that receives the canonical optional date array.
+    pub fn serialize<S>(value: &Option<Vec<Date>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        value
+            .as_ref()
+            .map(|values| {
+                values
+                    .iter()
+                    .copied()
+                    .map(DateWire::from)
+                    .collect::<Vec<_>>()
+            })
+            .serialize(serializer)
+    }
+
+    /// Deserialize optional canonical wire dates into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying an ISO date array or JSON `null`.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<Date>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Option::<Vec<DateWire>>::deserialize(deserializer)
+            .map(|values| values.map(|values| values.into_iter().map(Into::into).collect()))
+    }
+}
+
+/// Serde field adapter for dated floating-point values.
+pub mod dated_f64_values {
+    use super::{Date, DateWire, Deserialize, Serialize};
+
+    /// Serialize dated values through canonical wire dates.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Ordered `(date, value)` observations whose dates use ISO strings.
+    /// * `serializer` - Serde serializer that receives the canonical dated-value array.
+    pub fn serialize<S>(value: &[(Date, f64)], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        value
+            .iter()
+            .map(|(date, item)| (DateWire::from(*date), *item))
+            .collect::<Vec<_>>()
+            .serialize(serializer)
+    }
+
+    /// Deserialize canonical dated values into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying `(ISO date, number)` observations.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<(Date, f64)>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Vec::<(DateWire, f64)>::deserialize(deserializer).map(|values| {
+            values
+                .into_iter()
+                .map(|(date, item)| (date.into(), item))
+                .collect()
+        })
+    }
+}
+
+/// Serde field adapter for optional dated floating-point values.
+pub mod optional_dated_f64_values {
+    use super::{Date, DateWire, Deserialize, Serialize};
+
+    /// Serialize optional dated values through canonical wire dates.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Optional `(date, value)` observations to encode, or `None` for JSON `null`.
+    /// * `serializer` - Serde serializer that receives the canonical optional observations.
+    pub fn serialize<S>(value: &Option<Vec<(Date, f64)>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        value
+            .as_ref()
+            .map(|values| {
+                values
+                    .iter()
+                    .map(|(date, item)| (DateWire::from(*date), *item))
+                    .collect::<Vec<_>>()
+            })
+            .serialize(serializer)
+    }
+
+    /// Deserialize optional canonical dated values into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying dated numbers or JSON `null`.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<(Date, f64)>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Option::<Vec<(DateWire, f64)>>::deserialize(deserializer).map(|values| {
+            values.map(|values| {
+                values
+                    .into_iter()
+                    .map(|(date, item)| (date.into(), item))
+                    .collect()
+            })
+        })
+    }
+}
+
+/// Serde field adapter for dated monetary values.
+pub mod dated_money_values {
+    use super::{Date, DateWire, Deserialize, Serialize};
+    use crate::money::Money;
+
+    /// Serialize dated monetary values through canonical wire dates.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Ordered `(date, money)` observations, preserving each amount's currency.
+    /// * `serializer` - Serde serializer that receives the canonical dated-money array.
+    pub fn serialize<S>(value: &[(Date, Money)], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        value
+            .iter()
+            .map(|(date, money)| (DateWire::from(*date), *money))
+            .collect::<Vec<_>>()
+            .serialize(serializer)
+    }
+
+    /// Deserialize canonical dated monetary values into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying `(ISO date, money)` observations.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<(Date, Money)>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Vec::<(DateWire, Money)>::deserialize(deserializer).map(|values| {
+            values
+                .into_iter()
+                .map(|(date, money)| (date.into(), money))
+                .collect()
+        })
+    }
+}
+
+/// Serde field adapter for an optional dated monetary value.
+pub mod optional_dated_money {
+    use super::{Date, DateWire, Deserialize, Serialize};
+    use crate::money::Money;
+
+    /// Serialize an optional dated monetary value through a canonical wire date.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Optional `(date, money)` value, preserving the amount's currency.
+    /// * `serializer` - Serde serializer that receives the canonical value or JSON `null`.
+    pub fn serialize<S>(value: &Option<(Date, Money)>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        value
+            .map(|(date, money)| (DateWire::from(date), money))
+            .serialize(serializer)
+    }
+
+    /// Deserialize an optional canonical dated monetary value into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying dated money or JSON `null`.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<(Date, Money)>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Option::<(DateWire, Money)>::deserialize(deserializer)
+            .map(|value| value.map(|(date, money)| (date.into(), money)))
+    }
+}
+
+/// Serde field adapter for dated boolean values.
+pub mod dated_bool_values {
+    use super::{Date, DateWire, Deserialize, Serialize};
+
+    /// Serialize dated booleans through canonical wire dates.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Ordered `(date, flag)` observations whose dates use ISO strings.
+    /// * `serializer` - Serde serializer that receives the canonical dated-boolean array.
+    pub fn serialize<S>(value: &[(Date, bool)], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        value
+            .iter()
+            .map(|(date, item)| (DateWire::from(*date), *item))
+            .collect::<Vec<_>>()
+            .serialize(serializer)
+    }
+
+    /// Deserialize canonical dated booleans into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying `(ISO date, boolean)` observations.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<(Date, bool)>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Vec::<(DateWire, bool)>::deserialize(deserializer).map(|values| {
+            values
+                .into_iter()
+                .map(|(date, item)| (date.into(), item))
+                .collect()
+        })
+    }
+}
+
+/// Serde field adapter for dated integer values.
+pub mod dated_i32_values {
+    use super::{Date, DateWire, Deserialize, Serialize};
+
+    /// Serialize dated integers through canonical wire dates.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Ordered `(date, integer)` observations whose dates use ISO strings.
+    /// * `serializer` - Serde serializer that receives the canonical dated-integer array.
+    pub fn serialize<S>(value: &[(Date, i32)], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        value
+            .iter()
+            .map(|(date, item)| (DateWire::from(*date), *item))
+            .collect::<Vec<_>>()
+            .serialize(serializer)
+    }
+
+    /// Deserialize canonical dated integers into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying `(ISO date, integer)` observations.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<(Date, i32)>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Vec::<(DateWire, i32)>::deserialize(deserializer).map(|values| {
+            values
+                .into_iter()
+                .map(|(date, item)| (date.into(), item))
+                .collect()
+        })
+    }
+}
+
 /// Exact decimal encoded only as a JSON string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
@@ -79,6 +484,187 @@ impl From<Decimal> for DecimalWire {
 impl From<DecimalWire> for Decimal {
     fn from(value: DecimalWire) -> Self {
         value.0
+    }
+}
+
+/// Serde field adapter for a canonical [`DecimalWire`].
+pub mod decimal {
+    use super::{Decimal, DecimalWire, Deserialize, Serialize};
+
+    /// Serialize a domain decimal through its canonical wire type.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Exact decimal to encode as a JSON string without binary rounding.
+    /// * `serializer` - Serde serializer that receives the canonical decimal string.
+    pub fn serialize<S>(value: &Decimal, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        DecimalWire::from(*value).serialize(serializer)
+    }
+
+    /// Deserialize a canonical wire decimal into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying a canonical decimal string.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Decimal, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        DecimalWire::deserialize(deserializer).map(Into::into)
+    }
+}
+
+/// Serde field adapter for an optional canonical decimal.
+pub mod optional_decimal {
+    use super::{Decimal, DecimalWire, Deserialize, Serialize};
+
+    /// Serialize an optional domain decimal through its canonical wire type.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - Optional exact decimal to encode as a string or JSON `null`.
+    /// * `serializer` - Serde serializer that receives the canonical optional decimal.
+    pub fn serialize<S>(value: &Option<Decimal>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        value.map(DecimalWire::from).serialize(serializer)
+    }
+
+    /// Deserialize an optional canonical wire decimal into domain storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `deserializer` - Serde deserializer supplying a decimal string or JSON `null`.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Decimal>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Option::<DecimalWire>::deserialize(deserializer).map(|value| value.map(Into::into))
+    }
+}
+
+/// Finite JSON number that is strictly greater than zero.
+///
+/// This type is used by serde field adapters so runtime deserialization and
+/// generated schemas enforce the same positive-number contract.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct PositiveF64Wire(#[schemars(extend("exclusiveMinimum" = 0.0))] f64);
+
+impl PositiveF64Wire {
+    /// Return the validated primitive value.
+    pub const fn into_inner(self) -> f64 {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for PositiveF64Wire {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = f64::deserialize(deserializer)?;
+        if value.is_finite() && value > 0.0 {
+            Ok(Self(value))
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "expected a finite number greater than zero, got {value}"
+            )))
+        }
+    }
+}
+
+/// Finite JSON number in the open interval `(0, 1)`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct OpenUnitIntervalF64Wire(
+    #[schemars(extend("exclusiveMinimum" = 0.0, "exclusiveMaximum" = 1.0))] f64,
+);
+
+impl OpenUnitIntervalF64Wire {
+    /// Return the validated primitive value.
+    pub const fn into_inner(self) -> f64 {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for OpenUnitIntervalF64Wire {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = f64::deserialize(deserializer)?;
+        if value.is_finite() && value > 0.0 && value < 1.0 {
+            Ok(Self(value))
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "expected a finite number strictly between zero and one, got {value}"
+            )))
+        }
+    }
+}
+
+/// Finite correlation coefficient in the closed interval `[-1, 1]`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct CorrelationWire(#[schemars(range(min = -1.0, max = 1.0))] f64);
+
+impl CorrelationWire {
+    /// Return the validated primitive value.
+    pub const fn into_inner(self) -> f64 {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for CorrelationWire {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = f64::deserialize(deserializer)?;
+        if value.is_finite() && (-1.0..=1.0).contains(&value) {
+            Ok(Self(value))
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "expected a finite correlation in [-1, 1], got {value}"
+            )))
+        }
+    }
+}
+
+/// Finite percentage-position quantity in the closed interval `[-100, 100]`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct PercentageQuantityWire(#[schemars(range(min = -100.0, max = 100.0))] f64);
+
+impl PercentageQuantityWire {
+    /// Return the validated primitive value.
+    pub const fn into_inner(self) -> f64 {
+        self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for PercentageQuantityWire {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = f64::deserialize(deserializer)?;
+        if value.is_finite() && (-100.0..=100.0).contains(&value) {
+            Ok(Self(value))
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "expected a finite percentage quantity in [-100, 100], got {value}"
+            )))
+        }
     }
 }
 
@@ -118,5 +704,44 @@ mod tests {
         let schema = serde_json::to_value(schemars::schema_for!(SchemaVersion)).expect("schema");
         assert_eq!(schema["minimum"], 1);
         assert_eq!(schema["maximum"], 1);
+    }
+
+    #[test]
+    fn bounded_numeric_wires_match_runtime_contracts() {
+        for invalid in [json!(0.0), json!(-1.0)] {
+            assert!(serde_json::from_value::<PositiveF64Wire>(invalid).is_err());
+        }
+        assert_eq!(
+            serde_json::from_value::<PositiveF64Wire>(json!(0.5))
+                .expect("positive")
+                .into_inner(),
+            0.5
+        );
+
+        for invalid in [json!(0.0), json!(1.0), json!(-0.1), json!(1.1)] {
+            assert!(serde_json::from_value::<OpenUnitIntervalF64Wire>(invalid).is_err());
+        }
+        for invalid in [json!(-1.1), json!(1.1)] {
+            assert!(serde_json::from_value::<CorrelationWire>(invalid).is_err());
+        }
+        for invalid in [json!(-100.1), json!(100.1)] {
+            assert!(serde_json::from_value::<PercentageQuantityWire>(invalid).is_err());
+        }
+
+        let positive =
+            serde_json::to_value(schemars::schema_for!(PositiveF64Wire)).expect("positive schema");
+        assert_eq!(positive["exclusiveMinimum"], 0.0);
+        let probability = serde_json::to_value(schemars::schema_for!(OpenUnitIntervalF64Wire))
+            .expect("probability schema");
+        assert_eq!(probability["exclusiveMinimum"], 0.0);
+        assert_eq!(probability["exclusiveMaximum"], 1.0);
+        let correlation = serde_json::to_value(schemars::schema_for!(CorrelationWire))
+            .expect("correlation schema");
+        assert_eq!(correlation["minimum"], -1.0);
+        assert_eq!(correlation["maximum"], 1.0);
+        let percentage = serde_json::to_value(schemars::schema_for!(PercentageQuantityWire))
+            .expect("percentage schema");
+        assert_eq!(percentage["minimum"], -100.0);
+        assert_eq!(percentage["maximum"], 100.0);
     }
 }

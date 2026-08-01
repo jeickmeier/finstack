@@ -102,6 +102,7 @@ impl UnderlyingParams for FxUnderlyingParams {
 
 /// Equity underlying parameters for options and equity-linked swaps.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EquityUnderlyingParams {
     /// Underlying ticker/identifier
     pub ticker: String,
@@ -245,6 +246,7 @@ impl UnderlyingParams for CommodityUnderlyingParams {
 
 /// Index underlying parameters for total return swaps and index-linked instruments.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct IndexUnderlyingParams {
     /// Index identifier (e.g., "CDX.IG", "HY.BOND.INDEX")
     pub index_id: IndexId,

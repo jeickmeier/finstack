@@ -20,6 +20,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Lockout period end (no exercise before this date)"
         },
         "notice_days": {
@@ -122,6 +123,7 @@
       ]
     },
     "FixedLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for fixed rate legs in interest rate swaps",
       "properties": {
         "business_day_convention": {
@@ -204,6 +206,7 @@
       "type": "object"
     },
     "FloatLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for floating rate legs in interest rate swaps",
       "properties": {
         "business_day_convention": {

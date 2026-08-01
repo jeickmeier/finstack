@@ -64,6 +64,7 @@ pub struct RealEstateAsset {
     /// Currency for valuation.
     pub currency: Currency,
     /// Valuation date (base date for discounting).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub valuation_date: Date,
     /// Valuation method (DCF or DirectCap).
@@ -73,6 +74,7 @@ pub struct RealEstateAsset {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub property_type: Option<RealEstatePropertyType>,
     /// Net operating income schedule (date, amount).
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub noi_schedule: Vec<(Date, f64)>,
     /// Capital expenditure schedule (date, amount). Values are treated as **positive outflows**.
@@ -80,6 +82,7 @@ pub struct RealEstateAsset {
     /// When present, cashflows are valued as `NOI - CapEx` (unlevered net cash flow).
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_dated_f64_values")]
     #[schemars(with = "Option<Vec<(finstack_quant_core::wire::DateWire, f64)>>")]
     pub capex_schedule: Option<Vec<(Date, f64)>>,
     /// Discount rate for DCF (annualized).
@@ -112,6 +115,7 @@ pub struct RealEstateAsset {
     /// Terminal proceeds (if configured) are realized on `sale_date`.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub sale_date: Option<Date>,
     /// Optional explicit gross sale price (terminal proceeds), before disposition costs.
@@ -191,14 +195,17 @@ pub struct RealEstateAsset {
 struct RealEstateAssetUnchecked {
     id: InstrumentId,
     currency: Currency,
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     valuation_date: Date,
     valuation_method: RealEstateValuationMethod,
     #[serde(default)]
     property_type: Option<RealEstatePropertyType>,
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     noi_schedule: Vec<(Date, f64)>,
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_dated_f64_values")]
     #[schemars(with = "Option<Vec<(finstack_quant_core::wire::DateWire, f64)>>")]
     capex_schedule: Option<Vec<(Date, f64)>>,
     #[serde(default)]
@@ -212,6 +219,7 @@ struct RealEstateAssetUnchecked {
     #[serde(default)]
     terminal_growth_rate: Option<f64>,
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     sale_date: Option<Date>,
     #[serde(default)]

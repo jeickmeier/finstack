@@ -272,6 +272,7 @@ impl Default for CreditCalibrationConfig {
 #[serde(deny_unknown_fields)]
 pub struct HistoryPanel {
     /// Observation dates (sorted ascending).
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub dates: Vec<Date>,
     /// Per-issuer spread series aligned with [`dates`][Self::dates].
@@ -307,6 +308,7 @@ pub struct CreditCalibrationInputs {
     /// Generic factor series + spec.
     pub generic_factor: GenericFactorSeries,
     /// Calibration anchor date (must appear in `history_panel.dates`).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of: Date,
     /// Issuer spreads at `as_of` (level space).

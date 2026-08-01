@@ -81,6 +81,7 @@ use finstack_quant_core::Result;
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[schemars(deny_unknown_fields)]
 #[builder(validate = CommoditySpreadOption::validate)]
 pub struct CommoditySpreadOption {
     /// Unique instrument identifier.
@@ -90,11 +91,16 @@ pub struct CommoditySpreadOption {
     /// Option type (call or put on the spread S1 - S2).
     pub option_type: OptionType,
     /// Option expiry date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Spread strike price K in the payoff max(S1 - S2 - K, 0).
     pub strike: f64,
     /// Notional quantity (number of units).
+    #[serde(
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub notional: f64,
     /// Forward/price curve ID for leg 1 (the "long" commodity).
     pub leg1_forward_curve_id: CurveId,
@@ -107,6 +113,10 @@ pub struct CommoditySpreadOption {
     /// Discount curve ID for present value.
     pub discount_curve_id: CurveId,
     /// Correlation between the two commodity prices, in [-1, 1].
+    #[serde(
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_correlation"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::CorrelationWire")]
     pub correlation: f64,
     /// Day count convention for time to expiry.
     #[serde(default = "crate::serde_defaults::day_count_act365f")]
@@ -142,7 +152,7 @@ pub struct CommoditySpreadOption {
     #[serde(flatten)]
     #[schemars(skip)]
     #[builder(default)]
-    pub(crate) unknown_fields: crate::instruments::common_impl::serde_guard::UnknownFieldGuard,
+    pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }
 
 impl CommoditySpreadOption {

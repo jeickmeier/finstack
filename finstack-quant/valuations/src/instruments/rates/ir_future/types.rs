@@ -61,6 +61,7 @@ pub struct InterestRateFuture {
     /// multiples of the standard contract.
     pub notional: Money,
     /// Future expiry/delivery date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Underlying rate fixing date.
@@ -68,6 +69,7 @@ pub struct InterestRateFuture {
     /// Defaults to `expiry` when omitted.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub fixing_date: Option<Date>,
     /// Rate period start date.
@@ -75,6 +77,7 @@ pub struct InterestRateFuture {
     /// Defaults to 2 calendar days after fixing date when omitted.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub period_start: Option<Date>,
     /// Rate period end date.
@@ -82,6 +85,7 @@ pub struct InterestRateFuture {
     /// Defaults to `period_start + contract_specs.delivery_months` months when omitted.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub period_end: Option<Date>,
     /// Quoted future price (e.g., 99.25)

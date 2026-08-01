@@ -80,6 +80,7 @@ pub enum VolQuote {
         underlying: UnderlyingId,
         /// Option expiry
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         expiry: Date,
         /// Strike
@@ -99,10 +100,12 @@ pub enum VolQuote {
         id: QuoteId,
         /// Option expiry
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         expiry: Date,
         /// Underlying swap maturity date
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         maturity: Date,
         /// Strike rate
@@ -123,6 +126,7 @@ pub enum VolQuote {
         id: QuoteId,
         /// Cap/floor maturity or caplet expiry.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         expiry: Date,
         /// Strike rate.

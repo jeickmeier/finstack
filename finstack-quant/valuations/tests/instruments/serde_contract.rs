@@ -438,9 +438,9 @@ serde_contract!(
 // All six commodity instrument types flatten a shared `CommodityUnderlyingParams`
 // leg via `#[serde(flatten)]`, which serde does not support alongside its native
 // `#[serde(deny_unknown_fields)]`. They instead enforce the "unknown fields
-// denied" invariant with a trailing `UnknownFieldGuard` flatten field (see
-// `common_impl::serde_guard`), so they carry the full contract like every other
-// instrument while keeping the flat v1 wire format/schema unchanged.
+// denied" invariant with the shared trailing `UnknownFieldGuard` flatten field,
+// so they carry the full contract like every other instrument while keeping
+// the flat v1 wire format/schema unchanged.
 // ---------------------------------------------------------------------------
 serde_contract!(
     serde_commodity_forward,

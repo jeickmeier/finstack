@@ -98,9 +98,11 @@ impl TrsSide {
 #[serde(deny_unknown_fields)]
 pub struct TrsScheduleSpec {
     /// Start date for the TRS leg.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date for the TRS leg.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Schedule parameters (frequency, day count, business_day_convention, calendar, stub).

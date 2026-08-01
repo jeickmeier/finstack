@@ -8,32 +8,35 @@ use crate::contract_specs::{embedded_registry, ContractSpecRegistry};
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::dependencies::MarketDependencies;
 use crate::instruments::common_impl::traits::Attributes;
-use finstack_quant_core::dates::Date;
+use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 
-// Re-export the canonical position type from the historical module path.
 use crate::instruments::Position;
 
-/// Day-count basis used to annualize implied repo rates.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum RepoDayCountBasis {
-    /// ACT/360 convention (common in USD and EUR money markets)
+enum RepoDayCountWire {
+    #[serde(rename = "act_360")]
     Act360,
-    /// ACT/365 convention (common in GBP money markets)
-    Act365,
+    #[serde(rename = "act_365f")]
+    Act365F,
 }
 
-impl RepoDayCountBasis {
-    fn annualization_denominator(self) -> f64 {
-        match self {
-            Self::Act360 => 360.0,
-            Self::Act365 => 365.0,
+impl From<RepoDayCountWire> for DayCount {
+    fn from(value: RepoDayCountWire) -> Self {
+        match value {
+            RepoDayCountWire::Act360 => Self::Act360,
+            RepoDayCountWire::Act365F => Self::Act365F,
         }
     }
+}
+
+fn deserialize_repo_day_count<'de, D>(deserializer: D) -> std::result::Result<DayCount, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    <RepoDayCountWire as serde::Deserialize>::deserialize(deserializer).map(Into::into)
 }
 
 /// A bond in the deliverable basket with its conversion factor.
@@ -117,17 +120,33 @@ pub struct BondFutureSpecs {
     /// Use "target2" for European government bond futures.
     #[serde(default = "default_calendar_id")]
     pub calendar_id: String,
-    /// Day-count basis for implied repo rate annualization.
-    #[serde(default = "default_repo_day_count_basis")]
-    pub repo_day_count_basis: RepoDayCountBasis,
+    /// Day-count convention for implied repo rate annualization.
+    ///
+    /// Bond-future repo supports `act_360` and `act_365f`.
+    #[serde(
+        default = "default_repo_day_count",
+        deserialize_with = "deserialize_repo_day_count"
+    )]
+    #[schemars(with = "RepoDayCountWire")]
+    pub repo_day_count: DayCount,
 }
 
 fn default_calendar_id() -> String {
     "nyse".to_string()
 }
 
-fn default_repo_day_count_basis() -> RepoDayCountBasis {
-    RepoDayCountBasis::Act360
+fn default_repo_day_count() -> DayCount {
+    DayCount::Act360
+}
+
+fn repo_annualization_denominator(day_count: DayCount) -> finstack_quant_core::Result<f64> {
+    match day_count {
+        DayCount::Act360 => Ok(360.0),
+        DayCount::Act365F => Ok(365.0),
+        unsupported => Err(finstack_quant_core::Error::Validation(format!(
+            "bond-future repo_day_count must be act_360 or act_365f, got {unsupported:?}"
+        ))),
+    }
 }
 
 #[allow(clippy::expect_used)]
@@ -393,14 +412,17 @@ pub struct BondFuture {
     pub notional: Money,
 
     /// Future expiry date (last trading day)
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
 
     /// First delivery date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub delivery_start: Date,
 
     /// Last delivery date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub delivery_end: Date,
 
@@ -649,6 +671,7 @@ impl BondFuture {
                 self.notional.amount()
             )));
         }
+        repo_annualization_denominator(self.contract_specs.repo_day_count)?;
 
         Ok(())
     }
@@ -1232,10 +1255,8 @@ impl BondFuture {
         let total_proceeds = invoice_price + coupon_income;
 
         // Implied repo rate annualization uses contract-specific day-count basis.
-        let annualization_basis = self
-            .contract_specs
-            .repo_day_count_basis
-            .annualization_denominator();
+        let annualization_basis =
+            repo_annualization_denominator(self.contract_specs.repo_day_count)?;
         let holding_period_return = (total_proceeds / purchase_price) - 1.0;
         let annualized = holding_period_return * (annualization_basis / days_to_delivery as f64);
 
@@ -1339,7 +1360,7 @@ mod tests {
         assert_eq!(specs.standard_coupon, 0.06);
         assert_eq!(specs.standard_maturity_years, 10.0);
         assert_eq!(specs.settlement_days, 2);
-        assert_eq!(specs.repo_day_count_basis, RepoDayCountBasis::Act360);
+        assert_eq!(specs.repo_day_count, DayCount::Act360);
     }
 
     #[test]
@@ -1384,7 +1405,30 @@ mod tests {
         assert_eq!(specs.standard_coupon, 0.04); // Different from UST/Bund
         assert_eq!(specs.standard_maturity_years, 10.0);
         assert_eq!(specs.settlement_days, 2);
-        assert_eq!(specs.repo_day_count_basis, RepoDayCountBasis::Act365);
+        assert_eq!(specs.repo_day_count, DayCount::Act365F);
+    }
+
+    #[test]
+    fn repo_day_count_wire_accepts_only_supported_canonical_values() {
+        for value in ["act_360", "act_365f"] {
+            let mut json = serde_json::to_value(BondFutureSpecs::default())
+                .expect("serialize bond future specs");
+            json["repo_day_count"] = serde_json::json!(value);
+            assert!(
+                serde_json::from_value::<BondFutureSpecs>(json).is_ok(),
+                "{value} must be accepted"
+            );
+        }
+
+        for value in ["act360", "act365", "30_360", "act_act"] {
+            let mut json = serde_json::to_value(BondFutureSpecs::default())
+                .expect("serialize bond future specs");
+            json["repo_day_count"] = serde_json::json!(value);
+            assert!(
+                serde_json::from_value::<BondFutureSpecs>(json).is_err(),
+                "{value} must be rejected"
+            );
+        }
     }
 
     #[test]

@@ -331,9 +331,11 @@ pub struct Ndf {
     /// Settlement currency (freely convertible, typically USD, denominator and PV currency).
     pub settlement_currency: Currency,
     /// Fixing date (rate observation date, typically T-2 before maturity).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub fixing_date: Date,
     /// Maturity/settlement date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Notional amount in base currency.
@@ -421,9 +423,11 @@ struct NdfUnchecked {
     /// Settlement currency (freely convertible, typically USD, denominator and PV currency).
     settlement_currency: Currency,
     /// Fixing date (rate observation date, typically T-2 before maturity).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     fixing_date: Date,
     /// Maturity/settlement date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     maturity: Date,
     /// Notional amount in base currency.

@@ -26,8 +26,8 @@ use time::Month;
 /// - **GNMA I**: Single-issuer pools with a 14-day stated delay. Payments on the 15th.
 /// - **GNMA II**: Multi-issuer pools with a 50-day stated delay. Payments on the 20th.
 ///
-/// Use `GnmaI` or `GnmaII` to select the appropriate convention. Legacy `GNMA`
-/// and `GNMA_I_I` payloads deserialize as `GnmaII`.
+/// Use `GnmaI` or `GnmaII` to select the appropriate convention. Their
+/// persisted values are exactly `GNMA_I` and `GNMA_II`, respectively.
 #[derive(
     Debug,
     Clone,
@@ -318,6 +318,7 @@ pub struct AgencyMbsPassthrough {
     /// seasoning ramps is derived separately from `issue_date`.
     pub wam: u32,
     /// Issue date of the pool.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue_date: Date,
     /// End date of the latest accrual period whose delayed P&I payment has
@@ -327,9 +328,11 @@ pub struct AgencyMbsPassthrough {
     /// payment-delay rule and `as_of`.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub last_paid_accrual_end: Option<Date>,
     /// Legal maturity date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Optional custom payment delay (overrides agency default).

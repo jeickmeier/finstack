@@ -42,9 +42,11 @@ impl Default for ContractSpec {
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ScheduleSpec {
     /// Start date for the schedule
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date for the schedule
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Payment frequency

@@ -78,6 +78,7 @@ use finstack_quant_core::Result;
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[schemars(deny_unknown_fields)]
 #[builder(validate = CommoditySwaption::validate)]
 pub struct CommoditySwaption {
     /// Unique instrument identifier.
@@ -88,19 +89,30 @@ pub struct CommoditySwaption {
     /// Option type (call = right to enter pay-fixed swap, put = right to enter receive-fixed swap).
     pub option_type: OptionType,
     /// Option expiry date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Underlying swap start date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub swap_start: Date,
     /// Underlying swap end date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub swap_end: Date,
     /// Underlying swap payment frequency.
     pub swap_frequency: Tenor,
     /// Fixed price (strike) of the underlying swap.
+    #[serde(
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub fixed_price: f64,
     /// Notional quantity per period.
+    #[serde(
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub notional: f64,
     /// Forward/futures curve ID for commodity price interpolation.
     pub forward_curve_id: CurveId,
@@ -146,11 +158,11 @@ pub struct CommoditySwaption {
     #[serde(default)]
     pub attributes: Attributes,
     /// Rejects unknown JSON fields (restores `deny_unknown_fields` despite the
-    /// `#[serde(flatten)]` on `underlying`). See [`UnknownFieldGuard`].
+    /// `#[serde(flatten)]` on `underlying`).
     #[serde(flatten)]
     #[schemars(skip)]
     #[builder(default)]
-    pub(crate) unknown_fields: crate::instruments::common_impl::serde_guard::UnknownFieldGuard,
+    pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }
 
 impl CommoditySwaption {

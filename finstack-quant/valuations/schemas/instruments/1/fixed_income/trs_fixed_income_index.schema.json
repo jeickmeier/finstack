@@ -298,6 +298,7 @@
       "type": "object"
     },
     "FinancingLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for TRS financing legs",
       "properties": {
         "compounding": {
@@ -412,6 +413,7 @@
       "type": "object"
     },
     "IndexUnderlyingParams": {
+      "additionalProperties": false,
       "description": "Index underlying parameters for total return swaps and index-linked instruments.",
       "properties": {
         "base_currency": {

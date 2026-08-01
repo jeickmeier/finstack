@@ -3,7 +3,6 @@
 use crate::instruments::equity::equity_index_future::EquityFutureSpecs;
 use crate::instruments::equity::vol_index_future::VolIndexContractSpecs;
 use crate::instruments::equity::vol_index_option::VolIndexOptionSpecs;
-use crate::instruments::fixed_income::bond_future::types::RepoDayCountBasis;
 use crate::instruments::fixed_income::bond_future::BondFutureSpecs;
 use finstack_quant_core::dates::{BusinessDayConvention, DayCount};
 use finstack_quant_core::{Error, Result};
@@ -41,7 +40,7 @@ impl ContractSpecRegistry {
             standard_maturity_years: record.standard_maturity_years,
             settlement_days: record.settlement_days,
             calendar_id: record.calendar_id.clone(),
-            repo_day_count_basis: record.repo_day_count_basis,
+            repo_day_count: record.repo_day_count,
         })
     }
 
@@ -171,7 +170,7 @@ struct BondFutureSpecRecord {
     standard_maturity_years: f64,
     settlement_days: u32,
     calendar_id: String,
-    repo_day_count_basis: RepoDayCountBasis,
+    repo_day_count: DayCount,
 }
 
 impl BondFutureSpecRecord {
@@ -194,6 +193,12 @@ impl BondFutureSpecRecord {
             return Err(Error::Validation(
                 "contract-spec registry bond future settlement days must be positive".to_string(),
             ));
+        }
+        if !matches!(self.repo_day_count, DayCount::Act360 | DayCount::Act365F) {
+            return Err(Error::Validation(format!(
+                "bond future repo_day_count must be act_360 or act_365f, got {:?}",
+                self.repo_day_count
+            )));
         }
         validate_nonblank("bond future calendar id", &self.calendar_id)
     }
@@ -450,7 +455,7 @@ mod tests {
 
         let gilt = registry.bond_future_specs("gilt").expect("gilt spec");
         assert_eq!(gilt.standard_coupon, 0.04);
-        assert_eq!(gilt.repo_day_count_basis, RepoDayCountBasis::Act365);
+        assert_eq!(gilt.repo_day_count, DayCount::Act365F);
     }
 
     #[test]

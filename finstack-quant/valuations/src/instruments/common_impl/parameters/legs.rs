@@ -98,10 +98,12 @@ impl std::str::FromStr for ParRateMethod {
 
 /// Specification for fixed rate legs in interest rate swaps
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct FixedLegSpec {
     /// Discount curve identifier for pricing
     pub discount_curve_id: CurveId,
     /// Fixed rate (e.g., 0.05 for 5%)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub rate: Decimal,
     /// Payment frequency
@@ -117,9 +119,11 @@ pub struct FixedLegSpec {
     #[serde(default = "crate::serde_defaults::stub_short_front")]
     pub stub: StubKind,
     /// Start date of the fixed leg
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date of the fixed leg
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Optional par-rate calculation method override
@@ -176,12 +180,14 @@ impl FixedLegSpec {
 
 /// Specification for floating rate legs in interest rate swaps
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct FloatLegSpec {
     /// Discount curve identifier for pricing
     pub discount_curve_id: CurveId,
     /// Forward curve identifier for rate projections
     pub forward_curve_id: CurveId,
     /// Spread in basis points added to the forward rate
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
     /// Payment frequency
@@ -207,9 +213,11 @@ pub struct FloatLegSpec {
     #[serde(default)]
     pub fixing_calendar_id: Option<String>,
     /// Start date of the floating leg
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date of the floating leg
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Compounding method for floating coupons.
@@ -289,9 +297,11 @@ pub struct BasisSwapLeg {
     /// Discount curve identifier for present value calculations
     pub discount_curve_id: CurveId,
     /// Start date of the leg
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date of the leg
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Payment frequency for the leg
@@ -322,6 +332,7 @@ pub struct BasisSwapLeg {
     /// Basis spreads in liquid markets typically range from -50bp to +50bp.
     /// Values outside ±5000bp are considered extreme and
     /// will trigger a validation warning during pricing.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
     /// Payment lag in business days after period end (default: 0).
@@ -341,11 +352,14 @@ pub struct BasisSwapLeg {
 
 /// Specification for CDS premium legs
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PremiumLegSpec {
     /// Start date of protection
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date of protection
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Payment frequency
@@ -361,6 +375,7 @@ pub struct PremiumLegSpec {
     /// Day count convention
     pub day_count: DayCount,
     /// Fixed spread in basis points (e.g., 100 = 100bp = 1%)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
     /// Discount curve identifier
@@ -369,6 +384,7 @@ pub struct PremiumLegSpec {
 
 /// Specification for CDS protection legs
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ProtectionLegSpec {
     /// Credit curve identifier for default probabilities
     pub credit_curve_id: CurveId,
@@ -464,12 +480,14 @@ pub enum FinancingRateCompounding {
 
 /// Specification for TRS financing legs
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct FinancingLegSpec {
     /// Discount curve identifier for present value calculations
     pub discount_curve_id: CurveId,
     /// Forward curve identifier (e.g., USD-SOFR-3M)
     pub forward_curve_id: CurveId,
     /// Spread in basis points over the floating rate (e.g., 50 = 50bp = 0.5%)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
     /// Day count convention for accrual calculations

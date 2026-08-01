@@ -56,6 +56,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Optional effective date for schedule anchoring (if None, uses as_of date)"
         },
         "frequency": {

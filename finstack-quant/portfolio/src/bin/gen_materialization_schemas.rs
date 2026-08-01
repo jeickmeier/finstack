@@ -3,20 +3,27 @@
 use std::path::Path;
 
 use finstack_quant_core::schema::{
-    externalize_schema_definitions, run_schema_generator, SchemaArtifact, SchemaGenerationCommand,
+    externalize_schema_definitions, run_schema_generator, ExternalSchemaDefinition, SchemaArtifact,
+    SchemaGenerationCommand,
 };
+use finstack_quant_core::Result;
 use finstack_quant_portfolio::{
     optimization::PortfolioOptimizationResultWire, PortfolioMaterializationEnvelope,
 };
+use finstack_quant_valuations::instruments::InstrumentEnvelope;
 use serde_json::Value;
 
 const INSTRUMENT_SCHEMA_URI: &str =
     "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json";
 
-fn package_materialization_schema(schema: &mut Value) {
-    externalize_schema_definitions(schema, |name| {
-        (name == "InstrumentEnvelope").then(|| INSTRUMENT_SCHEMA_URI.to_string())
-    });
+const EXTERNAL_DEFINITIONS: &[ExternalSchemaDefinition] =
+    &[ExternalSchemaDefinition::new::<InstrumentEnvelope>(
+        "InstrumentEnvelope",
+        INSTRUMENT_SCHEMA_URI,
+    )];
+
+fn package_materialization_schema(schema: &mut Value) -> Result<()> {
+    externalize_schema_definitions(schema, EXTERNAL_DEFINITIONS)
 }
 
 const ARTIFACTS: &[SchemaArtifact] = &[

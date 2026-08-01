@@ -607,6 +607,7 @@ struct ScalarTimeSeriesWire {
     /// Optional currency
     pub currency: Option<Currency>,
     /// Observations as (date, value) pairs
+    #[serde(with = "crate::wire::dated_f64_values")]
     #[schemars(with = "Vec<(crate::wire::DateWire, f64)>")]
     pub observations: Vec<(Date, f64)>,
     /// Interpolation method

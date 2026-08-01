@@ -34,10 +34,12 @@ pub enum CouponType {
     Split {
         /// Fraction of the coupon paid in cash, expressed as a decimal share in
         /// `[0, 1]`.
+        #[serde(with = "finstack_quant_core::wire::decimal")]
         #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
         cash_pct: Decimal,
         /// Fraction of the coupon capitalized as PIK, expressed as a decimal
         /// share in `[0, 1]`.
+        #[serde(with = "finstack_quant_core::wire::decimal")]
         #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
         pik_pct: Decimal,
     },
@@ -89,6 +91,7 @@ pub struct FixedCouponSpec {
     #[serde(default)]
     pub coupon_type: CouponType,
     /// Coupon rate as a decimal (e.g., 0.05 for 5%). Uses Decimal for exact representation.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub rate: Decimal,
     /// Accrual and payment schedule conventions.
@@ -247,7 +250,11 @@ pub enum FloatingRateFallback {
     /// means 4.5%. This differs from the bp-denominated spread/floor/cap
     /// fields on [`FloatingRateSpec`] because it substitutes directly for
     /// the projected index rate.
-    FixedRate(#[schemars(with = "finstack_quant_core::wire::DecimalWire")] rust_decimal::Decimal),
+    FixedRate(
+        #[serde(with = "finstack_quant_core::wire::decimal")]
+        #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+        rust_decimal::Decimal,
+    ),
 }
 
 impl FloatingRateFallback {
@@ -385,6 +392,7 @@ pub struct FloatingRateSpec {
     pub index_id: CurveId,
 
     /// Spread/margin over index in basis points. Uses Decimal for exact representation.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
 
@@ -396,6 +404,7 @@ pub struct FloatingRateSpec {
     /// projection rejects zero or negative gearing, so inverse floaters
     /// (negative gearing) are not currently expressible with this field.
     #[serde(default = "default_gearing")]
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub gearing: Decimal,
 
@@ -410,6 +419,7 @@ pub struct FloatingRateSpec {
     ///
     /// Example: index_floor_bp = Some(0.0) ensures index rate >= 0%.
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_decimal")]
     #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub index_floor_bp: Option<Decimal>,
 
@@ -417,6 +427,7 @@ pub struct FloatingRateSpec {
     ///
     /// Applied to the final calculated rate after gearing and spread.
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_decimal")]
     #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub all_in_floor_bp: Option<Decimal>,
 
@@ -424,11 +435,13 @@ pub struct FloatingRateSpec {
     ///
     /// Example: all_in_cap_bp = Some(1000.0) ensures all-in rate <= 10%.
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_decimal")]
     #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub all_in_cap_bp: Option<Decimal>,
 
     /// Cap on index rate in basis points (applied to index component).
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_decimal")]
     #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub index_cap_bp: Option<Decimal>,
 
@@ -641,6 +654,7 @@ pub struct StepUpCouponSpec {
     #[serde(default)]
     pub coupon_type: CouponType,
     /// Initial coupon rate (annual, decimal). Used until the first step date.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub initial_rate: Decimal,
     /// Step schedule: (effective_date, new_rate). Must be sorted by date.

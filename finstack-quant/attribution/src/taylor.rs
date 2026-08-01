@@ -43,6 +43,7 @@ use std::sync::Arc;
 
 /// Configuration for Taylor-based P&L attribution.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TaylorAttributionConfig {
     /// Include second-order (gamma/convexity) terms.
     #[serde(default)]
@@ -1273,6 +1274,14 @@ mod tests {
             serde_json::from_str(&json).expect("deserialize should succeed");
 
         assert_eq!(parsed, config);
+        assert!(serde_json::from_str::<TaylorAttributionConfig>(
+            r#"{"include_gamma":false,"unexpected":true}"#
+        )
+        .is_err());
+
+        let schema = serde_json::to_value(schemars::schema_for!(TaylorAttributionConfig))
+            .expect("Taylor attribution config schema");
+        assert_eq!(schema["additionalProperties"], false);
     }
 
     #[test]

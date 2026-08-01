@@ -104,6 +104,7 @@ pub struct EquityOption {
     #[builder(default)]
     pub exercise_style: ExerciseStyle,
     /// Option expiry date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Notional amount for valuation scaling.
@@ -165,6 +166,7 @@ pub struct EquityOption {
     ///   discrete dividend problem"
     #[builder(default)]
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Exercise schedule for Bermudan options.
@@ -174,6 +176,7 @@ pub struct EquityOption {
     /// are filtered out automatically.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_dates")]
     #[schemars(with = "Option<Vec<finstack_quant_core::wire::DateWire>>")]
     pub exercise_schedule: Option<Vec<Date>>,
     /// Pricing overrides (manual price, yield, spread)

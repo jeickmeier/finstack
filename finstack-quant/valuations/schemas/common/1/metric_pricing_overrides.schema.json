@@ -954,14 +954,21 @@
         }
       ]
     },
+    "OpenUnitIntervalF64Wire": {
+      "description": "Finite JSON number in the open interval `(0, 1)`.",
+      "exclusiveMaximum": 1.0,
+      "exclusiveMinimum": 0.0,
+      "format": "double",
+      "type": "number"
+    },
     "VarConfig": {
+      "additionalProperties": false,
       "description": "Configuration for VaR calculation.\n\nControls statistical properties such as confidence level and pricing method.\nThe historical window/observation count is derived from [`MarketHistory`].",
       "properties": {
         "confidence_level": {
+          "$ref": "#/$defs/OpenUnitIntervalF64Wire",
           "default": 0.95,
-          "description": "Confidence level (e.g., 0.95 for 95% VaR, 0.99 for 99% VaR)",
-          "format": "double",
-          "type": "number"
+          "description": "Confidence level (e.g., 0.95 for 95% VaR, 0.99 for 99% VaR)"
         },
         "method": {
           "$ref": "#/$defs/VarMethod",

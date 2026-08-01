@@ -83,14 +83,17 @@ pub struct VarianceSwap {
     /// Strike variance (annualized)
     pub strike_variance: f64,
     /// Start date of observation period
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Contractual end of the observation period.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Optional cash-settlement date. Defaults to the adjusted final observation date.
     #[serde(default)]
     #[builder(optional)]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub settlement_date: Option<Date>,
     /// Observation frequency

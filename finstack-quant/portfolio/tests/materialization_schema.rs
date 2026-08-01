@@ -91,6 +91,17 @@ fn materialization_fixture(instrument_envelope: Value) -> Value {
     })
 }
 
+fn position(quantity: f64, unit: Value) -> Value {
+    json!({
+        "id": "position-1",
+        "entity_id": "entity-1",
+        "instrument_id": "USD-DEPOSIT-3M",
+        "artifact_id": "deposit-artifact",
+        "quantity": quantity,
+        "unit": unit
+    })
+}
+
 fn validation_errors(instance: &Value) -> Vec<String> {
     let schema = checked_in_schema();
     let validator = jsonschema::options()
@@ -144,4 +155,41 @@ fn checked_in_schema_references_and_validates_canonical_instruments() {
         !validation_errors(&malformed_spec).is_empty(),
         "malformed typed instrument spec must be rejected"
     );
+}
+
+#[test]
+fn percentage_positions_enforce_quantity_bounds_in_serde_and_schema() {
+    for quantity in [-100.0, 100.0] {
+        let mut valid = materialization_fixture(deposit_envelope());
+        valid["positions"] = json!([position(quantity, json!("percentage"))]);
+        assert!(
+            serde_json::from_value::<PortfolioMaterializationEnvelope>(valid.clone()).is_ok(),
+            "percentage boundary {quantity} must deserialize"
+        );
+        assert!(
+            validation_errors(&valid).is_empty(),
+            "percentage boundary {quantity} must satisfy the schema"
+        );
+    }
+
+    for quantity in [-100.01, 100.01] {
+        let mut invalid = materialization_fixture(deposit_envelope());
+        invalid["positions"] = json!([position(quantity, json!("percentage"))]);
+        assert!(
+            serde_json::from_value::<PortfolioMaterializationEnvelope>(invalid.clone()).is_err(),
+            "out-of-range percentage {quantity} must fail deserialization"
+        );
+        assert!(
+            !validation_errors(&invalid).is_empty(),
+            "out-of-range percentage {quantity} must fail schema validation"
+        );
+    }
+
+    let mut units = materialization_fixture(deposit_envelope());
+    units["positions"] = json!([position(1_000_000.0, json!("units"))]);
+    assert!(
+        serde_json::from_value::<PortfolioMaterializationEnvelope>(units.clone()).is_ok(),
+        "non-percentage quantities must not inherit percentage bounds"
+    );
+    assert!(validation_errors(&units).is_empty());
 }

@@ -264,6 +264,7 @@ pub enum PaymentMode {
         /// Triggered by.
         triggered_by: String,
         /// Trigger date.
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         trigger_date: Date,
     },

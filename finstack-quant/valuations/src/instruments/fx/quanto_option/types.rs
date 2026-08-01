@@ -33,6 +33,7 @@ pub struct QuantoOption {
     /// Option type (call or put)
     pub option_type: OptionType,
     /// Option expiry date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Strike-equivalent domestic reference notional.
@@ -127,6 +128,7 @@ struct QuantoOptionUnchecked {
     /// Option type (call or put).
     option_type: OptionType,
     /// Option expiry date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     expiry: Date,
     /// Strike-equivalent domestic reference notional.

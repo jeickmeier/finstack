@@ -106,6 +106,7 @@ pub struct FxSpot {
     pub quote_currency: Currency,
     /// Optional settlement date (T+2 typically for spot)
     #[builder(optional)]
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub settlement: Option<Date>,
     /// Optional settlement lag in business days when `settlement` is not provided (default: 2)
@@ -173,6 +174,7 @@ struct FxSpotUnchecked {
     id: InstrumentId,
     base_currency: Currency,
     quote_currency: Currency,
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     settlement: Option<Date>,
     settlement_lag_days: Option<i32>,

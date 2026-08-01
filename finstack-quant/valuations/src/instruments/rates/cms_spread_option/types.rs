@@ -66,9 +66,11 @@ pub struct CmsSpreadOption {
     /// Notional amount.
     pub notional: Money,
     /// Option expiry date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry_date: Date,
     /// Payment date (may differ from expiry).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub payment_date: Date,
     /// Swaption volatility surface for long tenor.

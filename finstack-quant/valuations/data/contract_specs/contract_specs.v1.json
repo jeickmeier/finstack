@@ -13,7 +13,7 @@
       "standard_maturity_years": 10.0,
       "settlement_days": 2,
       "calendar_id": "nyse",
-      "repo_day_count_basis": "act360"
+      "repo_day_count": "act_360"
     },
     {
       "ids": ["cme.ust_5y", "ust_5y", "cbot_5y_t_note"],
@@ -27,7 +27,7 @@
       "standard_maturity_years": 5.0,
       "settlement_days": 2,
       "calendar_id": "nyse",
-      "repo_day_count_basis": "act360"
+      "repo_day_count": "act_360"
     },
     {
       "ids": ["cme.ust_2y", "ust_2y", "cbot_2y_t_note"],
@@ -41,7 +41,7 @@
       "standard_maturity_years": 2.0,
       "settlement_days": 2,
       "calendar_id": "nyse",
-      "repo_day_count_basis": "act360"
+      "repo_day_count": "act_360"
     },
     {
       "ids": ["eurex.bund", "bund", "euro_bund"],
@@ -55,7 +55,7 @@
       "standard_maturity_years": 10.0,
       "settlement_days": 2,
       "calendar_id": "target2",
-      "repo_day_count_basis": "act360"
+      "repo_day_count": "act_360"
     },
     {
       "ids": ["ice.gilt", "gilt", "long_gilt"],
@@ -69,7 +69,7 @@
       "standard_maturity_years": 10.0,
       "settlement_days": 2,
       "calendar_id": "gblo",
-      "repo_day_count_basis": "act365"
+      "repo_day_count": "act_365f"
     }
   ],
   "equity_index_futures": [

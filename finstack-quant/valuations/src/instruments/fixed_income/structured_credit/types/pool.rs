@@ -37,6 +37,7 @@ pub struct PoolAsset {
     /// Reference index identifier for floating-rate assets, such as SOFR-3M.
     pub index_id: Option<String>,
     /// Contractual maturity date of the asset.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Optional credit-quality classification of the obligor or asset.
@@ -52,6 +53,7 @@ pub struct PoolAsset {
     /// Acquisition price in the asset currency, used for trading gain/loss.
     pub purchase_price: Option<Money>,
     /// Date on which the pool acquired the asset, if known.
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub acquisition_date: Option<Date>,
     /// Day-count convention used for coupon and accrual calculations.
@@ -325,6 +327,7 @@ impl PoolAsset {
 #[serde(deny_unknown_fields)]
 pub struct ReinvestmentPeriod {
     /// End date of reinvestment period
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end_date: Date,
     /// Whether reinvestment is currently active
@@ -451,6 +454,7 @@ pub struct RepLine {
     /// Reference index (if floating)
     pub index_id: Option<String>,
     /// Weighted average maturity date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Weighted average seasoning in months

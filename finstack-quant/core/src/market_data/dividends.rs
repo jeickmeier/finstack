@@ -87,6 +87,7 @@ pub enum DividendKind {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct DividendEvent {
     /// Ex-dividend date.
+    #[serde(with = "crate::wire::date")]
     #[schemars(with = "crate::wire::DateWire")]
     pub date: Date,
     /// Event kind.

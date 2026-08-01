@@ -62,6 +62,7 @@ pub struct InstrumentCashflowEnvelope {
     /// Model key used (`"discounting"` or `"hazard_rate"`).
     pub model: String,
     /// Valuation date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of: Date,
     /// Discount curve ID used.
@@ -87,6 +88,7 @@ pub struct InstrumentCashflowEnvelope {
 #[derive(Debug, Clone, Serialize, serde::Deserialize, JsonSchema)]
 pub struct CashflowRow {
     /// Payment date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Signed cashflow amount in row currency.
@@ -104,6 +106,7 @@ pub struct CashflowRow {
     pub rate: Option<f64>,
     /// Reset date when the flow is a floating-rate fixing.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub reset_date: Option<Date>,
     /// `df(as_of, date)`.

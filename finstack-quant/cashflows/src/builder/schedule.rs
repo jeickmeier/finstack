@@ -214,10 +214,12 @@ pub struct CashFlowMeta {
     /// date precisely, avoiding the inverse day count approximation that can
     /// be off by 1-2 days.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub issue_date: Option<Date>,
     /// Contractual maturity date, distinct from an adjusted final payment date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub maturity_date: Option<Date>,
 }

@@ -16,6 +16,7 @@ pub enum FeeSpec {
     /// Fixed fee paid once on a specified date.
     Fixed {
         /// Payment date of the fixed fee.
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         date: Date,
         /// Fee amount in currency units.
@@ -27,6 +28,7 @@ pub enum FeeSpec {
         base: FeeBase,
         /// Fee quote in basis points per annum, stored as `Decimal` to preserve
         /// the quoted value exactly.
+        #[serde(with = "finstack_quant_core::wire::decimal")]
         #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
         bp: Decimal,
         /// Accrual and payment frequency for the fee schedule.
@@ -92,9 +94,11 @@ pub enum FeeBase {
 #[serde(deny_unknown_fields)]
 pub struct FeeTier {
     /// Utilization threshold (0.0 to 1.0). Fee applies when utilization >= this threshold.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub threshold: Decimal,
     /// Fee rate in basis points for this tier.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub bp: Decimal,
 }

@@ -1732,6 +1732,12 @@
       ],
       "type": "object"
     },
+    "PositiveF64Wire": {
+      "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
+      "exclusiveMinimum": 0.0,
+      "format": "double",
+      "type": "number"
+    },
     "RatesCurvesAttribution": {
       "description": "Detailed attribution for interest rate curves.\n\nProvides aggregate and per-curve/per-tenor breakdown for discount\nand forward curves.",
       "properties": {
@@ -1959,6 +1965,7 @@
       "type": "object"
     },
     "TaylorAttributionConfig": {
+      "additionalProperties": false,
       "description": "Configuration for Taylor-based P&L attribution.",
       "properties": {
         "credit_bump_bp": {
@@ -1988,19 +1995,18 @@
       "type": "object"
     },
     "ToleranceConfig": {
+      "additionalProperties": false,
       "description": "Numerical tolerance configuration for floating-point comparisons.\n\nProvides configurable epsilon values for zero-checks in rate calculations\nand generic floating-point comparisons. These defaults are chosen to balance\nnumerical stability with practical precision requirements.\n\n# Examples\n```rust\nuse finstack_quant_core::config::ToleranceConfig;\n\nlet mut tol = ToleranceConfig::default();\nassert_eq!(tol.rate_epsilon, 1e-12);\n\n// Customize for stricter rate comparisons\ntol.rate_epsilon = 1e-14;\n```",
       "properties": {
         "generic_epsilon": {
+          "$ref": "#/$defs/PositiveF64Wire",
           "default": 1e-10,
-          "description": "Epsilon for generic floating-point comparisons (default: 1e-10).\n\nUsed for general numerical comparisons where higher tolerance is acceptable.",
-          "format": "double",
-          "type": "number"
+          "description": "Epsilon for generic floating-point comparisons (default: 1e-10).\n\nUsed for general numerical comparisons where higher tolerance is acceptable."
         },
         "rate_epsilon": {
+          "$ref": "#/$defs/PositiveF64Wire",
           "default": 1e-12,
-          "description": "Epsilon for rate comparisons (default: 1e-12).\n\nUsed when comparing interest rates, yields, and other small ratios.",
-          "format": "double",
-          "type": "number"
+          "description": "Epsilon for rate comparisons (default: 1e-12).\n\nUsed when comparing interest rates, yields, and other small ratios."
         }
       },
       "type": "object"

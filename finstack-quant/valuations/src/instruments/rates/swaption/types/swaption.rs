@@ -45,6 +45,7 @@ pub struct Swaption {
     /// Notional amount of underlying swap
     pub notional: Money,
     /// Option expiry date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Exercise style (European, Bermudan, American). Defaults to European.

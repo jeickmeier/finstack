@@ -222,6 +222,7 @@ pub struct DiscountedCashFlow {
     /// Currency for all cashflows.
     pub currency: Currency,
     /// Explicit period free cash flows (date, amount pairs).
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub flows: Vec<(Date, f64)>,
     /// Weighted Average Cost of Capital (discount rate).
@@ -233,6 +234,7 @@ pub struct DiscountedCashFlow {
     /// Ignored when [`equity_bridge`](Self::equity_bridge) is `Some`.
     pub net_debt: f64,
     /// Valuation date (as-of date for the DCF).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub valuation_date: Date,
     /// Discount curve identifier, used for risk attribution only.
@@ -318,11 +320,13 @@ pub struct DiscountedCashFlow {
 struct DiscountedCashFlowUnchecked {
     id: InstrumentId,
     currency: Currency,
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     flows: Vec<(Date, f64)>,
     wacc: f64,
     terminal_value: TerminalValueSpec,
     net_debt: f64,
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     valuation_date: Date,
     discount_curve_id: CurveId,

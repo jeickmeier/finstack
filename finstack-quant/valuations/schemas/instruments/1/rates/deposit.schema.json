@@ -61,6 +61,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Optional quoted simple rate r (annualised) for the deposit.\n\nNote: `cashflow_schedule()` requires `quote_rate` to be set. Leaving it as `None`\nis only appropriate if the caller never requests cashflow generation/PV from\nthis instrument (e.g., constructing placeholders)."
         },
         "scenario_pricing_overrides": {

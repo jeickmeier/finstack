@@ -49,6 +49,7 @@ pub enum LeverageHazardMap {
 /// hazard rate, enabling a feedback loop where PIK accrual increases the
 /// notional (and hence leverage), which drives the hazard rate higher.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EndogenousHazardSpec {
     /// Base (reference) hazard rate `lambda_0`.
     base_hazard_rate: f64,

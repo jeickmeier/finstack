@@ -310,9 +310,11 @@ impl CFKind {
 #[serde(deny_unknown_fields)]
 pub struct CashFlowAccrual {
     /// Contractual accrual-period start date.
+    #[serde(with = "crate::wire::date")]
     #[schemars(with = "crate::wire::DateWire")]
     pub start: Date,
     /// Contractual accrual-period end date.
+    #[serde(with = "crate::wire::date")]
     #[schemars(with = "crate::wire::DateWire")]
     pub end: Date,
     /// Day-count convention used for the accrual factor.
@@ -332,9 +334,11 @@ pub struct CashFlowAccrual {
 #[serde(deny_unknown_fields)]
 pub struct CashFlow {
     /// Payment date (or payment date for principal/fee, or reset date for `CFKind::FloatReset`).
+    #[serde(with = "crate::wire::date")]
     #[schemars(with = "crate::wire::DateWire")]
     pub date: Date,
     /// Optional index reset date (for floating coupons).
+    #[serde(default, with = "crate::wire::optional_date")]
     #[schemars(with = "Option<crate::wire::DateWire>")]
     pub reset_date: Option<Date>,
     /// Monetary amount including its currency.

@@ -132,9 +132,11 @@ pub fn dimension_key(dim: &HierarchyDimension) -> String {
 #[serde(deny_unknown_fields)]
 pub struct DateRange {
     /// First date of the window (inclusive).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// Last date of the window (inclusive).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
 }
@@ -639,6 +641,7 @@ pub struct VolState {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct FactorHistories {
     /// Ordered sequence of observation dates (aligned with value vectors).
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub dates: Vec<Date>,
     /// Factor return series keyed by factor ID.
@@ -750,6 +753,7 @@ pub struct CreditFactorModel {
     /// Exact namespaced v1 schema marker.
     pub schema: CreditFactorModelSchema,
     /// Calibration anchor date (`as_of`).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of: Date,
     /// History window consumed by calibration.

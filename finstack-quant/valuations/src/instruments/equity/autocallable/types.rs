@@ -84,9 +84,11 @@ pub struct Autocallable {
     ///
     /// Barriers are monitored **discretely** at these exact dates only.
     /// The Monte Carlo time grid is constructed to include these dates precisely.
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub observation_dates: Vec<Date>,
     /// Explicit terminal expiry date for the structure.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Autocall barrier levels (as ratios of initial spot, e.g., 1.0 = 100%).
@@ -152,6 +154,7 @@ pub struct Autocallable {
     /// remaining future observation dates are simulated.
     #[builder(default)]
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub past_fixings: Vec<(Date, f64)>,
     /// Pricing overrides (manual price, yield, spread)
@@ -186,8 +189,10 @@ pub struct Autocallable {
 struct AutocallableUnchecked {
     id: InstrumentId,
     underlying_ticker: String,
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     observation_dates: Vec<Date>,
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     expiry: Date,
     autocall_barriers: Vec<f64>,
@@ -208,6 +213,7 @@ struct AutocallableUnchecked {
     #[serde(default)]
     initial_level: Option<f64>,
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     past_fixings: Vec<(Date, f64)>,
     #[serde(default)]

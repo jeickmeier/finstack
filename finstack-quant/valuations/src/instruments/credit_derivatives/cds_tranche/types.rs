@@ -71,6 +71,7 @@ pub struct CDSTranche {
     /// Notional amount of the tranche
     pub notional: Money,
     /// Maturity date of the tranche
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Running coupon in basis points (e.g., 100 = 1.00%)
@@ -92,6 +93,7 @@ pub struct CDSTranche {
     /// Tranche side (buy/sell protection)
     pub side: TrancheSide,
     /// Optional effective date for schedule anchoring (if None, uses as_of date)
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub effective_date: Option<Date>,
     /// Accumulated realized loss as fraction of original portfolio notional
@@ -100,6 +102,7 @@ pub struct CDSTranche {
     pub standard_imm_dates: bool,
     /// Optional upfront payment (date, amount). Positive means paid by protection buyer.
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_dated_money")]
     #[schemars(with = "Option<(finstack_quant_core::wire::DateWire, Money)>")]
     pub upfront: Option<(Date, Money)>,
     /// Instrument-owned pricing overrides.

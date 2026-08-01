@@ -43,15 +43,19 @@ pub struct DealConfig {
 #[serde(deny_unknown_fields)]
 pub struct DealDates {
     /// Deal closing date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub closing_date: Date,
     /// First payment date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub first_payment_date: Date,
     /// End of reinvestment period (if applicable)
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub reinvestment_end_date: Option<Date>,
     /// Legal final maturity date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Payment frequency

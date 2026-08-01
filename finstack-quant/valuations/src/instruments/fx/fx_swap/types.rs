@@ -36,9 +36,11 @@ pub struct FxSwap {
     /// Quote currency (domestic)
     pub quote_currency: Currency,
     /// Near leg settlement date (spot leg)
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub near_date: Date,
     /// Far leg settlement date (forward leg)
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub far_date: Date,
     /// Notional amount in base currency (exchanged on near, reversed on far)
@@ -97,9 +99,11 @@ struct FxSwapUnchecked {
     /// Quote currency (domestic).
     quote_currency: Currency,
     /// Near leg settlement date (spot leg).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     near_date: Date,
     /// Far leg settlement date (forward leg).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     far_date: Date,
     /// Notional amount in base currency (exchanged on near, reversed on far).

@@ -215,9 +215,11 @@ pub struct XccySwapLeg {
     /// Discount curve for PV in leg currency.
     pub discount_curve_id: CurveId,
     /// Start date of the leg.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date of the leg.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Coupon frequency.
@@ -232,6 +234,7 @@ pub struct XccySwapLeg {
     pub stub: StubKind,
     /// Spread in basis points (e.g. `Decimal::from(5)` = 5bp).
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
     /// Payment lag in business days after period end (default: 0).

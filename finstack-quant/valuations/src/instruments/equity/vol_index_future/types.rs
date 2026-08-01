@@ -103,10 +103,12 @@ pub struct VolatilityIndexFuture {
     /// itself (the Wednesday ~30 days before the expiry of the SPX options
     /// used in the settlement calculation), not a date 30 days before
     /// settlement.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Final settlement date — the morning Special Opening Quotation (SOQ)
     /// of the index is computed on this date (same day as `expiry` for VIX).
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub settlement_date: Date,
     /// Final settlement/SOQ fixing in index points.

@@ -97,6 +97,7 @@ pub struct DollarRoll {
     /// When set, bypasses the SIFMA calendar lookup for the front leg.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub front_settlement_date: Option<Date>,
     /// Explicit back-month settlement date override.
@@ -104,6 +105,7 @@ pub struct DollarRoll {
     /// When set, bypasses the SIFMA calendar lookup for the back leg.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub back_settlement_date: Option<Date>,
     /// Front-month price (sell price).
@@ -113,6 +115,7 @@ pub struct DollarRoll {
     /// Trade date.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub trade_date: Option<Date>,
     /// Discount curve identifier.

@@ -91,6 +91,7 @@ pub use crate::instruments::common_impl::parameters::SettlementType;
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[schemars(deny_unknown_fields)]
 pub struct CommodityForward {
     /// Unique instrument identifier.
     pub id: InstrumentId,
@@ -98,12 +99,21 @@ pub struct CommodityForward {
     #[serde(flatten)]
     pub underlying: CommodityUnderlyingParams,
     /// Contract quantity in units.
+    #[serde(
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub quantity: f64,
     /// Contract multiplier (typically 1.0 for OTC forwards, defaults to 1.0).
-    #[serde(default = "crate::serde_defaults::multiplier_one")]
+    #[serde(
+        default = "crate::serde_defaults::multiplier_one",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     #[builder(default = 1.0)]
     pub multiplier: f64,
     /// Settlement/delivery date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Settlement type (physical or cash).
@@ -217,11 +227,11 @@ pub struct CommodityForward {
     #[builder(default)]
     pub attributes: Attributes,
     /// Rejects unknown JSON fields (restores `deny_unknown_fields` despite the
-    /// `#[serde(flatten)]` on `underlying`). See [`UnknownFieldGuard`].
+    /// `#[serde(flatten)]` on `underlying`).
     #[serde(flatten)]
     #[schemars(skip)]
     #[builder(default)]
-    pub(crate) unknown_fields: crate::instruments::common_impl::serde_guard::UnknownFieldGuard,
+    pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }
 
 impl CommodityForward {

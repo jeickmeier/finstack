@@ -190,12 +190,15 @@ pub struct Repo {
     /// Collateral specification
     pub collateral: CollateralSpec,
     /// Repo rate (annual, as decimal)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub repo_rate: Decimal,
     /// Start date of the repo
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Maturity date of the repo
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Haircut percentage (as decimal, e.g., 0.02 = 2%)

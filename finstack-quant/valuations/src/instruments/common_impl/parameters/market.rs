@@ -110,6 +110,7 @@ impl std::str::FromStr for SettlementType {
 
 /// Credit parameters for CDS instruments
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreditParams {
     /// Reference entity (issuer being protected)
     pub reference_entity: String,

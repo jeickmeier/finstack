@@ -16,6 +16,7 @@
       ]
     },
     "CommodityAsianOption": {
+      "additionalProperties": false,
       "description": "Commodity Asian option: option on the arithmetic or geometric average of\ncommodity prices.\n\nThis is the dominant option type in commodity markets. The average is\ntypically computed over commodity forward/futures prices for specific\ndelivery periods.\n\n# Pricing Models\n\n| Averaging | Model | Accuracy |\n|-----------|-------|----------|\n| Geometric | Kemna-Vorst (1990) with forwards | Exact closed-form |\n| Arithmetic | Turnbull-Wakeman (1991) with forwards | ~1% vs Monte Carlo |\n\n# Forward-Based Averaging\n\nFor each future fixing date `t_i`, the forward price `F(t_i)` is read from\nthe price curve. The average forward is:\n```text\nF_avg = (Σ_realized + Σ F(t_i)) / n\n```\nwhere the sum includes both realized fixings and projected forwards.",
       "properties": {
         "attributes": {
@@ -76,9 +77,8 @@
           "description": "Option type (call or put)."
         },
         "quantity": {
-          "description": "Contract quantity in commodity units.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Contract quantity in commodity units."
         },
         "realized_fixings": {
           "default": [],
@@ -104,9 +104,8 @@
           "description": "Scenario-only valuation adjustments."
         },
         "strike": {
-          "description": "Strike price per unit.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Strike price per unit."
         },
         "ticker": {
           "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
@@ -163,6 +162,12 @@
           "type": "string"
         }
       ]
+    },
+    "PositiveF64Wire": {
+      "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
+      "exclusiveMinimum": 0.0,
+      "format": "double",
+      "type": "number"
     },
     "SingleInstrumentJson": {
       "oneOf": [

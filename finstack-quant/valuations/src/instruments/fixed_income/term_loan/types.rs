@@ -213,10 +213,12 @@ pub struct TermLoan {
     pub notional_limit: Money,
 
     /// Issue (effective) date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue_date: Date,
 
     /// Maturity date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
 

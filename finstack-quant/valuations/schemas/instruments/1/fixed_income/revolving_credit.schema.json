@@ -442,6 +442,7 @@
       ]
     },
     "McConfig": {
+      "additionalProperties": false,
       "description": "Advanced Monte Carlo configuration for revolving credit facilities.\n\nEnables multi-factor modeling with credit risk, interest rate dynamics,\ncorrelation between factors, and default modeling.",
       "properties": {
         "correlation_matrix": {
@@ -770,6 +771,7 @@
       ]
     },
     "StochasticUtilizationSpec": {
+      "additionalProperties": false,
       "description": "Specification for stochastic utilization modeling.\n\nDefines the stochastic process and simulation parameters for\nMonte Carlo pricing with uncertain draw/repayment patterns. Credit risk is\nincorporated via hazard-rate survival weighting (no explicit default events).",
       "properties": {
         "antithetic": {

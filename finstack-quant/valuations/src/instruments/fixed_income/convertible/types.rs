@@ -110,9 +110,11 @@ pub struct ConvertibleBond {
     /// Principal amount.
     pub notional: Money,
     /// Issue date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue_date: Date,
     /// Maturity date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Discount curve identifier for the debt component (risk-free or funding).
@@ -258,13 +260,19 @@ pub enum ConversionPolicy {
     /// **Modeling scope**: the tree pricer models conversion only at the
     /// single step mapped from this date; early voluntary conversion before
     /// the mandatory date is not modeled.
-    MandatoryOn(#[schemars(with = "finstack_quant_core::wire::DateWire")] Date),
+    MandatoryOn(
+        #[serde(with = "finstack_quant_core::wire::date")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        Date,
+    ),
     /// Holder may convert within a window.
     Window {
         /// Start.
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         start: Date,
         /// End.
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         end: Date,
     },
@@ -288,6 +296,7 @@ pub enum ConversionPolicy {
     /// before that date (offered by some mandatory structures) is not modeled.
     MandatoryVariable {
         /// Date of mandatory conversion.
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         conversion_date: Date,
         /// Upper conversion price (above this, holder receives min shares).
@@ -418,6 +427,7 @@ impl DividendAdjustment {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct DilutionEvent {
     /// Date of the dilutive event.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// New issue price per share (for below-market issuances).
@@ -430,6 +440,7 @@ pub struct DilutionEvent {
 
 /// Conversion specification for the instrument.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ConversionSpec {
     /// Conversion ratio (shares per bond). If not provided, derive from price.
     pub ratio: Option<f64>,

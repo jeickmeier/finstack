@@ -309,6 +309,7 @@ struct RawParametricCurve {
     /// Curve identifier.
     id: String,
     /// Base date.
+    #[serde(with = "crate::wire::date")]
     #[schemars(with = "crate::wire::DateWire")]
     base_date: Date,
     /// Day count convention.

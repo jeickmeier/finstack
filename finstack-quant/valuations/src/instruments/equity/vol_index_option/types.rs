@@ -105,11 +105,13 @@ pub struct VolatilityIndexOption {
     #[serde(default)]
     pub exercise_style: ExerciseStyle,
     /// Option expiry date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Settlement date (typically same as expiry for cash-settled).
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub settlement_date: Option<Date>,
     /// Observed volatility-index settlement fixing, required after expiry when
@@ -207,9 +209,11 @@ struct VolatilityIndexOptionUnchecked {
     option_type: OptionType,
     #[serde(default)]
     exercise_style: ExerciseStyle,
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     expiry: Date,
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     settlement_date: Option<Date>,
     #[serde(default)]

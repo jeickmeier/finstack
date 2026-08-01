@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 #[serde(deny_unknown_fields)]
 pub struct ReinvestmentManager {
     /// End date of reinvestment period
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end_date: Date,
     /// Whether reinvestment is currently allowed

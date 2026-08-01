@@ -83,6 +83,7 @@ pub struct IrFutureOption {
     /// Option strike price (in futures price terms, e.g., 95.00)
     pub strike: f64,
     /// Option expiry date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Call or Put

@@ -709,6 +709,7 @@ pub struct DiscountCurveParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the curve.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
@@ -750,6 +751,7 @@ pub struct ForwardCurveParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the curve.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
@@ -793,6 +795,7 @@ pub struct HazardCurveParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the curve.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
@@ -859,6 +862,7 @@ pub struct InflationCurveParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the curve.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
@@ -938,6 +942,7 @@ pub struct VolSurfaceParams {
     /// Identifier for the volatility surface being built.
     pub vol_surface_id: String,
     /// Base date for the surface.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
@@ -984,6 +989,7 @@ pub struct SwaptionVolParams {
     /// Identifier for the volatility surface.
     pub vol_surface_id: String,
     /// Base date for the calibration.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
@@ -1089,6 +1095,7 @@ pub struct BaseCorrelationParams {
     /// Maturity of the tranches in years.
     pub maturity_years: f64,
     /// Base date for the calibration.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
@@ -1199,6 +1206,7 @@ pub struct HullWhiteStepParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the calibration.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
@@ -1240,6 +1248,7 @@ pub struct CapFloorHullWhiteStepParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the calibration.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
@@ -1273,6 +1282,7 @@ pub struct SviSurfaceParams {
     /// Identifier for the volatility surface being built.
     pub vol_surface_id: String,
     /// Base date for the surface.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
@@ -1397,6 +1407,7 @@ pub struct XccyBasisParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the curve.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
@@ -1442,6 +1453,7 @@ pub struct ParametricCurveParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub curve_id: CurveId,
     /// Base date for the curve.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,

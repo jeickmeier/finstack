@@ -244,6 +244,7 @@ pub struct CapFloor {
     /// Notional amount
     pub notional: Money,
     /// Strike (as decimal, e.g., 0.05 for 5%)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub strike: Decimal,
     /// Contractual spread added to the referenced rate, in decimal rate units.
@@ -253,12 +254,15 @@ pub struct CapFloor {
     /// is added after compounding or included in every daily factor.
     #[serde(default, skip_serializing_if = "Decimal::is_zero")]
     #[builder(default)]
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread: Decimal,
     /// Start date of underlying period
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// End date of underlying period
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Payment frequency for caps/floors

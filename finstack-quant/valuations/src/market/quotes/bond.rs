@@ -25,10 +25,12 @@ pub enum BondQuote {
         currency: Currency,
         /// Bond issue date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         issue_date: Date,
         /// Bond maturity date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         maturity: Date,
         /// Annual coupon rate in decimal form.
@@ -49,10 +51,12 @@ pub enum BondQuote {
         currency: Currency,
         /// Bond issue date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         issue_date: Date,
         /// Bond maturity date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         maturity: Date,
         /// Annual coupon rate in decimal form.
@@ -73,10 +77,12 @@ pub enum BondQuote {
         currency: Currency,
         /// Bond issue date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         issue_date: Date,
         /// Bond maturity date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         maturity: Date,
         /// Annual coupon rate in decimal form.
@@ -97,10 +103,12 @@ pub enum BondQuote {
         currency: Currency,
         /// Bond issue date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         issue_date: Date,
         /// Bond maturity date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         maturity: Date,
         /// Annual coupon rate in decimal form.

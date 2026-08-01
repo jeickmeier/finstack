@@ -64,9 +64,11 @@ pub struct Deposit {
     /// Principal amount of the deposit.
     pub notional: Money,
     /// Start date of the deposit period.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Maturity date of the deposit period.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Day count convention for interest accrual.
@@ -78,6 +80,7 @@ pub struct Deposit {
     /// is only appropriate if the caller never requests cashflow generation/PV from
     /// this instrument (e.g., constructing placeholders).
     #[builder(optional)]
+    #[serde(default, with = "finstack_quant_core::wire::optional_decimal")]
     #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub quote_rate: Option<Decimal>,
     /// Discount curve id used for valuation and par extraction.

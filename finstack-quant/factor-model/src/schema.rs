@@ -2,7 +2,7 @@
 
 use std::sync::OnceLock;
 
-use schemars::JsonSchema;
+use finstack_quant_core::schema::SerdeSchema;
 use serde_json::Value;
 
 /// Stable base URI for factor-model-owned schemas.
@@ -56,7 +56,7 @@ pub const CREDIT_CALIBRATION_INPUTS_SCHEMA_DESCRIPTION: &str =
 /// Returns [`finstack_quant_core::Error::Internal`] if schemars output cannot
 /// be serialized as a JSON object.
 #[doc(hidden)]
-pub fn generated_schema<T: JsonSchema>(
+pub fn generated_schema<T: SerdeSchema>(
     filename: &str,
     title: &str,
     description: &str,

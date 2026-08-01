@@ -1,8 +1,8 @@
 //! JSON Schema generation helpers for attribution contracts.
 
-use schemars::JsonSchema;
 use serde_json::Value;
 
+use finstack_quant_core::schema::SerdeSchema;
 use finstack_quant_core::Result;
 
 /// Stable base URI for attribution-owned schemas.
@@ -25,7 +25,7 @@ pub const ATTRIBUTION_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/at
 /// Returns [`finstack_quant_core::Error::Internal`] if schemars output cannot
 /// be serialized as a JSON object.
 #[doc(hidden)]
-pub fn generated_schema<T: JsonSchema>(
+pub fn generated_schema<T: SerdeSchema>(
     filename: &str,
     title: &str,
     description: &str,

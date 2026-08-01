@@ -202,6 +202,7 @@ pub struct DayCountContextState {
     ///
     /// Required for exact ICMA accrual on round-trip. `None` selects the
     /// frequency-only calculation path.
+    #[serde(default, with = "crate::wire::optional_date_pair")]
     #[schemars(with = "Option<(crate::wire::DateWire, crate::wire::DateWire)>")]
     pub coupon_period: Option<(Date, Date)>,
     /// Whether the accrual end is the instrument termination date.

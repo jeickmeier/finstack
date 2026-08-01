@@ -287,6 +287,7 @@ pub struct AgencyCmo {
     /// Agency program
     pub agency: AgencyProgram,
     /// Issue date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue_date: Date,
     /// Waterfall configuration with tranches

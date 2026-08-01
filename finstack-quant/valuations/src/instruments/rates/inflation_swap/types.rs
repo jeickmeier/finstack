@@ -52,12 +52,15 @@ pub struct InflationSwap {
     /// Notional in quote currency
     pub notional: Money,
     /// Start date of indexation
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Maturity date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Fixed real rate (as decimal)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub fixed_rate: Decimal,
     /// Inflation index identifier (e.g., US-CPI-U)
@@ -640,12 +643,15 @@ pub struct YoYInflationSwap {
     /// Notional in quote currency
     pub notional: Money,
     /// Start date of the first accrual period
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Maturity date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Fixed rate (decimal)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub fixed_rate: Decimal,
     /// Payment frequency

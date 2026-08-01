@@ -28,6 +28,7 @@ pub enum AmortizationSpec {
     /// Each pair stores `(date, remaining_principal_after_date)`.
     StepRemaining {
         /// Ordered list of `(date, remaining_principal_after_date)`.
+        #[serde(with = "finstack_quant_core::wire::dated_money_values")]
         #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")]
         schedule: Vec<(Date, Money)>,
     },
@@ -44,6 +45,7 @@ pub enum AmortizationSpec {
     /// Positive amounts reduce outstanding (i.e., principal paid by issuer).
     CustomPrincipal {
         /// List of `(date, principal_amount)` exchanges; amounts are absolute cashflows.
+        #[serde(with = "finstack_quant_core::wire::dated_money_values")]
         #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")]
         items: Vec<(Date, Money)>,
     },

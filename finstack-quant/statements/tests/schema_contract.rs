@@ -202,7 +202,7 @@ fn representative_statement_result() -> StatementResult {
     result
 }
 
-fn expected_schema<T: schemars::JsonSchema>(
+fn expected_schema<T: finstack_quant_core::schema::SerdeSchema>(
     filename: &str,
     title: &str,
     description: &str,

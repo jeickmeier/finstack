@@ -334,6 +334,7 @@
       "type": "object"
     },
     "EquityUnderlyingParams": {
+      "additionalProperties": false,
       "description": "Equity underlying parameters for options and equity-linked swaps.",
       "properties": {
         "contract_size": {
@@ -374,6 +375,7 @@
       "type": "object"
     },
     "FinancingLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for TRS financing legs",
       "properties": {
         "compounding": {

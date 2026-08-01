@@ -222,6 +222,7 @@
       ]
     },
     "ConversionSpec": {
+      "additionalProperties": false,
       "description": "Conversion specification for the instrument.",
       "properties": {
         "anti_dilution": {
@@ -736,6 +737,7 @@
       ]
     },
     "MakeWholeSpec": {
+      "additionalProperties": false,
       "description": "Make-whole call specification.\n\nDefines the reference curve and spread used to compute the make-whole redemption\nprice. The issuer pays the holder the greater of par and the present value of\nremaining cashflows discounted at the reference rate plus a spread.\n\n# Industry Practice\n\n- Investment-grade corporates: typically Treasury + 25-50 bp\n- High-yield: typically Treasury + 50-100 bp\n- Convertibles: typically Treasury + 50 bp",
       "properties": {
         "reference_curve_id": {

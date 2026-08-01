@@ -99,6 +99,7 @@ pub struct RangeAccrual {
     /// Underlying asset ticker symbol
     pub underlying_ticker: String,
     /// Observation dates for range checking (must be sorted ascending)
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub observation_dates: Vec<Date>,
     /// Lower bound of accrual range (interpretation depends on bounds_type)
@@ -122,6 +123,7 @@ pub struct RangeAccrual {
     /// must provide this field explicitly.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub accrual_start_date: Option<Date>,
     /// Explicit rate index for rate-linked range accruals.
@@ -175,6 +177,7 @@ pub struct RangeAccrual {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quanto: Option<QuantoSpec>,
     /// Optional payment date (defaults to last observation date)
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub payment_date: Option<Date>,
     /// Number of past observations that were in range (for mid-life valuations).

@@ -268,7 +268,7 @@
       "type": "object"
     },
     "AgencyProgram": {
-      "description": "Agency program enumeration.\n\nIdentifies the government-sponsored enterprise (GSE) or government agency\nthat guarantees the mortgage-backed security.\n\n# GNMA Programs\n\nGinnie Mae has two distinct programs with different payment delay conventions:\n- **GNMA I**: Single-issuer pools with a 14-day stated delay. Payments on the 15th.\n- **GNMA II**: Multi-issuer pools with a 50-day stated delay. Payments on the 20th.\n\nUse `GnmaI` or `GnmaII` to select the appropriate convention. Legacy `GNMA`\nand `GNMA_I_I` payloads deserialize as `GnmaII`.",
+      "description": "Agency program enumeration.\n\nIdentifies the government-sponsored enterprise (GSE) or government agency\nthat guarantees the mortgage-backed security.\n\n# GNMA Programs\n\nGinnie Mae has two distinct programs with different payment delay conventions:\n- **GNMA I**: Single-issuer pools with a 14-day stated delay. Payments on the 15th.\n- **GNMA II**: Multi-issuer pools with a 50-day stated delay. Payments on the 20th.\n\nUse `GnmaI` or `GnmaII` to select the appropriate convention. Their\npersisted values are exactly `GNMA_I` and `GNMA_II`, respectively.",
       "oneOf": [
         {
           "const": "FNMA",
@@ -2252,6 +2252,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Lockout period end (no exercise before this date)"
         },
         "notice_days": {
@@ -2354,6 +2355,7 @@
       ]
     },
     "Bond": {
+      "additionalProperties": false,
       "description": "Bond instrument with fixed, floating, or amortizing cashflows.\n\nCashflow sign convention (holder view):\n- All contractual cashflows **received by a long holder** (coupons,\n  amortization, final redemption) are represented as **positive** amounts.\n- Cash outflows for the holder (e.g., purchase price, funding, short\n  positions) are represented as **negative** amounts and are handled at\n  trade level rather than in the bond's contractual schedule.\n\nSupports call/put schedules, quoted prices for yield-to-maturity calculations,\nand custom cashflow schedule overrides. Uses a clean `CashflowSpec` that wraps\nthe canonical builder coupon specs for maximum flexibility and parity.",
       "properties": {
         "accrual_method": {
@@ -2627,10 +2629,10 @@
           "format": "double",
           "type": "number"
         },
-        "repo_day_count_basis": {
-          "$ref": "#/$defs/RepoDayCountBasis",
-          "default": "act360",
-          "description": "Day-count basis for implied repo rate annualization."
+        "repo_day_count": {
+          "$ref": "#/$defs/RepoDayCountWire",
+          "default": "act_360",
+          "description": "Day-count convention for implied repo rate annualization.\n\nBond-future repo supports `act_360` and `act_365f`."
         },
         "settlement_days": {
           "description": "Number of business days for settlement after expiry",
@@ -3075,6 +3077,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Optional effective date for schedule anchoring (if None, uses as_of date)"
         },
         "frequency": {
@@ -3605,6 +3608,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Optional index reset date (for floating coupons)."
         }
       },
@@ -4992,6 +4996,7 @@
       "type": "object"
     },
     "CommodityAsianOption": {
+      "additionalProperties": false,
       "description": "Commodity Asian option: option on the arithmetic or geometric average of\ncommodity prices.\n\nThis is the dominant option type in commodity markets. The average is\ntypically computed over commodity forward/futures prices for specific\ndelivery periods.\n\n# Pricing Models\n\n| Averaging | Model | Accuracy |\n|-----------|-------|----------|\n| Geometric | Kemna-Vorst (1990) with forwards | Exact closed-form |\n| Arithmetic | Turnbull-Wakeman (1991) with forwards | ~1% vs Monte Carlo |\n\n# Forward-Based Averaging\n\nFor each future fixing date `t_i`, the forward price `F(t_i)` is read from\nthe price curve. The average forward is:\n```text\nF_avg = (Σ_realized + Σ F(t_i)) / n\n```\nwhere the sum includes both realized fixings and projected forwards.",
       "properties": {
         "attributes": {
@@ -5052,9 +5057,8 @@
           "description": "Option type (call or put)."
         },
         "quantity": {
-          "description": "Contract quantity in commodity units.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Contract quantity in commodity units."
         },
         "realized_fixings": {
           "default": [],
@@ -5080,9 +5084,8 @@
           "description": "Scenario-only valuation adjustments."
         },
         "strike": {
-          "description": "Strike price per unit.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Strike price per unit."
         },
         "ticker": {
           "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
@@ -5161,6 +5164,7 @@
       ]
     },
     "CommodityForward": {
+      "additionalProperties": false,
       "description": "Commodity forward or futures contract.\n\nRepresents a commitment to buy or sell a commodity at a specified future\ndate at a predetermined price. Can be physically settled (delivery) or\ncash settled (price difference).\n\n# Pricing\n\nForward value is calculated as:\n```text\nNPV = sign(position) × (F - K) × Q × M × DF(T)\n```\nwhere:\n- sign = +1.0 for Long, -1.0 for Short\n- F = Forward price from price curve (or quoted_price if provided)\n- K = Contract price (entry price). If None, treated as at-market (K = F)\n- Q = Quantity\n- M = Contract multiplier\n- DF(T) = Discount factor to settlement date\n\n# At-Market vs Off-Market\n\n- **At-market**: `contract_price = None` → NPV ≈ 0 (like entering a new futures position)\n- **Off-market**: `contract_price = Some(K)` → NPV reflects mark-to-market vs K\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::commodity::commodity_forward::CommodityForward;\nuse finstack_quant_valuations::instruments::Position;\nuse finstack_quant_valuations::instruments::CommodityUnderlyingParams;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::Date;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\n// At-market long forward (NPV ≈ 0)\nlet at_market = CommodityForward::builder()\n    .id(InstrumentId::new(\"WTI-FWD-2025M03\"))\n    .underlying(CommodityUnderlyingParams::new(\"Energy\", \"CL\", \"BBL\", Currency::USD))\n    .quantity(1000.0)\n    .multiplier(1.0)\n    .maturity(Date::from_calendar_date(2025, Month::March, 15).unwrap())\n    .position(Position::Long)\n    .forward_curve_id(CurveId::new(\"WTI-FORWARD\"))\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .build()\n    .expect(\"Valid forward\");\n\n// Off-market forward with specific contract price\nlet off_market = CommodityForward::builder()\n    .id(InstrumentId::new(\"WTI-FWD-2025M03-TRADE\"))\n    .underlying(CommodityUnderlyingParams::new(\"Energy\", \"CL\", \"BBL\", Currency::USD))\n    .quantity(1000.0)\n    .multiplier(1.0)\n    .maturity(Date::from_calendar_date(2025, Month::March, 15).unwrap())\n    .position(Position::Long)\n    .contract_price_opt(Some(72.0)) // Entry price\n    .forward_curve_id(CurveId::new(\"WTI-FORWARD\"))\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .build()\n    .expect(\"Valid forward\");\n```",
       "properties": {
         "attributes": {
@@ -5234,10 +5238,9 @@
           "description": "Metric-only pricing controls."
         },
         "multiplier": {
+          "$ref": "#/$defs/PositiveF64Wire",
           "default": 1.0,
-          "description": "Contract multiplier (typically 1.0 for OTC forwards, defaults to 1.0).",
-          "format": "double",
-          "type": "number"
+          "description": "Contract multiplier (typically 1.0 for OTC forwards, defaults to 1.0)."
         },
         "position": {
           "$ref": "#/$defs/Position",
@@ -5245,9 +5248,8 @@
           "description": "Position direction (long or short).\n\n- Long: buyer of the commodity at settlement\n- Short: seller of the commodity at settlement"
         },
         "quantity": {
-          "description": "Contract quantity in units.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Contract quantity in units."
         },
         "quoted_price": {
           "description": "Optional quoted forward price (overrides curve lookup for F).\n\nThis is a market price override, not the contract entry price.\nUse `contract_price` for the trade entry price K.",
@@ -5323,6 +5325,7 @@
       "type": "object"
     },
     "CommodityOption": {
+      "additionalProperties": false,
       "description": "Commodity option (option on commodity forward or spot).\n\n# Pricing\n\n- **European options**: Black-76 model using the forward price from the `PriceCurve`\n- **American options**: Binomial tree (Leisen-Reimer) with cost-of-carry derived from\n  the forward/spot relationship\n\n# American Option Assumptions\n\nFor American exercise, the model requires a spot price to build the binomial tree.\nIf `spot_id` is provided, it uses that spot price. Otherwise, the forward\nprice is used as a proxy for spot, which may underestimate early exercise value.\nThe convenience yield (cost-of-carry) is implied from the forward/spot ratio:\n`q = r - ln(F/S)/T`\n\nBermudan exercise uses the configured exercise schedule and a binomial\ntree. The schedule must contain at least one strictly future date when the\noption is priced before expiry.\n\n# Forward Price Retrieval\n\nForward prices are retrieved from a `PriceCurve` (not a `ForwardCurve`).\nThe curve must be added via `MarketContext::insert_price_curve()`.\nIf `quoted_forward` is provided, it overrides the curve lookup.",
       "properties": {
         "attributes": {
@@ -5394,9 +5397,8 @@
           "description": "Metric-only pricing controls."
         },
         "multiplier": {
-          "description": "Contract multiplier (typically 1.0 for OTC options).",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Contract multiplier (typically 1.0 for OTC options)."
         },
         "option_type": {
           "$ref": "#/$defs/OptionType",
@@ -5412,9 +5414,8 @@
           ]
         },
         "quantity": {
-          "description": "Contract quantity in units.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Contract quantity in units."
         },
         "quoted_forward": {
           "description": "Optional quoted forward price (overrides curve lookup).",
@@ -5441,9 +5442,8 @@
           ]
         },
         "strike": {
-          "description": "Strike price per unit.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Strike price per unit."
         },
         "ticker": {
           "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
@@ -5476,6 +5476,7 @@
       "type": "object"
     },
     "CommoditySpreadOption": {
+      "additionalProperties": false,
       "description": "Commodity spread option: option on the price difference between two commodities.\n\nPays max(S1 - S2 - K, 0) for calls, max(K - (S1 - S2), 0) for puts.\n\n# Kirk's Approximation\n\nThe spread option is priced using Kirk's approximation, which maps the\ntwo-asset problem into a single-asset Black-76 framework:\n\n1. Forward prices F1, F2 from respective price curves\n2. Adjusted strike: K_adj = F2 + K\n3. Kirk's volatility:\n   sigma_kirk = sqrt(sigma1^2 - 2*rho*sigma1*sigma2*F2/(F2+K) + (sigma2*F2/(F2+K))^2)\n4. Price via Black-76 on F1 vs K_adj with sigma_kirk\n\nFor puts, put-call parity is used: P = C - DF * (F1 - F2 - K)\n\n# Correlation\n\nThe `correlation` parameter captures the co-movement between the two\ncommodity prices. Higher correlation reduces the effective spread volatility\nand hence the option price. The correlation must be in [-1, 1].\n\n# Example\n\n```ignore\nuse finstack_quant_valuations::instruments::commodity::CommoditySpreadOption;\nuse finstack_quant_valuations::instruments::OptionType;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::macros::date;\n\nlet spread_opt = CommoditySpreadOption::builder()\n    .id(InstrumentId::new(\"WTI-RBOB-CRACK-SPREAD\"))\n    .currency(finstack_quant_core::currency::Currency::USD)\n    .option_type(OptionType::Call)\n    .expiry(date!(2025-06-15))\n    .strike(10.0)           // $10/bbl crack spread strike\n    .notional(1000.0)\n    .leg1_forward_curve_id(CurveId::new(\"RBOB-FORWARD\"))\n    .leg2_forward_curve_id(CurveId::new(\"WTI-FORWARD\"))\n    .leg1_vol_surface_id(CurveId::new(\"RBOB-VOL\"))\n    .leg2_vol_surface_id(CurveId::new(\"WTI-VOL\"))\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .correlation(0.85)\n    .build()\n    .expect(\"Valid spread option\");\n```",
       "properties": {
         "attributes": {
@@ -5484,9 +5485,8 @@
           "description": "Attributes for scenario selection and tagging."
         },
         "correlation": {
-          "description": "Correlation between the two commodity prices, in [-1, 1].",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/CorrelationWire",
+          "description": "Correlation between the two commodity prices, in [-1, 1]."
         },
         "currency": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
@@ -5534,9 +5534,8 @@
           "description": "Metric-only pricing controls."
         },
         "notional": {
-          "description": "Notional quantity (number of units).",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Notional quantity (number of units)."
         },
         "option_type": {
           "$ref": "#/$defs/OptionType",
@@ -5569,6 +5568,7 @@
       "type": "object"
     },
     "CommoditySwap": {
+      "additionalProperties": false,
       "description": "Commodity swap (fixed-for-floating commodity price exchange).\n\nOne party pays a fixed price per unit, the other pays a floating price\ndetermined by an index or average of spot prices over the period.\n\n# Pricing\n\nFixed leg: ∑ Q × P_fixed × DF(t_i)\nFloating leg: ∑ Q × E[P_float(t_i)] × DF(t_i)\n\nFor a payer of fixed:\nNPV = Floating leg PV - Fixed leg PV\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::commodity::commodity_swap::CommoditySwap;\nuse finstack_quant_valuations::instruments::CommodityUnderlyingParams;\nuse finstack_quant_valuations::instruments::PayReceive;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::{Date, BusinessDayConvention, Tenor, TenorUnit};\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\nlet swap = CommoditySwap::builder()\n    .id(InstrumentId::new(\"NG-SWAP-2025\"))\n    .underlying(CommodityUnderlyingParams::new(\"Energy\", \"NG\", \"MMBTU\", Currency::USD))\n    .quantity(10000.0)\n    .fixed_price(rust_decimal::Decimal::try_from(3.50).expect(\"valid decimal\"))\n    .floating_index_id(CurveId::new(\"NG-SPOT-AVG\"))\n    .side(PayReceive::Pay)\n    .start_date(Date::from_calendar_date(2025, Month::January, 1).unwrap())\n    .maturity(Date::from_calendar_date(2025, Month::December, 31).unwrap())\n    .frequency(Tenor::new(1, TenorUnit::Months))\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .build()\n    .expect(\"Valid swap\");\n```",
       "properties": {
         "attributes": {
@@ -5641,9 +5641,8 @@
           "description": "Metric-only pricing controls."
         },
         "quantity": {
-          "description": "Notional quantity per period.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Notional quantity per period."
         },
         "realized_fixings": {
           "default": [],
@@ -5703,6 +5702,7 @@
       "type": "object"
     },
     "CommoditySwaption": {
+      "additionalProperties": false,
       "description": "Commodity swaption (option on a fixed-for-floating commodity swap).\n\nThe holder has the right to enter a commodity swap at expiry, paying\n(or receiving) a fixed price in exchange for floating commodity prices.\n\n# Pricing\n\nBlack-76 model on the forward swap rate:\n- Forward swap rate is the weighted average of forward commodity prices\n  over the swap period\n- Annuity factor captures the present value of a unit payment stream\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::commodity::commodity_swaption::CommoditySwaption;\nuse finstack_quant_valuations::instruments::CommodityUnderlyingParams;\nuse finstack_quant_valuations::instruments::OptionType;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::{Date, Tenor, TenorUnit};\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\nlet swaption = CommoditySwaption::builder()\n    .id(InstrumentId::new(\"NG-SWAPTION-2025\"))\n    .underlying(CommodityUnderlyingParams::new(\"Energy\", \"NG\", \"MMBTU\", Currency::USD))\n    .option_type(OptionType::Call)\n    .expiry(Date::from_calendar_date(2025, Month::June, 15).unwrap())\n    .swap_start(Date::from_calendar_date(2025, Month::July, 1).unwrap())\n    .swap_end(Date::from_calendar_date(2026, Month::June, 30).unwrap())\n    .swap_frequency(Tenor::new(1, TenorUnit::Months))\n    .fixed_price(3.50)\n    .notional(10000.0)\n    .forward_curve_id(CurveId::new(\"NG-FORWARD\"))\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .vol_surface_id(CurveId::new(\"NG-VOL\"))\n    .build()\n    .expect(\"Valid swaption\");\n```",
       "properties": {
         "attributes": {
@@ -5748,9 +5748,8 @@
           "description": "Option expiry date."
         },
         "fixed_price": {
-          "description": "Fixed price (strike) of the underlying swap.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Fixed price (strike) of the underlying swap."
         },
         "forward_curve_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
@@ -5769,9 +5768,8 @@
           "description": "Metric-only pricing controls."
         },
         "notional": {
-          "description": "Notional quantity per period.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Notional quantity per period."
         },
         "option_type": {
           "$ref": "#/$defs/OptionType",
@@ -6043,6 +6041,7 @@
       ]
     },
     "ConversionSpec": {
+      "additionalProperties": false,
       "description": "Conversion specification for the instrument.",
       "properties": {
         "anti_dilution": {
@@ -6398,6 +6397,13 @@
         }
       ]
     },
+    "CorrelationWire": {
+      "description": "Finite correlation coefficient in the closed interval `[-1, 1]`.",
+      "format": "double",
+      "maximum": 1.0,
+      "minimum": -1.0,
+      "type": "number"
+    },
     "CouponType": {
       "description": "Coupon cashflow type for fixed/floating coupons.\n\n- `Cash`: 100% paid in cash.\n- `PIK`: 100% capitalized into principal.\n- `Split { cash_pct, pik_pct }`: percentages applied to the coupon amount.",
       "oneOf": [
@@ -6480,6 +6486,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Date on which the breach was recorded, if one has occurred."
         },
         "consequence": {
@@ -6763,6 +6770,7 @@
       "type": "object"
     },
     "CreditParams": {
+      "additionalProperties": false,
       "description": "Credit parameters for CDS instruments",
       "properties": {
         "credit_curve_id": {
@@ -7435,6 +7443,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Optional quoted simple rate r (annualised) for the deposit.\n\nNote: `cashflow_schedule()` requires `quote_rate` to be set. Leaving it as `None`\nis only appropriate if the caller never requests cashflow generation/PV from\nthis instrument (e.g., constructing placeholders)."
         },
         "scenario_pricing_overrides": {
@@ -8508,6 +8517,7 @@
       "type": "object"
     },
     "EquityUnderlyingParams": {
+      "additionalProperties": false,
       "description": "Equity underlying parameters for options and equity-linked swaps.",
       "properties": {
         "contract_size": {
@@ -8758,6 +8768,7 @@
       ]
     },
     "FinancingLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for TRS financing legs",
       "properties": {
         "compounding": {
@@ -8806,6 +8817,7 @@
       ]
     },
     "FixedLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for fixed rate legs in interest rate swaps",
       "properties": {
         "business_day_convention": {
@@ -8888,6 +8900,7 @@
       "type": "object"
     },
     "FloatLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for floating rate legs in interest rate swaps",
       "properties": {
         "business_day_convention": {
@@ -10120,7 +10133,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "default": null
         },
         "settlement_lag_days": {
           "format": "int32",
@@ -10668,6 +10682,7 @@
       ]
     },
     "IndexUnderlyingParams": {
+      "additionalProperties": false,
       "description": "Index underlying parameters for total return swaps and index-linked instruments.",
       "properties": {
         "base_currency": {
@@ -13103,6 +13118,7 @@
       ]
     },
     "MakeWholeSpec": {
+      "additionalProperties": false,
       "description": "Make-whole call specification.\n\nDefines the reference curve and spread used to compute the make-whole redemption\nprice. The issuer pays the holder the greater of par and the present value of\nremaining cashflows discounted at the reference rate plus a spread.\n\n# Industry Practice\n\n- Investment-grade corporates: typically Treasury + 25-50 bp\n- High-yield: typically Treasury + 50-100 bp\n- Convertibles: typically Treasury + 50 bp",
       "properties": {
         "reference_curve_id": {
@@ -13311,6 +13327,7 @@
       "type": "object"
     },
     "McConfig": {
+      "additionalProperties": false,
       "description": "Advanced Monte Carlo configuration for revolving credit facilities.\n\nEnables multi-factor modeling with credit risk, interest rate dynamics,\ncorrelation between factors, and default modeling.",
       "properties": {
         "correlation_matrix": {
@@ -14405,6 +14422,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Date on which the pool acquired the asset, if known."
         },
         "asset_type": {
@@ -14570,7 +14588,14 @@
         }
       ]
     },
+    "PositiveF64Wire": {
+      "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
+      "exclusiveMinimum": 0.0,
+      "format": "double",
+      "type": "number"
+    },
     "PremiumLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for CDS premium legs",
       "properties": {
         "business_day_convention": {
@@ -14754,6 +14779,7 @@
       "type": "object"
     },
     "ProtectionLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for CDS protection legs",
       "properties": {
         "credit_curve_id": {
@@ -14997,12 +15023,12 @@
       "type": "object"
     },
     "QuantoSpec": {
+      "additionalProperties": false,
       "description": "Quanto adjustment parameters for instruments where payoff currency differs from\nunderlying currency.",
       "properties": {
         "correlation": {
-          "description": "Correlation between the underlying asset and the FX rate.\nMust be in [-1, 1].",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/CorrelationWire",
+          "description": "Correlation between the underlying asset and the FX rate.\nMust be in [-1, 1]."
         },
         "fx_spot_id": {
           "description": "FX spot price identifier (for proper quanto vol lookup).\nFalls back to ATM approximation (1.0) if not provided.",
@@ -15116,6 +15142,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Optional payment date (defaults to last observation date)"
         },
         "projection_curve_id": {
@@ -15935,20 +15962,12 @@
       ],
       "type": "object"
     },
-    "RepoDayCountBasis": {
-      "description": "Day-count basis used to annualize implied repo rates.",
-      "oneOf": [
-        {
-          "const": "act360",
-          "description": "ACT/360 convention (common in USD and EUR money markets)",
-          "type": "string"
-        },
-        {
-          "const": "act365",
-          "description": "ACT/365 convention (common in GBP money markets)",
-          "type": "string"
-        }
-      ]
+    "RepoDayCountWire": {
+      "enum": [
+        "act_360",
+        "act_365f"
+      ],
+      "type": "string"
     },
     "RepoMarginSpec": {
       "additionalProperties": false,
@@ -17103,6 +17122,7 @@
       ]
     },
     "StochasticUtilizationSpec": {
+      "additionalProperties": false,
       "description": "Specification for stochastic utilization modeling.\n\nDefines the stochastic process and simulation parameters for\nMonte Carlo pricing with uncertain draw/repayment patterns. Credit risk is\nincorporated via hazard-rate survival weighting (no explicit default events).",
       "properties": {
         "antithetic": {
@@ -17381,6 +17401,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "End of reinvestment period (if applicable)."
         },
         "scenario_pricing_overrides": {
@@ -18175,6 +18196,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Expected maturity date (may be earlier than legal maturity for CLOs)"
         },
         "frequency": {

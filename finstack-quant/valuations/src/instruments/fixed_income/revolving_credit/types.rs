@@ -42,10 +42,12 @@ pub struct RevolvingCredit {
     pub drawn_amount: Money,
 
     /// Date when the facility becomes available.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub commitment_date: Date,
 
     /// Date when the facility expires.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
 
@@ -419,6 +421,7 @@ pub enum DrawRepaySpec {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct DrawRepayEvent {
     /// Date of the draw or repayment.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
 
@@ -435,6 +438,7 @@ pub struct DrawRepayEvent {
 /// Monte Carlo pricing with uncertain draw/repayment patterns. Credit risk is
 /// incorporated via hazard-rate survival weighting (no explicit default events).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct StochasticUtilizationSpec {
     /// Utilization process specification.
     pub utilization_process: UtilizationProcess,
@@ -465,6 +469,7 @@ pub struct StochasticUtilizationSpec {
 /// Enables multi-factor modeling with credit risk, interest rate dynamics,
 /// correlation between factors, and default modeling.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct McConfig {
     /// Correlation matrix (3x3) between [utilization, rate, credit].
     ///

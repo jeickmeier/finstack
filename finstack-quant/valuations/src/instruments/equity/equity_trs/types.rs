@@ -80,6 +80,7 @@ pub struct EquityTotalReturnSwap {
     /// Pricing errors when the current period's start level is unavailable.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub past_fixings: Vec<(Date, f64)>,
     /// Optional OTC margin specification for VM/IM.
@@ -111,6 +112,7 @@ pub struct EquityTotalReturnSwap {
     /// not add continuous-yield dividend return to avoid double counting.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[builder(default)]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Attributes for scenario selection and tagging.
@@ -151,6 +153,7 @@ struct EquityTotalReturnSwapUnchecked {
     side: TrsSide,
     initial_level: Option<f64>,
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     past_fixings: Vec<(Date, f64)>,
     #[serde(default)]
@@ -158,6 +161,7 @@ struct EquityTotalReturnSwapUnchecked {
     #[serde(default)]
     dividend_tax_rate: f64,
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
     #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     discrete_dividends: Vec<(Date, f64)>,
     #[serde(default)]

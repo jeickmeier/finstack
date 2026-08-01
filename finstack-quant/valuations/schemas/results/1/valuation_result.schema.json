@@ -278,6 +278,12 @@
         }
       ]
     },
+    "PositiveF64Wire": {
+      "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
+      "exclusiveMinimum": 0.0,
+      "format": "double",
+      "type": "number"
+    },
     "PricingMode": {
       "description": "Pricing mode selection.\n\nChoose based on horizon × dimensionality: `Tree` for SHORT-horizon\nnon-recombining stochastic deals (deterministic, low variance),\n`MonteCarlo` for long-horizon or high-dimensional pools, `Hybrid` to\nfront-load tree precision and tail with MC.\n\n# Tree mode is bounded by construction — read this before selecting it\n\nSC-M25: path-preserving tree pricing keeps `3^n` terminal nodes for `n`\nperiods, checked against `max_tree_paths` (default 100,000). `3^11 =\n177,147`, so **Tree hard-errors for any deal with more than ten periods\nremaining** — which is essentially every real deal, since\n`build_scenario_tree_config` sets `num_periods` to months-to-maturity.\n\nThis type previously documented Tree as \"Default mode\" and all three modes\nas \"first-class supported pricers\". That was not true of Tree at any\nrealistic horizon, and it only escaped notice because the public\n`price_stochastic` entry point overrides the default to Monte Carlo before\nthe mode is ever used.\n\nThe default is therefore [`PricingMode::MonteCarlo`] — the mode that can\nactually price the deals this module is built for. Tree remains available\nand correct for genuinely short horizons; select it explicitly.\n\nTest coverage:\n- **Tree**: `tests/instruments/structured_credit/unit/{stochastic_pricing_tests,stochastic_tranche_pv_tests}`, at horizons within the node bound.\n- **MonteCarlo**: the same suites plus the convergence tests.\n- **Hybrid**: structured-credit pricer integration tests.",
       "oneOf": [
@@ -565,19 +571,18 @@
       "type": "object"
     },
     "ToleranceConfig": {
+      "additionalProperties": false,
       "description": "Numerical tolerance configuration for floating-point comparisons.\n\nProvides configurable epsilon values for zero-checks in rate calculations\nand generic floating-point comparisons. These defaults are chosen to balance\nnumerical stability with practical precision requirements.\n\n# Examples\n```rust\nuse finstack_quant_core::config::ToleranceConfig;\n\nlet mut tol = ToleranceConfig::default();\nassert_eq!(tol.rate_epsilon, 1e-12);\n\n// Customize for stricter rate comparisons\ntol.rate_epsilon = 1e-14;\n```",
       "properties": {
         "generic_epsilon": {
+          "$ref": "#/$defs/PositiveF64Wire",
           "default": 1e-10,
-          "description": "Epsilon for generic floating-point comparisons (default: 1e-10).\n\nUsed for general numerical comparisons where higher tolerance is acceptable.",
-          "format": "double",
-          "type": "number"
+          "description": "Epsilon for generic floating-point comparisons (default: 1e-10).\n\nUsed for general numerical comparisons where higher tolerance is acceptable."
         },
         "rate_epsilon": {
+          "$ref": "#/$defs/PositiveF64Wire",
           "default": 1e-12,
-          "description": "Epsilon for rate comparisons (default: 1e-12).\n\nUsed when comparing interest rates, yields, and other small ratios.",
-          "format": "double",
-          "type": "number"
+          "description": "Epsilon for rate comparisons (default: 1e-12).\n\nUsed when comparing interest rates, yields, and other small ratios."
         }
       },
       "type": "object"

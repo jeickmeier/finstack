@@ -116,12 +116,15 @@ pub struct InflationCapFloor {
     /// Notional amount in quote currency.
     pub notional: Money,
     /// Strike (annualized, decimal).
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub strike: Decimal,
     /// Start date of the first inflation period.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// End date of the final inflation period.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Payment frequency (ignored for caplet/floorlet).

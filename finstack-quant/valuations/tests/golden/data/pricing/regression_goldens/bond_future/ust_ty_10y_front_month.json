@@ -158,7 +158,7 @@
           "standard_maturity_years": 10.0,
           "settlement_days": 2,
           "calendar_id": "nyse",
-          "repo_day_count_basis": "act360"
+          "repo_day_count": "act_360"
         },
         "deliverable_basket": [
           {

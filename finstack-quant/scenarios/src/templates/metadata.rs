@@ -64,6 +64,7 @@ pub struct TemplateMetadata {
     ///
     /// This is typically the date of the market dislocation rather than the
     /// valuation date used when the template is later executed.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub event_date: time::Date,
     /// Asset classes materially affected by the scenario.

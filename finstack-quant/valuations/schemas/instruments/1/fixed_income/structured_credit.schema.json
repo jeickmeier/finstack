@@ -1120,6 +1120,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Date on which the breach was recorded, if one has occurred."
         },
         "consequence": {
@@ -1739,6 +1740,7 @@
       "type": "object"
     },
     "FixedLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for fixed rate legs in interest rate swaps",
       "properties": {
         "business_day_convention": {
@@ -1821,6 +1823,7 @@
       "type": "object"
     },
     "FloatLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for floating rate legs in interest rate swaps",
       "properties": {
         "business_day_convention": {
@@ -3037,6 +3040,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Date on which the pool acquired the asset, if known."
         },
         "asset_type": {
@@ -4158,6 +4162,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "End of reinvestment period (if applicable)."
         },
         "scenario_pricing_overrides": {
@@ -4315,6 +4320,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Expected maturity date (may be earlier than legal maturity for CLOs)"
         },
         "frequency": {

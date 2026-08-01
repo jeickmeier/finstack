@@ -85,6 +85,7 @@ pub struct CDSOption {
     /// Unique instrument identifier
     pub id: InstrumentId,
     /// Strike spread as a decimal rate (e.g., 0.01 = 100bp)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub strike: Decimal,
     /// Option type (Call = right to buy protection, Put = right to sell protection)
@@ -92,9 +93,11 @@ pub struct CDSOption {
     /// Exercise style
     pub exercise_style: ExerciseStyle,
     /// Option expiry date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Underlying CDS maturity date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub cds_maturity: Date,
     /// Notional amount
@@ -104,12 +107,14 @@ pub struct CDSOption {
     /// Cash premium settlement date for Black time-to-expiry, when the screen
     /// quotes option time from premium settlement rather than valuation date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     #[builder(default)]
     pub cash_settlement_date: Option<Date>,
     /// Exercise settlement date for Black time-to-expiry, when distinct from
     /// the legal option expiration date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     #[builder(default)]
     pub exercise_settlement_date: Option<Date>,
@@ -118,6 +123,7 @@ pub struct CDSOption {
     /// option expiry; in that case premium accrues from this date while
     /// protection starts at expiry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
     #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     #[builder(default)]
     pub underlying_effective_date: Option<Date>,
@@ -203,6 +209,7 @@ pub struct CDSOption {
     /// from the option strike, set this explicitly so the strike-adjustment
     /// term `H(K) = ξN(c − K)A(K)` (DOCS 2055833 Eq. 2.4) is populated.
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_decimal")]
     #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub underlying_cds_coupon: Option<Decimal>,
 }

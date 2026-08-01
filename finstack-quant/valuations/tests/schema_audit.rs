@@ -312,6 +312,14 @@ mod generated_schema_contract {
             .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
     }
 
+    fn instrument_example(name: &str) -> Value {
+        read_schema(
+            &Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/instruments/json_examples")
+                .join(format!("{name}.json")),
+        )
+    }
+
     fn resolve_local_ref<'a>(schema: &'a Value, value: &'a Value) -> &'a Value {
         let mut resolved = value;
         while let Some(reference) = resolved.get("$ref").and_then(Value::as_str) {
@@ -835,6 +843,110 @@ mod generated_schema_contract {
             validator.validate(&invalid).is_err(),
             "instrument union should reject invalid specs for a known discriminator"
         );
+    }
+
+    #[test]
+    fn instrument_contract_rejects_unknown_nested_fields() {
+        let schema = read_schema(&instrument_schema_root().join("instrument.schema.json"));
+        let validator = jsonschema::options()
+            .with_resources(external_schema_resources().into_iter())
+            .build(&schema)
+            .expect("compile instrument union schema");
+
+        for (fixture, pointer) in [
+            ("interest_rate_swap", "/instrument/spec/fixed"),
+            ("interest_rate_swap", "/instrument/spec/float"),
+            ("credit_default_swap", "/instrument/spec/premium"),
+            ("credit_default_swap", "/instrument/spec/protection"),
+            ("convertible_bond", "/instrument/spec/conversion"),
+            ("commodity_forward", "/instrument/spec"),
+        ] {
+            let mut invalid = instrument_example(fixture);
+            invalid
+                .pointer_mut(pointer)
+                .and_then(Value::as_object_mut)
+                .unwrap_or_else(|| panic!("{fixture} is missing object {pointer}"))
+                .insert("unexpected_field".to_string(), Value::Bool(true));
+
+            assert!(
+                serde_json::from_value::<
+                    finstack_quant_valuations::instruments::InstrumentEnvelope,
+                >(invalid.clone())
+                .is_err(),
+                "runtime serde accepted unknown field at {fixture}{pointer}"
+            );
+            assert!(
+                validator.validate(&invalid).is_err(),
+                "generated schema accepted unknown field at {fixture}{pointer}"
+            );
+        }
+    }
+
+    #[test]
+    fn instrument_contract_rejects_null_pricing_override_maps() {
+        let schema = read_schema(&instrument_schema_root().join("instrument.schema.json"));
+        let validator = jsonschema::options()
+            .with_resources(external_schema_resources().into_iter())
+            .build(&schema)
+            .expect("compile instrument union schema");
+
+        for field in [
+            "instrument_pricing_overrides",
+            "metric_pricing_overrides",
+            "scenario_pricing_overrides",
+        ] {
+            let mut invalid = instrument_example("bond");
+            invalid["instrument"]["spec"][field] = Value::Null;
+
+            assert!(
+                serde_json::from_value::<
+                    finstack_quant_valuations::instruments::InstrumentEnvelope,
+                >(invalid.clone())
+                .is_err(),
+                "runtime serde accepted null {field}"
+            );
+            assert!(
+                validator.validate(&invalid).is_err(),
+                "generated schema accepted null {field}"
+            );
+        }
+    }
+
+    #[test]
+    fn commodity_contract_rejects_out_of_range_numeric_inputs() {
+        let schema = read_schema(&instrument_schema_root().join("instrument.schema.json"));
+        let validator = jsonschema::options()
+            .with_resources(external_schema_resources().into_iter())
+            .build(&schema)
+            .expect("compile instrument union schema");
+
+        for (fixture, pointer, invalid_value) in [
+            ("commodity_forward", "/instrument/spec/quantity", 0.0),
+            ("commodity_forward", "/instrument/spec/multiplier", 0.0),
+            (
+                "commodity_spread_option",
+                "/instrument/spec/correlation",
+                1.01,
+            ),
+        ] {
+            let mut invalid = instrument_example(fixture);
+            *invalid
+                .pointer_mut(pointer)
+                .unwrap_or_else(|| panic!("{fixture} is missing {pointer}")) =
+                serde_json::json!(invalid_value);
+
+            assert!(
+                serde_json::from_value::<
+                    finstack_quant_valuations::instruments::InstrumentEnvelope,
+                >(invalid.clone())
+                .is_err(),
+                "runtime serde accepted {invalid_value} at {fixture}{pointer}"
+            );
+            assert!(
+                validator.validate(&invalid).is_err(),
+                "generated schema accepted {invalid_value} at {fixture}{pointer}"
+            );
+        }
     }
 
     #[test]

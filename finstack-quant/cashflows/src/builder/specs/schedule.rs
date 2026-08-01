@@ -563,6 +563,7 @@ impl ScheduleParams {
 #[serde(deny_unknown_fields)]
 pub struct FixedWindow {
     /// Annual coupon rate as a decimal, for example `0.05` for 5%.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub rate: Decimal,
     /// Schedule-generation parameters for this fixed-rate window.

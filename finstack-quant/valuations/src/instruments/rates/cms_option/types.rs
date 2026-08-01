@@ -26,14 +26,17 @@ pub struct CmsOption {
     /// Unique instrument identifier
     pub id: InstrumentId,
     /// Strike (fixed rate for CMS option)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub strike: Decimal,
     /// Tenor of the CMS swap in years (e.g., 10.0 for 10Y)
     pub cms_tenor: f64,
     /// Observation/fixing dates for CMS rate
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub fixing_dates: Vec<Date>,
     /// Payment dates for each period (usually fixing date + lag or period end)
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub payment_dates: Vec<Date>,
     /// Accrual fractions for each period

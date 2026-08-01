@@ -55,9 +55,11 @@ pub struct CDSOptionParams {
     /// Strike spread as a decimal rate (e.g., `0.01` = 100 bp).
     pub strike: Decimal,
     /// Option expiry date. Must precede `cds_maturity`.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Underlying CDS maturity date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub cds_maturity: Date,
     /// Notional amount.

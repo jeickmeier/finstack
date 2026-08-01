@@ -69,7 +69,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "default": null
         },
         "settlement_lag_days": {
           "format": "int32",

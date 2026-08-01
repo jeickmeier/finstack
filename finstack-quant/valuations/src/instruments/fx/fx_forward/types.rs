@@ -76,6 +76,7 @@ pub struct FxForward {
     /// Quote currency (domestic currency, denominator of the pair, PV currency).
     pub quote_currency: Currency,
     /// Maturity/settlement date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Notional amount in base currency.
@@ -136,6 +137,7 @@ struct FxForwardUnchecked {
     /// Quote currency (domestic currency, denominator of the pair, PV currency).
     quote_currency: Currency,
     /// Maturity/settlement date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     maturity: Date,
     /// Notional amount in base currency.

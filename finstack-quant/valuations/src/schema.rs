@@ -16,15 +16,27 @@ use std::sync::OnceLock;
 const JSON_SCHEMA_DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
 const COMMON_SCHEMA_BASE: &str = finstack_quant_core::schema::COMMON_SCHEMA_BASE;
 
-fn pricing_override_schema_ref(definition: &str) -> Option<String> {
-    let filename = match definition {
-        "InstrumentPricingOverrides" => "instrument_pricing_overrides.schema.json",
-        "MetricPricingOverrides" => "metric_pricing_overrides.schema.json",
-        "ScenarioPricingOverrides" => "scenario_pricing_overrides.schema.json",
-        _ => return None,
-    };
-    Some(format!("{COMMON_SCHEMA_BASE}{filename}"))
-}
+const PRICING_OVERRIDE_SCHEMA_DEFINITIONS:
+    &[finstack_quant_core::schema::ExternalSchemaDefinition] = &[
+    finstack_quant_core::schema::ExternalSchemaDefinition::new::<
+        crate::instruments::InstrumentPricingOverrides,
+    >(
+        "InstrumentPricingOverrides",
+        "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+    ),
+    finstack_quant_core::schema::ExternalSchemaDefinition::new::<
+        crate::instruments::MetricPricingOverrides,
+    >(
+        "MetricPricingOverrides",
+        "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+    ),
+    finstack_quant_core::schema::ExternalSchemaDefinition::new::<
+        crate::instruments::ScenarioPricingOverrides,
+    >(
+        "ScenarioPricingOverrides",
+        "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+    ),
+];
 
 /// Package a derived valuation schema using canonical shared definitions.
 ///
@@ -36,12 +48,11 @@ fn pricing_override_schema_ref(definition: &str) -> Option<String> {
 ///
 /// * `schema` - Complete schema generated from a valuation serde type.
 #[doc(hidden)]
-pub fn package_valuations_schema(schema: &mut Value) {
-    finstack_quant_core::schema::externalize_schema_definitions(schema, |definition| {
-        finstack_quant_core::schema::common_definition_uri(definition)
-            .or_else(|| pricing_override_schema_ref(definition))
-            .or_else(|| finstack_quant_cashflows::schema::definition_uri(definition))
-    });
+pub fn package_valuations_schema(schema: &mut Value) -> finstack_quant_core::Result<()> {
+    let mut definitions = finstack_quant_core::schema::COMMON_SCHEMA_DEFINITIONS.to_vec();
+    definitions.extend_from_slice(PRICING_OVERRIDE_SCHEMA_DEFINITIONS);
+    definitions.extend_from_slice(finstack_quant_cashflows::schema::CASHFLOW_SCHEMA_DEFINITIONS);
+    finstack_quant_core::schema::externalize_schema_definitions(schema, &definitions)
 }
 
 /// Parse embedded JSON schema at compile time, returning a Result.

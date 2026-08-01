@@ -145,6 +145,7 @@
       ]
     },
     "Bond": {
+      "additionalProperties": false,
       "description": "Bond instrument with fixed, floating, or amortizing cashflows.\n\nCashflow sign convention (holder view):\n- All contractual cashflows **received by a long holder** (coupons,\n  amortization, final redemption) are represented as **positive** amounts.\n- Cash outflows for the holder (e.g., purchase price, funding, short\n  positions) are represented as **negative** amounts and are handled at\n  trade level rather than in the bond's contractual schedule.\n\nSupports call/put schedules, quoted prices for yield-to-maturity calculations,\nand custom cashflow schedule overrides. Uses a clean `CashflowSpec` that wraps\nthe canonical builder coupon specs for maximum flexibility and parity.",
       "properties": {
         "accrual_method": {
@@ -418,10 +419,10 @@
           "format": "double",
           "type": "number"
         },
-        "repo_day_count_basis": {
-          "$ref": "#/$defs/RepoDayCountBasis",
-          "default": "act360",
-          "description": "Day-count basis for implied repo rate annualization."
+        "repo_day_count": {
+          "$ref": "#/$defs/RepoDayCountWire",
+          "default": "act_360",
+          "description": "Day-count convention for implied repo rate annualization.\n\nBond-future repo supports `act_360` and `act_365f`."
         },
         "settlement_days": {
           "description": "Number of business days for settlement after expiry",
@@ -693,6 +694,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Optional index reset date (for floating coupons)."
         }
       },
@@ -1257,6 +1259,7 @@
       ]
     },
     "MakeWholeSpec": {
+      "additionalProperties": false,
       "description": "Make-whole call specification.\n\nDefines the reference curve and spread used to compute the make-whole redemption\nprice. The issuer pays the holder the greater of par and the present value of\nremaining cashflows discounted at the reference rate plus a spread.\n\n# Industry Practice\n\n- Investment-grade corporates: typically Treasury + 25-50 bp\n- High-yield: typically Treasury + 50-100 bp\n- Convertibles: typically Treasury + 50 bp",
       "properties": {
         "reference_curve_id": {
@@ -1464,20 +1467,12 @@
         }
       ]
     },
-    "RepoDayCountBasis": {
-      "description": "Day-count basis used to annualize implied repo rates.",
-      "oneOf": [
-        {
-          "const": "act360",
-          "description": "ACT/360 convention (common in USD and EUR money markets)",
-          "type": "string"
-        },
-        {
-          "const": "act365",
-          "description": "ACT/365 convention (common in GBP money markets)",
-          "type": "string"
-        }
-      ]
+    "RepoDayCountWire": {
+      "enum": [
+        "act_360",
+        "act_365f"
+      ],
+      "type": "string"
     },
     "ReturnFloorKind": {
       "description": "Which return metric is guaranteed by the floor, and its target.\n\nUse [`ReturnFloorKind::Moic`] for money-multiple protection (common in\nleveraged loans and private credit) or [`ReturnFloorKind::Xirr`] for\nannualized IRR protection.",
@@ -1712,7 +1707,7 @@
           "contract_specs": {
             "calendar_id": "nyse",
             "contract_size": 100000.0,
-            "repo_day_count_basis": "act360",
+            "repo_day_count": "act_360",
             "settlement_days": 2,
             "standard_coupon": 0.06,
             "standard_maturity_years": 10.0,

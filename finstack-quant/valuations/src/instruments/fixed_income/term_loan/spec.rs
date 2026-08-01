@@ -173,6 +173,7 @@ impl Default for OidEirSpec {
 #[serde(deny_unknown_fields)]
 pub struct DrawEvent {
     /// Date of the draw
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Amount drawn from available commitment
@@ -187,6 +188,7 @@ pub struct DrawEvent {
 #[serde(deny_unknown_fields)]
 pub struct CommitmentStepDown {
     /// Effective date of the step-down
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// New (lower) commitment limit after step-down
@@ -262,9 +264,11 @@ pub struct DdtlSpec {
     /// Total commitment limit available for draws
     pub commitment_limit: Money,
     /// First date draws are permitted
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub availability_start: Date,
     /// Last date draws are permitted (commitment expiry)
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub availability_end: Date,
     /// Scheduled or actual draw events
@@ -303,6 +307,7 @@ impl DdtlSpec {
 #[serde(deny_unknown_fields)]
 pub struct MarginStepUp {
     /// Effective date of margin increase
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Increase in margin (basis points)
@@ -327,6 +332,7 @@ impl MarginStepUp {
 #[serde(deny_unknown_fields)]
 pub struct PikToggle {
     /// Date PIK feature is toggled
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// True to enable PIK, false to disable
@@ -341,6 +347,7 @@ pub struct PikToggle {
 #[serde(deny_unknown_fields)]
 pub struct CashSweepEvent {
     /// Date of cash sweep prepayment
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Amount of mandatory prepayment
@@ -362,6 +369,7 @@ pub struct TermLoanCovenantEvents {
     /// Cash sweep (mandatory prepayment) schedule
     pub cash_sweeps: Vec<CashSweepEvent>,
     /// Dates on which draws are prohibited (covenant breach or scheduled)
+    #[serde(with = "finstack_quant_core::wire::dates")]
     #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub draw_stop_dates: Vec<Date>,
 }
@@ -380,9 +388,11 @@ pub enum AmortizationSpec {
     /// Linear amortization between start and end dates
     Linear {
         /// Amortization start date
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         start: Date,
         /// Amortization end date (full repayment)
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         end: Date,
     },
@@ -526,9 +536,11 @@ pub struct TermLoanSpec {
     /// Required for non-DDTL term loans.
     pub notional_limit: Option<Money>,
     /// Loan issue/origination date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue: Date,
     /// Final maturity date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Interest rate specification (fixed or floating)
@@ -652,6 +664,7 @@ pub enum LoanCallType {
 #[serde(deny_unknown_fields)]
 pub struct LoanCall {
     /// Call date (earliest prepayment date for this call provision)
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Redemption price as percentage of par (e.g., 102.0 = 102% of par).

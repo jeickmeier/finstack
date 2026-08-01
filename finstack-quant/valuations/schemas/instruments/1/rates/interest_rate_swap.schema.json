@@ -223,6 +223,7 @@
       "type": "object"
     },
     "FixedLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for fixed rate legs in interest rate swaps",
       "properties": {
         "business_day_convention": {
@@ -305,6 +306,7 @@
       "type": "object"
     },
     "FloatLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for floating rate legs in interest rate swaps",
       "properties": {
         "business_day_convention": {

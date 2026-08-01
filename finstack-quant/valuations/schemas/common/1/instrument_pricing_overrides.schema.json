@@ -1099,6 +1099,7 @@
       "type": "string"
     },
     "DynamicRecoverySpec": {
+      "additionalProperties": false,
       "description": "Specification for dynamic (notional-dependent) recovery rate.\n\nModels the relationship between the accreted notional and the recovery\nrate in default. As PIK accrual increases the notional relative to the\noriginal base, recovery declines according to the chosen [`RecoveryModel`].",
       "properties": {
         "base_notional": {
@@ -1124,6 +1125,7 @@
       "type": "object"
     },
     "EndogenousHazardSpec": {
+      "additionalProperties": false,
       "description": "Specification for endogenous (leverage-dependent) hazard rate.\n\nModels the relationship between a firm's leverage and its instantaneous\nhazard rate, enabling a feedback loop where PIK accrual increases the\nnotional (and hence leverage), which drives the hazard rate higher.",
       "properties": {
         "base_hazard_rate": {
@@ -1345,6 +1347,7 @@
       "type": "object"
     },
     "MertonMcCalibrationSpec": {
+      "additionalProperties": false,
       "description": "Calibration settings for MC-to-market matching.\n\nWhen set on [`MertonMcConfig::calibration`], the pricer runs a low-path\nbisection to solve for a structural parameter so that the cash base-case\nMC price matches the target market quote, then re-prices with full paths.",
       "properties": {
         "bracket": {
@@ -1411,6 +1414,7 @@
       "type": "object"
     },
     "MertonMcConfig": {
+      "additionalProperties": false,
       "description": "Configuration for Monte Carlo PIK bond pricing.",
       "properties": {
         "antithetic": {
@@ -2130,6 +2134,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "description": "Draw stop date (earliest date after which draws are blocked)"
         },
         "extra_cash_sweeps": {

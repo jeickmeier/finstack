@@ -23,9 +23,11 @@ pub struct CashflowScheduleBuildSpec {
     /// Principal amount and amortization behavior.
     pub notional: Notional,
     /// Contract issue date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue: Date,
     /// Contract maturity date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Coupon instructions, applied in order through the canonical builder.
@@ -63,9 +65,11 @@ pub enum CouponLegSpec {
     },
     /// Fixed coupon over an explicit half-open date window.
     FixedWindow {
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Inclusive window start.
         start: Date,
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Exclusive window end.
         end: Date,
@@ -74,9 +78,11 @@ pub enum CouponLegSpec {
     },
     /// Floating coupon over an explicit half-open date window.
     FloatingWindow {
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Inclusive window start.
         start: Date,
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Exclusive window end.
         end: Date,
@@ -85,6 +91,7 @@ pub enum CouponLegSpec {
     },
     /// Fixed coupons followed by floating coupons at `switch`.
     FixedToFloat {
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Date on which the floating leg begins.
         switch: Date,
@@ -109,9 +116,11 @@ pub enum CouponLegSpec {
 #[serde(deny_unknown_fields)]
 pub struct RateStepSpec {
     /// Boundary date at which the step ends or changes.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Fixed rate or floating margin, according to the parent instruction.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
     #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub rate: Decimal,
 }
@@ -122,9 +131,11 @@ pub struct RateStepSpec {
 pub enum PaymentProgramSpec {
     /// Apply a split over one explicit half-open date window.
     Window {
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Inclusive window start.
         start: Date,
+        #[serde(with = "finstack_quant_core::wire::date")]
         #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Exclusive window end.
         end: Date,
@@ -143,6 +154,7 @@ pub enum PaymentProgramSpec {
 #[serde(deny_unknown_fields)]
 pub struct PaymentStepSpec {
     /// Boundary date for the payment split.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Settlement behavior active for the step.
@@ -154,6 +166,7 @@ pub struct PaymentStepSpec {
 #[serde(deny_unknown_fields)]
 pub struct PrincipalEventSpec {
     /// Event date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Outstanding balance delta. Positive increases outstanding, negative repays.
@@ -170,6 +183,7 @@ pub struct PrincipalEventSpec {
 #[serde(deny_unknown_fields)]
 pub struct DatedFlowJson {
     /// Flow date.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Dated amount.

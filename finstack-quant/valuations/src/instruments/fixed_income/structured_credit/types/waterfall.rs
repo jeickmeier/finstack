@@ -396,6 +396,7 @@ pub enum StepDownTrigger {
 #[serde(deny_unknown_fields)]
 pub struct StepDownSpec {
     /// Earliest date principal may switch to pro-rata.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub step_down_date: Date,
     /// Performance triggers; all must pass for the step-down to take effect.
@@ -467,9 +468,11 @@ pub struct EarlyAmortizationSpec {
 #[serde(deny_unknown_fields)]
 pub struct ControlledAccumulationSpec {
     /// First date principal is accumulated into the funding account.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Date the accumulated funding account is released as a bullet payment.
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub bullet_date: Date,
 }
@@ -648,6 +651,7 @@ impl WaterfallTier {
 #[serde(deny_unknown_fields)]
 pub struct WaterfallDistribution {
     /// Payment date
+    #[serde(with = "finstack_quant_core::wire::date")]
     #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub payment_date: Date,
     /// Total available cash at start
