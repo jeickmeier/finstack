@@ -16,68 +16,59 @@ use time::Month;
 
 #[test]
 fn test_curve_parallel_shock() {
-    // Setup market with discount curve
     let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    let curve = DiscountCurve::builder("USD-OIS")
-        .base_date(base_date)
-        .knots(vec![(0.0, 1.0), (1.0, 0.98), (5.0, 0.90)])
-        .build()
-        .unwrap();
+    for (case_id, bp) in [("up", 50.0_f64), ("down", -50.0_f64)] {
+        let curve = DiscountCurve::builder("USD-OIS")
+            .base_date(base_date)
+            .knots(vec![(0.0, 1.0), (1.0, 0.98), (5.0, 0.90)])
+            .build()
+            .unwrap();
+        let mut market = MarketContext::new().insert(curve);
+        let mut model = FinancialModelSpec::new("test", vec![]);
+        let scenario = ScenarioSpec {
+            id: format!("rate_shock_{case_id}"),
+            name: Some(format!("Rate Shock {case_id}")),
+            description: None,
+            operations: vec![OperationSpec::CurveParallelBp {
+                curve_kind: CurveKind::Discount,
+                curve_id: "USD-OIS".into(),
+                discount_curve_id: None,
+                bp,
+            }],
+            priority: 0,
+            resolution_mode: Default::default(),
+        };
 
-    let mut market = MarketContext::new().insert(curve);
+        let engine = ScenarioEngine::new();
+        let mut ctx = ExecutionContext {
+            market: &mut market,
+            model: Some(&mut model),
+            instruments: None,
+            rate_bindings: None,
+            calendar: None,
+            as_of: base_date,
+        };
 
-    // Setup empty model
-    let mut model = FinancialModelSpec::new("test", vec![]);
+        let report = engine.apply(&scenario, &mut ctx).unwrap();
+        assert_eq!(report.operations_applied, 1, "{case_id} shock");
 
-    // Create scenario with parallel curve shock
-    let scenario = ScenarioSpec {
-        id: "rate_shock".into(),
-        name: Some("Rate Shock".into()),
-        description: None,
-        operations: vec![OperationSpec::CurveParallelBp {
-            curve_kind: CurveKind::Discount,
-            curve_id: "USD-OIS".into(),
-            discount_curve_id: None,
-            bp: 50.0, // +50bp
-        }],
-        priority: 0,
-        resolution_mode: Default::default(),
-    };
+        // A parallel bump shifts continuously-compounded zeros by exactly the
+        // requested size: DF_bumped(t) = DF(t) * exp(-bp/10_000 * t).
+        let bumped_curve = market.get_discount("USD-OIS").unwrap();
+        let df_1y = bumped_curve.df(1.0);
+        let expected_df_1y = 0.98 * (-bp / 10_000.0).exp();
+        assert!(
+            (df_1y - expected_df_1y).abs() < 1e-12,
+            "{case_id} shock: expected DF(1Y) ~= {expected_df_1y:.6}, got {df_1y:.6}"
+        );
 
-    // Apply scenario
-    let engine = ScenarioEngine::new();
-    let mut ctx = ExecutionContext {
-        market: &mut market,
-        model: Some(&mut model),
-        instruments: None,
-        rate_bindings: None,
-        calendar: None,
-        as_of: base_date,
-    };
-
-    let report = engine.apply(&scenario, &mut ctx).unwrap();
-    assert_eq!(report.operations_applied, 1);
-
-    // Verify the bumped curve exists with original ID (ID is preserved for instrument references)
-    let bumped_curve = market.get_discount("USD-OIS").unwrap();
-
-    // A parallel bump shifts continuously-compounded zeros by exactly the
-    // requested size, so the discount factor is analytically determined:
-    //   DF_bumped(t) = DF(t) · exp(-bp/10_000 · t)
-    let df_1y = bumped_curve.df(1.0);
-    let expected_df_1y = 0.98 * (-0.0050_f64 * 1.0).exp();
-    assert!(
-        (df_1y - expected_df_1y).abs() < 1e-12,
-        "Expected DF(1Y) ≈ {:.6} after +50bp shock, got {:.6}",
-        expected_df_1y,
-        df_1y
-    );
-
-    // Also verify 5Y point
-    let df_5y = bumped_curve.df(5.0);
-    // Verify direction only as bootstrap details vary.
-    // Original DF ~ 0.90. Solve-to-par implies par rate increased by 50bp, so DF drops.
-    assert!(df_5y < 0.90, "DF(5Y) should drop significantly");
+        let df_5y = bumped_curve.df(5.0);
+        if bp > 0.0 {
+            assert!(df_5y < 0.90, "positive shock should decrease DF(5Y)");
+        } else {
+            assert!(df_5y > 0.90, "negative shock should increase DF(5Y)");
+        }
+    }
 }
 
 #[test]
