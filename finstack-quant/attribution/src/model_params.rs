@@ -326,12 +326,6 @@ mod tests {
     };
 
     #[test]
-    fn test_extract_none_for_unsupported_instrument() {
-        // For instruments without model params, should return None
-        // Testing will be done with actual instruments in integration tests
-    }
-
-    #[test]
     fn test_measure_prepayment_shift_psa() {
         let params_t0 = ModelParamsSnapshot::StructuredCredit {
             prepayment_spec: PrepaymentModelSpec::psa(1.0),

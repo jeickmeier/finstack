@@ -4,69 +4,10 @@
 //! with industry-standard tools like Excel, pandas, and QuantLib.
 
 use finstack_quant_statements::prelude::*;
-use std::fs;
-use std::path::Path;
 
 // Tolerance constants (documented in golden/README.md)
-#[allow(dead_code)] // Placeholder for future Excel NPV tests
-const EXCEL_TOLERANCE: f64 = 1e-8; // Excel double precision limit
 const PANDAS_TOLERANCE: f64 = 1e-10; // pandas default
 const SAMPLE_VAR_TOLERANCE: f64 = 1e-3; // Statistical calculations
-
-/// Load golden test data from CSV
-///
-/// Expected format: test_id,param1,param2,...,expected_value
-#[allow(dead_code)] // Placeholder for future CSV-driven tests
-fn load_golden_csv(path: &str) -> Result<Vec<GoldenTestCase>> {
-    let full_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("golden")
-        .join(path);
-
-    if !full_path.exists() {
-        // Return empty vec if file doesn't exist yet (placeholder for future tests)
-        return Ok(Vec::new());
-    }
-
-    let content = fs::read_to_string(&full_path)
-        .map_err(|e| Error::invalid_input(format!("Failed to read golden test file: {}", e)))?;
-
-    let mut test_cases = Vec::new();
-    let mut lines = content.lines();
-
-    // Skip header
-    let _ = lines.next();
-
-    for line in lines {
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        let parts: Vec<&str> = line.split(',').collect();
-        if parts.is_empty() {
-            continue;
-        }
-
-        test_cases.push(GoldenTestCase {
-            test_id: parts[0].to_string(),
-            params: parts[1..parts.len() - 1]
-                .iter()
-                .filter_map(|s| s.parse::<f64>().ok())
-                .collect(),
-            expected: parts[parts.len() - 2].parse::<f64>().unwrap_or(0.0),
-        });
-    }
-
-    Ok(test_cases)
-}
-
-#[derive(Debug)]
-#[allow(dead_code)] // Placeholder for future CSV-driven tests
-struct GoldenTestCase {
-    test_id: String,
-    params: Vec<f64>,
-    expected: f64,
-}
 
 // ============================================================================
 // Excel NPV Parity Tests
@@ -288,49 +229,4 @@ fn test_ewm_var_golden_parity() {
         q4_ewm_var, q4_ewm_var2,
         "EWM variance should be deterministic"
     );
-}
-
-// ============================================================================
-// Placeholder for Future Tests
-// ============================================================================
-
-#[test]
-fn test_placeholder_for_full_csv_driven_tests() {
-    // Future implementation will:
-    // 1. Load CSV files from golden/excel/ and golden/pandas/
-    // 2. Build models from CSV inputs
-    // 3. Compare results against expected outputs
-    // 4. Assert within documented tolerances
-
-    // For now, this is a placeholder to establish the testing pattern
-    // Once CSV loading is implemented, this test will be replaced
-}
-
-#[cfg(test)]
-mod helpers {
-    use super::*;
-
-    /// Assert two values are equal within a specified tolerance.
-    #[allow(dead_code)]
-    pub fn assert_close(actual: f64, expected: f64, tolerance: f64, message: &str) {
-        assert!(
-            (actual - expected).abs() < tolerance,
-            "{}: expected {}, got {} (diff: {}, tolerance: {})",
-            message,
-            expected,
-            actual,
-            (actual - expected).abs(),
-            tolerance
-        );
-    }
-
-    /// Build a financial model from CSV test data.
-    #[allow(dead_code)]
-    pub fn build_model_from_csv(_test_case: &super::GoldenTestCase) -> Result<FinancialModelSpec> {
-        // Placeholder for CSV-to-model conversion
-        // Will be implemented when we have real test scenarios
-        Err(Error::invalid_input(
-            "CSV model building not yet implemented",
-        ))
-    }
 }
