@@ -13,13 +13,13 @@ from typing import Any
 
 _PROVENANCE_OUTPUTS = {
     b"docs/MATERIALIZATION_BENCHMARKS.md",
-    b"docs/materialization-benchmark-baseline.json",
-    b"docs/materialization-benchmark-results.json",
+    b"benchmarks/materialization/materialization-benchmark-baseline.json",
+    b"benchmarks/materialization/materialization-benchmark-results.json",
 }
 _PROVENANCE_PATHSPECS = (
     ":(exclude)docs/MATERIALIZATION_BENCHMARKS.md",
-    ":(exclude)docs/materialization-benchmark-baseline.json",
-    ":(exclude)docs/materialization-benchmark-results.json",
+    ":(exclude)benchmarks/materialization/materialization-benchmark-baseline.json",
+    ":(exclude)benchmarks/materialization/materialization-benchmark-results.json",
 )
 
 

@@ -246,7 +246,7 @@ description = "Explicitly establish immutable Python baseline; set FQ_REPLACE_MA
 run = """
 replace_flag=$(uv run python scripts/materialization_baseline_replace_flag.py)
 uv run python scripts/check_python_materialization_regressions.py guard \
-  --baseline docs/benchmarks/materialization-python-baseline.json \
+  --baseline benchmarks/materialization/materialization-python-baseline.json \
   $replace_flag
 mise run materialization-benchmark-fixtures
 mise run python-build -- --release
@@ -262,13 +262,13 @@ uv run python scripts/check_python_materialization_regressions.py establish \
   --run-metadata target/materialization-python/baseline-run-metadata.json \
   --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json \
   --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json \
-  --output docs/benchmarks/materialization-python-baseline.json \
+  --output benchmarks/materialization/materialization-python-baseline.json \
   --artifact-root target/materialization-python \
   --baseline-name python-materialization-v1 \
   $replace_flag
 uv run python scripts/check_python_materialization_regressions.py seal \
-  --baseline docs/benchmarks/materialization-python-baseline.json \
-  --manifest docs/materialization-benchmark-baseline.json
+  --baseline benchmarks/materialization/materialization-python-baseline.json \
+  --manifest benchmarks/materialization/materialization-benchmark-baseline.json
 """
 
 [tasks.python-bench-portfolio-compare]
@@ -279,7 +279,7 @@ result_output=${FQ_MATERIALIZATION_PYTHON_COMPARISON_OUTPUT:-target/materializat
 mise run materialization-benchmark-fixtures
 mise run python-build -- --release
 uv run python scripts/prepare_materialization_criterion_run.py \
-  --baseline docs/benchmarks/materialization-python-baseline.json \
+  --baseline benchmarks/materialization/materialization-python-baseline.json \
   --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json \
   --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json \
   --output target/materialization-python/run-metadata.json
@@ -287,14 +287,14 @@ FQ_MATERIALIZATION_P95_SAMPLES=${FQ_MATERIALIZATION_P95_SAMPLES:-100} \
 uv run python finstack-quant-py/benchmarks/materialization_measure.py \
   target/materialization-benchmarks "$current_output"
 uv run python scripts/check_python_materialization_regressions.py compare \
-  --baseline docs/benchmarks/materialization-python-baseline.json \
+  --baseline benchmarks/materialization/materialization-python-baseline.json \
   --current "$current_output" \
   --run-metadata target/materialization-python/run-metadata.json \
   --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json \
   --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json \
   --artifact-root target/materialization-python \
   --result-output "$result_output" \
-  --baseline-manifest docs/materialization-benchmark-baseline.json \
+  --baseline-manifest benchmarks/materialization/materialization-benchmark-baseline.json \
   --threshold 0.10
 """
 
@@ -571,14 +571,14 @@ uv run python scripts/check_criterion_regressions.py --threshold 0.10
 description = "Verify tracked benchmark digests, baselines, and toolchains"
 run = """
 uv run python scripts/sync_materialization_benchmark_digest.py \
-  --artifact docs/materialization-benchmark-results.json \
+  --artifact benchmarks/materialization/materialization-benchmark-results.json \
   --document docs/MATERIALIZATION_BENCHMARKS.md --check
 uv run python scripts/check_materialization_benchmark_docs.py \
-  --artifact docs/materialization-benchmark-results.json \
+  --artifact benchmarks/materialization/materialization-benchmark-results.json \
   --document docs/MATERIALIZATION_BENCHMARKS.md \
-  --baseline-manifest docs/materialization-benchmark-baseline.json \
-  --rust-baseline docs/benchmarks/materialization-rust-baseline.json \
-  --python-baseline docs/benchmarks/materialization-python-baseline.json
+  --baseline-manifest benchmarks/materialization/materialization-benchmark-baseline.json \
+  --rust-baseline benchmarks/materialization/materialization-rust-baseline.json \
+  --python-baseline benchmarks/materialization/materialization-python-baseline.json
 """
 
 [tasks.materialization-rust-bench-baseline]
@@ -586,7 +586,7 @@ description = "Explicitly establish immutable Rust baseline; set FQ_REPLACE_MATE
 run = """
 replace_flag=$(uv run python scripts/materialization_baseline_replace_flag.py)
 uv run python scripts/manage_materialization_rust_baseline.py guard \
-  --baseline docs/benchmarks/materialization-rust-baseline.json \
+  --baseline benchmarks/materialization/materialization-rust-baseline.json \
   $replace_flag
 mise run materialization-benchmark-fixtures
 uv run python scripts/check_python_materialization_regressions.py prepare \
@@ -605,11 +605,11 @@ uv run python scripts/manage_materialization_rust_baseline.py establish \
   --baseline-name materialization-v1 \
   --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json \
   --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json \
-  --output docs/benchmarks/materialization-rust-baseline.json \
+  --output benchmarks/materialization/materialization-rust-baseline.json \
   $replace_flag
 uv run python scripts/manage_materialization_rust_baseline.py seal \
-  --baseline docs/benchmarks/materialization-rust-baseline.json \
-  --manifest docs/materialization-benchmark-baseline.json
+  --baseline benchmarks/materialization/materialization-rust-baseline.json \
+  --manifest benchmarks/materialization/materialization-benchmark-baseline.json
 """
 
 [tasks.materialization-rust-bench-compare]
@@ -617,7 +617,7 @@ description = "Compare exact fresh materialization outputs against the checked-i
 run = """
 mise run materialization-benchmark-fixtures
 uv run python scripts/prepare_materialization_criterion_run.py \
-  --baseline docs/benchmarks/materialization-rust-baseline.json \
+  --baseline benchmarks/materialization/materialization-rust-baseline.json \
   --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json \
   --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json \
   --output target/materialization-criterion/run-metadata.json
@@ -629,7 +629,7 @@ cargo bench -p finstack-quant-portfolio --bench materialization -- \
   --warm-up-time 1 --measurement-time 5 --nresamples 1000 --noplot
 uv run python scripts/check_criterion_regressions.py \
   --criterion-dir target/materialization-criterion/criterion \
-  --baseline docs/benchmarks/materialization-rust-baseline.json \
+  --baseline benchmarks/materialization/materialization-rust-baseline.json \
   --run-metadata target/materialization-criterion/run-metadata.json \
   --comparison-output target/materialization-criterion/comparison.json \
   --threshold 0.10
@@ -640,15 +640,15 @@ description = "Regenerate and verify the complete release materialization benchm
 run = """
 mise run materialization-benchmark-fixtures
 uv run python scripts/manage_materialization_rust_baseline.py verify \
-  --baseline docs/benchmarks/materialization-rust-baseline.json \
+  --baseline benchmarks/materialization/materialization-rust-baseline.json \
   --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json \
   --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json \
-  --manifest docs/materialization-benchmark-baseline.json
+  --manifest benchmarks/materialization/materialization-benchmark-baseline.json
 uv run python scripts/check_python_materialization_regressions.py verify \
-  --baseline docs/benchmarks/materialization-python-baseline.json \
+  --baseline benchmarks/materialization/materialization-python-baseline.json \
   --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json \
   --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json \
-  --manifest docs/materialization-benchmark-baseline.json
+  --manifest benchmarks/materialization/materialization-benchmark-baseline.json
 FQ_MATERIALIZATION_P95_SAMPLES=${FQ_MATERIALIZATION_P95_SAMPLES:-100} \
 FQ_MATERIALIZATION_RAW_OUTPUT="$PWD/target/materialization-results/rust.json" \
 mise run materialization-rust-bench-compare
@@ -661,29 +661,29 @@ FQ_MATERIALIZATION_P95_SAMPLES=${FQ_MATERIALIZATION_P95_SAMPLES:-100} \
 FQ_MATERIALIZATION_RAW_OUTPUT=target/materialization-results/wasm.json \
 npm --prefix finstack-quant-wasm run bench -- --materialization-only
 uv run python scripts/manage_materialization_rust_baseline.py verify \
-  --baseline docs/benchmarks/materialization-rust-baseline.json \
+  --baseline benchmarks/materialization/materialization-rust-baseline.json \
   --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json \
   --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json \
-  --manifest docs/materialization-benchmark-baseline.json
+  --manifest benchmarks/materialization/materialization-benchmark-baseline.json
 uv run python scripts/collect_materialization_results.py \
   --rust target/materialization-results/rust.json \
   --python target/materialization-python/current-record.json \
   --wasm target/materialization-results/wasm.json \
   --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json \
   --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json \
-  --baseline docs/materialization-benchmark-baseline.json \
-  --rust-baseline docs/benchmarks/materialization-rust-baseline.json \
+  --baseline benchmarks/materialization/materialization-benchmark-baseline.json \
+  --rust-baseline benchmarks/materialization/materialization-rust-baseline.json \
   --rust-comparison target/materialization-criterion/comparison.json \
-  --python-baseline docs/benchmarks/materialization-python-baseline.json \
+  --python-baseline benchmarks/materialization/materialization-python-baseline.json \
   --python-comparison target/materialization-python/comparison-record.json \
-  --output docs/materialization-benchmark-results.json \
+  --output benchmarks/materialization/materialization-benchmark-results.json \
   --command 'mise run materialization-benchmark-record' \
   --command 'FQ_MATERIALIZATION_P95_SAMPLES=100 FQ_MATERIALIZATION_RAW_OUTPUT=$PWD/target/materialization-results/rust.json mise run materialization-rust-bench-compare' \
   --command 'FQ_MATERIALIZATION_P95_SAMPLES=100 FQ_MATERIALIZATION_PYTHON_CURRENT_OUTPUT=target/materialization-python/current-record.json FQ_MATERIALIZATION_PYTHON_COMPARISON_OUTPUT=target/materialization-python/comparison-record.json mise run python-bench-portfolio-compare' \
   --command 'FQ_MATERIALIZATION_P95_SAMPLES=100 FQ_MATERIALIZATION_RAW_OUTPUT=target/materialization-results/wasm.json npm --prefix finstack-quant-wasm run bench -- --materialization-only' \
-  --command 'uv run python scripts/collect_materialization_results.py --rust target/materialization-results/rust.json --python target/materialization-python/current-record.json --wasm target/materialization-results/wasm.json --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json --baseline docs/materialization-benchmark-baseline.json --rust-baseline docs/benchmarks/materialization-rust-baseline.json --rust-comparison target/materialization-criterion/comparison.json --python-baseline docs/benchmarks/materialization-python-baseline.json --python-comparison target/materialization-python/comparison-record.json --output docs/materialization-benchmark-results.json'
+  --command 'uv run python scripts/collect_materialization_results.py --rust target/materialization-results/rust.json --python target/materialization-python/current-record.json --wasm target/materialization-results/wasm.json --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json --baseline benchmarks/materialization/materialization-benchmark-baseline.json --rust-baseline benchmarks/materialization/materialization-rust-baseline.json --rust-comparison target/materialization-criterion/comparison.json --python-baseline benchmarks/materialization/materialization-python-baseline.json --python-comparison target/materialization-python/comparison-record.json --output benchmarks/materialization/materialization-benchmark-results.json'
 uv run python scripts/sync_materialization_benchmark_digest.py \
-  --artifact docs/materialization-benchmark-results.json \
+  --artifact benchmarks/materialization/materialization-benchmark-results.json \
   --document docs/MATERIALIZATION_BENCHMARKS.md --write
 mise run materialization-benchmark-doc-check
 """

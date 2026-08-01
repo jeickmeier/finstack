@@ -49,8 +49,8 @@ def verify_baseline_links(
 ) -> None:
     """Verify checked-in baseline identities and record links without measuring."""
     expected_paths = {
-        "rust": Path("docs/benchmarks/materialization-rust-baseline.json"),
-        "python": Path("docs/benchmarks/materialization-python-baseline.json"),
+        "rust": Path("benchmarks/materialization/materialization-rust-baseline.json"),
+        "python": Path("benchmarks/materialization/materialization-python-baseline.json"),
     }
     supplied_paths = {
         "rust": rust_baseline_path,

@@ -3,18 +3,18 @@
   "recorded_at": "2026-07-30",
   "baselines": {
     "manifest": {
-      "path": "docs/materialization-benchmark-baseline.json",
-      "sha256": "bc1b077437394d1fa756f3e5870a2419e62bccbe128b159c6f46279a287cd4b4"
+      "path": "benchmarks/materialization/materialization-benchmark-baseline.json",
+      "sha256": "4825aa6fc86c563c43feff7c1fef415cde462968ba029d8066ad6d00d629b84b"
     },
     "rust": {
-      "path": "docs/benchmarks/materialization-rust-baseline.json",
+      "path": "benchmarks/materialization/materialization-rust-baseline.json",
       "sha256": "f9b9159eb77691cc2e9c40fcd860d3647ba5b7fc8fbb01a45637ebc599b831b7",
       "baseline_name": "materialization-v1",
       "tree_revision": "b43fd9b0f41a455187293838f835ca0dcc1de3d2-tree-8430f5a872f02473df6bdec75f19b9590adae6dd5f949b8de7325132d9869989",
       "fixture_sha256": "378abf6307873a97e65599e4e7f9add41a41c4ad1f8a524ed28e555b1d09aa63"
     },
     "python": {
-      "path": "docs/benchmarks/materialization-python-baseline.json",
+      "path": "benchmarks/materialization/materialization-python-baseline.json",
       "sha256": "0b10373254536d4cae2db451b32d5d6ab8458ce3a9a6ae1d8f2324d1b60140c0",
       "baseline_name": "python-materialization-v1",
       "tree_revision": "b43fd9b0f41a455187293838f835ca0dcc1de3d2-tree-c2072419990f49a74544405c636d723a278f130e3523db87fba74a39d351695b",
@@ -41,7 +41,7 @@
     "FQ_MATERIALIZATION_P95_SAMPLES=100 FQ_MATERIALIZATION_RAW_OUTPUT=$PWD/target/materialization-results/rust.json mise run materialization-rust-bench-compare",
     "FQ_MATERIALIZATION_P95_SAMPLES=100 FQ_MATERIALIZATION_PYTHON_CURRENT_OUTPUT=target/materialization-python/current-record.json FQ_MATERIALIZATION_PYTHON_COMPARISON_OUTPUT=target/materialization-python/comparison-record.json mise run python-bench-portfolio-compare",
     "FQ_MATERIALIZATION_P95_SAMPLES=100 FQ_MATERIALIZATION_RAW_OUTPUT=target/materialization-results/wasm.json npm --prefix finstack-quant-wasm run bench -- --materialization-only",
-    "uv run python scripts/collect_materialization_results.py --rust target/materialization-results/rust.json --python target/materialization-python/current-record.json --wasm target/materialization-results/wasm.json --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json --baseline docs/materialization-benchmark-baseline.json --rust-baseline docs/benchmarks/materialization-rust-baseline.json --rust-comparison target/materialization-criterion/comparison.json --python-baseline docs/benchmarks/materialization-python-baseline.json --python-comparison target/materialization-python/comparison-record.json --output docs/materialization-benchmark-results.json"
+    "uv run python scripts/collect_materialization_results.py --rust target/materialization-results/rust.json --python target/materialization-python/current-record.json --wasm target/materialization-results/wasm.json --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json --baseline benchmarks/materialization/materialization-benchmark-baseline.json --rust-baseline benchmarks/materialization/materialization-rust-baseline.json --rust-comparison target/materialization-criterion/comparison.json --python-baseline benchmarks/materialization/materialization-python-baseline.json --python-comparison target/materialization-python/comparison-record.json --output benchmarks/materialization/materialization-benchmark-results.json"
   ],
   "timing_boundaries": {
     "rust": "fixture bytes and cache exist before start; elapsed surrounds only the Rust validation/materialization call and returned values",
@@ -1640,7 +1640,7 @@
     "cold_a_5000_unique": {
       "benchmark_id": "portfolio_materialization/cold_a_5000_unique",
       "paths": {
-        "baseline": "docs/benchmarks/materialization-rust-baseline.json",
+        "baseline": "benchmarks/materialization/materialization-rust-baseline.json",
         "current": "portfolio_materialization/cold_a_5000_unique/new/estimates.json"
       },
       "baseline_median_ms": {
@@ -1662,7 +1662,7 @@
     "cold_b_5000_50": {
       "benchmark_id": "portfolio_materialization/cold_b_5000_50",
       "paths": {
-        "baseline": "docs/benchmarks/materialization-rust-baseline.json",
+        "baseline": "benchmarks/materialization/materialization-rust-baseline.json",
         "current": "portfolio_materialization/cold_b_5000_50/new/estimates.json"
       },
       "baseline_median_ms": {
@@ -1684,7 +1684,7 @@
     "warm_b_5000_50": {
       "benchmark_id": "portfolio_materialization/warm_b_5000_50",
       "paths": {
-        "baseline": "docs/benchmarks/materialization-rust-baseline.json",
+        "baseline": "benchmarks/materialization/materialization-rust-baseline.json",
         "current": "portfolio_materialization/warm_b_5000_50/new/estimates.json"
       },
       "baseline_median_ms": {
@@ -1706,7 +1706,7 @@
     "validation_b_5000_50": {
       "benchmark_id": "portfolio_materialization/validation_b_5000_50",
       "paths": {
-        "baseline": "docs/benchmarks/materialization-rust-baseline.json",
+        "baseline": "benchmarks/materialization/materialization-rust-baseline.json",
         "current": "portfolio_materialization/validation_b_5000_50/new/estimates.json"
       },
       "baseline_median_ms": {
@@ -1743,7 +1743,7 @@
       "cold_a_5000_unique": {
         "benchmark_id": "portfolio_materialization/cold_a_5000_unique",
         "paths": {
-          "baseline": "docs/benchmarks/materialization-rust-baseline.json",
+          "baseline": "benchmarks/materialization/materialization-rust-baseline.json",
           "current": "portfolio_materialization/cold_a_5000_unique/new/estimates.json"
         },
         "baseline_median_ms": {
@@ -1765,7 +1765,7 @@
       "cold_b_5000_50": {
         "benchmark_id": "portfolio_materialization/cold_b_5000_50",
         "paths": {
-          "baseline": "docs/benchmarks/materialization-rust-baseline.json",
+          "baseline": "benchmarks/materialization/materialization-rust-baseline.json",
           "current": "portfolio_materialization/cold_b_5000_50/new/estimates.json"
         },
         "baseline_median_ms": {
@@ -1787,7 +1787,7 @@
       "warm_b_5000_50": {
         "benchmark_id": "portfolio_materialization/warm_b_5000_50",
         "paths": {
-          "baseline": "docs/benchmarks/materialization-rust-baseline.json",
+          "baseline": "benchmarks/materialization/materialization-rust-baseline.json",
           "current": "portfolio_materialization/warm_b_5000_50/new/estimates.json"
         },
         "baseline_median_ms": {
@@ -1809,7 +1809,7 @@
       "validation_b_5000_50": {
         "benchmark_id": "portfolio_materialization/validation_b_5000_50",
         "paths": {
-          "baseline": "docs/benchmarks/materialization-rust-baseline.json",
+          "baseline": "benchmarks/materialization/materialization-rust-baseline.json",
           "current": "portfolio_materialization/validation_b_5000_50/new/estimates.json"
         },
         "baseline_median_ms": {

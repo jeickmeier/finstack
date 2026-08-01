@@ -89,7 +89,7 @@ measurements, applies both strict regression comparisons, invokes
 record, and updates then verifies the Markdown artifact SHA. It never replaces
 a baseline. Acceptance uses at least 100 raw calls per case.
 
-Compact baselines under `docs/benchmarks/` are created only by
+Compact baselines under `benchmarks/materialization/` are created only by
 `materialization-rust-bench-baseline` and
 `python-bench-portfolio-baseline`. Both fail before measurement when the
 baseline exists. Intentional replacement requires the explicit
@@ -106,7 +106,7 @@ change, its pass/fail result, and baseline artifact provenance. The focused
 `materialization-rust-bench-compare` tasks use
 `target/materialization-criterion`, require the exact four expected current
 paths, reject stale or unexpected artifacts, and compare against
-`docs/benchmarks/materialization-rust-baseline.json`. Neither comparison
+`benchmarks/materialization/materialization-rust-baseline.json`. Neither comparison
 depends on an untracked Criterion baseline directory. The
 `materialization-benchmark-doc-check` task verifies the record digest,
 toolchains, and all baseline artifact paths, identities, and hashes without
@@ -213,5 +213,5 @@ The complete machine-readable record includes all raw samples, independent
 overhead uncertainty, phase counters, commands, timing boundaries,
 hardware/tool versions, revisions, gate calculations, and Criterion
 baseline/current/change point and confidence-range estimates with benchmark
-paths. It is `docs/materialization-benchmark-results.json`. Its
-SHA-256 is `0633f9590abbdaf40ad90e79a4b418a21037a905f15c2fabbf0ec817523f1ef7`.
+paths. It is `benchmarks/materialization/materialization-benchmark-results.json`. Its
+SHA-256 is `d6f9dd11e554c572c55e609fe5280de9ceb3077babcbdec5ca6a95a5ffedaa71`.
