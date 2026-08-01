@@ -5,7 +5,8 @@ mod node;
 mod value;
 
 pub use model::{
-    CapitalStructureSpec, DebtInstrumentSpec, FinancialModelSpec, FINANCIAL_MODEL_CONTRACT,
+    CapitalStructureSpec, DebtInstrumentSpec, FinancialModelSpec, FinancialStatementInstrument,
+    FINANCIAL_MODEL_CONTRACT,
 };
 pub use node::{
     ForecastMethod, ForecastSpec, NodeId, NodeSpec, NodeType, NodeValueType, SeasonalMode,

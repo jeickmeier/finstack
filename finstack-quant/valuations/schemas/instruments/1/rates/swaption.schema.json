@@ -20,6 +20,20 @@
         }
       ]
     },
+    "ClosedUnitIntervalF64Wire": {
+      "description": "Finite JSON number in the closed interval `[0, 1]`.",
+      "format": "double",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "type": "number"
+    },
+    "CorrelationWire": {
+      "description": "Finite correlation coefficient in the closed interval `[-1, 1]`.",
+      "format": "double",
+      "maximum": 1.0,
+      "minimum": -1.0,
+      "type": "number"
+    },
     "FixedLegSpec": {
       "additionalProperties": false,
       "description": "Specification for fixed rate legs in interest rate swaps",
@@ -299,6 +313,12 @@
         }
       ]
     },
+    "NonNegativeF64Wire": {
+      "description": "Finite JSON number greater than or equal to zero.",
+      "format": "double",
+      "minimum": 0.0,
+      "type": "number"
+    },
     "OptionType": {
       "description": "Option type for pricing",
       "oneOf": [
@@ -329,36 +349,42 @@
         }
       ]
     },
+    "PositiveF64Wire": {
+      "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
+      "exclusiveMinimum": 0.0,
+      "format": "double",
+      "type": "number"
+    },
     "SABRParameters": {
+      "additionalProperties": false,
       "description": "SABR model parameters",
       "properties": {
         "alpha": {
-          "description": "Initial volatility (alpha)",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Initial volatility (alpha)"
         },
         "beta": {
-          "description": "CEV exponent (beta) - typically 0 to 1",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/ClosedUnitIntervalF64Wire",
+          "description": "CEV exponent (beta) - typically 0 to 1"
         },
         "nu": {
-          "description": "Volatility of volatility (nu/volvol)",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/NonNegativeF64Wire",
+          "description": "Volatility of volatility (nu/volvol)"
         },
         "rho": {
-          "description": "Correlation between asset and volatility (rho)",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/CorrelationWire",
+          "description": "Correlation between asset and volatility (rho)"
         },
         "shift": {
-          "description": "Shift parameter for handling negative rates (optional)",
-          "format": "double",
-          "type": [
-            "number",
-            "null"
-          ]
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PositiveF64Wire"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Shift parameter for handling negative rates (optional)"
         }
       },
       "required": [
@@ -368,27 +394,6 @@
         "rho"
       ],
       "type": "object"
-    },
-    "SingleInstrumentJson": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/Swaption"
-            },
-            "type": {
-              "const": "swaption",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        }
-      ]
     },
     "StubKind": {
       "description": "Stub period handling when start/end dates don't align with payment frequency.\n\nControls how schedules are generated when the start and end dates don't\ndivide evenly by the payment frequency, resulting in an irregular period\n(stub) at the beginning or end of the schedule.\n\n# Variants\n\n- **`None`**: No stub allowed (default). Generates regular periods from\n  start to end and returns an error\n  ([`InputError::NonIntegerScheduleTenor`]) when the dates don't divide\n  evenly by the frequency. Use a stub variant for misaligned schedules.\n\n[`InputError::NonIntegerScheduleTenor`]: crate::error::InputError::NonIntegerScheduleTenor\n- **`ShortFront`**: Short stub period at the start. Schedule is built\n  backward from the end date, creating a short first period.\n- **`ShortBack`**: Short stub period at the end. Schedule is built forward\n  from the start date, creating a short final period.\n- **`LongFront`**: Long stub period at the start. Combines the first two\n  periods into a single longer period.\n- **`LongBack`**: Long stub period at the end. Combines the last two periods\n  into a single longer period.\n\n# Financial Context\n\nStub conventions are important for:\n- Interest accrual calculations (short/long first coupons)\n- Cash flow present value computations\n- Matching market conventions for specific instruments\n\n# Examples\n\n```rust\nuse finstack_quant_core::dates::{ScheduleBuilder, Tenor, StubKind};\nuse time::{Date, Month};\n\nlet start = Date::from_calendar_date(2025, Month::January, 10)?;\nlet end = Date::from_calendar_date(2025, Month::December, 15)?;\n\n// Short stub at front\nlet sched = ScheduleBuilder::new(start, end)?\n    .frequency(Tenor::quarterly())\n    .stub_rule(StubKind::ShortFront)\n    .build()?;\n# Ok::<(), Box<dyn std::error::Error>>(())\n```\n\n# See Also\n\n- [`ScheduleBuilder::stub_rule`] to configure stub behavior",
@@ -561,6 +566,27 @@
           "type": "string"
         }
       ]
+    },
+    "swaption": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/Swaption"
+            },
+            "type": {
+              "const": "swaption",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/swaption.schema.json",
@@ -631,7 +657,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/swaption"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use finstack_quant_portfolio::materialization::PortfolioMaterializationEnvelope;
+use finstack_quant_portfolio::PositionUnit;
 use serde_json::{json, Value};
 
 const INSTRUMENT_SCHEMA_URI: &str =
@@ -192,4 +193,30 @@ fn percentage_positions_enforce_quantity_bounds_in_serde_and_schema() {
         "non-percentage quantities must not inherit percentage bounds"
     );
     assert!(validation_errors(&units).is_empty());
+}
+
+#[test]
+fn position_serialization_and_notional_shape_match_the_schema() {
+    for unit in [json!({"notional": null}), json!({"notional": "USD"})] {
+        let mut valid = materialization_fixture(deposit_envelope());
+        valid["positions"] = json!([position(1_000_000.0, unit)]);
+        assert!(serde_json::from_value::<PortfolioMaterializationEnvelope>(valid.clone()).is_ok());
+        assert!(validation_errors(&valid).is_empty());
+    }
+
+    let mut missing_notional = materialization_fixture(deposit_envelope());
+    missing_notional["positions"] = json!([position(1_000_000.0, json!({}))]);
+    assert!(
+        serde_json::from_value::<PortfolioMaterializationEnvelope>(missing_notional.clone())
+            .is_err()
+    );
+    assert!(!validation_errors(&missing_notional).is_empty());
+
+    let mut valid = materialization_fixture(deposit_envelope());
+    valid["positions"] = json!([position(50.0, json!("percentage"))]);
+    let mut envelope = serde_json::from_value::<PortfolioMaterializationEnvelope>(valid)
+        .expect("valid percentage materialization");
+    envelope.positions[0].quantity = 100.01;
+    envelope.positions[0].unit = PositionUnit::Percentage;
+    assert!(serde_json::to_value(envelope).is_err());
 }

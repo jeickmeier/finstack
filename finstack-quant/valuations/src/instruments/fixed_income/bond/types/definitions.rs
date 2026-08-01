@@ -241,6 +241,7 @@ impl<'de> serde::Deserialize<'de> for Bond {
 /// };
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CallPut {
     /// First date when the option can be exercised.
     #[serde(with = "finstack_quant_core::wire::date")]
@@ -306,6 +307,7 @@ pub struct MakeWholeSpec {
 /// });
 /// ```
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CallPutSchedule {
     /// Call options (issuer can redeem early).
     pub calls: Vec<CallPut>,

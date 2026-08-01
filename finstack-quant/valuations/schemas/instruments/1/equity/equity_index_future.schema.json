@@ -1,6 +1,7 @@
 {
   "$defs": {
     "EquityFutureSpecs": {
+      "additionalProperties": false,
       "description": "Contract specifications for equity index futures.\n\nContains exchange-specific contract parameters such as multiplier,\ntick size, and settlement method.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::equity::equity_index_future::EquityFutureSpecs;\n\n// E-mini S&P 500 specifications\nlet es_specs = EquityFutureSpecs::sp500_emini();\nassert_eq!(es_specs.multiplier, 50.0);\nassert_eq!(es_specs.tick_size, 0.25);\nassert_eq!(es_specs.tick_value, 12.50);\n```",
       "properties": {
         "multiplier": {
@@ -185,7 +186,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "equity_index_future": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -243,7 +244,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/equity_index_future"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

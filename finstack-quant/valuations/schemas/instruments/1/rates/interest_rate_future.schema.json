@@ -1,6 +1,7 @@
 {
   "$defs": {
     "FutureContractSpecs": {
+      "additionalProperties": false,
       "description": "Contract specifications for interest rate futures.\n\nEncapsulates exchange-defined contract parameters and optional convexity\nadjustment for pricing.",
       "properties": {
         "convexity_adjustment": {
@@ -183,7 +184,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "interest_rate_future": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -244,7 +245,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/interest_rate_future"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

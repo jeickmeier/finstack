@@ -130,7 +130,7 @@
       "format": "double",
       "type": "number"
     },
-    "SingleInstrumentJson": {
+    "commodity_spread_option": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -182,7 +182,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/commodity_spread_option"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

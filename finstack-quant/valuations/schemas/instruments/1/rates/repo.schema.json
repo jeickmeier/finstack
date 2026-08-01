@@ -488,7 +488,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "repo": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -548,7 +548,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/repo"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

@@ -262,7 +262,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "commodity_option": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -317,7 +317,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/commodity_option"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

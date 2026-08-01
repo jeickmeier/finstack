@@ -317,7 +317,7 @@
       ],
       "type": "object"
     },
-    "SingleInstrumentJson": {
+    "callable_range_accrual": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -408,7 +408,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/callable_range_accrual"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

@@ -463,6 +463,7 @@ pub enum EvalWarning {
         period: PeriodId,
     },
     /// NaN value bubbled up to a node result
+    #[serde(rename = "nan_propagated")]
     NaNPropagated {
         /// Identifier of the node that produced the NaN value.
         node_id: String,

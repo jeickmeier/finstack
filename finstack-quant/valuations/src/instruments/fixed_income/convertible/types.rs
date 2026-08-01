@@ -33,6 +33,7 @@ use crate::impl_instrument_base;
 ///
 /// Some issuances use 120% or 150% thresholds.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SoftCallTrigger {
     /// Threshold as a percentage of conversion price (e.g., 130.0 = 130%).
     ///
@@ -425,6 +426,7 @@ impl DividendAdjustment {
 /// Records details of an equity issuance or corporate action that may
 /// affect the conversion ratio under the bond's anti-dilution provisions.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DilutionEvent {
     /// Date of the dilutive event.
     #[serde(with = "finstack_quant_core::wire::date")]

@@ -451,8 +451,8 @@ fn test_build_instrument_from_spec_bond_variant() {
     use finstack_quant_core::dates::Date;
     use finstack_quant_core::types::{CurveId, InstrumentId};
     use finstack_quant_statements::capital_structure::build_instrument_from_spec;
-    use finstack_quant_statements::types::DebtInstrumentSpec;
-    use finstack_quant_valuations::instruments::{Bond, InstrumentJson};
+    use finstack_quant_statements::types::{DebtInstrumentSpec, FinancialStatementInstrument};
+    use finstack_quant_valuations::instruments::Bond;
     use time::Month;
 
     let issue = Date::from_calendar_date(2025, Month::January, 1).unwrap();
@@ -470,7 +470,7 @@ fn test_build_instrument_from_spec_bond_variant() {
 
     let spec = DebtInstrumentSpec {
         id: "BOND-002".to_string(),
-        spec: InstrumentJson::Bond(bond),
+        spec: FinancialStatementInstrument::Bond(bond),
     };
 
     let result = build_instrument_from_spec(&spec);
@@ -482,8 +482,8 @@ fn test_build_instrument_from_spec_swap_variant() {
     use finstack_quant_core::dates::Date;
     use finstack_quant_core::types::InstrumentId;
     use finstack_quant_statements::capital_structure::build_instrument_from_spec;
-    use finstack_quant_statements::types::DebtInstrumentSpec;
-    use finstack_quant_valuations::instruments::{InstrumentJson, PayReceive};
+    use finstack_quant_statements::types::{DebtInstrumentSpec, FinancialStatementInstrument};
+    use finstack_quant_valuations::instruments::PayReceive;
     use time::Month;
 
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
@@ -501,7 +501,7 @@ fn test_build_instrument_from_spec_swap_variant() {
 
     let spec = DebtInstrumentSpec {
         id: "SWAP-002".to_string(),
-        spec: InstrumentJson::InterestRateSwap(swap),
+        spec: FinancialStatementInstrument::InterestRateSwap(swap),
     };
 
     let result = build_instrument_from_spec(&spec);

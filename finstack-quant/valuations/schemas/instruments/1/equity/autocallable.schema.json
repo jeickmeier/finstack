@@ -227,7 +227,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "autocallable": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -307,7 +307,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/autocallable"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

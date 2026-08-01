@@ -187,7 +187,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "equity_option": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -243,7 +243,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/equity_option"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

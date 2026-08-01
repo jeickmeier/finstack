@@ -3532,27 +3532,6 @@
       ],
       "type": "object"
     },
-    "SingleInstrumentJson": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/StructuredCredit"
-            },
-            "type": {
-              "const": "structured_credit",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "StepDownSpec": {
       "additionalProperties": false,
       "description": "Step-down specification for senior/subordinate principal allocation.\n\nPrincipal is paid sequentially (senior first) until the deal seasons past\n`step_down_date`; from then on, *if* every configured [`StepDownTrigger`]\npasses, principal switches to pro-rata across the debt tranches, releasing\nsubordination to the juniors. While any trigger is breached the deal reverts\nto sequential, so the switch is re-evaluated every period (non-sticky). An\nempty `triggers` list steps down purely on the date.",
@@ -4501,6 +4480,7 @@
       ]
     },
     "TrancheStructure": {
+      "additionalProperties": false,
       "description": "Collection of tranches forming the capital structure",
       "properties": {
         "total_size": {
@@ -4762,6 +4742,27 @@
         "divertible"
       ],
       "type": "object"
+    },
+    "structured_credit": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/StructuredCredit"
+            },
+            "type": {
+              "const": "structured_credit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/structured_credit.schema.json",
@@ -4974,7 +4975,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/structured_credit"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

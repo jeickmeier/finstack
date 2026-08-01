@@ -84,14 +84,6 @@ ENUM_NAMING_EXCEPTIONS = {
         "finstack-quant/valuations/src/instruments/json_loader.rs",
         "InstrumentSchema",
     ): "exact namespaced schema marker",
-    (
-        "finstack-quant/valuations/src/instruments/json_loader.rs",
-        "InstrumentJson",
-    ): "registry-defined canonical instrument tags",
-    (
-        "finstack-quant/valuations/src/instruments/json_loader.rs",
-        "SingleInstrumentJson",
-    ): "registry-defined canonical single-instrument tags",
 }
 
 
@@ -120,6 +112,10 @@ FORBIDDEN = (
     ForbiddenPattern(
         "serde_json::Value schema projection",
         re.compile(r"#\s*\[\s*schemars\s*\(\s*with\s*=\s*\"serde_json::Value\""),
+    ),
+    ForbiddenPattern(
+        "schema-only single-instrument shadow enum",
+        re.compile(r"\benum\s+SingleInstrumentJson\b"),
     ),
     ForbiddenPattern(
         "obsolete schema assembly helper",
@@ -198,6 +194,14 @@ DIRECT_CONSUMER_FORBIDDEN = (
             r"(?:Act360|Actual360|Act365F|Act365L|Nl365|Thirty360|Thirty360::BondBasis|ThirtyE360|"
             r"ThirtyE360Isda|ActAct|ActActIsma|Bus252|Actual365Fixed|"
             r"actual_360|actual_365_fixed|thirty_360|30_360::BondBasis)"
+            r'(?:"|\\")'
+        ),
+    ),
+    ForbiddenPattern(
+        "non-canonical acronym splitting",
+        re.compile(
+            r'(?:"|\\")'
+            r"(?:yo_y_inflation_swap|hull_white1_f|na_n_propagated)"
             r'(?:"|\\")'
         ),
     ),
@@ -427,6 +431,36 @@ def optional_wire_adapter_findings(files: list[Path]) -> list[str]:
     return findings
 
 
+def asymmetric_bounded_adapter_findings(files: list[Path]) -> list[str]:
+    """Reject bounded numeric fields that validate only while deserializing."""
+    findings: list[str] = []
+    field_pattern = re.compile(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?P<name>[A-Za-z_]\w*)\s*:")
+    adapter_pairs = {
+        "deserialize_positive_f64": "serialize_positive_f64",
+        "deserialize_non_negative_f64": "serialize_non_negative_f64",
+        "deserialize_closed_unit_interval_f64": "serialize_closed_unit_interval_f64",
+        "deserialize_open_unit_interval_f64": "serialize_open_unit_interval_f64",
+        "deserialize_correlation": "serialize_correlation",
+        "deserialize_optional_positive_f64": "serialize_optional_positive_f64",
+    }
+
+    for path in files:
+        if path.suffix != ".rs":
+            continue
+        contents = path.read_text(encoding="utf-8")
+        relative = path.relative_to(ROOT).as_posix()
+        for match in field_pattern.finditer(contents):
+            attributes = " ".join(preceding_attributes(contents, match.start()))
+            for deserialize_name, serialize_name in adapter_pairs.items():
+                if deserialize_name not in attributes or serialize_name in attributes:
+                    continue
+                findings.append(
+                    f"{relative}:{line_number(contents, match.start())}: bounded numeric adapter "
+                    f"for {match.group('name')} uses {deserialize_name} without {serialize_name}"
+                )
+    return findings
+
+
 def is_explicit_rejection_test(contents: str, match: re.Match[str]) -> bool:
     """Return whether a retired spelling is intentionally tested for rejection."""
     line_start = contents.rfind("\n", 0, match.start()) + 1
@@ -472,6 +506,7 @@ def main() -> int:
 
     findings.extend(serde_enum_naming_findings(sources))
     findings.extend(optional_wire_adapter_findings(sources))
+    findings.extend(asymmetric_bounded_adapter_findings(sources))
 
     for path in contract_files():
         contents = path.read_text(encoding="utf-8")

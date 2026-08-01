@@ -160,7 +160,22 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "TrancheSide": {
+      "description": "Buyer/seller perspective for CDS tranche premium/protection",
+      "oneOf": [
+        {
+          "const": "buy_protection",
+          "description": "Buy protection on the tranche (pay running, receive protection)",
+          "type": "string"
+        },
+        {
+          "const": "sell_protection",
+          "description": "Sell protection on the tranche (receive running, pay protection)",
+          "type": "string"
+        }
+      ]
+    },
+    "cds_tranche": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -178,21 +193,6 @@
             "spec"
           ],
           "type": "object"
-        }
-      ]
-    },
-    "TrancheSide": {
-      "description": "Buyer/seller perspective for CDS tranche premium/protection",
-      "oneOf": [
-        {
-          "const": "buy_protection",
-          "description": "Buy protection on the tranche (pay running, receive protection)",
-          "type": "string"
-        },
-        {
-          "const": "sell_protection",
-          "description": "Sell protection on the tranche (receive running, pay protection)",
-          "type": "string"
         }
       ]
     }
@@ -239,7 +239,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/cds_tranche"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

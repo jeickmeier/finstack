@@ -161,6 +161,7 @@ pub struct VolatilityIndexFuture {
 /// - Minimum tick: 0.05 index points ($50)
 /// - Weekly and monthly expiries available
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct VolIndexContractSpecs {
     /// Contract multiplier (USD per index point).
     /// VIX standard: 1000 (each point = $1,000)

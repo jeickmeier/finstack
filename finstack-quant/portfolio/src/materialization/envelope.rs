@@ -152,7 +152,35 @@ enum PercentagePositionUnitWire {
 #[serde(untagged, deny_unknown_fields)]
 enum NonPercentagePositionUnitWire {
     Named(NonPercentagePositionUnitName),
-    Notional { notional: Option<Currency> },
+    Notional {
+        #[schemars(required)]
+        notional: NullableCurrencyWire,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+enum NullableCurrencyWire {
+    Currency(Currency),
+    Null(()),
+}
+
+impl From<Option<Currency>> for NullableCurrencyWire {
+    fn from(currency: Option<Currency>) -> Self {
+        match currency {
+            Some(currency) => Self::Currency(currency),
+            None => Self::Null(()),
+        }
+    }
+}
+
+impl From<NullableCurrencyWire> for Option<Currency> {
+    fn from(currency: NullableCurrencyWire) -> Self {
+        match currency {
+            NullableCurrencyWire::Currency(currency) => Some(currency),
+            NullableCurrencyWire::Null(()) => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
@@ -163,7 +191,7 @@ enum NonPercentagePositionUnitName {
 }
 
 /// Lightweight position referencing a unique instrument artifact.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[serde(from = "MaterializedPositionWire")]
 #[schemars(with = "MaterializedPositionWire")]
@@ -223,13 +251,93 @@ impl From<MaterializedPositionWire> for MaterializedPosition {
                         NonPercentagePositionUnitName::FaceValue,
                     ) => PositionUnit::FaceValue,
                     NonPercentagePositionUnitWire::Notional { notional } => {
-                        PositionUnit::Notional(notional)
+                        PositionUnit::Notional(notional.into())
                     }
                 },
                 attributes: position.attributes,
                 meta: position.meta,
             },
         }
+    }
+}
+
+impl TryFrom<&MaterializedPosition> for MaterializedPositionWire {
+    type Error = finstack_quant_core::Error;
+
+    fn try_from(position: &MaterializedPosition) -> Result<Self, Self::Error> {
+        let common = || {
+            (
+                position.id.clone(),
+                position.entity_id.clone(),
+                position.instrument_id.clone(),
+                position.artifact_id.clone(),
+                position.attributes.clone(),
+                position.meta.clone(),
+            )
+        };
+
+        match position.unit {
+            PositionUnit::Percentage => {
+                let (id, entity_id, instrument_id, artifact_id, attributes, meta) = common();
+                Ok(Self::Percentage(PercentageMaterializedPositionWire {
+                    id,
+                    entity_id,
+                    instrument_id,
+                    artifact_id,
+                    quantity: PercentageQuantityWire::try_from(position.quantity)?,
+                    unit: PercentagePositionUnitWire::Percentage,
+                    attributes,
+                    meta,
+                }))
+            }
+            unit => {
+                if !position.quantity.is_finite() {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "materialized position quantity must be finite, got {}",
+                        position.quantity
+                    )));
+                }
+                let unit = match unit {
+                    PositionUnit::Units => {
+                        NonPercentagePositionUnitWire::Named(NonPercentagePositionUnitName::Units)
+                    }
+                    PositionUnit::FaceValue => NonPercentagePositionUnitWire::Named(
+                        NonPercentagePositionUnitName::FaceValue,
+                    ),
+                    PositionUnit::Notional(notional) => NonPercentagePositionUnitWire::Notional {
+                        notional: notional.into(),
+                    },
+                    PositionUnit::Percentage => {
+                        return Err(finstack_quant_core::Error::Internal(
+                            "percentage position reached non-percentage serialization branch"
+                                .to_string(),
+                        ));
+                    }
+                };
+                let (id, entity_id, instrument_id, artifact_id, attributes, meta) = common();
+                Ok(Self::NonPercentage(NonPercentageMaterializedPositionWire {
+                    id,
+                    entity_id,
+                    instrument_id,
+                    artifact_id,
+                    quantity: position.quantity,
+                    unit,
+                    attributes,
+                    meta,
+                }))
+            }
+        }
+    }
+}
+
+impl Serialize for MaterializedPosition {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        MaterializedPositionWire::try_from(self)
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
     }
 }
 

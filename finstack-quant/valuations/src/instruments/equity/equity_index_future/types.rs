@@ -59,6 +59,7 @@ use time::macros::date;
 /// assert_eq!(es_specs.tick_value, 12.50);
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EquityFutureSpecs {
     /// Contract multiplier (USD per index point).
     /// E-mini S&P 500: 50.0 (each point = $50)

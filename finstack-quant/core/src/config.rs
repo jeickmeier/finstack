@@ -297,19 +297,28 @@ pub struct RoundingPolicy {
 /// // Customize for stricter rate comparisons
 /// tol.rate_epsilon = 1e-14;
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, schemars::JsonSchema)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 #[schemars(deny_unknown_fields)]
 pub struct ToleranceConfig {
     /// Epsilon for rate comparisons (default: 1e-12).
     ///
     /// Used when comparing interest rates, yields, and other small ratios.
-    #[serde(default = "default_rate_epsilon")]
+    #[serde(
+        default = "default_rate_epsilon",
+        serialize_with = "serialize_positive_f64",
+        deserialize_with = "deserialize_positive_f64"
+    )]
     #[schemars(with = "crate::wire::PositiveF64Wire")]
     pub rate_epsilon: f64,
     /// Epsilon for generic floating-point comparisons (default: 1e-10).
     ///
     /// Used for general numerical comparisons where higher tolerance is acceptable.
-    #[serde(default = "default_generic_epsilon")]
+    #[serde(
+        default = "default_generic_epsilon",
+        serialize_with = "serialize_positive_f64",
+        deserialize_with = "deserialize_positive_f64"
+    )]
     #[schemars(with = "crate::wire::PositiveF64Wire")]
     pub generic_epsilon: f64,
 }
@@ -347,25 +356,21 @@ impl ToleranceConfig {
     }
 }
 
-impl<'de> Deserialize<'de> for ToleranceConfig {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        // Strictness belongs on this raw mirror because ToleranceConfig has a
-        // manual Deserialize implementation and a committed JSON schema.
-        #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct RawToleranceConfig {
-            #[serde(default = "default_rate_epsilon")]
-            rate_epsilon: f64,
-            #[serde(default = "default_generic_epsilon")]
-            generic_epsilon: f64,
-        }
+fn serialize_positive_f64<S>(value: &f64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    crate::wire::PositiveF64Wire::try_from(*value)
+        .map_err(serde::ser::Error::custom)?
+        .serialize(serializer)
+}
 
-        let raw = RawToleranceConfig::deserialize(deserializer)?;
-        Self::new(raw.rate_epsilon, raw.generic_epsilon).map_err(serde::de::Error::custom)
-    }
+fn deserialize_positive_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    crate::wire::PositiveF64Wire::deserialize(deserializer)
+        .map(crate::wire::PositiveF64Wire::into_inner)
 }
 
 /// Default epsilon for rate comparisons: 1e-12.
@@ -790,6 +795,12 @@ mod tests {
             serde_json::from_str::<ToleranceConfig>(&json).unwrap(),
             valid
         );
+
+        let invalid_in_memory = ToleranceConfig {
+            rate_epsilon: 0.0,
+            generic_epsilon: 1e-10,
+        };
+        assert!(serde_json::to_value(invalid_in_memory).is_err());
     }
 
     #[test]

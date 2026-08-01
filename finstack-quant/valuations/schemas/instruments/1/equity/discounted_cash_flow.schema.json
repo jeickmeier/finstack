@@ -1,6 +1,7 @@
 {
   "$defs": {
     "DilutionSecurity": {
+      "additionalProperties": false,
       "description": "A dilutive security for the treasury stock method.\n\nUsed to compute diluted shares outstanding from options, warrants,\nRSUs, or convertible instruments.",
       "properties": {
         "exercise_price": {
@@ -151,6 +152,7 @@
       "type": "object"
     },
     "EquityBridge": {
+      "additionalProperties": false,
       "description": "Structured equity bridge for converting Enterprise Value to Equity Value.\n\nStandard professional bridge:\n```text\nEquity = EV - Total Debt + Cash - Preferred Equity - Minority Interest\n         + Non-Operating Assets + Σ(other adjustments)\n```\n\nWhen attached to a [`DiscountedCashFlow`], this takes precedence over the\nflat `net_debt` scalar.",
       "properties": {
         "cash": {
@@ -211,27 +213,6 @@
           "const": "finstack_quant.instrument/1",
           "description": "The sole supported instrument contract.",
           "type": "string"
-        }
-      ]
-    },
-    "SingleInstrumentJson": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/DiscountedCashFlow"
-            },
-            "type": {
-              "const": "discounted_cash_flow",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
         }
       ]
     },
@@ -316,6 +297,7 @@
       ]
     },
     "ValuationDiscounts": {
+      "additionalProperties": false,
       "description": "Valuation discounts for private company equity.\n\nApplied multiplicatively after the equity bridge:\n```text\nFMV = Equity Value × (1 - DLOC) × (1 - DLOM) × (1 - other_discount)\n```\n\nThe enterprise value reported by a DCF remains pre-discount. When discounts\nare present, `enterprise_value - net_debt` reconciles to pre-discount\nequity value, not to the discounted fair-market equity value.",
       "properties": {
         "dloc": {
@@ -344,6 +326,27 @@
         }
       },
       "type": "object"
+    },
+    "discounted_cash_flow": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/DiscountedCashFlow"
+            },
+            "type": {
+              "const": "discounted_cash_flow",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/discounted_cash_flow.schema.json",
@@ -397,7 +400,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/discounted_cash_flow"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

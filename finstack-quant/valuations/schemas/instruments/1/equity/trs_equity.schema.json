@@ -628,27 +628,6 @@
       ],
       "type": "object"
     },
-    "SingleInstrumentJson": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/EquityTotalReturnSwap"
-            },
-            "type": {
-              "const": "trs_equity",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "TrsScheduleSpec": {
       "additionalProperties": false,
       "description": "Schedule specification for TRS payment periods.\n\nDefines the payment schedule and frequency for both legs of the TRS.\nThis is shared between equity and fixed income TRS instruments.\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::TrsScheduleSpec;\nuse finstack_quant_cashflows::builder::ScheduleParams;\nuse finstack_quant_core::dates::{Date, Tenor, DayCount, BusinessDayConvention, StubKind};\n\nlet schedule = TrsScheduleSpec::from_params(\n    Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),\n    Date::from_calendar_date(2025, time::Month::January, 1).unwrap(),\n    ScheduleParams {\n        frequency: Tenor::quarterly(),\n        day_count: DayCount::Act360,\n        business_day_convention: BusinessDayConvention::Following,\n        calendar_id: \"weekends_only\".to_string(),\n        stub: StubKind::None,\n        end_of_month: false,\n        payment_lag_days: 0,\n        adjust_accrual_dates: false,\n        roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,\n    },\n);\n```",
@@ -728,6 +707,27 @@
         "settlement_lag"
       ],
       "type": "object"
+    },
+    "trs_equity": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/EquityTotalReturnSwap"
+            },
+            "type": {
+              "const": "trs_equity",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/trs_equity.schema.json",
@@ -785,7 +785,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/trs_equity"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

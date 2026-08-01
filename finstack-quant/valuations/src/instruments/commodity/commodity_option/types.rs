@@ -111,6 +111,7 @@ pub struct CommodityOption {
     pub underlying: CommodityUnderlyingParams,
     /// Strike price per unit.
     #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
         deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
@@ -135,12 +136,14 @@ pub struct CommodityOption {
     pub expiry: Date,
     /// Contract quantity in units.
     #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
         deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub quantity: f64,
     /// Contract multiplier (typically 1.0 for OTC options).
     #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
         deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]

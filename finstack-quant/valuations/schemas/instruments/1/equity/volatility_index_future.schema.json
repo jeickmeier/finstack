@@ -25,28 +25,8 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/VolatilityIndexFuture"
-            },
-            "type": {
-              "const": "volatility_index_future",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "VolIndexContractSpecs": {
+      "additionalProperties": false,
       "description": "Contract specifications for volatility index futures.\n\nVIX futures have standardized specifications set by CBOE:\n- Standard multiplier: $1,000 per index point\n- Minimum tick: 0.05 index points ($50)\n- Weekly and monthly expiries available",
       "properties": {
         "index_id": {
@@ -162,6 +142,27 @@
         "attributes"
       ],
       "type": "object"
+    },
+    "volatility_index_future": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/VolatilityIndexFuture"
+            },
+            "type": {
+              "const": "volatility_index_future",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/volatility_index_future.schema.json",
@@ -199,7 +200,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/volatility_index_future"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

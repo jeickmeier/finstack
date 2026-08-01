@@ -1471,7 +1471,7 @@
           "additionalProperties": false,
           "description": "NaN value bubbled up to a node result",
           "properties": {
-            "na_n_propagated": {
+            "nan_propagated": {
               "properties": {
                 "node_id": {
                   "description": "Identifier of the node that produced the NaN value.",
@@ -1490,7 +1490,7 @@
             }
           },
           "required": [
-            "na_n_propagated"
+            "nan_propagated"
           ],
           "type": "object"
         },

@@ -3,9 +3,8 @@
 //! This test suite validates that TermLoan instruments from the valuations crate
 //! can be properly integrated into financial statement models.
 
-use finstack_quant_statements::types::DebtInstrumentSpec;
+use finstack_quant_statements::types::{DebtInstrumentSpec, FinancialStatementInstrument};
 use finstack_quant_valuations::instruments::fixed_income::term_loan::TermLoan;
-use finstack_quant_valuations::instruments::InstrumentJson;
 
 // ============================================================================
 // TermLoan Variant Tests
@@ -15,7 +14,7 @@ use finstack_quant_valuations::instruments::InstrumentJson;
 fn test_term_loan_variant_serialization() {
     let spec = DebtInstrumentSpec {
         id: "TL-001".to_string(),
-        spec: InstrumentJson::TermLoan(TermLoan::example().expect("valid term loan")),
+        spec: FinancialStatementInstrument::TermLoan(TermLoan::example().expect("valid term loan")),
     };
 
     // Test serialization roundtrip
@@ -73,7 +72,7 @@ fn term_loan_capital_structure_evaluates_with_market() {
     let model = ModelBuilder::new("term-loan-cs")
         .periods("2025Q1..2025Q4", None)
         .expect("valid periods")
-        .add_debt("TL-001", InstrumentJson::TermLoan(loan))
+        .add_debt("TL-001", FinancialStatementInstrument::TermLoan(loan))
         .compute("tl_interest", "cs.interest_expense.TL-001")
         .expect("valid cs interest formula")
         .compute("tl_balance", "cs.debt_balance.TL-001")

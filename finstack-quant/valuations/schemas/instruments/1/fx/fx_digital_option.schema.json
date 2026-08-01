@@ -132,7 +132,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "fx_digital_option": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -190,7 +190,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/fx_digital_option"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

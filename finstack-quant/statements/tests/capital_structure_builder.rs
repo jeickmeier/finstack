@@ -5,7 +5,8 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 use finstack_quant_statements::builder::{ModelBuilder, NeedPeriods};
-use finstack_quant_valuations::instruments::{InstrumentJson, RevolvingCredit};
+use finstack_quant_statements::types::FinancialStatementInstrument;
+use finstack_quant_valuations::instruments::RevolvingCredit;
 use time::Month;
 
 #[test]
@@ -36,7 +37,7 @@ fn test_add_bond() {
     assert_eq!(cs.debt_instruments[0].id, "BOND-001");
     assert!(matches!(
         cs.debt_instruments[0].spec,
-        InstrumentJson::Bond(_)
+        FinancialStatementInstrument::Bond(_)
     ));
 }
 
@@ -69,7 +70,7 @@ fn test_add_swap() {
     assert_eq!(cs.debt_instruments[0].id, "SWAP-001");
     assert!(matches!(
         cs.debt_instruments[0].spec,
-        InstrumentJson::InterestRateSwap(_)
+        FinancialStatementInstrument::InterestRateSwap(_)
     ));
 }
 
@@ -110,7 +111,7 @@ fn test_add_multiple_instruments() {
 
 #[test]
 fn test_add_debt() {
-    let instrument = InstrumentJson::RevolvingCredit(
+    let instrument = FinancialStatementInstrument::RevolvingCredit(
         RevolvingCredit::example().expect("valid revolving credit example"),
     );
     let builder = ModelBuilder::<NeedPeriods>::new("test")
@@ -183,11 +184,11 @@ fn parity_add_bond_and_add_bond_with_convention_same_id() {
     // Both produce a bond-tagged payload
     assert!(matches!(
         cs_simple.debt_instruments[0].spec,
-        InstrumentJson::Bond(_)
+        FinancialStatementInstrument::Bond(_)
     ));
     assert!(matches!(
         cs_conv.debt_instruments[0].spec,
-        InstrumentJson::Bond(_)
+        FinancialStatementInstrument::Bond(_)
     ));
 }
 
@@ -250,10 +251,10 @@ fn parity_add_swap_and_add_swap_with_conventions_produce_swap_variant() {
 
     assert!(matches!(
         cs_simple.debt_instruments[0].spec,
-        InstrumentJson::InterestRateSwap(_)
+        FinancialStatementInstrument::InterestRateSwap(_)
     ));
     assert!(matches!(
         cs_conv.debt_instruments[0].spec,
-        InstrumentJson::InterestRateSwap(_)
+        FinancialStatementInstrument::InterestRateSwap(_)
     ));
 }

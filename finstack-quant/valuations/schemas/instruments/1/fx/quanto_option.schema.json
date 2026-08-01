@@ -176,7 +176,7 @@
       ],
       "type": "object"
     },
-    "SingleInstrumentJson": {
+    "quanto_option": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -240,7 +240,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/quanto_option"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

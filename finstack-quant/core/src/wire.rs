@@ -10,7 +10,7 @@ use time::Date;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(transparent)]
 #[schemars(transparent)]
-pub struct SchemaVersion(#[schemars(range(min = 1, max = 1))] pub u32);
+pub struct SchemaVersion(#[schemars(range(min = 1, max = 1))] u32);
 
 impl SchemaVersion {
     /// Canonical numeric revision used by every v1-only wire contract.
@@ -563,19 +563,98 @@ impl PositiveF64Wire {
     }
 }
 
+impl TryFrom<f64> for PositiveF64Wire {
+    type Error = crate::Error;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.is_finite() && value > 0.0 {
+            Ok(Self(value))
+        } else {
+            Err(crate::Error::Validation(format!(
+                "expected a finite number greater than zero, got {value}"
+            )))
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for PositiveF64Wire {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let value = f64::deserialize(deserializer)?;
-        if value.is_finite() && value > 0.0 {
+        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Finite JSON number greater than or equal to zero.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct NonNegativeF64Wire(#[schemars(range(min = 0.0))] f64);
+
+impl NonNegativeF64Wire {
+    /// Return the validated primitive value.
+    pub const fn into_inner(self) -> f64 {
+        self.0
+    }
+}
+
+impl TryFrom<f64> for NonNegativeF64Wire {
+    type Error = crate::Error;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.is_finite() && value >= 0.0 {
             Ok(Self(value))
         } else {
-            Err(serde::de::Error::custom(format!(
-                "expected a finite number greater than zero, got {value}"
+            Err(crate::Error::Validation(format!(
+                "expected a finite non-negative number, got {value}"
             )))
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for NonNegativeF64Wire {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Finite JSON number in the closed interval `[0, 1]`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[serde(transparent)]
+#[schemars(transparent)]
+pub struct ClosedUnitIntervalF64Wire(#[schemars(range(min = 0.0, max = 1.0))] f64);
+
+impl ClosedUnitIntervalF64Wire {
+    /// Return the validated primitive value.
+    pub const fn into_inner(self) -> f64 {
+        self.0
+    }
+}
+
+impl TryFrom<f64> for ClosedUnitIntervalF64Wire {
+    type Error = crate::Error;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.is_finite() && (0.0..=1.0).contains(&value) {
+            Ok(Self(value))
+        } else {
+            Err(crate::Error::Validation(format!(
+                "expected a finite number in [0, 1], got {value}"
+            )))
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ClosedUnitIntervalF64Wire {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
     }
 }
 
@@ -594,19 +673,26 @@ impl OpenUnitIntervalF64Wire {
     }
 }
 
+impl TryFrom<f64> for OpenUnitIntervalF64Wire {
+    type Error = crate::Error;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.is_finite() && value > 0.0 && value < 1.0 {
+            Ok(Self(value))
+        } else {
+            Err(crate::Error::Validation(format!(
+                "expected a finite number strictly between zero and one, got {value}"
+            )))
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for OpenUnitIntervalF64Wire {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let value = f64::deserialize(deserializer)?;
-        if value.is_finite() && value > 0.0 && value < 1.0 {
-            Ok(Self(value))
-        } else {
-            Err(serde::de::Error::custom(format!(
-                "expected a finite number strictly between zero and one, got {value}"
-            )))
-        }
+        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
     }
 }
 
@@ -623,19 +709,26 @@ impl CorrelationWire {
     }
 }
 
+impl TryFrom<f64> for CorrelationWire {
+    type Error = crate::Error;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.is_finite() && (-1.0..=1.0).contains(&value) {
+            Ok(Self(value))
+        } else {
+            Err(crate::Error::Validation(format!(
+                "expected a finite correlation in [-1, 1], got {value}"
+            )))
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for CorrelationWire {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let value = f64::deserialize(deserializer)?;
-        if value.is_finite() && (-1.0..=1.0).contains(&value) {
-            Ok(Self(value))
-        } else {
-            Err(serde::de::Error::custom(format!(
-                "expected a finite correlation in [-1, 1], got {value}"
-            )))
-        }
+        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
     }
 }
 
@@ -652,19 +745,26 @@ impl PercentageQuantityWire {
     }
 }
 
+impl TryFrom<f64> for PercentageQuantityWire {
+    type Error = crate::Error;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.is_finite() && (-100.0..=100.0).contains(&value) {
+            Ok(Self(value))
+        } else {
+            Err(crate::Error::Validation(format!(
+                "expected a finite percentage quantity in [-100, 100], got {value}"
+            )))
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for PercentageQuantityWire {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let value = f64::deserialize(deserializer)?;
-        if value.is_finite() && (-100.0..=100.0).contains(&value) {
-            Ok(Self(value))
-        } else {
-            Err(serde::de::Error::custom(format!(
-                "expected a finite percentage quantity in [-100, 100], got {value}"
-            )))
-        }
+        Self::try_from(f64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
     }
 }
 
@@ -700,6 +800,10 @@ mod tests {
         assert!(serde_json::from_value::<SchemaVersion>(json!(0)).is_err());
         assert!(serde_json::from_value::<SchemaVersion>(json!(2)).is_err());
         assert!(serde_json::from_value::<SchemaVersion>(json!("1")).is_err());
+        assert_eq!(
+            serde_json::to_value(SchemaVersion::CURRENT).expect("serialize v1"),
+            json!(1)
+        );
 
         let schema = serde_json::to_value(schemars::schema_for!(SchemaVersion)).expect("schema");
         assert_eq!(schema["minimum"], 1);
@@ -721,6 +825,10 @@ mod tests {
         for invalid in [json!(0.0), json!(1.0), json!(-0.1), json!(1.1)] {
             assert!(serde_json::from_value::<OpenUnitIntervalF64Wire>(invalid).is_err());
         }
+        for invalid in [json!(-0.1), json!(1.1)] {
+            assert!(serde_json::from_value::<ClosedUnitIntervalF64Wire>(invalid).is_err());
+        }
+        assert!(serde_json::from_value::<NonNegativeF64Wire>(json!(-0.1)).is_err());
         for invalid in [json!(-1.1), json!(1.1)] {
             assert!(serde_json::from_value::<CorrelationWire>(invalid).is_err());
         }
@@ -735,6 +843,14 @@ mod tests {
             .expect("probability schema");
         assert_eq!(probability["exclusiveMinimum"], 0.0);
         assert_eq!(probability["exclusiveMaximum"], 1.0);
+        let closed_probability =
+            serde_json::to_value(schemars::schema_for!(ClosedUnitIntervalF64Wire))
+                .expect("closed probability schema");
+        assert_eq!(closed_probability["minimum"], 0.0);
+        assert_eq!(closed_probability["maximum"], 1.0);
+        let non_negative = serde_json::to_value(schemars::schema_for!(NonNegativeF64Wire))
+            .expect("non-negative schema");
+        assert_eq!(non_negative["minimum"], 0.0);
         let correlation = serde_json::to_value(schemars::schema_for!(CorrelationWire))
             .expect("correlation schema");
         assert_eq!(correlation["minimum"], -1.0);

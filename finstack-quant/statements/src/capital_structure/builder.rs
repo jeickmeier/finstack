@@ -5,14 +5,12 @@
 
 use crate::builder::ModelBuilder;
 use crate::error::Result;
-use crate::types::{CapitalStructureSpec, DebtInstrumentSpec};
+use crate::types::{CapitalStructureSpec, DebtInstrumentSpec, FinancialStatementInstrument};
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;
-use finstack_quant_valuations::instruments::{
-    Bond, FixedLegSpec, FloatLegSpec, InstrumentJson, InterestRateSwap,
-};
+use finstack_quant_valuations::instruments::{Bond, FixedLegSpec, FloatLegSpec, InterestRateSwap};
 use rust_decimal::Decimal;
 
 /// Helper to ensure capital structure exists and return mutable reference.
@@ -37,7 +35,7 @@ fn push_bond(
     id_str: String,
     bond: Bond,
 ) -> crate::error::Result<()> {
-    let spec = InstrumentJson::Bond(bond);
+    let spec = FinancialStatementInstrument::Bond(bond);
     ensure_capital_structure(cs)
         .debt_instruments
         .push(DebtInstrumentSpec { id: id_str, spec });
@@ -50,7 +48,7 @@ fn push_swap(
     id_str: String,
     swap: finstack_quant_valuations::instruments::InterestRateSwap,
 ) -> crate::error::Result<()> {
-    let spec = InstrumentJson::InterestRateSwap(swap);
+    let spec = FinancialStatementInstrument::InterestRateSwap(swap);
     ensure_capital_structure(cs)
         .debt_instruments
         .push(DebtInstrumentSpec { id: id_str, spec });
@@ -470,9 +468,9 @@ impl<State> ModelBuilder<State> {
     /// # Example
     /// ```ignore
     /// use finstack_quant_statements::builder::ModelBuilder;
-    /// use finstack_quant_valuations::instruments::InstrumentJson;
+    /// use finstack_quant_statements::types::FinancialStatementInstrument;
     ///
-    /// # fn instrument() -> InstrumentJson { unimplemented!() }
+    /// # fn instrument() -> FinancialStatementInstrument { unimplemented!() }
     /// let builder = ModelBuilder::new("cs-model").add_debt("RCF-A", instrument());
     /// # let _ = builder;
     /// ```
@@ -480,8 +478,8 @@ impl<State> ModelBuilder<State> {
     /// # Arguments
     ///
     /// * `id` - Unique instrument identifier stored on the capital-structure debt entry
-    /// * `spec` - Typed instrument payload from the canonical valuations registry
-    pub fn add_debt(mut self, id: impl Into<String>, spec: InstrumentJson) -> Self {
+    /// * `spec` - Typed bond, loan, revolver, convertible, swap, cap/floor, or swaption payload
+    pub fn add_debt(mut self, id: impl Into<String>, spec: FinancialStatementInstrument) -> Self {
         ensure_capital_structure(&mut self.capital_structure)
             .debt_instruments
             .push(DebtInstrumentSpec {

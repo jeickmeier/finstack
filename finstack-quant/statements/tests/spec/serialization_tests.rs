@@ -224,7 +224,7 @@ fn financial_model_accepts_explicit_null_optional_capital_structure() {
     let (loaded, report) = FinancialModelSpec::from_slice_strict(&bytes, &LoadLimits::default())
         .expect("null optional capital structure is absent");
 
-    assert_eq!(loaded.schema_version.0, 1);
+    assert_eq!(u32::from(loaded.schema_version), 1);
     assert!(loaded.capital_structure.is_none());
     assert!(report.diagnostics.is_empty());
 }

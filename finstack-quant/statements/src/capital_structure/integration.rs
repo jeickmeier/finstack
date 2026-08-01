@@ -41,7 +41,9 @@ use std::sync::Arc;
 pub fn build_instrument_from_spec(
     spec: &crate::types::DebtInstrumentSpec,
 ) -> Result<Arc<dyn CashflowProvider + Send + Sync>> {
-    spec.spec.clone().into_cashflow_provider().map_err(|e| {
+    let instrument: finstack_quant_valuations::instruments::InstrumentJson =
+        spec.spec.clone().into();
+    instrument.into_cashflow_provider().map_err(|e| {
         crate::error::Error::build(format!(
             "Failed to build debt instrument '{}': {e}",
             spec.id

@@ -223,7 +223,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "ndf": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -283,7 +283,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/ndf"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

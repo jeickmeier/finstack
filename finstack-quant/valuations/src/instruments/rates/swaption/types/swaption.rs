@@ -259,6 +259,9 @@ impl Swaption {
 
         self.underlying_fixed_leg.validate()?;
         self.underlying_float_leg.validate()?;
+        if let Some(parameters) = &self.sabr_params {
+            parameters.validate()?;
+        }
         if self.underlying_fixed_leg.start != self.underlying_float_leg.start
             || self.underlying_fixed_leg.end != self.underlying_float_leg.end
         {

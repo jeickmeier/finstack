@@ -169,7 +169,7 @@
       "format": "double",
       "type": "number"
     },
-    "SingleInstrumentJson": {
+    "commodity_asian_option": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -231,7 +231,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/commodity_asian_option"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

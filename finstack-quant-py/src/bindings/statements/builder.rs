@@ -12,7 +12,7 @@ use crate::errors::{core_to_py, serde_json_to_py, statements_to_py};
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_core::money::fx::FxConversionPolicy;
 use finstack_quant_statements::builder::{MixedNodeBuilder, ModelBuilder};
-use finstack_quant_statements::types::AmountOrScalar;
+use finstack_quant_statements::types::{AmountOrScalar, FinancialStatementInstrument};
 use pyo3::prelude::*;
 
 /// Validate a formula the same way `ModelBuilder::compute` / `formula` do,
@@ -506,9 +506,10 @@ impl PyModelBuilder {
 
     /// Add a debt instrument from its canonical v1 instrument envelope.
     ///
-    /// Use this for term loans, RCFs, or any instrument not covered by the
-    /// convenience constructors. The payload is parsed into the canonical
-    /// Rust instrument enum before it is added to the model.
+    /// Use this for supported capital-structure instruments not covered by the
+    /// convenience constructors: bonds, convertible bonds, term loans, RCFs,
+    /// interest-rate swaps, caps/floors, and swaptions. The envelope is parsed
+    /// and narrowed by the canonical Rust contract before it is added.
     ///
     /// Parameters
     /// ----------
@@ -521,6 +522,7 @@ impl PyModelBuilder {
     fn add_debt(&mut self, id: &str, spec_json: &str) -> PyResult<()> {
         let spec = finstack_quant_valuations::pricer::json::parse_instrument_json(spec_json)
             .map_err(core_to_py)?;
+        let spec = FinancialStatementInstrument::try_from(spec).map_err(statements_to_py)?;
         let state = self.take_any()?;
         let next = match state {
             BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(b.add_debt(id, spec)),

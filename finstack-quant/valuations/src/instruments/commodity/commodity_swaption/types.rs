@@ -104,12 +104,14 @@ pub struct CommoditySwaption {
     pub swap_frequency: Tenor,
     /// Fixed price (strike) of the underlying swap.
     #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
         deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub fixed_price: f64,
     /// Notional quantity per period.
     #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
         deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]

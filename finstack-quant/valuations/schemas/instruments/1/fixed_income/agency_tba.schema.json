@@ -342,27 +342,6 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/AgencyTba"
-            },
-            "type": {
-              "const": "agency_tba",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "TbaTerm": {
       "description": "TBA term enumeration (original loan term).",
       "oneOf": [
@@ -380,6 +359,27 @@
           "const": "thirty_year",
           "description": "30-year original term",
           "type": "string"
+        }
+      ]
+    },
+    "agency_tba": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/AgencyTba"
+            },
+            "type": {
+              "const": "agency_tba",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
         }
       ]
     }
@@ -421,7 +421,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/agency_tba"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

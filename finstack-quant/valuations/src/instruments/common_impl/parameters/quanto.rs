@@ -10,6 +10,7 @@ pub struct QuantoSpec {
     /// Correlation between the underlying asset and the FX rate.
     /// Must be in [-1, 1].
     #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_correlation",
         deserialize_with = "crate::instruments::common_impl::numeric::deserialize_correlation"
     )]
     #[schemars(with = "finstack_quant_core::wire::CorrelationWire")]

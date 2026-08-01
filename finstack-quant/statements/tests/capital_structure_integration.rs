@@ -11,14 +11,13 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_statements::capital_structure::aggregate_instrument_cashflows;
 use finstack_quant_statements::capital_structure::build_instrument_from_spec;
-use finstack_quant_statements::types::CapitalStructureSpec;
-use finstack_quant_statements::types::DebtInstrumentSpec;
+use finstack_quant_statements::types::{
+    CapitalStructureSpec, DebtInstrumentSpec, FinancialStatementInstrument,
+};
 use finstack_quant_valuations::instruments::rates::irs::{
     FloatingLegCompounding, InterestRateSwap,
 };
-use finstack_quant_valuations::instruments::{
-    fixed_income::bond::Bond, InstrumentJson, PayReceive,
-};
+use finstack_quant_valuations::instruments::{fixed_income::bond::Bond, PayReceive};
 use finstack_quant_valuations::instruments::{FixedLegSpec, FloatLegSpec};
 use rust_decimal::Decimal;
 use time::Month;
@@ -99,7 +98,7 @@ fn test_build_instrument_from_bond_spec() {
 
     let spec = DebtInstrumentSpec {
         id: "BOND-001".to_string(),
-        spec: InstrumentJson::Bond(bond),
+        spec: FinancialStatementInstrument::Bond(bond),
     };
 
     let instrument = build_instrument_from_spec(&spec).expect("bond should build");
@@ -121,7 +120,7 @@ fn test_build_instrument_from_swap_spec() {
 
     let spec = DebtInstrumentSpec {
         id: "SWAP-001".to_string(),
-        spec: InstrumentJson::InterestRateSwap(swap),
+        spec: FinancialStatementInstrument::InterestRateSwap(swap),
     };
 
     let instrument = build_instrument_from_spec(&spec).expect("swap should build");
@@ -215,7 +214,7 @@ fn test_capital_structure_builds_revolving_credit() {
     let rcf = RevolvingCredit::example().expect("example RevolvingCredit");
     let spec = DebtInstrumentSpec {
         id: "RCF-001".to_string(),
-        spec: InstrumentJson::RevolvingCredit(rcf),
+        spec: FinancialStatementInstrument::RevolvingCredit(rcf),
     };
 
     build_instrument_from_spec(&spec)

@@ -143,7 +143,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "forward_rate_agreement": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -196,7 +196,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/forward_rate_agreement"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

@@ -223,7 +223,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "fx_variance_swap": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -292,7 +292,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/fx_variance_swap"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

@@ -106,7 +106,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "fx_spot": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -158,7 +158,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/fx_spot"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

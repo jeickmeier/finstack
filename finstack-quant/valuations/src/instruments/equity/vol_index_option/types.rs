@@ -160,6 +160,7 @@ pub struct VolatilityIndexOption {
 
 /// Contract specifications for volatility index options.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct VolIndexOptionSpecs {
     /// Contract multiplier (USD per index point).
     /// VIX options standard: 100 (each point = $100)

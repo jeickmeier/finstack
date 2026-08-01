@@ -188,7 +188,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "agency_mbs_passthrough": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -264,7 +264,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/agency_mbs_passthrough"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

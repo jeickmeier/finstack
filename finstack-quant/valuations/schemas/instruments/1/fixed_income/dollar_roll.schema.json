@@ -212,27 +212,6 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/DollarRoll"
-            },
-            "type": {
-              "const": "dollar_roll",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "TbaTerm": {
       "description": "TBA term enumeration (original loan term).",
       "oneOf": [
@@ -250,6 +229,27 @@
           "const": "thirty_year",
           "description": "30-year original term",
           "type": "string"
+        }
+      ]
+    },
+    "dollar_roll": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/DollarRoll"
+            },
+            "type": {
+              "const": "dollar_roll",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
         }
       ]
     }
@@ -294,7 +294,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/dollar_roll"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

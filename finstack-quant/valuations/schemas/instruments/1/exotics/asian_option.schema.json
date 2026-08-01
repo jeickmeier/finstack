@@ -160,7 +160,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "asian_option": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -223,7 +223,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/asian_option"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

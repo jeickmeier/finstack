@@ -291,6 +291,7 @@ impl FloatLegSpec {
 /// Each leg owns its own dates, discount curve, schedule conventions, and calendar,
 /// following the IRS leg-centric pattern used by `FixedLegSpec` and `FloatLegSpec`.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct BasisSwapLeg {
     /// Forward curve identifier for this leg
     pub forward_curve_id: CurveId,

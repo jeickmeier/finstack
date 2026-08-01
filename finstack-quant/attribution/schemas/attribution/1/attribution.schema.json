@@ -2491,6 +2491,7 @@
       "type": "object"
     },
     "BasisSwapLeg": {
+      "additionalProperties": false,
       "description": "Specification for basis swap legs (floating vs floating)\n\nA basis swap leg represents one side of a floating-for-floating interest rate swap,\nwhere two parties exchange payments linked to different floating rate indices\n(e.g., 3M SOFR vs 6M SOFR).\n\nEach leg owns its own dates, discount curve, schedule conventions, and calendar,\nfollowing the IRS leg-centric pattern used by `FixedLegSpec` and `FloatLegSpec`.",
       "properties": {
         "business_day_convention": {
@@ -3026,6 +3027,7 @@
           "items": {
             "$ref": "#/$defs/DeliverableBond"
           },
+          "minItems": 1,
           "type": "array"
         },
         "delivery_end": {
@@ -3065,9 +3067,8 @@
           "description": "Position side (Long or Short)"
         },
         "quoted_price": {
-          "description": "Contract/entry futures price (e.g., 125.50 for 125-16/32).\n\n`base_value` returns model-minus-contract value for a long position.\nCurrent-settlement variation margin is a separate cash-P&L workflow.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/NonNegativeF64Wire",
+          "description": "Contract/entry futures price (e.g., 125.50 for 125-16/32).\n\n`base_value` returns model-minus-contract value for a long position.\nCurrent-settlement variation margin is a separate cash-P&L workflow."
         },
         "repo_curve_id": {
           "anyOf": [
@@ -4246,6 +4247,7 @@
       ]
     },
     "CallPut": {
+      "additionalProperties": false,
       "description": "Call or put option on a bond.\n\nRepresents a single call or put option with an exercise period and redemption price.\nCall options allow the issuer to redeem early; put options allow the holder to redeem early.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::fixed_income::bond::CallPut;\nuse finstack_quant_core::dates::Date;\nuse time::Month;\n\n// Discrete call option: issuer can redeem at 102% of par on Jan 1, 2027\nlet call = CallPut {\n    start_date: Date::from_calendar_date(2027, Month::January, 1).unwrap(),\n    end_date: Date::from_calendar_date(2027, Month::January, 1).unwrap(),\n    price_pct_of_par: 102.0,\n    make_whole: None,\n};\n```",
       "properties": {
         "end_date": {
@@ -4281,6 +4283,7 @@
       "type": "object"
     },
     "CallPutSchedule": {
+      "additionalProperties": false,
       "description": "Schedule of call and put options for a bond.\n\nContains lists of call and put options that can be exercised during the bond's life.\nUsed for pricing callable/putable bonds and calculating yield-to-worst.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::fixed_income::bond::{CallPut, CallPutSchedule};\nuse finstack_quant_core::dates::Date;\nuse time::Month;\n\nlet mut schedule = CallPutSchedule::default();\nschedule.calls.push(CallPut {\n    start_date: Date::from_calendar_date(2027, Month::January, 1).unwrap(),\n    end_date: Date::from_calendar_date(2027, Month::January, 1).unwrap(),\n    price_pct_of_par: 102.0,\n    make_whole: None,\n});\n```",
       "properties": {
         "calls": {
@@ -5135,7 +5138,15 @@
         }
       ]
     },
+    "ClosedUnitIntervalF64Wire": {
+      "description": "Finite JSON number in the closed interval `[0, 1]`.",
+      "format": "double",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "type": "number"
+    },
     "CmoTranche": {
+      "additionalProperties": false,
       "description": "CMO tranche definition.",
       "properties": {
         "coupon": {
@@ -5223,6 +5234,7 @@
       ]
     },
     "CmoWaterfall": {
+      "additionalProperties": false,
       "description": "CMO waterfall configuration.",
       "properties": {
         "pro_rata_same_priority": {
@@ -10158,6 +10170,7 @@
       ]
     },
     "DeliverableBond": {
+      "additionalProperties": false,
       "description": "A bond in the deliverable basket with its conversion factor.\n\nEach bond future contract has a basket of deliverable bonds that can be delivered\nto satisfy the contract. The conversion factor normalizes bonds with different\ncoupons and maturities to a standard notional bond.\n\n# Conversion Factor Requirements\n\n**IMPORTANT**: Conversion factors must match the values published by the exchange\n(CME for UST, Eurex for Bund, ICE for Gilt). The implementation does **not**\ncalculate CFs internally - they must be sourced from official exchange publications.\n\nThe CF calculation formula (using 6% notional yield for UST/Bund, 4% for Gilt)\nis documented in exchange rulebooks:\n- **CME**: CBOT US Treasury Futures Contract Specifications\n- **Eurex**: Euro-Bund Futures Contract Specifications\n- **ICE**: Long Gilt Futures Contract Specifications\n\nUsing incorrect CFs will result in material pricing errors for invoice price,\nCTD determination, and basis calculations.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::fixed_income::bond_future::DeliverableBond;\nuse finstack_quant_core::types::InstrumentId;\n\n// CF from CME publication for a specific deliverable bond\nlet deliverable = DeliverableBond {\n    bond_id: InstrumentId::new(\"US912828XG33\"),\n    conversion_factor: 0.8234,  // Must match CME-published value\n};\n```",
       "properties": {
         "bond_id": {
@@ -10165,9 +10178,8 @@
           "description": "Identifier of the deliverable bond"
         },
         "conversion_factor": {
-          "description": "Conversion factor for this bond.\n\n**Must match exchange-published value**. CFs are not calculated internally.\nSee struct-level documentation for exchange references.",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Conversion factor for this bond.\n\n**Must match exchange-published value**. CFs are not calculated internally.\nSee struct-level documentation for exchange references."
         }
       },
       "required": [
@@ -10360,6 +10372,7 @@
       ]
     },
     "DilutionEvent": {
+      "additionalProperties": false,
       "description": "A dilutive event that triggers anti-dilution adjustment.\n\nRecords details of an equity issuance or corporate action that may\naffect the conversion ratio under the bond's anti-dilution provisions.",
       "properties": {
         "date": {
@@ -10391,6 +10404,7 @@
       "type": "object"
     },
     "DilutionSecurity": {
+      "additionalProperties": false,
       "description": "A dilutive security for the treasury stock method.\n\nUsed to compute diluted shares outstanding from options, warrants,\nRSUs, or convertible instruments.",
       "properties": {
         "exercise_price": {
@@ -10845,6 +10859,7 @@
       "type": "object"
     },
     "DrawRepayEvent": {
+      "additionalProperties": false,
       "description": "A single draw or repayment event.",
       "properties": {
         "amount": {
@@ -11100,6 +11115,7 @@
       "type": "object"
     },
     "EquityBridge": {
+      "additionalProperties": false,
       "description": "Structured equity bridge for converting Enterprise Value to Equity Value.\n\nStandard professional bridge:\n```text\nEquity = EV - Total Debt + Cash - Preferred Equity - Minority Interest\n         + Non-Operating Assets + Σ(other adjustments)\n```\n\nWhen attached to a [`DiscountedCashFlow`], this takes precedence over the\nflat `net_debt` scalar.",
       "properties": {
         "cash": {
@@ -11154,6 +11170,7 @@
       "type": "object"
     },
     "EquityFutureSpecs": {
+      "additionalProperties": false,
       "description": "Contract specifications for equity index futures.\n\nContains exchange-specific contract parameters such as multiplier,\ntick size, and settlement method.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::equity::equity_index_future::EquityFutureSpecs;\n\n// E-mini S&P 500 specifications\nlet es_specs = EquityFutureSpecs::sp500_emini();\nassert_eq!(es_specs.multiplier, 50.0);\nassert_eq!(es_specs.tick_size, 0.25);\nassert_eq!(es_specs.tick_value, 12.50);\n```",
       "properties": {
         "multiplier": {
@@ -13095,6 +13112,7 @@
       ]
     },
     "FutureContractSpecs": {
+      "additionalProperties": false,
       "description": "Contract specifications for interest rate futures.\n\nEncapsulates exchange-defined contract parameters and optional convexity\nadjustment for pricing.",
       "properties": {
         "convexity_adjustment": {
@@ -16508,7 +16526,7 @@
           "additionalProperties": false,
           "description": "Hull-White 1-factor model for short rate.\n\nModels short rate as: dr_t = κ[θ(t) - r_t]dt + σ dW_t",
           "properties": {
-            "hull_white1_f": {
+            "hull_white_1f": {
               "properties": {
                 "initial": {
                   "description": "Initial short rate used only when `sigma == 0`. For a stochastic\nprocess, the pricer derives the initial rate from the facility's\ndiscount curve at the valuation anchor.",
@@ -16541,7 +16559,7 @@
             }
           },
           "required": [
-            "hull_white1_f"
+            "hull_white_1f"
           ],
           "type": "object"
         }
@@ -19051,6 +19069,12 @@
         }
       ]
     },
+    "NonNegativeF64Wire": {
+      "description": "Finite JSON number greater than or equal to zero.",
+      "format": "double",
+      "minimum": 0.0,
+      "type": "number"
+    },
     "Notional": {
       "additionalProperties": false,
       "description": "Notional amount with an optional amortisation rule.\n\nCombines initial principal with amortization behavior for complete\nnotional lifecycle management.",
@@ -19552,6 +19576,7 @@
       "type": "object"
     },
     "PacCollar": {
+      "additionalProperties": false,
       "description": "PAC collar boundaries.",
       "properties": {
         "lower_psa": {
@@ -22512,6 +22537,7 @@
       "type": "object"
     },
     "RevolvingCreditFees": {
+      "additionalProperties": false,
       "description": "Fee structure for a revolving credit facility.\n\nContains the various fees charged on the facility:\n- Upfront: one-time fee at commitment\n- Commitment: annual fee on undrawn amount (can be tiered by utilization)\n- Usage: annual fee on drawn amount (can be tiered by utilization)\n- Facility: annual fee on total commitment\n\nFlat fees can be represented as single-tier vectors.",
       "properties": {
         "commitment_fee_tiers": {
@@ -22658,35 +22684,35 @@
       ]
     },
     "SABRParameters": {
+      "additionalProperties": false,
       "description": "SABR model parameters",
       "properties": {
         "alpha": {
-          "description": "Initial volatility (alpha)",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Initial volatility (alpha)"
         },
         "beta": {
-          "description": "CEV exponent (beta) - typically 0 to 1",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/ClosedUnitIntervalF64Wire",
+          "description": "CEV exponent (beta) - typically 0 to 1"
         },
         "nu": {
-          "description": "Volatility of volatility (nu/volvol)",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/NonNegativeF64Wire",
+          "description": "Volatility of volatility (nu/volvol)"
         },
         "rho": {
-          "description": "Correlation between asset and volatility (rho)",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/CorrelationWire",
+          "description": "Correlation between asset and volatility (rho)"
         },
         "shift": {
-          "description": "Shift parameter for handling negative rates (optional)",
-          "format": "double",
-          "type": [
-            "number",
-            "null"
-          ]
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PositiveF64Wire"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Shift parameter for handling negative rates (optional)"
         }
       },
       "required": [
@@ -23134,6 +23160,7 @@
       ]
     },
     "SoftCallTrigger": {
+      "additionalProperties": false,
       "description": "Soft-call trigger condition for convertible bonds.\n\nA soft call allows the issuer to call the bond only if the underlying stock\nprice has been trading above a threshold (typically 130% of the conversion\nprice) for a sustained period. This protects holders from having their\nconversion option terminated when the stock is only marginally above parity.\n\n# Industry Practice\n\nThe standard soft-call trigger is:\n- **Threshold**: 130% of conversion price (most common)\n- **Observation period**: 20 of 30 consecutive trading days\n\nSome issuances use 120% or 150% thresholds.",
       "properties": {
         "observation_days": {
@@ -25151,6 +25178,7 @@
       ]
     },
     "TrancheStructure": {
+      "additionalProperties": false,
       "description": "Collection of tranches forming the capital structure",
       "properties": {
         "total_size": {
@@ -25314,6 +25342,7 @@
       ]
     },
     "ValuationDiscounts": {
+      "additionalProperties": false,
       "description": "Valuation discounts for private company equity.\n\nApplied multiplicatively after the equity bridge:\n```text\nFMV = Equity Value × (1 - DLOC) × (1 - DLOM) × (1 - other_discount)\n```\n\nThe enterprise value reported by a DCF remains pre-discount. When discounts\nare present, `enterprise_value - net_debt` reconciles to pre-discount\nequity value, not to the discounted fair-market equity value.",
       "properties": {
         "dloc": {
@@ -25618,6 +25647,7 @@
       "type": "object"
     },
     "VolIndexContractSpecs": {
+      "additionalProperties": false,
       "description": "Contract specifications for volatility index futures.\n\nVIX futures have standardized specifications set by CBOE:\n- Standard multiplier: $1,000 per index point\n- Minimum tick: 0.05 index points ($50)\n- Weekly and monthly expiries available",
       "properties": {
         "index_id": {
@@ -25649,6 +25679,7 @@
       "type": "object"
     },
     "VolIndexOptionSpecs": {
+      "additionalProperties": false,
       "description": "Contract specifications for volatility index options.",
       "properties": {
         "index_id": {

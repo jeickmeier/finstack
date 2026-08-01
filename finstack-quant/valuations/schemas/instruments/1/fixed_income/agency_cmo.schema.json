@@ -253,6 +253,7 @@
       ]
     },
     "CmoTranche": {
+      "additionalProperties": false,
       "description": "CMO tranche definition.",
       "properties": {
         "coupon": {
@@ -340,6 +341,7 @@
       ]
     },
     "CmoWaterfall": {
+      "additionalProperties": false,
       "description": "CMO waterfall configuration.",
       "properties": {
         "pro_rata_same_priority": {
@@ -371,6 +373,7 @@
       ]
     },
     "PacCollar": {
+      "additionalProperties": false,
       "description": "PAC collar boundaries.",
       "properties": {
         "lower_psa": {
@@ -405,7 +408,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "agency_cmo": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -507,7 +510,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/agency_cmo"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

@@ -321,7 +321,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "cms_swap": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -409,7 +409,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/cms_swap"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

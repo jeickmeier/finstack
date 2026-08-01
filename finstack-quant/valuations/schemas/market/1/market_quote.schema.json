@@ -945,7 +945,7 @@
         {
           "description": "Year-on-year (YoY) inflation swap quote.",
           "properties": {
-            "yo_y_inflation_swap": {
+            "yoy_inflation_swap": {
               "additionalProperties": false,
               "properties": {
                 "convention": {
@@ -986,7 +986,7 @@
             }
           },
           "required": [
-            "yo_y_inflation_swap"
+            "yoy_inflation_swap"
           ],
           "type": "object"
         }

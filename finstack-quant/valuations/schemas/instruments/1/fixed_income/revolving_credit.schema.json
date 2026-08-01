@@ -145,6 +145,7 @@
       ]
     },
     "DrawRepayEvent": {
+      "additionalProperties": false,
       "description": "A single draw or repayment event.",
       "properties": {
         "amount": {
@@ -402,7 +403,7 @@
           "additionalProperties": false,
           "description": "Hull-White 1-factor model for short rate.\n\nModels short rate as: dr_t = κ[θ(t) - r_t]dt + σ dW_t",
           "properties": {
-            "hull_white1_f": {
+            "hull_white_1f": {
               "properties": {
                 "initial": {
                   "description": "Initial short rate used only when `sigma == 0`. For a stochastic\nprocess, the pricer derives the initial rate from the facility's\ndiscount curve at the valuation anchor.",
@@ -435,7 +436,7 @@
             }
           },
           "required": [
-            "hull_white1_f"
+            "hull_white_1f"
           ],
           "type": "object"
         }
@@ -709,6 +710,7 @@
       "type": "object"
     },
     "RevolvingCreditFees": {
+      "additionalProperties": false,
       "description": "Fee structure for a revolving credit facility.\n\nContains the various fees charged on the facility:\n- Upfront: one-time fee at commitment\n- Commitment: annual fee on undrawn amount (can be tiered by utilization)\n- Usage: annual fee on drawn amount (can be tiered by utilization)\n- Facility: annual fee on total commitment\n\nFlat fees can be represented as single-tier vectors.",
       "properties": {
         "commitment_fee_tiers": {
@@ -748,27 +750,6 @@
         "facility_fee_bp"
       ],
       "type": "object"
-    },
-    "SingleInstrumentJson": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/RevolvingCredit"
-            },
-            "type": {
-              "const": "revolving_credit",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        }
-      ]
     },
     "StochasticUtilizationSpec": {
       "additionalProperties": false,
@@ -890,6 +871,27 @@
           "type": "object"
         }
       ]
+    },
+    "revolving_credit": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/RevolvingCredit"
+            },
+            "type": {
+              "const": "revolving_credit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/revolving_credit.schema.json",
@@ -983,7 +985,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/revolving_credit"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

@@ -45,28 +45,8 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/VolatilityIndexOption"
-            },
-            "type": {
-              "const": "volatility_index_option",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "VolIndexOptionSpecs": {
+      "additionalProperties": false,
       "description": "Contract specifications for volatility index options.",
       "properties": {
         "index_id": {
@@ -179,6 +159,27 @@
         "vol_of_vol_surface_id"
       ],
       "type": "object"
+    },
+    "volatility_index_option": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/VolatilityIndexOption"
+            },
+            "type": {
+              "const": "volatility_index_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/volatility_index_option.schema.json",
@@ -215,7 +216,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/volatility_index_option"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

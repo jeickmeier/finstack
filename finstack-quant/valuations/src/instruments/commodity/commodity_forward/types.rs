@@ -100,6 +100,7 @@ pub struct CommodityForward {
     pub underlying: CommodityUnderlyingParams,
     /// Contract quantity in units.
     #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
         deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
@@ -107,6 +108,7 @@ pub struct CommodityForward {
     /// Contract multiplier (typically 1.0 for OTC forwards, defaults to 1.0).
     #[serde(
         default = "crate::serde_defaults::multiplier_one",
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
         deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
     )]
     #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]

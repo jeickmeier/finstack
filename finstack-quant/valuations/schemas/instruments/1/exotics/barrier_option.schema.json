@@ -210,7 +210,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "barrier_option": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -274,7 +274,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/barrier_option"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

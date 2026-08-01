@@ -57,6 +57,7 @@ impl std::fmt::Display for CmoTrancheType {
 
 /// PAC collar boundaries.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PacCollar {
     /// Lower PSA bound
     pub lower_psa: f64,
@@ -81,6 +82,7 @@ impl PacCollar {
 
 /// CMO tranche definition.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CmoTranche {
     /// Tranche identifier (e.g., "A", "B", "IO")
     pub id: String,
@@ -220,6 +222,7 @@ impl CmoTranche {
 
 /// CMO waterfall configuration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CmoWaterfall {
     /// Tranches in the deal (ordered by priority for sequential)
     pub tranches: Vec<CmoTranche>,

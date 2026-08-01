@@ -102,7 +102,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "deposit": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -154,7 +154,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/deposit"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

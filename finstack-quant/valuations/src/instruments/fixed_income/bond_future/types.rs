@@ -32,11 +32,69 @@ impl From<RepoDayCountWire> for DayCount {
     }
 }
 
-fn deserialize_repo_day_count<'de, D>(deserializer: D) -> std::result::Result<DayCount, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    <RepoDayCountWire as serde::Deserialize>::deserialize(deserializer).map(Into::into)
+impl TryFrom<DayCount> for RepoDayCountWire {
+    type Error = finstack_quant_core::Error;
+
+    fn try_from(value: DayCount) -> Result<Self, Self::Error> {
+        match value {
+            DayCount::Act360 => Ok(Self::Act360),
+            DayCount::Act365F => Ok(Self::Act365F),
+            unsupported => Err(finstack_quant_core::Error::Validation(format!(
+                "bond-future repo_day_count must be act_360 or act_365f, got {unsupported:?}"
+            ))),
+        }
+    }
+}
+
+mod repo_day_count_wire {
+    use super::{DayCount, RepoDayCountWire};
+    use serde::{Deserialize, Serialize};
+
+    pub(super) fn serialize<S>(value: &DayCount, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        RepoDayCountWire::try_from(*value)
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D>(deserializer: D) -> Result<DayCount, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        RepoDayCountWire::deserialize(deserializer).map(Into::into)
+    }
+}
+
+mod deliverable_basket_wire {
+    use super::DeliverableBond;
+    use serde::{Deserialize, Serialize};
+
+    pub(super) fn serialize<S>(value: &[DeliverableBond], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if value.is_empty() {
+            return Err(serde::ser::Error::custom(
+                "deliverable_basket cannot be empty",
+            ));
+        }
+        value.serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D>(deserializer: D) -> Result<Vec<DeliverableBond>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = Vec::<DeliverableBond>::deserialize(deserializer)?;
+        if value.is_empty() {
+            return Err(serde::de::Error::custom(
+                "deliverable_basket cannot be empty",
+            ));
+        }
+        Ok(value)
+    }
 }
 
 /// A bond in the deliverable basket with its conversion factor.
@@ -73,6 +131,7 @@ where
 /// };
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DeliverableBond {
     /// Identifier of the deliverable bond
     pub bond_id: InstrumentId,
@@ -80,6 +139,11 @@ pub struct DeliverableBond {
     ///
     /// **Must match exchange-published value**. CFs are not calculated internally.
     /// See struct-level documentation for exchange references.
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub conversion_factor: f64,
 }
 
@@ -123,10 +187,7 @@ pub struct BondFutureSpecs {
     /// Day-count convention for implied repo rate annualization.
     ///
     /// Bond-future repo supports `act_360` and `act_365f`.
-    #[serde(
-        default = "default_repo_day_count",
-        deserialize_with = "deserialize_repo_day_count"
-    )]
+    #[serde(default = "default_repo_day_count", with = "repo_day_count_wire")]
     #[schemars(with = "RepoDayCountWire")]
     pub repo_day_count: DayCount,
 }
@@ -430,6 +491,11 @@ pub struct BondFuture {
     ///
     /// `base_value` returns model-minus-contract value for a long position.
     /// Current-settlement variation margin is a separate cash-P&L workflow.
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_non_negative_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_non_negative_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::NonNegativeF64Wire")]
     pub quoted_price: f64,
 
     /// Position side (Long or Short)
@@ -439,6 +505,9 @@ pub struct BondFuture {
     pub contract_specs: BondFutureSpecs,
 
     /// Basket of deliverable bonds with conversion factors
+    #[serde(with = "deliverable_basket_wire")]
+    #[schemars(with = "Vec<DeliverableBond>")]
+    #[schemars(length(min = 1))]
     pub deliverable_basket: Vec<DeliverableBond>,
 
     /// Cheapest-to-Deliver (CTD) bond identifier.

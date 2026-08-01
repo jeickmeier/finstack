@@ -281,7 +281,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "real_estate_asset": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -351,7 +351,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/real_estate_asset"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

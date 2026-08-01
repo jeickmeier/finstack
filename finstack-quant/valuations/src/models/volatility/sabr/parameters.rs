@@ -4,16 +4,45 @@ use finstack_quant_core::{Error, Result};
 
 /// SABR model parameters
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(deny_unknown_fields)]
 pub struct SABRParameters {
     /// Initial volatility (alpha)
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub alpha: f64,
     /// CEV exponent (beta) - typically 0 to 1
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_closed_unit_interval_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_closed_unit_interval_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::ClosedUnitIntervalF64Wire")]
     pub beta: f64,
     /// Volatility of volatility (nu/volvol)
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_non_negative_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_non_negative_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::NonNegativeF64Wire")]
     pub nu: f64,
     /// Correlation between asset and volatility (rho)
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_correlation",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_correlation"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::CorrelationWire")]
     pub rho: f64,
     /// Shift parameter for handling negative rates (optional)
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_optional_positive_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_optional_positive_f64"
+    )]
+    #[schemars(with = "Option<finstack_quant_core::wire::PositiveF64Wire>")]
     pub shift: Option<f64>,
 }
 
@@ -26,39 +55,56 @@ impl SABRParameters {
     /// - ν (nu) ≥ 0: Volatility of volatility must be non-negative
     /// - ρ (rho) ∈ [-1, 1]: Correlation must be valid
     pub fn new(alpha: f64, beta: f64, nu: f64, rho: f64) -> Result<Self> {
-        // Validate parameters with descriptive error messages
-        if alpha <= 0.0 {
-            return Err(Error::Validation(format!(
-                "SABR parameter α (alpha) must be positive, got: {:.6}",
-                alpha
-            )));
-        }
-        if !(0.0..=1.0).contains(&beta) {
-            return Err(Error::Validation(format!(
-                "SABR parameter β (beta) must be in [0, 1], got: {:.6}",
-                beta
-            )));
-        }
-        if nu < 0.0 {
-            return Err(Error::Validation(format!(
-                "SABR parameter ν (nu) must be non-negative, got: {:.6}",
-                nu
-            )));
-        }
-        if !(-1.0..=1.0).contains(&rho) {
-            return Err(Error::Validation(format!(
-                "SABR parameter ρ (rho) must be in [-1, 1], got: {:.6}",
-                rho
-            )));
-        }
-
-        Ok(Self {
+        let parameters = Self {
             alpha,
             beta,
             nu,
             rho,
             shift: None,
-        })
+        };
+        parameters.validate()?;
+        Ok(parameters)
+    }
+
+    /// Validate the complete SABR parameter set.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Validation`] when any parameter is non-finite or lies
+    /// outside its market-standard range, including a non-positive shift.
+    pub fn validate(&self) -> Result<()> {
+        if !self.alpha.is_finite() || self.alpha <= 0.0 {
+            return Err(Error::Validation(format!(
+                "SABR parameter α (alpha) must be positive, got: {:.6}",
+                self.alpha
+            )));
+        }
+        if !self.beta.is_finite() || !(0.0..=1.0).contains(&self.beta) {
+            return Err(Error::Validation(format!(
+                "SABR parameter β (beta) must be in [0, 1], got: {:.6}",
+                self.beta
+            )));
+        }
+        if !self.nu.is_finite() || self.nu < 0.0 {
+            return Err(Error::Validation(format!(
+                "SABR parameter ν (nu) must be non-negative, got: {:.6}",
+                self.nu
+            )));
+        }
+        if !self.rho.is_finite() || !(-1.0..=1.0).contains(&self.rho) {
+            return Err(Error::Validation(format!(
+                "SABR parameter ρ (rho) must be in [-1, 1], got: {:.6}",
+                self.rho
+            )));
+        }
+        if let Some(shift) = self.shift {
+            if !shift.is_finite() || shift <= 0.0 {
+                return Err(Error::Validation(format!(
+                    "SABR shift parameter must be positive for negative rate support, got: {shift:.6}"
+                )));
+            }
+        }
+        Ok(())
     }
 
     /// Equity market standard (beta = 1.0).
@@ -92,18 +138,9 @@ impl SABRParameters {
     /// * `rho` - Instantaneous correlation between Brownian drivers, in `[-1, 1]`
     /// * `shift` - Displacement shift applied to forward/strike for negative-rate SABR
     pub fn new_with_shift(alpha: f64, beta: f64, nu: f64, rho: f64, shift: f64) -> Result<Self> {
-        // Validate base parameters via new(), then set shift
         let mut params = Self::new(alpha, beta, nu, rho)?;
-
-        // Shift should be positive to handle negative rates
-        if shift <= 0.0 {
-            return Err(Error::Validation(format!(
-                "SABR shift parameter must be positive for negative rate support, got: {:.6}",
-                shift
-            )));
-        }
-
         params.shift = Some(shift);
+        params.validate()?;
         Ok(params)
     }
 
@@ -177,5 +214,65 @@ impl SABRParameters {
     /// Check if this is a shifted SABR model
     pub fn is_shifted(&self) -> bool {
         self.shift.is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn serde_and_validation_reject_the_same_invalid_parameters() {
+        let invalid = [
+            SABRParameters {
+                alpha: -0.1,
+                ..SABRParameters::rates_default()
+            },
+            SABRParameters {
+                beta: 1.1,
+                ..SABRParameters::rates_default()
+            },
+            SABRParameters {
+                nu: -0.1,
+                ..SABRParameters::rates_default()
+            },
+            SABRParameters {
+                rho: 1.1,
+                ..SABRParameters::rates_default()
+            },
+            SABRParameters {
+                shift: Some(0.0),
+                ..SABRParameters::rates_default()
+            },
+        ];
+        for parameters in invalid {
+            assert!(parameters.validate().is_err());
+            assert!(serde_json::to_value(parameters).is_err());
+        }
+
+        for value in [
+            json!({"alpha": -0.1, "beta": 0.5, "nu": 0.3, "rho": 0.0}),
+            json!({"alpha": 0.02, "beta": 1.1, "nu": 0.3, "rho": 0.0}),
+            json!({"alpha": 0.02, "beta": 0.5, "nu": -0.1, "rho": 0.0}),
+            json!({"alpha": 0.02, "beta": 0.5, "nu": 0.3, "rho": 1.1}),
+            json!({"alpha": 0.02, "beta": 0.5, "nu": 0.3, "rho": 0.0, "shift": 0.0}),
+            json!({"alpha": 0.02, "beta": 0.5, "nu": 0.3, "rho": 0.0, "extra": true}),
+        ] {
+            assert!(serde_json::from_value::<SABRParameters>(value).is_err());
+        }
+    }
+
+    #[test]
+    fn generated_schema_carries_all_sabr_bounds() {
+        let schema =
+            serde_json::to_value(schemars::schema_for!(SABRParameters)).expect("SABR schema");
+        assert_eq!(schema["additionalProperties"], false);
+        assert_eq!(schema["$defs"]["PositiveF64Wire"]["exclusiveMinimum"], 0.0);
+        assert_eq!(schema["$defs"]["ClosedUnitIntervalF64Wire"]["minimum"], 0.0);
+        assert_eq!(schema["$defs"]["ClosedUnitIntervalF64Wire"]["maximum"], 1.0);
+        assert_eq!(schema["$defs"]["NonNegativeF64Wire"]["minimum"], 0.0);
+        assert_eq!(schema["$defs"]["CorrelationWire"]["minimum"], -1.0);
+        assert_eq!(schema["$defs"]["CorrelationWire"]["maximum"], 1.0);
     }
 }

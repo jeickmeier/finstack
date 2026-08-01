@@ -147,8 +147,67 @@ macro_rules! define_instrument_json {
         $(plain: $variant:ident($ty:ty) => $tag:literal @ $category:literal = $example:expr;)*
         $(boxed: $boxed_variant:ident($boxed_ty:ty) => $boxed_tag:literal @ $boxed_category:literal = $boxed_example:expr;)*
     ) => {
+        mod instrument_variant {
+            $(
+                #[allow(non_snake_case)]
+                pub(crate) mod $variant {
+                    use super::super::*;
+
+                    #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+                    #[serde(
+                        rename_all = "snake_case",
+                        tag = "type",
+                        content = "spec",
+                        deny_unknown_fields
+                    )]
+                    #[schemars(rename = $tag)]
+                    pub(crate) enum Wire<'a> {
+                        #[serde(rename = $tag)]
+                        Instrument(std::borrow::Cow<'a, $ty>),
+                    }
+                }
+            )*
+            $(
+                #[allow(non_snake_case)]
+                pub(crate) mod $boxed_variant {
+                    use super::super::*;
+
+                    #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+                    #[serde(
+                        rename_all = "snake_case",
+                        tag = "type",
+                        content = "spec",
+                        deny_unknown_fields
+                    )]
+                    #[schemars(rename = $boxed_tag)]
+                    pub(crate) enum Wire<'a> {
+                        #[serde(rename = $boxed_tag)]
+                        Instrument(std::borrow::Cow<'a, $boxed_ty>),
+                    }
+                }
+            )*
+        }
+
+        #[derive(Deserialize)]
+        #[serde(
+            rename_all = "snake_case",
+            tag = "type",
+            content = "spec",
+            deny_unknown_fields
+        )]
+        enum InstrumentJsonWire {
+            $(
+                #[serde(rename = $tag)]
+                $variant($ty),
+            )*
+            $(
+                #[serde(rename = $boxed_tag)]
+                $boxed_variant(Box<$boxed_ty>),
+            )*
+        }
+
         /// Canonical tagged union of all supported instrument serde types.
-        #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+        #[derive(Debug, Clone, schemars::JsonSchema)]
         #[serde(tag = "type", content = "spec", deny_unknown_fields)]
         #[non_exhaustive]
         pub enum InstrumentJson {
@@ -162,6 +221,40 @@ macro_rules! define_instrument_json {
                 #[serde(rename = $boxed_tag)]
                 $boxed_variant(Box<$boxed_ty>),
             )*
+        }
+
+        impl Serialize for InstrumentJson {
+            fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                match self {
+                    $(Self::$variant(instrument) => {
+                        instrument_variant::$variant::Wire::Instrument(
+                            std::borrow::Cow::Borrowed(instrument),
+                        )
+                        .serialize(serializer)
+                    })*
+                    $(Self::$boxed_variant(instrument) => {
+                        instrument_variant::$boxed_variant::Wire::Instrument(
+                            std::borrow::Cow::Borrowed(instrument.as_ref()),
+                        )
+                        .serialize(serializer)
+                    })*
+                }
+            }
+        }
+
+        impl<'de> Deserialize<'de> for InstrumentJson {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                match InstrumentJsonWire::deserialize(deserializer)? {
+                    $(InstrumentJsonWire::$variant(instrument) => Ok(Self::$variant(instrument)),)*
+                    $(InstrumentJsonWire::$boxed_variant(instrument) => Ok(Self::$boxed_variant(instrument)),)*
+                }
+            }
         }
     };
 }
@@ -244,13 +337,6 @@ macro_rules! instrument_registry_entries {
         let mut entries = Vec::new();
         $(
             entries.push({
-                #[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
-                #[serde(tag = "type", content = "spec", deny_unknown_fields)]
-                enum SingleInstrumentJson {
-                    #[serde(rename = $tag)]
-                    Instrument($ty),
-                }
-
                 fn examples() -> Result<Vec<serde_json::Value>> {
                     let spec: $ty = $example?;
                     let value = serde_json::to_value(InstrumentEnvelope::new(
@@ -259,9 +345,9 @@ macro_rules! instrument_registry_entries {
                     .map_err(|error| {
                         schema_example_error(concat!("serialize ", $tag, " example"), error)
                     })?;
-                    serde_json::from_value::<SingleInstrumentEnvelope<SingleInstrumentJson>>(
-                        value.clone(),
-                    )
+                    serde_json::from_value::<SingleInstrumentEnvelope<
+                        instrument_variant::$variant::Wire<'static>,
+                    >>(value.clone())
                     .map_err(|error| {
                         schema_example_error(concat!("validate ", $tag, " example"), error)
                     })?;
@@ -283,7 +369,7 @@ macro_rules! instrument_registry_entries {
                     tag: $tag,
                     category: $category,
                     artifact: finstack_quant_core::schema::SchemaArtifact::new::<
-                        SingleInstrumentEnvelope<SingleInstrumentJson>,
+                        SingleInstrumentEnvelope<instrument_variant::$variant::Wire<'static>>,
                     >(
                         concat!("schemas/instruments/1/", $category, "/", $tag, ".schema.json"),
                         concat!("https://finstack_quant.dev/schemas/instrument/1/", $category, "/", $tag, ".schema.json"),
@@ -300,13 +386,6 @@ macro_rules! instrument_registry_entries {
         )*
         $(
             entries.push({
-                #[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
-                #[serde(tag = "type", content = "spec", deny_unknown_fields)]
-                enum SingleInstrumentJson {
-                    #[serde(rename = $boxed_tag)]
-                    Instrument($boxed_ty),
-                }
-
                 fn examples() -> Result<Vec<serde_json::Value>> {
                     let spec: $boxed_ty = $boxed_example?;
                     let value = serde_json::to_value(InstrumentEnvelope::new(
@@ -318,9 +397,9 @@ macro_rules! instrument_registry_entries {
                             error,
                         )
                     })?;
-                    serde_json::from_value::<SingleInstrumentEnvelope<SingleInstrumentJson>>(
-                        value.clone(),
-                    )
+                    serde_json::from_value::<SingleInstrumentEnvelope<
+                        instrument_variant::$boxed_variant::Wire<'static>,
+                    >>(value.clone())
                     .map_err(|error| {
                         schema_example_error(
                             concat!("validate ", $boxed_tag, " example"),
@@ -347,7 +426,7 @@ macro_rules! instrument_registry_entries {
                     tag: $boxed_tag,
                     category: $boxed_category,
                     artifact: finstack_quant_core::schema::SchemaArtifact::new::<
-                        SingleInstrumentEnvelope<SingleInstrumentJson>,
+                        SingleInstrumentEnvelope<instrument_variant::$boxed_variant::Wire<'static>>,
                     >(
                         concat!("schemas/instruments/1/", $boxed_category, "/", $boxed_tag, ".schema.json"),
                         concat!("https://finstack_quant.dev/schemas/instrument/1/", $boxed_category, "/", $boxed_tag, ".schema.json"),
@@ -705,6 +784,39 @@ mod tests {
     use finstack_quant_core::money::Money;
     use finstack_quant_core::types::{CurveId, InstrumentId};
     use time::Month;
+
+    #[test]
+    fn nested_instrument_input_objects_are_closed() {
+        let schema = serde_json::to_value(schemars::schema_for!(InstrumentEnvelope))
+            .expect("instrument envelope schema");
+        for definition in [
+            "BasisSwapLeg",
+            "CallPut",
+            "CallPutSchedule",
+            "CmoTranche",
+            "CmoWaterfall",
+            "DeliverableBond",
+            "DilutionEvent",
+            "DilutionSecurity",
+            "DrawRepayEvent",
+            "EquityBridge",
+            "EquityFutureSpecs",
+            "FutureContractSpecs",
+            "PacCollar",
+            "RevolvingCreditFees",
+            "SABRParameters",
+            "SoftCallTrigger",
+            "TrancheStructure",
+            "ValuationDiscounts",
+            "VolIndexContractSpecs",
+            "VolIndexOptionSpecs",
+        ] {
+            assert_eq!(
+                schema["$defs"][definition]["additionalProperties"], false,
+                "{definition} must reject unknown fields"
+            );
+        }
+    }
 
     #[test]
     fn test_bond_json_roundtrip() {
@@ -1179,6 +1291,7 @@ mod tests {
 
     #[test]
     fn legacy_instrument_tags_are_rejected() {
+        // schema-rejection-test
         for tag in [
             "yo_y_inflation_swap",
             "target_redemption_note",
@@ -1193,7 +1306,8 @@ mod tests {
             }))
             .expect_err("legacy instrument tags must be rejected");
             assert!(
-                error.to_string().contains("unknown variant"),
+                error.to_string().contains("unknown variant")
+                    || error.to_string().contains("did not match any variant"),
                 "unexpected error for {tag}: {error}"
             );
         }

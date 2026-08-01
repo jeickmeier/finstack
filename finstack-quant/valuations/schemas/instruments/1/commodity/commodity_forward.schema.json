@@ -252,7 +252,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "commodity_forward": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -313,7 +313,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/commodity_forward"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

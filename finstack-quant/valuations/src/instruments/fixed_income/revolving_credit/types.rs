@@ -267,6 +267,7 @@ impl BaseRateSpec {
 ///
 /// Flat fees can be represented as single-tier vectors.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RevolvingCreditFees {
     /// One-time upfront fee paid by borrower to lender at commitment.
     pub upfront_fee: Option<Money>,
@@ -419,6 +420,7 @@ pub enum DrawRepaySpec {
 
 /// A single draw or repayment event.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DrawRepayEvent {
     /// Date of the draw or repayment.
     #[serde(with = "finstack_quant_core::wire::date")]
@@ -640,6 +642,7 @@ pub enum InterestRateProcessSpec {
     /// Hull-White 1-factor model for short rate.
     ///
     /// Models short rate as: dr_t = κ[θ(t) - r_t]dt + σ dW_t
+    #[serde(rename = "hull_white_1f")]
     HullWhite1F {
         /// Mean reversion speed (κ)
         kappa: f64,
@@ -1073,6 +1076,31 @@ mod dependency_tests {
     use super::*;
     use finstack_quant_core::currency::Currency;
     use time::macros::date;
+
+    #[test]
+    fn hull_white_process_uses_canonical_acronym_spelling() {
+        let process = InterestRateProcessSpec::HullWhite1F {
+            kappa: 0.1,
+            sigma: 0.01,
+            initial: 0.03,
+            theta: 0.03,
+        };
+        let value = serde_json::to_value(process).expect("serialize Hull-White process");
+        assert!(value.get("hull_white_1f").is_some());
+
+        // schema-rejection-test
+        assert!(
+            serde_json::from_value::<InterestRateProcessSpec>(serde_json::json!({
+                "hull_white1_f": {
+                    "kappa": 0.1,
+                    "sigma": 0.01,
+                    "initial": 0.03,
+                    "theta": 0.03
+                }
+            }))
+            .is_err()
+        );
+    }
 
     #[test]
     fn floating_revolver_uses_the_canonical_fixing_series_id() {

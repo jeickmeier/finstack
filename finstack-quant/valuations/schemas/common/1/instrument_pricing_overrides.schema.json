@@ -268,6 +268,20 @@
         }
       ]
     },
+    "ClosedUnitIntervalF64Wire": {
+      "description": "Finite JSON number in the closed interval `[0, 1]`.",
+      "format": "double",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "type": "number"
+    },
+    "CorrelationWire": {
+      "description": "Finite correlation coefficient in the closed interval `[-1, 1]`.",
+      "format": "double",
+      "maximum": 1.0,
+      "minimum": -1.0,
+      "type": "number"
+    },
     "CreditStateVariable": {
       "description": "Which credit metric drives the toggle decision.",
       "oneOf": [
@@ -1764,6 +1778,12 @@
       ],
       "type": "object"
     },
+    "NonNegativeF64Wire": {
+      "description": "Finite JSON number greater than or equal to zero.",
+      "format": "double",
+      "minimum": 0.0,
+      "type": "number"
+    },
     "OasPriceBasis": {
       "description": "Price/accrual convention used for OAS inversion targets.",
       "oneOf": [
@@ -1966,6 +1986,12 @@
         }
       ]
     },
+    "PositiveF64Wire": {
+      "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
+      "exclusiveMinimum": 0.0,
+      "format": "double",
+      "type": "number"
+    },
     "RecoveryModel": {
       "description": "Recovery model specification.",
       "oneOf": [
@@ -2057,35 +2083,35 @@
       ]
     },
     "SABRParameters": {
+      "additionalProperties": false,
       "description": "SABR model parameters",
       "properties": {
         "alpha": {
-          "description": "Initial volatility (alpha)",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Initial volatility (alpha)"
         },
         "beta": {
-          "description": "CEV exponent (beta) - typically 0 to 1",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/ClosedUnitIntervalF64Wire",
+          "description": "CEV exponent (beta) - typically 0 to 1"
         },
         "nu": {
-          "description": "Volatility of volatility (nu/volvol)",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/NonNegativeF64Wire",
+          "description": "Volatility of volatility (nu/volvol)"
         },
         "rho": {
-          "description": "Correlation between asset and volatility (rho)",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/CorrelationWire",
+          "description": "Correlation between asset and volatility (rho)"
         },
         "shift": {
-          "description": "Shift parameter for handling negative rates (optional)",
-          "format": "double",
-          "type": [
-            "number",
-            "null"
-          ]
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PositiveF64Wire"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Shift parameter for handling negative rates (optional)"
         }
       },
       "required": [

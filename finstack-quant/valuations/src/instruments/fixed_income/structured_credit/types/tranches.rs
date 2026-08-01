@@ -662,6 +662,7 @@ impl Default for TrancheBuilder {
 
 /// Collection of tranches forming the capital structure
 #[derive(Debug, Clone, Serialize, schemars::JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct TrancheStructure {
     /// Ordered tranches (typically sorted by payment priority)
     pub tranches: Vec<Tranche>,
@@ -682,6 +683,7 @@ impl<'de> Deserialize<'de> for TrancheStructure {
         D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct RawTrancheStructure {
             tranches: Vec<Tranche>,
             // Deserialized but intentionally ignored: `TrancheStructure::new`

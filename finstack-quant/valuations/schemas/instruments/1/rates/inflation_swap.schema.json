@@ -173,7 +173,7 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "inflation_swap": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -230,7 +230,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/inflation_swap"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

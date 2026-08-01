@@ -70,6 +70,7 @@ pub enum TerminalValueSpec {
 /// When attached to a [`DiscountedCashFlow`], this takes precedence over the
 /// flat `net_debt` scalar.
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EquityBridge {
     /// Total interest-bearing debt.
     #[serde(default)]
@@ -116,6 +117,7 @@ impl EquityBridge {
 /// are present, `enterprise_value - net_debt` reconciles to pre-discount
 /// equity value, not to the discounted fair-market equity value.
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ValuationDiscounts {
     /// Discount for Lack of Marketability (0.0–1.0, e.g., 0.25 for 25%).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -171,6 +173,7 @@ impl ValuationDiscounts {
 /// Used to compute diluted shares outstanding from options, warrants,
 /// RSUs, or convertible instruments.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DilutionSecurity {
     /// Descriptive name (e.g., "Employee Stock Options").
     pub name: String,

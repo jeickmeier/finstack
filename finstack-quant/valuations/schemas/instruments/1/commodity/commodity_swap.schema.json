@@ -165,7 +165,7 @@
       "format": "double",
       "type": "number"
     },
-    "SingleInstrumentJson": {
+    "commodity_swap": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -229,7 +229,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/commodity_swap"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

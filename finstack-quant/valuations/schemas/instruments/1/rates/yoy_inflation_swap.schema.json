@@ -67,27 +67,6 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/YoYInflationSwap"
-            },
-            "type": {
-              "const": "yoy_inflation_swap",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "YoYInflationSwap": {
       "additionalProperties": false,
       "description": "Year-on-year (YoY) Inflation Swap instrument.\n\nPays periodic inflation rates (CPI ratios over each period) versus a fixed rate.",
@@ -190,6 +169,27 @@
         "attributes"
       ],
       "type": "object"
+    },
+    "yoy_inflation_swap": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/YoYInflationSwap"
+            },
+            "type": {
+              "const": "yoy_inflation_swap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/yoy_inflation_swap.schema.json",
@@ -230,7 +230,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/yoy_inflation_swap"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

@@ -150,7 +150,22 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
+    "TouchType": {
+      "description": "Touch type: one-touch (pays if barrier is hit) or no-touch (pays if not hit).",
+      "oneOf": [
+        {
+          "const": "one_touch",
+          "description": "Pays if the spot rate touches the barrier at any time before expiry.",
+          "type": "string"
+        },
+        {
+          "const": "no_touch",
+          "description": "Pays if the spot rate does NOT touch the barrier before expiry.",
+          "type": "string"
+        }
+      ]
+    },
+    "fx_touch_option": {
       "oneOf": [
         {
           "additionalProperties": false,
@@ -168,21 +183,6 @@
             "spec"
           ],
           "type": "object"
-        }
-      ]
-    },
-    "TouchType": {
-      "description": "Touch type: one-touch (pays if barrier is hit) or no-touch (pays if not hit).",
-      "oneOf": [
-        {
-          "const": "one_touch",
-          "description": "Pays if the spot rate touches the barrier at any time before expiry.",
-          "type": "string"
-        },
-        {
-          "const": "no_touch",
-          "description": "Pays if the spot rate does NOT touch the barrier before expiry.",
-          "type": "string"
         }
       ]
     }
@@ -221,7 +221,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/fx_touch_option"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

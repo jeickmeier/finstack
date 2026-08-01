@@ -223,8 +223,32 @@ fn root_types_generate_typed_schemas() {
     assert!(result["properties"]["meta"].is_object());
     assert_eq!(
         model["$defs"]["DebtInstrumentSpec"]["properties"]["spec"]["$ref"],
-        "#/$defs/InstrumentJson"
+        "#/$defs/FinancialStatementInstrument"
     );
+    let supported_types = model["$defs"]["FinancialStatementInstrument"]["oneOf"]
+        .as_array()
+        .expect("financial statement instrument schema should be a oneOf")
+        .iter()
+        .map(|variant| {
+            variant["properties"]["type"]["const"]
+                .as_str()
+                .expect("instrument variant should have a type discriminator")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        supported_types,
+        vec![
+            "bond",
+            "convertible_bond",
+            "revolving_credit",
+            "term_loan",
+            "interest_rate_swap",
+            "cap_floor",
+            "swaption",
+        ]
+    );
+    assert!(model["$defs"].get("InstrumentJson").is_none());
+    assert!(model["$defs"].get("RangeAccrual").is_none());
     assert_eq!(model["$defs"]["SchemaVersion"]["minimum"], 1);
     assert_eq!(
         model["$defs"]["SchemaVersion"]["maximum"],
@@ -256,6 +280,25 @@ fn capital_structure_warning_uses_typed_canonical_values() {
         json["capital_structure"]["warning"]["cashflow_date"],
         "2025-03-31"
     );
+}
+
+#[test]
+fn nan_warning_uses_canonical_acronym_spelling() {
+    let warning = EvalWarning::NaNPropagated {
+        node_id: "ratio".to_string(),
+        period: PeriodId::quarter(2025, 1),
+    };
+    let value = serde_json::to_value(warning).expect("serialize NaN warning");
+    assert!(value.get("nan_propagated").is_some());
+
+    // schema-rejection-test
+    assert!(serde_json::from_value::<EvalWarning>(json!({
+        "na_n_propagated": {
+            "node_id": "ratio",
+            "period": "2025Q1"
+        }
+    }))
+    .is_err());
 }
 
 #[test]
@@ -354,5 +397,14 @@ fn financial_model_schema_rejects_invalid_versions_and_debt_specs() {
     assert!(
         validate_model_fixture(&fixture).is_err(),
         "typed debt instruments must satisfy the canonical instrument schema"
+    );
+
+    fixture["capital_structure"]["debt_instruments"][0]["spec"] = json!({
+        "type": "range_accrual",
+        "spec": {}
+    });
+    assert!(
+        validate_model_fixture(&fixture).is_err(),
+        "financial statement debt instruments must reject unsupported instrument types"
     );
 }

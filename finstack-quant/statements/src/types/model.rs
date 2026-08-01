@@ -8,7 +8,10 @@ use finstack_quant_core::contract::{
 };
 use finstack_quant_core::dates::Period;
 use finstack_quant_core::wire::SchemaVersion;
-use finstack_quant_valuations::instruments::InstrumentJson;
+use finstack_quant_valuations::instruments::{
+    Bond, CapFloor, ConvertibleBond, InstrumentJson, InterestRateSwap, RevolvingCredit, Swaption,
+    TermLoan,
+};
 use indexmap::IndexMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -395,17 +398,81 @@ pub struct CapitalStructureSpec {
     pub waterfall: Option<crate::capital_structure::WaterfallSpec>,
 }
 
+/// Instruments supported by company financial statement capital structures.
+///
+/// This intentionally smaller union keeps the financial statement schema
+/// focused on debt and its common interest-rate hedges. The payloads are
+/// converted to the canonical valuations registry only when a model is
+/// evaluated.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(
+    rename_all = "snake_case",
+    tag = "type",
+    content = "spec",
+    deny_unknown_fields
+)]
+#[non_exhaustive]
+pub enum FinancialStatementInstrument {
+    /// Fixed- or floating-rate corporate or government bond.
+    Bond(Bond),
+    /// Convertible bond with an equity conversion feature.
+    ConvertibleBond(ConvertibleBond),
+    /// Revolving credit facility.
+    RevolvingCredit(RevolvingCredit),
+    /// Bilateral or institutional term loan.
+    TermLoan(TermLoan),
+    /// Plain-vanilla interest-rate swap used to hedge financing exposure.
+    InterestRateSwap(InterestRateSwap),
+    /// Interest-rate cap, floor, or collar.
+    CapFloor(CapFloor),
+    /// Option on an interest-rate swap.
+    Swaption(Swaption),
+}
+
+impl From<FinancialStatementInstrument> for InstrumentJson {
+    fn from(instrument: FinancialStatementInstrument) -> Self {
+        match instrument {
+            FinancialStatementInstrument::Bond(value) => Self::Bond(value),
+            FinancialStatementInstrument::ConvertibleBond(value) => Self::ConvertibleBond(value),
+            FinancialStatementInstrument::RevolvingCredit(value) => Self::RevolvingCredit(value),
+            FinancialStatementInstrument::TermLoan(value) => Self::TermLoan(value),
+            FinancialStatementInstrument::InterestRateSwap(value) => Self::InterestRateSwap(value),
+            FinancialStatementInstrument::CapFloor(value) => Self::CapFloor(value),
+            FinancialStatementInstrument::Swaption(value) => Self::Swaption(value),
+        }
+    }
+}
+
+impl TryFrom<InstrumentJson> for FinancialStatementInstrument {
+    type Error = crate::Error;
+
+    fn try_from(instrument: InstrumentJson) -> std::result::Result<Self, Self::Error> {
+        match instrument {
+            InstrumentJson::Bond(value) => Ok(Self::Bond(value)),
+            InstrumentJson::ConvertibleBond(value) => Ok(Self::ConvertibleBond(value)),
+            InstrumentJson::RevolvingCredit(value) => Ok(Self::RevolvingCredit(value)),
+            InstrumentJson::TermLoan(value) => Ok(Self::TermLoan(value)),
+            InstrumentJson::InterestRateSwap(value) => Ok(Self::InterestRateSwap(value)),
+            InstrumentJson::CapFloor(value) => Ok(Self::CapFloor(value)),
+            InstrumentJson::Swaption(value) => Ok(Self::Swaption(value)),
+            unsupported => Err(crate::Error::invalid_input(format!(
+                "instrument type '{}' is not supported in a financial statement capital structure",
+                unsupported.type_tag()
+            ))),
+        }
+    }
+}
+
 /// Debt instrument specification.
 ///
-/// An identifier paired with a canonical tagged instrument payload resolved
-/// through the valuations instrument registry.
+/// An identifier paired with a supported financial-statement instrument.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DebtInstrumentSpec {
     /// Instrument identifier (key within the capital structure).
     pub id: String,
-    /// Canonical tagged instrument payload: `{"type": "...", "spec": {...}}`.
-    pub spec: InstrumentJson,
+    /// Tagged instrument payload: `{"type": "...", "spec": {...}}`.
+    pub spec: FinancialStatementInstrument,
 }
 
 #[cfg(test)]
@@ -482,5 +549,14 @@ mod period_timeline_tests {
             err.to_string().contains("increasing"),
             "expected the ordering diagnostic: {err}"
         );
+    }
+
+    #[test]
+    fn financial_statement_instrument_conversion_rejects_unsupported_types() {
+        let unsupported =
+            InstrumentJson::Equity(finstack_quant_valuations::instruments::Equity::example());
+        let error = FinancialStatementInstrument::try_from(unsupported)
+            .expect_err("equity is not a capital-structure debt instrument");
+        assert!(error.to_string().contains("equity"));
     }
 }

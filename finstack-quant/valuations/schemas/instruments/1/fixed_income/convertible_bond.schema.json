@@ -21,6 +21,7 @@
       ]
     },
     "CallPut": {
+      "additionalProperties": false,
       "description": "Call or put option on a bond.\n\nRepresents a single call or put option with an exercise period and redemption price.\nCall options allow the issuer to redeem early; put options allow the holder to redeem early.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::fixed_income::bond::CallPut;\nuse finstack_quant_core::dates::Date;\nuse time::Month;\n\n// Discrete call option: issuer can redeem at 102% of par on Jan 1, 2027\nlet call = CallPut {\n    start_date: Date::from_calendar_date(2027, Month::January, 1).unwrap(),\n    end_date: Date::from_calendar_date(2027, Month::January, 1).unwrap(),\n    price_pct_of_par: 102.0,\n    make_whole: None,\n};\n```",
       "properties": {
         "end_date": {
@@ -56,6 +57,7 @@
       "type": "object"
     },
     "CallPutSchedule": {
+      "additionalProperties": false,
       "description": "Schedule of call and put options for a bond.\n\nContains lists of call and put options that can be exercised during the bond's life.\nUsed for pricing callable/putable bonds and calculating yield-to-worst.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::fixed_income::bond::{CallPut, CallPutSchedule};\nuse finstack_quant_core::dates::Date;\nuse time::Month;\n\nlet mut schedule = CallPutSchedule::default();\nschedule.calls.push(CallPut {\n    start_date: Date::from_calendar_date(2027, Month::January, 1).unwrap(),\n    end_date: Date::from_calendar_date(2027, Month::January, 1).unwrap(),\n    price_pct_of_par: 102.0,\n    make_whole: None,\n});\n```",
       "properties": {
         "calls": {
@@ -448,6 +450,7 @@
       ]
     },
     "DilutionEvent": {
+      "additionalProperties": false,
       "description": "A dilutive event that triggers anti-dilution adjustment.\n\nRecords details of an equity issuance or corporate action that may\naffect the conversion ratio under the bond's anti-dilution provisions.",
       "properties": {
         "date": {
@@ -881,28 +884,8 @@
         }
       ]
     },
-    "SingleInstrumentJson": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "spec": {
-              "$ref": "#/$defs/ConvertibleBond"
-            },
-            "type": {
-              "const": "convertible_bond",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "spec"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "SoftCallTrigger": {
+      "additionalProperties": false,
       "description": "Soft-call trigger condition for convertible bonds.\n\nA soft call allows the issuer to call the bond only if the underlying stock\nprice has been trading above a threshold (typically 130% of the conversion\nprice) for a sustained period. This protects holders from having their\nconversion option terminated when the stock is only marginally above parity.\n\n# Industry Practice\n\nThe standard soft-call trigger is:\n- **Threshold**: 130% of conversion price (most common)\n- **Observation period**: 20 of 30 consecutive trading days\n\nSome issuances use 120% or 150% thresholds.",
       "properties": {
         "observation_days": {
@@ -959,6 +942,27 @@
           "type": "string"
         }
       ]
+    },
+    "convertible_bond": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/ConvertibleBond"
+            },
+            "type": {
+              "const": "convertible_bond",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/convertible_bond.schema.json",
@@ -1012,7 +1016,7 @@
   ],
   "properties": {
     "instrument": {
-      "$ref": "#/$defs/SingleInstrumentJson"
+      "$ref": "#/$defs/convertible_bond"
     },
     "schema": {
       "$ref": "#/$defs/InstrumentSchema"

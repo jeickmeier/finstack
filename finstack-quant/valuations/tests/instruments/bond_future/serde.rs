@@ -663,3 +663,38 @@ fn test_bond_future_empty_attributes() {
         "Empty attributes should round-trip correctly"
     );
 }
+
+#[test]
+fn bond_future_wire_enforces_static_runtime_bounds() {
+    let mut future = create_test_bond_future();
+    future.quoted_price = -1.0;
+    assert!(serde_json::to_value(&future).is_err());
+
+    let mut future = create_test_bond_future();
+    future.deliverable_basket.clear();
+    assert!(serde_json::to_value(&future).is_err());
+
+    let invalid_deliverable = DeliverableBond {
+        bond_id: InstrumentId::new("INVALID"),
+        conversion_factor: -1.0,
+    };
+    assert!(serde_json::to_value(invalid_deliverable).is_err());
+    assert!(
+        serde_json::from_value::<DeliverableBond>(serde_json::json!({
+            "bond_id": "INVALID",
+            "conversion_factor": 0.8,
+            "typo_field": true
+        }))
+        .is_err()
+    );
+
+    let schema =
+        serde_json::to_value(schemars::schema_for!(BondFuture)).expect("bond future schema");
+    assert_eq!(schema["properties"]["deliverable_basket"]["minItems"], 1);
+    assert_eq!(
+        schema["$defs"]["DeliverableBond"]["additionalProperties"],
+        false
+    );
+    assert_eq!(schema["$defs"]["PositiveF64Wire"]["exclusiveMinimum"], 0.0);
+    assert_eq!(schema["$defs"]["NonNegativeF64Wire"]["minimum"], 0.0);
+}

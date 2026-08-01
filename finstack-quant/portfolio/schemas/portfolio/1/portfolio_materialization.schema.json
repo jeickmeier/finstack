@@ -1178,6 +1178,9 @@
               ]
             }
           },
+          "required": [
+            "notional"
+          ],
           "type": "object"
         }
       ]

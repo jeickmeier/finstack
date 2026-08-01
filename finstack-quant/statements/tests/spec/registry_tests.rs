@@ -524,7 +524,7 @@ fn test_metric_registry_serialization() {
 
     let registry: MetricRegistry = serde_json::from_str(json).unwrap();
     assert_eq!(registry.namespace, "test");
-    assert_eq!(registry.schema_version.0, 1);
+    assert_eq!(u32::from(registry.schema_version), 1);
     assert_eq!(registry.metrics.len(), 1);
 
     let metric = &registry.metrics[0];

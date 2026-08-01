@@ -266,7 +266,7 @@ fn test_schema_version() {
         .build()
         .unwrap();
 
-    assert_eq!(model.schema_version.0, 1);
+    assert_eq!(u32::from(model.schema_version), 1);
 }
 
 // ============================================================================

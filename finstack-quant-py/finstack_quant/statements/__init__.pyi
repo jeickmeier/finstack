@@ -1303,6 +1303,10 @@ class ModelBuilder:
         """
         Add a debt instrument via its canonical v1 instrument envelope.
 
+        Supported instrument types are bonds, convertible bonds, revolving
+        credit facilities, term loans, interest-rate swaps, caps/floors, and
+        swaptions.
+
                 Parameters
                 ----------
                 id:
@@ -1318,7 +1322,8 @@ class ModelBuilder:
                 Raises
                 ------
                 ValueError
-                    If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+                    If the envelope is invalid or its instrument type is not supported by
+                    financial statement capital structures.
         """
         ...
 
