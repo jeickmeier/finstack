@@ -68,11 +68,9 @@ fn test_instrument_type_from_str_all_variants() {
         "cdstranche",
         "cdsoption",
         "swap",
-        "interest_rate_swap",
         "capfloor",
         "interest_rate_option",
         "basisswap",
-        "convertible_bond",
         "equityoption",
         "fxoption",
         "fxspot",
@@ -232,7 +230,7 @@ fn test_pricing_error_display() {
     let msg2 = err2.to_string();
     assert!(msg2.contains("Type mismatch"));
     assert!(msg2.contains("bond"));
-    assert!(msg2.contains("irs"));
+    assert!(msg2.contains("interest_rate_swap"));
 
     let err3 =
         PricingError::model_failure_with_context("test error", PricingErrorContext::default());

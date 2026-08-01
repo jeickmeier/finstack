@@ -14,6 +14,19 @@ import pytest
 from finstack_quant import statements
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.money import Money
+from finstack_quant.core.types import Rate
+from finstack_quant.valuations.instruments import Bond
+
+
+def _debt_envelope_json(instrument_id: str) -> str:
+    return Bond.fixed(
+        instrument_id,
+        Money(25_000_000.0, Currency("USD")),
+        Rate(0.05),
+        date(2025, 1, 15),
+        date(2030, 1, 15),
+        "USD-OIS",
+    ).to_json()
 
 
 class TestEcfSweepSpec:
@@ -143,9 +156,9 @@ class TestModelBuilderCapitalStructure:
         model = b.build()
         assert '"SWAP-001"' in model.to_json()
 
-    def test_add_custom_debt_passes_through_spec(self) -> None:
+    def test_add_debt_passes_through_canonical_envelope(self) -> None:
         b = statements.ModelBuilder("deal")
-        b.add_custom_debt("TL-A", '{"notional": 25000000.0}')
+        b.add_debt("TL-A", _debt_envelope_json("TL-A"))
         b.periods("2025Q1..Q1", None)
         b.value("x", [("2025Q1", 1.0)])
         model = b.build()
@@ -157,7 +170,7 @@ class TestModelBuilderCapitalStructure:
         b.fx_policy("period_end")
         b.periods("2025Q1..Q1", None)
         b.value("x", [("2025Q1", 1.0)])
-        b.add_custom_debt("T", "{}")  # force capital_structure to serialize
+        b.add_debt("T", _debt_envelope_json("T"))
         js = b.build().to_json()
         assert '"reporting_currency":"USD"' in js
         assert '"fx_policy":"period_end"' in js
@@ -171,7 +184,7 @@ class TestModelBuilderCapitalStructure:
         ecf = statements.EcfSweepSpec(ebitda_node="ebitda", sweep_percentage=0.5, target_instrument_id="TL-A")
         ws = statements.WaterfallSpec(ecf_sweep=ecf)
         b = statements.ModelBuilder("deal")
-        b.add_custom_debt("TL-A", "{}")
+        b.add_debt("TL-A", _debt_envelope_json("TL-A"))
         b.waterfall(ws)
         b.periods("2025Q1..Q1", None)
         b.value("x", [("2025Q1", 1.0)])
@@ -259,4 +272,4 @@ class TestModelBuilderForecasts:
 
     def test_financial_model_from_json_runs_semantic_validation(self) -> None:
         with pytest.raises(ValueError, match="Model must have at least one period"):
-            statements.FinancialModelSpec.from_json('{"id":"bad","periods":[],"nodes":{}}')
+            statements.FinancialModelSpec.from_json('{"schema_version":1,"id":"bad","periods":[],"nodes":{}}')

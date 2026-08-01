@@ -42,7 +42,7 @@ def _market_and_positions() -> tuple[MarketContext, str]:
             "cashflow_spec": {
                 "fixed": {
                     "coupon_type": "cash",
-                    "rate": 0.05,
+                    "rate": "0.05",
                     "frequency": {"count": 6, "unit": "months"},
                     "day_count": "30_360",
                     "business_day_convention": "following",
@@ -55,7 +55,16 @@ def _market_and_positions() -> tuple[MarketContext, str]:
             "attributes": {},
         },
     }
-    positions_json = json.dumps([{"id": "bond_5y", "instrument": bond, "weight": 1.0}])
+    positions_json = json.dumps([
+        {
+            "id": "bond_5y",
+            "instrument": {
+                "schema": "finstack_quant.instrument/1",
+                "instrument": bond,
+            },
+            "weight": 1.0,
+        }
+    ])
     return mc, positions_json
 
 

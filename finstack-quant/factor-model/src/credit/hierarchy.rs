@@ -8,9 +8,11 @@
 //!
 //! # Schema version
 //!
-//! [`CreditFactorModel::schema`] is the exact
-//! `"finstack_quant.credit_factor_model/1"` marker.
-//! Consumers must check this field before trusting any other field.
+//! [`CreditFactorModelSchema::CURRENT`](crate::credit::hierarchy::CreditFactorModelSchema::CURRENT)
+//! is the exact
+//! `"finstack_quant.credit_factor_model/1"` marker stored in the model's
+//! `schema` field. Consumers must check this field before trusting any other
+//! field.
 //!
 //! # Usage
 //!

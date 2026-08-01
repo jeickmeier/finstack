@@ -965,7 +965,7 @@
           "type": "string"
         },
         {
-          "const": "cds",
+          "const": "credit_default_swap",
           "description": "Credit Default Swap (single-name credit protection).",
           "type": "string"
         },
@@ -985,7 +985,7 @@
           "type": "string"
         },
         {
-          "const": "irs",
+          "const": "interest_rate_swap",
           "description": "Interest Rate Swap (fixed-for-floating exchange).",
           "type": "string"
         },
@@ -1015,7 +1015,7 @@
           "type": "string"
         },
         {
-          "const": "convertible",
+          "const": "convertible_bond",
           "description": "Convertible bond (bond with embedded equity option).",
           "type": "string"
         },
@@ -1100,7 +1100,7 @@
           "type": "string"
         },
         {
-          "const": "fra",
+          "const": "forward_rate_agreement",
           "description": "Forward Rate Agreement (forward-starting interest rate contract).",
           "type": "string"
         },
@@ -1175,7 +1175,7 @@
           "type": "string"
         },
         {
-          "const": "dcf",
+          "const": "discounted_cash_flow",
           "description": "Discounted Cash Flow (corporate valuation)",
           "type": "string"
         },
@@ -1190,12 +1190,12 @@
           "type": "string"
         },
         {
-          "const": "equity_total_return_swap",
+          "const": "trs_equity",
           "description": "Equity Total Return Swap.",
           "type": "string"
         },
         {
-          "const": "fi_index_total_return_swap",
+          "const": "trs_fixed_income_index",
           "description": "Fixed Income Index Total Return Swap.",
           "type": "string"
         },

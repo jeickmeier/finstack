@@ -14,6 +14,7 @@ use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
+use finstack_quant_valuations::instruments::rates::swaption::VolatilityModel;
 use finstack_quant_valuations::instruments::{IrFutureOption, OptionType};
 use finstack_quant_valuations::metrics::MetricId;
 use finstack_quant_valuations::prelude::Instrument;
@@ -45,6 +46,7 @@ fn sample_option(futures_price: f64) -> IrFutureOption {
         .tick_size(0.0025)
         .tick_value(6.25)
         .volatility(0.20)
+        .vol_model(VolatilityModel::Black)
         .discount_curve_id(CurveId::new("USD-OIS"))
         .build()
         .expect("build")

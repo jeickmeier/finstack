@@ -122,9 +122,7 @@ def test_pricing_validation_rejects_inconsistent_swaption_underlying_tenor() -> 
     fixture = GoldenFixture.from_path(path)
     fixture.body = deepcopy(fixture.body)
     spec = fixture.body["instrument"]["instrument"]["spec"]
-    spec["swap_end"] = "2029-05-08"
-    spec["underlying_fixed_leg"]["end"] = "2032-05-05"
-    spec["underlying_float_leg"]["end"] = "2032-05-05"
+    spec["underlying_fixed_leg"]["end"] = "2031-05-05"
 
     with pytest.raises(AssertionError, match="swaption"):
         validate_fixture(path, fixture)

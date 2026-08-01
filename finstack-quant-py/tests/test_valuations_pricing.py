@@ -231,6 +231,7 @@ def _sabr_cube_json(cube_id: str, alpha: float, forward: float) -> dict[str, obj
         "tenors": [2.0, 10.0],
         "params": [params] * 6,
         "forwards": [forward] * 6,
+        "interpolation_mode": "vol",
     }
 
 

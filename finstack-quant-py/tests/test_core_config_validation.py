@@ -17,7 +17,7 @@ def test_tolerance_config_rejects_nonpositive_and_nonfinite_values(bad: float) -
 
 def test_config_extension_insertion_validates_key() -> None:
     config = FinstackConfig()
-    config.set_extension("valuations.calibration", {"enabled": True})
+    config.set_extension("valuations.calibration.v1", {"enabled": True})
     with pytest.raises(ValueError, match="invalid config extension key"):
         config.set_extension("not namespaced", {"enabled": True})
     assert "not namespaced" not in config.extension_keys()

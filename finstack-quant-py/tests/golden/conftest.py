@@ -403,14 +403,10 @@ def _validate_swaption_underlying_tenor(instrument_json: dict) -> None:
         return
     spec = instrument.get("spec", {})
     assert isinstance(spec, dict), "swaption instrument.spec must be an object"
-    top_tenor = _tenor_days(spec, "swap_start", "swap_end")
     fixed_tenor = _tenor_days(spec["underlying_fixed_leg"], "start", "end")
     float_tenor = _tenor_days(spec["underlying_float_leg"], "start", "end")
     assert fixed_tenor == float_tenor, (
         f"swaption underlying fixed/float leg tenors differ: fixed={fixed_tenor}d, float={float_tenor}d"
-    )
-    assert abs(top_tenor - fixed_tenor) <= 7, (
-        f"swaption top-level tenor ({top_tenor}d) does not match underlying leg tenor ({fixed_tenor}d)"
     )
 
 

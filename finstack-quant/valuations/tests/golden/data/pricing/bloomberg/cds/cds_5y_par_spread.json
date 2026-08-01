@@ -293,7 +293,7 @@
             "ois_compounding": null,
             "role": {
               "discount": {
-                "projection_curve_id": "USD-SOFR-OIS"
+                "projection_curve_id": "USD-S531-SWAP"
               }
             },
             "quotes": [

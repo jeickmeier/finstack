@@ -23,9 +23,9 @@ class TestPrimitives:
         assert CFKind.PIK != CFKind.FIXED
         assert CFKind.FIXED.is_interest_like()
         assert not CFKind.FEE.is_interest_like()
-        # FromStr accepts the documented alias set (e.g. "amort").
-        assert CFKind.parse("amort") == CFKind.AMORTIZATION
-        with pytest.raises(ValueError, match="unknown variant"):
+        with pytest.raises(ValueError, match="unknown cashflow kind"):
+            CFKind.parse("amort")
+        with pytest.raises(ValueError, match="unknown cashflow kind"):
             CFKind.parse("not_a_kind")
 
     def test_cashflow_construction_getters_and_validate(self) -> None:
@@ -429,7 +429,7 @@ class TestBuilderSpecs:
                             "spread_bp": "0",
                             "reset_frequency": {"count": 3, "unit": "months"},
                             "index_floor_bp": "300",
-                            "overnight_compounding": "CompoundedInArrears",
+                            "overnight_compounding": "compounded_in_arrears",
                         },
                         "frequency": {"count": 3, "unit": "months"},
                         "day_count": "act_360",

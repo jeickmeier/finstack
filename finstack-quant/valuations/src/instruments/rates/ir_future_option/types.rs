@@ -661,6 +661,7 @@ mod tests {
             .tick_size(0.0025)
             .tick_value(6.25)
             .volatility(0.20)
+            .vol_model(VolatilityModel::Black)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .build()
             .expect("build");
@@ -681,6 +682,7 @@ mod tests {
             .tick_size(0.0025)
             .tick_value(6.25)
             .volatility(0.01) // low vol to make moneyness dominant
+            .vol_model(VolatilityModel::Black)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .build()
             .expect("build");
@@ -715,6 +717,7 @@ mod tests {
             .tick_size(0.0025)
             .tick_value(6.25)
             .volatility(0.20)
+            .vol_model(VolatilityModel::Black)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .build()
             .expect("build");
@@ -748,6 +751,7 @@ mod tests {
                 .tick_size(0.0025)
                 .tick_value(6.25)
                 .volatility(0.0)
+                .vol_model(VolatilityModel::Black)
                 .discount_curve_id(CurveId::new("USD-OIS"))
                 .build()
                 .expect("build")
@@ -947,6 +951,7 @@ mod tests {
             .tick_size(0.0025)
             .tick_value(6.25)
             .volatility(0.0)
+            .vol_model(VolatilityModel::Black)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .build()
             .expect("build");
@@ -1003,6 +1008,7 @@ mod tests {
                 .tick_size(0.0025)
                 .tick_value(6.25)
                 .volatility(0.20)
+                .vol_model(VolatilityModel::Black)
                 .discount_curve_id(CurveId::new("USD-OIS"))
                 .build()
                 .expect("build")

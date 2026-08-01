@@ -387,7 +387,7 @@ class TestStubs:
 class TestCompsBindings:
     def test_compute_multiple(self) -> None:
         metrics = {"enterprise_value": 8_500.0, "ebitda": 1_000.0}
-        assert compute_multiple(metrics, "EvEbitda") == pytest.approx(8.5)
+        assert compute_multiple(metrics, "ev_ebitda") == pytest.approx(8.5)
 
     def test_regression_fair_value(self) -> None:
         result = regression_fair_value([1.0, 2.0, 3.0, 4.0], [3.0, 5.0, 7.0, 9.0], 3.0, 10.0)
@@ -471,4 +471,4 @@ class TestCompsBindings:
 
     def test_none_metric_treated_as_missing(self) -> None:
         metrics = {"enterprise_value": 8_500.0, "ebitda": 1_000.0, "revenue": None}
-        assert compute_multiple(metrics, "EvEbitda") == pytest.approx(8.5)
+        assert compute_multiple(metrics, "ev_ebitda") == pytest.approx(8.5)

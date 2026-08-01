@@ -180,7 +180,9 @@ def test_record_tasks_consume_checked_in_baselines_and_root_target() -> None:
 def test_documented_toolchains_match_machine_artifact() -> None:
     """Human-readable toolchain versions stay synchronized with the JSON record."""
     root = Path(__file__).parents[2]
-    artifact = json.loads((root / "benchmarks/materialization/materialization-benchmark-results.json").read_text(encoding="utf-8"))
+    artifact = json.loads(
+        (root / "benchmarks/materialization/materialization-benchmark-results.json").read_text(encoding="utf-8")
+    )
     document = (root / "docs/MATERIALIZATION_BENCHMARKS.md").read_text(encoding="utf-8")
     _DOCS_MODULE.verify_document(document, artifact)
 
@@ -191,7 +193,9 @@ def test_benchmark_record_links_exact_checked_in_baselines() -> None:
     manifest_path = Path("benchmarks/materialization/materialization-benchmark-baseline.json")
     rust_path = Path("benchmarks/materialization/materialization-rust-baseline.json")
     python_path = Path("benchmarks/materialization/materialization-python-baseline.json")
-    artifact = json.loads((root / "benchmarks/materialization/materialization-benchmark-results.json").read_text(encoding="utf-8"))
+    artifact = json.loads(
+        (root / "benchmarks/materialization/materialization-benchmark-results.json").read_text(encoding="utf-8")
+    )
     manifest = json.loads((root / manifest_path).read_text(encoding="utf-8"))
 
     _DOCS_MODULE.verify_baseline_links(
@@ -210,7 +214,9 @@ def test_benchmark_checker_rejects_tampered_manifest_baseline_paths(language: st
     manifest_path = Path("benchmarks/materialization/materialization-benchmark-baseline.json")
     rust_path = Path("benchmarks/materialization/materialization-rust-baseline.json")
     python_path = Path("benchmarks/materialization/materialization-python-baseline.json")
-    artifact = json.loads((root / "benchmarks/materialization/materialization-benchmark-results.json").read_text(encoding="utf-8"))
+    artifact = json.loads(
+        (root / "benchmarks/materialization/materialization-benchmark-results.json").read_text(encoding="utf-8")
+    )
     manifest = json.loads((root / manifest_path).read_text(encoding="utf-8"))
     manifest[f"{language}_baseline_path"] = f"benchmarks/materialization/tampered-{language}.json"
 

@@ -24,10 +24,7 @@ SCHEMA_RESOURCE_DIRS = (
 
 def validated_instrument_json(instrument_json: dict[str, Any]) -> str:
     """Validate fixture instrument JSON and return the executable JSON string."""
-    if _is_instrument_envelope(instrument_json):
-        _validate_instrument_envelope_schema(instrument_json)
-        validate_instrument_json(json.dumps(instrument_json["instrument"]))
-        return json.dumps(instrument_json)
+    _validate_instrument_envelope_schema(instrument_json)
     return validate_instrument_json(json.dumps(instrument_json))
 
 
@@ -46,10 +43,6 @@ def validate_requested_metrics(metrics: list[str]) -> None:
     standard_metrics = set(list_standard_metrics())
     unknown = [metric for metric in metrics if metric not in standard_metrics]
     assert not unknown, f"expected metric base name(s) are not standard metrics: {unknown}"
-
-
-def _is_instrument_envelope(instrument_json: dict[str, Any]) -> bool:
-    return "schema" in instrument_json and "instrument" in instrument_json
 
 
 def _validate_instrument_envelope_schema(instrument_json: dict[str, Any]) -> None:

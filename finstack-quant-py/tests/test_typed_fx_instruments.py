@@ -61,7 +61,7 @@ class TestFxForwardTyped:
         tolerance.
         """
         fixture = GoldenFixture.from_path(fixture_path("pricing/quantlib/fx_forward/eurusd_1y_forward_quantlib.json"))
-        spec = fixture.body["instrument"]["spec"]
+        spec = fixture.body["instrument"]["instrument"]["spec"]
         market = MarketContext.from_json(json.dumps(fixture.body["market"]["data"]))
 
         forward = (

@@ -31,6 +31,10 @@
     "amount": "0",
     "currency": "USD"
   },
+  "fx_translation_pnl": {
+    "amount": "0",
+    "currency": "USD"
+  },
   "vol_pnl": {
     "amount": "0",
     "currency": "USD"

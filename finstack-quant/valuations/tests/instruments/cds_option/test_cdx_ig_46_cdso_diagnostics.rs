@@ -73,7 +73,7 @@ fn fixture_instrument(fixture: &Value) -> &Value {
 }
 
 fn fixture_instrument_spec(fixture: &Value) -> &Value {
-    &fixture["instrument"]["spec"]
+    &fixture["instrument"]["instrument"]["spec"]
 }
 
 fn snapshot_curves(as_of: Date) -> MarketContext {

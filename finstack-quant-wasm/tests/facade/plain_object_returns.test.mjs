@@ -85,7 +85,7 @@ test('FxOption.greeks returns a plain object keyed by metric name', () => {
 
   const calibrated = JSON.parse(wasm.calibrate(JSON.stringify(fixture.market.envelope)));
   const marketJson = JSON.stringify(calibrated.result.final_market);
-  const option = new wasm.FxOption(fixture.instrument.spec);
+  const option = new wasm.FxOption(fixture.instrument.instrument.spec);
 
   const greeks = option.greeks(marketJson, asOf);
   assertPlainObject(greeks, 'FxOption.greeks result');
