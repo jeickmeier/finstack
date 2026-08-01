@@ -996,7 +996,6 @@ dependencies = [
  "criterion",
  "finstack-quant-cashflows",
  "finstack-quant-core",
- "finstack-quant-test-utils",
  "finstack-quant-valuations",
  "indexmap",
  "jsonschema",
