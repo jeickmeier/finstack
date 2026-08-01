@@ -119,24 +119,24 @@ pub(super) fn standard_option_greeks_with_context(
 /// Deserialize a `ValuationResult` from JSON and return the canonical JSON.
 ///
 /// Validates the input conforms to the `ValuationResult` schema.
-/// @param json - Canonical JSON string defining the object to deserialize or normalize.
+/// @param json - Canonical valuation-result JSON to validate and reserialize.
 #[wasm_bindgen(js_name = validateValuationResultJson)]
 pub fn validate_valuation_result_json(json: &str) -> Result<String, JsValue> {
     let result: ValuationResult = serde_json::from_str(json).map_err(to_js_err)?;
     valuation_result_json(result)
 }
 
-/// Validate a tagged instrument JSON string.
+/// Validate a canonical v1 instrument envelope.
 ///
 /// Deserializes the input against the known instrument schema and
 /// returns the canonical (re-serialized) JSON.
-/// @param json - Canonical JSON string defining the object to deserialize or normalize.
+/// @param json - Required `finstack_quant.instrument/1` envelope.
 #[wasm_bindgen(js_name = validateInstrumentJson)]
 pub fn validate_instrument_json(json: &str) -> Result<String, JsValue> {
     finstack_quant_valuations::pricer::validate_instrument_json(json).map_err(|e| to_js_error(&e))
 }
 
-/// Construct tagged bond instrument JSON from a cashflow schedule.
+/// Construct a canonical bond instrument envelope from a cashflow schedule.
 /// @param instrument_id - Stable instrument identifier used for pricing and metric keys.
 /// @param schedule_json - Canonical cashflow-schedule JSON used to construct the fixed-income instrument.
 /// @param discount_curve_id - Market-context discount-curve identifier for the instrument currency.
@@ -157,11 +157,11 @@ pub fn bond_from_cashflows_json(
     .map_err(to_js_err)
 }
 
-/// Price an instrument from its tagged JSON and return a ValuationResult JSON.
+/// Price an instrument from its canonical envelope and return ValuationResult JSON.
 ///
 /// Omit `model` (or pass `"default"`) to use the instrument-native default
 /// model — matching the Python binding's `model="default"` default.
-/// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+/// @param instrument_json - Required `finstack_quant.instrument/1` envelope.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Optional pricing-model identifier; omit for the instrument-native model.
@@ -187,7 +187,7 @@ pub fn price_instrument(
 /// Omit `model` (or pass `"default"`) to use the instrument-native default
 /// model, and omit `metrics` (undefined/null) for none — matching the Python
 /// binding's `model="default"`, `metrics=[]` defaults.
-/// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+/// @param instrument_json - Required `finstack_quant.instrument/1` envelope.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Optional pricing-model identifier; omit for the instrument-native model.
@@ -228,7 +228,7 @@ pub fn price_instrument_with_metrics(
 /// `model` must be `"discounting"` or `"hazard_rate"`. Unsupported models or
 /// incompatible instrument types throw. For supported pairs, the envelope's
 /// `total_pv` matches the instrument's `base_value` within rounding.
-/// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
+/// @param instrument_json - Required `finstack_quant.instrument/1` envelope.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 /// @param model - Pricing-model identifier; use `"default"` for the instrument-native model when supported.
@@ -370,6 +370,13 @@ pub fn instrument_cashflows_with_market(
 mod tests {
     use super::*;
 
+    fn envelope_json(instrument: finstack_quant_valuations::instruments::InstrumentJson) -> String {
+        serde_json::to_string(
+            &finstack_quant_valuations::instruments::InstrumentEnvelope::new(instrument),
+        )
+        .expect("serialize instrument envelope")
+    }
+
     #[test]
     fn parse_model_key_recognizes_standard_keys() {
         assert_eq!(
@@ -417,7 +424,7 @@ mod tests {
             "USD-OIS",
         )
         .expect("bond");
-        serde_json::to_string(&InstrumentJson::Bond(bond)).expect("serialize")
+        envelope_json(InstrumentJson::Bond(bond))
     }
 
     fn revolving_credit_json(invalid_gearing: bool, with_credit: bool) -> String {
@@ -437,7 +444,7 @@ mod tests {
             facility.credit_curve_id = Some("USD-HZ".into());
             facility.recovery_rate = 0.4;
         }
-        serde_json::to_string(&InstrumentJson::RevolvingCredit(facility)).expect("serialize")
+        envelope_json(InstrumentJson::RevolvingCredit(facility))
     }
 
     fn revolving_credit_market(with_credit: bool) -> MarketContext {
@@ -470,10 +477,7 @@ mod tests {
         use finstack_quant_valuations::instruments::rates::swaption::BermudanSwaption;
         use finstack_quant_valuations::instruments::InstrumentJson;
 
-        serde_json::to_string(&InstrumentJson::BermudanSwaption(
-            BermudanSwaption::example(),
-        ))
-        .expect("serialize")
+        envelope_json(InstrumentJson::BermudanSwaption(BermudanSwaption::example()))
     }
 
     pub(crate) fn tarn_json() -> String {
@@ -513,7 +517,7 @@ mod tests {
             scenario_pricing_overrides: Default::default(),
             attributes: Default::default(),
         };
-        serde_json::to_string(&InstrumentJson::Tarn(tarn)).expect("serialize")
+        envelope_json(InstrumentJson::Tarn(tarn))
     }
 
     pub(crate) fn snowball_json() -> String {
@@ -557,7 +561,7 @@ mod tests {
             scenario_pricing_overrides: Default::default(),
             attributes: Default::default(),
         };
-        serde_json::to_string(&InstrumentJson::Snowball(snowball)).expect("serialize")
+        envelope_json(InstrumentJson::Snowball(snowball))
     }
 
     pub(crate) fn inverse_floater_json() -> String {
@@ -594,7 +598,7 @@ mod tests {
             scenario_pricing_overrides: Default::default(),
             attributes: Default::default(),
         };
-        serde_json::to_string(&InstrumentJson::Snowball(inverse_floater)).expect("serialize")
+        envelope_json(InstrumentJson::Snowball(inverse_floater))
     }
 
     pub(crate) fn callable_range_accrual_json() -> String {
@@ -667,8 +671,7 @@ mod tests {
             scenario_pricing_overrides: Default::default(),
             attributes: Default::default(),
         };
-        serde_json::to_string(&InstrumentJson::CallableRangeAccrual(Box::new(callable)))
-            .expect("serialize")
+        envelope_json(InstrumentJson::CallableRangeAccrual(Box::new(callable)))
     }
 
     pub(crate) fn cms_spread_option_json() -> String {
@@ -697,8 +700,8 @@ mod tests {
             spread_correlation: 0.5,
             day_count: DayCount::Act365F,
             swap_convention: None,
-            swap_fixed_freq: None,
-            swap_float_freq: None,
+            swap_fixed_frequency: None,
+            swap_float_frequency: None,
             swap_day_count: None,
             swap_float_day_count: None,
             instrument_pricing_overrides: InstrumentPricingOverrides::default(),
@@ -706,7 +709,7 @@ mod tests {
             scenario_pricing_overrides: Default::default(),
             attributes: Default::default(),
         };
-        serde_json::to_string(&InstrumentJson::CmsSpreadOption(option)).expect("serialize")
+        envelope_json(InstrumentJson::CmsSpreadOption(option))
     }
 
     pub(crate) fn market_context_json() -> String {
@@ -813,7 +816,7 @@ mod tests {
         let json = bermudan_swaption_json();
         let canonical = validate_instrument_json(&json).expect("validate");
         let parsed: serde_json::Value = serde_json::from_str(&canonical).expect("json");
-        assert_eq!(parsed["type"], "bermudan_swaption");
+        assert_eq!(parsed["instrument"]["type"], "bermudan_swaption");
     }
 
     #[test]
@@ -1029,11 +1032,11 @@ mod tests {
             "issue_date": "2024-01-01",
             "maturity": "2029-01-01",
             "cashflow_spec": {
-                "Fixed": {
+                "fixed": {
                     "rate": "0.10",
-                    "freq": { "count": 12, "unit": "months" },
-                    "dc": "Thirty360",
-                    "bdc": "following",
+                    "frequency": { "count": 12, "unit": "months" },
+                    "day_count": "30_360",
+                    "business_day_convention": "following",
                     "calendar_id": "weekends_only"
                 }
             },
@@ -1043,18 +1046,22 @@ mod tests {
             "attributes": {},
             "return_floor": return_floor
         });
-        serde_json::json!({ "type": "bond", "spec": spec }).to_string()
+        serde_json::json!({
+            "schema": "finstack_quant.instrument/1",
+            "instrument": { "type": "bond", "spec": spec }
+        })
+        .to_string()
     }
 
     /// Minimal 5-year flat discount market for the return-floor tests.
     fn return_floor_market_json() -> String {
         serde_json::json!({
-            "version": 2,
+            "schema_version": 1,
             "curves": [{
                 "type": "discount",
                 "id": "USD-OIS",
                 "base": "2024-01-01",
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "knot_points": [[0.0, 1.0], [5.0, 0.85]],
                 "interp_style": "monotone_convex",
                 "extrapolation": "flat_forward",
@@ -1071,7 +1078,8 @@ mod tests {
             "credit_indices": [],
             "fx_delta_vol_surfaces": [],
             "vol_cubes": [],
-            "collateral": {}
+            "collateral": {},
+            "hierarchy": null
         })
         .to_string()
     }
@@ -1083,9 +1091,9 @@ mod tests {
         // model — no new Rust binding code is required; return_floor is already a
         // serde field on the core Bond type.
         let floor_spec = serde_json::json!({
-            "kind": { "Moic": 1.25 },
-            "issue_price": "Par",
-            "window": "Full"
+            "kind": { "moic": 1.25 },
+            "issue_price": "par",
+            "window": "full"
         });
         let inst = return_floor_bond_instrument_json(floor_spec);
 
@@ -1142,9 +1150,9 @@ mod tests {
     #[test]
     fn return_floor_bond_xirr_floor_prices_without_error() {
         let floor_spec = serde_json::json!({
-            "kind": { "Xirr": 0.12 },
-            "issue_price": "Par",
-            "window": "Full"
+            "kind": { "xirr": 0.12 },
+            "issue_price": "par",
+            "window": "full"
         });
         let inst = return_floor_bond_instrument_json(floor_spec);
         let mkt = return_floor_market_json();

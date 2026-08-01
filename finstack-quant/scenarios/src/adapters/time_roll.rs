@@ -265,10 +265,10 @@ fn calculate_instrument_pnl(
             }
         };
 
-        let mut pv_change_by_ccy: IndexMap<Currency, Money> = IndexMap::new();
+        let mut pv_change_by_currency: IndexMap<Currency, Money> = IndexMap::new();
         match pv_new.checked_sub(pv_old) {
             Ok(diff) => {
-                pv_change_by_ccy.insert(diff.currency(), diff);
+                pv_change_by_currency.insert(diff.currency(), diff);
             }
             Err(err) => {
                 failed_instruments.push((inst_id.clone(), format!("pv diff failed: {err}")));
@@ -279,22 +279,22 @@ fn calculate_instrument_pnl(
         let cashflows_during_period =
             collect_instrument_cashflows(instrument.as_ref(), market, old_date, new_date);
 
-        let mut carry_by_ccy = pv_change_by_ccy;
+        let mut carry_by_currency = pv_change_by_currency;
         for (ccy, flow) in cashflows_during_period {
-            carry_by_ccy
+            carry_by_currency
                 .entry(ccy)
                 .and_modify(|m| *m += flow)
                 .or_insert(flow);
         }
 
-        for (ccy, amount) in &carry_by_ccy {
+        for (ccy, amount) in &carry_by_currency {
             total_carry
                 .entry(*ccy)
                 .and_modify(|m| *m += *amount)
                 .or_insert(*amount);
         }
 
-        instrument_carry.push((inst_id.clone(), carry_by_ccy));
+        instrument_carry.push((inst_id.clone(), carry_by_currency));
     }
 
     Ok((instrument_carry, total_carry, failed_instruments))

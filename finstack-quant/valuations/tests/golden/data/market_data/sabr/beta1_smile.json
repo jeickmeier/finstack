@@ -1,5 +1,5 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "beta1_smile",
     "domain": "volatility.sabr",

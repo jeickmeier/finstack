@@ -49,21 +49,21 @@ use finstack_quant_margin::{SimmCalculator, SimmVersion};
 struct SimmV26GoldenValues;
 
 impl SimmV26GoldenValues {
-    // ISDA SIMM v2.6 — Section E.1, Table 1: Interest Rate risk weights (bps)
+    // ISDA SIMM v2.6 — Section E.1, Table 1: Interest Rate risk weights (bp)
     fn ir_delta_weights() -> &'static [(&'static str, f64)] {
         &[
-            ("2w", 109.0),
-            ("1m", 105.0),
-            ("3m", 80.0),
-            ("6m", 67.0),
-            ("1y", 61.0),
-            ("2y", 52.0),
-            ("3y", 49.0),
-            ("5y", 51.0),
-            ("10y", 51.0),
-            ("15y", 51.0),
-            ("20y", 54.0),
-            ("30y", 62.0),
+            ("2W", 109.0),
+            ("1M", 105.0),
+            ("3M", 80.0),
+            ("6M", 67.0),
+            ("1Y", 61.0),
+            ("2Y", 52.0),
+            ("3Y", 49.0),
+            ("5Y", 51.0),
+            ("10Y", 51.0),
+            ("15Y", 51.0),
+            ("20Y", 54.0),
+            ("30Y", 62.0),
         ]
     }
 
@@ -101,16 +101,16 @@ impl SimmV26GoldenValues {
     fn ir_tenor_correlations() -> &'static [(&'static str, &'static str, f64)] {
         &[
             // Adjacent tenors — highest correlation
-            ("2w", "1m", 0.99),
-            ("10y", "15y", 0.98),
-            ("20y", "30y", 0.99),
+            ("2W", "1M", 0.99),
+            ("10Y", "15Y", 0.98),
+            ("20Y", "30Y", 0.99),
             // Mid-distance pairs
-            ("1y", "5y", 0.88),
-            ("2y", "10y", 0.88),
+            ("1Y", "5Y", 0.88),
+            ("2Y", "10Y", 0.88),
             // Wide tenor gaps — lowest correlation
-            ("2w", "30y", 0.51),
-            ("1m", "30y", 0.54),
-            ("3m", "30y", 0.59),
+            ("2W", "30Y", 0.51),
+            ("1M", "30Y", 0.54),
+            ("3M", "30Y", 0.59),
         ]
     }
 

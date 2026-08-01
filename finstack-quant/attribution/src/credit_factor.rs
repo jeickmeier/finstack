@@ -415,7 +415,8 @@ mod tests {
 
     fn model_two_levels() -> CreditFactorModel {
         CreditFactorModel {
-            schema_version: CreditFactorModel::SCHEMA_VERSION.into(),
+            schema:
+                finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
             as_of: create_date(2024, Month::March, 29).unwrap(),
             calibration_window: DateRange {
                 start: create_date(2022, Month::March, 29).unwrap(),

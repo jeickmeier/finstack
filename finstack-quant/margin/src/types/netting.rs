@@ -105,7 +105,7 @@ pub struct InstrumentMarginResult {
     /// Instrument identifier
     pub instrument_id: String,
     /// Calculation date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of: Date,
     /// Initial margin requirement
     pub initial_margin: Money,

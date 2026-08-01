@@ -1,5 +1,15 @@
 {
   "$defs": {
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "PayReceive": {
       "description": "Direction for instrument legs (universal for IRS, CDS, variance swaps, etc.)\n\nFor interest rate swaps: Pay = pay fixed/receive floating, Receive = receive fixed/pay floating\nFor credit default swaps: Pay = buy protection (pay premium), Receive = sell protection (receive premium)\nFor variance swaps: Pay = short variance, Receive = long variance",
       "oneOf": [
@@ -19,44 +29,206 @@
       "description": "Methods for calculating realized variance from price series.",
       "oneOf": [
         {
-          "const": "CloseToClose",
+          "const": "close_to_close",
           "description": "Standard close-to-close returns (market standard default)",
           "type": "string"
         },
         {
-          "const": "Parkinson",
+          "const": "parkinson",
           "description": "Parkinson (1980) high-low estimator",
           "type": "string"
         },
         {
-          "const": "GarmanKlass",
+          "const": "garman_klass",
           "description": "Garman-Klass (1980) OHLC estimator",
           "type": "string"
         },
         {
-          "const": "RogersSatchell",
+          "const": "rogers_satchell",
           "description": "Rogers-Satchell (1991) drift-independent OHLC estimator",
           "type": "string"
         },
         {
-          "const": "YangZhang",
+          "const": "yang_zhang",
           "description": "Yang-Zhang (2000) drift and opening gaps estimator",
           "type": "string"
         }
       ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/VarianceSwap"
+            },
+            "type": {
+              "const": "variance_swap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "VarianceSwap": {
+      "additionalProperties": false,
+      "description": "Variance swap instrument.\n\nA variance swap is a forward contract on realized variance with payoff:\n```text\nPayoff = Notional_variance × (σ²_realized - K²_variance)\n```\n\n# Notional Conventions\n\nVariance swaps use **variance notional** (in variance units), not vega notional.\nThe notional scales variance expressed in decimal-squared units.\n\n## Variance Notional vs Vega Notional\n\nTraders often quote positions in **vega notional** (sensitivity to 1% vol change).\nThe conversion between notional types is:\n\n```text\nNotional_variance = Notional_vega / (2 × σ_strike × 0.01)\n```\n\nwhere `σ_strike` is the strike volatility (square root of strike variance).\n\n### Example\n\nFor a variance swap with strike vol of 20% (strike variance = 0.04):\n- Vega notional of $100,000 → Variance notional = $100,000 / (2 × 0.20 × 0.01) = $25,000,000\n- If realized variance is 0.05 (22.4% vol) vs strike 0.04:\n  - Payoff = $25,000,000 × (0.05 - 0.04) = $250,000\n\n# Realized Variance Calculation\n\nUses **log returns** (not simple returns) per market standard:\n```text\nσ²_realized = (252/N) × Σ [ln(S_i / S_{i-1})]²\n```\n\nwhere 252 is the standard trading days per year for equity markets.\n\n# References\n\n- Demeterfi, K. et al. (1999). \"More Than You Ever Wanted to Know About Volatility Swaps.\"\n- Carr, P. & Madan, D. (1998). \"Towards a Theory of Volatility Trading.\"",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "close_series_id": {
+          "default": null,
+          "description": "Series ID for close prices. Defaults to `underlying_ticker` when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention for time calculations"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier"
+        },
+        "high_series_id": {
+          "default": null,
+          "description": "Series ID for high prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `underlying_ticker` when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Attributes for scenario selection"
+        },
+        "low_series_id": {
+          "default": null,
+          "description": "Series ID for low prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `underlying_ticker` when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Contractual end of the observation period."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Variance notional (in variance units)"
+        },
+        "observation_business_day_convention": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
+          "default": "following",
+          "description": "Business-day convention applied to observation dates."
+        },
+        "observation_calendar_id": {
+          "description": "Exchange/fixing calendar used for every realized-variance observation.",
+          "type": "string"
+        },
+        "observation_end_of_month": {
+          "default": false,
+          "description": "Preserve month-end rolls for month/year observation frequencies.",
+          "type": "boolean"
+        },
+        "observation_frequency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
+          "description": "Observation frequency"
+        },
+        "open_series_id": {
+          "default": null,
+          "description": "Series ID for open prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `underlying_ticker` when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "realized_var_method": {
+          "$ref": "#/$defs/RealizedVarMethod",
+          "default": "close_to_close",
+          "description": "Method for calculating realized variance (defaults to CloseToClose)"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only valuation adjustments."
+        },
+        "settlement_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional cash-settlement date. Defaults to the adjusted final observation date."
+        },
+        "side": {
+          "$ref": "#/$defs/PayReceive",
+          "description": "Pay/receive variance"
+        },
+        "start_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of observation period"
+        },
+        "strike_variance": {
+          "description": "Strike variance (annualized)",
+          "format": "double",
+          "type": "number"
+        },
+        "underlying_ticker": {
+          "description": "Underlying identifier (equity/index)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "underlying_ticker",
+        "notional",
+        "strike_variance",
+        "start_date",
+        "maturity",
+        "observation_frequency",
+        "observation_calendar_id",
+        "side",
+        "discount_curve_id",
+        "day_count",
+        "attributes"
+      ],
+      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/variance_swap.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Forward contract on realized variance",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
           "close_series_id": null,
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "discount_curve_id": "USD-OIS",
           "high_series_id": null,
           "id": "VARSPX-1Y",
@@ -66,36 +238,16 @@
             "amount": "1000000",
             "currency": "USD"
           },
-          "observation_bdc": "following",
+          "observation_business_day_convention": "following",
           "observation_calendar_id": "USNY",
           "observation_end_of_month": false,
-          "observation_freq": {
+          "observation_frequency": {
             "count": 1,
             "unit": "days"
           },
           "open_series_id": null,
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
-          "realized_var_method": "CloseToClose",
+          "realized_var_method": "close_to_close",
+          "settlement_date": null,
           "side": "receive",
           "start_date": "2024-01-01",
           "strike_variance": 0.04,
@@ -108,182 +260,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Variance Swap instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "close_series_id": {
-              "default": null,
-              "description": "Series ID for close prices. Defaults to `underlying_ticker` when absent.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention for time calculations"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier"
-            },
-            "high_series_id": {
-              "default": null,
-              "description": "Series ID for high prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `underlying_ticker` when absent.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "low_series_id": {
-              "default": null,
-              "description": "Series ID for low prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `underlying_ticker` when absent.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "maturity": {
-              "description": "Contractual end of the observation period.",
-              "format": "date",
-              "type": "string"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Variance notional (in variance units)"
-            },
-            "observation_bdc": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
-              "default": "following",
-              "description": "Business-day convention applied to observation dates."
-            },
-            "observation_calendar_id": {
-              "description": "Exchange/fixing calendar used for every realized-variance observation.",
-              "type": "string"
-            },
-            "observation_end_of_month": {
-              "default": false,
-              "description": "Preserve month-end rolls for month/year observation frequencies.",
-              "type": "boolean"
-            },
-            "observation_freq": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-              "description": "Observation frequency"
-            },
-            "open_series_id": {
-              "default": null,
-              "description": "Series ID for open prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `underlying_ticker` when absent.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for scenario selection"
-            },
-            "realized_var_method": {
-              "$ref": "#/$defs/RealizedVarMethod",
-              "default": "CloseToClose",
-              "description": "Method for calculating realized variance (defaults to CloseToClose)"
-            },
-            "settlement_date": {
-              "default": null,
-              "description": "Optional cash-settlement date. Defaults to the adjusted final observation date.",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "side": {
-              "$ref": "#/$defs/PayReceive",
-              "description": "Pay/receive variance"
-            },
-            "start_date": {
-              "description": "Start date of observation period",
-              "format": "date",
-              "type": "string"
-            },
-            "strike_variance": {
-              "description": "Strike variance (annualized)",
-              "format": "double",
-              "type": "number"
-            },
-            "underlying_ticker": {
-              "description": "Underlying identifier (equity/index)",
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "underlying_ticker",
-            "notional",
-            "strike_variance",
-            "start_date",
-            "maturity",
-            "observation_freq",
-            "observation_calendar_id",
-            "side",
-            "discount_curve_id",
-            "day_count",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "variance_swap",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Variance Swap",
+  "title": "variance_swap",
   "type": "object"
 }

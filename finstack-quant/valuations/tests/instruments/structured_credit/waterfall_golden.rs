@@ -47,7 +47,7 @@ fn create_test_pool(balance: f64, currency: Currency) -> AssetPool {
         AssetType, PoolAsset,
     };
 
-    let mut pool = AssetPool::new("TEST_POOL", DealType::CLO, currency);
+    let mut pool = AssetPool::new("TEST_POOL", DealType::Clo, currency);
 
     // Add assets to match the specified balance
     let num_assets = 10;
@@ -62,7 +62,7 @@ fn create_test_pool(balance: f64, currency: Currency) -> AssetPool {
             },
             balance: Money::new(asset_balance, currency),
             rate: 0.08,
-            spread_bps: Some(400.0),
+            spread_bp: Some(400.0),
             index_id: Some("SOFR-3M".into()),
             maturity: Date::from_calendar_date(2030, time::Month::January, 1).unwrap(),
             credit_quality: Some(CreditRating::BB),
@@ -198,7 +198,7 @@ fn test_golden_clo_2_0_full_payment() {
                     "senior_mgmt",
                     RecipientType::ManagerFee(ManagementFeeType::Senior),
                     PaymentCalculation::PercentageOfCollateral {
-                        rate: 0.004, // 40 bps
+                        rate: 0.004, // 40 bp
                         annualized: true,
                         day_count: None,
                         rounding: None,
@@ -491,7 +491,7 @@ fn test_golden_cmbs_sequential_pay() {
                 "master_servicer",
                 RecipientType::ServiceProvider("MasterServicer".into()),
                 PaymentCalculation::PercentageOfCollateral {
-                    rate: 0.0025, // 25 bps
+                    rate: 0.0025, // 25 bp
                     annualized: true,
                     day_count: None,
                     rounding: None,

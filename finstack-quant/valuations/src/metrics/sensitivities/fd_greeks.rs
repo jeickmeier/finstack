@@ -176,12 +176,12 @@ fn min_relevant_surface_vol(
 
 fn min_dependency_surface_vol(
     surface: &finstack_quant_core::market_data::surfaces::VolSurface,
-    surface_id: &CurveId,
+    vol_surface_id: &CurveId,
     dependencies: &[VolatilityDependency],
 ) -> Option<f64> {
     let matching = dependencies
         .iter()
-        .filter(|dependency| dependency.surface_id == *surface_id);
+        .filter(|dependency| dependency.vol_surface_id == *vol_surface_id);
     if matching
         .clone()
         .any(|dependency| dependency.reference_strike.is_none())
@@ -212,7 +212,7 @@ fn present_vol_surface_ids(
     let declared = dependencies.unique_vol_surface_ids();
     let present = declared
         .iter()
-        .filter(|surface_id| market.get_surface(surface_id.as_str()).is_ok())
+        .filter(|vol_surface_id| market.get_surface(vol_surface_id.as_str()).is_ok())
         .cloned()
         .collect::<Vec<_>>();
     if present.is_empty() {
@@ -277,8 +277,8 @@ where
     };
 
     let surface_tokens = match vol_bump {
-        Some((surface_ids, bump_abs)) => {
-            match apply_parallel_surface_bumps_in_place(scratch, surface_ids, bump_abs) {
+        Some((vol_surface_ids, bump_abs)) => {
+            match apply_parallel_surface_bumps_in_place(scratch, vol_surface_ids, bump_abs) {
                 Ok(tokens) => Some(tokens),
                 Err(err) => {
                     if let Some(token) = price_token {
@@ -462,7 +462,7 @@ where
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
 
         let dependencies = instrument.market_dependencies()?;
-        let spot_id = dependencies.spot_ids.first().ok_or_else(|| {
+        let spot_id = dependencies.market_scalar_ids.first().ok_or_else(|| {
             finstack_quant_core::Error::Validation(
                 "Instrument missing spot_id for delta calculation".to_string(),
             )
@@ -547,7 +547,7 @@ where
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
 
         let dependencies = instrument.market_dependencies()?;
-        let spot_id = dependencies.spot_ids.first().ok_or_else(|| {
+        let spot_id = dependencies.market_scalar_ids.first().ok_or_else(|| {
             finstack_quant_core::Error::Validation(
                 "Instrument missing spot_id for gamma calculation".to_string(),
             )
@@ -631,7 +631,7 @@ where
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
 
         let dependencies = instrument.market_dependencies()?;
-        let surface_ids = present_vol_surface_ids(&dependencies, &context.curves, "vega")?;
+        let vol_surface_ids = present_vol_surface_ids(&dependencies, &context.curves, "vega")?;
         // Fixed bump size from `FinstackConfig` (user-facing, reproducible).
         // Interpreted as an **absolute** implied vol bump in decimal units (e.g., 0.01 = +1 vol point).
         let bump_abs = defaults.vol_bump_pct;
@@ -648,13 +648,13 @@ where
         // declared for that surface. A descriptor without a strike means the
         // instrument may sample the whole surface and therefore retains the
         // conservative global-minimum check.
-        let min_vol = surface_ids
+        let min_vol = vol_surface_ids
             .iter()
-            .filter_map(|surface_id| {
-                let surface = context.curves.get_surface(surface_id.as_str()).ok()?;
+            .filter_map(|vol_surface_id| {
+                let surface = context.curves.get_surface(vol_surface_id.as_str()).ok()?;
                 min_dependency_surface_vol(
                     &surface,
-                    surface_id,
+                    vol_surface_id,
                     &dependencies.volatility_dependencies,
                 )
             })
@@ -664,7 +664,7 @@ where
         let vega = if clamp_active {
             tracing::warn!(
                 instrument_id = %instrument_id,
-                surface_ids = ?surface_ids,
+                vol_surface_ids = ?vol_surface_ids,
                 min_vol = min_vol,
                 bump_abs = bump_abs,
                 "vega down-bump would clamp σ at 0; using one-sided forward difference"
@@ -676,7 +676,7 @@ where
                     &seeded_instrument,
                     as_of,
                     None,
-                    Some((&surface_ids, bump_abs)),
+                    Some((&vol_surface_ids, bump_abs)),
                 )?;
                 let pv_base = context.reprice_instrument_raw(&seeded_instrument, scratch, as_of)?;
                 // Forward difference: (PV(σ+h) - PV(σ)) / h.
@@ -694,7 +694,7 @@ where
                     &seeded_instrument,
                     as_of,
                     None,
-                    Some((&surface_ids, bump_abs)),
+                    Some((&vol_surface_ids, bump_abs)),
                 )?;
                 let pv_down = eval_raw_with_scratch_bumps(
                     context,
@@ -702,7 +702,7 @@ where
                     &seeded_instrument,
                     as_of,
                     None,
-                    Some((&surface_ids, -bump_abs)),
+                    Some((&vol_surface_ids, -bump_abs)),
                 )?;
                 // Central difference: (PV(σ+h) - PV(σ-h)) / 2h.
                 crate::metrics::core::finite_difference::central_diff_by_width(
@@ -754,7 +754,7 @@ where
         }
 
         let dependencies = instrument.market_dependencies()?;
-        let surface_ids = present_vol_surface_ids(&dependencies, &context.curves, "volga")?;
+        let vol_surface_ids = present_vol_surface_ids(&dependencies, &context.curves, "volga")?;
 
         // Common Random Numbers: same seed for all scenarios ensures variance reduction.
         let seeded_instrument = clone_with_crn_seed(instrument)?;
@@ -770,7 +770,7 @@ where
                 &seeded_instrument,
                 as_of,
                 None,
-                Some((&surface_ids, bump_abs)),
+                Some((&vol_surface_ids, bump_abs)),
             )?;
             let pv_down = eval_raw_with_scratch_bumps(
                 context,
@@ -778,7 +778,7 @@ where
                 &seeded_instrument,
                 as_of,
                 None,
-                Some((&surface_ids, -bump_abs)),
+                Some((&vol_surface_ids, -bump_abs)),
             )?;
             Ok((base_pv, pv_up, pv_down))
         })?;
@@ -830,12 +830,12 @@ where
         }
 
         let dependencies = instrument.market_dependencies()?;
-        let spot_id = dependencies.spot_ids.first().ok_or_else(|| {
+        let spot_id = dependencies.market_scalar_ids.first().ok_or_else(|| {
             finstack_quant_core::Error::Validation(
                 "Instrument missing spot_id for vanna calculation".to_string(),
             )
         })?;
-        let surface_ids = present_vol_surface_ids(&dependencies, &context.curves, "vanna")?;
+        let vol_surface_ids = present_vol_surface_ids(&dependencies, &context.curves, "vanna")?;
 
         // Spot level for bump sizing
         let spot_scalar = context.curves.get_price(spot_id)?;
@@ -863,7 +863,7 @@ where
                 &seeded_instrument,
                 as_of,
                 Some((spot_id, spot_bump.relative)),
-                Some((&surface_ids, k_abs)),
+                Some((&vol_surface_ids, k_abs)),
             )?;
             let v_pm = eval_raw_with_scratch_bumps(
                 context,
@@ -871,7 +871,7 @@ where
                 &seeded_instrument,
                 as_of,
                 Some((spot_id, spot_bump.relative)),
-                Some((&surface_ids, -k_abs)),
+                Some((&vol_surface_ids, -k_abs)),
             )?;
             let v_mp = eval_raw_with_scratch_bumps(
                 context,
@@ -879,7 +879,7 @@ where
                 &seeded_instrument,
                 as_of,
                 Some((spot_id, -spot_bump.relative)),
-                Some((&surface_ids, k_abs)),
+                Some((&vol_surface_ids, k_abs)),
             )?;
             let v_mm = eval_raw_with_scratch_bumps(
                 context,
@@ -887,7 +887,7 @@ where
                 &seeded_instrument,
                 as_of,
                 Some((spot_id, -spot_bump.relative)),
-                Some((&surface_ids, -k_abs)),
+                Some((&vol_surface_ids, -k_abs)),
             )?;
             Ok((v_pp, v_pm, v_mp, v_mm))
         })?;
@@ -1018,7 +1018,7 @@ mod tests {
     impl crate::instruments::common_impl::traits::Instrument for TestFdInstrument {
         fn market_dependencies(&self) -> finstack_quant_core::Result<MarketDependencies> {
             let mut dependencies = MarketDependencies::new();
-            dependencies.add_spot_id(self.spot_id.as_str());
+            dependencies.add_market_scalar_id(self.spot_id.as_str());
             Ok(dependencies)
         }
 
@@ -1105,7 +1105,7 @@ mod tests {
     impl crate::instruments::common_impl::traits::Instrument for RoundingSensitiveInstrument {
         fn market_dependencies(&self) -> finstack_quant_core::Result<MarketDependencies> {
             let mut dependencies = MarketDependencies::new();
-            dependencies.add_spot_id(self.spot_id.as_str());
+            dependencies.add_market_scalar_id(self.spot_id.as_str());
             Ok(dependencies)
         }
 
@@ -1484,7 +1484,7 @@ mod tests {
                 spot_id: spot_id.into(),
                 surface_terms: surface_terms
                     .into_iter()
-                    .map(|(surface_id, slope)| (surface_id.to_string(), slope))
+                    .map(|(vol_surface_id, slope)| (vol_surface_id.to_string(), slope))
                     .collect(),
                 multiply_by_spot,
                 overrides: MetricPricingOverrides::default(),
@@ -1494,8 +1494,8 @@ mod tests {
 
         fn raw_pv(&self, market: &MarketContext) -> finstack_quant_core::Result<f64> {
             let mut value = 0.0;
-            for (surface_id, slope) in &self.surface_terms {
-                let surface = market.get_surface(surface_id)?;
+            for (vol_surface_id, slope) in &self.surface_terms {
+                let surface = market.get_surface(vol_surface_id)?;
                 // Sample the surface at its first grid point: an exact grid
                 // hit so `value_checked` returns the stored vol verbatim.
                 let expiry = surface.expiries().first().copied().ok_or_else(|| {
@@ -1532,10 +1532,10 @@ mod tests {
     impl crate::instruments::common_impl::traits::Instrument for VolLinearInstrument {
         fn market_dependencies(&self) -> finstack_quant_core::Result<MarketDependencies> {
             let mut dependencies = MarketDependencies::new();
-            dependencies.add_spot_id(self.spot_id.as_str());
-            for (surface_id, _) in &self.surface_terms {
+            dependencies.add_market_scalar_id(self.spot_id.as_str());
+            for (vol_surface_id, _) in &self.surface_terms {
                 dependencies.add_volatility_dependency(VolatilityDependency::new(
-                    surface_id.clone(),
+                    vol_surface_id.clone(),
                     Some(self.spot_id.clone()),
                     None,
                 ));

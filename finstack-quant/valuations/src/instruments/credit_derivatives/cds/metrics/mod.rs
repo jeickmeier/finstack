@@ -5,7 +5,7 @@
 //! and are registered via `register_cds_metrics`.
 //!
 //! Exposed metrics:
-//! - Par spread (bps)
+//! - Par spread (bp)
 //! - Risky PV01
 //! - Risky annuity
 //! - CS01
@@ -126,27 +126,27 @@ pub(crate) fn register_cds_metrics(registry: &mut MetricRegistry) {
     registry.register_metric(
         MetricId::RiskyPv01,
         Arc::new(risky_pv01::RiskyPv01Calculator),
-        &[InstrumentType::CDS],
+        &[InstrumentType::Cds],
     );
 
     // Recovery01 (custom metric - recovery rate sensitivity)
     registry.register_metric(
         MetricId::Recovery01,
         Arc::new(recovery01::Recovery01Calculator),
-        &[InstrumentType::CDS],
+        &[InstrumentType::Cds],
     );
 
     // JumpToDefaultLgdOnly (custom metric - LGD only, excludes accrued)
     registry.register_metric(
         MetricId::custom("jump_to_default_lgd_only"),
         Arc::new(jump_to_default::JumpToDefaultLgdOnlyCalculator),
-        &[InstrumentType::CDS],
+        &[InstrumentType::Cds],
     );
 
     // Standard metrics using macro
     crate::register_metrics! {
         registry: registry,
-        instrument: InstrumentType::CDS,
+        instrument: InstrumentType::Cds,
         metrics: [
             (ParSpread, par_spread::ParSpreadCalculator),
             (RiskyAnnuity, risky_annuity::RiskyAnnuityCalculator),

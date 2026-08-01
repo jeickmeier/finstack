@@ -34,36 +34,17 @@ fn test_trs_side_from_str_canonical() {
 }
 
 #[test]
-fn test_trs_side_from_str_short_forms() {
-    // Arrange & Act
-    let receive = "receive".parse::<TrsSide>().unwrap();
-    let pay = "pay".parse::<TrsSide>().unwrap();
-
-    // Assert
-    assert_eq!(receive, TrsSide::ReceiveTotalReturn);
-    assert_eq!(pay, TrsSide::PayTotalReturn);
-}
-
-#[test]
-fn test_trs_side_from_str_case_insensitive() {
-    // Arrange & Act
-    let receive_upper = "RECEIVE_TOTAL_RETURN".parse::<TrsSide>().unwrap();
-    let pay_mixed = "Pay_Total_Return".parse::<TrsSide>().unwrap();
-
-    // Assert
-    assert_eq!(receive_upper, TrsSide::ReceiveTotalReturn);
-    assert_eq!(pay_mixed, TrsSide::PayTotalReturn);
-}
-
-#[test]
-fn test_trs_side_from_str_with_hyphens() {
-    // Arrange & Act
-    let receive = "receive-total-return".parse::<TrsSide>().unwrap();
-    let pay = "pay-total-return".parse::<TrsSide>().unwrap();
-
-    // Assert
-    assert_eq!(receive, TrsSide::ReceiveTotalReturn);
-    assert_eq!(pay, TrsSide::PayTotalReturn);
+fn test_trs_side_rejects_noncanonical_spellings() {
+    for retired in [
+        "receive",
+        "pay",
+        "RECEIVE_TOTAL_RETURN",
+        "Pay_Total_Return",
+        "receive-total-return",
+        "pay-total-return",
+    ] {
+        assert!(retired.parse::<TrsSide>().is_err());
+    }
 }
 
 #[test]
@@ -128,8 +109,8 @@ fn test_trs_schedule_spec_creation() {
     // Assert
     assert_eq!(spec.start, start);
     assert_eq!(spec.end, end);
-    assert_eq!(spec.params.dc, DayCount::Act360);
-    assert_eq!(spec.params.freq, Tenor::quarterly());
+    assert_eq!(spec.params.day_count, DayCount::Act360);
+    assert_eq!(spec.params.frequency, Tenor::quarterly());
 }
 
 #[test]
@@ -160,9 +141,9 @@ fn test_trs_schedule_spec_period_schedule_semiannual() {
     let start = d(2025, 1, 2);
     let end = d(2026, 1, 2);
     let params = ScheduleParams {
-        freq: Tenor::semi_annual(),
-        dc: DayCount::Act360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        frequency: Tenor::semi_annual(),
+        day_count: DayCount::Act360,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         stub: StubKind::None,
         calendar_id: "weekends_only".to_string(),
         end_of_month: false,
@@ -192,9 +173,9 @@ fn test_trs_schedule_spec_period_schedule_monthly() {
     let start = d(2025, 1, 2);
     let end = d(2025, 7, 2); // 6 months
     let params = ScheduleParams {
-        freq: Tenor::monthly(),
-        dc: DayCount::Act360,
-        bdc: BusinessDayConvention::Following,
+        frequency: Tenor::monthly(),
+        day_count: DayCount::Act360,
+        business_day_convention: BusinessDayConvention::Following,
         stub: StubKind::None,
         calendar_id: "weekends_only".to_string(),
         end_of_month: false,
@@ -226,9 +207,9 @@ fn test_trs_schedule_spec_different_day_counts() {
 
     let params_act360 = ScheduleParams::quarterly_act360();
     let params_30_360 = ScheduleParams {
-        freq: Tenor::quarterly(),
-        dc: DayCount::Thirty360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        frequency: Tenor::quarterly(),
+        day_count: DayCount::Thirty360,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         stub: StubKind::None,
         calendar_id: "weekends_only".to_string(),
         end_of_month: false,
@@ -242,8 +223,8 @@ fn test_trs_schedule_spec_different_day_counts() {
     let spec_30_360 = TrsScheduleSpec::from_params(start, end, params_30_360);
 
     // Assert
-    assert_eq!(spec_act360.params.dc, DayCount::Act360);
-    assert_eq!(spec_30_360.params.dc, DayCount::Thirty360);
+    assert_eq!(spec_act360.params.day_count, DayCount::Act360);
+    assert_eq!(spec_30_360.params.day_count, DayCount::Thirty360);
 
     // Both should produce same number of dates (different year fractions though)
     let sched1 = spec_act360
@@ -313,6 +294,6 @@ fn test_trs_schedule_spec_clone() {
     // Assert
     assert_eq!(spec.start, cloned.start);
     assert_eq!(spec.end, cloned.end);
-    assert_eq!(spec.params.freq, cloned.params.freq);
-    assert_eq!(spec.params.dc, cloned.params.dc);
+    assert_eq!(spec.params.frequency, cloned.params.frequency);
+    assert_eq!(spec.params.day_count, cloned.params.day_count);
 }

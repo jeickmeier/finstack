@@ -108,15 +108,14 @@ impl std::str::FromStr for CapFloorVolType {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "lognormal" | "black" => Ok(Self::Lognormal),
-            "shifted_lognormal" | "shifted" | "displaced" => Ok(Self::ShiftedLognormal),
-            "normal" | "bachelier" => Ok(Self::Normal),
+        match s {
+            "lognormal" => Ok(Self::Lognormal),
+            "shifted_lognormal" => Ok(Self::ShiftedLognormal),
+            "normal" => Ok(Self::Normal),
             "auto" => Ok(Self::Auto),
-            other => Err(format!(
+            _ => Err(format!(
                 "Unknown cap/floor vol type: '{}'. Valid: lognormal, shifted_lognormal, normal, auto",
-                other
+                s
             )),
         }
     }
@@ -154,15 +153,14 @@ impl std::str::FromStr for RateOptionType {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
+        match s {
             "cap" => Ok(Self::Cap),
             "floor" => Ok(Self::Floor),
             "caplet" => Ok(Self::Caplet),
             "floorlet" => Ok(Self::Floorlet),
-            other => Err(format!(
+            _ => Err(format!(
                 "Unknown rate option type: '{}'. Valid: cap, floor, caplet, floorlet",
-                other
+                s
             )),
         }
     }
@@ -233,7 +231,9 @@ pub struct OvernightCouponConvention {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct CapFloor {
@@ -244,6 +244,7 @@ pub struct CapFloor {
     /// Notional amount
     pub notional: Money,
     /// Strike (as decimal, e.g., 0.05 for 5%)
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub strike: Decimal,
     /// Contractual spread added to the referenced rate, in decimal rate units.
     ///
@@ -252,12 +253,13 @@ pub struct CapFloor {
     /// is added after compounding or included in every daily factor.
     #[serde(default, skip_serializing_if = "Decimal::is_zero")]
     #[builder(default)]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread: Decimal,
     /// Start date of underlying period
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// End date of underlying period
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Payment frequency for caps/floors
     pub frequency: Tenor,
@@ -270,7 +272,7 @@ pub struct CapFloor {
     /// Schedule business day convention
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional holiday calendar identifier for schedule and roll conventions
     pub calendar_id: Option<CalendarId>,
     /// Exercise style (defaults to European; caps/floors are virtually always European)
@@ -319,17 +321,26 @@ pub struct CapFloor {
     #[builder(default)]
     pub overnight_coupon: Option<OvernightCouponConvention>,
     /// Additional attributes
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -397,7 +408,7 @@ impl CapFloor {
             frequency: option_params.frequency,
             day_count: option_params.day_count,
             stub: option_params.stub,
-            bdc: option_params.bdc,
+            business_day_convention: option_params.business_day_convention,
             calendar_id: option_params.calendar_id.map(CalendarId::new),
             exercise_style: ExerciseStyle::European,
             settlement: SettlementType::Cash,
@@ -492,7 +503,7 @@ impl CapFloor {
             frequency: infer_single_period_frequency(start_date, maturity),
             day_count,
             stub: StubKind::ShortFront,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
         };
         Ok(Self::from_params(
@@ -528,7 +539,7 @@ impl CapFloor {
             frequency: infer_single_period_frequency(start_date, maturity),
             day_count,
             stub: StubKind::ShortFront,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
         };
         Ok(Self::from_params(
@@ -554,7 +565,7 @@ impl CapFloor {
             end: self.maturity,
             frequency: self.frequency,
             stub: self.stub,
-            bdc: self.bdc,
+            business_day_convention: self.business_day_convention,
             calendar_id: self
                 .calendar_id
                 .as_deref()
@@ -602,7 +613,7 @@ impl CapFloor {
                     crate::instruments::common_impl::pricing::overnight::adjust_overnight_accrual_boundaries(
                         period.accrual_start,
                         period.accrual_end,
-                        self.bdc,
+                        self.business_day_convention,
                         fixing_calendar,
                     )?;
                 period.accrual_year_fraction = self.day_count.year_fraction(
@@ -928,7 +939,7 @@ mod tests {
     }
 
     #[test]
-    fn focused_overrides_preserve_legacy_wire_shape() {
+    fn focused_overrides_use_canonical_wire_shape() {
         let mut cap = CapFloor::new_cap(
             "WIRE-CAP",
             Money::new(1_000_000.0, Currency::USD),
@@ -947,24 +958,22 @@ mod tests {
         cap.scenario_pricing_overrides.scenario_price_shock_pct = Some(-0.04);
 
         let value = serde_json::to_value(&cap).expect("serialize focused overrides");
-        assert!(value.get("instrument_pricing_overrides").is_none());
-        assert!(value.get("metric_pricing_overrides").is_none());
-        assert!(value.get("scenario_pricing_overrides").is_none());
-        let wire = value
-            .get("pricing_overrides")
-            .and_then(serde_json::Value::as_object)
-            .expect("legacy pricing_overrides object");
-        assert_eq!(wire.get("hw1f_sigma"), Some(&serde_json::json!(0.012)));
         assert_eq!(
-            wire.get("mc_seed_scenario"),
+            value.pointer("/instrument_pricing_overrides/model_config/hw1f_sigma"),
+            Some(&serde_json::json!(0.012))
+        );
+        assert_eq!(
+            value.pointer("/metric_pricing_overrides/mc_seed_scenario"),
             Some(&serde_json::json!("vega_up"))
         );
         assert_eq!(
-            wire.get("scenario_price_shock_pct"),
+            value.pointer("/scenario_pricing_overrides/scenario_price_shock_pct"),
             Some(&serde_json::json!(-0.04))
         );
+        assert!(value.get("pricing_overrides").is_none());
 
-        let roundtrip: CapFloor = serde_json::from_value(value).expect("deserialize legacy wire");
+        let roundtrip: CapFloor =
+            serde_json::from_value(value).expect("deserialize canonical wire");
         assert_eq!(
             roundtrip
                 .instrument_pricing_overrides
@@ -1059,7 +1068,7 @@ mod tests {
                 end: end_date,
                 frequency: Tenor::quarterly(),
                 stub: StubKind::None,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID,
                 end_of_month: false,
                 day_count: DayCount::Act360,

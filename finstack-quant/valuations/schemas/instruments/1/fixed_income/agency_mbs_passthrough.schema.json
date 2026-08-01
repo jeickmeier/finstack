@@ -1,5 +1,143 @@
 {
   "$defs": {
+    "AgencyMbsPassthrough": {
+      "additionalProperties": false,
+      "description": "Agency MBS passthrough instrument (pool or specified pool).\n\nRepresents an agency mortgage-backed security where principal and interest\npayments from the underlying mortgage pool are passed through to investors,\nnet of servicing and guarantee fees.\n\n# Cashflow Sign Convention\n\nAll cashflows are from the holder's (investor's) perspective:\n- Principal and interest received are positive\n- The initial purchase price is handled at trade level\n\n# Payment Delay\n\nAgency MBS have standardized payment delays measured from the **start**\nof the accrual period (first day of the month) to the payment date:\n- FNMA / FHLMC (UMBS): ~55 days → payment on the 25th of M+1\n- GNMA I: ~14 days → payment on the 15th of M\n- GNMA II: ~50 days → payment on the 20th of M+1\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::fixed_income::mbs_passthrough::{\n    AgencyMbsPassthrough, AgencyProgram, PoolType,\n};\nuse finstack_quant_cashflows::builder::specs::PrepaymentModelSpec;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::dates::Date;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\nlet mbs = AgencyMbsPassthrough::builder()\n    .id(InstrumentId::new(\"FN-MA1234\"))\n    .pool_id(\"MA1234\".into())\n    .agency(AgencyProgram::Fnma)\n    .pool_type(PoolType::Generic)\n    .original_face(Money::new(1_000_000.0, Currency::USD))\n    .current_face(Money::new(950_000.0, Currency::USD))\n    .current_factor(0.95)\n    .wac(0.045)\n    .pass_through_rate(0.04)\n    .servicing_fee_rate(0.0025)\n    .guarantee_fee_rate(0.0025)\n    .wam(348)\n    .issue_date(Date::from_calendar_date(2022, Month::January, 1).unwrap())\n    .maturity(Date::from_calendar_date(2052, Month::January, 1).unwrap())\n    .prepayment_model(PrepaymentModelSpec::psa(1.0))\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .day_count(finstack_quant_core::dates::DayCount::Thirty360)\n    .build()\n    .expect(\"Valid MBS\");\n```",
+      "properties": {
+        "agency": {
+          "$ref": "#/$defs/AgencyProgram",
+          "description": "Agency program (FNMA, FHLMC, GNMA)."
+        },
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for scenario selection and tagging.\nAttributes for scenario selection and tagging"
+        },
+        "current_face": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Current face amount (remaining principal balance)."
+        },
+        "current_factor": {
+          "description": "Current pool factor (current_face / original_face).",
+          "format": "double",
+          "type": "number"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention for accrual."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier for pricing."
+        },
+        "guarantee_fee_rate": {
+          "default": 0.0,
+          "description": "Guarantee fee rate (annual, as decimal e.g., 0.0025 for 25 bp).\n\nDefaults to `0.0` when omitted.",
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides (including quoted price for OAS).\nInstrument-owned pricing inputs."
+        },
+        "issue_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Issue date of the pool."
+        },
+        "last_paid_accrual_end": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "End date of the latest accrual period whose delayed P&I payment has\nsettled and is already reflected in `current_face`.\n\nWhen omitted, pricing infers the latest paid period from the agency\npayment-delay rule and `as_of`."
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Legal maturity date."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "original_face": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Original face amount (initial principal balance)."
+        },
+        "pass_through_rate": {
+          "description": "Pass-through rate (net coupon to investor).",
+          "format": "double",
+          "type": "number"
+        },
+        "payment_lag_days": {
+          "description": "Optional custom payment delay (overrides agency default).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "pool_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Pool identifier (CUSIP or internal pool ID)."
+        },
+        "pool_type": {
+          "$ref": "#/$defs/PoolType",
+          "default": "generic",
+          "description": "Pool type (generic or specified)."
+        },
+        "prepayment_model": {
+          "$ref": "https://finstack_quant.dev/schemas/cashflow/1/prepayment_model_spec.schema.json",
+          "description": "Prepayment model specification."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "servicing_fee_rate": {
+          "default": 0.0,
+          "description": "Servicing fee rate (annual, as decimal e.g., 0.0025 for 25 bp).\n\nDefaults to `0.0` when omitted.",
+          "format": "double",
+          "type": "number"
+        },
+        "wac": {
+          "description": "Weighted average coupon (gross rate on underlying mortgages).",
+          "format": "double",
+          "type": "number"
+        },
+        "wam": {
+          "description": "Remaining weighted average maturity in months as of the valuation\ndate (current WAM, not the original term). Pool age (WALA) for\nseasoning ramps is derived separately from `issue_date`.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "pool_id",
+        "agency",
+        "original_face",
+        "current_face",
+        "current_factor",
+        "wac",
+        "pass_through_rate",
+        "wam",
+        "issue_date",
+        "maturity",
+        "prepayment_model",
+        "discount_curve_id",
+        "day_count"
+      ],
+      "type": "object"
+    },
     "AgencyProgram": {
       "description": "Agency program enumeration.\n\nIdentifies the government-sponsored enterprise (GSE) or government agency\nthat guarantees the mortgage-backed security.\n\n# GNMA Programs\n\nGinnie Mae has two distinct programs with different payment delay conventions:\n- **GNMA I**: Single-issuer pools with a 14-day stated delay. Payments on the 15th.\n- **GNMA II**: Multi-issuer pools with a 50-day stated delay. Payments on the 20th.\n\nUse `GnmaI` or `GnmaII` to select the appropriate convention. Legacy `GNMA`\nand `GNMA_I_I` payloads deserialize as `GnmaII`.",
       "oneOf": [
@@ -25,6 +163,16 @@
         }
       ]
     },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "PoolType": {
       "description": "Pool type classification.\n\nDistinguishes between generic (TBA-eligible) pools and specified pools\nwith known characteristics.",
       "oneOf": [
@@ -39,12 +187,33 @@
           "type": "string"
         }
       ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/AgencyMbsPassthrough"
+            },
+            "type": {
+              "const": "agency_mbs_passthrough",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/agency_mbs_passthrough.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Agency MBS passthrough security (FNMA, FHLMC, GNMA)",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -64,7 +233,7 @@
             "currency": "USD"
           },
           "current_factor": 0.95,
-          "day_count": "Thirty360",
+          "day_count": "30_360",
           "discount_curve_id": "USD-OIS",
           "guarantee_fee_rate": 0.0025,
           "id": "FN-MA1234",
@@ -84,27 +253,6 @@
               "speed_multiplier": 1.0
             }
           },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "servicing_fee_rate": 0.0025,
           "wac": 0.045,
           "wam": 348
@@ -116,178 +264,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Agency Mbs Passthrough instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "agency": {
-              "$ref": "#/$defs/AgencyProgram",
-              "description": "Agency program (FNMA, FHLMC, GNMA)."
-            },
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "default": {},
-              "description": "Attributes for scenario selection and tagging.\nAttributes for scenario selection and tagging"
-            },
-            "current_face": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Current face amount (remaining principal balance)."
-            },
-            "current_factor": {
-              "description": "Current pool factor (current_face / original_face).",
-              "format": "double",
-              "type": "number"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention for accrual."
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier for pricing."
-            },
-            "guarantee_fee_rate": {
-              "default": 0.0,
-              "description": "Guarantee fee rate (annual, as decimal e.g., 0.0025 for 25 bps).\n\nDefaults to `0.0` when omitted.",
-              "format": "double",
-              "type": "number"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "issue_date": {
-              "description": "Issue date of the pool.",
-              "format": "date",
-              "type": "string"
-            },
-            "last_paid_accrual_end": {
-              "description": "End date of the latest accrual period whose delayed P&I payment has\nsettled and is already reflected in `current_face`.\n\nWhen omitted, pricing infers the latest paid period from the agency\npayment-delay rule and `as_of`.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "maturity": {
-              "description": "Legal maturity date.",
-              "format": "date",
-              "type": "string"
-            },
-            "original_face": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Original face amount (initial principal balance)."
-            },
-            "pass_through_rate": {
-              "description": "Pass-through rate (net coupon to investor).",
-              "format": "double",
-              "type": "number"
-            },
-            "payment_lag_days": {
-              "description": "Optional custom payment delay (overrides agency default).",
-              "format": "uint32",
-              "minimum": 0,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "pool_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Pool identifier (CUSIP or internal pool ID)."
-            },
-            "pool_type": {
-              "$ref": "#/$defs/PoolType",
-              "default": "generic",
-              "description": "Pool type (generic or specified)."
-            },
-            "prepayment_model": {
-              "$ref": "https://finstack_quant.dev/schemas/cashflow/1/prepayment_model_spec.schema.json",
-              "description": "Prepayment model specification."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides (including quoted price for OAS).\nInstrument-owned pricing inputs."
-            },
-            "servicing_fee_rate": {
-              "default": 0.0,
-              "description": "Servicing fee rate (annual, as decimal e.g., 0.0025 for 25 bps).\n\nDefaults to `0.0` when omitted.",
-              "format": "double",
-              "type": "number"
-            },
-            "wac": {
-              "description": "Weighted average coupon (gross rate on underlying mortgages).",
-              "format": "double",
-              "type": "number"
-            },
-            "wam": {
-              "description": "Remaining weighted average maturity in months as of the valuation\ndate (current WAM, not the original term). Pool age (WALA) for\nseasoning ramps is derived separately from `issue_date`.",
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "id",
-            "pool_id",
-            "agency",
-            "original_face",
-            "current_face",
-            "current_factor",
-            "wac",
-            "pass_through_rate",
-            "wam",
-            "issue_date",
-            "maturity",
-            "prepayment_model",
-            "discount_curve_id",
-            "day_count"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "agency_mbs_passthrough",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Agency MBS Passthrough",
+  "title": "agency_mbs_passthrough",
   "type": "object"
 }

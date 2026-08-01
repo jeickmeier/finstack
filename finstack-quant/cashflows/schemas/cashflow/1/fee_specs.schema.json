@@ -4,22 +4,22 @@
       "description": "Controls how the outstanding balance is sampled during fee accrual.",
       "oneOf": [
         {
-          "const": "PointInTime",
+          "const": "point_in_time",
           "description": "Use the outstanding balance at the period's accrual start, matching the\ncoupon convention (same-date amortization/PIK on the payment date does\nnot affect the fee base).",
           "type": "string"
         },
         {
-          "const": "TimeWeightedAverage",
+          "const": "time_weighted_average",
           "description": "Time-weighted average outstanding over the accrual period.",
           "type": "string"
         }
       ]
     },
     "FeeBase": {
-      "description": "Fee base for periodic bps fees.",
+      "description": "Fee base for periodic bp fees.",
       "oneOf": [
         {
-          "const": "Drawn",
+          "const": "drawn",
           "description": "Fee base is the drawn outstanding after amortization and PIK updates.",
           "type": "string"
         },
@@ -27,7 +27,7 @@
           "additionalProperties": false,
           "description": "Base on undrawn = max(limit - outstanding, 0).",
           "properties": {
-            "Undrawn": {
+            "undrawn": {
               "additionalProperties": false,
               "properties": {
                 "facility_limit": {
@@ -42,7 +42,7 @@
             }
           },
           "required": [
-            "Undrawn"
+            "undrawn"
           ],
           "type": "object"
         }
@@ -52,27 +52,27 @@
       "description": "Stub period handling when start/end dates don't align with payment frequency.\n\nControls how schedules are generated when the start and end dates don't\ndivide evenly by the payment frequency, resulting in an irregular period\n(stub) at the beginning or end of the schedule.\n\n# Variants\n\n- **`None`**: No stub allowed (default). Generates regular periods from\n  start to end and returns an error\n  ([`InputError::NonIntegerScheduleTenor`]) when the dates don't divide\n  evenly by the frequency. Use a stub variant for misaligned schedules.\n\n[`InputError::NonIntegerScheduleTenor`]: crate::error::InputError::NonIntegerScheduleTenor\n- **`ShortFront`**: Short stub period at the start. Schedule is built\n  backward from the end date, creating a short first period.\n- **`ShortBack`**: Short stub period at the end. Schedule is built forward\n  from the start date, creating a short final period.\n- **`LongFront`**: Long stub period at the start. Combines the first two\n  periods into a single longer period.\n- **`LongBack`**: Long stub period at the end. Combines the last two periods\n  into a single longer period.\n\n# Financial Context\n\nStub conventions are important for:\n- Interest accrual calculations (short/long first coupons)\n- Cash flow present value computations\n- Matching market conventions for specific instruments\n\n# Examples\n\n```rust\nuse finstack_quant_core::dates::{ScheduleBuilder, Tenor, StubKind};\nuse time::{Date, Month};\n\nlet start = Date::from_calendar_date(2025, Month::January, 10)?;\nlet end = Date::from_calendar_date(2025, Month::December, 15)?;\n\n// Short stub at front\nlet sched = ScheduleBuilder::new(start, end)?\n    .frequency(Tenor::quarterly())\n    .stub_rule(StubKind::ShortFront)\n    .build()?;\n# Ok::<(), Box<dyn std::error::Error>>(())\n```\n\n# See Also\n\n- [`ScheduleBuilder::stub_rule`] to configure stub behavior",
       "oneOf": [
         {
-          "const": "None",
+          "const": "none",
           "description": "No stub allowed: start/end must align exactly with the frequency,\notherwise schedule generation returns an error.",
           "type": "string"
         },
         {
-          "const": "ShortFront",
+          "const": "short_front",
           "description": "Short stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "ShortBack",
+          "const": "short_back",
           "description": "Short stub period at the end of the schedule (final step truncated to maturity).",
           "type": "string"
         },
         {
-          "const": "LongFront",
+          "const": "long_front",
           "description": "Long stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "LongBack",
+          "const": "long_back",
           "description": "Long stub period at the end of the schedule (merges final two periods).",
           "type": "string"
         }
@@ -81,13 +81,13 @@
   },
   "$id": "https://finstack_quant.dev/schemas/cashflow/1/fee_specs.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Fee specifications for fixed and periodic fees. Rust types: FeeSpec, FeeBase, FeeTier from finstack_quant_valuations::cashflow::builder::specs::fees",
+  "description": "Cashflow fee specification.",
   "oneOf": [
     {
       "additionalProperties": false,
       "description": "Fixed fee paid once on a specified date.",
       "properties": {
-        "Fixed": {
+        "fixed": {
           "additionalProperties": false,
           "properties": {
             "amount": {
@@ -95,9 +95,8 @@
               "description": "Fee amount in currency units."
             },
             "date": {
-              "description": "Payment date of the fixed fee.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Payment date of the fixed fee."
             }
           },
           "required": [
@@ -108,7 +107,7 @@
         }
       },
       "required": [
-        "Fixed"
+        "fixed"
       ],
       "type": "object"
     },
@@ -116,7 +115,7 @@
       "additionalProperties": false,
       "description": "Periodic fee quoted in basis points and accrued over generated periods.",
       "properties": {
-        "PeriodicBps": {
+        "periodic_bp": {
           "additionalProperties": false,
           "properties": {
             "accrual_basis": {
@@ -127,27 +126,23 @@
               "$ref": "#/$defs/FeeBase",
               "description": "Economic balance used as the fee base."
             },
-            "bdc": {
+            "bp": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+              "description": "Fee quote in basis points per annum, stored as `Decimal` to preserve\nthe quoted value exactly."
+            },
+            "business_day_convention": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
               "description": "Business-day convention applied to generated fee dates."
             },
-            "bps": {
-              "description": "Fee quote in basis points per annum, stored as `Decimal` to preserve\nthe quoted value exactly.",
-              "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-              "type": [
-                "string",
-                "number"
-              ]
-            },
             "calendar_id": {
-              "description": "Holiday calendar identifier used with `bdc`.\n\nUse `\"weekends_only\"` when only weekend adjustment is required.",
+              "description": "Holiday calendar identifier used with `business_day_convention`.\n\nUse `\"weekends_only\"` when only weekend adjustment is required.",
               "type": "string"
             },
-            "dc": {
+            "day_count": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
               "description": "Day-count convention used to annualize the fee accrual."
             },
-            "freq": {
+            "frequency": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
               "description": "Accrual and payment frequency for the fee schedule."
             },
@@ -158,10 +153,10 @@
           },
           "required": [
             "base",
-            "bps",
-            "freq",
-            "dc",
-            "bdc",
+            "bp",
+            "frequency",
+            "day_count",
+            "business_day_convention",
             "calendar_id",
             "stub"
           ],
@@ -169,10 +164,10 @@
         }
       },
       "required": [
-        "PeriodicBps"
+        "periodic_bp"
       ],
       "type": "object"
     }
   ],
-  "title": "Fee Specifications"
+  "title": "FeeSpec"
 }

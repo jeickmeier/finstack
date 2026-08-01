@@ -25,6 +25,131 @@
       ],
       "type": "object"
     },
+    "DiscountedCashFlow": {
+      "additionalProperties": false,
+      "description": "Discounted Cash Flow instrument for corporate valuation.\n\nDCF values a company by discounting projected free cash flows and terminal value.\nThe equity value is calculated as: Enterprise Value - Net Debt (or structured bridge).\n\n# Equity Bridge\n\nWhen [`equity_bridge`](Self::equity_bridge) is `Some`, it takes precedence over\nthe flat [`net_debt`](Self::net_debt) field for the EV-to-equity conversion.\n\n# Mid-Year Convention\n\nWhen [`mid_year_convention`](Self::mid_year_convention) is `true`, cash flows are\ndiscounted at `t` minus half the average flow spacing instead of `t` years,\nreflecting the assumption that cash flows arrive mid-period (standard IB/PE\npractice). For annual grids this is the classic `(t - 0.5)`; for sub-annual\ngrids the shift is half a period. `ExitMultiple` terminal values always\ndiscount at the full horizon (a point-in-time sale price).\n\n# Valuation Discounts\n\nPrivate company valuations can apply DLOM, DLOC, and other discounts via\n[`valuation_discounts`](Self::valuation_discounts). These discounts apply\nafter the EV-to-equity bridge, so the reported enterprise value remains a\npre-discount enterprise value and does not equal discounted equity value\nplus net debt.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json"
+        },
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json"
+        },
+        "dilution_securities": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DilutionSecurity"
+          },
+          "type": "array"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+        },
+        "equity_bridge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EquityBridge"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "flows": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+              },
+              {
+                "format": "double",
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "default": {}
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "default": {
+            "mc_seed_scenario": null,
+            "theta_period": null
+          }
+        },
+        "mid_year_convention": {
+          "default": false,
+          "type": "boolean"
+        },
+        "net_debt": {
+          "format": "double",
+          "type": "number"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "default": {}
+        },
+        "shares_outstanding": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "terminal_flow_override": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "terminal_value": {
+          "$ref": "#/$defs/TerminalValueSpec"
+        },
+        "valuation_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+        },
+        "valuation_discounts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValuationDiscounts"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "wacc": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "currency",
+        "flows",
+        "wacc",
+        "terminal_value",
+        "net_debt",
+        "valuation_date",
+        "discount_curve_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "EquityBridge": {
       "description": "Structured equity bridge for converting Enterprise Value to Equity Value.\n\nStandard professional bridge:\n```text\nEquity = EV - Total Debt + Cash - Preferred Equity - Minority Interest\n         + Non-Operating Assets + Σ(other adjustments)\n```\n\nWhen attached to a [`DiscountedCashFlow`], this takes precedence over the\nflat `net_debt` scalar.",
       "properties": {
@@ -78,6 +203,37 @@
         }
       },
       "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/DiscountedCashFlow"
+            },
+            "type": {
+              "const": "discounted_cash_flow",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "TerminalValueSpec": {
       "description": "Terminal value calculation method for DCF.",
@@ -193,7 +349,7 @@
   "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/discounted_cash_flow.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Discounted Cash Flow instrument for corporate equity valuation",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -226,27 +382,6 @@
           "id": "DCF-TECH-CO",
           "mid_year_convention": true,
           "net_debt": 15000000.0,
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "shares_outstanding": 10000000.0,
           "terminal_value": {
             "growth_rate": 0.02,
@@ -262,175 +397,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Discounted Cash Flow instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Currency for all cashflows."
-            },
-            "dilution_securities": {
-              "description": "Dilutive securities (options, warrants, RSUs, convertibles) for treasury stock method.",
-              "items": {
-                "$ref": "#/$defs/DilutionSecurity"
-              },
-              "type": "array"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier, used for risk attribution only.\n\nDiscounting always uses [`wacc`](Self::wacc) via `(1 + wacc)^{-t}`\nregardless of whether this curve is loaded (the\nprevious behavior silently switched risky flows to risk-free curve\ndiscounting). Rate sensitivity (`Dv01`/`BucketedDv01`) bumps the\nrisk-free component inside the WACC instead."
-            },
-            "equity_bridge": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/EquityBridge"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Structured equity bridge for EV-to-equity conversion.\n\nWhen present, takes precedence over the flat `net_debt` field."
-            },
-            "flows": {
-              "description": "Explicit period free cash flows (date, amount pairs).",
-              "items": {
-                "maxItems": 2,
-                "minItems": 2,
-                "prefixItems": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "format": "double",
-                    "type": "number"
-                  }
-                ],
-                "type": "array"
-              },
-              "type": "array"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique identifier for the DCF."
-            },
-            "mid_year_convention": {
-              "default": false,
-              "description": "Mid-year discounting convention (default: `false` = end-of-period).\n\nWhen `true`, each flow is discounted at `t` minus half the average\nflow spacing instead of `t` (the classic `t - 0.5` for annual\ngrids; half a period for sub-annual grids), reflecting the\nassumption that cash flows arrive mid-period. This is the standard\nconvention in IB/PE practice (Koller et al.). Exit-multiple\nterminal values are not shifted (point-in-time sale at the horizon).",
-              "type": "boolean"
-            },
-            "net_debt": {
-              "description": "Net debt (debt - cash) to subtract from enterprise value.\n\nIgnored when [`equity_bridge`](Self::equity_bridge) is `Some`.",
-              "format": "double",
-              "type": "number"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for tagging and scenarios."
-            },
-            "shares_outstanding": {
-              "description": "Basic shares outstanding for per-share value calculation.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "terminal_flow_override": {
-              "description": "Annualized terminal flow used by growth-perpetuity terminal values.\n\nGordon Growth and H-Model capitalize an *annual* flow with annual\nWACC and growth rates. When the explicit `flows` grid is sub-annual\n(e.g. quarterly), the last flow is a period flow, not an annual one;\nset this to the trailing-twelve-month aggregate of the final\nexplicit year so the terminal value is computed on a consistent\nannual basis (Koller et al., Damodaran). When `None`, the last\nexplicit flow is used directly (correct for annual grids).\n\nIgnored by `ExitMultiple` terminal values.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "terminal_value": {
-              "$ref": "#/$defs/TerminalValueSpec",
-              "description": "Terminal value specification."
-            },
-            "valuation_date": {
-              "description": "Valuation date (as-of date for the DCF).",
-              "format": "date",
-              "type": "string"
-            },
-            "valuation_discounts": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/ValuationDiscounts"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Private company valuation discounts (DLOM, DLOC)."
-            },
-            "wacc": {
-              "description": "Weighted Average Cost of Capital (discount rate).",
-              "format": "double",
-              "type": "number"
-            }
-          },
-          "required": [
-            "id",
-            "currency",
-            "flows",
-            "wacc",
-            "terminal_value",
-            "net_debt",
-            "valuation_date",
-            "discount_curve_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "discounted_cash_flow",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Discounted Cash Flow",
+  "title": "discounted_cash_flow",
   "type": "object"
 }

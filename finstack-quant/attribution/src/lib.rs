@@ -348,7 +348,7 @@ pub(crate) mod return_contribution;
 /// JSON Schema generation helpers for attribution contracts.
 pub mod schema;
 pub(crate) mod spec;
-pub(crate) mod target_ccy;
+pub(crate) mod target_currency;
 pub(crate) mod taylor;
 pub(crate) mod types;
 pub(crate) mod waterfall;
@@ -383,9 +383,9 @@ pub use return_contribution::{
 };
 pub use spec::{
     default_attribution_metrics, AttributionConfig, AttributionEnvelope, AttributionResult,
-    AttributionResultEnvelope, AttributionSpec, ATTRIBUTION_SCHEMA_V1,
+    AttributionResultEnvelope, AttributionSchema, AttributionSpec, ATTRIBUTION_SCHEMA,
 };
-pub use target_ccy::translate_to_target_ccy;
+pub use target_currency::translate_to_target_currency;
 pub use taylor::{attribute_pnl_taylor, TaylorAttributionConfig};
 pub use waterfall::{attribute_pnl_waterfall, default_waterfall_order};
 // Market snapshot helpers
@@ -489,7 +489,7 @@ pub mod __private {
 ///
 /// This is the **cheapest** attribution entry point — it prices the
 /// instrument once at each date in each market state and returns the
-/// scalar total P&L in `target_ccy`. FX conversion uses `market_t0` for
+/// scalar total P&L in `target_currency`. FX conversion uses `market_t0` for
 /// the T₀ value and `market_t1` for the T₁ value. Use it when you just
 /// need the headline number and don't care which
 /// factors contributed. For a factor-level decomposition, reach for
@@ -510,12 +510,12 @@ pub mod __private {
 ///   closing FX conversion.
 /// * `as_of_t0` - Opening valuation date used for the T₀ repricing.
 /// * `as_of_t1` - Closing valuation date used for the T₁ repricing.
-/// * `target_ccy` - Currency to report P&L in; FX is resolved from the
+/// * `target_currency` - Currency to report P&L in; FX is resolved from the
 ///   date-specific market contexts.
 ///
 /// # Returns
 ///
-/// The total P&L `v_t1 − v_t0` in `target_ccy`.
+/// The total P&L `v_t1 − v_t0` in `target_currency`.
 ///
 /// # Errors
 ///
@@ -555,11 +555,17 @@ pub fn simple_pnl_bridge(
     market_t1: &MarketContext,
     as_of_t0: Date,
     as_of_t1: Date,
-    target_ccy: Currency,
+    target_currency: Currency,
 ) -> finstack_quant_core::Result<Money> {
     let v_t0 = helpers::reprice_instrument(instrument, market_t0, as_of_t0)?;
     let v_t1 = helpers::reprice_instrument(instrument, market_t1, as_of_t1)?;
     compute_pnl_with_fx(
-        v_t0, v_t1, target_ccy, market_t0, market_t1, as_of_t0, as_of_t1,
+        v_t0,
+        v_t1,
+        target_currency,
+        market_t0,
+        market_t1,
+        as_of_t0,
+        as_of_t1,
     )
 }

@@ -54,7 +54,9 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 pub struct CommodityAsianOption {
     /// Unique instrument identifier.
@@ -71,17 +73,17 @@ pub struct CommodityAsianOption {
     /// Dates on which the commodity price is observed for averaging.
     ///
     /// **Note**: These dates should be pre-adjusted for business day conventions.
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub fixing_dates: Vec<Date>,
     /// Already observed fixings for seasoned options (ex-date, price pairs).
     #[builder(default)]
     #[serde(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub realized_fixings: Vec<(Date, f64)>,
     /// Contract quantity in commodity units.
     pub quantity: f64,
     /// Option expiry/settlement date for the payoff.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Forward/futures price curve ID.
     pub forward_curve_id: CurveId,
@@ -95,12 +97,24 @@ pub struct CommodityAsianOption {
     pub day_count: DayCount,
     /// Instrument-owned pricing inputs.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping.
     #[builder(default)]

@@ -3,7 +3,6 @@
 use finstack_quant_valuations::calibration::api::errors::EnvelopeError;
 use finstack_quant_valuations::calibration::api::schema::{
     CalibrationEnvelope, CalibrationPlan, CalibrationStep, DiscountCurveParams, StepParams,
-    CALIBRATION_SCHEMA,
 };
 use finstack_quant_valuations::calibration::api::validate::{
     dependency_graph_json, dry_run, validate,
@@ -12,7 +11,7 @@ use finstack_quant_valuations::calibration::api::validate::{
 fn empty_envelope(id: &str) -> CalibrationEnvelope {
     CalibrationEnvelope {
         schema_url: None,
-        schema: CALIBRATION_SCHEMA.to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan: CalibrationPlan {
             id: id.to_string(),
             description: None,

@@ -53,16 +53,16 @@ fn test_pnl_attribution_rate_move() {
     let dv01 = *result.measures.get("dv01").unwrap();
 
     let pnl = pv_6pct - pv_5pct;
-    let rate_move_bps = (0.06 - 0.05) * 10000.0; // 100 bps
+    let rate_move_bp = (0.06 - 0.05) * 10000.0; // 100 bp
 
     // DV01 is positive (directional), P&L is negative (rates up)
-    // Magnitude relationship: |P&L| ≈ DV01 * rate_move_bps
+    // Magnitude relationship: |P&L| ≈ DV01 * rate_move_bp
     assert!(
-        (pnl.abs() - (dv01.abs() * rate_move_bps)).abs() < dv01.abs() * rate_move_bps * 0.15,
-        "P&L magnitude: {} should relate to DV01 {} * {} bps",
+        (pnl.abs() - (dv01.abs() * rate_move_bp)).abs() < dv01.abs() * rate_move_bp * 0.15,
+        "P&L magnitude: {} should relate to DV01 {} * {} bp",
         pnl,
         dv01,
-        rate_move_bps
+        rate_move_bp
     );
 }
 
@@ -299,9 +299,9 @@ fn test_day_count_impact() {
     let day_counts = vec![DayCount::Act360, DayCount::Act365F];
 
     let mut pvs = Vec::new();
-    for dc in &day_counts {
+    for day_count in &day_counts {
         let mut future = create_standard_future(start, end);
-        future.day_count = *dc;
+        future.day_count = *day_count;
         let pv = future.value(&market, as_of).unwrap().amount();
         pvs.push(pv);
     }

@@ -762,7 +762,7 @@ fn most_specific_wins_deduplicates_per_operation_family_not_raw_identifier() {
         operations: vec![
             OperationSpec::VolSurfaceParallelPct {
                 surface_kind: VolSurfaceKind::Equity,
-                surface_id: "SPX".into(),
+                vol_surface_id: "SPX".into(),
                 pct: 10.0,
             },
             OperationSpec::EquityPricePct {

@@ -138,12 +138,12 @@ fn tree_floating_note_pv(
     hw: HullWhiteParams,
     tree_steps: usize,
 ) -> f64 {
-    let dc = tarn.day_count;
+    let day_count = tarn.day_count;
     let ctx = DayCountContext::default();
     let notional = tarn.notional.amount();
 
     let maturity = *tarn.coupon_dates.last().expect("coupon dates");
-    let horizon = dc
+    let horizon = day_count
         .year_fraction(as_of, maturity, ctx)
         .expect("maturity year fraction");
 
@@ -153,7 +153,7 @@ fn tree_floating_note_pv(
         .coupon_dates
         .iter()
         .filter(|&&d| d > as_of)
-        .map(|&d| dc.year_fraction(as_of, d, ctx).expect("fixing time"))
+        .map(|&d| day_count.year_fraction(as_of, d, ctx).expect("fixing time"))
         .collect();
     let config = HullWhiteTreeConfig::new(hw.kappa, hw.sigma, tree_steps);
     let tree = HullWhiteTree::calibrate_with_times(config, discount_curve, horizon, &fixing_times)
@@ -165,11 +165,11 @@ fn tree_floating_note_pv(
         if end <= as_of {
             continue;
         }
-        let t_end = dc.year_fraction(as_of, end, ctx).expect("t_end");
-        let accrual = dc.year_fraction(start, end, ctx).expect("accrual");
+        let t_end = day_count.year_fraction(as_of, end, ctx).expect("t_end");
+        let accrual = day_count.year_fraction(start, end, ctx).expect("accrual");
         // In-advance fixing: sample the short rate at the period start. A
         // seasoned coupon (start ≤ as_of) fixes at the deterministic root.
-        let t_fix = dc
+        let t_fix = day_count
             .year_fraction(as_of, start, ctx)
             .expect("t_start")
             .max(0.0);

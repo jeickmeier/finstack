@@ -71,7 +71,7 @@ impl MetricCalculator for AnnuityCalculator {
                 end: fixed.end,
                 frequency: fixed.frequency,
                 stub: fixed.stub,
-                bdc: fixed.bdc,
+                business_day_convention: fixed.business_day_convention,
                 calendar_id: fixed
                     .calendar_id
                     .as_deref()

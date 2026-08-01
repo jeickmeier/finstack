@@ -5,35 +5,38 @@
     "vega": 1203.3387355303194
   },
   "instrument": {
-    "spec": {
-      "attributes": {
-        "meta": {},
-        "tags": [
-          "golden",
-          "quantlib"
-        ]
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "spec": {
+        "attributes": {
+          "meta": {},
+          "tags": [
+            "golden",
+            "quantlib"
+          ]
+        },
+        "calendar_id": "weekends_only",
+        "day_count": "act_360",
+        "discount_curve_id": "USD-OIS",
+        "forward_curve_id": "USD-TERM-3M",
+        "frequency": {
+          "count": 3,
+          "unit": "months"
+        },
+        "id": "USD-BLACK-CAP-1Y-QUANTLIB",
+        "maturity": "2027-07-30",
+        "notional": {
+          "amount": "10000000",
+          "currency": "USD"
+        },
+        "rate_option_type": "cap",
+        "start_date": "2026-07-30",
+        "strike": "0.04",
+        "vol_surface_id": "USD-CAPFLOOR-VOL-QL",
+        "vol_type": "lognormal"
       },
-      "calendar_id": "weekends_only",
-      "day_count": "Act360",
-      "discount_curve_id": "USD-OIS",
-      "forward_curve_id": "USD-TERM-3M",
-      "frequency": {
-        "count": 3,
-        "unit": "months"
-      },
-      "id": "USD-BLACK-CAP-1Y-QUANTLIB",
-      "maturity": "2027-07-30",
-      "notional": {
-        "amount": "10000000",
-        "currency": "USD"
-      },
-      "rate_option_type": "cap",
-      "start_date": "2026-07-30",
-      "strike": "0.04",
-      "vol_surface_id": "USD-CAPFLOOR-VOL-QL",
-      "vol_type": "lognormal"
-    },
-    "type": "cap_floor"
+      "type": "cap_floor"
+    }
   },
   "kind": "pricing",
   "market": {
@@ -44,7 +47,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "extrapolation": "flat_forward",
           "id": "USD-OIS",
           "interp_style": "log_linear",
@@ -65,7 +68,7 @@
         },
         {
           "base": "2026-04-30",
-          "day_count": "Act360",
+          "day_count": "act_360",
           "extrapolation": "flat_forward",
           "id": "USD-TERM-3M",
           "interp_style": "linear",
@@ -97,8 +100,10 @@
       "dividends": [],
       "fx": null,
       "fx_delta_vol_surfaces": [],
+      "hierarchy": null,
       "inflation_indices": [],
       "prices": {},
+      "schema_version": 1,
       "series": [],
       "surfaces": [
         {
@@ -129,7 +134,6 @@
           ]
         }
       ],
-      "version": 2,
       "vol_cubes": []
     },
     "kind": "snapshot"
@@ -146,11 +150,11 @@
     "review_interval_months": 6,
     "screenshots": [],
     "source": "quantlib",
-    "source_detail": "QuantLib 1.42.1; deterministic flat-curve native instrument benchmark.",
+    "source_detail": "QuantLib 1.43; deterministic flat-curve native instrument benchmark.",
     "valuation_date": "2026-04-30"
   },
   "model": "black76",
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "tolerances": {
     "dv01": {
       "abs": 1e-07,

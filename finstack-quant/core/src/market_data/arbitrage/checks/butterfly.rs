@@ -32,10 +32,10 @@ use crate::market_data::surfaces::VolSurface;
 ///
 /// Requires per-expiry forward prices to convert cash strikes to
 /// log-moneyness. When constructed via the orchestrator [`check_surface`],
-/// the forward is taken from [`ArbitrageCheckConfig::forward`].
+/// forwards are taken from [`ArbitrageCheckConfig::forward_prices`].
 ///
 /// [`check_surface`]: crate::market_data::arbitrage::check_surface
-/// [`ArbitrageCheckConfig::forward`]: crate::market_data::arbitrage::ArbitrageCheckConfig::forward
+/// [`ArbitrageCheckConfig::forward_prices`]: crate::market_data::arbitrage::ArbitrageCheckConfig::forward_prices
 pub struct ButterflyCheck {
     /// Per-expiry forward prices (must match the surface expiry count).
     pub forwards: Vec<f64>,

@@ -11,7 +11,7 @@
 //! 3. Returned flows are sorted by date (non-decreasing)
 //! 4. All flows have the same currency as the instrument's notional (if provided)
 //! 5. All flows satisfy `date >= as_of` (future-only)
-//! 6. No `CFKind::PIK` flows appear in the public schedule
+//! 6. No `CFKind::Pik` flows appear in the public schedule
 //!
 //! # Adding New Instruments
 //!
@@ -51,7 +51,7 @@ use finstack_quant_valuations::instruments::Instrument as PublicInstrument;
 /// 2. `dated_cashflows` is the cash-settlement view of `cashflow_schedule`
 /// 3. Flows are sorted by date (non-decreasing)
 /// 4. All flows satisfy `date >= as_of` (future-only)
-/// 5. No `CFKind::PIK` flows in the public schedule
+/// 5. No `CFKind::Pik` flows in the public schedule
 /// 6. Currency consistency with notional (if provided)
 fn verify_provider_contract<T: CashflowProvider>(
     provider: &T,
@@ -114,7 +114,7 @@ fn verify_provider_contract<T: CashflowProvider>(
     use finstack_quant_core::cashflow::CFKind;
     for cf in schedule.get_flows() {
         assert!(
-            cf.kind != CFKind::PIK,
+            cf.kind != CFKind::Pik,
             "[{}] PIK flow found on {}; pure PIK accretion must be omitted from public schedule",
             type_name,
             cf.date
@@ -123,16 +123,16 @@ fn verify_provider_contract<T: CashflowProvider>(
 
     // Contract: Currency consistency (if notional provided)
     if let Some(notional) = provider.notional() {
-        let expected_ccy = notional.currency();
+        let expected_currency = notional.currency();
         for (date, money) in &flows {
             assert_eq!(
                 money.currency(),
-                expected_ccy,
+                expected_currency,
                 "[{}] Flow on {} has currency {:?}, expected {:?} (from notional)",
                 type_name,
                 date,
                 money.currency(),
-                expected_ccy
+                expected_currency
             );
         }
     }
@@ -250,7 +250,7 @@ mod bond_contract {
             "TEST-FLOAT-BOND",
             Money::new(1_000_000.0, Currency::USD),
             "USD-SOFR-3M",
-            200, // 200 bps spread
+            200, // 200 bp spread
             issue,
             maturity,
             Tenor::quarterly(),

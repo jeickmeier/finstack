@@ -7,68 +7,15 @@ use finstack_quant_core::contract::{
     LoadLimits, LoadPhase, Severity, ValidationReport,
 };
 use finstack_quant_core::dates::Period;
-#[cfg(feature = "valuation-integration")]
-use finstack_quant_valuations::instruments::{
-    Bond, Deposit, ForwardRateAgreement, InstrumentJson, InterestRateSwap, Repo, TermLoan,
-};
+use finstack_quant_core::wire::SchemaVersion;
+use finstack_quant_valuations::instruments::InstrumentJson;
 use indexmap::IndexMap;
 use schemars::JsonSchema;
-use serde::{Deserialize, Deserializer, Serialize};
-
-/// Current on-disk schema version for [`FinancialModelSpec`].
-///
-/// Bump on breaking wire-format changes. `validate_schema_version` rejects
-/// versions outside `1..=CURRENT_SCHEMA_VERSION`; older payloads that are no
-/// longer structurally compatible must be re-exported rather than migrated.
-pub const CURRENT_SCHEMA_VERSION: u32 = 2;
+use serde::{Deserialize, Serialize};
 
 /// Persistence contract for [`FinancialModelSpec`].
-pub const FINANCIAL_MODEL_CONTRACT: ContractDescriptor = ContractDescriptor {
-    id: "finstack_quant.financial_model",
-    current: CURRENT_SCHEMA_VERSION,
-    supported: 1..=CURRENT_SCHEMA_VERSION,
-    legacy_missing: Some(1),
-};
-
-const INSTRUMENT_JSON_SCHEMA_REF: &str =
-    "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json#/$defs/InstrumentJson";
-
-fn instrument_json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    schemars::json_schema!({
-        "$ref": INSTRUMENT_JSON_SCHEMA_REF
-    })
-}
-
-fn periods_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    schemars::json_schema!({
-        "type": "array",
-        "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-                "id": {
-                    "type": "string",
-                    "description": "Period identifier such as 2025Q1"
-                },
-                "start": {
-                    "type": "string",
-                    "format": "date",
-                    "description": "Inclusive ISO 8601 start date"
-                },
-                "end": {
-                    "type": "string",
-                    "format": "date",
-                    "description": "Exclusive ISO 8601 end date"
-                },
-                "is_actual": {
-                    "type": "boolean",
-                    "description": "Whether the period contains actual rather than forecast data"
-                }
-            },
-            "required": ["id", "start", "end", "is_actual"]
-        }
-    })
-}
+pub const FINANCIAL_MODEL_CONTRACT: ContractDescriptor =
+    ContractDescriptor::new("finstack_quant.financial_model");
 
 /// Top-level financial model specification.
 ///
@@ -78,7 +25,7 @@ fn periods_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
 /// Period order in [`FinancialModelSpec::periods`] defines the evaluation timeline:
 /// engines iterate periods in this sequence when resolving dependencies and rolling
 /// windows.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FinancialModelSpec {
     /// Unique model identifier
@@ -88,7 +35,6 @@ pub struct FinancialModelSpec {
     ///
     /// Evaluation follows this order end-to-end (dependency resolution and time-series
     /// helpers assume a single coherent timeline).
-    #[schemars(schema_with = "periods_schema")]
     pub periods: Vec<Period>,
 
     /// Map of node_id → NodeSpec
@@ -102,17 +48,8 @@ pub struct FinancialModelSpec {
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub meta: IndexMap<String, serde_json::Value>,
 
-    /// Schema version for forward compatibility.
-    ///
-    /// A missing key maps to legacy version 1 on the ordinary serde
-    /// compatibility path. Explicit versions outside the supported range fail
-    /// deserialization rather than silently accepting drift.
-    #[serde(
-        default = "default_schema_version",
-        deserialize_with = "deserialize_schema_version"
-    )]
-    #[schemars(range(min = 1, max = 2))]
-    pub schema_version: u32,
+    /// Required schema version. Only version `1` is accepted.
+    pub schema_version: SchemaVersion,
 }
 
 impl FinancialModelSpec {
@@ -151,15 +88,14 @@ impl FinancialModelSpec {
             nodes: IndexMap::new(),
             capital_structure: None,
             meta: IndexMap::new(),
-            schema_version: CURRENT_SCHEMA_VERSION,
+            schema_version: SchemaVersion::CURRENT,
         }
     }
 
-    /// Load, migrate, and validate a persisted financial model.
+    /// Load and validate a persisted financial model.
     ///
-    /// This strict entry point requires an explicit `schema_version`, applies
-    /// the historical v1-to-v2 debt-instrument migration when needed, and runs
-    /// [`Self::validate_semantics`] before returning the normalized model.
+    /// This strict entry point requires `schema_version: 1` and runs
+    /// [`Self::validate_semantics`] before returning the model.
     ///
     /// # Arguments
     ///
@@ -170,27 +106,22 @@ impl FinancialModelSpec {
     /// # Errors
     ///
     /// Returns [`ContractError`] for malformed JSON, resource-limit failures,
-    /// missing or unsupported versions, failed v1 migration, invalid model
-    /// shape, or semantic validation failures.
+    /// missing or unsupported versions, invalid model shape, or semantic
+    /// validation failures.
     pub fn from_slice_strict(
         bytes: &[u8],
         limits: &LoadLimits,
     ) -> std::result::Result<(Self, ValidationReport), ContractError> {
-        let mut value = parse_json_value(bytes, limits)?;
+        let value = parse_json_value(bytes, limits)?;
         let version = match value.get("schema_version") {
             Some(version) => Some(deserialize_json_value::<u32>(version.clone(), limits)?),
             None => None,
         };
-        let version =
-            FINANCIAL_MODEL_CONTRACT.resolve_strict(version, "/schema_version", limits)?;
-        if version == 1 {
-            value = upgrade_v1_to_v2(value)
-                .map_err(|error| validation_report_error(error, LoadPhase::Migrate, limits))?;
-        }
+        FINANCIAL_MODEL_CONTRACT.resolve_strict(version, "/schema_version", limits)?;
         let mut model: Self = deserialize_json_value(value, limits)?;
         model
             .validate_semantics()
-            .map_err(|error| validation_report_error(error, LoadPhase::Semantic, limits))?;
+            .map_err(|error| validation_report_error(error, limits))?;
         Ok((model, ValidationReport::default()))
     }
 
@@ -424,172 +355,13 @@ impl FinancialModelSpec {
     }
 }
 
-fn default_schema_version() -> u32 {
-    1
-}
-
-fn deserialize_schema_version<'de, D>(deserializer: D) -> std::result::Result<u32, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let v = u32::deserialize(deserializer)?;
-    validate_schema_version(v).map_err(serde::de::Error::custom)?;
-    Ok(v)
-}
-
-fn validate_schema_version(v: u32) -> std::result::Result<(), String> {
-    if v == 0 || v > CURRENT_SCHEMA_VERSION {
-        return Err(format!(
-            "unsupported FinancialModelSpec schema_version {v}; this build understands versions 1..={CURRENT_SCHEMA_VERSION}"
-        ));
-    }
-    Ok(())
-}
-
-/// Upgrade the historical v1 financial-model JSON shape to v2.
-///
-/// Version 2 replaced the tagged `DebtInstrumentSpec` variants with a single
-/// `{id, spec}` record whose `spec` is the valuations registry's tagged
-/// instrument payload. Bond, swap, and term-loan payloads are therefore
-/// wrapped with their canonical registry tag. The old generic variant is
-/// preserved when already tagged; with the default `valuation-integration`
-/// feature, an untagged generic payload is tried against the same ordered
-/// Bond/swap/term-loan/deposit/FRA/repo set used by the v1 runtime.
-///
-/// # Arguments
-///
-/// * `value` - Parsed version-1 `FinancialModelSpec` JSON document to migrate.
-///
-/// # Errors
-///
-/// Returns a serialization error when the root, version marker, capital
-/// structure, debt list, or historical debt variant has an invalid shape.
-/// Without the `valuation-integration` feature, untagged v1 `generic` payloads
-/// cannot be inferred and must first be rewritten as the self-describing
-/// `{"type":"...","spec":{...}}` registry form; named bond, swap, and term-loan
-/// variants and already-tagged generic payloads remain migratable.
-pub fn upgrade_v1_to_v2(mut value: serde_json::Value) -> Result<serde_json::Value> {
-    let root = value
-        .as_object_mut()
-        .ok_or_else(|| Error::Serde("FinancialModelSpec v1 root must be an object".to_string()))?;
-    match root
-        .get("schema_version")
-        .and_then(serde_json::Value::as_u64)
-    {
-        Some(1) => {}
-        other => {
-            return Err(Error::Serde(format!(
-                "upgrade_v1_to_v2 requires schema_version 1, found {other:?}"
-            )));
-        }
-    }
-
-    if let Some(capital_structure) = root
-        .get_mut("capital_structure")
-        .filter(|value| !value.is_null())
-    {
-        let capital_structure = capital_structure.as_object_mut().ok_or_else(|| {
-            Error::Serde("FinancialModelSpec v1 capital_structure must be an object".to_string())
-        })?;
-        if let Some(debt_instruments) = capital_structure.get_mut("debt_instruments") {
-            let debt_instruments = debt_instruments.as_array_mut().ok_or_else(|| {
-                Error::Serde("FinancialModelSpec v1 debt_instruments must be an array".to_string())
-            })?;
-            for debt in debt_instruments {
-                let debt = debt.as_object_mut().ok_or_else(|| {
-                    Error::Serde(
-                        "FinancialModelSpec v1 debt instrument must be an object".to_string(),
-                    )
-                })?;
-                let variant = debt
-                    .remove("type")
-                    .and_then(|value| value.as_str().map(str::to_owned))
-                    .ok_or_else(|| {
-                        Error::Serde(
-                            "FinancialModelSpec v1 debt instrument requires string field `type`"
-                                .to_string(),
-                        )
-                    })?;
-                let spec = debt.get_mut("spec").ok_or_else(|| {
-                    Error::Serde(
-                        "FinancialModelSpec v1 debt instrument requires field `spec`".to_string(),
-                    )
-                })?;
-                let registry_tag = match variant.as_str() {
-                    "bond" => Some("bond"),
-                    "swap" => Some("interest_rate_swap"),
-                    "term_loan" => Some("term_loan"),
-                    "generic" => None,
-                    other => {
-                        return Err(Error::Serde(format!(
-                            "unsupported FinancialModelSpec v1 debt variant {other:?}"
-                        )));
-                    }
-                };
-                if let Some(registry_tag) = registry_tag {
-                    let raw_spec = std::mem::take(spec);
-                    *spec = serde_json::json!({
-                        "type": registry_tag,
-                        "spec": raw_spec,
-                    });
-                } else {
-                    *spec = upgrade_v1_generic_spec(spec)?;
-                }
-            }
-        }
-    }
-    root.insert(
-        "schema_version".to_string(),
-        serde_json::Value::from(CURRENT_SCHEMA_VERSION),
-    );
-    Ok(value)
-}
-
-fn upgrade_v1_generic_spec(spec: &serde_json::Value) -> Result<serde_json::Value> {
-    if spec
-        .get("type")
-        .and_then(serde_json::Value::as_str)
-        .is_some()
-        && spec.get("spec").is_some()
-    {
-        return Ok(spec.clone());
-    }
-
-    #[cfg(feature = "valuation-integration")]
-    {
-        macro_rules! try_instrument {
-            ($ty:ty, $variant:ident) => {
-                if let Ok(instrument) = serde_json::from_value::<$ty>(spec.clone()) {
-                    return serde_json::to_value(InstrumentJson::$variant(instrument))
-                        .map_err(Error::from);
-                }
-            };
-        }
-        try_instrument!(Bond, Bond);
-        try_instrument!(InterestRateSwap, InterestRateSwap);
-        try_instrument!(TermLoan, TermLoan);
-        try_instrument!(Deposit, Deposit);
-        try_instrument!(ForwardRateAgreement, ForwardRateAgreement);
-        try_instrument!(Repo, Repo);
-    }
-
-    Err(Error::Serde(
-        "FinancialModelSpec v1 generic debt payload is untagged and does not match a \
-         historical v1 instrument type; migrate it to {\"type\":\"...\",\"spec\":{...}}"
-            .to_string(),
-    ))
-}
-
-fn validation_report_error(error: Error, phase: LoadPhase, limits: &LoadLimits) -> ContractError {
+fn validation_report_error(error: Error, limits: &LoadLimits) -> ContractError {
     let mut report = ValidationReport::default();
     report.push_bounded(
         limits,
         Diagnostic::new(
-            match phase {
-                LoadPhase::Migrate => "contract/migration-invalid",
-                _ => "contract/semantic-invalid",
-            },
-            phase,
+            "contract/semantic-invalid",
+            LoadPhase::Semantic,
             Severity::Error,
             error.to_string(),
         )
@@ -599,20 +371,12 @@ fn validation_report_error(error: Error, phase: LoadPhase, limits: &LoadLimits) 
 }
 
 /// Capital structure specification.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CapitalStructureSpec {
     /// Debt instruments (bonds, loans, swaps)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub debt_instruments: Vec<DebtInstrumentSpec>,
-
-    /// Reserved equity instruments payloads.
-    ///
-    /// The field is currently not consumed by the waterfall engine. It is kept
-    /// as a serde-compatible extension point for callers already persisting
-    /// capital-structure JSON with equity-side metadata.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub equity_instruments: Vec<serde_json::Value>,
 
     /// Additional metadata
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
@@ -633,18 +397,15 @@ pub struct CapitalStructureSpec {
 
 /// Debt instrument specification.
 ///
-/// An identifier paired with a canonical tagged instrument payload. With the
-/// default `valuation-integration` feature, the `spec` value is resolved through
-/// the valuations instrument registry from the tagged form
-/// `{"type": "<tag>", "spec": {...}}`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+/// An identifier paired with a canonical tagged instrument payload resolved
+/// through the valuations instrument registry.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DebtInstrumentSpec {
     /// Instrument identifier (key within the capital structure).
     pub id: String,
     /// Canonical tagged instrument payload: `{"type": "...", "spec": {...}}`.
-    #[schemars(schema_with = "instrument_json_schema")]
-    pub spec: serde_json::Value,
+    pub spec: InstrumentJson,
 }
 
 #[cfg(test)]

@@ -288,9 +288,9 @@ fn test_schwartz_smith_positive_option_values() {
     );
 }
 
-/// Verify that the BlackScholes model variant falls back to analytical pricing.
+/// Verify that the Black76 model variant falls back to analytical pricing.
 #[test]
-fn test_mc_black_scholes_fallback() {
+fn test_mc_black76_fallback() {
     use finstack_quant_valuations::instruments::Instrument;
 
     let as_of = date(2025, 1, 1);
@@ -301,7 +301,7 @@ fn test_mc_black_scholes_fallback() {
     let analytical_pv = call.value(&market, as_of).expect("analytical price");
 
     let mc_params = CommodityMcParams {
-        model: CommodityPricingModel::BlackScholes,
+        model: CommodityPricingModel::Black76,
         n_paths: 1_000, // Should be ignored
         n_steps: 10,    // Should be ignored
         seed: Some(42),
@@ -313,7 +313,7 @@ fn test_mc_black_scholes_fallback() {
 
     assert!(
         (mc_pv.amount() - analytical_pv.amount()).abs() < 1e-10,
-        "BlackScholes MC fallback should match analytical: MC={:.6}, analytical={:.6}",
+        "Black76 MC fallback should match analytical: MC={:.6}, analytical={:.6}",
         mc_pv.amount(),
         analytical_pv.amount(),
     );

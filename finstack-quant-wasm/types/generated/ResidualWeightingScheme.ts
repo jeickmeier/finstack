@@ -12,4 +12,4 @@
  * - `SqrtTime`: Weights increase with the square root of time (market-standard).
  * - `InverseDuration`: Weights based on inverse DV01 approximation.
  */
-export type ResidualWeightingScheme = "Equal" | "LinearTime" | "SqrtTime" | "InverseDuration";
+export type ResidualWeightingScheme = "equal" | "linear_time" | "sqrt_time" | "inverse_duration";

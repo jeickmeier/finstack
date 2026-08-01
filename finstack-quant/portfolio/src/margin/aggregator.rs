@@ -76,7 +76,7 @@ impl PortfolioMarginAggregator {
     /// Aggregator pre-populated with positions that expose margin metadata.
     #[must_use]
     pub fn from_portfolio(portfolio: &Portfolio) -> Self {
-        let mut aggregator = Self::new(portfolio.base_ccy);
+        let mut aggregator = Self::new(portfolio.base_currency);
 
         // Iterate through all positions
         for position in &portfolio.positions {
@@ -441,12 +441,12 @@ impl PortfolioMarginAggregator {
             let unit_mtm = marginable
                 .mtm_for_vm(market, as_of)
                 .map_err(|e| Error::valuation(position.position_id.clone(), e.to_string()))?;
-            if let PositionUnit::Notional(Some(notional_ccy)) = position.unit {
-                if notional_ccy != unit_mtm.currency() {
+            if let PositionUnit::Notional(Some(notional_currency)) = position.unit {
+                if notional_currency != unit_mtm.currency() {
                     return Err(Error::invalid_input(format!(
                         "minor 18: position '{}' notional currency {} does not match VM currency {}",
                         position.position_id,
-                        notional_ccy,
+                        notional_currency,
                         unit_mtm.currency()
                     )));
                 }
@@ -553,7 +553,7 @@ mod tests {
         }
 
         fn key(&self) -> InstrumentType {
-            InstrumentType::IRS
+            InstrumentType::Irs
         }
 
         fn as_any(&self) -> &dyn Any {
@@ -676,7 +676,7 @@ mod tests {
         )
         .expect("position should build");
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new(DUMMY_ENTITY_ID))
             .position(position)
@@ -722,7 +722,7 @@ mod tests {
         )
         .expect("position should build");
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new(DUMMY_ENTITY_ID))
             .position(position)
@@ -773,7 +773,7 @@ mod tests {
         )
         .expect("position should build");
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new(DUMMY_ENTITY_ID))
             .position(position)
@@ -819,7 +819,7 @@ mod tests {
         )
         .expect("position should build");
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new(DUMMY_ENTITY_ID))
             .position(position)
@@ -863,14 +863,14 @@ mod tests {
         )
         .expect("position should build");
         let original_portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new(DUMMY_ENTITY_ID))
             .position(position)
             .build()
             .expect("portfolio should build");
         let empty_portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new(DUMMY_ENTITY_ID))
             .build()

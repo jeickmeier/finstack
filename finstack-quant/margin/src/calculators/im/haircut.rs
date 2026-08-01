@@ -341,11 +341,11 @@ mod tests {
         let calc_no_decl = HaircutImCalculator::bcbs_standard()
             .expect("registry should load")
             .with_default_asset_class(CollateralAssetClass::Cash);
-        let im_same_ccy = calc_no_decl
+        let im_same_currency = calc_no_decl
             .calculate(&instrument, &context, as_of)
             .expect("calculation ok");
         assert_eq!(
-            im_same_ccy.amount.amount(),
+            im_same_currency.amount.amount(),
             0.0,
             "no posted-collateral-currency declared → no FX addon"
         );

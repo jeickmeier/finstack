@@ -67,8 +67,9 @@ use super::{
 /// let (atm, put25, call25) = surface.pillar_vols(0);
 /// assert!((atm - 0.08).abs() < 1e-12);
 /// ```
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(try_from = "RawFxDeltaVolSurface")]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(try_from = "FxDeltaVolSurfaceWire")]
+#[schemars(try_from = "FxDeltaVolSurfaceWire")]
 pub struct FxDeltaVolSurface {
     id: CurveId,
     /// Expiry times in years (strictly increasing, all positive).
@@ -92,7 +93,7 @@ pub struct FxDeltaVolSurface {
 /// constructors and rejects unknown fields.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct RawFxDeltaVolSurface {
+struct FxDeltaVolSurfaceWire {
     /// Surface identifier.
     id: CurveId,
     /// Expiry times in years.
@@ -109,20 +110,10 @@ struct RawFxDeltaVolSurface {
     bf_10d: Option<Vec<f64>>,
 }
 
-impl schemars::JsonSchema for FxDeltaVolSurface {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        "FxDeltaVolSurface".into()
-    }
-
-    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        <RawFxDeltaVolSurface as schemars::JsonSchema>::json_schema(generator)
-    }
-}
-
-impl TryFrom<RawFxDeltaVolSurface> for FxDeltaVolSurface {
+impl TryFrom<FxDeltaVolSurfaceWire> for FxDeltaVolSurface {
     type Error = crate::Error;
 
-    fn try_from(raw: RawFxDeltaVolSurface) -> crate::Result<Self> {
+    fn try_from(raw: FxDeltaVolSurfaceWire) -> crate::Result<Self> {
         FxDeltaVolSurface::validate(
             &raw.expiries,
             &raw.atm_vols,

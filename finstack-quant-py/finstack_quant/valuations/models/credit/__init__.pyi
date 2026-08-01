@@ -217,7 +217,7 @@ class MertonModel:
         Returns
         -------
         float
-            Implied par spread as a decimal (e.g. ``0.012`` for 120 bps).
+            Implied par spread as a decimal (e.g. ``0.012`` for 120 bp).
 
         Raises
         ------

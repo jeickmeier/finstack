@@ -50,7 +50,7 @@ pub struct ThreeFactorPathData {
     ///
     /// The compatibility name is retained because this payload predates the
     /// separation of accrual and adjusted payment dates.
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub payment_dates: Vec<Date>,
     /// Whether `short_rate_path` was simulated by a stochastic rate process
     /// (Hull-White with σ > 0). When true the pricer discounts pathwise on
@@ -457,18 +457,18 @@ impl<'a> CashflowEngine<'a> {
                 weighted_interest_rate += interest_rate * dt;
 
                 // Calculate fees for this sub-period
-                let commitment_fee_bps = self.facility.fees.commitment_fee_bps(utilization);
-                if commitment_fee_bps > 0.0 {
-                    let commitment_fee = current_undrawn * (commitment_fee_bps * 1e-4 * dt);
+                let commitment_fee_bp = self.facility.fees.commitment_fee_bp(utilization);
+                if commitment_fee_bp > 0.0 {
+                    let commitment_fee = current_undrawn * (commitment_fee_bp * 1e-4 * dt);
                     total_commitment_fee = total_commitment_fee.checked_add(commitment_fee)?;
-                    weighted_commitment_fee_rate += (commitment_fee_bps * 1e-4) * dt;
+                    weighted_commitment_fee_rate += (commitment_fee_bp * 1e-4) * dt;
                 }
 
-                let usage_fee_bps = self.facility.fees.usage_fee_bps(utilization);
-                if usage_fee_bps > 0.0 {
-                    let usage_fee = current_balance * (usage_fee_bps * 1e-4 * dt);
+                let usage_fee_bp = self.facility.fees.usage_fee_bp(utilization);
+                if usage_fee_bp > 0.0 {
+                    let usage_fee = current_balance * (usage_fee_bp * 1e-4 * dt);
                     total_usage_fee = total_usage_fee.checked_add(usage_fee)?;
-                    weighted_usage_fee_rate += (usage_fee_bps * 1e-4) * dt;
+                    weighted_usage_fee_rate += (usage_fee_bp * 1e-4) * dt;
                 }
 
                 if self.facility.fees.facility_fee_bp > 0.0 {
@@ -763,8 +763,8 @@ impl<'a> CashflowEngine<'a> {
                         drawn_balance: drawn_balance.amount(),
                         undrawn_balance: undrawn_balance.amount(),
                         commitment_amount: self.facility.commitment_amount.amount(),
-                        commitment_fee_bp: self.facility.fees.commitment_fee_bps(avg_util),
-                        usage_fee_bp: self.facility.fees.usage_fee_bps(avg_util),
+                        commitment_fee_bp: self.facility.fees.commitment_fee_bp(avg_util),
+                        usage_fee_bp: self.facility.fees.usage_fee_bp(avg_util),
                         facility_fee_bp: self.facility.fees.facility_fee_bp,
                         year_fraction: dt,
                         currency: ccy,

@@ -45,11 +45,10 @@ impl std::str::FromStr for TrsSide {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "receive_total_return" | "receive" => Ok(TrsSide::ReceiveTotalReturn),
-            "pay_total_return" | "pay" => Ok(TrsSide::PayTotalReturn),
-            other => Err(format!("Unknown TRS side: {}", other)),
+        match s {
+            "receive_total_return" => Ok(TrsSide::ReceiveTotalReturn),
+            "pay_total_return" => Ok(TrsSide::PayTotalReturn),
+            _ => Err(format!("Unknown TRS side: {s}")),
         }
     }
 }
@@ -83,9 +82,9 @@ impl TrsSide {
 ///     Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),
 ///     Date::from_calendar_date(2025, time::Month::January, 1).unwrap(),
 ///     ScheduleParams {
-///         freq: Tenor::quarterly(),
-///         dc: DayCount::Act360,
-///         bdc: BusinessDayConvention::Following,
+///         frequency: Tenor::quarterly(),
+///         day_count: DayCount::Act360,
+///         business_day_convention: BusinessDayConvention::Following,
 ///         calendar_id: "weekends_only".to_string(),
 ///         stub: StubKind::None,
 ///         end_of_month: false,
@@ -99,12 +98,12 @@ impl TrsSide {
 #[serde(deny_unknown_fields)]
 pub struct TrsScheduleSpec {
     /// Start date for the TRS leg.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date for the TRS leg.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
-    /// Schedule parameters (frequency, day count, bdc, calendar, stub).
+    /// Schedule parameters (frequency, day count, business_day_convention, calendar, stub).
     pub params: ScheduleParams,
 }
 

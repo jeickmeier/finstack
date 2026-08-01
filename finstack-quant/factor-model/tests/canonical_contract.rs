@@ -6,14 +6,11 @@ use finstack_quant_factor_model::credit::hierarchy::CreditFactorModel;
 use finstack_quant_factor_model::FactorModelConfigEnvelope;
 
 fn config_bytes(overrides: &str) -> Vec<u8> {
-    let matrix: serde_json::Value =
-        serde_json::from_str(include_str!("data/contract_version_matrix.json"))
-            .expect("contract matrix parses");
-    let mut base = matrix["config"]["base"].clone();
-    base["config"]["bump_size"] = serde_json::json!({"overrides": {}});
-    serde_json::to_string(&base)
-        .expect("factor-model fixture serializes")
-        .replace(r#""overrides":{}"#, &format!(r#""overrides":{overrides}"#))
+    include_str!("data/canonical/factor_model_config.json")
+        .replace(
+            r#""overrides":{"credit:acme":1.0,"rates:usd":2.0}"#,
+            &format!(r#""overrides":{overrides}"#),
+        )
         .into_bytes()
 }
 

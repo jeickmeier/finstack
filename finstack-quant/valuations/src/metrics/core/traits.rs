@@ -412,7 +412,7 @@ impl MetricContext {
     pub(crate) fn bump_discount_rate_quotes_cached(
         &self,
         curve: &finstack_quant_core::market_data::term_structures::DiscountCurve,
-        calibration: &finstack_quant_core::market_data::term_structures::DiscountCurveRateCalibration,
+        calibration: &finstack_quant_core::market_data::term_structures::RateCalibrationRecipe,
         bump: &crate::calibration::bumps::BumpRequest,
     ) -> finstack_quant_core::Result<
         Arc<finstack_quant_core::market_data::term_structures::DiscountCurve>,

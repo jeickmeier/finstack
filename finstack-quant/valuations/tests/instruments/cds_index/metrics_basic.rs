@@ -58,7 +58,7 @@ fn test_metric_par_spread() {
     let par_spread = *result.measures.get("par_spread").unwrap();
 
     assert_positive(par_spread, "Par spread metric");
-    let expected = flat_hazard_par_spread_bps(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
+    let expected = flat_hazard_par_spread_bp(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
     assert_in_range(
         par_spread,
         expected * 0.85,
@@ -294,7 +294,7 @@ fn test_par_spread_reasonable_range() {
         .unwrap();
     let par_spread = *result.measures.get("par_spread").unwrap();
 
-    let expected = flat_hazard_par_spread_bps(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
+    let expected = flat_hazard_par_spread_bp(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
     assert_in_range(
         par_spread,
         expected * 0.85,

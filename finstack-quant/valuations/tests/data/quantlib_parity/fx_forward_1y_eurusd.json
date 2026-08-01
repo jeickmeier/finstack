@@ -1,6 +1,6 @@
 {
   "conventions": {
-    "day_count": "Actual365Fixed",
+    "day_count": "act_365f",
     "model": "no-arbitrage forward, simple flat continuously-compounded rates",
     "settlement": "USD (cash-settled)"
   },
@@ -41,10 +41,10 @@
     "tau_t1": 0.9972602739726028
   },
   "spec": {
-    "base_ccy": "EUR",
+    "base_currency": "EUR",
     "maturity_date": "2026-01-15",
-    "notional_base_ccy": 1000000.0,
-    "quote_ccy": "USD",
+    "notional_base_currency": 1000000.0,
+    "quote_currency": "USD",
     "strike": 1.1222214740294314,
     "strike_at_forward": true,
     "trade_date": "2025-01-15"

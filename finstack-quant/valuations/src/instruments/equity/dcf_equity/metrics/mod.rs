@@ -120,7 +120,7 @@ pub(crate) fn register_dcf_metrics(registry: &mut MetricRegistry) {
     use crate::pricer::InstrumentType;
     crate::register_metrics! {
         registry: registry,
-        instrument: InstrumentType::DCF,
+        instrument: InstrumentType::Dcf,
         metrics: [
             // Rate risk via rf-component bump inside the WACC: DCF always
             // discounts at WACC, so DV01 bumps the additive

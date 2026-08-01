@@ -37,7 +37,7 @@ pub struct Portfolio {
     pub name: Option<String>,
 
     /// Base currency for aggregation
-    pub base_ccy: Currency,
+    pub base_currency: Currency,
 
     /// Valuation date
     pub as_of: Date,
@@ -127,7 +127,7 @@ pub struct PortfolioSpec {
     /// Human-readable name
     pub name: Option<String>,
     /// Base currency for aggregation
-    pub base_ccy: Currency,
+    pub base_currency: Currency,
     /// Valuation date
     pub as_of: Date,
     /// Entities that own positions
@@ -481,7 +481,7 @@ impl Portfolio {
         PortfolioSpec {
             id: self.id.clone(),
             name: self.name.clone(),
-            base_ccy: self.base_ccy,
+            base_currency: self.base_currency,
             as_of: self.as_of,
             entities: self.entities.clone(),
             positions: self.positions.iter().map(|p| p.to_spec()).collect(),
@@ -518,7 +518,7 @@ impl Portfolio {
         let mut portfolio = Self {
             id: spec.id,
             name: spec.name,
-            base_ccy: spec.base_ccy,
+            base_currency: spec.base_currency,
             as_of: spec.as_of,
             entities: spec.entities,
             positions,
@@ -581,13 +581,13 @@ mod tests {
     #[test]
     fn test_portfolio_creation() {
         let portfolio = Portfolio::builder("FUND_A")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .build()
             .expect("test should succeed");
 
         assert_eq!(portfolio.id, "FUND_A");
-        assert_eq!(portfolio.base_ccy, Currency::USD);
+        assert_eq!(portfolio.base_currency, Currency::USD);
         assert_eq!(portfolio.as_of, date!(2024 - 01 - 01));
         assert!(portfolio.entities.is_empty());
         assert!(portfolio.positions.is_empty());
@@ -596,7 +596,7 @@ mod tests {
     #[test]
     fn test_portfolio_validation() {
         let portfolio = Portfolio::builder("FUND_A")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .entity(Entity::new("ACME"))
             .build()
@@ -609,7 +609,7 @@ mod tests {
     #[test]
     fn minor2_direct_portfolio_serde_fails_fast() {
         let portfolio = Portfolio::builder("FUND_A")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .build()
             .expect("test portfolio should build");
@@ -632,7 +632,7 @@ mod tests {
     #[test]
     fn minor3_validate_rejects_position_book_reference_to_missing_book() {
         let portfolio = Portfolio::builder("FUND_A")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .entity(Entity::new("ACME"))
             .position(test_position_with_book("MISSING_BOOK"))
@@ -650,7 +650,7 @@ mod tests {
         let mut book = Book::new("BOOK_A", Some("Book A".to_string()));
         book.add_position(PositionId::new("MISSING_POSITION"));
         let portfolio = Portfolio::builder("FUND_A")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .book(book)
             .build()

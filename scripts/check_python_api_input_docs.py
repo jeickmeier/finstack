@@ -112,7 +112,7 @@ def returns_value(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
         return True
     if isinstance(annotation, ast.Constant) and annotation.value is None:
         return False
-    return not (isinstance(annotation, ast.Name) and annotation.id == "None")
+    return not (isinstance(annotation, ast.Name) and annotation.id == "none")
 
 
 def is_class_or_static_method(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:

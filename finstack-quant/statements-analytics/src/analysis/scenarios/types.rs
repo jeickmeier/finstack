@@ -85,6 +85,7 @@ impl ParameterSpec {
 
 /// Sensitivity analysis mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SensitivityMode {
     /// One-at-a-time parameter variations
     Diagonal,
@@ -98,6 +99,7 @@ pub enum SensitivityMode {
 
 /// Sensitivity analysis configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SensitivityConfig {
     /// Analysis mode
     pub mode: SensitivityMode,

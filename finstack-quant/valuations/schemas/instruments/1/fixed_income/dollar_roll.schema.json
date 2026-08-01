@@ -25,6 +25,168 @@
         }
       ]
     },
+    "DollarRoll": {
+      "additionalProperties": false,
+      "description": "Dollar roll - simultaneous sale and purchase of TBAs for different months.\n\nA dollar roll involves:\n1. Selling TBA for near-month settlement\n2. Buying TBA for far-month settlement\n\nThe price difference between the two legs represents the \"drop\" and\nimplies a financing rate.\n\n# Financing and Carry\n\nDollar rolls are used for:\n- **Financing**: Implied repo rate is often cheaper than repo\n- **Carry trades**: Profit from drop vs. expected prepayment\n- **Roll specialness**: When roll drops exceed fair value\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::fixed_income::dollar_roll::DollarRoll;\nuse finstack_quant_valuations::instruments::fixed_income::tba::TbaTerm;\nuse finstack_quant_valuations::instruments::fixed_income::mbs_passthrough::AgencyProgram;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\n\nlet roll = DollarRoll::builder()\n    .id(InstrumentId::new(\"FN30-4.0-ROLL-0326-0426\"))\n    .agency(AgencyProgram::Fnma)\n    .coupon(0.04)\n    .term(TbaTerm::ThirtyYear)\n    .notional(Money::new(10_000_000.0, Currency::USD))\n    .front_settlement_year(2026)\n    .front_settlement_month(3)\n    .back_settlement_year(2026)\n    .back_settlement_month(4)\n    .front_price(98.5)\n    .back_price(98.0)\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .build()\n    .expect(\"Valid dollar roll\");\n```",
+      "properties": {
+        "agency": {
+          "$ref": "#/$defs/AgencyProgram",
+          "description": "Agency program."
+        },
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for tagging and selection.\nAttributes for scenario selection and tagging"
+        },
+        "back_price": {
+          "description": "Back-month price (buy price).",
+          "format": "double",
+          "type": "number"
+        },
+        "back_settlement_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Explicit back-month settlement date override.\n\nWhen set, bypasses the SIFMA calendar lookup for the back leg."
+        },
+        "back_settlement_month": {
+          "description": "Back-month settlement month (1-12).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "back_settlement_year": {
+          "description": "Back-month settlement year.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "coupon": {
+          "description": "Pass-through coupon rate.",
+          "format": "double",
+          "type": "number"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier."
+        },
+        "front_price": {
+          "description": "Front-month price (sell price).",
+          "format": "double",
+          "type": "number"
+        },
+        "front_settlement_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Explicit front-month settlement date override.\n\nWhen set, bypasses the SIFMA calendar lookup for the front leg."
+        },
+        "front_settlement_month": {
+          "description": "Front-month settlement month (1-12).",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "front_settlement_year": {
+          "description": "Front-month settlement year.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides.\nInstrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Trade notional (par amount)."
+        },
+        "repo_curve_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional repo/financing curve identifier (carry-only).\n\nUsed exclusively for implied financing rate and roll specialness\ncalculations (see [`crate::instruments::fixed_income::dollar_roll::carry`]\nmodule). Does **not** affect\nthe mark-to-market PV, which always discounts both legs at\n`discount_curve_id`.\n\nWhen `None`, the discount curve rate is used as the reference\nfinancing rate for carry analytics."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "settlement_class": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SifmaSettlementClass"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "SIFMA settlement class override.\n\nWhen `None`, inferred from agency + term."
+        },
+        "term": {
+          "$ref": "#/$defs/TbaTerm",
+          "description": "Original loan term."
+        },
+        "trade_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Trade date."
+        }
+      },
+      "required": [
+        "id",
+        "agency",
+        "coupon",
+        "term",
+        "notional",
+        "front_settlement_year",
+        "front_settlement_month",
+        "back_settlement_year",
+        "back_settlement_month",
+        "front_price",
+        "back_price",
+        "discount_curve_id"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "SifmaSettlementClass": {
       "description": "SIFMA MBS settlement class.\n\nSIFMA publishes distinct settlement dates for four classes of agency MBS.\nThe class determines which specific settlement date applies within a given\nmonth. See <https://www.sifma.org/resources/general/mbs-notification-and-settlement-dates/>.",
       "oneOf": [
@@ -47,6 +209,27 @@
           "const": "d",
           "description": "Class D: Balloons, ARMs, multifamily, and other non-standard products.",
           "type": "string"
+        }
+      ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/DollarRoll"
+            },
+            "type": {
+              "const": "dollar_roll",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -74,7 +257,7 @@
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/dollar_roll.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Dollar roll - simultaneous sale and purchase of TBAs for different settlement months",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -91,37 +274,16 @@
           },
           "back_price": 98.0,
           "back_settlement_month": 4,
-          "back_settlement_year": 2024,
+          "back_settlement_year": 2026,
           "coupon": 0.04,
           "discount_curve_id": "USD-OIS",
           "front_price": 98.5,
           "front_settlement_month": 3,
-          "front_settlement_year": 2024,
-          "id": "FN30-4.0-ROLL-0324-0424",
+          "front_settlement_year": 2026,
+          "id": "FN30-4.0-ROLL-0326-0426",
           "notional": {
             "amount": "10000000",
             "currency": "USD"
-          },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
           },
           "term": "thirty_year"
         },
@@ -132,185 +294,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Dollar Roll instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "agency": {
-              "$ref": "#/$defs/AgencyProgram",
-              "description": "Agency program."
-            },
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "default": {},
-              "description": "Attributes for tagging and selection.\nAttributes for scenario selection and tagging"
-            },
-            "back_price": {
-              "description": "Back-month price (buy price).",
-              "format": "double",
-              "type": "number"
-            },
-            "back_settlement_date": {
-              "description": "Explicit back-month settlement date override.\n\nWhen set, bypasses the SIFMA calendar lookup for the back leg.",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "back_settlement_month": {
-              "description": "Back-month settlement month (1-12).",
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "back_settlement_year": {
-              "description": "Back-month settlement year.",
-              "format": "int32",
-              "type": "integer"
-            },
-            "coupon": {
-              "description": "Pass-through coupon rate.",
-              "format": "double",
-              "type": "number"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier."
-            },
-            "front_price": {
-              "description": "Front-month price (sell price).",
-              "format": "double",
-              "type": "number"
-            },
-            "front_settlement_date": {
-              "description": "Explicit front-month settlement date override.\n\nWhen set, bypasses the SIFMA calendar lookup for the front leg.",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "front_settlement_month": {
-              "description": "Front-month settlement month (1-12).",
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "front_settlement_year": {
-              "description": "Front-month settlement year.",
-              "format": "int32",
-              "type": "integer"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Trade notional (par amount)."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides.\nInstrument-owned pricing inputs."
-            },
-            "repo_curve_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional repo/financing curve identifier (carry-only).\n\nUsed exclusively for implied financing rate and roll specialness\ncalculations (see [`crate::instruments::fixed_income::dollar_roll::carry`]\nmodule). Does **not** affect\nthe mark-to-market PV, which always discounts both legs at\n`discount_curve_id`.\n\nWhen `None`, the discount curve rate is used as the reference\nfinancing rate for carry analytics."
-            },
-            "settlement_class": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/SifmaSettlementClass"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "SIFMA settlement class override.\n\nWhen `None`, inferred from agency + term."
-            },
-            "term": {
-              "$ref": "#/$defs/TbaTerm",
-              "description": "Original loan term."
-            },
-            "trade_date": {
-              "description": "Trade date.",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "id",
-            "agency",
-            "coupon",
-            "term",
-            "notional",
-            "front_settlement_year",
-            "front_settlement_month",
-            "back_settlement_year",
-            "back_settlement_month",
-            "front_price",
-            "back_price",
-            "discount_curve_id"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "dollar_roll",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Dollar Roll",
+  "title": "dollar_roll",
   "type": "object"
 }

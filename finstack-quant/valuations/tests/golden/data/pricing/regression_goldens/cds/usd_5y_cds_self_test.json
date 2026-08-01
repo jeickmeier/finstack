@@ -1,5 +1,5 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "usd_5y_cds_self_test",
     "domain": "credit.cds",
@@ -20,7 +20,7 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
         "id": "usd_5y_cds_self_test_market",
         "quote_sets": {
@@ -54,15 +54,15 @@
             "curve_id": "USD-OIS",
             "currency": "USD",
             "base_date": "2026-04-30",
-            "method": "Bootstrap",
+            "method": "bootstrap",
             "interpolation": "log_linear",
             "extrapolation": "flat_forward",
             "pricing_discount_id": null,
             "pricing_forward_id": null,
             "conventions": {
-              "curve_day_count": "Act365F",
+              "curve_day_count": "act_365f",
               "ois_compounding": {
-                "CompoundedWithRateCutoff": {
+                "compounded_with_rate_cutoff": {
                   "cutoff_days": 1
                 }
               }
@@ -80,9 +80,9 @@
             "discount_curve_id": "USD-OIS",
             "recovery_rate": 0.4,
             "notional": 1.0,
-            "method": "Bootstrap",
+            "method": "bootstrap",
             "interpolation": "log_linear",
-            "par_interp": "Linear",
+            "par_interp": "linear",
             "doc_clause": "isda_na"
           }
         ],
@@ -340,45 +340,50 @@
     }
   },
   "instrument": {
-    "type": "credit_default_swap",
-    "spec": {
-      "id": "ACME-CDS-5Y-SELF-TEST",
-      "notional": {
-        "amount": "10000000",
-        "currency": "USD"
-      },
-      "side": "pay",
-      "convention": "isda_na",
-      "premium": {
-        "start": "2026-04-30",
-        "end": "2031-04-30",
-        "frequency": {
-          "count": 3,
-          "unit": "months"
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "type": "credit_default_swap",
+      "spec": {
+        "id": "ACME-CDS-5Y-SELF-TEST",
+        "notional": {
+          "amount": "10000000",
+          "currency": "USD"
         },
-        "calendar_id": "nyse",
-        "day_count": "Act360",
-        "spread_bp": "100.0",
-        "discount_curve_id": "USD-OIS"
-      },
-      "protection": {
-        "credit_curve_id": "ACME-HZD",
-        "recovery_rate": 0.4,
-        "settlement_delay": 2
-      },
-      "pricing_overrides": {
-        "cds_quote_bp": 110.0
-      },
-      "valuation_convention": "bloomberg_cdsw_clean",
-      "doc_clause": "isda_na",
-      "protection_effective_date": "2026-04-30",
-      "attributes": {
-        "tags": [
-          "golden",
-          "self_test",
-          "hazard_calibration"
-        ],
-        "meta": {}
+        "side": "pay",
+        "convention": "isda_na",
+        "premium": {
+          "start": "2026-04-30",
+          "end": "2031-04-30",
+          "frequency": {
+            "count": 3,
+            "unit": "months"
+          },
+          "calendar_id": "nyse",
+          "day_count": "act_360",
+          "spread_bp": "100.0",
+          "discount_curve_id": "USD-OIS"
+        },
+        "protection": {
+          "credit_curve_id": "ACME-HZD",
+          "recovery_rate": 0.4,
+          "settlement_delay": 2
+        },
+        "instrument_pricing_overrides": {
+          "market_quotes": {
+            "cds_quote_bp": 110.0
+          }
+        },
+        "valuation_convention": "bloomberg_cdsw_clean",
+        "doc_clause": "isda_na",
+        "protection_effective_date": "2026-04-30",
+        "attributes": {
+          "tags": [
+            "golden",
+            "self_test",
+            "hazard_calibration"
+          ],
+          "meta": {}
+        }
       }
     }
   },

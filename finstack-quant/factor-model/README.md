@@ -144,7 +144,7 @@ let model = CreditCalibrator::new(config).calibrate(CreditCalibrationInputs {
     issuer_tags,
     generic_factor,
     as_of,
-    asof_spreads,
+    as_of_spreads,
     idiosyncratic_overrides: Default::default(),
 })?;
 ```

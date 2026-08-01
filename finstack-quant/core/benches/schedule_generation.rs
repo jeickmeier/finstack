@@ -39,11 +39,11 @@ fn bench_frequency_variants(c: &mut Criterion) {
         ("annual", Tenor::annual()),
     ];
 
-    for (name, freq) in frequencies {
+    for (name, frequency) in frequencies {
         bench_iter(&mut group, name, || {
             let sched = ScheduleBuilder::new(start, end)
                 .unwrap()
-                .frequency(freq)
+                .frequency(frequency)
                 .build()
                 .unwrap();
             black_box(sched);

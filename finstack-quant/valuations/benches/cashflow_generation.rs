@@ -132,11 +132,11 @@ fn bench_schedule_builder_fixed(c: &mut Criterion) {
         coupon_type: CouponType::Cash,
         rate: dec!(0.05),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Thirty360,
+            day_count: DayCount::Thirty360,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 

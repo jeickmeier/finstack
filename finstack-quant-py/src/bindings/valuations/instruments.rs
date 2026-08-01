@@ -4,9 +4,8 @@
 //! Thin wrappers over the canonical Rust structs
 //! [`finstack_quant_valuations::instruments::Bond`] and
 //! [`finstack_quant_valuations::instruments::TermLoan`]. Construction and
-//! validation stay in Rust; the wrappers only convert to and from the tagged
-//! instrument JSON accepted by the JSON loader (`{"type": "bond", "spec":
-//! ...}` / `{"type": "term_loan", "spec": ...}`).
+//! validation stay in Rust; the wrappers only convert to and from the canonical
+//! `finstack_quant.instrument/1` envelope accepted by the JSON loader.
 
 use pyo3::prelude::*;
 use pyo3::types::PyType;
@@ -15,11 +14,24 @@ use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
 use crate::bindings::core::types::{PyBps, PyRate};
 use crate::errors::{core_to_py, serde_json_to_py};
-use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
+use finstack_quant_valuations::instruments::{Instrument, InstrumentEnvelope, InstrumentJson};
 
-/// Parse bare or enveloped typed-instrument JSON through the shared Rust path.
+/// Parse a canonical typed-instrument envelope through the shared Rust path.
 pub(crate) fn parse_typed_instrument_json(json: &str) -> PyResult<InstrumentJson> {
     finstack_quant_valuations::pricer::json::parse_instrument_json(json).map_err(core_to_py)
+}
+
+/// Serialize a typed instrument as the canonical v1 persistence envelope.
+pub(crate) fn serialize_typed_instrument_json(
+    instrument: InstrumentJson,
+    what: &str,
+) -> PyResult<String> {
+    serde_json::to_string(&InstrumentEnvelope::new(instrument)).map_err(|err| {
+        serde_json_to_py(
+            err,
+            &format!("failed to serialize {what} instrument envelope"),
+        )
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -112,10 +124,9 @@ pub struct PyBond {
 }
 
 impl PyBond {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::Bond(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize Bond"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(InstrumentJson::Bond(self.inner.clone()), "Bond")
     }
 }
 
@@ -207,9 +218,9 @@ impl PyBond {
     ///     Issue date.
     /// maturity : datetime.date
     ///     Maturity date.
-    /// freq : Tenor
+    /// frequency : Tenor
     ///     Payment frequency (e.g. ``Tenor.quarterly()``).
-    /// dc : DayCount
+    /// day_count : DayCount
     ///     Day count convention (e.g. ``DayCount.act360()``).
     /// discount_curve_id : str
     ///     Discount curve identifier used for pricing.
@@ -225,7 +236,7 @@ impl PyBond {
     ///     If validation fails.
     #[staticmethod]
     #[pyo3(
-        text_signature = "(id, notional, index_id, margin_bp, issue, maturity, freq, dc, discount_curve_id)"
+        text_signature = "(id, notional, index_id, margin_bp, issue, maturity, frequency, day_count, discount_curve_id)"
     )]
     #[allow(clippy::too_many_arguments)]
     fn floating(
@@ -235,8 +246,8 @@ impl PyBond {
         margin_bp: PyRef<'_, PyBps>,
         issue: &Bound<'_, PyAny>,
         maturity: &Bound<'_, PyAny>,
-        freq: PyRef<'_, crate::bindings::core::dates::tenor::PyTenor>,
-        dc: PyRef<'_, crate::bindings::core::dates::daycount::PyDayCount>,
+        frequency: PyRef<'_, crate::bindings::core::dates::tenor::PyTenor>,
+        day_count: PyRef<'_, crate::bindings::core::dates::daycount::PyDayCount>,
         discount_curve_id: &str,
     ) -> PyResult<Self> {
         let inner = finstack_quant_valuations::instruments::Bond::floating(
@@ -246,23 +257,22 @@ impl PyBond {
             margin_bp.inner,
             py_to_date(issue)?,
             py_to_date(maturity)?,
-            freq.inner,
-            dc.inner,
+            frequency.inner,
+            day_count.inner,
             discount_curve_id,
         )
         .map_err(core_to_py)?;
         Ok(Self { inner })
     }
 
-    /// Deserialize a validated bond from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated bond from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"bond"``, or a full
-    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
-    ///     The UTF-8 input must not exceed 16 MiB. Cross-type coercion is not
-    ///     performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"bond"`` payload. The UTF-8 input must not exceed 16 MiB.
+    ///     Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -295,16 +305,16 @@ impl PyBond {
         }
     }
 
-    /// Serialize to tagged instrument JSON (``{"type": "bond", "spec": ...}``).
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``Bond.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.
@@ -330,9 +340,8 @@ impl PyBond {
 /// Typed wrapper for the Rust `TermLoan` instrument.
 ///
 /// Rust has no ``fixed``/``floating`` convenience constructors for term
-/// loans; construct via ``TermLoan.from_json`` with tagged JSON
-/// (``{"type": "term_loan", "spec": ...}``) or start from
-/// ``TermLoan.example()``.
+/// loans; construct via ``TermLoan.from_json`` with a canonical
+/// ``finstack_quant.instrument/1`` envelope or start from ``TermLoan.example()``.
 #[pyclass(
     module = "finstack_quant.valuations.instruments",
     name = "TermLoan",
@@ -346,24 +355,22 @@ pub struct PyTermLoan {
 }
 
 impl PyTermLoan {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::TermLoan(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize TermLoan"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(InstrumentJson::TermLoan(self.inner.clone()), "TermLoan")
     }
 }
 
 #[pymethods]
 impl PyTermLoan {
-    /// Deserialize a validated term loan from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated term loan from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"term_loan"``, or a full
-    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
-    ///     The UTF-8 input must not exceed 16 MiB. Cross-type coercion is not
-    ///     performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"term_loan"`` payload. The UTF-8 input must not exceed 16 MiB.
+    ///     Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -418,16 +425,16 @@ impl PyTermLoan {
             .map_err(core_to_py)
     }
 
-    /// Serialize to tagged instrument JSON (``{"type": "term_loan", "spec": ...}``).
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``TermLoan.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.

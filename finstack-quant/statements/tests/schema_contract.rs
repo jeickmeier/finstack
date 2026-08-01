@@ -3,24 +3,26 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use finstack_quant_core::cashflow::CFKind;
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::PeriodId;
+use finstack_quant_core::dates::{Date, Month, PeriodId};
 use finstack_quant_core::money::Money;
+use finstack_quant_core::ContractDescriptor;
 use finstack_quant_statements::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};
 use finstack_quant_statements::checks::{
     CheckCategory, CheckFinding, CheckReport, CheckResult, CheckSummary, Materiality, Severity,
 };
-use finstack_quant_statements::evaluator::{EvalWarning, ResultsMeta, StatementResult};
+use finstack_quant_statements::evaluator::{
+    CapitalStructureWarning, EvalWarning, ResultsMeta, StatementResult,
+};
 use finstack_quant_statements::schema::{
     financial_model_spec_schema, generated_schema, statement_result_schema, STATEMENTS_SCHEMA_BASE,
 };
-use finstack_quant_statements::types::{NodeValueType, FINANCIAL_MODEL_CONTRACT};
+use finstack_quant_statements::types::NodeValueType;
 use finstack_quant_statements::FinancialModelSpec;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 
-const INSTRUMENT_JSON_REF: &str =
-    "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json#/$defs/InstrumentJson";
 const CANONICAL_DECIMAL_PATTERN: &str = r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$";
 
 fn validate_fixture(schema: &Value, fixture: &Value) {
@@ -221,12 +223,38 @@ fn root_types_generate_typed_schemas() {
     assert!(result["properties"]["meta"].is_object());
     assert_eq!(
         model["$defs"]["DebtInstrumentSpec"]["properties"]["spec"]["$ref"],
-        INSTRUMENT_JSON_REF
+        "#/$defs/InstrumentJson"
     );
-    assert_eq!(model["properties"]["schema_version"]["minimum"], 1);
+    assert_eq!(model["$defs"]["SchemaVersion"]["minimum"], 1);
     assert_eq!(
-        model["properties"]["schema_version"]["maximum"],
-        FINANCIAL_MODEL_CONTRACT.current
+        model["$defs"]["SchemaVersion"]["maximum"],
+        ContractDescriptor::VERSION
+    );
+}
+
+#[test]
+fn capital_structure_warning_uses_typed_canonical_values() {
+    let warning = EvalWarning::CapitalStructure {
+        period: PeriodId::quarter(2025, 1),
+        warning: CapitalStructureWarning::CashflowIgnored {
+            cashflow_kind: CFKind::Recovery,
+            cashflow_date: Date::from_calendar_date(2025, Month::March, 31)
+                .expect("valid fixture date"),
+        },
+    };
+
+    let json = serde_json::to_value(warning).expect("warning should serialize");
+    assert_eq!(
+        json["capital_structure"]["warning"]["kind"],
+        "cashflow_ignored"
+    );
+    assert_eq!(
+        json["capital_structure"]["warning"]["cashflow_kind"],
+        "recovery"
+    );
+    assert_eq!(
+        json["capital_structure"]["warning"]["cashflow_date"],
+        "2025-03-31"
     );
 }
 
@@ -258,11 +286,11 @@ fn checked_in_schemas_apply_canonical_decimal_and_date_normalization() {
     let model = financial_model_spec_schema().expect("financial model schema parses");
 
     assert_eq!(
-        model.pointer("/$defs/Money/properties/amount/pattern"),
+        model.pointer("/$defs/DecimalWire/pattern"),
         Some(&json!(CANONICAL_DECIMAL_PATTERN))
     );
     assert_eq!(
-        model.pointer("/properties/periods/items/properties/start/format"),
+        model.pointer("/$defs/DateWire/format"),
         Some(&json!("date"))
     );
 }
@@ -314,13 +342,13 @@ fn financial_model_schema_rejects_invalid_versions_and_debt_specs() {
         "schema_version 0 must be rejected"
     );
 
-    fixture["schema_version"] = json!(FINANCIAL_MODEL_CONTRACT.current + 1);
+    fixture["schema_version"] = json!(ContractDescriptor::VERSION + 1);
     assert!(
         validate_model_fixture(&fixture).is_err(),
         "schema versions above the current version must be rejected"
     );
 
-    fixture["schema_version"] = json!(FINANCIAL_MODEL_CONTRACT.current);
+    fixture["schema_version"] = json!(ContractDescriptor::VERSION);
     fixture["capital_structure"]["debt_instruments"][0]["spec"] =
         json!({"type": "bond", "spec": {}});
     assert!(

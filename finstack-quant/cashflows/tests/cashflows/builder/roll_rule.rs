@@ -32,7 +32,7 @@ fn roll_params(start: Date, end: Date, roll_rule: RollRule) -> BuildPeriodsParam
         end,
         frequency: Tenor::quarterly(),
         stub: StubKind::ShortBack,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: "weekends_only",
         end_of_month: false,
         day_count: DayCount::Act360,
@@ -145,8 +145,8 @@ fn roll_rule_none_preserves_plain_tenor_grid() {
 #[test]
 fn schedule_params_roll_rule_defaults_to_none_and_is_omitted_on_wire() {
     let json = r#"{
-        "freq": {"count": 3, "unit": "months"},
-        "dc": "Act360",
+        "frequency": {"count": 3, "unit": "months"},
+        "day_count": "act_360",
         "calendar_id": "weekends_only"
     }"#;
     let params: ScheduleParams = serde_json::from_str(json).expect("deserializes without field");
@@ -165,7 +165,7 @@ fn schedule_params_roll_rule_roundtrips_cds_imm() {
     params.roll_rule = RollRule::CdsImm;
 
     let wire = serde_json::to_value(&params).expect("serializes");
-    assert_eq!(wire["roll_rule"], serde_json::json!("CdsImm"));
+    assert_eq!(wire["roll_rule"], serde_json::json!("cds_imm"));
 
     let back: ScheduleParams = serde_json::from_value(wire).expect("roundtrips");
     assert_eq!(back.roll_rule, RollRule::CdsImm);
@@ -174,8 +174,8 @@ fn schedule_params_roll_rule_roundtrips_cds_imm() {
 #[test]
 fn schedule_params_still_denies_unknown_fields() {
     let json = r#"{
-        "freq": {"count": 3, "unit": "months"},
-        "dc": "Act360",
+        "frequency": {"count": 3, "unit": "months"},
+        "day_count": "act_360",
         "calendar_id": "weekends_only",
         "roll_rulez": "CdsImm"
     }"#;

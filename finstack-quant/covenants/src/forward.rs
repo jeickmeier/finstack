@@ -833,7 +833,7 @@ mod tests {
         // Debt/EBITDA <= 5, actual ratio at 4 → positive headroom
         let spec = CovenantSpec::with_metric(
             crate::engine::Covenant::new(
-                CovenantType::MaxDebtToEBITDA { threshold: 5.0 },
+                CovenantType::MaxDebtToEbitda { threshold: 5.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
             ),
             "debt_to_ebitda",
@@ -864,7 +864,7 @@ mod tests {
         // Debt/EBITDA <= 1.0, base ~ 1.0; with high vol, breach prob should be material
         let spec = CovenantSpec::with_metric(
             crate::engine::Covenant::new(
-                CovenantType::MaxDebtToEBITDA { threshold: 1.0 },
+                CovenantType::MaxDebtToEbitda { threshold: 1.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
             ),
             "debt_to_ebitda",
@@ -893,7 +893,7 @@ mod tests {
         // NaN ⇒ breached (probability 1), not a clean 0% path.
         let spec = CovenantSpec::with_metric(
             crate::engine::Covenant::new(
-                CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+                CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
             ),
             "debt_to_ebitda",
@@ -923,7 +923,7 @@ mod tests {
     fn nan_metric_is_breached_stochastic() {
         let spec = CovenantSpec::with_metric(
             crate::engine::Covenant::new(
-                CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+                CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
             ),
             "debt_to_ebitda",
@@ -953,7 +953,7 @@ mod tests {
     fn negative_ebitda_leverage_breaches_in_forecast_paths() {
         let spec = CovenantSpec::with_metric(
             crate::engine::Covenant::new(
-                CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+                CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
             ),
             "debt_to_ebitda",
@@ -998,7 +998,7 @@ mod tests {
         let mut engine = CovenantEngine::new();
         engine.add_spec(CovenantSpec::with_metric(
             crate::engine::Covenant::new(
-                CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+                CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
             ),
             "debt_to_ebitda",
@@ -1029,7 +1029,7 @@ mod tests {
         let mut engine = CovenantEngine::new();
         engine.add_spec(CovenantSpec::with_metric(
             crate::engine::Covenant::new(
-                CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+                CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
             ),
             "debt_to_ebitda",
@@ -1091,7 +1091,7 @@ mod tests {
 
         let mut engine = CovenantEngine::new();
         let covenant = crate::engine::Covenant::new(
-            crate::engine::CovenantType::MaxDebtToEBITDA { threshold: 3.0 },
+            crate::engine::CovenantType::MaxDebtToEbitda { threshold: 3.0 },
             finstack_quant_core::dates::Tenor::quarterly(),
         );
         let spec = CovenantSpec {
@@ -1122,10 +1122,10 @@ mod tests {
     }
 
     fn atm_spec_and_model() -> (CovenantSpec, MockTs, Vec<PeriodId>) {
-        // MaxDebtToEBITDA <= 1.0 (AtMost bound), base exactly 1.0.
+        // MaxDebtToEbitda <= 1.0 (AtMost bound), base exactly 1.0.
         let spec = CovenantSpec::with_metric(
             crate::engine::Covenant::new(
-                CovenantType::MaxDebtToEBITDA { threshold: 1.0 },
+                CovenantType::MaxDebtToEbitda { threshold: 1.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
             ),
             "debt_to_ebitda",
@@ -1240,7 +1240,7 @@ mod tests {
         // NaN base => breached with probability 1 in MC mode too.
         let spec = CovenantSpec::with_metric(
             crate::engine::Covenant::new(
-                CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+                CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 finstack_quant_core::dates::Tenor::quarterly(),
             ),
             "debt_to_ebitda",

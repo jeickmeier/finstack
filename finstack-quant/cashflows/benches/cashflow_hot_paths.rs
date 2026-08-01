@@ -78,7 +78,7 @@ fn make_market(base: Date) -> MarketContext {
 }
 
 /// Fixed-rate bullet bond schedule: `years` maturity, semi-annual or quarterly.
-fn make_fixed_schedule(base: Date, years: i32, freq: Tenor) -> CashFlowSchedule {
+fn make_fixed_schedule(base: Date, years: i32, frequency: Tenor) -> CashFlowSchedule {
     let maturity = Date::from_calendar_date(2025 + years, Month::January, 15).unwrap();
     CashFlowSchedule::builder()
         .principal(Money::new(1_000_000.0, Currency::USD), base, maturity)
@@ -86,11 +86,11 @@ fn make_fixed_schedule(base: Date, years: i32, freq: Tenor) -> CashFlowSchedule 
             coupon_type: CouponType::Cash,
             rate: dec!(0.06),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq,
+                frequency,
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -352,7 +352,7 @@ fn bench_build_fixed_schedule(c: &mut Criterion) {
     let base = base_date();
 
     {
-        let (years, freq, label) = (5i32, Tenor::quarterly(), "5y_q");
+        let (years, frequency, label) = (5i32, Tenor::quarterly(), "5y_q");
         group.bench_with_input(BenchmarkId::from_parameter(label), label, |b, _| {
             b.iter(|| {
                 let maturity = Date::from_calendar_date(2025 + years, Month::January, 15).unwrap();
@@ -366,11 +366,11 @@ fn bench_build_fixed_schedule(c: &mut Criterion) {
                         coupon_type: CouponType::Cash,
                         rate: dec!(0.06),
                         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                            freq: black_box(freq),
+                            frequency: black_box(frequency),
 
-                            dc: DayCount::Act365F,
+                            day_count: DayCount::Act365F,
 
-                            bdc: BusinessDayConvention::ModifiedFollowing,
+                            business_day_convention: BusinessDayConvention::ModifiedFollowing,
 
                             calendar_id: "weekends_only".to_string(),
 

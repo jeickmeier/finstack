@@ -148,7 +148,7 @@ fn valuation_falls_back_when_metrics_fail() {
     let pos = Position::new("P", "E", "VO", inst, 1.0, PositionUnit::Units).unwrap();
 
     let portfolio = PortfolioBuilder::new("PF")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E"))
         .position(pos)
@@ -200,7 +200,7 @@ fn fallback_valuation_stamps_caller_config() {
     )
     .expect("position");
     let portfolio = PortfolioBuilder::new("PF_CONFIG")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E_CONFIG"))
         .position(pos)
@@ -229,7 +229,7 @@ fn fallback_valuation_stamps_caller_config() {
         result
             .meta
             .rounding
-            .output_scale_by_ccy
+            .output_scale_by_currency
             .get(&Currency::USD)
             .copied(),
         Some(4),
@@ -251,7 +251,7 @@ fn empty_metric_request_uses_the_pv_only_path() {
     )
     .expect("position");
     let portfolio = PortfolioBuilder::new("PF_PV_ONLY")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E_PV_ONLY"))
         .position(position)
@@ -300,7 +300,7 @@ fn empty_metric_request_in_strict_mode_surfaces_canonical_pricer_failure() {
     )
     .expect("position");
     let portfolio = PortfolioBuilder::new("PF_PV_ONLY_STRICT")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("E_PV_ONLY_STRICT"))
         .position(position)
@@ -336,7 +336,7 @@ fn empty_metric_request_preserves_canonical_valuation_result() {
     )
     .expect("position");
     let portfolio = PortfolioBuilder::new("PF_CANONICAL_PV")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("E_CANONICAL_PV"))
         .position(position)

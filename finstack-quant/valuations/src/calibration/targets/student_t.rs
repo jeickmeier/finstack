@@ -211,7 +211,7 @@ impl StudentTTarget {
             .running_coupon_bp(running_spread_bp)
             .frequency(Tenor::quarterly())
             .day_count(DayCount::Act360)
-            .bdc(BusinessDayConvention::Following)
+            .business_day_convention(BusinessDayConvention::Following)
             .calendar_id_opt(None)
             .discount_curve_id(discount_curve_id)
             .credit_index_id(CurveId::from(index_id.as_str()))

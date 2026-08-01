@@ -373,11 +373,11 @@ fn raw_position_endpoint(
             position.position_id
         )));
     }
-    if currency != input.portfolio.base_ccy {
+    if currency != input.portfolio.base_currency {
         return Err(Error::validation(format!(
             "M-2: factor stress requires position '{}' to price in portfolio base currency {}; \
              got {}. Explicit FX conversion is disabled for this workflow.",
-            position.position_id, input.portfolio.base_ccy, currency
+            position.position_id, input.portfolio.base_currency, currency
         )));
     }
     Ok(RawPositionEndpoint { amount })
@@ -422,7 +422,7 @@ fn collapse_to_base(input: &EvaluationInput<'_>, value_native: Money) -> Result<
         value_native,
         input.as_of,
         input.market,
-        input.portfolio.base_ccy,
+        input.portfolio.base_currency,
     )
 }
 
@@ -432,7 +432,7 @@ fn assemble_valuation(
     profile: &EvaluationProfile,
     as_of: Date,
 ) -> Result<PortfolioValuation> {
-    let base_ccy = portfolio.base_ccy;
+    let base_currency = portfolio.base_currency;
     let mut position_values = IndexMap::with_capacity(position_values_vec.len());
     let mut entity_amounts: IndexMap<EntityId, Vec<f64>> = IndexMap::new();
 
@@ -446,11 +446,11 @@ fn assemble_valuation(
 
     let by_entity: IndexMap<EntityId, Money> = entity_amounts
         .into_iter()
-        .map(|(entity_id, amounts)| (entity_id, Money::new(neumaier_sum(amounts), base_ccy)))
+        .map(|(entity_id, amounts)| (entity_id, Money::new(neumaier_sum(amounts), base_currency)))
         .collect();
-    let total_base_ccy = Money::new(
+    let total_base_currency = Money::new(
         neumaier_sum(by_entity.values().map(Money::amount)),
-        base_ccy,
+        base_currency,
     );
     let degraded_positions: Vec<PositionId> = position_values
         .values()
@@ -461,14 +461,14 @@ fn assemble_valuation(
     Ok(PortfolioValuation {
         as_of,
         position_values,
-        total_base_ccy,
+        total_base_currency,
         by_entity,
         degraded_positions,
         fx_collapse_policy: FxConversionPolicy::CashflowDate,
         provenance: Some(super::EvaluationProvenance {
             profile: profile.clone(),
             portfolio_state_id: portfolio.evaluation_state_id,
-            base_ccy,
+            base_currency,
         }),
     })
 }

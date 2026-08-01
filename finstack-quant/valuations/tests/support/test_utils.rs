@@ -59,7 +59,7 @@ pub fn usd_irs_swap(
         rate: rate_decimal,
         frequency: Tenor::semi_annual(),
         day_count: DayCount::Thirty360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: Some("usny".to_string()),
         stub: StubKind::None,
         start,
@@ -75,7 +75,7 @@ pub fn usd_irs_swap(
         spread_bp: Decimal::ZERO,
         frequency: Tenor::quarterly(),
         day_count: DayCount::Act360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: Some("usny".to_string()),
         stub: StubKind::None,
         reset_lag_days: 0,
@@ -361,9 +361,9 @@ pub fn cds_buy_protection(
     credit_id: impl Into<CurveId>,
 ) -> finstack_quant_core::Result<CreditDefaultSwap> {
     let convention = CDSConvention::IsdaNa;
-    let dc = convention.day_count();
-    let freq = convention.frequency();
-    let bdc = convention.business_day_convention();
+    let day_count = convention.day_count();
+    let frequency = convention.frequency();
+    let business_day_convention = convention.business_day_convention();
     let stub = convention.stub_convention();
 
     let spread_bp_decimal = Decimal::try_from(spread_bp).map_err(|e| {
@@ -381,11 +381,11 @@ pub fn cds_buy_protection(
         .premium(PremiumLegSpec {
             start,
             end: maturity,
-            frequency: freq,
+            frequency,
             stub,
-            bdc,
+            business_day_convention,
             calendar_id: Some(convention.default_calendar().to_string()),
-            day_count: dc,
+            day_count,
             spread_bp: spread_bp_decimal,
             discount_curve_id: discount_curve_id.into(),
         })
@@ -414,9 +414,9 @@ pub fn cds_sell_protection(
     credit_id: impl Into<CurveId>,
 ) -> finstack_quant_core::Result<CreditDefaultSwap> {
     let convention = CDSConvention::IsdaNa;
-    let dc = convention.day_count();
-    let freq = convention.frequency();
-    let bdc = convention.business_day_convention();
+    let day_count = convention.day_count();
+    let frequency = convention.frequency();
+    let business_day_convention = convention.business_day_convention();
     let stub = convention.stub_convention();
 
     let spread_bp_decimal = Decimal::try_from(spread_bp).map_err(|e| {
@@ -434,11 +434,11 @@ pub fn cds_sell_protection(
         .premium(PremiumLegSpec {
             start,
             end: maturity,
-            frequency: freq,
+            frequency,
             stub,
-            bdc,
+            business_day_convention,
             calendar_id: Some(convention.default_calendar().to_string()),
-            day_count: dc,
+            day_count,
             spread_bp: spread_bp_decimal,
             discount_curve_id: discount_curve_id.into(),
         })
@@ -649,10 +649,9 @@ pub mod calibration {
             })
     }
 
-    /// Split a [`MarketContext`] into the v3 envelope's `(prior_market,
-    /// market_data)` pair. Pure-Rust convenience for tests that historically
-    /// built `initial_market: Some((&ctx).into())`.
-    pub fn split_initial_market(
+    /// Split a [`MarketContext`] into the canonical `(prior_market,
+    /// market_data)` inputs used by calibration tests.
+    pub fn split_market_context(
         ctx: &MarketContext,
     ) -> (Vec<PriorMarketObject>, Vec<MarketDatum>) {
         split_market_context_state(MarketContextState::from(ctx))
@@ -666,9 +665,8 @@ pub mod calibration {
         context: &MarketContext,
         global_config: &CalibrationConfig,
     ) -> Result<(MarketContext, CalibrationReport)> {
-        // Split the legacy market context snapshot into the v3 envelope
-        // inputs: pre-built calibrated objects (`prior`) and flat market data
-        // (`data`).
+        // Split the market snapshot into pre-built calibrated objects (`prior`)
+        // and flat market data (`data`).
         let (prior, mut data) = split_market_context_state(MarketContextState::from(context))?;
 
         // Build the `default` quote set and flatten its quotes onto market data.
@@ -692,7 +690,7 @@ pub mod calibration {
 
         let envelope = CalibrationEnvelope {
             schema_url: None,
-            schema: CALIBRATION_SCHEMA.to_string(),
+            schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
             plan,
             market_data: data,
             prior_market: prior,

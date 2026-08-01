@@ -127,11 +127,10 @@ impl core::str::FromStr for BumpUnits {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "rate_bp" | "ratebp" | "bp" | "bps" | "basis_points" => Ok(Self::RateBp),
-            "percent" | "pct" => Ok(Self::Percent),
-            "fraction" | "frac" => Ok(Self::Fraction),
+        match s {
+            "rate_bp" => Ok(Self::RateBp),
+            "percent" => Ok(Self::Percent),
+            "fraction" => Ok(Self::Fraction),
             "factor" => Ok(Self::Factor),
             other => Err(format!(
                 "Unknown bump units: '{}'. Valid: rate_bp, percent, fraction, factor",
@@ -464,8 +463,8 @@ pub enum MarketBump {
     },
     /// Volatility surface bucket bump (percentage multiplier).
     VolBucketPct {
-        /// Surface identifier.
-        surface_id: CurveId,
+        /// Volatility-surface identifier.
+        vol_surface_id: CurveId,
         /// Optional expiry filters (year fractions).
         expiries: Option<Vec<f64>>,
         /// Optional strike filters.
@@ -1287,14 +1286,14 @@ mod tests {
             }
         })?;
         // Flat curve: 5% continuously compounded -> DF(1) = exp(-0.05) ≈ 0.951229
-        let dc = DiscountCurve::builder("USD-OIS")
+        let day_count = DiscountCurve::builder("USD-OIS")
             .base_date(base)
             .knots([(0.5, 0.975309912), (1.0, 0.9512294245)]) // Minimum 2 points
             .build()?;
 
         // 1. Additive RateBp
         let spec = BumpSpec::parallel_bp(100.0); // +100bps = +1%
-        let bumped = dc.apply_bump(spec)?;
+        let bumped = day_count.apply_bump(spec)?;
         // New rate = 5% + 1% = 6%
         // DF(1) = exp(-0.06) ≈ 0.9417645336
         assert!((bumped.df(1.0) - 0.9417645336).abs() < 1e-8);
@@ -1302,12 +1301,12 @@ mod tests {
         // 2. Additive Percent (New capability!)
         // 1% additive bump (same as 100bp)
         let spec_pct = BumpSpec::inflation_shift_pct(1.0);
-        let bumped_pct = dc.apply_bump(spec_pct)?;
+        let bumped_pct = day_count.apply_bump(spec_pct)?;
         assert!((bumped_pct.df(1.0) - 0.9417645336).abs() < 1e-8);
 
         // 3. Verify Multiplicative raises error
         let spec_mul = BumpSpec::multiplier(1.10);
-        assert!(dc.apply_bump(spec_mul).is_err());
+        assert!(day_count.apply_bump(spec_mul).is_err());
 
         Ok(())
     }

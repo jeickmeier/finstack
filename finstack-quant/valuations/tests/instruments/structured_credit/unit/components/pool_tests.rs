@@ -47,7 +47,7 @@ fn test_pool_asset_floating_rate_loan_creation() {
     // Assert
     assert_eq!(asset.id.as_str(), "LOAN001");
     assert_eq!(asset.balance.amount(), 10_000_000.0);
-    assert_eq!(asset.spread_bps(), 450.0);
+    assert_eq!(asset.spread_bp(), 450.0);
     assert!(asset.index_id.is_some());
     assert_eq!(asset.index_id.as_ref().unwrap(), "SOFR-3M");
     assert!(!asset.is_defaulted);
@@ -68,7 +68,7 @@ fn test_pool_asset_fixed_rate_bond_creation() {
     assert_eq!(asset.id.as_str(), "BOND001");
     assert_eq!(asset.balance.amount(), 5_000_000.0);
     assert_eq!(asset.rate, 0.07);
-    assert!(asset.spread_bps.is_none()); // Fixed rate has no separate spread
+    assert!(asset.spread_bp.is_none()); // Fixed rate has no separate spread
     assert!(asset.index_id.is_none());
 }
 
@@ -105,9 +105,9 @@ fn test_pool_asset_spread_bps_fallback_to_rate() {
     );
 
     // Act
-    let spread = asset.spread_bps();
+    let spread = asset.spread_bp();
 
-    // Assert: Should return rate * 10000 when spread_bps is None
+    // Assert: Should return rate * 10000 when spread_bp is None
     assert_eq!(spread, 600.0); // 6% = 600bps
 }
 
@@ -160,11 +160,11 @@ fn test_pool_asset_remaining_term_calculation() {
 #[test]
 fn test_asset_pool_creation() {
     // Arrange & Act
-    let pool = AssetPool::new("TEST_POOL", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("TEST_POOL", DealType::Clo, Currency::USD);
 
     // Assert
     assert_eq!(pool.id.as_str(), "TEST_POOL");
-    assert_eq!(pool.deal_type, DealType::CLO);
+    assert_eq!(pool.deal_type, DealType::Clo);
     assert_eq!(pool.base_currency(), Currency::USD);
     assert_eq!(pool.assets.len(), 0);
     assert_eq!(pool.total_balance().unwrap().amount(), 0.0);
@@ -173,7 +173,7 @@ fn test_asset_pool_creation() {
 #[test]
 fn test_asset_pool_total_balance_calculation() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::floating_rate_loan(
         "L1",
         Money::new(10_000_000.0, Currency::USD),
@@ -201,7 +201,7 @@ fn test_asset_pool_total_balance_calculation() {
 #[test]
 fn test_asset_pool_empty_pool_balance() {
     // Arrange
-    let pool = AssetPool::new("EMPTY", DealType::ABS, Currency::EUR);
+    let pool = AssetPool::new("EMPTY", DealType::Abs, Currency::EUR);
 
     // Act
     let total = pool.total_balance().unwrap();
@@ -214,7 +214,7 @@ fn test_asset_pool_empty_pool_balance() {
 
 #[test]
 fn test_asset_pool_rejects_asset_currency_mismatch() {
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::floating_rate_loan(
         "L1",
         Money::new(10_000_000.0, Currency::EUR),
@@ -237,7 +237,7 @@ fn test_asset_pool_rejects_asset_currency_mismatch() {
 #[test]
 fn test_asset_pool_performing_balance_excludes_defaults() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     // Add performing asset
     pool.assets.push(PoolAsset::floating_rate_loan(
@@ -277,7 +277,7 @@ fn test_asset_pool_performing_balance_excludes_defaults() {
 #[test]
 fn test_pool_weighted_avg_coupon_single_asset() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "B1",
         Money::new(10_000_000.0, Currency::USD),
@@ -296,7 +296,7 @@ fn test_pool_weighted_avg_coupon_single_asset() {
 #[test]
 fn test_pool_weighted_avg_coupon_multiple_assets() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "B1",
         Money::new(10_000_000.0, Currency::USD),
@@ -322,7 +322,7 @@ fn test_pool_weighted_avg_coupon_multiple_assets() {
 #[test]
 fn test_pool_weighted_avg_coupon_empty_pool() {
     // Arrange
-    let pool = AssetPool::new("EMPTY", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("EMPTY", DealType::Clo, Currency::USD);
 
     // Act
     let wac = pool.weighted_avg_coupon();
@@ -334,7 +334,7 @@ fn test_pool_weighted_avg_coupon_empty_pool() {
 #[test]
 fn test_pool_weighted_avg_spread_floating_rate_assets() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::floating_rate_loan(
         "L1",
         Money::new(10_000_000.0, Currency::USD),
@@ -362,7 +362,7 @@ fn test_pool_weighted_avg_spread_floating_rate_assets() {
 #[test]
 fn test_pool_weighted_avg_spread_mixed_assets() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     // Floating rate with explicit spread
     pool.assets.push(PoolAsset::floating_rate_loan(
@@ -393,7 +393,7 @@ fn test_pool_weighted_avg_spread_mixed_assets() {
 
 #[test]
 fn test_pool_weighted_avg_spread_excludes_defaulted() {
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     pool.assets.push(PoolAsset::floating_rate_loan(
         "L1",
@@ -422,7 +422,7 @@ fn test_pool_weighted_avg_spread_excludes_defaulted() {
 #[test]
 fn test_pool_weighted_avg_maturity() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "B1",
         Money::new(10_000_000.0, Currency::USD),
@@ -452,7 +452,7 @@ fn test_pool_weighted_avg_maturity() {
 #[test]
 fn test_pool_diversity_score_single_obligor() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(
         PoolAsset::floating_rate_loan(
             "L1",
@@ -486,7 +486,7 @@ fn test_pool_diversity_score_single_obligor() {
 #[test]
 fn test_pool_diversity_score_multiple_obligors() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(
         PoolAsset::floating_rate_loan(
             "L1",
@@ -520,7 +520,7 @@ fn test_pool_diversity_score_multiple_obligors() {
 #[test]
 fn test_pool_diversity_score_empty_pool() {
     // Arrange
-    let pool = AssetPool::new("EMPTY", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("EMPTY", DealType::Clo, Currency::USD);
 
     // Act
     let diversity = pool.diversity_score();
@@ -536,7 +536,7 @@ fn test_pool_diversity_score_empty_pool() {
 #[test]
 fn test_pool_assets_by_industry() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(
         PoolAsset::floating_rate_loan(
             "L1",
@@ -585,7 +585,7 @@ fn test_pool_assets_by_industry() {
 #[test]
 fn test_pool_assets_by_obligor() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(
         PoolAsset::floating_rate_loan(
             "L1",
@@ -623,7 +623,7 @@ fn test_pool_assets_by_obligor() {
 #[test]
 fn test_calculate_pool_stats_comprehensive() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     // Add diverse assets
     pool.assets.push(
@@ -668,7 +668,7 @@ fn test_calculate_pool_stats_comprehensive() {
 #[test]
 fn test_calculate_pool_stats_with_defaults() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     // Add performing asset
     pool.assets.push(PoolAsset::floating_rate_loan(
@@ -706,7 +706,7 @@ fn test_calculate_pool_stats_with_defaults() {
 #[test]
 fn test_pool_zero_balance_asset() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "B1",
         Money::new(0.0, Currency::USD), // Zero balance
@@ -753,7 +753,7 @@ fn test_pool_asset_type_classification() {
         },
         balance: Money::new(10_000_000.0, Currency::USD),
         rate: 0.07,
-        spread_bps: Some(450.0),
+        spread_bp: Some(450.0),
         index_id: Some("SOFR-3M".to_string()),
         maturity: maturity_date(),
         credit_quality: Some(CreditRating::BB),

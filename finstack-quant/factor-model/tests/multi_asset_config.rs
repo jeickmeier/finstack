@@ -59,44 +59,6 @@ fn factor_model_config_envelope_strict_loader_enforces_schema_and_validation() {
 }
 
 #[test]
-fn factor_model_config_version_matrix_fixture_drives_strict_loader() {
-    let fixture: serde_json::Value =
-        serde_json::from_str(include_str!("data/contract_version_matrix.json"))
-            .expect("version matrix fixture parses");
-    let matrix = &fixture["config"];
-    let base = matrix["base"].clone();
-    let cases = matrix["cases"]
-        .as_array()
-        .expect("matrix contains schema cases");
-
-    for case in cases {
-        let name = case["name"].as_str().expect("case name");
-        let mut document = base.clone();
-        match case.get("schema") {
-            Some(serde_json::Value::Null) | None => {
-                document
-                    .as_object_mut()
-                    .expect("envelope object")
-                    .remove("schema");
-            }
-            Some(schema) => document["schema"] = schema.clone(),
-        }
-        let bytes = serde_json::to_vec(&document).expect("case serializes");
-        let expected = case["expected"].as_str().expect("expected outcome");
-        match FactorModelConfigEnvelope::from_slice_strict(&bytes, &LoadLimits::default()) {
-            Ok((_loaded, report)) => {
-                assert_eq!(expected, "ok", "{name} unexpectedly loaded");
-                assert!(report.diagnostics.is_empty(), "{name}");
-            }
-            Err(ContractError::Report(report)) => {
-                assert_eq!(report.diagnostics[0].code, expected, "{name}");
-            }
-            Err(error) => panic!("{name} returned unstructured error: {error}"),
-        }
-    }
-}
-
-#[test]
 fn factor_model_config_supports_multi_asset_factor_universe() {
     let factors = vec![
         curve_factor(
@@ -121,7 +83,7 @@ fn factor_model_config_supports_multi_asset_factor_universe() {
         },
         FactorDefinition {
             id: FactorId::new("fx::eur_usd"),
-            factor_type: FactorType::FX,
+            factor_type: FactorType::Fx,
             market_mapping: MarketMapping::FxRate {
                 pair: (Currency::EUR, Currency::USD),
             },
@@ -131,7 +93,7 @@ fn factor_model_config_supports_multi_asset_factor_universe() {
             id: FactorId::new("vol::spx"),
             factor_type: FactorType::Volatility,
             market_mapping: MarketMapping::VolShift {
-                surface_ids: vec!["SPX-VOL".to_string()],
+                vol_surface_ids: vec!["SPX-VOL".to_string()],
                 units: BumpUnits::RateBp,
             },
             description: None,

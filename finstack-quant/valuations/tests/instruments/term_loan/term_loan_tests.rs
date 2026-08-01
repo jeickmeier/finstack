@@ -39,7 +39,9 @@ fn term_loan_fixed_with_draws_and_fees() {
         .rate(term_loan::RateSpec::Fixed { rate_bp: 800 })
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(
+            finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+        )
         .calendar_id_opt(None)
         .stub(finstack_quant_core::dates::StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -107,7 +109,9 @@ fn term_loan_commitment_fee_step_downs() {
         .rate(term_loan::RateSpec::Fixed { rate_bp: 700 })
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(
+            finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+        )
         .calendar_id_opt(None)
         .stub(finstack_quant_core::dates::StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -185,7 +189,9 @@ fn term_loan_commitment_fee_windowed_to_availability() {
         .rate(term_loan::RateSpec::Fixed { rate_bp: 650 })
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(
+            finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+        )
         .calendar_id_opt(None)
         .stub(finstack_quant_core::dates::StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -240,7 +246,9 @@ fn term_loan_oid_eir_amortization_schedule() {
         .rate(term_loan::RateSpec::Fixed { rate_bp: 500 })
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(
+            finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+        )
         .calendar_id_opt(None)
         .stub(finstack_quant_core::dates::StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -323,7 +331,9 @@ fn term_loan_pik_toggle_and_cash_sweep() {
         .rate(term_loan::RateSpec::Fixed { rate_bp: 600 })
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(
+            finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+        )
         .calendar_id_opt(None)
         .stub(finstack_quant_core::dates::StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -341,7 +351,7 @@ fn term_loan_pik_toggle_and_cash_sweep() {
     assert!(!sched.get_flows().is_empty());
     // Holder-view schedules omit PIK accretion because it capitalizes into
     // outstanding rather than paying cash to the holder.
-    let has_pik = sched.get_flows().iter().any(|cf| cf.kind == CFKind::PIK);
+    let has_pik = sched.get_flows().iter().any(|cf| cf.kind == CFKind::Pik);
     assert!(!has_pik);
 
     let cash_coupon_dates: Vec<_> = sched
@@ -379,7 +389,9 @@ fn fixed_rate_margin_step_up_changes_coupon_from_effective_period() {
         .rate(term_loan::RateSpec::Fixed { rate_bp: 600 })
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(
+            finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+        )
         .calendar_id_opt(None)
         .stub(finstack_quant_core::dates::StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -427,7 +439,7 @@ fn term_loan_golden_pv_and_metrics() {
         .rate(term_loan::RateSpec::Fixed { rate_bp: 500 }) // 5%
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -509,7 +521,7 @@ fn term_loan_amortizing_outstanding_path() {
         .rate(term_loan::RateSpec::Fixed { rate_bp: 500 })
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))

@@ -95,13 +95,13 @@ fn parse_date(s: &str) -> Date {
 /// Map convention string to DayCount enum.
 fn parse_convention(s: &str) -> Option<DayCount> {
     match s {
-        "Thirty360" => Some(DayCount::Thirty360),
-        "ThirtyE360" => Some(DayCount::ThirtyE360),
-        "ActAct" => Some(DayCount::ActAct),
-        "ActActIsma" => Some(DayCount::ActActIsma),
-        "Act365L" => Some(DayCount::Act365L),
-        "Act360" => Some(DayCount::Act360),
-        "Act365F" => Some(DayCount::Act365F),
+        "30_360" => Some(DayCount::Thirty360),
+        "30e_360" => Some(DayCount::ThirtyE360),
+        "act_act" => Some(DayCount::ActAct),
+        "act_act_isma" => Some(DayCount::ActActIsma),
+        "act_365l" => Some(DayCount::Act365L),
+        "act_360" => Some(DayCount::Act360),
+        "act_365f" => Some(DayCount::Act365F),
         "comparison" => None, // Special case for comparison tests
         _ => panic!("Unknown convention: {}", s),
     }
@@ -137,8 +137,8 @@ fn test_daycount_quantlib_parity() {
             // Special comparison test: US vs Euro
             test_us_vs_euro_comparison(case, start, end)
         } else {
-            let dc = parse_convention(&case.convention).expect("Valid convention");
-            test_single_convention(case, dc, start, end)
+            let day_count = parse_convention(&case.convention).expect("Valid convention");
+            test_single_convention(case, day_count, start, end)
         };
 
         if let Err(e) = result {
@@ -157,7 +157,7 @@ fn test_daycount_quantlib_parity() {
 /// Test a single day count convention.
 fn test_single_convention(
     case: &DayCountCase,
-    dc: DayCount,
+    day_count: DayCount,
     start: Date,
     end: Date,
 ) -> Result<(), String> {
@@ -171,7 +171,7 @@ fn test_single_convention(
         end_is_termination_date: false,
     };
 
-    let yf = dc
+    let yf = day_count
         .year_fraction(start, end, ctx)
         .map_err(|e| format!("year_fraction failed: {}", e))?;
 

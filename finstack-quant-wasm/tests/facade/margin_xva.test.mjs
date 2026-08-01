@@ -81,8 +81,8 @@ test('computeBilateralXva folds MVA into total_xva', () => {
     0.4,
     0.4,
     JSON.stringify({
-      funding_spread_bps: 50.0,
-      funding_benefit_bps: 30.0,
+      funding_spread_bp: 50.0,
+      funding_benefit_bp: 30.0,
       im_profile: { times: [1.0, 2.0], im_values: [1e6, 1e6] },
     })
   );
@@ -93,8 +93,9 @@ test('computeBilateralXva folds MVA into total_xva', () => {
   assert.ok(Math.abs(result.dva) < 1e-12);
   assert.ok(Math.abs(result.mva - 10_000.0) < 1e-6);
   assert.ok(result.fva > 0.0);
-  assert.ok(Math.abs(result.bilateral_cva - (result.cva - result.dva + result.fva)) < 1e-9);
-  assert.ok(Math.abs(result.total_xva - (result.bilateral_cva + result.mva)) < 1e-9);
+  assert.ok(
+    Math.abs(result.total_xva - (result.cva - result.dva + result.fva + result.mva)) < 1e-9
+  );
 });
 
 test('computeBilateralXva nets posted IM from bilateral DVA', () => {
@@ -110,8 +111,8 @@ test('computeBilateralXva nets posted IM from bilateral DVA', () => {
   const withIm = margin.computeBilateralXva(
     ...args,
     JSON.stringify({
-      funding_spread_bps: 0.0,
-      funding_benefit_bps: 0.0,
+      funding_spread_bp: 0.0,
+      funding_benefit_bp: 0.0,
       im_profile: { times: [1.0, 2.0], im_values: [400_000.0, 400_000.0] },
     })
   );
@@ -131,7 +132,7 @@ test('computeBilateralXva rejects an IM/exposure horizon mismatch', () => {
         0.4,
         0.4,
         JSON.stringify({
-          funding_spread_bps: 50.0,
+          funding_spread_bp: 50.0,
           im_profile: { times: [1.0, 3.0], im_values: [1e6, 1e6] },
         })
       ),
@@ -153,9 +154,8 @@ test('computeBilateralXva omits uncomputed legs without funding', () => {
   assert.equal(result.fva, undefined);
   assert.equal(result.mva, undefined);
   assert.ok(result.cva > 0.0);
-  assert.ok(Math.abs(result.bilateral_cva - (result.cva - result.dva)) < 1e-12);
-  // With no funding legs, the all-in total collapses onto BCVA.
-  assert.ok(Math.abs(result.total_xva - result.bilateral_cva) < 1e-12);
+  // With no funding legs, the all-in total is CVA minus DVA.
+  assert.ok(Math.abs(result.total_xva - (result.cva - result.dva)) < 1e-12);
 });
 
 test('computeBilateralXva throws on an out-of-range recovery rate', () => {
@@ -193,7 +193,7 @@ test('computeBilateralXva rejects unknown funding fields', () => {
       flatDiscount(),
       0.4,
       0.4,
-      JSON.stringify({ funding_spread_bps: 50.0, funding_spred_bps: 40.0 })
+      JSON.stringify({ funding_spread_bp: 50.0, funding_spred_bp: 40.0 })
     )
   );
 });

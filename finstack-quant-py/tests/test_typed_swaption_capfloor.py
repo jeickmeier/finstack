@@ -21,8 +21,8 @@ from tests.tests_typed_helpers import build_capfloor as _cap, build_swaption as 
 class TestSwaptionTyped:
     def test_builder_and_tagged_json(self) -> None:
         payload = json.loads(_payer_swaption().to_json())
-        assert payload["type"] == "swaption"
-        assert payload["spec"]["id"] == "SWPT-1"
+        assert payload["instrument"]["type"] == "swaption"
+        assert payload["instrument"]["spec"]["id"] == "SWPT-1"
 
     def test_bermudan_exercise_style_round_trips(self) -> None:
         fixed, float_leg = _legs()
@@ -104,7 +104,7 @@ class TestSwaptionTyped:
             .build()
         )
         payload = json.loads(swpt.to_json())
-        assert payload["spec"]["sabr_params"]["alpha"] == 0.025
+        assert payload["instrument"]["spec"]["sabr_params"]["alpha"] == 0.025
 
     def test_invalid_exercise_style_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid exercise_style"):
@@ -119,7 +119,7 @@ class TestCapFloorTyped:
     def test_builder_and_round_trip(self) -> None:
         cap = _cap()
         payload = json.loads(cap.to_json())
-        assert payload["type"] == "cap_floor"
+        assert payload["instrument"]["type"] == "cap_floor"
         assert CapFloor.from_json(cap.to_json()).id == "CAP-1"
 
     @pytest.mark.parametrize("value", ["cap", "floor", "caplet", "floorlet"])
@@ -152,9 +152,9 @@ class TestCapFloorTyped:
             .build()
         )
         payload = json.loads(cap.to_json())
-        assert payload["spec"]["spread"] == "0.001"
-        assert payload["spec"]["vol_shift"] == 0.02
-        assert payload["spec"]["calendar_id"] == "nyse"
+        assert payload["instrument"]["spec"]["spread"] == "0.001"
+        assert payload["instrument"]["spec"]["vol_shift"] == 0.02
+        assert payload["instrument"]["spec"]["calendar_id"] == "nyse"
 
     def test_missing_required_field_raises(self) -> None:
         with pytest.raises(ValueError, match="Invalid input data"):

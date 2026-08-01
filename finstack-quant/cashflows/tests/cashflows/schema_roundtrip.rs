@@ -124,20 +124,20 @@ fn fixed_schedule_build_spec() -> serde_json::Value {
     json!({
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None"
+            "amort": "none"
         },
         "issue": "2024-08-31",
         "maturity": "2025-08-31",
         "coupon_program": [{
             "kind": "fixed",
             "spec": {
-                "coupon_type": "Cash",
+                "coupon_type": "cash",
                 "rate": "0.06",
-                "freq": {"count": 12, "unit": "months"},
-                "dc": "Thirty360",
-                "bdc": "following",
+                "frequency": {"count": 12, "unit": "months"},
+                "day_count": "30_360",
+                "business_day_convention": "following",
                 "calendar_id": "weekends_only",
-                "stub": "None",
+                "stub": "none",
                 "end_of_month": false,
                 "payment_lag_days": 0
             }
@@ -147,11 +147,11 @@ fn fixed_schedule_build_spec() -> serde_json::Value {
 
 fn canonical_schedule_params() -> serde_json::Value {
     json!({
-        "freq": {"count": 3, "unit": "months"},
-        "dc": "Act360",
-        "bdc": "following",
+        "frequency": {"count": 3, "unit": "months"},
+        "day_count": "act_360",
+        "business_day_convention": "following",
         "calendar_id": "weekends_only",
-        "stub": "None",
+        "stub": "none",
         "end_of_month": false,
         "payment_lag_days": 0,
         "adjust_accrual_dates": false
@@ -160,20 +160,20 @@ fn canonical_schedule_params() -> serde_json::Value {
 
 fn canonical_fixed_coupon(rate: &str) -> serde_json::Value {
     let mut spec = canonical_schedule_params();
-    spec["coupon_type"] = json!("Cash");
+    spec["coupon_type"] = json!("cash");
     spec["rate"] = json!(rate);
     spec
 }
 
 fn canonical_floating_coupon(spread_bp: &str) -> serde_json::Value {
     let mut spec = canonical_schedule_params();
-    spec["coupon_type"] = json!("Cash");
+    spec["coupon_type"] = json!("cash");
     spec["rate_spec"] = json!({
         "index_id": "TEST-INDEX",
         "spread_bp": spread_bp,
-        "reset_freq": {"count": 3, "unit": "months"},
+        "reset_frequency": {"count": 3, "unit": "months"},
         "reset_lag_days": 0,
-        "fallback": "SpreadOnly"
+        "fallback": "spread_only"
     });
     spec
 }
@@ -185,7 +185,7 @@ fn canonical_build_spec(
     json!({
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None"
+            "amort": "none"
         },
         "issue": "2025-01-01",
         "maturity": "2027-01-01",
@@ -245,14 +245,14 @@ fn test_json_bridge_validates_pre_issue_principal_and_fee_flows() {
         serde_json::from_str(&schedule_json).expect("schedule JSON parses");
     let template_flow = schedule_value["flows"][0].clone();
 
-    // Pre-issue principal event (Notional draw) and an up-front fee.
+    // Pre-issue principal event (notional draw) and an up-front fee.
     let mut pre_issue_notional = template_flow.clone();
     pre_issue_notional["date"] = json!("2024-08-15");
-    pre_issue_notional["kind"] = json!("Notional");
+    pre_issue_notional["kind"] = json!("notional");
     pre_issue_notional["amount"] = json!({"amount": "-100000", "currency": "USD"});
     let mut pre_issue_fee = template_flow.clone();
     pre_issue_fee["date"] = json!("2024-08-15");
-    pre_issue_fee["kind"] = json!("Fee");
+    pre_issue_fee["kind"] = json!("fee");
     pre_issue_fee["amount"] = json!({"amount": "5000", "currency": "USD"});
 
     let flows = schedule_value["flows"].as_array_mut().expect("flows array");
@@ -270,7 +270,7 @@ fn test_json_bridge_validates_pre_issue_principal_and_fee_flows() {
         serde_json::from_str(&schedule_json).expect("schedule JSON parses");
     let mut pre_issue_coupon = template_flow;
     pre_issue_coupon["date"] = json!("2024-08-15");
-    pre_issue_coupon["kind"] = json!("Fixed");
+    pre_issue_coupon["kind"] = json!("fixed");
     bad_schedule["flows"]
         .as_array_mut()
         .expect("flows array")
@@ -288,7 +288,7 @@ fn test_json_bridge_amortizing_schedule_build() {
     let mut spec = fixed_schedule_build_spec();
     spec["maturity"] = json!("2026-08-31");
     spec["notional"]["amort"] = json!({
-        "LinearTo": {"final_notional": {"amount": "0", "currency": "USD"}}
+        "linear_to": {"final_notional": {"amount": "0", "currency": "USD"}}
     });
 
     let schedule_json =
@@ -300,28 +300,6 @@ fn test_json_bridge_amortizing_schedule_build() {
         flow.kind,
         finstack_quant_cashflows::primitives::CFKind::Amortization
     )));
-}
-
-fn canonicalize_floating_rate_keys(value: &mut serde_json::Value) {
-    match value {
-        serde_json::Value::Object(map) => {
-            if let Some(legacy_floor) = map.remove("floor_bp") {
-                map.insert("index_floor_bp".to_string(), legacy_floor);
-            }
-            if let Some(legacy_cap) = map.remove("cap_bp") {
-                map.insert("all_in_cap_bp".to_string(), legacy_cap);
-            }
-            for nested in map.values_mut() {
-                canonicalize_floating_rate_keys(nested);
-            }
-        }
-        serde_json::Value::Array(values) => {
-            for nested in values {
-                canonicalize_floating_rate_keys(nested);
-            }
-        }
-        _ => {}
-    }
 }
 
 #[test]
@@ -378,14 +356,14 @@ fn test_fixed_coupon_spec() {
 
     // Day count should be 30/360 (standard for USD corporate bonds)
     assert_eq!(
-        spec.schedule.dc,
+        spec.schedule.day_count,
         DayCount::Thirty360,
         "Fixed coupon day count should be 30/360"
     );
 
     // Business day convention should be Modified Following (market standard)
     assert_eq!(
-        spec.schedule.bdc,
+        spec.schedule.business_day_convention,
         BusinessDayConvention::ModifiedFollowing,
         "Fixed coupon BDC should be Modified Following"
     );
@@ -419,20 +397,7 @@ fn test_fixed_coupon_spec() {
 #[test]
 fn test_floating_rate_spec() {
     let json = include_str!("examples/floating_rate_spec.example.json");
-    let envelope: CashflowEnvelope<FloatingRateSpecPayload> =
-        serde_json::from_str(json).expect("Failed to deserialize");
-    let reserialized = serde_json::to_string(&envelope).expect("Failed to serialize");
-
-    let mut expected_value: serde_json::Value =
-        serde_json::from_str(json).expect("Failed to parse original JSON");
-    canonicalize_floating_rate_keys(&mut expected_value);
-    let reserialized_value: serde_json::Value =
-        serde_json::from_str(&reserialized).expect("Failed to parse reserialized JSON");
-
-    assert_eq!(
-        expected_value, reserialized_value,
-        "Roundtrip mismatch for envelope"
-    );
+    test_roundtrip::<CashflowEnvelope<FloatingRateSpecPayload>>(json);
 }
 
 #[test]
@@ -444,16 +409,16 @@ fn test_floating_coupon_spec() {
         serde_json::from_str(json).expect("Failed to deserialize");
     let spec = &envelope.payload.floating_coupon_spec;
 
-    // Spread should be 150 bps
+    // Spread should be 150 bp
     assert!(
         (spec.rate_spec.spread_bp.to_f64().unwrap_or(0.0) - 150.0).abs() < 1e-10,
-        "Floating rate spread should be 150 bps, got {}",
+        "Floating rate spread should be 150 bp, got {}",
         spec.rate_spec.spread_bp
     );
 
     // Day count should be Act/360 (standard for EUR EURIBOR)
     assert_eq!(
-        spec.schedule.dc,
+        spec.schedule.day_count,
         DayCount::Act360,
         "Floating rate day count should be Act/360"
     );
@@ -470,18 +435,7 @@ fn test_floating_coupon_spec() {
         "Gearing should be 1.0"
     );
 
-    let reserialized = serde_json::to_string(&envelope).expect("Failed to serialize");
-
-    let mut expected_value: serde_json::Value =
-        serde_json::from_str(json).expect("Failed to parse original JSON");
-    canonicalize_floating_rate_keys(&mut expected_value);
-    let reserialized_value: serde_json::Value =
-        serde_json::from_str(&reserialized).expect("Failed to parse reserialized JSON");
-
-    assert_eq!(
-        expected_value, reserialized_value,
-        "Roundtrip mismatch for envelope"
-    );
+    test_roundtrip::<CashflowEnvelope<FloatingCouponSpecPayload>>(json);
 
     let mut adjusted: serde_json::Value = serde_json::from_str(json).expect("valid example");
     adjusted["floating_coupon_spec"]["adjust_accrual_dates"] = json!(true);
@@ -583,8 +537,8 @@ fn test_fee_spec_fixed() {
 }
 
 #[test]
-fn test_fee_spec_periodic_bps() {
-    let json = include_str!("examples/fee_spec_periodic_bps.example.json");
+fn test_fee_spec_periodic_bp() {
+    let json = include_str!("examples/fee_spec_periodic_bp.example.json");
     test_roundtrip::<CashflowEnvelope<FeeSpecPayload>>(json);
 }
 
@@ -605,14 +559,14 @@ fn test_schedule_params_usd_act360() {
 
     // Day count should be Act/360 (USD money market convention)
     assert_eq!(
-        spec.dc,
+        spec.day_count,
         DayCount::Act360,
         "USD standard day count should be Act/360"
     );
 
     // Business day convention should be Modified Following
     assert_eq!(
-        spec.bdc,
+        spec.business_day_convention,
         BusinessDayConvention::ModifiedFollowing,
         "USD standard BDC should be Modified Following"
     );
@@ -662,25 +616,25 @@ fn test_json_bridge_seasoned_floating_schedule_with_fixing_series() {
     let spec = json!({
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None"
+            "amort": "none"
         },
         "issue": "2025-01-15",
         "maturity": "2026-01-15",
         "coupon_program": [{
             "kind": "floating",
             "spec": {
-              "coupon_type": "Cash",
+              "coupon_type": "cash",
               "rate_spec": {
                 "index_id": "USD-SOFR-3M",
                 "spread_bp": "100",
-                "reset_freq": {"count": 3, "unit": "months"},
+                "reset_frequency": {"count": 3, "unit": "months"},
                 "reset_lag_days": 0
               },
-              "freq": {"count": 3, "unit": "months"},
-              "dc": "Act360",
-              "bdc": "following",
+              "frequency": {"count": 3, "unit": "months"},
+              "day_count": "act_360",
+              "business_day_convention": "following",
               "calendar_id": "weekends_only",
-              "stub": "None",
+              "stub": "none",
               "end_of_month": false,
               "payment_lag_days": 0
             }
@@ -727,18 +681,18 @@ fn legacy_coupon_arrays_are_rejected() {
     let legacy = json!({
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None"
+            "amort": "none"
         },
         "issue": "2024-01-01",
         "maturity": "2025-01-01",
         "fixed_coupons": [{
-            "coupon_type": "Cash",
+            "coupon_type": "cash",
             "rate": "0.06",
-            "freq": {"count": 12, "unit": "months"},
-            "dc": "Thirty360",
-            "bdc": "following",
+            "frequency": {"count": 12, "unit": "months"},
+            "day_count": "30_360",
+            "business_day_convention": "following",
             "calendar_id": "weekends_only",
-            "stub": "None"
+            "stub": "none"
         }]
     });
 
@@ -755,7 +709,7 @@ fn legacy_fixed_rate_program_is_rejected() {
             "kind": "fixed_rate_program",
             "steps": [{"date": "2026-01-01", "rate": "0.04"}],
             "schedule": canonical_schedule_params(),
-            "default_split": "Cash"
+            "default_split": "cash"
         })],
         Vec::new(),
     );
@@ -771,28 +725,28 @@ fn canonical_coupon_and_payment_programs_build_nontrivial_schedule() {
     let spec = json!({
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None"
+            "amort": "none"
         },
         "issue": "2024-01-01",
         "maturity": "2026-01-01",
         "coupon_program": [{
             "kind": "step_up",
             "spec": {
-                "coupon_type": "Cash",
+                "coupon_type": "cash",
                 "initial_rate": "0.06",
                 "step_schedule": [["2025-01-01", "0.07"]],
-                "freq": {"count": 12, "unit": "months"},
-                "dc": "Thirty360",
-                "bdc": "following",
+                "frequency": {"count": 12, "unit": "months"},
+                "day_count": "30_360",
+                "business_day_convention": "following",
                 "calendar_id": "weekends_only",
-                "stub": "None"
+                "stub": "none"
             }
         }],
         "payment_program": [{
             "kind": "program",
             "steps": [
-                {"date": "2025-01-01", "split": "PIK"},
-                {"date": "2026-01-01", "split": "Cash"}
+                {"date": "2025-01-01", "split": "pik"},
+                {"date": "2026-01-01", "split": "cash"}
             ]
         }]
     });
@@ -805,7 +759,7 @@ fn canonical_coupon_and_payment_programs_build_nontrivial_schedule() {
     assert!(schedule
         .get_flows()
         .iter()
-        .any(|flow| flow.kind == finstack_quant_cashflows::primitives::CFKind::PIK));
+        .any(|flow| flow.kind == finstack_quant_cashflows::primitives::CFKind::Pik));
 }
 
 #[test]
@@ -819,14 +773,14 @@ fn every_canonical_coupon_and_payment_variant_round_trips() {
         json!({
             "kind": "step_up",
             "spec": {
-                "coupon_type": "Cash",
+                "coupon_type": "cash",
                 "initial_rate": "0.04",
                 "step_schedule": [["2026-01-01", "0.05"]],
-                "freq": {"count": 3, "unit": "months"},
-                "dc": "Act360",
-                "bdc": "following",
+                "frequency": {"count": 3, "unit": "months"},
+                "day_count": "act_360",
+                "business_day_convention": "following",
                 "calendar_id": "weekends_only",
-                "stub": "None",
+                "stub": "none",
                 "end_of_month": false,
                 "payment_lag_days": 0,
                 "adjust_accrual_dates": false
@@ -849,7 +803,7 @@ fn every_canonical_coupon_and_payment_variant_round_trips() {
             "switch": "2026-01-01",
             "fixed": {"rate": "0.04", "schedule": schedule},
             "floating": canonical_floating_coupon("150"),
-            "fixed_split": "Cash"
+            "fixed_split": "cash"
         }),
         json!({
             "kind": "floating_margin_program",
@@ -876,13 +830,13 @@ fn every_canonical_coupon_and_payment_variant_round_trips() {
             "kind": "window",
             "start": "2025-01-01",
             "end": "2026-01-01",
-            "split": "PIK"
+            "split": "pik"
         }),
         json!({
             "kind": "program",
             "steps": [
-                {"date": "2026-01-01", "split": "PIK"},
-                {"date": "2027-01-01", "split": "Cash"}
+                {"date": "2026-01-01", "split": "pik"},
+                {"date": "2027-01-01", "split": "cash"}
             ]
         }),
     ] {
@@ -916,14 +870,14 @@ fn every_canonical_coupon_variant_dispatches_to_the_builder() {
             vec![json!({
                 "kind": "step_up",
                 "spec": {
-                    "coupon_type": "Cash",
+                    "coupon_type": "cash",
                     "initial_rate": "0.04",
                     "step_schedule": [["2026-01-01", "0.05"]],
-                    "freq": {"count": 3, "unit": "months"},
-                    "dc": "Act360",
-                    "bdc": "following",
+                    "frequency": {"count": 3, "unit": "months"},
+                    "day_count": "act_360",
+                    "business_day_convention": "following",
                     "calendar_id": "weekends_only",
-                    "stub": "None"
+                    "stub": "none"
                 }
             })],
         ),
@@ -951,7 +905,7 @@ fn every_canonical_coupon_variant_dispatches_to_the_builder() {
                 "switch": "2026-01-01",
                 "fixed": {"rate": "0.04", "schedule": canonical_schedule_params()},
                 "floating": canonical_floating_coupon("150"),
-                "fixed_split": "Cash"
+                "fixed_split": "cash"
             })],
         ),
         (
@@ -987,12 +941,12 @@ fn canonical_payment_window_dispatches_and_overlap_errors() {
             "kind": "window",
             "start": "2025-01-01",
             "end": "2026-01-01",
-            "split": "PIK"
+            "split": "pik"
         })],
     );
     let schedule = finstack_quant_cashflows::build_cashflow_schedule_json(&valid.to_string(), None)
         .expect("payment window builds");
-    assert!(schedule.contains("\"kind\":\"PIK\""));
+    assert!(schedule.contains("\"kind\":\"pik\""));
 
     let overlapping = canonical_build_spec(
         fixed,
@@ -1001,13 +955,13 @@ fn canonical_payment_window_dispatches_and_overlap_errors() {
                 "kind": "window",
                 "start": "2025-01-01",
                 "end": "2026-06-01",
-                "split": "PIK"
+                "split": "pik"
             }),
             json!({
                 "kind": "window",
                 "start": "2026-01-01",
                 "end": "2027-01-01",
-                "split": "Cash"
+                "split": "cash"
             }),
         ],
     );

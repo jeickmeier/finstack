@@ -203,7 +203,7 @@ impl CmsOptionPricer {
                     time_to_fixing,
                     inst.cms_tenor,
                     forward_swap_rate,
-                    1.0 / inst.resolved_swap_fixed_freq().to_years_simple(),
+                    1.0 / inst.resolved_swap_fixed_frequency().to_years_simple(),
                 )
             } else {
                 0.0
@@ -285,9 +285,9 @@ impl CmsOptionPricer {
                 as_of,
                 start,
                 end,
-                fixed_freq: inst.resolved_swap_fixed_freq(),
+                fixed_frequency: inst.resolved_swap_fixed_frequency(),
                 fixed_day_count: inst.resolved_swap_day_count(),
-                float_freq: inst.resolved_swap_float_freq(),
+                float_frequency: inst.resolved_swap_float_frequency(),
                 float_day_count: inst.resolved_swap_float_day_count(),
                 calendar_id: &calendar_id,
                 business_day_convention: convention.business_day_convention(),

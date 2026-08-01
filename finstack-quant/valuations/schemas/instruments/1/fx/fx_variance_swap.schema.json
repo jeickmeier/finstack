@@ -1,5 +1,183 @@
 {
   "$defs": {
+    "FxVarianceSwap": {
+      "additionalProperties": false,
+      "description": "FX variance swap instrument.\n\nPayoff: Notional * (Realized Variance - Strike Variance)",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "base_calendar_id": {
+          "description": "Base-currency calendar used in the joint observation calendar.",
+          "type": "string"
+        },
+        "base_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency (foreign)"
+        },
+        "close_series_id": {
+          "default": null,
+          "description": "Series ID for close prices. Defaults to `spot_id` (or currency-pair string) when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention for time calculations"
+        },
+        "domestic_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Domestic currency discount curve ID"
+        },
+        "foreign_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Foreign currency discount curve ID"
+        },
+        "high_series_id": {
+          "default": null,
+          "description": "Series ID for high prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `spot_id` (or currency-pair string) when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Attributes for scenario selection\nInstrument-owned pricing inputs."
+        },
+        "low_series_id": {
+          "default": null,
+          "description": "Series ID for low prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `spot_id` (or currency-pair string) when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Contractual end of the observation period."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Variance notional (in quote currency units)"
+        },
+        "observation_business_day_convention": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
+          "default": "following",
+          "description": "Business-day convention applied to observation dates."
+        },
+        "observation_end_of_month": {
+          "default": false,
+          "description": "Preserve month-end rolls for month/year observation frequencies.",
+          "type": "boolean"
+        },
+        "observation_frequency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
+          "description": "Observation frequency"
+        },
+        "open_series_id": {
+          "default": null,
+          "description": "Series ID for open prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `spot_id` (or currency-pair string) when absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quote_calendar_id": {
+          "description": "Quote-currency calendar used in the joint observation calendar.",
+          "type": "string"
+        },
+        "quote_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Quote currency (domestic)"
+        },
+        "realized_var_method": {
+          "$ref": "#/$defs/RealizedVarMethod",
+          "default": "close_to_close",
+          "description": "Method for calculating realized variance (defaults to CloseToClose)"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "settlement_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional cash-settlement date. Defaults to the adjusted final observation date."
+        },
+        "side": {
+          "$ref": "#/$defs/PayReceive",
+          "description": "Pay/receive variance"
+        },
+        "spot_id": {
+          "description": "Optional spot identifier used to look up historical series.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "start_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of observation period"
+        },
+        "strike_variance": {
+          "description": "Strike variance (annualized)",
+          "format": "double",
+          "type": "number"
+        },
+        "vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "FX volatility surface ID"
+        }
+      },
+      "required": [
+        "id",
+        "base_currency",
+        "quote_currency",
+        "notional",
+        "strike_variance",
+        "start_date",
+        "maturity",
+        "observation_frequency",
+        "base_calendar_id",
+        "quote_calendar_id",
+        "side",
+        "domestic_discount_curve_id",
+        "foreign_discount_curve_id",
+        "vol_surface_id",
+        "day_count",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "PayReceive": {
       "description": "Direction for instrument legs (universal for IRS, CDS, variance swaps, etc.)\n\nFor interest rate swaps: Pay = pay fixed/receive floating, Receive = receive fixed/pay floating\nFor credit default swaps: Pay = buy protection (pay premium), Receive = sell protection (receive premium)\nFor variance swaps: Pay = short variance, Receive = long variance",
       "oneOf": [
@@ -19,29 +197,50 @@
       "description": "Methods for calculating realized variance from price series.",
       "oneOf": [
         {
-          "const": "CloseToClose",
+          "const": "close_to_close",
           "description": "Standard close-to-close returns (market standard default)",
           "type": "string"
         },
         {
-          "const": "Parkinson",
+          "const": "parkinson",
           "description": "Parkinson (1980) high-low estimator",
           "type": "string"
         },
         {
-          "const": "GarmanKlass",
+          "const": "garman_klass",
           "description": "Garman-Klass (1980) OHLC estimator",
           "type": "string"
         },
         {
-          "const": "RogersSatchell",
+          "const": "rogers_satchell",
           "description": "Rogers-Satchell (1991) drift-independent OHLC estimator",
           "type": "string"
         },
         {
-          "const": "YangZhang",
+          "const": "yang_zhang",
           "description": "Yang-Zhang (2000) drift and opening gaps estimator",
           "type": "string"
+        }
+      ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/FxVarianceSwap"
+            },
+            "type": {
+              "const": "fx_variance_swap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
         }
       ]
     }
@@ -49,7 +248,7 @@
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_variance_swap.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "FX variance swap for trading realized versus implied variance on currency pairs",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -58,7 +257,7 @@
           "base_calendar_id": "TARGET2",
           "base_currency": "EUR",
           "close_series_id": null,
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "domestic_discount_curve_id": "USD-OIS",
           "foreign_discount_curve_id": "EUR-OIS",
           "high_series_id": null,
@@ -69,37 +268,17 @@
             "amount": "1000000",
             "currency": "USD"
           },
-          "observation_bdc": "following",
+          "observation_business_day_convention": "following",
           "observation_end_of_month": false,
-          "observation_freq": {
+          "observation_frequency": {
             "count": 1,
             "unit": "days"
           },
           "open_series_id": null,
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quote_calendar_id": "USNY",
           "quote_currency": "USD",
-          "realized_var_method": "CloseToClose",
+          "realized_var_method": "close_to_close",
+          "settlement_date": null,
           "side": "receive",
           "spot_id": "EURUSD",
           "start_date": "2024-01-02",
@@ -113,209 +292,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Fx Variance Swap instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "base_calendar_id": {
-              "description": "Base-currency calendar used in the joint observation calendar.",
-              "type": "string"
-            },
-            "base_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency (foreign)"
-            },
-            "close_series_id": {
-              "default": null,
-              "description": "Series ID for close prices. Defaults to `spot_id` (or currency-pair string) when absent.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention for time calculations"
-            },
-            "domestic_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Domestic currency discount curve ID"
-            },
-            "foreign_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Foreign currency discount curve ID"
-            },
-            "high_series_id": {
-              "default": null,
-              "description": "Series ID for high prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `spot_id` (or currency-pair string) when absent.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "low_series_id": {
-              "default": null,
-              "description": "Series ID for low prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `spot_id` (or currency-pair string) when absent.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "maturity": {
-              "description": "Contractual end of the observation period.",
-              "format": "date",
-              "type": "string"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Variance notional (in quote currency units)"
-            },
-            "observation_bdc": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
-              "default": "following",
-              "description": "Business-day convention applied to observation dates."
-            },
-            "observation_end_of_month": {
-              "default": false,
-              "description": "Preserve month-end rolls for month/year observation frequencies.",
-              "type": "boolean"
-            },
-            "observation_freq": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-              "description": "Observation frequency"
-            },
-            "open_series_id": {
-              "default": null,
-              "description": "Series ID for open prices (required for Parkinson, GarmanKlass, RogersSatchell, YangZhang).\nDefaults to `spot_id` (or currency-pair string) when absent.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for scenario selection\nInstrument-owned pricing inputs."
-            },
-            "quote_calendar_id": {
-              "description": "Quote-currency calendar used in the joint observation calendar.",
-              "type": "string"
-            },
-            "quote_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Quote currency (domestic)"
-            },
-            "realized_var_method": {
-              "$ref": "#/$defs/RealizedVarMethod",
-              "default": "CloseToClose",
-              "description": "Method for calculating realized variance (defaults to CloseToClose)"
-            },
-            "settlement_date": {
-              "default": null,
-              "description": "Optional cash-settlement date. Defaults to the adjusted final observation date.",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "side": {
-              "$ref": "#/$defs/PayReceive",
-              "description": "Pay/receive variance"
-            },
-            "spot_id": {
-              "description": "Optional spot identifier used to look up historical series.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "start_date": {
-              "description": "Start date of observation period",
-              "format": "date",
-              "type": "string"
-            },
-            "strike_variance": {
-              "description": "Strike variance (annualized)",
-              "format": "double",
-              "type": "number"
-            },
-            "vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "FX volatility surface ID"
-            }
-          },
-          "required": [
-            "id",
-            "base_currency",
-            "quote_currency",
-            "notional",
-            "strike_variance",
-            "start_date",
-            "maturity",
-            "observation_freq",
-            "base_calendar_id",
-            "quote_calendar_id",
-            "side",
-            "domestic_discount_curve_id",
-            "foreign_discount_curve_id",
-            "vol_surface_id",
-            "day_count",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "fx_variance_swap",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "FX Variance Swap",
+  "title": "fx_variance_swap",
   "type": "object"
 }

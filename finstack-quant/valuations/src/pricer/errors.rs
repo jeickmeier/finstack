@@ -113,6 +113,7 @@ impl std::fmt::Display for PricingErrorContext {
 /// Serde is derived because this type flows through the crate-level
 /// [`crate::Error`] enum, which is part of the wire-stable error envelope.
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PricingError {
     /// No pricer registered for the requested (instrument, model) combination.
@@ -458,7 +459,7 @@ mod tests {
         // TypeMismatch -> InputError::Invalid
         let type_mismatch: finstack_quant_core::Error = PricingError::TypeMismatch {
             expected: InstrumentType::Bond,
-            got: InstrumentType::IRS,
+            got: InstrumentType::Irs,
         }
         .into();
         match type_mismatch {
@@ -575,7 +576,7 @@ mod tests {
     fn from_core_maps_missing_curve_wrong_curve_type_and_fallback_inputs() {
         let ctx = PricingErrorContext::new()
             .instrument_id("TEST-002")
-            .instrument_type(InstrumentType::IRS)
+            .instrument_type(InstrumentType::Irs)
             .model(ModelKey::Discounting);
 
         let missing_curve = PricingError::from_core(
@@ -611,7 +612,7 @@ mod tests {
                 assert!(message.contains("Curve type mismatch"));
                 assert!(message.contains("DiscountCurve"));
                 assert!(message.contains("HazardCurve"));
-                assert_eq!(context.instrument_type, Some(InstrumentType::IRS));
+                assert_eq!(context.instrument_type, Some(InstrumentType::Irs));
             }
             other => panic!("expected InvalidInput, got {other:?}"),
         }
@@ -661,7 +662,7 @@ mod tests {
             other => panic!("expected MissingMarketData, got {other:?}"),
         }
 
-        let type_mismatch = PricingError::type_mismatch(InstrumentType::Bond, InstrumentType::IRS);
+        let type_mismatch = PricingError::type_mismatch(InstrumentType::Bond, InstrumentType::Irs);
         assert!(matches!(type_mismatch, PricingError::TypeMismatch { .. }));
     }
 }

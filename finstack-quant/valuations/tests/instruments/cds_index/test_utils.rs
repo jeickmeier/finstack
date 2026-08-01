@@ -131,8 +131,8 @@ pub fn standard_constituents_index(
     .with_constituents(equal_weight_constituents(num_constituents))
 }
 
-/// Analytical par spread for a flat hazard rate and constant recovery (bps)
-pub fn flat_hazard_par_spread_bps(hazard_rate: f64, recovery: f64) -> f64 {
+/// Analytical par spread for a flat hazard rate and constant recovery (bp)
+pub fn flat_hazard_par_spread_bp(hazard_rate: f64, recovery: f64) -> f64 {
     hazard_rate * (1.0 - recovery) * 10000.0
 }
 

@@ -48,7 +48,7 @@ fn test_performance_and_lookback_roundtrip() {
     assert_eq!(restored.dates(), performance.dates());
     assert_eq!(restored.ticker_names(), performance.ticker_names());
     assert_eq!(restored.benchmark_idx(), performance.benchmark_idx());
-    assert_eq!(restored.freq(), performance.freq());
+    assert_eq!(restored.frequency(), performance.frequency());
 
     let lookback = LookbackReturns {
         mtd: vec![0.01, 0.02],

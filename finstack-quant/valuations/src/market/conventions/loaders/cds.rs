@@ -16,7 +16,7 @@ struct CdsConventionsRecord {
     doc_clause: CdsDocClause,
     day_count: DayCount,
     payment_frequency: String,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     #[serde(rename = "stub_convention")]
     _stub_convention: String,
     settlement_days: i32,
@@ -35,7 +35,7 @@ impl CdsConventionsRecord {
         Ok(CdsConventions {
             calendar_id: self.calendar_id,
             day_count: self.day_count,
-            bdc: self.bdc,
+            business_day_convention: self.business_day_convention,
             settlement_days: self.settlement_days,
             frequency: payment_frequency,
         })
@@ -195,10 +195,10 @@ mod tests {
                     "ids": ["USD-isda_na"],
                     "record": {
                         "doc_clause": "isda_na",
-                        "day_count": "Act360",
+                        "day_count": "act_360",
                         "payment_frequency": "3M",
-                        "bdc": "modified_following",
-                        "stub_convention": "ShortFront",
+                        "business_day_convention": "modified_following",
+                        "stub_convention": "short_front",
                         "settlement_days": 3,
                         "calendar_id": "nyse"
                     }
@@ -225,10 +225,10 @@ mod tests {
                     "ids": ["USD:isda_eu"],
                     "record": {
                         "doc_clause": "isda_na",
-                        "day_count": "Act360",
+                        "day_count": "act_360",
                         "payment_frequency": "3M",
-                        "bdc": "modified_following",
-                        "stub_convention": "ShortFront",
+                        "business_day_convention": "modified_following",
+                        "stub_convention": "short_front",
                         "settlement_days": 3,
                         "calendar_id": "nyse"
                     }

@@ -23,11 +23,11 @@ fn bench_daycount_year_fraction(c: &mut Criterion) {
     let end_10y = Date::from_calendar_date(2035, Month::January, 1).unwrap();
 
     let conventions = [
-        ("Act360", DayCount::Act360),
-        ("Act365F", DayCount::Act365F),
-        ("ActAct", DayCount::ActAct),
-        ("Thirty360", DayCount::Thirty360),
-        ("ThirtyE360", DayCount::ThirtyE360),
+        ("act_360", DayCount::Act360),
+        ("act_365f", DayCount::Act365F),
+        ("act_act", DayCount::ActAct),
+        ("30_360", DayCount::Thirty360),
+        ("30e_360", DayCount::ThirtyE360),
     ];
 
     let mut group = c.benchmark_group("daycount_year_fraction");
@@ -57,7 +57,7 @@ fn bench_daycount_actact_isma(c: &mut Criterion) {
         ("Monthly", Tenor::monthly()),
     ];
 
-    for (name, freq) in frequencies {
+    for (name, frequency) in frequencies {
         bench_utils::bench_with_criterion(c, format!("daycount_actact_isma_{}", name), || {
             let yf = DayCount::ActActIsma
                 .year_fraction(
@@ -65,7 +65,7 @@ fn bench_daycount_actact_isma(c: &mut Criterion) {
                     black_box(end),
                     DayCountContext {
                         calendar: None,
-                        frequency: Some(freq),
+                        frequency: Some(frequency),
                         bus_basis: None,
                         coupon_period: None,
                         end_is_termination_date: false,

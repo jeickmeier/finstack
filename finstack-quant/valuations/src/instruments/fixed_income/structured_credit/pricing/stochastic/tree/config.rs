@@ -13,7 +13,7 @@ const MAX_NODE_CAPACITY: usize = 50_000_000;
 
 /// Branching specification for scenario tree generation.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub(crate) enum BranchingSpec {
     /// Fixed branching factor at each node.

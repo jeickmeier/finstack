@@ -100,7 +100,7 @@ fn test_builder_with_all_fields() {
         .repo_type(RepoType::Term)
         .haircut(0.025)
         .day_count(DayCount::Act365F)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(Some("nyc".into()))
         .triparty(true)
         .discount_curve_id("USD-OIS".into())
@@ -122,7 +122,10 @@ fn test_builder_with_all_fields() {
     );
     assert_eq!(repo.haircut, 0.025);
     assert_eq!(repo.day_count, DayCount::Act365F);
-    assert_eq!(repo.bdc, BusinessDayConvention::ModifiedFollowing);
+    assert_eq!(
+        repo.business_day_convention,
+        BusinessDayConvention::ModifiedFollowing
+    );
     assert!(repo.triparty);
     assert!(repo.attributes.has_tag("funding"));
     assert!(repo.attributes.has_tag("bilateral"));
@@ -144,7 +147,7 @@ fn test_builder_minimal_fields() {
         .repo_type(RepoType::Term)
         .triparty(false)
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::Following)
+        .business_day_convention(BusinessDayConvention::Following)
         .calendar_id_opt(Some("target2".into()))
         .discount_curve_id("USD-OIS".into())
         .attributes(Attributes::default())
@@ -294,12 +297,12 @@ fn test_repo_type_from_str() {
     use std::str::FromStr;
 
     assert_eq!(RepoType::from_str("term").unwrap(), RepoType::Term);
-    assert_eq!(RepoType::from_str("TERM").unwrap(), RepoType::Term);
     assert_eq!(RepoType::from_str("open").unwrap(), RepoType::Open);
     assert_eq!(
         RepoType::from_str("overnight").unwrap(),
         RepoType::Overnight
     );
+    assert!(RepoType::from_str("TERM").is_err());
 
     assert!(RepoType::from_str("invalid").is_err());
 }
@@ -319,7 +322,7 @@ fn test_attributes_tagging() {
         .repo_type(RepoType::Term)
         .triparty(false)
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::Following)
+        .business_day_convention(BusinessDayConvention::Following)
         .calendar_id_opt(Some("target2".into()))
         .discount_curve_id("USD-OIS".into())
         .attributes(

@@ -4,8 +4,7 @@
 The scanner is a conservative, module-aware Rust lexer rather than a full
 compiler frontend. It follows file and inline module visibility, public
 re-exports, public type aliases, qualified/imported crate-wide manual impls,
-ordinary derives, ``cfg_attr(..., derive(...))``, and explicitly registered
-capability-providing procedural derives.
+ordinary derives, and ``cfg_attr(..., derive(...))``.
 
 Limitations are deliberate and fail-closed for the maintained contract set:
 macro-generated declarations are not expanded, ambiguous unqualified impl
@@ -33,9 +32,6 @@ import tomllib
 CAPABILITIES = ("Serialize", "Deserialize", "JsonSchema")
 CONTRACT_SUFFIXES = ("Spec", "Envelope", "Result")
 NON_PRODUCT_CRATES = frozenset({"test-utils"})
-CAPABILITY_PROVIDING_DERIVES = {
-    "FocusedPricingOverrides": frozenset(CAPABILITIES),
-}
 CURRENT_TARGET_IS_UNIX = os.name == "posix"
 CURRENT_TARGET_ARCH = {
     "arm64": "aarch64",
@@ -829,9 +825,6 @@ def _derived_capabilities(
                 trait = item.strip().split("::")[-1]
                 if trait in CAPABILITIES:
                     capabilities.add(trait)
-                capabilities.update(CAPABILITY_PROVIDING_DERIVES.get(trait, ()))
-    if any("pricing_overrides" in item and "skip_deserialize" in item for item in attributes):
-        capabilities.discard("Deserialize")
     return capabilities
 
 

@@ -97,7 +97,7 @@ pub enum RateQuote {
         contract: IrFutureContractId,
         /// Expiry date of the future.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         expiry: Date,
         /// Price of the future (e.g. 98.50).
         price: f64,

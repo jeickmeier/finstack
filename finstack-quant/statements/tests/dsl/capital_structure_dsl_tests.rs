@@ -25,14 +25,14 @@ fn test_parse_cs_interest_expense_total() {
     let ast = parse_formula("cs.interest_expense.total").unwrap();
 
     match ast {
-        StmtExpr::CSRef {
+        StmtExpr::CsRef {
             component,
             instrument_or_total,
         } => {
             assert_eq!(component, "interest_expense");
             assert_eq!(instrument_or_total, "total");
         }
-        _ => panic!("Expected CSRef, got {:?}", ast),
+        _ => panic!("Expected CsRef, got {:?}", ast),
     }
 }
 
@@ -41,14 +41,14 @@ fn test_parse_cs_principal_payment_instrument() {
     let ast = parse_formula("cs.principal_payment.BOND-001").unwrap();
 
     match ast {
-        StmtExpr::CSRef {
+        StmtExpr::CsRef {
             component,
             instrument_or_total,
         } => {
             assert_eq!(component, "principal_payment");
             assert_eq!(instrument_or_total, "BOND-001");
         }
-        _ => panic!("Expected CSRef, got {:?}", ast),
+        _ => panic!("Expected CsRef, got {:?}", ast),
     }
 }
 
@@ -57,14 +57,14 @@ fn test_parse_cs_debt_balance() {
     let ast = parse_formula("cs.debt_balance.SWAP-001").unwrap();
 
     match ast {
-        StmtExpr::CSRef {
+        StmtExpr::CsRef {
             component,
             instrument_or_total,
         } => {
             assert_eq!(component, "debt_balance");
             assert_eq!(instrument_or_total, "SWAP-001");
         }
-        _ => panic!("Expected CSRef, got {:?}", ast),
+        _ => panic!("Expected CsRef, got {:?}", ast),
     }
 }
 
@@ -72,7 +72,7 @@ fn test_parse_cs_debt_balance() {
 fn test_parse_cs_in_formula() {
     let ast = parse_formula("revenue - cs.interest_expense.total").unwrap();
 
-    // Should parse as a subtraction with a CSRef on the right
+    // Should parse as a subtraction with a CsRef on the right
     match ast {
         StmtExpr::BinOp { .. } => {
             // Valid structure
@@ -327,14 +327,14 @@ fn test_compile_cs_reference() {
     // Should compile to a typed capital-structure reference.
     use finstack_quant_core::expr::ExprNode;
     match &expr.node {
-        ExprNode::CSRef {
+        ExprNode::CsRef {
             component,
             instrument_or_total,
         } => {
             assert_eq!(component, "interest_expense");
             assert_eq!(instrument_or_total, "total");
         }
-        _ => panic!("Expected CSRef node, got {:?}", expr.node),
+        _ => panic!("Expected CsRef node, got {:?}", expr.node),
     }
 }
 
@@ -433,7 +433,6 @@ fn test_aggregate_instrument_cashflows() {
 
     let dummy_spec = CapitalStructureSpec {
         debt_instruments: vec![],
-        equity_instruments: vec![],
         meta: IndexMap::new(),
         reporting_currency: None,
         fx_policy: None,
@@ -448,10 +447,10 @@ fn test_aggregate_instrument_cashflows() {
 }
 
 #[test]
-fn test_build_any_instrument_from_spec_bond_variant() {
+fn test_build_instrument_from_spec_bond_variant() {
     use finstack_quant_core::dates::Date;
     use finstack_quant_core::types::{CurveId, InstrumentId};
-    use finstack_quant_statements::capital_structure::build_any_instrument_from_spec;
+    use finstack_quant_statements::capital_structure::build_instrument_from_spec;
     use finstack_quant_statements::types::DebtInstrumentSpec;
     use finstack_quant_valuations::instruments::{Bond, InstrumentJson};
     use time::Month;
@@ -469,21 +468,20 @@ fn test_build_any_instrument_from_spec_bond_variant() {
     )
     .expect("Bond::fixed should succeed with valid parameters");
 
-    let spec_json = serde_json::to_value(InstrumentJson::Bond(bond)).unwrap();
     let spec = DebtInstrumentSpec {
         id: "BOND-002".to_string(),
-        spec: spec_json,
+        spec: InstrumentJson::Bond(bond),
     };
 
-    let result = build_any_instrument_from_spec(&spec);
+    let result = build_instrument_from_spec(&spec);
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_build_any_instrument_from_spec_swap_variant() {
+fn test_build_instrument_from_spec_swap_variant() {
     use finstack_quant_core::dates::Date;
     use finstack_quant_core::types::InstrumentId;
-    use finstack_quant_statements::capital_structure::build_any_instrument_from_spec;
+    use finstack_quant_statements::capital_structure::build_instrument_from_spec;
     use finstack_quant_statements::types::DebtInstrumentSpec;
     use finstack_quant_valuations::instruments::{InstrumentJson, PayReceive};
     use time::Month;
@@ -501,30 +499,27 @@ fn test_build_any_instrument_from_spec_swap_variant() {
     )
     .unwrap();
 
-    let spec_json = serde_json::to_value(InstrumentJson::InterestRateSwap(swap)).unwrap();
     let spec = DebtInstrumentSpec {
         id: "SWAP-002".to_string(),
-        spec: spec_json,
+        spec: InstrumentJson::InterestRateSwap(swap),
     };
 
-    let result = build_any_instrument_from_spec(&spec);
+    let result = build_instrument_from_spec(&spec);
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_build_any_instrument_invalid_json_error() {
-    use finstack_quant_statements::capital_structure::build_any_instrument_from_spec;
+fn test_debt_instrument_rejects_invalid_instrument_json() {
     use finstack_quant_statements::types::DebtInstrumentSpec;
 
-    let spec = DebtInstrumentSpec {
-        id: "INVALID".to_string(),
-        spec: serde_json::json!({
-            "invalid_field": "not a valid instrument"
-        }),
-    };
-
-    let result = build_any_instrument_from_spec(&spec);
-    assert!(result.is_err());
+    let result = serde_json::from_value::<DebtInstrumentSpec>(serde_json::json!({
+        "id": "INVALID",
+        "spec": {"invalid_field": "not a valid instrument"}
+    }));
+    assert!(
+        result.is_err(),
+        "invalid instrument JSON must fail at the typed boundary"
+    );
 }
 
 #[test]

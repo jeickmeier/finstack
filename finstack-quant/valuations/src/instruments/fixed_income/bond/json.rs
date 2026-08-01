@@ -20,8 +20,8 @@
 ///
 /// # Errors
 ///
-/// Returns an error if the schedule JSON is invalid, bond construction fails, or
-/// the tagged instrument cannot be serialized.
+/// Returns an error if the schedule JSON is invalid, bond construction fails,
+/// or the canonical instrument envelope cannot be serialized.
 pub fn bond_from_cashflows_json(
     instrument_id: &str,
     schedule_json: &str,
@@ -36,9 +36,10 @@ pub fn bond_from_cashflows_json(
     let bond =
         super::Bond::from_cashflows(instrument_id, schedule, discount_curve_id, quoted_clean)?;
     let instrument = crate::instruments::InstrumentJson::Bond(bond);
-    serde_json::to_string(&instrument).map_err(|err| {
+    let envelope = crate::instruments::InstrumentEnvelope::new(instrument);
+    serde_json::to_string(&envelope).map_err(|err| {
         finstack_quant_core::Error::Validation(format!(
-            "failed to serialize bond instrument JSON: {err}"
+            "failed to serialize bond instrument envelope: {err}"
         ))
     })
 }
@@ -48,24 +49,24 @@ mod tests {
     use super::bond_from_cashflows_json;
 
     #[test]
-    fn builds_tagged_bond_from_raw_schedule_json() {
+    fn builds_bond_envelope_from_raw_schedule_json() {
         let spec = serde_json::json!({
             "notional": {
                 "initial": {"amount": "1000000", "currency": "USD"},
-                "amort": "None"
+                "amort": "none"
             },
             "issue": "2024-08-31",
             "maturity": "2025-08-31",
             "coupon_program": [{
                 "kind": "fixed",
                 "spec": {
-                    "coupon_type": "Cash",
+                    "coupon_type": "cash",
                     "rate": "0.06",
-                    "freq": {"count": 12, "unit": "months"},
-                    "dc": "Thirty360",
-                    "bdc": "following",
+                    "frequency": {"count": 12, "unit": "months"},
+                    "day_count": "30_360",
+                    "business_day_convention": "following",
                     "calendar_id": "weekends_only",
-                    "stub": "None",
+                    "stub": "none",
                     "end_of_month": false,
                     "payment_lag_days": 0
                 }
@@ -80,7 +81,8 @@ mod tests {
         let instrument: serde_json::Value =
             serde_json::from_str(&instrument).expect("instrument JSON should parse");
 
-        assert_eq!(instrument["type"], "bond");
-        assert_eq!(instrument["spec"]["id"], "CUSTOM-CF");
+        assert_eq!(instrument["schema"], "finstack_quant.instrument/1");
+        assert_eq!(instrument["instrument"]["type"], "bond");
+        assert_eq!(instrument["instrument"]["spec"]["id"], "CUSTOM-CF");
     }
 }

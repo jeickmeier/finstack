@@ -440,9 +440,7 @@ mod tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
     use super::TemplateRegistry;
-    use crate::templates::json::{
-        JsonCompositeTemplate, JsonTemplateDocument, SCENARIO_TEMPLATE_CONTRACT,
-    };
+    use crate::templates::json::{JsonCompositeTemplate, JsonTemplateDocument};
     use crate::{
         AssetClass, CurveKind, OperationSpec, ScenarioSpec, ScenarioSpecBuilder, Severity,
         TemplateMetadata,
@@ -584,7 +582,7 @@ mod tests {
 
     fn json_document() -> JsonTemplateDocument {
         JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: TemplateMetadata {
                 id: "json_template".into(),
                 name: "JSON Template".into(),
@@ -611,7 +609,7 @@ mod tests {
 
     fn json_document_with_priority_order_conflict() -> JsonTemplateDocument {
         JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: TemplateMetadata {
                 id: "priority_order_conflict".into(),
                 name: "Priority Order Conflict".into(),
@@ -638,7 +636,7 @@ mod tests {
 
     fn json_document_without_composite_name() -> JsonTemplateDocument {
         JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: TemplateMetadata {
                 id: "no_composite_name".into(),
                 name: "No Composite Name".into(),
@@ -668,7 +666,7 @@ mod tests {
         curve_id: &str,
     ) -> JsonTemplateDocument {
         JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: TemplateMetadata {
                 id: template_id.into(),
                 name: format!("Runtime Template {template_id}"),

@@ -61,7 +61,7 @@ pub enum RiskFactorType {
     /// Implied volatility at specific expiry and strike.
     ImpliedVol {
         /// Volatility surface identifier
-        surface_id: CurveId,
+        vol_surface_id: CurveId,
         /// Expiry in years
         expiry_years: f64,
         /// Strike level (absolute or moneyness)
@@ -88,12 +88,12 @@ impl RiskFactorType {
             Self::EquitySpot { ticker } => format!("{}::spot", ticker),
             Self::FxSpot { base, quote } => format!("{}{}::fx_spot", base, quote),
             Self::ImpliedVol {
-                surface_id,
+                vol_surface_id,
                 expiry_years,
                 strike,
             } => format!(
                 "{}::vol::{:.1}y::{}",
-                surface_id.as_str(),
+                vol_surface_id.as_str(),
                 expiry_years,
                 strike
             ),
@@ -186,7 +186,7 @@ where
         },
     );
 
-    for spot_id in &dependencies.spot_ids {
+    for spot_id in &dependencies.market_scalar_ids {
         if market.get_price(spot_id).is_ok() {
             push_factor(
                 &mut factors,
@@ -210,12 +210,15 @@ where
         }
     }
     for dependency in &dependencies.volatility_dependencies {
-        if market.get_surface(dependency.surface_id.as_str()).is_ok() {
+        if market
+            .get_surface(dependency.vol_surface_id.as_str())
+            .is_ok()
+        {
             push_factor(
                 &mut factors,
                 &mut seen,
                 RiskFactorType::ImpliedVol {
-                    surface_id: dependency.surface_id.clone(),
+                    vol_surface_id: dependency.vol_surface_id.clone(),
                     expiry_years: 0.0,
                     strike: dependency.reference_strike.unwrap_or(0.0),
                 },
@@ -442,7 +445,7 @@ mod tests {
             "should include equity spot factor"
         );
         assert!(
-            factors.iter().any(|f| matches!(f, RiskFactorType::ImpliedVol { surface_id, .. } if surface_id == &option.vol_surface_id)),
+            factors.iter().any(|f| matches!(f, RiskFactorType::ImpliedVol { vol_surface_id, .. } if vol_surface_id == &option.vol_surface_id)),
             "should include vol surface factor"
         );
 
@@ -499,7 +502,7 @@ mod tests {
         let factors = extract_risk_factors(&option, &market)?;
 
         assert!(
-            factors.iter().any(|f| matches!(f, RiskFactorType::ImpliedVol { surface_id, .. } if surface_id == &option.vol_surface_id)),
+            factors.iter().any(|f| matches!(f, RiskFactorType::ImpliedVol { vol_surface_id, .. } if vol_surface_id == &option.vol_surface_id)),
             "FX option should include its volatility surface factor"
         );
         Ok(())

@@ -231,14 +231,12 @@ fn non_empty_frtb_sensitivities_roundtrip_deterministically() {
 }
 
 #[test]
-fn legacy_empty_object_frtb_maps_deserialize_and_rewrite_as_arrays() {
-    let legacy = include_str!("data/frtb_sensitivities_legacy_empty_maps.json");
-    let restored: FrtbSensitivities =
-        serde_json::from_str(legacy).expect("legacy empty-map FRTB payload deserializes");
-    assert_eq!(restored, FrtbSensitivities::new(Currency::USD));
+fn frtb_sensitivity_maps_reject_object_shapes() {
+    let mut invalid = serde_json::to_value(FrtbSensitivities::new(Currency::USD))
+        .expect("empty FRTB sensitivities serialize");
+    invalid["girr_delta"] = serde_json::json!({});
 
-    let rewritten = serde_json::to_value(restored).expect("rewritten FRTB payload serializes");
-    assert!(rewritten["girr_delta"].is_array());
-    assert!(rewritten["csr_nonsec_delta"].is_array());
-    assert!(rewritten["fx_vega"].is_array());
+    let error = serde_json::from_value::<FrtbSensitivities>(invalid)
+        .expect_err("FRTB sensitivity collections must be arrays");
+    assert!(error.to_string().contains("sequence"));
 }

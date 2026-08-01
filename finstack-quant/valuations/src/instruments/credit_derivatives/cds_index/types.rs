@@ -30,6 +30,7 @@ use crate::impl_instrument_base;
 #[derive(
     Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum IndexPricing {
     /// Price the index against a single index hazard curve (synthetic CDS)
     SingleCurve,
@@ -136,7 +137,9 @@ pub struct IndexParSpreadResult {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct CDSIndex {
@@ -179,12 +182,24 @@ pub struct CDSIndex {
     pub num_constituents: Option<u32>,
     /// Instrument-owned pricing overrides (including upfront payment).
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Optional OTC margin specification for VM/IM.
     ///
@@ -221,9 +236,9 @@ impl CDSIndex {
     /// Returns a CDX.NA.IG series 42 index with standard conventions.
     pub fn example() -> Self {
         let convention = CDSConvention::IsdaNa;
-        let dc = convention.day_count();
-        let freq = convention.frequency();
-        let bdc = convention.business_day_convention();
+        let day_count = convention.day_count();
+        let frequency = convention.frequency();
+        let business_day_convention = convention.business_day_convention();
         let stub = convention.stub_convention();
 
         Self {
@@ -238,11 +253,11 @@ impl CDSIndex {
             premium: PremiumLegSpec {
                 start: date!(2024 - 03 - 20),
                 end: date!(2029 - 12 - 20),
-                frequency: freq,
+                frequency,
                 stub,
-                bdc,
+                business_day_convention,
                 calendar_id: Some(convention.default_calendar().to_string()),
-                day_count: dc,
+                day_count,
                 spread_bp: Decimal::from(60),
                 discount_curve_id: CurveId::new("USD-OIS"),
             },
@@ -302,9 +317,9 @@ impl CDSIndex {
         credit_curve_id: impl Into<CurveId>,
     ) -> finstack_quant_core::Result<Self> {
         let convention = preset.convention;
-        let dc = convention.day_count();
-        let freq = convention.frequency();
-        let bdc = convention.business_day_convention();
+        let day_count = convention.day_count();
+        let frequency = convention.frequency();
+        let business_day_convention = convention.business_day_convention();
         let stub = convention.stub_convention();
 
         let spread_bp_decimal = Decimal::try_from(preset.fixed_coupon_bp).map_err(|e| {
@@ -326,11 +341,11 @@ impl CDSIndex {
             premium: PremiumLegSpec {
                 start,
                 end,
-                frequency: freq,
+                frequency,
                 stub,
-                bdc,
+                business_day_convention,
                 calendar_id: Some(convention.default_calendar().to_string()),
-                day_count: dc,
+                day_count,
                 spread_bp: spread_bp_decimal,
                 discount_curve_id: discount_curve_id.into(),
             },
@@ -583,7 +598,7 @@ impl CDSIndex {
 }
 
 impl crate::instruments::common_impl::traits::Instrument for CDSIndex {
-    impl_instrument_base!(crate::pricer::InstrumentType::CDSIndex);
+    impl_instrument_base!(crate::pricer::InstrumentType::CdsIndex);
 
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
         CDSIndex::validate(self)

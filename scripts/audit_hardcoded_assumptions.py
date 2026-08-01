@@ -495,7 +495,7 @@ def render_markdown(findings: list[Finding], include_allowed: bool) -> str:
 def render_json(findings: list[Finding]) -> str:
     """Render a JSON report."""
     payload = {
-        "schema_version": "finstack_quant.hardcoded_assumptions_audit/1",
+        "schema": "finstack_quant.hardcoded_assumptions_audit/1",
         "counts": status_counts(findings),
         "findings": [
             {

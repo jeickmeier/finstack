@@ -5,8 +5,7 @@ mod node;
 mod value;
 
 pub use model::{
-    upgrade_v1_to_v2, CapitalStructureSpec, DebtInstrumentSpec, FinancialModelSpec,
-    FINANCIAL_MODEL_CONTRACT,
+    CapitalStructureSpec, DebtInstrumentSpec, FinancialModelSpec, FINANCIAL_MODEL_CONTRACT,
 };
 pub use node::{
     ForecastMethod, ForecastSpec, NodeId, NodeSpec, NodeType, NodeValueType, SeasonalMode,

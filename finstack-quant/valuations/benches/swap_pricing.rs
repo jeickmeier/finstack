@@ -76,7 +76,8 @@ fn create_monthly_swap(tenor_years: i32) -> InterestRateSwap {
             rate: dec!(0.04),
             frequency: Tenor::new(1, TenorUnit::Months), // Monthly fixed
             day_count: finstack_quant_core::dates::DayCount::Act360,
-            bdc: finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+            business_day_convention:
+                finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: finstack_quant_core::dates::StubKind::None,
             start,
@@ -92,7 +93,8 @@ fn create_monthly_swap(tenor_years: i32) -> InterestRateSwap {
             spread_bp: dec!(0.0),
             frequency: Tenor::new(1, TenorUnit::Months), // Monthly float
             day_count: finstack_quant_core::dates::DayCount::Act360,
-            bdc: finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+            business_day_convention:
+                finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: finstack_quant_core::dates::StubKind::None,
             reset_lag_days: 2,
@@ -124,7 +126,8 @@ fn create_ois_swap(tenor_years: i32) -> InterestRateSwap {
             rate: dec!(0.04),
             frequency: Tenor::new(1, TenorUnit::Years), // Annual fixed
             day_count: finstack_quant_core::dates::DayCount::Act360,
-            bdc: finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+            business_day_convention:
+                finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: finstack_quant_core::dates::StubKind::None,
             start,
@@ -140,7 +143,8 @@ fn create_ois_swap(tenor_years: i32) -> InterestRateSwap {
             spread_bp: dec!(0.0),
             frequency: Tenor::new(1, TenorUnit::Years), // Annual payment with daily compounding
             day_count: finstack_quant_core::dates::DayCount::Act360,
-            bdc: finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+            business_day_convention:
+                finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: finstack_quant_core::dates::StubKind::None,
             reset_lag_days: 0,

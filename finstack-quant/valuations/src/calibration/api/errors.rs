@@ -3,8 +3,8 @@
 //! [`EnvelopeError`] is the canonical error type for static envelope validation
 //! and runtime calibration failures. It implements `Display` (human-readable),
 //! `serde::Serialize` (machine-readable JSON for Python/WASM bindings), and
-//! `From<EnvelopeError> for finstack_quant_core::Error` for backwards-compatible
-//! propagation through existing call sites that take `finstack_quant_core::Result`.
+//! `From<EnvelopeError> for finstack_quant_core::Error` for callers that use
+//! the workspace-wide result type.
 
 fn json_parse_loc(line: &Option<u32>, col: &Option<u32>) -> String {
     match (line, col) {
@@ -65,17 +65,13 @@ pub enum EnvelopeError {
         /// Expected stable contract identifier and version shape.
         expected: String,
     },
-    /// Calibration schema version is outside the supported range.
-    #[error(
-        "unsupported calibration schema version {found}; supported versions are {min}..={max}"
-    )]
-    UnsupportedSchemaVersion {
-        /// Unsupported version parsed from the schema marker.
-        found: u32,
-        /// Lowest version accepted by this build.
-        min: u32,
-        /// Highest version accepted by this build.
-        max: u32,
+    /// Calibration schema marker names a non-current contract.
+    #[error("unsupported calibration schema {found:?}; expected {expected:?}")]
+    UnsupportedSchema {
+        /// Rejected schema marker.
+        found: String,
+        /// Exact schema marker accepted by this build.
+        expected: String,
     },
     /// A step's `kind` discriminator is not a recognized variant.
     #[error("step[{step_index}] '{step_id}': unknown kind '{found}'; expected one of: {}", expected_one_of.join(", "))]
@@ -202,7 +198,7 @@ impl EnvelopeError {
             EnvelopeError::JsonParse { .. } => "json_parse",
             EnvelopeError::SchemaMissing { .. } => "schema_missing",
             EnvelopeError::MalformedSchema { .. } => "malformed_schema",
-            EnvelopeError::UnsupportedSchemaVersion { .. } => "unsupported_schema_version",
+            EnvelopeError::UnsupportedSchema { .. } => "unsupported_schema",
             EnvelopeError::UnknownStepKind { .. } => "unknown_step_kind",
             EnvelopeError::MissingDependency { .. } => "missing_dependency",
             EnvelopeError::UndefinedQuoteSet { .. } => "undefined_quote_set",
@@ -230,7 +226,7 @@ impl EnvelopeError {
             EnvelopeError::JsonParse { .. }
             | EnvelopeError::SchemaMissing { .. }
             | EnvelopeError::MalformedSchema { .. }
-            | EnvelopeError::UnsupportedSchemaVersion { .. }
+            | EnvelopeError::UnsupportedSchema { .. }
             | EnvelopeError::DuplicateMarketDatumId { .. }
             | EnvelopeError::QuoteIdNotInMarketData { .. }
             | EnvelopeError::JsonSerialize { .. } => None,

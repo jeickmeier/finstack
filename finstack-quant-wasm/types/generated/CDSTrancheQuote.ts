@@ -65,7 +65,7 @@ maturity: string,
  */
 upfront_pct: number,
 /**
- * Running spread (bps).
+ * Running spread (bp).
  */
 running_spread_bp: number,
 /**

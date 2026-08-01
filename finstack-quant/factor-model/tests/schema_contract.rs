@@ -6,7 +6,7 @@ use finstack_quant_factor_model::credit::calibration::{
 use finstack_quant_factor_model::credit::hierarchy::CreditFactorModel;
 use finstack_quant_factor_model::schema::{
     credit_calibration_config_schema, credit_calibration_inputs_schema, credit_factor_model_schema,
-    factor_model_config_schema, generated_schema as assemble_schema,
+    factor_model_config_schema, generated_schema as generate_schema,
     CREDIT_CALIBRATION_CONFIG_SCHEMA_DESCRIPTION, CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME,
     CREDIT_CALIBRATION_CONFIG_SCHEMA_TITLE, CREDIT_CALIBRATION_INPUTS_SCHEMA_DESCRIPTION,
     CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME, CREDIT_CALIBRATION_INPUTS_SCHEMA_TITLE,
@@ -17,30 +17,8 @@ use finstack_quant_factor_model::schema::{
 use finstack_quant_factor_model::FactorModelConfigEnvelope;
 use serde_json::{json, Value};
 
-const CANONICAL_DECIMAL_PATTERN: &str = r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$";
-
-struct CanonicalPostprocessProbe;
-
-impl schemars::JsonSchema for CanonicalPostprocessProbe {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("CanonicalPostprocessProbe")
-    }
-
-    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        schemars::json_schema!({
-            "type": "object",
-            "properties": {
-                "amount": {
-                    "type": "string",
-                    "pattern": "^-?\\d+(\\.\\d+)?([eE]\\d+)?$",
-                },
-            },
-        })
-    }
-}
-
 fn generated_schema() -> Value {
-    assemble_schema::<FactorModelConfigEnvelope>(
+    generate_schema::<FactorModelConfigEnvelope>(
         FACTOR_MODEL_SCHEMA_FILENAME,
         FACTOR_MODEL_SCHEMA_TITLE,
         FACTOR_MODEL_SCHEMA_DESCRIPTION,
@@ -56,7 +34,7 @@ fn checked_in_schema() -> Value {
 }
 
 fn generated_credit_factor_model_schema() -> Value {
-    assemble_schema::<CreditFactorModel>(
+    generate_schema::<CreditFactorModel>(
         CREDIT_FACTOR_MODEL_SCHEMA_FILENAME,
         CREDIT_FACTOR_MODEL_SCHEMA_TITLE,
         CREDIT_FACTOR_MODEL_SCHEMA_DESCRIPTION,
@@ -65,7 +43,7 @@ fn generated_credit_factor_model_schema() -> Value {
 }
 
 fn generated_credit_calibration_config_schema() -> Value {
-    assemble_schema::<CreditCalibrationConfig>(
+    generate_schema::<CreditCalibrationConfig>(
         CREDIT_CALIBRATION_CONFIG_SCHEMA_FILENAME,
         CREDIT_CALIBRATION_CONFIG_SCHEMA_TITLE,
         CREDIT_CALIBRATION_CONFIG_SCHEMA_DESCRIPTION,
@@ -74,7 +52,7 @@ fn generated_credit_calibration_config_schema() -> Value {
 }
 
 fn generated_credit_calibration_inputs_schema() -> Value {
-    assemble_schema::<CreditCalibrationInputs>(
+    generate_schema::<CreditCalibrationInputs>(
         CREDIT_CALIBRATION_INPUTS_SCHEMA_FILENAME,
         CREDIT_CALIBRATION_INPUTS_SCHEMA_TITLE,
         CREDIT_CALIBRATION_INPUTS_SCHEMA_DESCRIPTION,
@@ -138,9 +116,9 @@ fn checked_in_envelope_schema_rejects_invalid_bump_units() {
             .expect("canonical factor-model fixture parses");
     fixture["config"]["factors"] = json!([{
         "id": "rates:usd",
-        "factor_type": "Rates",
+        "factor_type": "rates",
         "market_mapping": {
-            "CurveParallel": {
+            "curve_parallel": {
                 "curve_ids": ["USD-OIS"],
                 "units": "not_a_bump_unit"
             }
@@ -160,9 +138,9 @@ fn checked_in_envelope_schema_accepts_serde_bump_units_value() {
             .expect("canonical factor-model fixture parses");
     fixture["config"]["factors"] = json!([{
         "id": "rates:usd",
-        "factor_type": "Rates",
+        "factor_type": "rates",
         "market_mapping": {
-            "CurveParallel": {
+            "curve_parallel": {
                 "curve_ids": ["USD-OIS"],
                 "units": "rate_bp"
             }
@@ -215,23 +193,17 @@ fn checked_in_schema_matches_generated_type_and_metadata() {
 }
 
 #[test]
-fn factor_model_generator_applies_canonical_decimal_and_date_normalization() {
-    let probe = assemble_schema::<CanonicalPostprocessProbe>(
-        "canonical_probe.schema.json",
-        "Canonical probe",
-        "Exercises factor-model canonical schema post-processing.",
-    )
-    .expect("canonical probe schema generates");
+fn credit_factor_model_schema_uses_explicit_date_wire_schema() {
     let credit_model =
         credit_factor_model_schema().expect("embedded credit factor model schema parses");
 
     assert_eq!(
-        probe.pointer("/properties/amount/pattern"),
-        Some(&json!(CANONICAL_DECIMAL_PATTERN))
+        credit_model.pointer("/$defs/DateWire/format"),
+        Some(&json!("date"))
     );
     assert_eq!(
-        credit_model.pointer("/properties/as_of/format"),
-        Some(&json!("date"))
+        credit_model.pointer("/properties/as_of/$ref"),
+        Some(&json!("#/$defs/DateWire"))
     );
 }
 
@@ -291,8 +263,8 @@ fn credit_factor_model_schema_matches_generated_type_and_metadata() {
         format!("{FACTOR_MODEL_SCHEMA_BASE}{CREDIT_FACTOR_MODEL_SCHEMA_FILENAME}")
     );
     assert_eq!(
-        schema["properties"]["schema_version"]["const"],
-        CreditFactorModel::SCHEMA_VERSION
+        schema["$defs"]["CreditFactorModelSchema"]["oneOf"][0]["const"],
+        "finstack_quant.credit_factor_model/1"
     );
     assert_eq!(schema["additionalProperties"], false);
     assert_eq!(schema["$defs"]["DateRange"]["additionalProperties"], false);
@@ -325,7 +297,7 @@ fn credit_factor_model_schema_matches_nested_serde_strictness() {
             .expect("canonical credit factor model fixture parses");
 
     let mut wrong_version = fixture.clone();
-    wrong_version["schema_version"] = json!("finstack_quant.credit_factor_model/999");
+    wrong_version["schema"] = json!("finstack_quant.credit_factor_model/999");
     assert!(validate(schema, &wrong_version).is_err());
 
     let mut closed_nested = fixture.clone();
@@ -392,7 +364,7 @@ fn credit_calibration_schemas_reject_malformed_nested_fixtures() {
             "values": [99.0, 100.0]
         },
         "as_of": "2024-02-29",
-        "asof_spreads": {"ISSUER-A": 100.0},
+        "as_of_spreads": {"ISSUER-A": 100.0},
         "idiosyncratic_overrides": {}
     });
     validate(
@@ -488,15 +460,21 @@ fn factor_model_schema_rejects_runtime_invalid_risk_confidence() {
 }
 
 #[test]
-fn factor_model_schema_accepts_legacy_unmatched_policy_aliases() {
+fn factor_model_schema_rejects_noncanonical_unmatched_policy_values() {
     let schema = factor_model_config_schema().expect("embedded factor-model config schema");
     let base: Value = serde_json::from_str(include_str!("data/canonical/factor_model_config.json"))
         .expect("canonical factor-model fixture parses");
 
-    for alias in ["Strict", "Residual", "Warn"] {
+    for alias in ["Strict", "Residual", "Warn", "WARN"] {
         let mut fixture = base.clone();
         fixture["config"]["unmatched_policy"] = json!(alias);
-        validate(schema, &fixture)
-            .unwrap_or_else(|errors| panic!("legacy alias {alias} failed: {errors:#?}"));
+        assert!(
+            validate(schema, &fixture).is_err(),
+            "noncanonical value {alias} must be rejected"
+        );
+        assert!(
+            serde_json::from_value::<FactorModelConfigEnvelope>(fixture).is_err(),
+            "serde must reject noncanonical value {alias}"
+        );
     }
 }

@@ -76,6 +76,20 @@ serde_contract!(
     finstack_quant_valuations::instruments::rates::ir_future_option::IrFutureOption::example()
         .expect("example")
 );
+
+#[test]
+fn serde_ir_future_option_requires_vol_model() {
+    use finstack_quant_valuations::instruments::rates::ir_future_option::IrFutureOption;
+
+    let option = IrFutureOption::example().expect("example");
+    let mut value = serde_json::to_value(option).expect("serialize option");
+    value
+        .as_object_mut()
+        .expect("option must serialize as an object")
+        .remove("vol_model");
+
+    assert!(serde_json::from_value::<IrFutureOption>(value).is_err());
+}
 serde_contract!(
     serde_cms_option,
     finstack_quant_valuations::instruments::rates::cms_option::CmsOption,

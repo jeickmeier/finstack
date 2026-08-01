@@ -18,7 +18,7 @@ def _perf() -> Performance:
     bench = [random.gauss(0.0004, 0.01) for _ in range(160)]
     fund = [0.00025 + 0.9 * bench[i] + random.gauss(0.0, 0.004) for i in range(160)]
     df = pd.DataFrame({"FUND": fund, "BENCH": bench}, index=dates)
-    return Performance.from_returns(df, benchmark_ticker="BENCH", freq="daily")
+    return Performance.from_returns(df, benchmark_ticker="BENCH", frequency="daily")
 
 
 def test_benchmark_tearsheet_renders_sections_and_kpis() -> None:

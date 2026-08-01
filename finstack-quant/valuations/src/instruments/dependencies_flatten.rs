@@ -38,7 +38,7 @@ pub fn decompose(deps: &MarketDependencies) -> Vec<MarketDependency> {
         });
     }
 
-    for id in &deps.spot_ids {
+    for id in &deps.market_scalar_ids {
         result.push(MarketDependency::Spot { id: id.clone() });
     }
 
@@ -127,7 +127,7 @@ mod tests {
         let mut deps = MarketDependencies::new();
         deps.curves.discount_curves.push(CurveId::new("USD-OIS"));
         deps.curves.credit_curves.push(CurveId::new("ACME-HAZARD"));
-        deps.spot_ids.push("AAPL".into());
+        deps.market_scalar_ids.push("AAPL".into());
         deps.add_volatility_dependency(VolatilityDependency::new(
             CurveId::new("AAPL-VOL"),
             None,

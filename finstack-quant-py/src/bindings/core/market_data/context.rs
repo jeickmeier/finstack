@@ -68,8 +68,8 @@ impl PyMarketContext {
         mut slf: PyRefMut<'py, Self>,
         curve: &Bound<'py, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        if let Ok(dc) = curve.extract::<PyRef<'_, PyDiscountCurve>>() {
-            slf.inner = std::mem::take(&mut slf.inner).insert(Arc::clone(&dc.inner));
+        if let Ok(day_count) = curve.extract::<PyRef<'_, PyDiscountCurve>>() {
+            slf.inner = std::mem::take(&mut slf.inner).insert(Arc::clone(&day_count.inner));
             return Ok(slf);
         }
         if let Ok(fc) = curve.extract::<PyRef<'_, PyForwardCurve>>() {

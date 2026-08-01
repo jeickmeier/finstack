@@ -57,6 +57,7 @@ pub const MAX_SICR_HORIZON_YEARS: f64 = 30.0;
 /// Each variant captures the specific values that triggered the classification,
 /// enabling regulatory reporting and model governance review.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum StagingTrigger {
     /// DPD exceeded Stage 3 threshold.
     DpdStage3 {

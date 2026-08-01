@@ -40,7 +40,7 @@ mod tests {
         rating: &str,
         country: &str,
         leverage: f64,
-        oas_bps: f64,
+        oas_bp: f64,
         market_cap: f64,
     ) -> CompanyMetrics {
         CompanyMetrics {
@@ -52,8 +52,8 @@ mod tests {
             enterprise_value: Some(market_cap * 1.5),
             market_cap: Some(market_cap),
             share_price: Some(50.0),
-            oas_bps: Some(oas_bps),
-            yield_pct: Some(oas_bps / 100.0 + 3.0),
+            oas_bp: Some(oas_bp),
+            yield_pct: Some(oas_bp / 100.0 + 3.0),
             ebitda: Some(market_cap * 0.15),
             revenue: Some(market_cap * 0.5),
             ebit: Some(market_cap * 0.12),
@@ -442,7 +442,7 @@ mod tests {
 
         let dimensions = vec![ScoringDimension {
             label: "Spread Level".to_string(),
-            y_extractor: MetricExtractor::Named("oas_bps".to_string()),
+            y_extractor: MetricExtractor::Named("oas_bp".to_string()),
             x_extractors: vec![],
             weight: 1.0,
             direction: ScoreDirection::default(),
@@ -467,7 +467,7 @@ mod tests {
 
         let dimensions = vec![ScoringDimension {
             label: "Spread vs Leverage".to_string(),
-            y_extractor: MetricExtractor::Named("oas_bps".to_string()),
+            y_extractor: MetricExtractor::Named("oas_bp".to_string()),
             x_extractors: vec![MetricExtractor::Named("leverage".to_string())],
             weight: 1.0,
             direction: ScoreDirection::default(),
@@ -496,7 +496,7 @@ mod tests {
 
         let dimensions = vec![ScoringDimension {
             label: "Spread vs Leverage".to_string(),
-            y_extractor: MetricExtractor::Named("oas_bps".to_string()),
+            y_extractor: MetricExtractor::Named("oas_bp".to_string()),
             x_extractors: vec![MetricExtractor::Named("leverage".to_string())],
             weight: 1.0,
             direction: ScoreDirection::default(),
@@ -530,14 +530,14 @@ mod tests {
         let dimensions = vec![
             ScoringDimension {
                 label: "Spread vs Leverage".to_string(),
-                y_extractor: MetricExtractor::Named("oas_bps".to_string()),
+                y_extractor: MetricExtractor::Named("oas_bp".to_string()),
                 x_extractors: vec![MetricExtractor::Named("leverage".to_string())],
                 weight: 0.5,
                 direction: ScoreDirection::default(),
             },
             ScoringDimension {
                 label: "Spread Level".to_string(),
-                y_extractor: MetricExtractor::Named("oas_bps".to_string()),
+                y_extractor: MetricExtractor::Named("oas_bp".to_string()),
                 x_extractors: vec![],
                 weight: 0.3,
                 direction: ScoreDirection::default(),
@@ -572,7 +572,7 @@ mod tests {
             serde_json::from_str(&json).expect("deserialize CompanyMetrics");
         assert_eq!(deserialized.id, c.id);
         assert_eq!(deserialized.leverage, c.leverage);
-        assert_eq!(deserialized.oas_bps, c.oas_bps);
+        assert_eq!(deserialized.oas_bp, c.oas_bp);
     }
 
     #[test]
@@ -611,7 +611,7 @@ mod tests {
 
         let dimensions = vec![ScoringDimension {
             label: "Spread vs Leverage".to_string(),
-            y_extractor: MetricExtractor::Named("oas_bps".to_string()),
+            y_extractor: MetricExtractor::Named("oas_bp".to_string()),
             x_extractors: vec![MetricExtractor::Named("leverage".to_string())],
             weight: 1.0,
             direction: ScoreDirection::default(),
@@ -676,7 +676,7 @@ mod tests {
 
         let dimensions = vec![ScoringDimension {
             label: "Spread vs Leverage".to_string(),
-            y_extractor: MetricExtractor::Named("oas_bps".to_string()),
+            y_extractor: MetricExtractor::Named("oas_bp".to_string()),
             x_extractors: vec![MetricExtractor::Named("leverage".to_string())],
             weight: 1.0,
             direction: ScoreDirection::default(),
@@ -710,7 +710,7 @@ mod tests {
 
         let dimensions = vec![ScoringDimension {
             label: "Spread vs Leverage".to_string(),
-            y_extractor: MetricExtractor::Named("oas_bps".to_string()),
+            y_extractor: MetricExtractor::Named("oas_bp".to_string()),
             x_extractors: vec![MetricExtractor::Named("leverage".to_string())],
             weight: 1.0,
             direction: ScoreDirection::default(),
@@ -739,14 +739,14 @@ mod tests {
             let peer_set = PeerSet::new(subject.clone(), universe.clone(), PeriodBasis::Ltm);
             let dims_cheap = vec![ScoringDimension {
                 label: "dim".to_string(),
-                y_extractor: MetricExtractor::Named("oas_bps".to_string()),
+                y_extractor: MetricExtractor::Named("oas_bp".to_string()),
                 x_extractors: x_extractors.clone(),
                 weight: 1.0,
                 direction: ScoreDirection::HigherIsCheap,
             }];
             let dims_rich = vec![ScoringDimension {
                 label: "dim".to_string(),
-                y_extractor: MetricExtractor::Named("oas_bps".to_string()),
+                y_extractor: MetricExtractor::Named("oas_bp".to_string()),
                 x_extractors: x_extractors.clone(),
                 weight: 1.0,
                 direction: ScoreDirection::HigherIsRich,
@@ -773,7 +773,7 @@ mod tests {
         // Old payloads without `direction` deserialize to the default.
         let json = r#"{
             "label": "dim",
-            "y_extractor": {"Named": "oas_bps"},
+            "y_extractor": {"named": "oas_bp"},
             "x_extractors": [],
             "weight": 1.0
         }"#;

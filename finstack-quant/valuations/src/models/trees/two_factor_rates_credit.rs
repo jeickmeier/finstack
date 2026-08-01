@@ -816,11 +816,11 @@ mod tests {
         let tree_price = tree.price(vars, ttm, &ctx, &val).expect("price");
         let market_df = disc.df(ttm);
 
-        let error_bps = (tree_price - market_df).abs() * 10_000.0;
+        let error_bp = (tree_price - market_df).abs() * 10_000.0;
         assert!(
-            error_bps < 1.0, // within 1 bp
-            "ZCB repricing error = {:.4} bps (tree={:.8}, market={:.8})",
-            error_bps,
+            error_bp < 1.0, // within 1 bp
+            "ZCB repricing error = {:.4} bp (tree={:.8}, market={:.8})",
+            error_bp,
             tree_price,
             market_df
         );
@@ -914,14 +914,14 @@ mod tests {
     /// continuation through unchanged, so the tree price equals the implied
     /// ZCB price, which must match `disc.df(T)`.
     ///
-    /// On the parent (`e7dd696da`) this test fails by hundreds of bps: the
+    /// On the parent (`e7dd696da`) this test fails by hundreds of bp: the
     /// calibration assumed `p = 0.5` while pricing used a different
     /// mean-reversion-dependent probability, so the tree no longer repriced
     /// the curve once `rate_mean_reversion != 0`.
     ///
     /// κ values are capped at `KAPPA_MAX` (= 0.15) because above that threshold
     /// `calibrate()` returns a `Validation` error. The fix is still demonstrated
-    /// by these values — the parent was off by > 1000 bps even at κ = 0.05.
+    /// by these values — the parent was off by > 1000 bp even at κ = 0.05.
     #[test]
     fn calibration_reprices_disc_curve_with_rate_mean_reversion() {
         let disc = sloped_discount_curve();
@@ -948,10 +948,10 @@ mod tests {
                 )
                 .expect("price");
             let market_df = disc.df(ttm);
-            let error_bps = (price - market_df).abs() * 10_000.0;
+            let error_bp = (price - market_df).abs() * 10_000.0;
             assert!(
-                error_bps < 1.0,
-                "kappa={kappa}: ZCB repricing error {error_bps:.4} bps \
+                error_bp < 1.0,
+                "kappa={kappa}: ZCB repricing error {error_bp:.4} bp \
                  (tree={price:.8}, market={market_df:.8})",
             );
         }

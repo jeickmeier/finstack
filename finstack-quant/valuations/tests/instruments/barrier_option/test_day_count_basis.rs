@@ -45,7 +45,7 @@ fn test_down_and_out_call_mismatched_day_count_bases() {
 
     // Create market with ACT/360 discount curve (money market convention)
     // This tests the mismatched basis scenario
-    let market = build_market_with_dc(as_of, spot, vol, rate, div_yield, DayCount::Act360);
+    let market = build_market_with_day_count(as_of, spot, vol, rate, div_yield, DayCount::Act360);
 
     // Price using analytical method
     let pv = option.value(&market, as_of).unwrap();
@@ -98,7 +98,8 @@ fn test_down_and_out_call_same_day_count_basis() {
     let option = create_down_and_out_call(expiry, strike, barrier, DayCount::Act365F);
 
     // Create market with ACT/365F discount curve (same basis)
-    let market_365 = build_market_with_dc(as_of, spot, vol, rate, div_yield, DayCount::Act365F);
+    let market_365 =
+        build_market_with_day_count(as_of, spot, vol, rate, div_yield, DayCount::Act365F);
 
     // Price with same basis
     let pv_365 = option.value(&market_365, as_of).unwrap();
@@ -114,7 +115,8 @@ fn test_down_and_out_call_same_day_count_basis() {
     );
 
     // Now compare with ACT/360 market
-    let market_360 = build_market_with_dc(as_of, spot, vol, rate, div_yield, DayCount::Act360);
+    let market_360 =
+        build_market_with_day_count(as_of, spot, vol, rate, div_yield, DayCount::Act360);
     let pv_360 = option.value(&market_360, as_of).unwrap();
 
     // The prices should differ slightly due to different discount factor calculation
@@ -169,7 +171,7 @@ fn test_vol_lookup_uses_correct_time_basis() {
         .unwrap();
 
     // Create market with the custom vol surface and ACT/360 discount curve
-    let disc_curve = build_discount_curve_with_dc(rate, as_of, DISC_ID, DayCount::Act360);
+    let disc_curve = build_discount_curve_with_day_count(rate, as_of, DISC_ID, DayCount::Act360);
 
     let market = finstack_quant_core::market_data::context::MarketContext::new()
         .insert(disc_curve)
@@ -193,7 +195,8 @@ fn test_vol_lookup_uses_correct_time_basis() {
     let pv_365 = option_365.value(&market, as_of).unwrap();
 
     // Now create market with ACT/365F discount curve for comparison
-    let disc_curve_365 = build_discount_curve_with_dc(rate, as_of, DISC_ID, DayCount::Act365F);
+    let disc_curve_365 =
+        build_discount_curve_with_day_count(rate, as_of, DISC_ID, DayCount::Act365F);
     let market_365 = finstack_quant_core::market_data::context::MarketContext::new()
         .insert(disc_curve_365)
         .insert_surface(

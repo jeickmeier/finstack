@@ -18,6 +18,10 @@ def _money(amount: str) -> dict[str, str]:
     return {"amount": amount, "currency": "USD"}
 
 
+def _instrument_json(instrument: dict[str, object]) -> str:
+    return json.dumps({"schema": "finstack_quant.instrument/1", "instrument": instrument})
+
+
 def _credit_enhancement() -> dict[str, object]:
     return {
         "subordination": _money("0"),
@@ -41,18 +45,18 @@ def _tranche(
         "id": tranche_id,
         "attachment_point": attachment,
         "detachment_point": detachment,
-        "behavior_type": "Standard",
+        "behavior_type": "standard",
         "seniority": seniority,
         "rating": None,
         "original_balance": _money(balance),
         "current_balance": _money(balance),
         "target_balance": None,
-        "coupon": {"Fixed": {"rate": rate}},
+        "coupon": {"fixed": {"rate": rate}},
         "oc_trigger": None,
         "ic_trigger": None,
         "credit_enhancement": _credit_enhancement(),
         "frequency": {"count": 3, "unit": "months"},
-        "day_count": "Act360",
+        "day_count": "act_360",
         "deferred_interest": _money("0"),
         "pik_enabled": False,
         "is_revolving": False,
@@ -67,15 +71,15 @@ def _tranche(
 def _structured_credit_json() -> str:
     pool = {
         "id": "POOL",
-        "deal_type": "ABS",
+        "deal_type": "abs",
         "base_currency": "USD",
         "assets": [
             {
                 "id": "A1",
-                "asset_type": {"type": "HighYieldBond", "industry": None},
+                "asset_type": {"type": "high_yield_bond", "industry": None},
                 "balance": _money("1000000"),
                 "rate": 0.06,
-                "spread_bps": None,
+                "spread_bp": None,
                 "index_id": None,
                 "maturity": "2026-01-01",
                 "credit_quality": None,
@@ -85,7 +89,7 @@ def _structured_credit_json() -> str:
                 "recovery_amount": None,
                 "purchase_price": None,
                 "acquisition_date": None,
-                "day_count": "Thirty360",
+                "day_count": "30_360",
                 "smm_override": None,
                 "mdr_override": None,
             }
@@ -102,12 +106,12 @@ def _structured_credit_json() -> str:
     }
     spec = {
         "id": "ABS-STOCH-PV",
-        "deal_type": "ABS",
+        "deal_type": "abs",
         "pool": pool,
         "tranches": {
             "tranches": [
-                _tranche("SR", 0.0, 80.0, "Senior", "800000", 0.05, 1),
-                _tranche("EQ", 80.0, 100.0, "Equity", "200000", 0.0, 4),
+                _tranche("SR", 0.0, 80.0, "senior", "800000", 0.05, 1),
+                _tranche("EQ", 80.0, 100.0, "equity", "200000", 0.0, 4),
             ],
             "total_size": _money("1000000"),
         },
@@ -118,13 +122,13 @@ def _structured_credit_json() -> str:
         "frequency": {"count": 1, "unit": "months"},
         "payment_calendar_id": "nyse",
         "discount_curve_id": "USD-OIS",
-        "pricing_overrides": {"mc_paths": 1},
+        "instrument_pricing_overrides": {"model_config": {"mc_paths": 1}},
         "attributes": {},
         "prepayment_spec": {"cpr": 0.0, "curve": None},
         "default_spec": {"cdr": 0.0, "curve": None},
         "recovery_spec": {"rate": 0.4, "recovery_lag": 0},
-        "stochastic_prepay_spec": {"model": "Deterministic", "cpr": 0.0, "curve": None},
-        "stochastic_default_spec": {"model": "Deterministic", "cdr": 0.0, "curve": None},
+        "stochastic_prepay_spec": {"model": "deterministic", "cpr": 0.0, "curve": None},
+        "stochastic_default_spec": {"model": "deterministic", "cdr": 0.0, "curve": None},
         "market_conditions": {
             "refi_rate": 0.04,
             "original_rate": None,
@@ -142,7 +146,7 @@ def _structured_credit_json() -> str:
             "custom_factors": {},
         },
     }
-    return json.dumps({"type": "structured_credit", "spec": spec})
+    return _instrument_json({"type": "structured_credit", "spec": spec})
 
 
 def _market_json(include_discount: bool = True) -> str:
@@ -152,7 +156,7 @@ def _market_json(include_discount: bool = True) -> str:
             "type": "discount",
             "id": "USD-OIS",
             "base": "2024-01-01",
-            "day_count": "Act360",
+            "day_count": "act_360",
             "knot_points": [[0.0, 1.0], [5.0, 0.90]],
             "interp_style": "monotone_convex",
             "extrapolation": "flat_forward",
@@ -161,7 +165,7 @@ def _market_json(include_discount: bool = True) -> str:
             "min_forward_tenor": 1e-6,
         })
     return json.dumps({
-        "version": 2,
+        "schema_version": 1,
         "curves": curves,
         "fx": None,
         "surfaces": [],
@@ -173,18 +177,19 @@ def _market_json(include_discount: bool = True) -> str:
         "fx_delta_vol_surfaces": [],
         "vol_cubes": [],
         "collateral": {},
+        "hierarchy": None,
     })
 
 
 def _tarn_market_json() -> str:
     return json.dumps({
-        "version": 2,
+        "schema_version": 1,
         "curves": [
             {
                 "type": "discount",
                 "id": "USD-OIS",
                 "base": "2025-01-01",
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "knot_points": [[0.0, 1.0], [6.0, 0.8869204367171575]],
                 "interp_style": "linear",
                 "extrapolation": "flat_forward",
@@ -197,7 +202,7 @@ def _tarn_market_json() -> str:
                 "id": "USD-SOFR-6M",
                 "base": "2025-01-01",
                 "reset_lag": 0,
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "tenor": 0.5,
                 "knot_points": [[0.0, 0.03], [6.0, 0.03]],
                 "interp_style": "linear",
@@ -214,6 +219,7 @@ def _tarn_market_json() -> str:
         "fx_delta_vol_surfaces": [],
         "vol_cubes": [],
         "collateral": {},
+        "hierarchy": None,
     })
 
 
@@ -230,13 +236,13 @@ def _sabr_cube_json(cube_id: str, alpha: float, forward: float) -> dict[str, obj
 
 def _cms_spread_market_json() -> str:
     return json.dumps({
-        "version": 2,
+        "schema_version": 1,
         "curves": [
             {
                 "type": "discount",
                 "id": "USD-OIS",
                 "base": "2025-01-01",
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "knot_points": [[0.0, 1.0], [30.0, 0.3499377491111553]],
                 "interp_style": "linear",
                 "extrapolation": "flat_forward",
@@ -249,7 +255,7 @@ def _cms_spread_market_json() -> str:
                 "id": "USD-SOFR-3M",
                 "base": "2025-01-01",
                 "reset_lag": 0,
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "tenor": 0.25,
                 "knot_points": [
                     [0.0, 0.025],
@@ -274,11 +280,12 @@ def _cms_spread_market_json() -> str:
             _sabr_cube_json("USD-SWAPTION-VOL-2Y", 0.035, 0.030),
         ],
         "collateral": {},
+        "hierarchy": None,
     })
 
 
 def _tarn_json() -> str:
-    return json.dumps({
+    return _instrument_json({
         "type": "tarn",
         "spec": {
             "id": "TARN-PY-E2E",
@@ -295,11 +302,10 @@ def _tarn_json() -> str:
             "floating_tenor": {"count": 6, "unit": "months"},
             "floating_index_id": "USD-SOFR-6M",
             "discount_curve_id": "USD-OIS",
-            "day_count": "Act365F",
-            "pricing_overrides": {
-                "mc_paths": 32,
-                "mean_reversion": 0.05,
-                "implied_volatility": 1e-12,
+            "day_count": "act_365f",
+            "instrument_pricing_overrides": {
+                "market_quotes": {"implied_volatility": 1e-12},
+                "model_config": {"mc_paths": 32, "mean_reversion": 0.05},
             },
             "attributes": {},
         },
@@ -307,7 +313,7 @@ def _tarn_json() -> str:
 
 
 def _snowball_json() -> str:
-    return json.dumps({
+    return _instrument_json({
         "type": "snowball",
         "spec": {
             "id": "SNOWBALL-PY-E2E",
@@ -328,11 +334,10 @@ def _snowball_json() -> str:
             "floating_tenor": {"count": 6, "unit": "months"},
             "discount_curve_id": "USD-OIS",
             "callable": None,
-            "day_count": "Act365F",
-            "pricing_overrides": {
-                "mc_paths": 32,
-                "mean_reversion": 0.05,
-                "implied_volatility": 1e-12,
+            "day_count": "act_365f",
+            "instrument_pricing_overrides": {
+                "market_quotes": {"implied_volatility": 1e-12},
+                "model_config": {"mc_paths": 32, "mean_reversion": 0.05},
             },
             "attributes": {},
         },
@@ -340,7 +345,7 @@ def _snowball_json() -> str:
 
 
 def _inverse_floater_json() -> str:
-    return json.dumps({
+    return _instrument_json({
         "type": "snowball",
         "spec": {
             "id": "INV-FLOATER-PY-E2E",
@@ -361,15 +366,14 @@ def _inverse_floater_json() -> str:
             "floating_tenor": {"count": 6, "unit": "months"},
             "discount_curve_id": "USD-OIS",
             "callable": None,
-            "day_count": "Act365F",
-            "pricing_overrides": {},
+            "day_count": "act_365f",
             "attributes": {},
         },
     })
 
 
 def _callable_range_accrual_json() -> str:
-    return json.dumps({
+    return _instrument_json({
         "type": "callable_range_accrual",
         "spec": {
             "id": "CALLABLE-RA-PY-E2E",
@@ -386,7 +390,7 @@ def _callable_range_accrual_json() -> str:
                 "bounds_type": "absolute",
                 "coupon_rate": 0.06,
                 "notional": {"amount": "1000000", "currency": "USD"},
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "discount_curve_id": "USD-OIS",
                 "accrual_start_date": "2025-01-01",
                 "rate_index_id": "USD-SOFR",
@@ -395,7 +399,6 @@ def _callable_range_accrual_json() -> str:
                 "spot_id": "SOFR-RATE",
                 "vol_surface_id": "SOFR-VOL",
                 "div_yield_id": None,
-                "pricing_overrides": {},
                 "attributes": {},
                 "quanto": None,
                 "payment_date": None,
@@ -407,10 +410,9 @@ def _callable_range_accrual_json() -> str:
                 "call_price": 1.0,
                 "lockout_periods": 0,
             },
-            "pricing_overrides": {
-                "mc_paths": 8,
-                "mean_reversion": 0.05,
-                "implied_volatility": 1e-12,
+            "instrument_pricing_overrides": {
+                "market_quotes": {"implied_volatility": 1e-12},
+                "model_config": {"mc_paths": 8, "mean_reversion": 0.05},
             },
             "attributes": {},
         },
@@ -418,34 +420,59 @@ def _callable_range_accrual_json() -> str:
 
 
 def _bermudan_swaption_json() -> str:
-    return json.dumps({
+    return _instrument_json({
         "type": "bermudan_swaption",
         "spec": {
             "id": "BERM-10NC2-USD",
             "option_type": "call",
             "notional": {"amount": "10000000", "currency": "USD"},
-            "strike": "0.03",
-            "swap_start": "2027-01-17",
-            "swap_end": "2037-01-17",
-            "fixed_freq": {"count": 6, "unit": "months"},
-            "float_freq": {"count": 3, "unit": "months"},
-            "day_count": "Thirty360",
             "settlement": "physical",
-            "discount_curve_id": "USD-OIS",
-            "forward_curve_id": "USD-OIS",
             "vol_surface_id": "USD-SWPNVOL",
+            "underlying_fixed_leg": {
+                "rate": "0.03",
+                "start": "2027-01-17",
+                "end": "2037-01-17",
+                "frequency": {"count": 6, "unit": "months"},
+                "day_count": "30_360",
+                "business_day_convention": "modified_following",
+                "stub": "none",
+                "end_of_month": False,
+                "payment_lag_days": 0,
+                "calendar_id": None,
+                "discount_curve_id": "USD-OIS",
+                "compounding_simple": True,
+                "par_method": None,
+            },
+            "underlying_float_leg": {
+                "spread_bp": "0",
+                "start": "2027-01-17",
+                "end": "2037-01-17",
+                "frequency": {"count": 3, "unit": "months"},
+                "day_count": "act_360",
+                "business_day_convention": "modified_following",
+                "stub": "none",
+                "end_of_month": False,
+                "payment_lag_days": 0,
+                "reset_lag_days": 0,
+                "calendar_id": None,
+                "fixing_calendar_id": None,
+                "discount_curve_id": "USD-OIS",
+                "forward_curve_id": "USD-OIS",
+                "compounding": "simple",
+            },
             "bermudan_schedule": {
                 "exercise_dates": ["2029-01-17", "2030-01-17"],
                 "lockout_end": None,
                 "notice_days": 0,
             },
-            "bermudan_type": "CoTerminal",
+            "bermudan_type": "co_terminal",
+            "attributes": {},
         },
     })
 
 
 def _cms_spread_option_json() -> str:
-    return json.dumps({
+    return _instrument_json({
         "type": "cms_spread_option",
         "spec": {
             "id": "CMS-SPREAD-PY-E2E",
@@ -461,8 +488,7 @@ def _cms_spread_option_json() -> str:
             "discount_curve_id": "USD-OIS",
             "forward_curve_id": "USD-SOFR-3M",
             "spread_correlation": 0.5,
-            "day_count": "Act365F",
-            "pricing_overrides": {},
+            "day_count": "act_365f",
             "attributes": {},
         },
     })
@@ -470,7 +496,7 @@ def _cms_spread_option_json() -> str:
 
 def test_bermudan_swaption_json_validates() -> None:
     canonical = json.loads(validate_instrument_json(_bermudan_swaption_json()))
-    assert canonical["type"] == "bermudan_swaption"
+    assert canonical["instrument"]["type"] == "bermudan_swaption"
 
 
 @pytest.mark.parametrize(
@@ -486,7 +512,7 @@ def test_validate_instrument_json_rejects_invalid_override_ownership(
     overrides: dict[str, object],
 ) -> None:
     instrument = json.loads(_structured_credit_json())
-    instrument["spec"]["pricing_overrides"] = overrides
+    instrument["instrument"]["spec"]["pricing_overrides"] = overrides
 
     with pytest.raises(ValueError, match="unknown field"):
         validate_instrument_json(json.dumps(instrument))
@@ -494,19 +520,16 @@ def test_validate_instrument_json_rejects_invalid_override_ownership(
 
 def test_validate_instrument_json_accepts_focused_nested_overrides() -> None:
     instrument = json.loads(_structured_credit_json())
-    instrument["spec"]["pricing_overrides"] = {
-        "instrument": {"mc_paths": 2},
-        "metrics": {"rate_bump_bp": 3.0},
-        "scenario": {"scenario_price_shock_pct": -0.05},
-    }
+    spec = instrument["instrument"]["spec"]
+    spec["instrument_pricing_overrides"] = {"model_config": {"mc_paths": 2}}
+    spec["metric_pricing_overrides"] = {"bump_config": {"rate_bump_bp": 3.0}}
+    spec["scenario_pricing_overrides"] = {"scenario_price_shock_pct": -0.05}
 
     canonical = json.loads(validate_instrument_json(json.dumps(instrument)))
-    overrides = canonical["spec"]["pricing_overrides"]
-
-    assert overrides["mc_paths"] == 2
-    assert overrides["rate_bump_bp"] == 3.0
-    assert overrides["scenario_price_shock_pct"] == -0.05
-    assert not {"instrument", "metrics", "scenario"} & overrides.keys()
+    canonical_spec = canonical["instrument"]["spec"]
+    assert canonical_spec["instrument_pricing_overrides"]["model_config"]["mc_paths"] == 2
+    assert canonical_spec["metric_pricing_overrides"]["bump_config"]["rate_bump_bp"] == 3.0
+    assert canonical_spec["scenario_pricing_overrides"]["scenario_price_shock_pct"] == -0.05
 
 
 def test_tarn_json_prices_with_hull_white_mc() -> None:
@@ -608,7 +631,7 @@ def test_structured_credit_stochastic_json_missing_market_data_raises() -> None:
 
 def test_python_pricing_routes_validate_instrument_before_other_inputs() -> None:
     payload = json.loads(_structured_credit_json())
-    payload["spec"]["cleanup_call_pct"] = -0.5
+    payload["instrument"]["spec"]["cleanup_call_pct"] = -0.5
     invalid = json.dumps(payload)
     market = "not-market-json"
 
@@ -635,7 +658,7 @@ def test_structured_credit_waterfall_rules_prices_through_json() -> None:
     # available-funds cap on the senior). Before the field existed the
     # deny-unknown-fields deserialization rejected this payload.
     payload = json.loads(_structured_credit_json())
-    payload["spec"]["waterfall_rules"] = {"afc": {"capped_tranches": ["SR"]}}
+    payload["instrument"]["spec"]["waterfall_rules"] = {"afc": {"capped_tranches": ["SR"]}}
     result = json.loads(
         price_instrument(
             json.dumps(payload),

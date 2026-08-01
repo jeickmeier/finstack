@@ -119,11 +119,11 @@ fn test_validate_fee_tiers_unsorted_commitment() {
     facility.fees.commitment_fee_tiers = vec![
         FeeTier {
             threshold: Decimal::try_from(0.5).unwrap(),
-            bps: Decimal::try_from(30.0).unwrap(),
+            bp: Decimal::try_from(30.0).unwrap(),
         },
         FeeTier {
             threshold: Decimal::try_from(0.0).unwrap(), // Lower threshold after higher
-            bps: Decimal::try_from(25.0).unwrap(),
+            bp: Decimal::try_from(25.0).unwrap(),
         },
     ];
 
@@ -144,11 +144,11 @@ fn test_validate_fee_tiers_unsorted_usage() {
     facility.fees.usage_fee_tiers = vec![
         FeeTier {
             threshold: Decimal::try_from(0.75).unwrap(),
-            bps: Decimal::try_from(15.0).unwrap(),
+            bp: Decimal::try_from(15.0).unwrap(),
         },
         FeeTier {
             threshold: Decimal::try_from(0.25).unwrap(),
-            bps: Decimal::try_from(10.0).unwrap(),
+            bp: Decimal::try_from(10.0).unwrap(),
         },
     ];
 
@@ -169,15 +169,15 @@ fn test_validate_fee_tiers_sorted_passes() {
     facility.fees.commitment_fee_tiers = vec![
         FeeTier {
             threshold: Decimal::try_from(0.0).unwrap(),
-            bps: Decimal::try_from(25.0).unwrap(),
+            bp: Decimal::try_from(25.0).unwrap(),
         },
         FeeTier {
             threshold: Decimal::try_from(0.5).unwrap(),
-            bps: Decimal::try_from(30.0).unwrap(),
+            bp: Decimal::try_from(30.0).unwrap(),
         },
         FeeTier {
             threshold: Decimal::try_from(0.75).unwrap(),
-            bps: Decimal::try_from(35.0).unwrap(),
+            bp: Decimal::try_from(35.0).unwrap(),
         },
     ];
 
@@ -279,11 +279,11 @@ fn test_validate_fee_tiers_duplicate_threshold() {
     facility.fees.commitment_fee_tiers = vec![
         FeeTier {
             threshold: Decimal::try_from(0.5).unwrap(),
-            bps: Decimal::try_from(25.0).unwrap(),
+            bp: Decimal::try_from(25.0).unwrap(),
         },
         FeeTier {
             threshold: Decimal::try_from(0.5).unwrap(), // Duplicate threshold
-            bps: Decimal::try_from(30.0).unwrap(),
+            bp: Decimal::try_from(30.0).unwrap(),
         },
     ];
 

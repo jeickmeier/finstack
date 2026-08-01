@@ -6,11 +6,13 @@ use pyo3::types::PyType;
 
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
-use crate::errors::{core_to_py, serde_json_to_py, value_error};
+use crate::errors::{core_to_py, value_error};
 use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
-use super::instruments::{enum_from_str, parse_typed_instrument_json};
+use super::instruments::{
+    enum_from_str, parse_typed_instrument_json, serialize_typed_instrument_json,
+};
 
 type EquityOptionBuilderInner =
     finstack_quant_valuations::instruments::equity::equity_option::EquityOptionBuilder;
@@ -33,10 +35,12 @@ pub struct PyEquityOption {
 }
 
 impl PyEquityOption {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::EquityOption(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize EquityOption"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(
+            InstrumentJson::EquityOption(self.inner.clone()),
+            "EquityOption",
+        )
     }
 }
 
@@ -62,15 +66,14 @@ impl PyEquityOption {
         }
     }
 
-    /// Deserialize a validated equity option from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated equity option from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"equity_option"``, or a full
-    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
-    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
-    ///     performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"equity_option"`` payload. The UTF-8 input must not exceed 16 MiB.
+    ///     Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -103,16 +106,16 @@ impl PyEquityOption {
         }
     }
 
-    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``EquityOption.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.

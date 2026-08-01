@@ -1,11 +1,8 @@
 //! Typed `#[pyclass]` wrappers for `finstack_quant_portfolio::factor_model` result types.
 //!
-//! The pre-existing dict-returning helpers in [`super::position_risk`]
-//! (``parametric_var_decomposition``, ``historical_var_decomposition``,
-//! ``evaluate_risk_budget``) are kept untouched for backwards compatibility.
-//! This module adds *typed* sibling functions (suffix ``_typed``) that return
-//! structured ``#[pyclass]`` wrappers around the same Rust result types, plus
-//! the full set of result classes for callers that want to inspect a
+//! The decomposition helpers return structured ``#[pyclass]`` wrappers around
+//! the Rust result types. The module also exposes the full set of result
+//! classes for callers that want to inspect a
 //! ``RiskDecomposition``, ``WhatIfResult``, ``StressResult``, ``CreditVolReport``,
 //! or ``FactorAssignmentReport`` without serializing through JSON.
 //!
@@ -64,11 +61,15 @@ fn py_to_serde<'py, T: serde::de::DeserializeOwned + Send>(
 }
 
 #[derive(Deserialize)]
-struct PositionChangeSpec {
-    kind: String,
-    position_id: String,
-    #[serde(default)]
-    new_quantity: Option<f64>,
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum PositionChangeSpec {
+    Remove {
+        position_id: String,
+    },
+    Resize {
+        position_id: String,
+        new_quantity: f64,
+    },
 }
 
 fn parse_position_changes(
@@ -76,38 +77,23 @@ fn parse_position_changes(
     changes: &Bound<'_, PyAny>,
 ) -> PyResult<Vec<fm::PositionChange>> {
     let specs: Vec<PositionChangeSpec> = py_to_serde(py, changes, "position changes")?;
-    py.detach(move || {
+    Ok(py.detach(move || {
         specs
             .into_iter()
-            .map(
-                |spec| match spec.kind.trim().to_ascii_lowercase().as_str() {
-                    "remove" => Ok(fm::PositionChange::Remove {
-                        position_id: PositionId::new(spec.position_id),
-                    }),
-                    "resize" => {
-                        let new_quantity = spec.new_quantity.ok_or_else(|| {
-                            format!(
-                                "resize change for position '{}' requires new_quantity",
-                                spec.position_id
-                            )
-                        })?;
-                        Ok(fm::PositionChange::Resize {
-                            position_id: PositionId::new(spec.position_id),
-                            new_quantity,
-                        })
-                    }
-                    "add" => Err(
-                        "Python position_what_if changes currently support remove or resize only"
-                            .to_owned(),
-                    ),
-                    other => Err(format!(
-                        "unknown position change kind '{other}' (expected 'remove' or 'resize')"
-                    )),
+            .map(|spec| match spec {
+                PositionChangeSpec::Remove { position_id } => fm::PositionChange::Remove {
+                    position_id: PositionId::new(position_id),
                 },
-            )
-            .collect::<Result<Vec<_>, String>>()
-    })
-    .map_err(crate::errors::value_error)
+                PositionChangeSpec::Resize {
+                    position_id,
+                    new_quantity,
+                } => fm::PositionChange::Resize {
+                    position_id: PositionId::new(position_id),
+                    new_quantity,
+                },
+            })
+            .collect::<Vec<_>>()
+    }))
 }
 
 /// Convert a Rust `DecompositionMethod` to a stable Python string.
@@ -1761,18 +1747,14 @@ impl PyDecompositionConfig {
 }
 
 // ---------------------------------------------------------------------------
-// Typed sibling functions
-//
-// These mirror the dict-returning helpers in `position_risk.rs` but return
-// the typed result classes above. The original dict-returning entry points
-// in `super::position_risk` remain unchanged for backwards compatibility.
+// Typed risk functions
 // ---------------------------------------------------------------------------
 
 /// Decompose portfolio VaR/ES into position contributions via parametric
 /// Euler allocation, returning a typed :class:`PositionRiskDecomposition`.
 #[pyfunction]
 #[pyo3(signature = (position_ids, weights, covariance, confidence = 0.95, compute_incremental = false))]
-fn parametric_var_decomposition_typed(
+fn parametric_var_decomposition(
     py: Python<'_>,
     position_ids: Vec<String>,
     weights: Vec<f64>,
@@ -1799,11 +1781,37 @@ fn parametric_var_decomposition_typed(
     Ok(PyPositionRiskDecomposition::from_inner(result))
 }
 
+/// Decompose portfolio expected shortfall through the same parametric Euler
+/// allocation and return the complete typed risk decomposition.
+#[pyfunction]
+#[pyo3(signature = (position_ids, weights, covariance, confidence = 0.95))]
+fn parametric_es_decomposition(
+    py: Python<'_>,
+    position_ids: Vec<String>,
+    weights: Vec<f64>,
+    covariance: &Bound<'_, PyAny>,
+    confidence: f64,
+) -> PyResult<PyPositionRiskDecomposition> {
+    let n = weights.len();
+    let cov_flat = extract_square_matrix(py, covariance, n, "covariance")?;
+    let mut config = DecompositionConfig::parametric_95();
+    config.confidence = confidence;
+
+    let result = py
+        .detach(move || {
+            let ids = to_position_ids(position_ids);
+            ParametricPositionDecomposer.decompose_positions(&weights, &cov_flat, &ids, &config)
+        })
+        .map_err(core_to_py)?;
+
+    Ok(PyPositionRiskDecomposition::from_inner(result))
+}
+
 /// Decompose portfolio VaR and ES from per-position scenario P&Ls via
 /// historical simulation, returning a typed :class:`PositionRiskDecomposition`.
 #[pyfunction]
 #[pyo3(signature = (position_ids, position_pnls, confidence = 0.95))]
-fn historical_var_decomposition_typed(
+fn historical_var_decomposition(
     py: Python<'_>,
     position_ids: Vec<String>,
     position_pnls: &Bound<'_, PyAny>,
@@ -1829,7 +1837,7 @@ fn historical_var_decomposition_typed(
 /// returning a typed :class:`RiskBudgetResult`.
 #[pyfunction]
 #[pyo3(signature = (position_ids, actual_var, target_var_pct, portfolio_var, utilization_threshold = 1.20))]
-fn evaluate_risk_budget_typed(
+fn evaluate_risk_budget(
     py: Python<'_>,
     position_ids: Vec<String>,
     actual_var: Vec<f64>,
@@ -2048,9 +2056,10 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyVolHorizon>()?;
     m.add_class::<PyDecompositionConfig>()?;
 
-    m.add_function(wrap_pyfunction!(parametric_var_decomposition_typed, m)?)?;
-    m.add_function(wrap_pyfunction!(historical_var_decomposition_typed, m)?)?;
-    m.add_function(wrap_pyfunction!(evaluate_risk_budget_typed, m)?)?;
+    m.add_function(wrap_pyfunction!(parametric_var_decomposition, m)?)?;
+    m.add_function(wrap_pyfunction!(parametric_es_decomposition, m)?)?;
+    m.add_function(wrap_pyfunction!(historical_var_decomposition, m)?)?;
+    m.add_function(wrap_pyfunction!(evaluate_risk_budget, m)?)?;
     m.add_function(wrap_pyfunction!(factor_stress, m)?)?;
     m.add_function(wrap_pyfunction!(position_what_if, m)?)?;
     m.add_function(wrap_pyfunction!(build_stress_attribution, m)?)?;

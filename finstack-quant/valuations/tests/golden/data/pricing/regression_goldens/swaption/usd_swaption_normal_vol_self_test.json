@@ -1,12 +1,12 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "usd_swaption_normal_vol_self_test",
     "domain": "rates.swaption",
-    "description": "Self-test fixture for SABR swaption-vol cube calibration. 1Y-into-5Y USD receiver swaption (10MM USD notional, ATM strike), priced against a SABR-fitted normal-vol cube calibrated from 27 swaption-vol quotes across a 3 expiries \u00d7 3 tenors grid (\u03b2=0.0, normal SABR). Three-step envelope: USD-OIS discount + USD-SOFR-3M forward + USD-SWAPTION-NORMAL-VOL cube. Closes the swaption_vol step coverage gap (plan \u00a719 next-gap follow-up).",
+    "description": "Self-test fixture for SABR swaption-vol cube calibration. 1Y-into-5Y USD receiver swaption (10MM USD notional, ATM strike), priced against a SABR-fitted normal-vol cube calibrated from 27 swaption-vol quotes across a 3 expiries × 3 tenors grid (β=0.0, normal SABR). Three-step envelope: USD-OIS discount + USD-SOFR-3M forward + USD-SWAPTION-NORMAL-VOL cube. Closes the swaption_vol step coverage gap (plan §19 next-gap follow-up).",
     "valuation_date": "2026-05-08",
     "source": "formula",
-    "source_detail": "Self-test fixture closing the swaption_vol step coverage gap. Reuses the Phase-2 reference envelope catalog entry 07_swaption_vol_surface.json as the calibration plan. Three steps: (1) USD-OIS bootstrapped from 6 SOFR OIS quotes, (2) USD-SOFR-3M forward bootstrapped against the calibrated discount, (3) USD-SWAPTION-NORMAL-VOL SABR-fitted from 27 swaption-vol quotes (3 expiries \u00d7 3 tenors \u00d7 3 strikes; bilinear interpolation; normal-vol convention; \u03b2=0.0). The surface is produced as a vol_cube (not a vol_surface) \u2014 its presence in the calibrated market is the principal verification of the swaption_vol step. Expected outputs captured from Finstack Quant's calibrate + black76 swaption-price round-trip; bit-stable reproduction is the contract. Regenerated 2026-06-11 (docs/reviews/2026-06-09-core-quant-review.md): core Levenberg-Marquardt minimize now uses eps^(1/3) central-difference steps with rank-aware scale-invariant damping and errors on non-convergence, so the SABR/SVI calibration trajectory (and the fitted surface) shifted slightly. Expected values re-captured from the library itself via the fixture's regen_command; fit quality verified from the calibration report residuals (see source_detail fit note). Fit note: SABR normal-vol cube residuals across the 27 quotes after regeneration: max |model-market| = 5.63e-4, RMSE = 2.43e-4 (normal-vol units), well inside the 0.0015 vol_fit_tolerance.",
+    "source_detail": "Self-test fixture closing the swaption_vol step coverage gap. Reuses the calibration example 07_swaption_vol_surface.json as the calibration plan. Three steps: (1) USD-OIS bootstrapped from 6 SOFR OIS quotes, (2) USD-SOFR-3M forward bootstrapped against the calibrated discount, (3) USD-SWAPTION-NORMAL-VOL SABR-fitted from 27 swaption-vol quotes (3 expiries × 3 tenors × 3 strikes; bilinear interpolation; normal-vol convention; β=0.0). The surface is produced as a vol_cube (not a vol_surface) — its presence in the calibrated market is the principal verification of the swaption_vol step. Expected outputs captured from Finstack Quant's calibrate + black76 swaption-price round-trip; bit-stable reproduction is the contract. Regenerated 2026-06-11 (docs/reviews/2026-06-09-core-quant-review.md): core Levenberg-Marquardt minimize now uses eps^(1/3) central-difference steps with rank-aware scale-invariant damping and errors on non-convergence, so the SABR/SVI calibration trajectory (and the fitted surface) shifted slightly. Expected values re-captured from the library itself via the fixture's regen_command; fit quality verified from the calibration report residuals (see source_detail fit note). Fit note: SABR normal-vol cube residuals across the 27 quotes after regeneration: max |model-market| = 5.63e-4, RMSE = 2.43e-4 (normal-vol units), well inside the 0.0015 vol_fit_tolerance.",
     "captured_by": "claude",
     "captured_on": "2026-05-10",
     "last_reviewed_by": "jeickmeier",
@@ -20,11 +20,11 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "$schema": "../../schemas/calibration/3/calibration.schema.json",
-      "schema": "finstack_quant.calibration",
+      "$schema": "../../schemas/calibration/1/calibration.schema.json",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
         "id": "usd_swaption_normal_vol",
-        "description": "USD swaption normal-vol surface calibrated against a 3\u00d73 (expiry \u00d7 tenor) grid of SwaptionVol quotes, chained on a USD-OIS discount curve and USD-SOFR-3M forward curve that are bootstrapped in the same plan. Step 1 produces the USD-OIS discount curve from deposit and IRS quotes; step 2 bootstraps the USD-SOFR-3M forward curve from FRA quotes; step 3 fits per-bucket SABR (\u03b2=0) parameters to normal vols quoted in basis points. The envelope is fully self-bootstrapping from quotes \u2014 no hand-entered curves in initial_market. The produced VolCube is keyed as 'USD-SWAPTION-NORMAL-VOL' and is retrievable via MarketContext::get_vol_provider(). Note: swaption_vol calibration produces a VolCube (not a VolSurface), so the accessor is get_vol_provider rather than get_surface. The grid uses 3 expiries (1y, 2y, 5y from base 2026-05-08) \u00d7 3 swap tenors (2y, 5y, 10y) \u00d7 3 strikes (ATM-50bp, ATM, ATM+50bp) for a total of 27 quotes. Normal vols range from 55\u201380 bp, representative of a 5% rate environment.",
+        "description": "USD swaption normal-vol surface calibrated against a 3×3 (expiry × tenor) grid of SwaptionVol quotes, chained on a USD-OIS discount curve and USD-SOFR-3M forward curve that are bootstrapped in the same plan. Step 1 produces the USD-OIS discount curve from deposit and IRS quotes; step 2 bootstraps the USD-SOFR-3M forward curve from FRA quotes; step 3 fits per-bucket SABR (β=0) parameters to normal vols quoted in basis points. The envelope is fully self-bootstrapping from quotes — no hand-entered curves in prior_market. The produced VolCube is keyed as 'USD-SWAPTION-NORMAL-VOL' and is retrievable via MarketContext::get_vol_provider(). Note: swaption_vol calibration produces a VolCube (not a VolSurface), so the accessor is get_vol_provider rather than get_surface. The grid uses 3 expiries (1y, 2y, 5y from base 2026-05-08) × 3 swap tenors (2y, 5y, 10y) × 3 strikes (ATM-50bp, ATM, ATM+50bp) for a total of 27 quotes. Normal vols range from 55–80 bp, representative of a 5% rate environment.",
         "quote_sets": {
           "usd_rate_quotes": [
             "USD-SOFR-DEP-1M",
@@ -79,7 +79,7 @@
             "curve_id": "USD-OIS",
             "currency": "USD",
             "base_date": "2026-05-08",
-            "method": "Bootstrap",
+            "method": "bootstrap",
             "interpolation": "linear",
             "extrapolation": "flat_forward",
             "pricing_discount_id": null,
@@ -98,7 +98,7 @@
             "tenor_years": 0.25,
             "discount_curve_id": "USD-OIS",
             "method": {
-              "GlobalSolve": {
+              "global_solve": {
                 "use_analytical_jacobian": false
               }
             },
@@ -109,7 +109,7 @@
             "id": "USD-SWAPTION-NORMAL-VOL-STEP",
             "quote_set": "swaption_vol_quotes",
             "kind": "swaption_vol",
-            "surface_id": "USD-SWAPTION-NORMAL-VOL",
+            "vol_surface_id": "USD-SWAPTION-NORMAL-VOL",
             "base_date": "2026-05-08",
             "discount_curve_id": "USD-OIS",
             "forward_id": "USD-SOFR-3M",
@@ -288,7 +288,7 @@
             "maturity": "2029-05-08",
             "strike": 0.045,
             "vol": 72.0,
-            "quote_type": "ATM-50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -300,7 +300,7 @@
             "maturity": "2029-05-08",
             "strike": 0.05,
             "vol": 65.0,
-            "quote_type": "ATM",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -312,7 +312,7 @@
             "maturity": "2029-05-08",
             "strike": 0.055,
             "vol": 72.0,
-            "quote_type": "ATM+50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -324,7 +324,7 @@
             "maturity": "2032-05-08",
             "strike": 0.045,
             "vol": 67.0,
-            "quote_type": "ATM-50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -336,7 +336,7 @@
             "maturity": "2032-05-08",
             "strike": 0.05,
             "vol": 60.0,
-            "quote_type": "ATM",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -348,7 +348,7 @@
             "maturity": "2032-05-08",
             "strike": 0.055,
             "vol": 67.0,
-            "quote_type": "ATM+50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -360,7 +360,7 @@
             "maturity": "2037-05-08",
             "strike": 0.045,
             "vol": 62.0,
-            "quote_type": "ATM-50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -372,7 +372,7 @@
             "maturity": "2037-05-08",
             "strike": 0.05,
             "vol": 55.0,
-            "quote_type": "ATM",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -384,7 +384,7 @@
             "maturity": "2037-05-08",
             "strike": 0.055,
             "vol": 62.0,
-            "quote_type": "ATM+50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -396,7 +396,7 @@
             "maturity": "2030-05-08",
             "strike": 0.045,
             "vol": 74.0,
-            "quote_type": "ATM-50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -408,7 +408,7 @@
             "maturity": "2030-05-08",
             "strike": 0.05,
             "vol": 68.0,
-            "quote_type": "ATM",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -420,7 +420,7 @@
             "maturity": "2030-05-08",
             "strike": 0.055,
             "vol": 74.0,
-            "quote_type": "ATM+50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -432,7 +432,7 @@
             "maturity": "2033-05-08",
             "strike": 0.045,
             "vol": 69.0,
-            "quote_type": "ATM-50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -444,7 +444,7 @@
             "maturity": "2033-05-08",
             "strike": 0.05,
             "vol": 63.0,
-            "quote_type": "ATM",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -456,7 +456,7 @@
             "maturity": "2033-05-08",
             "strike": 0.055,
             "vol": 69.0,
-            "quote_type": "ATM+50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -468,7 +468,7 @@
             "maturity": "2038-05-08",
             "strike": 0.045,
             "vol": 64.0,
-            "quote_type": "ATM-50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -480,7 +480,7 @@
             "maturity": "2038-05-08",
             "strike": 0.05,
             "vol": 57.0,
-            "quote_type": "ATM",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -492,7 +492,7 @@
             "maturity": "2038-05-08",
             "strike": 0.055,
             "vol": 64.0,
-            "quote_type": "ATM+50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -504,7 +504,7 @@
             "maturity": "2033-05-08",
             "strike": 0.045,
             "vol": 80.0,
-            "quote_type": "ATM-50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -516,7 +516,7 @@
             "maturity": "2033-05-08",
             "strike": 0.05,
             "vol": 74.0,
-            "quote_type": "ATM",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -528,7 +528,7 @@
             "maturity": "2033-05-08",
             "strike": 0.055,
             "vol": 80.0,
-            "quote_type": "ATM+50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -540,7 +540,7 @@
             "maturity": "2036-05-08",
             "strike": 0.045,
             "vol": 74.0,
-            "quote_type": "ATM-50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -552,7 +552,7 @@
             "maturity": "2036-05-08",
             "strike": 0.05,
             "vol": 68.0,
-            "quote_type": "ATM",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -564,7 +564,7 @@
             "maturity": "2036-05-08",
             "strike": 0.055,
             "vol": 74.0,
-            "quote_type": "ATM+50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -576,7 +576,7 @@
             "maturity": "2041-05-08",
             "strike": 0.045,
             "vol": 67.0,
-            "quote_type": "ATM-50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -588,7 +588,7 @@
             "maturity": "2041-05-08",
             "strike": 0.05,
             "vol": 61.0,
-            "quote_type": "ATM",
+            "quote_type": "normal",
             "convention": "USD"
           }
         },
@@ -600,7 +600,7 @@
             "maturity": "2041-05-08",
             "strike": 0.055,
             "vol": 67.0,
-            "quote_type": "ATM+50",
+            "quote_type": "normal",
             "convention": "USD"
           }
         }
@@ -619,25 +619,10 @@
           "amount": "10000000",
           "currency": "USD"
         },
-        "strike": "0.03766225",
         "expiry": "2027-05-08",
-        "swap_start": "2027-05-08",
-        "swap_end": "2032-05-08",
-        "fixed_freq": {
-          "count": 12,
-          "unit": "months"
-        },
-        "float_freq": {
-          "count": 12,
-          "unit": "months"
-        },
-        "day_count": "Act360",
         "cash_settlement_method": "isda_par_par",
         "vol_model": "normal",
-        "discount_curve_id": "USD-OIS",
-        "forward_curve_id": "USD-SOFR-3M",
         "vol_surface_id": "USD-SWAPTION-NORMAL-VOL",
-        "calendar_id": "usny",
         "underlying_fixed_leg": {
           "discount_curve_id": "USD-OIS",
           "rate": "0.03766225",
@@ -645,9 +630,9 @@
             "count": 12,
             "unit": "months"
           },
-          "day_count": "Act360",
+          "day_count": "act_360",
           "calendar_id": "usny",
-          "stub": "None",
+          "stub": "none",
           "start": "2027-05-05",
           "end": "2032-05-05",
           "par_method": null,
@@ -662,22 +647,24 @@
             "count": 12,
             "unit": "months"
           },
-          "day_count": "Act360",
+          "day_count": "act_360",
           "calendar_id": "usny",
-          "stub": "None",
+          "stub": "none",
           "reset_lag_days": 0,
           "fixing_calendar_id": "usny",
           "start": "2027-05-05",
           "end": "2032-05-05",
           "compounding": {
-            "CompoundedWithRateCutoff": {
+            "compounded_with_rate_cutoff": {
               "cutoff_days": 1
             }
           },
           "payment_lag_days": 2
         },
-        "pricing_overrides": {
-          "vol_surface_extrapolation": "clamp"
+        "instrument_pricing_overrides": {
+          "model_config": {
+            "vol_surface_extrapolation": "clamp"
+          }
         },
         "sabr_params": null,
         "attributes": {
@@ -696,7 +683,8 @@
             "legacy_fixture_name": "usd_swaption_5y_into_5y_receiver_25_otm"
           }
         },
-        "settlement": "cash"
+        "settlement": "cash",
+        "exercise_style": "european"
       }
     }
   },

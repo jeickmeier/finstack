@@ -12,7 +12,7 @@
                 "settlement_days": 2,
                 "business_day_convention": "modified_following",
                 "fixed_leg_frequency": "1Y",
-                "fixed_leg_day_count": "Act360",
+                "fixed_leg_day_count": "act_360",
                 "float_leg_index": "USD-SOFR-OIS"
             }
         },
@@ -25,7 +25,7 @@
                 "settlement_days": 2,
                 "business_day_convention": "modified_following",
                 "fixed_leg_frequency": "1Y",
-                "fixed_leg_day_count": "Thirty360",
+                "fixed_leg_day_count": "30_360",
                 "float_leg_index": "USD-SOFR"
             }
         },
@@ -38,7 +38,7 @@
                 "settlement_days": 2,
                 "business_day_convention": "modified_following",
                 "fixed_leg_frequency": "1Y",
-                "fixed_leg_day_count": "Thirty360",
+                "fixed_leg_day_count": "30_360",
                 "float_leg_index": "EUR-EURIBOR-6M"
             }
         }

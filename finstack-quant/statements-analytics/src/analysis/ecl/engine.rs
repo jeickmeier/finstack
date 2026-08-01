@@ -92,7 +92,7 @@ pub struct MacroScenario {
 ///   applied via [`DownturnLgd::adjust`] on top of `base` (so a scenario
 ///   `lgd_override` sets the base and the downturn stress is layered on top
 ///   of it):
-///   - Stressed (`DownturnMethod::FryeJacobs`):
+///   - Stressed (`DownturnMethod::StressedApproximation`):
 ///     `LGD_eff = clamp(base + s·√ρ·Φ⁻¹(q)·√(base·(1−base)), 0, 1)`, core's
 ///     documented mean-plus-Bernoulli-stdev approximation (see
 ///     `core/src/credit/lgd/downturn.rs` Methodology Note; Frye & Jacobs
@@ -108,6 +108,7 @@ pub struct MacroScenario {
 ///   Default." *Journal of Credit Risk*, 8(1), 109-140 (related literature
 ///   only; see [`DownturnLgd`] for the exact formula implemented).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum LgdType {
     /// Point-in-time LGD from the exposure (or scenario override). No
     /// companion field required.
@@ -1313,13 +1314,13 @@ mod tests {
 
     #[test]
     fn downturn_stressed_golden() {
-        // frye_jacobs(rho=0.15, sensitivity=0.4, q=0.999), base 0.45:
+        // stressed(rho=0.15, sensitivity=0.4, q=0.999), base 0.45:
         //   Φ⁻¹(0.999) = 3.090232...
         //   add-on = 0.4 × √0.15 × 3.090232 × √(0.45 × 0.55)
         //          = 0.4 × 0.3872983 × 3.090232 × 0.4974937 ≈ 0.238164
         //   LGD_eff ≈ 0.688164 → ECL ≈ 0.02 × 0.688164 × 100,000 ≈ 1,376.33
         let adjuster =
-            finstack_quant_core::credit::lgd::DownturnLgd::frye_jacobs(0.15, 0.4, 0.999).unwrap();
+            finstack_quant_core::credit::lgd::DownturnLgd::stressed(0.15, 0.4, 0.999).unwrap();
         let expected_lgd = adjuster.adjust(0.45).unwrap();
         assert!(
             (expected_lgd - 0.688164).abs() < 1e-3,
@@ -1428,7 +1429,7 @@ mod tests {
     fn eclconfig_validate_rejects_bad_downturn_lgd_from_untrusted_json() {
         // `DownturnLgd` derives Deserialize, so it can be embedded in an
         // EclConfig JSON payload with parameters that bypass the
-        // `frye_jacobs` constructor's checks entirely (e.g. a negative
+        // `stressed` constructor's checks entirely (e.g. a negative
         // asset_correlation). Deserialization itself must succeed -- the
         // guard is EclConfig::validate, which now delegates to
         // DownturnLgd::validate.
@@ -1447,7 +1448,7 @@ mod tests {
         let mut json = serde_json::to_value(&base).expect("serialize");
         json["downturn_lgd"] = serde_json::json!({
             "method": {
-                "FryeJacobs": {
+                "stressed_approximation": {
                     "asset_correlation": -0.5,
                     "lgd_sensitivity": 0.4,
                     "stress_quantile": 0.999

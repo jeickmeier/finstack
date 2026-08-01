@@ -435,7 +435,7 @@ fn test_bond_future_deny_unknown_fields() {
     let json = r#"{
         "id": "TYH5",
         "notional": {
-            "amount": 1000000.0,
+            "amount": "1000000.0",
             "currency": "USD"
         },
         "expiry": "2025-03-20",
@@ -483,9 +483,7 @@ fn test_bond_future_deny_unknown_fields() {
 }
 
 #[test]
-fn test_bond_future_specs_unknown_field_allowed() {
-    // BondFutureSpecs does NOT have deny_unknown_fields,
-    // so unknown fields should be silently ignored
+fn test_bond_future_specs_rejects_unknown_field() {
     let json = r#"{
         "contract_size": 100000.0,
         "tick_size": 0.015625,
@@ -497,10 +495,9 @@ fn test_bond_future_specs_unknown_field_allowed() {
     }"#;
 
     let result: Result<BondFutureSpecs, _> = serde_json::from_str(json);
-    // Should succeed (unknown fields ignored for BondFutureSpecs)
     assert!(
-        result.is_ok(),
-        "BondFutureSpecs should allow unknown fields"
+        result.is_err(),
+        "BondFutureSpecs must reject unknown fields"
     );
 }
 
@@ -515,7 +512,7 @@ fn test_bond_future_minimal_json() {
     let json = r#"{
         "id": "TYH5",
         "notional": {
-            "amount": 1000000.0,
+            "amount": "1000000.0",
             "currency": "USD"
         },
         "expiry": "2025-03-20",

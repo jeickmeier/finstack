@@ -122,11 +122,11 @@ pub fn create_convertible_with_policy(policy: ConversionPolicy) -> ConvertibleBo
         rate: rust_decimal::Decimal::from_f64_retain(bond_params::COUPON_RATE).unwrap_or_default(),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
 
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 

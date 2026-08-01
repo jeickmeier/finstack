@@ -154,7 +154,7 @@ impl InflationCurveTarget {
         };
 
         let swap: std::sync::Arc<dyn crate::instruments::common_impl::traits::Instrument> =
-            if let Some(freq) = frequency {
+            if let Some(frequency) = frequency {
                 let instrument = YoYInflationSwap::builder()
                     .id("CALIB_YOY".into())
                     .notional(Money::new(self.params.notional, self.params.currency))
@@ -165,13 +165,13 @@ impl InflationCurveTarget {
                             finstack_quant_core::InputError::ConversionOverflow,
                         )
                     })?)
-                    .frequency(freq)
+                    .frequency(frequency)
                     .inflation_index_id(self.params.curve_id.clone())
                     .discount_curve_id(self.params.discount_curve_id.clone())
                     .day_count(conventions.day_count)
                     .side(PayReceive::Pay)
                     .lag_override_opt(if has_index_fixings { None } else { Some(lag) })
-                    .bdc(conventions.business_day_convention)
+                    .business_day_convention(conventions.business_day_convention)
                     .calendar_id_opt(Some(conventions.calendar_id.clone().into()))
                     .build()
                     .map_err(|e| finstack_quant_core::Error::Validation(e.to_string()))?;
@@ -197,7 +197,7 @@ impl InflationCurveTarget {
                     } else {
                         Some(base_cpi)
                     })
-                    .bdc(conventions.business_day_convention)
+                    .business_day_convention(conventions.business_day_convention)
                     .calendar_id_opt(Some(conventions.calendar_id.clone().into()))
                     .build()
                     .map_err(|e| finstack_quant_core::Error::Validation(e.to_string()))?;

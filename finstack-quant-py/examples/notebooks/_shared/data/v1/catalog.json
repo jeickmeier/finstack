@@ -12,23 +12,23 @@
         "issue_date": "2024-01-15",
         "maturity": "2030-01-15",
         "discount_curve_id": "USD-OIS",
-        "accrual_method": "Linear",
+        "accrual_method": "linear",
         "settlement_days": 2,
         "ex_coupon_days": 0,
         "cashflow_spec": {
-          "Fixed": {
-            "coupon_type": "Cash",
-            "freq": {
+          "fixed": {
+            "coupon_type": "cash",
+            "frequency": {
               "count": 6,
               "unit": "months"
             },
-            "dc": "Thirty360",
-            "bdc": "following",
+            "day_count": "30_360",
+            "business_day_convention": "following",
             "calendar_id": "weekends_only",
             "end_of_month": false,
             "payment_lag_days": 0,
             "rate": "0.05",
-            "stub": "None"
+            "stub": "none"
           }
         },
         "call_put": null,
@@ -38,8 +38,7 @@
             "demo"
           ],
           "meta": {}
-        },
-        "pricing_overrides": {}
+        }
       }
     },
     "usd_equity": {
@@ -66,7 +65,7 @@
     "two_asset_demo": {
       "id": "DEMO-PORTFOLIO",
       "as_of": "2025-01-15",
-      "base_ccy": "USD",
+      "base_currency": "USD",
       "entities": {
         "DEMO-FUND": {
           "id": "DEMO-FUND"

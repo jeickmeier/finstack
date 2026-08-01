@@ -49,7 +49,7 @@ day_count: string | null,
 /**
  * Business day convention for synthetic tranche schedule adjustments.
  */
-bdc: string | null,
+business_day_convention: string | null,
 /**
  * Optional calendar identifier for schedule generation and date adjustments.
  */

@@ -77,7 +77,7 @@ pub(crate) fn pv_with_rf_bump(
 
 impl Pricer for DcfPricer {
     fn key(&self) -> PricerKey {
-        PricerKey::new(InstrumentType::DCF, ModelKey::Discounting)
+        PricerKey::new(InstrumentType::Dcf, ModelKey::Discounting)
     }
 
     #[tracing::instrument(
@@ -96,7 +96,7 @@ impl Pricer for DcfPricer {
         let dcf = instrument
             .as_any()
             .downcast_ref::<DiscountedCashFlow>()
-            .ok_or_else(|| PricingError::type_mismatch(InstrumentType::DCF, instrument.key()))?;
+            .ok_or_else(|| PricingError::type_mismatch(InstrumentType::Dcf, instrument.key()))?;
 
         let equity_value = compute_pv(dcf, market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(

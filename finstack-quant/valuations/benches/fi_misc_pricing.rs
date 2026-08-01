@@ -58,7 +58,7 @@ fn term_loan(maturity: Date) -> TermLoan {
         .rate(RateSpec::Fixed { rate_bp: 500 })
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -91,7 +91,7 @@ fn revolving_credit_floating(maturity: Date) -> RevolvingCredit {
                 all_in_cap_bp: None,
                 index_cap_bp: None,
                 overnight_index_constraints: Default::default(),
-                reset_freq: Tenor::quarterly(),
+                reset_frequency: Tenor::quarterly(),
                 index_tenor: None,
                 reset_lag_days: 2,
                 fixing_calendar_id: None,
@@ -238,9 +238,9 @@ fn bench_fi_trs_pv(c: &mut Criterion) {
             as_of,
             maturity,
             finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::quarterly(),
-                dc: DayCount::Act360,
-                bdc: BusinessDayConvention::Following,
+                frequency: Tenor::quarterly(),
+                day_count: DayCount::Act360,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,

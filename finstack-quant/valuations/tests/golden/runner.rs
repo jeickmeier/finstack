@@ -248,7 +248,7 @@ mod tests {
         std::fs::write(
             &fixture_path,
             r#"{
-              "schema_version": "finstack_quant.golden/0",
+              "schema": "finstack_quant.golden/0",
               "metadata": {
                 "name": "invalid_schema",
                 "domain": "rates.irs",
@@ -265,7 +265,7 @@ mod tests {
               },
               "kind": "pricing",
               "model": "discounting",
-              "market": {"kind": "envelope", "envelope": {"schema": "finstack_quant.calibration"}},
+              "market": {"kind": "envelope", "envelope": {"schema": "finstack_quant.calibration/1"}},
               "instrument": {},
               "expected": {"npv": 0.0},
               "tolerances": {"npv": {"abs": 0.0}}
@@ -277,7 +277,7 @@ mod tests {
         std::fs::remove_file(&fixture_path).expect("remove invalid fixture");
 
         assert!(
-            err.contains("schema_version is 'finstack_quant.golden/0'"),
+            err.contains("schema is 'finstack_quant.golden/0'"),
             "unexpected error: {err}"
         );
     }

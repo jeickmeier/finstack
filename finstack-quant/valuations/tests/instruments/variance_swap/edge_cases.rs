@@ -200,7 +200,7 @@ fn test_valuation_with_very_short_tenor() {
     let mut swap = sample_swap(PayReceive::Receive);
     swap.start_date = start;
     swap.maturity = end;
-    swap.observation_freq = Tenor::daily();
+    swap.observation_frequency = Tenor::daily();
     let ctx = add_unitless(base_context(), format!("{}_IMPL_VOL", UNDERLYING_ID), 0.22);
 
     // Act
@@ -219,7 +219,7 @@ fn test_valuation_with_very_long_tenor() {
     let mut swap = sample_swap(PayReceive::Receive);
     swap.start_date = start;
     swap.maturity = end;
-    swap.observation_freq = Tenor::monthly();
+    swap.observation_frequency = Tenor::monthly();
     let ctx = add_unitless(base_context(), format!("{}_IMPL_VOL", UNDERLYING_ID), 0.22);
 
     // Act
@@ -270,7 +270,7 @@ fn test_valuation_with_single_observation() {
     let mut swap = sample_swap(PayReceive::Receive);
     // Set maturity very close to start for minimal observations
     swap.maturity = swap.start_date + time::Duration::days(1);
-    swap.observation_freq = Tenor::daily();
+    swap.observation_frequency = Tenor::daily();
     let ctx = add_unitless(base_context(), format!("{}_IMPL_VOL", UNDERLYING_ID), 0.22);
 
     // Act
@@ -285,7 +285,7 @@ fn test_valuation_with_single_observation() {
 fn test_observation_dates_with_very_high_frequency() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::daily();
+    swap.observation_frequency = Tenor::daily();
 
     // Act
     let dates = swap.observation_dates().expect("observation schedule");

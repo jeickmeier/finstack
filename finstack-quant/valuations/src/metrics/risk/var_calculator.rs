@@ -1705,7 +1705,7 @@ mod tests {
             as_of,
             vec![RiskFactorShift {
                 factor: RiskFactorType::ImpliedVol {
-                    surface_id: CurveId::new("EQ-VOL"),
+                    vol_surface_id: CurveId::new("EQ-VOL"),
                     expiry_years: 1.0,
                     strike: 100.0,
                 },
@@ -1918,7 +1918,7 @@ mod tests {
             as_of,
             vec![crate::metrics::risk::RiskFactorShift {
                 factor: crate::metrics::risk::RiskFactorType::ImpliedVol {
-                    surface_id: CurveId::new("EURUSD-VOL"),
+                    vol_surface_id: CurveId::new("EURUSD-VOL"),
                     expiry_years: 0.5,
                     strike: 1.15,
                 },

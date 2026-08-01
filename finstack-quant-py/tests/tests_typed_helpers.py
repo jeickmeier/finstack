@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import datetime
 import json
+from pathlib import Path
 
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.dates import DayCount, Tenor
@@ -40,6 +41,23 @@ from finstack_quant.valuations.instruments import (
     Tranche,
     TrancheStructure,
 )
+
+_STRUCTURED_CREDIT_FIXTURE = (
+    Path(__file__).resolve().parents[2]
+    / "finstack-quant"
+    / "valuations"
+    / "tests"
+    / "instruments"
+    / "json_examples"
+    / "structured_credit.json"
+)
+
+
+def canonical_structured_credit_json(*, payment_calendar_id: str = "nyse") -> str:
+    """Load the registry-generated, priceable structured-credit envelope."""
+    envelope = json.loads(_STRUCTURED_CREDIT_FIXTURE.read_text(encoding="utf-8"))
+    envelope["instrument"]["spec"]["payment_calendar_id"] = payment_calendar_id
+    return json.dumps(envelope)
 
 
 def irs_legs() -> tuple[FixedLegSpec, FloatLegSpec]:
@@ -170,7 +188,7 @@ def build_cds_index() -> CDSIndex:
         .convention("isda_na")
         .premium(premium)
         .protection(protection)
-        .pricing("SingleCurve")
+        .pricing("single_curve")
         .num_constituents(125)
         .build()
     )
@@ -252,9 +270,9 @@ def build_convertible() -> ConvertibleBond:
     conversion = json.dumps({
         "ratio": 20.0,
         "price": None,
-        "policy": "Voluntary",
-        "anti_dilution": "FullRatchet",
-        "dividend_adjustment": "None",
+        "policy": "voluntary",
+        "anti_dilution": "full_ratchet",
+        "dividend_adjustment": "none",
         "dilution_events": [],
     })
     return (
@@ -272,7 +290,7 @@ def build_convertible() -> ConvertibleBond:
 
 
 def structured_credit_pool() -> AssetPool:
-    pool = AssetPool("POOL-1", "ABS", Currency("USD"))
+    pool = AssetPool("POOL-1", "abs", Currency("USD"))
     return pool.with_rep_lines([
         RepLine(
             "LINE-1",
@@ -295,7 +313,7 @@ def structured_credit_tranches() -> TrancheStructure:
         .id("A")
         .attachment_point(10.0)
         .detachment_point(100.0)
-        .seniority("Senior")
+        .seniority("senior")
         .original_balance(Money(72_000_000.0, Currency("USD")))
         .coupon_fixed(0.05)
         .maturity(datetime.date(2031, 1, 15))
@@ -307,7 +325,7 @@ def structured_credit_tranches() -> TrancheStructure:
         .id("E")
         .attachment_point(0.0)
         .detachment_point(10.0)
-        .seniority("Equity")
+        .seniority("equity")
         .original_balance(Money(8_000_000.0, Currency("USD")))
         .coupon_fixed(0.0)
         .maturity(datetime.date(2031, 1, 15))

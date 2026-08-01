@@ -82,7 +82,7 @@ fn threshold_test_roundtrip() {
 #[test]
 fn covenant_type_all_variants_roundtrip() {
     let variants = vec![
-        CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+        CovenantType::MaxDebtToEbitda { threshold: 4.5 },
         CovenantType::MinInterestCoverage { threshold: 1.5 },
         CovenantType::MinFixedChargeCoverage { threshold: 1.25 },
         CovenantType::MaxTotalLeverage { threshold: 6.0 },
@@ -147,7 +147,7 @@ fn springing_condition_roundtrip() {
 #[test]
 fn covenant_roundtrip() {
     let covenant = Covenant::new(
-        CovenantType::MaxDebtToEBITDA { threshold: 5.0 },
+        CovenantType::MaxDebtToEbitda { threshold: 5.0 },
         Tenor::quarterly(),
     )
     .with_cure_period(Some(30))
@@ -258,7 +258,7 @@ fn covenant_engine_roundtrip() {
 
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 5.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 5.0 },
             Tenor::quarterly(),
         )
         .with_consequence(CovenantConsequence::Default),
@@ -355,9 +355,9 @@ fn validate_report_json_returns_core_canonical_order() {
 #[test]
 fn consequence_application_roundtrip() {
     let application = ConsequenceApplication {
-        consequence_type: "Rate Increase".to_string(),
+        consequence_type: "rate_increase".to_string(),
         applied_date: date(2025, 5, 1),
-        details: "Rate increased by 150 bps".to_string(),
+        details: "Rate increased by 150 bp".to_string(),
     };
 
     let rt = roundtrip(&application);
@@ -527,7 +527,7 @@ fn complex_covenant_package_roundtrip() {
     // Leverage covenant with step-downs implied via multiple specs
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 5.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 5.0 },
             Tenor::quarterly(),
         )
         .with_cure_period(Some(30))
@@ -631,6 +631,6 @@ fn json_format_stability() {
     assert!(json.contains("\"actual_value\": 5.5"));
     assert!(json.contains("\"threshold\": 5.0"));
     assert!(json.contains("\"is_cured\": false"));
-    assert!(json.contains("\"RateIncrease\""));
+    assert!(json.contains("\"rate_increase\""));
     assert!(json.contains("\"bp_increase\": 50.0"));
 }

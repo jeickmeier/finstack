@@ -19,7 +19,7 @@ struct SwaptionConventionRecord {
 
 impl SwaptionConventionRecord {
     fn into_conventions(self) -> Result<SwaptionConventions, Error> {
-        let fixed_leg_freq = Tenor::parse(&self.fixed_leg_frequency).map_err(|e| {
+        let fixed_leg_frequency = Tenor::parse(&self.fixed_leg_frequency).map_err(|e| {
             Error::Validation(format!(
                 "Invalid `fixed_leg_frequency` in Swaption conventions: '{}': {}",
                 self.fixed_leg_frequency, e
@@ -29,7 +29,7 @@ impl SwaptionConventionRecord {
             calendar_id: self.calendar_id,
             settlement_days: self.settlement_days,
             business_day_convention: self.business_day_convention,
-            fixed_leg_frequency: fixed_leg_freq,
+            fixed_leg_frequency,
             fixed_leg_day_count: self.fixed_leg_day_count,
             float_leg_index: self.float_leg_index,
         })

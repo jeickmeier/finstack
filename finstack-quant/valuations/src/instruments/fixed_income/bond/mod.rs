@@ -203,7 +203,7 @@ mod tests {
             0.03,
             date!(2025 - 01 - 01),
             date!(2035 - 01 - 01),
-            BondConvention::USTreasury,
+            BondConvention::UsTreasury,
             "USD-TREASURY",
         )
         .expect("Bond::with_convention should succeed for US Treasury");
@@ -211,19 +211,19 @@ mod tests {
         assert_eq!(bond.id.as_str(), "UST-10Y");
         assert_eq!(
             bond.cashflow_spec.frequency(),
-            BondConvention::USTreasury.frequency()
+            BondConvention::UsTreasury.frequency()
         );
         assert_eq!(
             bond.cashflow_spec.day_count(),
-            BondConvention::USTreasury.day_count()
+            BondConvention::UsTreasury.day_count()
         );
         assert_eq!(
             bond.settlement_days(),
-            Some(BondConvention::USTreasury.settlement_days())
+            Some(BondConvention::UsTreasury.settlement_days())
         );
         assert_eq!(
             bond.ex_coupon_days(),
-            BondConvention::USTreasury.ex_coupon_days()
+            BondConvention::UsTreasury.ex_coupon_days()
         );
     }
 
@@ -235,26 +235,26 @@ mod tests {
             0.025,
             date!(2025 - 01 - 01),
             date!(2035 - 01 - 01),
-            BondConvention::UKGilt,
+            BondConvention::UkGilt,
             "GBP-GILTS",
         )
         .expect("Bond::with_convention should succeed for UK Gilt");
 
         assert_eq!(
             bond.cashflow_spec.frequency(),
-            BondConvention::UKGilt.frequency()
+            BondConvention::UkGilt.frequency()
         );
         assert_eq!(
             bond.cashflow_spec.day_count(),
-            BondConvention::UKGilt.day_count()
+            BondConvention::UkGilt.day_count()
         );
         assert_eq!(
             bond.settlement_days(),
-            Some(BondConvention::UKGilt.settlement_days())
+            Some(BondConvention::UkGilt.settlement_days())
         );
         assert_eq!(
             bond.ex_coupon_days(),
-            BondConvention::UKGilt.ex_coupon_days()
+            BondConvention::UkGilt.ex_coupon_days()
         );
     }
 
@@ -266,7 +266,7 @@ mod tests {
             0.03,
             date!(2025 - 01 - 31),
             date!(2030 - 01 - 31),
-            BondConvention::USTreasury,
+            BondConvention::UsTreasury,
             "USD-TREASURY",
         )
         .expect("Bond::with_convention should succeed for EOM bond");
@@ -424,11 +424,11 @@ mod tests {
             coupon_type: CouponType::Cash,
             rate: Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
 
                 calendar_id: "USGS".to_string(),
 
@@ -457,7 +457,10 @@ mod tests {
 
         if let CashflowSpec::Fixed(s) = &bond.cashflow_spec {
             assert_eq!(s.schedule.calendar_id, "USGS".to_string());
-            assert_eq!(s.schedule.bdc, BusinessDayConvention::ModifiedFollowing);
+            assert_eq!(
+                s.schedule.business_day_convention,
+                BusinessDayConvention::ModifiedFollowing
+            );
         } else {
             panic!("Expected Fixed cashflow spec");
         }
@@ -472,11 +475,11 @@ mod tests {
             coupon_type: CouponType::Cash,
             rate: Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -512,11 +515,11 @@ mod tests {
             coupon_type: CouponType::Cash,
             rate: Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -1051,11 +1054,10 @@ mod tests {
     }
 
     #[test]
-    fn cds_quote_bp_accepts_legacy_quoted_spread_bp_json() {
+    fn cds_quote_bp_rejects_legacy_quoted_spread_bp_json() {
         use crate::instruments::pricing_overrides::MarketQuoteOverrides;
         let json = r#"{"quoted_spread_bp": 150.0}"#;
-        let parsed: MarketQuoteOverrides =
-            serde_json::from_str(json).expect("legacy alias should deserialize");
-        assert_eq!(parsed.cds_quote_bp, Some(150.0));
+        serde_json::from_str::<MarketQuoteOverrides>(json)
+            .expect_err("legacy quoted_spread_bp must be rejected");
     }
 }

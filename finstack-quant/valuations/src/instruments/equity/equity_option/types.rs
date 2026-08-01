@@ -85,7 +85,9 @@ use crate::instruments::common_impl::validation;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct EquityOption {
@@ -102,7 +104,7 @@ pub struct EquityOption {
     #[builder(default)]
     pub exercise_style: ExerciseStyle,
     /// Option expiry date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Notional amount for valuation scaling.
     pub notional: Money,
@@ -163,7 +165,7 @@ pub struct EquityOption {
     ///   discrete dividend problem"
     #[builder(default)]
     #[serde(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Exercise schedule for Bermudan options.
     ///
@@ -172,17 +174,28 @@ pub struct EquityOption {
     /// are filtered out automatically.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<Vec<String>>")]
+    #[schemars(with = "Option<Vec<finstack_quant_core::wire::DateWire>>")]
     pub exercise_schedule: Option<Vec<Date>>,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping
     pub attributes: Attributes,
@@ -674,7 +687,7 @@ impl crate::instruments::common_impl::traits::Instrument for EquityOption {
     > {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
-        deps.add_spot_id(self.spot_id.as_str());
+        deps.add_market_scalar_id(self.spot_id.as_str());
         deps.add_volatility_dependency(
             crate::instruments::common_impl::dependencies::VolatilityDependency::new(
                 self.vol_surface_id.clone(),
@@ -683,7 +696,7 @@ impl crate::instruments::common_impl::traits::Instrument for EquityOption {
             ),
         );
         if let Some(dividend_yield) = &self.div_yield_id {
-            deps.add_spot_id(dividend_yield.as_str());
+            deps.add_market_scalar_id(dividend_yield.as_str());
         }
         Ok(deps)
     }
@@ -750,10 +763,10 @@ mod tests {
         );
         let mut expected_spots = vec![option.spot_id.as_str().to_string()];
         expected_spots.extend(option.div_yield_id.iter().map(|id| id.as_str().to_string()));
-        assert_eq!(deps.spot_ids, expected_spots);
+        assert_eq!(deps.market_scalar_ids, expected_spots);
         assert_eq!(deps.volatility_dependencies.len(), 1);
         let volatility = &deps.volatility_dependencies[0];
-        assert_eq!(volatility.surface_id, option.vol_surface_id);
+        assert_eq!(volatility.vol_surface_id, option.vol_surface_id);
         assert_eq!(volatility.underlying_id.as_ref(), Some(&option.spot_id));
         assert_eq!(volatility.reference_strike, Some(option.strike));
         assert!(deps.series_ids.is_empty());

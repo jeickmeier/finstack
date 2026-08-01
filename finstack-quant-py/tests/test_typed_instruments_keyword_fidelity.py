@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import datetime
 import json
-from pathlib import Path
 
 from finstack_quant.core.currency import Currency
 from finstack_quant.core.dates import DayCount, Tenor
@@ -48,6 +47,7 @@ from finstack_quant.valuations.instruments import (
     TrancheStructure,
     structured_credit_tranche_breakeven_cdr,
 )
+from tests.tests_typed_helpers import canonical_structured_credit_json
 
 
 def _single_tranche() -> Tranche:
@@ -57,7 +57,7 @@ def _single_tranche() -> Tranche:
         .id("A")
         .attachment_point(0.0)
         .detachment_point(100.0)
-        .seniority("Senior")
+        .seniority("senior")
         .original_balance(Money(1.0, Currency("USD")))
         .coupon_fixed(0.05)
         .maturity(datetime.date(2031, 1, 15))
@@ -233,9 +233,9 @@ def test_convertible_bond_builder_setters_accept_keyword_value() -> None:
     conversion = json.dumps({
         "ratio": 20.0,
         "price": None,
-        "policy": "Voluntary",
-        "anti_dilution": "FullRatchet",
-        "dividend_adjustment": "None",
+        "policy": "voluntary",
+        "anti_dilution": "full_ratchet",
+        "dividend_adjustment": "none",
         "dilution_events": [],
     })
     bond = (
@@ -264,8 +264,8 @@ def test_premium_and_protection_leg_spec_accept_keyword_arguments() -> None:
         day_count=DayCount.ACT_360,
         spread_bp=100.0,
         discount_curve_id="USD-OIS",
-        stub="ShortFront",
-        bdc="modified_following",
+        stub="short_front",
+        business_day_convention="modified_following",
         calendar_id=None,
     )
     protection = ProtectionLegSpec(
@@ -285,7 +285,7 @@ def test_rep_line_accepts_keyword_arguments() -> None:
         maturity=datetime.date(2031, 1, 15),
         seasoning_months=12,
         day_count=DayCount.ACT_360,
-        spread_bps=None,
+        spread_bp=None,
         index_id=None,
         cpr=0.10,
         cdr=0.02,
@@ -295,7 +295,7 @@ def test_rep_line_accepts_keyword_arguments() -> None:
 
 
 def test_asset_pool_accepts_keyword_arguments() -> None:
-    pool = AssetPool(id="POOL-KW", deal_type="ABS", base_currency=Currency("USD"))
+    pool = AssetPool(id="POOL-KW", deal_type="abs", base_currency=Currency("USD"))
     assert "POOL-KW" in repr(pool)
     with_lines = pool.with_rep_lines(rep_lines=[_single_rep_line()])
     assert "POOL-KW" in repr(with_lines)
@@ -308,7 +308,7 @@ def test_tranche_builder_setters_accept_keyword_value() -> None:
         .id(value="TR-KW")
         .attachment_point(value=10.0)
         .detachment_point(value=100.0)
-        .seniority(value="Senior")
+        .seniority(value="senior")
         .original_balance(value=Money(72_000_000.0, Currency("USD")))
         .coupon_fixed(rate=0.05)
         .maturity(value=datetime.date(2031, 1, 15))
@@ -323,13 +323,13 @@ def test_tranche_structure_accepts_keyword_argument() -> None:
 
 
 def test_structured_credit_builder_setters_accept_keyword_value() -> None:
-    pool = AssetPool("POOL-SC-KW", "ABS", Currency("USD")).with_rep_lines([_single_rep_line()])
+    pool = AssetPool("POOL-SC-KW", "abs", Currency("USD")).with_rep_lines([_single_rep_line()])
     tranches = TrancheStructure([_single_tranche()])
     deal = (
         StructuredCredit
         .builder()
         .id(value="SC-KW")
-        .deal_type(value="ABS")
+        .deal_type(value="abs")
         .pool(value=pool)
         .tranches(value=tranches)
         .closing_date(value=datetime.date(2024, 1, 15))
@@ -343,7 +343,7 @@ def test_structured_credit_builder_setters_accept_keyword_value() -> None:
 
 
 def test_structured_credit_new_abs_accepts_keyword_arguments() -> None:
-    pool = AssetPool("POOL-ABS-KW", "ABS", Currency("USD")).with_rep_lines([_single_rep_line()])
+    pool = AssetPool("POOL-ABS-KW", "abs", Currency("USD")).with_rep_lines([_single_rep_line()])
     tranches = TrancheStructure([_single_tranche()])
     deal = StructuredCredit.new_abs(
         id="ABS-KW",
@@ -374,37 +374,19 @@ def test_result_wrapper_from_json_accepts_keyword_argument() -> None:
 
 
 def test_structured_credit_analytics_function_accepts_keyword_arguments() -> None:
-    # `build_structured_credit()`'s minimal single-rep-line pool has no
-    # priceable schedule for the analytics engine; reuse the same
-    # repo-fixture deal and market `test_typed_structured_credit.py` uses,
-    # and its "SENIOR" tranche (the first non-equity tranche, whose
-    # z-spread bracket solve is well-posed — see that module's
-    # `_metrics_tranche_id` docstring for why the equity tranche is
-    # skipped).
-    fixture = (
-        Path(__file__).resolve().parents[2]
-        / "finstack-quant"
-        / "valuations"
-        / "tests"
-        / "instruments"
-        / "json_examples"
-        / "structured_credit_full.json"
-    )
-    instrument = json.loads(fixture.read_text())["instrument"]
-    instrument["spec"]["payment_calendar_id"] = "nyse"
-    deal = StructuredCredit.from_json(json.dumps(instrument))
+    deal = StructuredCredit.from_json(canonical_structured_credit_json())
 
     as_of = datetime.date(2024, 1, 1)
     market = (
         MarketContext()
-        .insert(DiscountCurve.flat("USD-SOFR-DISC", as_of, 0.04))
+        .insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
         .insert(ForwardCurve("SOFR-3M", 0.25, [(0.0, 0.04), (10.0, 0.04)], as_of, day_count="act_360"))
     )
     market.insert_series(ScalarTimeSeries("FIXING:SOFR-3M", [(datetime.date(2023, 12, 28), 0.04)]))
 
     result = structured_credit_tranche_breakeven_cdr(
         instrument_json=deal,
-        tranche_id="SENIOR",
+        tranche_id="CLONOTES-A",
         market=market,
         as_of="2024-01-01",
     )

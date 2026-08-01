@@ -57,7 +57,7 @@ impl CDSPricer {
                 // rather than silently using an unadjusted date, which would
                 // produce wrong premium accrual periods.
                 let adjusted = if let Some(cal) = calendar {
-                    adjust(current, cds.premium.bdc, cal)?
+                    adjust(current, cds.premium.business_day_convention, cal)?
                 } else {
                     current
                 };
@@ -67,7 +67,7 @@ impl CDSPricer {
 
         // Handle maturity date - ensure it's in the schedule
         let maturity_adjusted = if let Some(cal) = calendar {
-            adjust(cds.premium.end, cds.premium.bdc, cal)?
+            adjust(cds.premium.end, cds.premium.business_day_convention, cal)?
         } else {
             cds.premium.end
         };
@@ -135,7 +135,7 @@ impl CDSPricer {
         let mut periods = Vec::with_capacity(accrual_dates.len().saturating_sub(1));
         for (idx, window) in accrual_dates.windows(2).enumerate() {
             let payment_date = if let Some(cal) = calendar {
-                adjust(window[1], cds.premium.bdc, cal)?
+                adjust(window[1], cds.premium.business_day_convention, cal)?
             } else {
                 window[1]
             };
@@ -278,7 +278,7 @@ impl CDSPricer {
         Ok(full_premium_per_bp / ONE_BASIS_POINT - accrued_per_unit_spread)
     }
 
-    /// Calculate par spread (bps) that sets NPV to zero.
+    /// Calculate par spread (bp) that sets NPV to zero.
     ///
     /// # ISDA Standard Par Spread Definition
     ///
@@ -297,11 +297,11 @@ impl CDSPricer {
     /// When `par_spread_uses_full_premium = true`, the denominator includes the
     /// full premium leg PV (with accrual-on-default) per basis point. This matches
     /// Bloomberg CDSW-style calculations and is appropriate for distressed credits
-    /// where accrual-on-default has material impact (typically 2-5 bps for hazard > 3%).
+    /// where accrual-on-default has material impact (typically 2-5 bp for hazard > 3%).
     ///
     /// # Returns
     ///
-    /// Par spread in basis points (bps).
+    /// Par spread in basis points (bp).
     /// Per-unit-notional, per-unit-spread denominator used by [`Self::par_spread`].
     ///
     /// Selects the right convention based on `config.par_spread_uses_full_premium`
@@ -421,12 +421,14 @@ impl CDSPricer {
             .and_then(finstack_quant_core::dates::calendar::calendar_by_id);
 
         // Pre-compute year fractions once to avoid repeated day-count calls.
-        let disc_dc = disc.day_count();
+        let disc_day_count = disc.day_count();
         let disc_base = disc.base_date();
-        let haz_dc = surv.day_count();
+        let haz_day_count = surv.day_count();
         let haz_base = surv.base_date();
-        let t_asof_disc = disc_dc.year_fraction(disc_base, as_of, DayCountContext::default())?;
-        let t_asof_haz = haz_dc.year_fraction(haz_base, as_of, DayCountContext::default())?;
+        let t_asof_disc =
+            disc_day_count.year_fraction(disc_base, as_of, DayCountContext::default())?;
+        let t_asof_haz =
+            haz_day_count.year_fraction(haz_base, as_of, DayCountContext::default())?;
         let df_asof = disc.df(t_asof_disc);
         let sp_asof = surv.sp(t_asof_haz);
         let sp_floor = credit::SURVIVAL_PROBABILITY_FLOOR;
@@ -451,12 +453,16 @@ impl CDSPricer {
             let accrual = self.coupon_accrual(cds, &period)?;
 
             // Discount factor: df(payment) / df(as_of)
-            let t_pay =
-                disc_dc.year_fraction(disc_base, payment_date, DayCountContext::default())?;
+            let t_pay = disc_day_count.year_fraction(
+                disc_base,
+                payment_date,
+                DayCountContext::default(),
+            )?;
             let df = disc.df(t_pay) / df_asof;
 
             // Conditional survival: sp(end) / sp(as_of)
-            let t_end = haz_dc.year_fraction(haz_base, end_date, DayCountContext::default())?;
+            let t_end =
+                haz_day_count.year_fraction(haz_base, end_date, DayCountContext::default())?;
             let sp = surv.sp(t_end) / sp_cond_denom;
 
             per_bp_pv += ONE_BASIS_POINT * accrual * sp * df;
@@ -503,12 +509,14 @@ impl CDSPricer {
         let periods = self.coupon_periods(cds, as_of)?;
 
         // Pre-compute year fractions once to avoid repeated day-count calls.
-        let disc_dc = disc.day_count();
+        let disc_day_count = disc.day_count();
         let disc_base = disc.base_date();
-        let haz_dc = surv.day_count();
+        let haz_day_count = surv.day_count();
         let haz_base = surv.base_date();
-        let t_asof_disc = disc_dc.year_fraction(disc_base, as_of, DayCountContext::default())?;
-        let t_asof_haz = haz_dc.year_fraction(haz_base, as_of, DayCountContext::default())?;
+        let t_asof_disc =
+            disc_day_count.year_fraction(disc_base, as_of, DayCountContext::default())?;
+        let t_asof_haz =
+            haz_day_count.year_fraction(haz_base, as_of, DayCountContext::default())?;
         let df_asof = disc.df(t_asof_disc);
         let sp_asof = surv.sp(t_asof_haz);
         let sp_floor = credit::SURVIVAL_PROBABILITY_FLOOR;
@@ -532,12 +540,16 @@ impl CDSPricer {
             let accrual = self.coupon_accrual(cds, &period)?;
 
             // Discount factor: df(payment) / df(as_of)
-            let t_pay =
-                disc_dc.year_fraction(disc_base, payment_date, DayCountContext::default())?;
+            let t_pay = disc_day_count.year_fraction(
+                disc_base,
+                payment_date,
+                DayCountContext::default(),
+            )?;
             let df = disc.df(t_pay) / df_asof;
 
             // Conditional survival: sp(end) / sp(as_of)
-            let t_end = haz_dc.year_fraction(haz_base, end_date, DayCountContext::default())?;
+            let t_end =
+                haz_day_count.year_fraction(haz_base, end_date, DayCountContext::default())?;
             let sp = surv.sp(t_end) / sp_cond_denom;
 
             annuity += accrual * sp * df;

@@ -61,7 +61,7 @@ fn resolve_cds_dates(
         ctx.as_of(),
         &conv.calendar_id,
         conv.settlement_days,
-        conv.bdc,
+        conv.business_day_convention,
     )?;
     // CDS Start: Market standard is the prior CDS roll (20th of Mar/Jun/Sep/Dec).
     // Use the CDS IMM roll date on or before spot.
@@ -263,7 +263,7 @@ pub fn build_cds_instrument(quote: &CdsQuote, ctx: &BuildCtx) -> Result<Box<dyn 
             end: dates.maturity,
             frequency: conv.frequency,
             stub: StubKind::None, // Default to None or derive?
-            bdc: conv.bdc,
+            business_day_convention: conv.business_day_convention,
             calendar_id: Some(conv.calendar_id.clone()),
             day_count: conv.day_count,
             spread_bp: Decimal::try_from(spread_bp).map_err(|e| {

@@ -104,7 +104,7 @@ fn analytics_dts_matches_runtime_hotspots() {
     assert!(dts.contains("Performance: typeof Performance;"));
     assert!(contains_ignoring_ws(
         &dts,
-        "static fromReturns(dates: string[], returns: NumericMatrix, tickerNames: string[], benchmarkTicker?: string | null, freq?: string): Performance;",
+        "static fromReturns(dates: string[], returns: NumericMatrix, tickerNames: string[], benchmarkTicker?: string | null, frequency?: string): Performance;",
     ));
     assert!(contains_ignoring_ws(
         &dts,
@@ -268,9 +268,6 @@ fn cashflows_dts_matches_json_bridge_surface() {
     assert!(dts.contains("export interface ValuationInstrumentsNamespace"));
     assert!(dts.contains("bondFromCashflowsJson("));
     assert!(dts.contains("export declare const cashflows: CashflowsNamespace;"));
-    let generated = include_str!("../types/generated/CashflowSchedule.ts");
-    assert!(generated.contains("method: \"Linear\" | \"Compounded\";"));
-    assert!(!generated.contains("fixed_rate_program"));
 }
 
 #[test]

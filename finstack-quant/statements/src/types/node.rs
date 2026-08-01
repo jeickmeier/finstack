@@ -5,25 +5,22 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::PeriodId;
 use indexmap::IndexMap;
 use schemars::JsonSchema;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::fmt;
-use std::sync::Arc;
 
 /// Type-safe identifier for a node in a financial model.
 ///
-/// Wraps an `Arc<str>` so that cloning a `NodeId` is a reference-count bump
-/// rather than a heap allocation — node ids are cloned heavily (evaluation
-/// order, column maps, per-warning context). It serializes as a plain string
-/// and is interoperable with `&str` via [`Borrow`] and [`AsRef`].
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// Serializes as a plain string and is interoperable with `&str` via
+/// [`Borrow`] and [`AsRef`].
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[repr(transparent)]
-pub struct NodeId(Arc<str>);
+pub struct NodeId(String);
 
 impl NodeId {
     /// Create a new `NodeId` from any string-like value.
     pub fn new(id: impl Into<String>) -> Self {
-        Self(Arc::from(id.into()))
+        Self(id.into())
     }
 
     /// Return the inner string slice.
@@ -41,19 +38,19 @@ impl fmt::Display for NodeId {
 
 impl From<&str> for NodeId {
     fn from(s: &str) -> Self {
-        Self(Arc::from(s))
+        Self(s.to_owned())
     }
 }
 
 impl From<String> for NodeId {
     fn from(s: String) -> Self {
-        Self(Arc::from(s))
+        Self(s)
     }
 }
 
 impl From<&String> for NodeId {
     fn from(s: &String) -> Self {
-        Self(Arc::from(s.as_str()))
+        Self(s.clone())
     }
 }
 
@@ -78,31 +75,6 @@ impl PartialEq<&str> for NodeId {
 impl PartialEq<str> for NodeId {
     fn eq(&self, other: &str) -> bool {
         &*self.0 == other
-    }
-}
-
-// Serialize as a plain string. A manual impl avoids requiring serde's `rc`
-// feature flag for the `Arc<str>` inner representation.
-impl Serialize for NodeId {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.0)
-    }
-}
-
-impl<'de> Deserialize<'de> for NodeId {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
-        let s = String::deserialize(deserializer)?;
-        Ok(Self(Arc::from(s)))
-    }
-}
-
-impl JsonSchema for NodeId {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        "NodeId".into()
-    }
-
-    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        String::json_schema(generator)
     }
 }
 

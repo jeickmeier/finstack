@@ -273,9 +273,9 @@ impl PyScheduleBuilder {
     /// Set the coupon/roll frequency (accepts ``Tenor`` or a string like ``"3M"``).
     fn frequency<'py>(
         mut slf: PyRefMut<'py, Self>,
-        freq: &Bound<'_, PyAny>,
+        frequency: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        slf.spec.frequency = extract_tenor(freq)?;
+        slf.spec.frequency = extract_tenor(frequency)?;
         Ok(slf)
     }
 
@@ -351,7 +351,7 @@ impl PyScheduleBuilder {
 
     fn __repr__(&self) -> String {
         format!(
-            "ScheduleBuilder(start={}, end={}, freq={})",
+            "ScheduleBuilder(start={}, end={}, frequency={})",
             self.spec.start, self.spec.end, self.spec.frequency,
         )
     }

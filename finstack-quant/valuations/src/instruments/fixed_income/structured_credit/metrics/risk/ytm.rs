@@ -176,7 +176,7 @@ impl MetricCalculator for YtmCalculator {
         };
 
         // Solve for YTM using Brent solver
-        // Tolerance: 1e-6 = 0.01 bps precision (market standard)
+        // Tolerance: 1e-6 = 0.01 bp precision (market standard)
         let solver = BrentSolver::new().tolerance(YTM_SOLVER_TOLERANCE);
 
         // Initial guess: 5% is reasonable for structured credit

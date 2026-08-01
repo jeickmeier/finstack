@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 
 /// Recovery model specification.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum RecoveryModel {
     /// Constant recovery (ignores notional changes).
     Constant,

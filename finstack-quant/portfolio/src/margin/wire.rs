@@ -316,9 +316,7 @@ const fn simm_credit_sector_key(sector: SimmCreditSector) -> u8 {
         SimmCreditSector::HighYieldConsumerGoods => 9,
         SimmCreditSector::HighYieldTechnologyMedia => 10,
         SimmCreditSector::HighYieldHealthCare => 11,
-        SimmCreditSector::Index => 12,
-        SimmCreditSector::Securitized => 13,
-        SimmCreditSector::Residual => 14,
+        SimmCreditSector::Residual => 12,
         _ => u8::MAX,
     }
 }

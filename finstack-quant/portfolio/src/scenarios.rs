@@ -77,8 +77,8 @@ fn selective_invalidation(
                 };
                 MarketFactorKey::curve(curve_id.clone(), kind)
             }
-            ScenarioMarketTarget::VolSurface { surface_id, .. } => {
-                MarketFactorKey::vol_surface(surface_id.as_str())
+            ScenarioMarketTarget::VolSurface { vol_surface_id, .. } => {
+                MarketFactorKey::vol_surface(vol_surface_id.as_str())
             }
             ScenarioMarketTarget::EquityPrice { price_id } => {
                 MarketFactorKey::spot(price_id.as_str())
@@ -267,7 +267,7 @@ fn replace_portfolio_instruments(
 /// # let scenario: ScenarioSpec = unimplemented!("Provide a scenario");
 /// let config = FinstackConfig::default();
 /// let (valuation, _report) = apply_and_revalue(&portfolio, &scenario, &market, &config)?;
-/// println!("Stressed total: {}", valuation.total_base_ccy);
+/// println!("Stressed total: {}", valuation.total_base_currency);
 /// # Ok(())
 /// # }
 /// ```
@@ -348,7 +348,7 @@ pub fn apply_and_revalue_view(
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScenarioPnl {
     /// Total scenario P&L in the portfolio base currency
-    /// (`stressed.total_base_ccy - base.total_base_ccy`).
+    /// (`stressed.total_base_currency - base.total_base_currency`).
     pub total: Money,
 
     /// Per-position scenario P&L in the portfolio base currency.
@@ -420,7 +420,9 @@ fn diff_valuations(
         );
     }
 
-    let total = stressed.total_base_ccy.checked_sub(base.total_base_ccy)?;
+    let total = stressed
+        .total_base_currency
+        .checked_sub(base.total_base_currency)?;
 
     Ok(ScenarioPnl { total, by_position })
 }
@@ -740,7 +742,7 @@ mod tests {
         .expect("test should succeed");
 
         let portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -799,7 +801,7 @@ mod tests {
         .expect("test should succeed");
 
         let portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -850,7 +852,7 @@ mod tests {
         .expect("test should succeed");
 
         let mut portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -897,7 +899,7 @@ mod tests {
         .expect("test should succeed");
 
         PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -951,7 +953,7 @@ mod tests {
         )
         .expect("counting position");
         let portfolio = PortfolioBuilder::new("COUNTING_SCENARIO_BATCH")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -1072,7 +1074,7 @@ mod tests {
         crate::valuation::PortfolioValuation {
             as_of: date!(2024 - 01 - 01),
             position_values,
-            total_base_ccy: value,
+            total_base_currency: value,
             by_entity: IndexMap::new(),
             degraded_positions: Vec::new(),
             fx_collapse_policy: finstack_quant_core::money::fx::FxConversionPolicy::CashflowDate,

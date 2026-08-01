@@ -20,14 +20,14 @@
 //! let valuation_date = Date::from_calendar_date(2024, Month::January, 1).expect("test should succeed");
 //!
 //! let result = Portfolio::builder("test_portfolio")
-//!     .base_ccy(Currency::USD)
+//!     .base_currency(Currency::USD)
 //!     .as_of(valuation_date)
 //!     .build();
 //!
 //! match result {
 //!     Ok(portfolio) => {
 //!         // Use portfolio
-//!         assert_eq!(portfolio.base_ccy, Currency::USD);
+//!         assert_eq!(portfolio.base_currency, Currency::USD);
 //!     }
 //!     Err(e) => {
 //!         // Handle error
@@ -54,7 +54,7 @@ use indexmap::IndexMap;
 pub struct PortfolioBuilder {
     id: String,
     name: Option<String>,
-    base_ccy: Option<Currency>,
+    base_currency: Option<Currency>,
     as_of: Option<Date>,
     entities: IndexMap<EntityId, Entity>,
     positions: Vec<Position>,
@@ -77,7 +77,7 @@ impl PortfolioBuilder {
         Self {
             id: id.into(),
             name: None,
-            base_ccy: None,
+            base_currency: None,
             as_of: None,
             entities: IndexMap::new(),
             positions: Vec::new(),
@@ -110,8 +110,8 @@ impl PortfolioBuilder {
     /// # Returns
     ///
     /// The updated builder for fluent chaining.
-    pub fn base_ccy(mut self, ccy: Currency) -> Self {
-        self.base_ccy = Some(ccy);
+    pub fn base_currency(mut self, ccy: Currency) -> Self {
+        self.base_currency = Some(ccy);
         self
     }
 
@@ -345,7 +345,7 @@ impl PortfolioBuilder {
     /// Returns [`Error`](crate::error::Error) when the configuration is incomplete
     /// or validation fails.
     pub fn build(mut self) -> Result<Portfolio> {
-        let base_ccy = self.base_ccy.ok_or_else(|| {
+        let base_currency = self.base_currency.ok_or_else(|| {
             crate::error::Error::ValidationFailed("Base currency must be set".to_string())
         })?;
 
@@ -368,7 +368,7 @@ impl PortfolioBuilder {
         let mut portfolio = Portfolio {
             id: self.id,
             name: self.name,
-            base_ccy,
+            base_currency,
             as_of,
             entities: self.entities,
             positions: self.positions,
@@ -405,7 +405,7 @@ mod tests {
     fn test_builder_basic() {
         let portfolio = PortfolioBuilder::new("TEST_PORTFOLIO")
             .name("Test Portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .entity(Entity::new("ACME"))
             .tag("strategy", "fixed_income")
@@ -414,7 +414,7 @@ mod tests {
 
         assert_eq!(portfolio.id, "TEST_PORTFOLIO");
         assert_eq!(portfolio.name, Some("Test Portfolio".to_string()));
-        assert_eq!(portfolio.base_ccy, Currency::USD);
+        assert_eq!(portfolio.base_currency, Currency::USD);
         assert!(portfolio.entities.contains_key("ACME"));
     }
 
@@ -441,7 +441,7 @@ mod tests {
         .expect("test should succeed");
 
         let portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .position(position)
             .build()
@@ -453,7 +453,7 @@ mod tests {
     }
 
     #[test]
-    fn test_builder_validation_fails_without_base_ccy() {
+    fn test_builder_validation_fails_without_base_currency() {
         let result = PortfolioBuilder::new("TEST")
             .as_of(date!(2024 - 01 - 01))
             .build();
@@ -464,7 +464,7 @@ mod tests {
     #[test]
     fn test_builder_validation_fails_without_as_of() {
         let result = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .build();
 
         assert!(result.is_err());

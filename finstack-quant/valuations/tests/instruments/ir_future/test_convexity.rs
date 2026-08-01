@@ -58,7 +58,7 @@ fn test_explicit_convexity_adjustment() {
         tick_size: 0.0025,
         tick_value: 6.25,
         delivery_months: 3,
-        convexity_adjustment: Some(0.0005), // 5 bps adjustment
+        convexity_adjustment: Some(0.0005), // 5 bp adjustment
     };
 
     let future = create_standard_future(start, end).with_contract_specs(specs_with_ca);
@@ -129,7 +129,7 @@ fn test_large_convexity_adjustment() {
     let market = build_standard_market(as_of, 0.05);
 
     let large_ca = FutureContractSpecs {
-        convexity_adjustment: Some(0.02), // 200 bps - unrealistically large
+        convexity_adjustment: Some(0.02), // 200 bp - unrealistically large
         ..FutureContractSpecs::default()
     };
 
@@ -148,8 +148,8 @@ fn test_large_convexity_adjustment() {
 }
 
 /// Build a flat volatility surface for testing convexity adjustments.
-fn build_flat_vol_surface(vol: f64, surface_id: &str) -> VolSurface {
-    VolSurface::builder(surface_id)
+fn build_flat_vol_surface(vol: f64, vol_surface_id: &str) -> VolSurface {
+    VolSurface::builder(vol_surface_id)
         .expiries(&[0.25, 1.0, 2.0, 5.0, 10.0])
         .strikes(&[0.01, 0.03, 0.05, 0.07, 0.10])
         .row(&[vol, vol, vol, vol, vol])

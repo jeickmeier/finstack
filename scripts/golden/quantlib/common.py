@@ -12,7 +12,7 @@ from typing import Any
 
 import QuantLib as ql  # type: ignore[import-not-found]  # noqa: N813
 
-SCHEMA_VERSION = "finstack_quant.golden/2"
+SCHEMA = "finstack_quant.golden/1"
 VALUATION_DATE = "2026-04-30"
 CAPTURE_DATE = "2026-07-11"
 MIN_QUANTLIB_VERSION = (1, 41)
@@ -67,7 +67,7 @@ def flat_discount_curve(curve_id: str, rate: float) -> dict[str, Any]:
         "type": "discount",
         "id": curve_id,
         "base": VALUATION_DATE,
-        "day_count": "Act365F",
+        "day_count": "act_365f",
         "knot_points": [[0.0, 1.0], [30.0, math.exp(-rate * 30.0)]],
         "interp_style": "log_linear",
         "extrapolation": "flat_forward",
@@ -90,7 +90,7 @@ def flat_forward_curve(
         "id": curve_id,
         "base": VALUATION_DATE,
         "reset_lag": 2,
-        "day_count": "Act360",
+        "day_count": "act_360",
         "tenor": 0.25,
         "knot_points": [[0.0, rate], [30.0, rate]],
         "interp_style": "linear",
@@ -111,7 +111,7 @@ def flat_forward_curve(
 
 
 def constant_vol_surface(
-    surface_id: str,
+    vol_surface_id: str,
     volatility: float,
     *,
     quote_type: str = "black_lognormal",
@@ -120,7 +120,7 @@ def constant_vol_surface(
     """Build a constant volatility surface."""
     surface_strikes = strikes or [0.5, 1.0, 2.0]
     return {
-        "id": surface_id,
+        "id": vol_surface_id,
         "expiries": [0.25, 1.0, 2.0],
         "strikes": surface_strikes,
         "secondary_axis": "strike",
@@ -141,7 +141,7 @@ def market_snapshot(
     return {
         "kind": "snapshot",
         "data": {
-            "version": 2,
+            "schema_version": 1,
             "curves": curves,
             "fx": fx,
             "surfaces": surfaces or [],
@@ -153,6 +153,7 @@ def market_snapshot(
             "fx_delta_vol_surfaces": [],
             "vol_cubes": [],
             "collateral": {},
+            "hierarchy": None,
         },
     }
 

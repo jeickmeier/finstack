@@ -13,6 +13,7 @@ use crate::contract::{
     LoadLimits, LoadPhase, Severity, ValidationReport,
 };
 use crate::types::CurveId;
+use crate::wire::SchemaVersion;
 
 use super::{CurveStorage, MarketContext};
 
@@ -147,18 +148,19 @@ pub struct CreditIndexState {
 // -----------------------------------------------------------------------------
 
 /// Current schema version for [`MarketContextState`].
-pub const MARKET_CONTEXT_STATE_VERSION: u32 = 2;
+pub const MARKET_CONTEXT_STATE_VERSION: u32 = 1;
 
 /// Persistence contract for [`MarketContextState`].
-pub const MARKET_CONTEXT_STATE_CONTRACT: ContractDescriptor = ContractDescriptor {
-    id: "finstack_quant.market_context_state",
-    current: MARKET_CONTEXT_STATE_VERSION,
-    supported: 1..=MARKET_CONTEXT_STATE_VERSION,
-    legacy_missing: Some(1),
-};
+pub const MARKET_CONTEXT_STATE_CONTRACT: ContractDescriptor =
+    ContractDescriptor::new("finstack_quant.market_context_state");
 
-fn legacy_market_context_state_version() -> u32 {
-    1
+fn deserialize_required_hierarchy<'de, D>(
+    deserializer: D,
+) -> core::result::Result<Option<MarketDataHierarchy>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    <Option<MarketDataHierarchy> as serde::Deserialize>::deserialize(deserializer)
 }
 
 /// Complete serializable state of a MarketContext.
@@ -168,12 +170,8 @@ fn legacy_market_context_state_version() -> u32 {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct MarketContextState {
-    /// Schema version for format evolution.
-    ///
-    /// - **1**: initial stable snapshot format.
-    /// - **2**: adds optional market data hierarchy snapshots.
-    #[serde(default = "legacy_market_context_state_version")]
-    pub version: u32,
+    /// Required schema version. Only version `1` is accepted.
+    pub schema_version: SchemaVersion,
     /// All curves (discount, forward, hazard, inflation, base correlation)
     pub curves: Vec<CurveState>,
     /// FX matrix state (optional)
@@ -191,15 +189,14 @@ pub struct MarketContextState {
     /// Credit index aggregates (references curves by ID)
     pub credit_indices: Vec<CreditIndexState>,
     /// FX delta-quoted volatility surfaces
-    #[serde(default)]
     pub fx_delta_vol_surfaces: Vec<FxDeltaVolSurface>,
     /// SABR volatility cubes
-    #[serde(default)]
     pub vol_cubes: Vec<VolCube>,
     /// Collateral CSA mappings
     pub collateral: std::collections::BTreeMap<String, String>,
-    /// Optional market data hierarchy snapshot.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Market data hierarchy snapshot, or `null` when no hierarchy is configured.
+    #[serde(deserialize_with = "deserialize_required_hierarchy")]
+    #[schemars(required)]
     pub hierarchy: Option<MarketDataHierarchy>,
 }
 
@@ -598,7 +595,7 @@ impl From<&MarketContext> for MarketContextState {
             .collect();
 
         MarketContextState {
-            version: MARKET_CONTEXT_STATE_VERSION,
+            schema_version: SchemaVersion::CURRENT,
             curves,
             fx,
             surfaces,
@@ -622,13 +619,6 @@ fn restore_market_context(
     let mut report = validate_restore_references(&state, limits);
     if report.has_errors() {
         return Err(ContractError::Report(Box::new(report)));
-    }
-    if !(1..=MARKET_CONTEXT_STATE_VERSION).contains(&state.version) {
-        return Err(crate::Error::Validation(format!(
-            "Unsupported MarketContextState version: {} (expected 1..={})",
-            state.version, MARKET_CONTEXT_STATE_VERSION
-        ))
-        .into());
     }
     let mut ctx = MarketContext::new();
 
@@ -778,8 +768,8 @@ impl MarketContext {
     /// Load a persisted market-context state under strict contract policy.
     ///
     /// Unlike ordinary serde deserialization, this entry point requires an
-    /// explicit `version` key. It enforces encoded byte and JSON-depth limits,
-    /// validates the supported version range, and then restores the complete
+    /// explicit `schema_version` key. It enforces encoded byte and JSON-depth limits,
+    /// validates the version, and then restores the complete
     /// market context.
     ///
     /// # Arguments
@@ -801,14 +791,14 @@ impl MarketContext {
         limits: &LoadLimits,
     ) -> Result<(Self, ValidationReport), ContractError> {
         let value = parse_json_value(bytes, limits)?;
-        let version = match value.get("version") {
+        let version = match value.get("schema_version") {
             Some(version) => Some(
                 deserialize_json_value::<u32>(version.clone(), limits).map_err(
                     |error| match error {
                         ContractError::Report(mut report) => {
                             for diagnostic in &mut report.diagnostics {
                                 if diagnostic.pointer.is_none() {
-                                    diagnostic.pointer = Some("/version".to_string());
+                                    diagnostic.pointer = Some("/schema_version".to_string());
                                 }
                             }
                             ContractError::Report(report)
@@ -819,7 +809,7 @@ impl MarketContext {
             ),
             None => None,
         };
-        MARKET_CONTEXT_STATE_CONTRACT.resolve_strict(version, "/version", limits)?;
+        MARKET_CONTEXT_STATE_CONTRACT.resolve_strict(version, "/schema_version", limits)?;
         let state: MarketContextState = deserialize_json_value(value, limits)?;
         restore_market_context(state, limits)
     }

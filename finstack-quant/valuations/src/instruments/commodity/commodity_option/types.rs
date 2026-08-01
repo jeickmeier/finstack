@@ -23,6 +23,7 @@ use finstack_quant_core::Result;
 /// When provided, enables simulation-based pricing using the specified
 /// stochastic model instead of the default Black-76 analytical formula.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CommodityMcParams {
     /// Pricing model to use for simulation.
     pub model: CommodityPricingModel,
@@ -39,9 +40,10 @@ pub struct CommodityMcParams {
 ///
 /// Determines the stochastic dynamics used for Monte Carlo simulation.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum CommodityPricingModel {
     /// Analytical Black-76 (no MC needed; included for completeness).
-    BlackScholes,
+    Black76,
     /// Schwartz-Smith two-factor model.
     ///
     /// Models commodity prices as S(t) = exp(X(t) + Y(t)) where:
@@ -96,7 +98,9 @@ pub enum CommodityPricingModel {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 pub struct CommodityOption {
     /// Unique instrument identifier.
@@ -117,10 +121,10 @@ pub struct CommodityOption {
     /// Required when `exercise_style == ExerciseStyle::Bermudan`.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<Vec<String>>")]
+    #[schemars(with = "Option<Vec<finstack_quant_core::wire::DateWire>>")]
     pub exercise_schedule: Option<Vec<Date>>,
     /// Option expiry date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Contract quantity in units.
     pub quantity: f64,
@@ -152,12 +156,24 @@ pub struct CommodityOption {
     pub day_count: DayCount,
     /// Instrument-owned pricing inputs.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Optional market convention for this commodity.
     ///
@@ -438,7 +454,7 @@ impl CommodityOption {
         }
 
         match &mc_params.model {
-            CommodityPricingModel::BlackScholes => {
+            CommodityPricingModel::Black76 => {
                 // Fall back to analytical Black-76
                 let inputs = self.collect_inputs(market, as_of)?;
                 let unit_price = black76_unit_price(
@@ -648,7 +664,7 @@ impl Instrument for CommodityOption {
             .as_deref()
             .map(finstack_quant_core::types::PriceId::new);
         if let Some(spot_id) = self.spot_id.as_deref() {
-            deps.add_spot_id(spot_id);
+            deps.add_market_scalar_id(spot_id);
         }
         deps.add_volatility_dependency(
             crate::instruments::common_impl::dependencies::VolatilityDependency::new(
@@ -1187,10 +1203,10 @@ mod tests {
             deps.curves.forward_curves.as_slice(),
             &[option.forward_curve_id.clone()]
         );
-        assert_eq!(deps.spot_ids, vec!["WTI-SPOT".to_string()]);
+        assert_eq!(deps.market_scalar_ids, vec!["WTI-SPOT".to_string()]);
         assert_eq!(deps.volatility_dependencies.len(), 1);
         let volatility = &deps.volatility_dependencies[0];
-        assert_eq!(volatility.surface_id, option.vol_surface_id);
+        assert_eq!(volatility.vol_surface_id, option.vol_surface_id);
         assert_eq!(
             volatility.underlying_id.as_ref().map(|id| id.as_str()),
             Some("WTI-SPOT")

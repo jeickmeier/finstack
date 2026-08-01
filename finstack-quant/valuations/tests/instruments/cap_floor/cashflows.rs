@@ -13,14 +13,14 @@ fn build_schedule(
     start: Date,
     end: Date,
     frequency: Tenor,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
 ) -> Result<Vec<SchedulePeriod>> {
     build_periods(BuildPeriodsParams {
         start,
         end,
         frequency,
         stub: StubKind::None,
-        bdc,
+        business_day_convention,
         calendar_id: "weekends_only",
         end_of_month: false,
         day_count: DayCount::Act360,

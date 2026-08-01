@@ -42,10 +42,10 @@ impl Default for ContractSpec {
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ScheduleSpec {
     /// Start date for the schedule
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date for the schedule
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Payment frequency
     pub frequency: Tenor,
@@ -54,7 +54,7 @@ pub struct ScheduleSpec {
     pub stub: StubKind,
     /// Business day convention
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional calendar for adjustments
     pub calendar_id: Option<&'static str>,
 }
@@ -67,14 +67,17 @@ impl ScheduleSpec {
             end,
             frequency,
             stub: StubKind::ShortFront,
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: None,
         }
     }
 
     /// Set business day convention
-    pub fn with_bdc(mut self, bdc: BusinessDayConvention) -> Self {
-        self.bdc = bdc;
+    pub fn with_business_day_convention(
+        mut self,
+        business_day_convention: BusinessDayConvention,
+    ) -> Self {
+        self.business_day_convention = business_day_convention;
         self
     }
 
@@ -122,7 +125,7 @@ mod tests {
     fn schedule_spec_builders_apply_overrides() {
         let (start, end) = sample_dates();
         let schedule = ScheduleSpec::new(start, end, Tenor::quarterly())
-            .with_bdc(BusinessDayConvention::ModifiedFollowing)
+            .with_business_day_convention(BusinessDayConvention::ModifiedFollowing)
             .with_stub(StubKind::ShortBack)
             .with_calendar("nyse");
 
@@ -130,7 +133,10 @@ mod tests {
         assert_eq!(schedule.end, end);
         assert_eq!(schedule.frequency, Tenor::quarterly());
         assert_eq!(schedule.stub, StubKind::ShortBack);
-        assert_eq!(schedule.bdc, BusinessDayConvention::ModifiedFollowing);
+        assert_eq!(
+            schedule.business_day_convention,
+            BusinessDayConvention::ModifiedFollowing
+        );
         assert_eq!(schedule.calendar_id, Some("nyse"));
     }
 
@@ -140,7 +146,10 @@ mod tests {
         let schedule = ScheduleSpec::new(start, end, Tenor::monthly());
 
         assert_eq!(schedule.stub, StubKind::ShortFront);
-        assert_eq!(schedule.bdc, BusinessDayConvention::Following);
+        assert_eq!(
+            schedule.business_day_convention,
+            BusinessDayConvention::Following
+        );
         assert_eq!(schedule.calendar_id, None);
     }
 
@@ -156,7 +165,10 @@ mod tests {
         assert!(schedule.is_ok(), "schedule should deserialize");
         if let Ok(schedule) = schedule {
             assert_eq!(schedule.stub, StubKind::ShortFront);
-            assert_eq!(schedule.bdc, BusinessDayConvention::ModifiedFollowing);
+            assert_eq!(
+                schedule.business_day_convention,
+                BusinessDayConvention::ModifiedFollowing
+            );
             assert_eq!(schedule.frequency, Tenor::quarterly());
         }
     }

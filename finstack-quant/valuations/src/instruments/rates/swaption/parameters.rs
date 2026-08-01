@@ -26,9 +26,9 @@ pub struct SwaptionParams {
     /// Payer/receiver side
     pub side: PayReceive,
     /// Optional override: fixed leg payment frequency
-    pub fixed_freq: Option<Tenor>,
+    pub fixed_frequency: Option<Tenor>,
     /// Optional override: float leg payment frequency
-    pub float_freq: Option<Tenor>,
+    pub float_frequency: Option<Tenor>,
     /// Optional override: day count convention for year fractions
     pub day_count: Option<DayCount>,
     /// Optional override: volatility model
@@ -56,8 +56,8 @@ impl SwaptionParams {
             swap_start,
             swap_end,
             side: PayReceive::Pay,
-            fixed_freq: None,
-            float_freq: None,
+            fixed_frequency: None,
+            float_frequency: None,
             day_count: None,
             vol_model: None,
         })
@@ -83,8 +83,8 @@ impl SwaptionParams {
             swap_start,
             swap_end,
             side: PayReceive::Pay,
-            fixed_freq: None,
-            float_freq: None,
+            fixed_frequency: None,
+            float_frequency: None,
             day_count: None,
             vol_model: None,
         })
@@ -110,8 +110,8 @@ impl SwaptionParams {
             swap_start,
             swap_end,
             side: PayReceive::Receive,
-            fixed_freq: None,
-            float_freq: None,
+            fixed_frequency: None,
+            float_frequency: None,
             day_count: None,
             vol_model: None,
         })
@@ -137,28 +137,28 @@ impl SwaptionParams {
             swap_start,
             swap_end,
             side: PayReceive::Receive,
-            fixed_freq: None,
-            float_freq: None,
+            fixed_frequency: None,
+            float_frequency: None,
             day_count: None,
             vol_model: None,
         })
     }
 
     /// Override fixed leg payment frequency
-    pub fn with_fixed_frequency(mut self, freq: Tenor) -> Self {
-        self.fixed_freq = Some(freq);
+    pub fn with_fixed_frequency(mut self, frequency: Tenor) -> Self {
+        self.fixed_frequency = Some(frequency);
         self
     }
 
     /// Override float leg payment frequency
-    pub fn with_float_frequency(mut self, freq: Tenor) -> Self {
-        self.float_freq = Some(freq);
+    pub fn with_float_frequency(mut self, frequency: Tenor) -> Self {
+        self.float_frequency = Some(frequency);
         self
     }
 
     /// Override day count convention
-    pub fn with_day_count(mut self, dc: DayCount) -> Self {
-        self.day_count = Some(dc);
+    pub fn with_day_count(mut self, day_count: DayCount) -> Self {
+        self.day_count = Some(day_count);
         self
     }
 
@@ -217,8 +217,8 @@ mod tests {
         assert_eq!(payer.expiry, expiry);
         assert_eq!(payer.swap_start, swap_start);
         assert_eq!(payer.swap_end, swap_end);
-        assert_eq!(payer.fixed_freq, None);
-        assert_eq!(payer.float_freq, None);
+        assert_eq!(payer.fixed_frequency, None);
+        assert_eq!(payer.float_frequency, None);
         assert_eq!(payer.day_count, None);
         assert_eq!(payer.vol_model, None);
 
@@ -230,7 +230,7 @@ mod tests {
     fn typed_rate_constructors_preserve_decimal_strike() {
         let (expiry, swap_start, swap_end) = sample_dates();
         let notional = Money::new(1_250_000.0, Currency::EUR);
-        let strike = Rate::from_bps(275);
+        let strike = Rate::from_bp(275);
 
         let payer = SwaptionParams::payer_rate(notional, strike, expiry, swap_start, swap_end)
             .expect("valid payer params");
@@ -261,8 +261,8 @@ mod tests {
         .with_day_count(DayCount::Act365F)
         .with_vol_model(VolatilityModel::Normal);
 
-        assert_eq!(params.fixed_freq, Some(Tenor::semi_annual()));
-        assert_eq!(params.float_freq, Some(Tenor::quarterly()));
+        assert_eq!(params.fixed_frequency, Some(Tenor::semi_annual()));
+        assert_eq!(params.float_frequency, Some(Tenor::quarterly()));
         assert_eq!(params.day_count, Some(DayCount::Act365F));
         assert_eq!(params.vol_model, Some(VolatilityModel::Normal));
     }

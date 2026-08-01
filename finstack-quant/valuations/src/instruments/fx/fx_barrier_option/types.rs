@@ -19,7 +19,9 @@ use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = FxBarrierOption::validate)]
 #[serde(deny_unknown_fields)]
@@ -49,13 +51,13 @@ pub struct FxBarrierOption {
     /// Barrier type (up/down, in/out)
     pub barrier_type: BarrierType,
     /// Option expiry date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// First date on which barrier monitoring is active. When set, a live
     /// valuation after this date requires `observed_barrier_breached`.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub monitoring_start_date: Option<Date>,
     /// Observed barrier state for expired options.
     ///
@@ -92,17 +94,26 @@ pub struct FxBarrierOption {
     /// FX volatility surface ID
     pub vol_surface_id: CurveId,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping
     pub attributes: Attributes,
@@ -472,7 +483,7 @@ impl crate::instruments::common_impl::traits::Instrument for FxBarrierOption {
         deps.add_discount_curve(self.domestic_discount_curve_id.clone());
         deps.add_discount_curve(self.foreign_discount_curve_id.clone());
         if let Some(spot_id) = self.fx_spot_id.as_ref() {
-            deps.add_spot_id(spot_id.as_str());
+            deps.add_market_scalar_id(spot_id.as_str());
         }
         deps.add_volatility_dependency(
             crate::instruments::common_impl::dependencies::VolatilityDependency::new(

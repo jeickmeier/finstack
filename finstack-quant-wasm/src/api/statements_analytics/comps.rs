@@ -15,7 +15,7 @@ fn map_to_company_metrics(values: BTreeMap<String, f64>) -> fc::CompanyMetrics {
             "enterprise_value" => metrics.enterprise_value = Some(value),
             "market_cap" => metrics.market_cap = Some(value),
             "share_price" => metrics.share_price = Some(value),
-            "oas_bps" => metrics.oas_bps = Some(value),
+            "oas_bp" => metrics.oas_bp = Some(value),
             "yield_pct" => metrics.yield_pct = Some(value),
             "ebitda" => metrics.ebitda = Some(value),
             "revenue" => metrics.revenue = Some(value),

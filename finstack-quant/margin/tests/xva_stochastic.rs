@@ -249,10 +249,10 @@ fn toy_forward_valuer_mpor_csa_and_path_im_to_total_xva() {
         .expect("HazardCurve should build");
 
     let funding = FundingConfig {
-        funding_spread_bps: 50.0,
-        funding_benefit_bps: Some(30.0),
+        funding_spread_bp: 50.0,
+        funding_benefit_bp: Some(30.0),
         im_profile: Some(im_profile),
-        margin_funding_spread_bps: None,
+        margin_funding_spread_bp: None,
     };
 
     let result = compute_bilateral_xva(
@@ -269,7 +269,7 @@ fn toy_forward_valuer_mpor_csa_and_path_im_to_total_xva() {
     let dva = result.dva.expect("DVA");
     let fva = result.fva.expect("FVA");
     let mva = result.mva.expect("MVA must be aggregated, not dropped");
-    let total = result.total_xva.expect("total XVA");
+    let total = result.total_xva;
 
     assert!(
         (mva - 10_000.0).abs() < 1e-6,

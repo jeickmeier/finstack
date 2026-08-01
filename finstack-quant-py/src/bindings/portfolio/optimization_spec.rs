@@ -1,11 +1,8 @@
 //! Typed `#[pyclass]` wrappers for `finstack_quant_portfolio::optimization` spec
 //! and result types.
 //!
-//! This module is additive: the existing entry point
-//! [`super::optimization::optimize_portfolio`] continues to accept a JSON
-//! ``PortfolioOptimizationSpec`` and return a JSON result. Bindings introduced
-//! here let callers build a spec programmatically using the same builder
-//! pattern as the Rust API, and inspect optimization results via typed
+//! Callers build a specification programmatically using the same builder
+//! pattern as the Rust API and inspect optimization results through typed
 //! getters.
 //!
 //! Notes on what is bound and what is not:
@@ -1530,15 +1527,6 @@ impl PyPortfolioOptimizationResult {
     }
 
     #[getter]
-    fn dual_values(&self) -> std::collections::HashMap<String, f64> {
-        self.inner
-            .dual_values
-            .iter()
-            .map(|(k, v)| (k.clone(), *v))
-            .collect()
-    }
-
-    #[getter]
     fn constraint_slacks(&self) -> std::collections::HashMap<String, f64> {
         self.inner
             .constraint_slacks
@@ -1600,14 +1588,13 @@ impl PyPortfolioOptimizationResult {
 }
 
 // ---------------------------------------------------------------------------
-// Free helpers — typed entry points (additive; the JSON entry point in
-// `super::optimization` remains unchanged).
+// Free helper
 // ---------------------------------------------------------------------------
 
 /// Run the optimizer against a typed :class:`PortfolioOptimizationSpec`.
 #[pyfunction]
 #[pyo3(signature = (spec, market))]
-fn optimize_portfolio_typed(
+fn optimize_portfolio(
     py: Python<'_>,
     spec: &PyPortfolioOptimizationSpec,
     market: &Bound<'_, PyAny>,
@@ -1648,7 +1635,7 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPortfolioOptimizationSpec>()?;
     m.add_class::<PyPortfolioOptimizationResult>()?;
 
-    m.add_function(wrap_pyfunction!(optimize_portfolio_typed, m)?)?;
+    m.add_function(wrap_pyfunction!(optimize_portfolio, m)?)?;
 
     Ok(())
 }

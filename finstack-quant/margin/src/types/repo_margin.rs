@@ -19,6 +19,7 @@ use finstack_quant_core::types::Percentage;
     schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum RepoMarginType {
     /// No margining - fixed haircut only.
     ///
@@ -61,11 +62,11 @@ impl std::str::FromStr for RepoMarginType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().replace('-', "_").as_str() {
+        match s {
             "none" => Ok(RepoMarginType::None),
-            "mark_to_market" | "marktomarket" | "mtm" => Ok(RepoMarginType::MarkToMarket),
-            "net_exposure" | "netexposure" | "net" => Ok(RepoMarginType::NetExposure),
-            "triparty" | "tri_party" => Ok(RepoMarginType::Triparty),
+            "mark_to_market" => Ok(RepoMarginType::MarkToMarket),
+            "net_exposure" => Ok(RepoMarginType::NetExposure),
+            "triparty" => Ok(RepoMarginType::Triparty),
             other => Err(format!("Unknown repo margin type: {}", other)),
         }
     }

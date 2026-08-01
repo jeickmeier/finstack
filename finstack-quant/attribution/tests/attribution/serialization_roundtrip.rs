@@ -4,8 +4,8 @@
 //! can be serialized to JSON and deserialized back without loss.
 
 use finstack_quant_attribution::{
-    AttributionConfig, AttributionEnvelope, AttributionFactor, AttributionMethod, AttributionSpec,
-    ExecutionPolicy,
+    AttributionConfig, AttributionEnvelope, AttributionFactor, AttributionMethod,
+    AttributionSchema, AttributionSpec, ExecutionPolicy,
 };
 use finstack_quant_cashflows::builder::{DefaultModelSpec, PrepaymentModelSpec, RecoveryModelSpec};
 use finstack_quant_core::currency::Currency;
@@ -35,7 +35,7 @@ fn test_attribution_envelope_json_roundtrip() {
     let spec = AttributionSpec {
         instrument: InstrumentJson::Bond(bond),
         market_t0: MarketContextState {
-            version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+            schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
             curves: vec![],
             fx: None,
             surfaces: vec![],
@@ -50,7 +50,7 @@ fn test_attribution_envelope_json_roundtrip() {
             vol_cubes: vec![],
         },
         market_t1: MarketContextState {
-            version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+            schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
             curves: vec![],
             fx: None,
             surfaces: vec![],
@@ -83,7 +83,7 @@ fn test_attribution_envelope_json_roundtrip() {
     let parsed: AttributionEnvelope = serde_json::from_str(&json).unwrap();
 
     // Verify schema version
-    assert_eq!(parsed.schema, "finstack_quant.attribution/1");
+    assert_eq!(parsed.schema, AttributionSchema::Attribution);
 
     // Verify dates
     assert_eq!(parsed.attribution.as_of_t0, envelope.attribution.as_of_t0);
@@ -97,7 +97,7 @@ fn test_attribution_envelope_json_roundtrip() {
 }
 
 #[test]
-fn test_attribution_envelope_execute_rejects_unknown_schema() {
+fn test_attribution_envelope_deserialization_rejects_unknown_schema() {
     let bond = Bond::fixed(
         "TEST-BOND",
         Money::new(1_000_000.0, Currency::USD),
@@ -111,7 +111,7 @@ fn test_attribution_envelope_execute_rejects_unknown_schema() {
     let spec = AttributionSpec {
         instrument: InstrumentJson::Bond(bond),
         market_t0: MarketContextState {
-            version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+            schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
             curves: vec![],
             fx: None,
             surfaces: vec![],
@@ -126,7 +126,7 @@ fn test_attribution_envelope_execute_rejects_unknown_schema() {
             vol_cubes: vec![],
         },
         market_t1: MarketContextState {
-            version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+            schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
             curves: vec![],
             fx: None,
             surfaces: vec![],
@@ -150,12 +150,14 @@ fn test_attribution_envelope_execute_rejects_unknown_schema() {
         full_cross_attribution: false,
     };
 
-    let mut envelope = AttributionEnvelope::new(spec);
-    envelope.schema = "finstack_quant.attribution/2".to_string();
+    let envelope = AttributionEnvelope::new(spec);
+    let mut value = serde_json::to_value(envelope).expect("serialize attribution envelope");
+    value["schema"] = serde_json::Value::String("finstack_quant.attribution/2".to_string());
 
-    let error = envelope.execute().expect_err("unknown schema must fail");
+    let error = serde_json::from_value::<AttributionEnvelope>(value)
+        .expect_err("unknown schema must fail during deserialization");
     assert!(
-        error.to_string().contains("Unsupported attribution schema"),
+        error.to_string().contains("unknown variant"),
         "schema error should be explicit, got: {error}"
     );
 }
@@ -177,7 +179,7 @@ fn test_attribution_envelope_waterfall_roundtrip() {
     let spec = AttributionSpec {
         instrument: InstrumentJson::Bond(bond),
         market_t0: MarketContextState {
-            version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+            schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
             curves: vec![],
             fx: None,
             surfaces: vec![],
@@ -192,7 +194,7 @@ fn test_attribution_envelope_waterfall_roundtrip() {
             vol_cubes: vec![],
         },
         market_t1: MarketContextState {
-            version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+            schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
             curves: vec![],
             fx: None,
             surfaces: vec![],
@@ -244,7 +246,7 @@ fn test_attribution_config_roundtrip() {
         strict_validation: Some(false),
         rounding_scale: None,
         rate_bump_bp: None,
-        target_ccy: None,
+        target_currency: None,
         execution_policy: Some(ExecutionPolicy::Serial),
     };
 
@@ -266,7 +268,7 @@ fn test_attribution_envelope_from_example_json() {
     let envelope: AttributionEnvelope = serde_json::from_str(json).unwrap();
 
     // Verify structure
-    assert_eq!(envelope.schema, "finstack_quant.attribution/1");
+    assert_eq!(envelope.schema, AttributionSchema::Attribution);
     assert!(matches!(
         envelope.attribution.method,
         AttributionMethod::Parallel
@@ -296,7 +298,7 @@ fn test_attribution_envelope_to_from_json_helpers() {
     let spec = AttributionSpec {
         instrument: InstrumentJson::Bond(bond),
         market_t0: MarketContextState {
-            version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+            schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
             curves: vec![],
             fx: None,
             surfaces: vec![],
@@ -311,7 +313,7 @@ fn test_attribution_envelope_to_from_json_helpers() {
             vol_cubes: vec![],
         },
         market_t1: MarketContextState {
-            version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+            schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
             curves: vec![],
             fx: None,
             surfaces: vec![],
@@ -372,7 +374,7 @@ fn test_attribution_result_envelope_roundtrip() {
     let json_str = serde_json::to_string_pretty(&envelope).unwrap();
     let parsed = serde_json::from_str::<AttributionResultEnvelope>(&json_str).unwrap();
 
-    assert_eq!(parsed.schema, "finstack_quant.attribution/1");
+    assert_eq!(parsed.schema, AttributionSchema::Attribution);
     assert_eq!(parsed.result.attribution.total_pnl, total);
 }
 
@@ -384,9 +386,11 @@ fn test_attribution_result_envelope_roundtrip() {
 fn test_attribution_method_parallel_roundtrip() {
     let method = AttributionMethod::Parallel;
     let json = serde_json::to_string(&method).unwrap();
+    assert_eq!(json, "\"parallel\"");
     let deserialized: AttributionMethod = serde_json::from_str(&json).unwrap();
 
     assert!(matches!(deserialized, AttributionMethod::Parallel));
+    assert!(serde_json::from_str::<AttributionMethod>("\"Parallel\"").is_err());
 }
 
 #[test]
@@ -529,12 +533,14 @@ fn test_attribution_method_json_structure() {
 
     let json = serde_json::to_value(&method).unwrap();
 
-    // Should be a tagged enum with "Waterfall" key
+    // Should be a tagged enum with the canonical "waterfall" key.
     assert!(json.is_object());
-    assert!(json.get("Waterfall").is_some());
+    assert!(json.get("waterfall").is_some());
+    assert_eq!(json["waterfall"][0], "carry");
+    assert_eq!(json["waterfall"][1], "rates_curves");
 
     // The waterfall value should be an array of factors
-    let factors = json.get("Waterfall").unwrap();
+    let factors = json.get("waterfall").unwrap();
     assert!(factors.is_array());
     assert_eq!(factors.as_array().unwrap().len(), 2);
 }
@@ -551,10 +557,10 @@ fn test_model_params_snapshot_json_structure() {
 
     // Should be a tagged enum
     assert!(json.is_object());
-    assert!(json.get("StructuredCredit").is_some());
+    assert!(json.get("structured_credit").is_some());
 
     // Should contain the three spec fields
-    let structured = json.get("StructuredCredit").unwrap();
+    let structured = json.get("structured_credit").unwrap();
     assert!(structured.get("prepayment_spec").is_some());
     assert!(structured.get("default_spec").is_some());
     assert!(structured.get("recovery_spec").is_some());

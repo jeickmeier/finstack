@@ -31,16 +31,20 @@ pub(crate) fn invalid_annualization_factor(annualize: bool, ann_factor: f64) -> 
 /// conventions (e.g. an Actual/Actual segment walk) only when an external
 /// caller demands one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum AnnualizationConvention {
     /// Actual calendar days divided by 365.0.
+    #[serde(rename = "act_365_fixed")]
     Act365Fixed,
     /// Actual calendar days divided by 365.25 (default).
     #[default]
+    #[serde(rename = "act_365_25")]
     Act365_25,
 }
 
 /// Basis used to annualize CAGR from either explicit dates or a periods-per-year factor.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum CagrBasis {
     /// Annualize across an explicit calendar range using the chosen convention.
     Dates {

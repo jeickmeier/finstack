@@ -168,6 +168,7 @@ use crate::currency::Currency;
 /// assert!(msg.contains("Invalid input"));
 /// ```
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Error {
     /// User input validation error.

@@ -99,7 +99,9 @@ impl SoftCallTrigger {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct ConvertibleBond {
@@ -108,10 +110,10 @@ pub struct ConvertibleBond {
     /// Principal amount.
     pub notional: Money,
     /// Issue date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue_date: Date,
     /// Maturity date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Discount curve identifier for the debt component (risk-free or funding).
     pub discount_curve_id: CurveId,
@@ -182,17 +184,26 @@ pub struct ConvertibleBond {
     #[builder(optional)]
     pub floating_coupon: Option<FloatingCouponSpec>,
     /// Attributes for selection and tagging.
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -238,6 +249,7 @@ impl From<crate::models::TreeGreeks> for ConvertibleGreeks {
 
 /// Defines how and when conversion can occur.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ConversionPolicy {
     /// Holder may convert at any time (subject to window, if any).
     Voluntary,
@@ -246,14 +258,14 @@ pub enum ConversionPolicy {
     /// **Modeling scope**: the tree pricer models conversion only at the
     /// single step mapped from this date; early voluntary conversion before
     /// the mandatory date is not modeled.
-    MandatoryOn(#[schemars(with = "String")] Date),
+    MandatoryOn(#[schemars(with = "finstack_quant_core::wire::DateWire")] Date),
     /// Holder may convert within a window.
     Window {
         /// Start.
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         start: Date,
         /// End.
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         end: Date,
     },
     /// Conversion tied to an external event or condition.
@@ -276,7 +288,7 @@ pub enum ConversionPolicy {
     /// before that date (offered by some mandatory structures) is not modeled.
     MandatoryVariable {
         /// Date of mandatory conversion.
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         conversion_date: Date,
         /// Upper conversion price (above this, holder receives min shares).
         upper_conversion_price: f64,
@@ -287,6 +299,7 @@ pub enum ConversionPolicy {
 
 /// Events that may trigger conversion.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ConversionEvent {
     /// Qualified Ipo variant.
     QualifiedIpo,
@@ -313,6 +326,7 @@ pub enum ConversionEvent {
 /// less protective but more issuer-friendly. **Full Ratchet** is mainly seen
 /// in private placements and venture-style convertibles.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum AntiDilutionPolicy {
     /// No anti-dilution protection.
     None,
@@ -377,6 +391,7 @@ pub enum AntiDilutionPolicy {
 /// assert!(conversion.dividend_adjustment.is_protected());
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum DividendAdjustment {
     /// No dividend adjustment.
     None,
@@ -403,7 +418,7 @@ impl DividendAdjustment {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct DilutionEvent {
     /// Date of the dilutive event.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// New issue price per share (for below-market issuances).
     pub new_issue_price: f64,
@@ -705,11 +720,11 @@ impl ConvertibleBond {
                 coupon_type: CouponType::Cash,
                 rate: coupon_rate,
                 schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                    freq: Tenor::semi_annual(),
+                    frequency: Tenor::semi_annual(),
 
-                    dc: DayCount::Thirty360,
+                    day_count: DayCount::Thirty360,
 
-                    bdc: BusinessDayConvention::Following,
+                    business_day_convention: BusinessDayConvention::Following,
 
                     calendar_id: "weekends_only".to_string(),
 
@@ -801,11 +816,11 @@ impl ConvertibleBond {
                 coupon_type: CouponType::Cash,
                 rate: coupon_rate,
                 schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                    freq: Tenor::semi_annual(),
+                    frequency: Tenor::semi_annual(),
 
-                    dc: DayCount::Thirty360,
+                    day_count: DayCount::Thirty360,
 
-                    bdc: BusinessDayConvention::Following,
+                    business_day_convention: BusinessDayConvention::Following,
 
                     calendar_id: "weekends_only".to_string(),
 
@@ -979,19 +994,19 @@ impl crate::instruments::common_impl::traits::Instrument for ConvertibleBond {
             }
         }
         if let Some(underlying_id) = &self.underlying_equity_id {
-            deps.add_spot_id(underlying_id.as_str());
+            deps.add_market_scalar_id(underlying_id.as_str());
             let price_id = PriceId::new(underlying_id);
             let reference_strike = self
                 .effective_conversion_ratio()
                 .filter(|ratio| *ratio > 0.0)
                 .map(|ratio| self.notional.amount() / ratio);
             for dividend_yield_id in super::market_inputs::dividend_yield_candidate_ids(self)? {
-                deps.add_spot_id(dividend_yield_id);
+                deps.add_market_scalar_id(dividend_yield_id);
             }
             for vol_surface_id in super::market_inputs::volatility_candidate_ids(self)? {
                 // Convertible volatility may be supplied either as a unitless
                 // MarketScalar or as a full surface under the same candidate ID.
-                deps.add_spot_id(vol_surface_id.clone());
+                deps.add_market_scalar_id(vol_surface_id.clone());
                 deps.add_volatility_dependency(VolatilityDependency::new(
                     vol_surface_id,
                     Some(price_id.clone()),
@@ -1097,14 +1112,18 @@ mod tests {
             crate::instruments::Instrument::market_dependencies(&bond).expect("dependencies");
 
         assert!(deps
-            .spot_ids
+            .market_scalar_ids
             .contains(bond.underlying_equity_id.as_ref().expect("underlying")));
-        assert!(dividend_ids.iter().all(|id| deps.spot_ids.contains(id)));
-        assert!(volatility_ids.iter().all(|id| deps.spot_ids.contains(id)));
+        assert!(dividend_ids
+            .iter()
+            .all(|id| deps.market_scalar_ids.contains(id)));
+        assert!(volatility_ids
+            .iter()
+            .all(|id| deps.market_scalar_ids.contains(id)));
         assert_eq!(
             deps.volatility_dependencies
                 .iter()
-                .map(|dependency| dependency.surface_id.as_str())
+                .map(|dependency| dependency.vol_surface_id.as_str())
                 .collect::<Vec<_>>(),
             volatility_ids
                 .iter()
@@ -1208,9 +1227,9 @@ mod tests {
     #[test]
     fn dividend_adjustment_serde_round_trip() {
         for (adjustment, expected_json) in [
-            (DividendAdjustment::None, "\"None\""),
-            (DividendAdjustment::AdjustPrice, "\"AdjustPrice\""),
-            (DividendAdjustment::AdjustRatio, "\"AdjustRatio\""),
+            (DividendAdjustment::None, "\"none\""),
+            (DividendAdjustment::AdjustPrice, "\"adjust_price\""),
+            (DividendAdjustment::AdjustRatio, "\"adjust_ratio\""),
         ] {
             let json = serde_json::to_string(&adjustment).expect("serialize");
             assert_eq!(json, expected_json);

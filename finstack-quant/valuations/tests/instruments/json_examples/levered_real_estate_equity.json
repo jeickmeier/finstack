@@ -4,7 +4,7 @@
       "asset": {
         "attributes": {},
         "currency": "USD",
-        "day_count": "Act365F",
+        "day_count": "act_365f",
         "discount_curve_id": "USD-OIS",
         "discount_rate": 0.08,
         "id": "RE-OFFICE-DCF",
@@ -30,27 +30,6 @@
             100000.0
           ]
         ],
-        "pricing_overrides": {
-          "adaptive_bumps": false,
-          "call_friction_cents": null,
-          "cds_quote_bp": null,
-          "credit_spread_bump_bp": null,
-          "implied_volatility": null,
-          "mc_seed_scenario": null,
-          "mean_reversion": null,
-          "quoted_clean_price": null,
-          "rate_bump_bp": null,
-          "rho_bump_decimal": null,
-          "spot_bump_pct": null,
-          "theta_period": null,
-          "tree_steps": null,
-          "upfront_payment": null,
-          "use_gobet_miri": false,
-          "vega_bump_decimal": null,
-          "vol_bump_pct": null,
-          "vol_surface_extrapolation": "error",
-          "ytm_bump_decimal": null
-        },
         "property_type": "office",
         "terminal_cap_rate": 0.055,
         "valuation_date": "2025-01-01",
@@ -59,28 +38,7 @@
       "attributes": {},
       "currency": "USD",
       "discount_curve_id": "USD-OIS",
-      "id": "RE-LEVERED-OFFICE",
-      "pricing_overrides": {
-        "adaptive_bumps": false,
-        "call_friction_cents": null,
-        "cds_quote_bp": null,
-        "credit_spread_bump_bp": null,
-        "implied_volatility": null,
-        "mc_seed_scenario": null,
-        "mean_reversion": null,
-        "quoted_clean_price": null,
-        "rate_bump_bp": null,
-        "rho_bump_decimal": null,
-        "spot_bump_pct": null,
-        "theta_period": null,
-        "tree_steps": null,
-        "upfront_payment": null,
-        "use_gobet_miri": false,
-        "vega_bump_decimal": null,
-        "vol_bump_pct": null,
-        "vol_surface_extrapolation": "error",
-        "ytm_bump_decimal": null
-      }
+      "id": "RE-LEVERED-OFFICE"
     },
     "type": "levered_real_estate_equity"
   },

@@ -54,10 +54,10 @@ fn resolve_fiscal_calendar(calendar_id: &str) -> PyResult<&'static dyn HolidayCa
 }
 
 /// Parse a frequency string into a [`PeriodKind`].
-fn parse_freq(freq: &str) -> PyResult<PeriodKind> {
-    freq.parse::<PeriodKind>().map_err(|_| {
+fn parse_frequency(frequency: &str) -> PyResult<PeriodKind> {
+    frequency.parse::<PeriodKind>().map_err(|_| {
         crate::errors::value_error(format!(
-            "Unknown frequency {freq:?}; expected one of: \
+            "Unknown frequency {frequency:?}; expected one of: \
              daily, weekly, monthly, quarterly, semiannual, annual"
         ))
     })
@@ -156,9 +156,9 @@ fn build_performance(
     prices: Vec<Vec<f64>>,
     ticker_names: Vec<String>,
     benchmark_ticker: Option<&str>,
-    freq: &str,
+    frequency: &str,
 ) -> PyResult<PyPerformance> {
-    let period_kind = parse_freq(freq)?;
+    let period_kind = parse_frequency(frequency)?;
     let inner = py
         .detach(|| fa::Performance::new(dates, prices, ticker_names, benchmark_ticker, period_kind))
         .map_err(core_to_py)?;
@@ -172,9 +172,9 @@ fn build_returns_performance(
     returns: Vec<Vec<f64>>,
     ticker_names: Vec<String>,
     benchmark_ticker: Option<&str>,
-    freq: &str,
+    frequency: &str,
 ) -> PyResult<PyPerformance> {
-    let period_kind = parse_freq(freq)?;
+    let period_kind = parse_frequency(frequency)?;
     let inner = py
         .detach(|| {
             fa::Performance::from_returns(
@@ -283,12 +283,12 @@ impl PyPerformance {
     /// The DataFrame index must contain ``datetime.date`` or ``pd.Timestamp``
     /// values, and each column represents one ticker's price series.
     #[new]
-    #[pyo3(signature = (prices, benchmark_ticker=None, freq="daily"))]
+    #[pyo3(signature = (prices, benchmark_ticker=None, frequency="daily"))]
     fn new(
         py: Python<'_>,
         prices: Bound<'_, PyAny>,
         benchmark_ticker: Option<&str>,
-        freq: &str,
+        frequency: &str,
     ) -> PyResult<Self> {
         let panel = extract_dataframe_panel(
             &prices,
@@ -300,23 +300,30 @@ impl PyPerformance {
             panel.columns,
             panel.ticker_names,
             benchmark_ticker,
-            freq,
+            frequency,
         )
     }
 
     /// Construct from raw arrays (dates, prices matrix, ticker names).
     #[staticmethod]
-    #[pyo3(signature = (dates, prices, ticker_names, benchmark_ticker=None, freq="daily"))]
+    #[pyo3(signature = (dates, prices, ticker_names, benchmark_ticker=None, frequency="daily"))]
     fn from_arrays(
         py: Python<'_>,
         dates: Vec<Bound<'_, PyAny>>,
         prices: Vec<Vec<f64>>,
         ticker_names: Vec<String>,
         benchmark_ticker: Option<&str>,
-        freq: &str,
+        frequency: &str,
     ) -> PyResult<Self> {
         let rust_dates = py_dates_to_rust(&dates)?;
-        build_performance(py, rust_dates, prices, ticker_names, benchmark_ticker, freq)
+        build_performance(
+            py,
+            rust_dates,
+            prices,
+            ticker_names,
+            benchmark_ticker,
+            frequency,
+        )
     }
 
     /// Construct from a pandas DataFrame of returns.
@@ -325,12 +332,12 @@ impl PyPerformance {
     /// values, and each column represents one ticker's simple-return series
     /// aligned with the index.
     #[staticmethod]
-    #[pyo3(signature = (returns, benchmark_ticker=None, freq="daily"))]
+    #[pyo3(signature = (returns, benchmark_ticker=None, frequency="daily"))]
     fn from_returns(
         py: Python<'_>,
         returns: Bound<'_, PyAny>,
         benchmark_ticker: Option<&str>,
-        freq: &str,
+        frequency: &str,
     ) -> PyResult<Self> {
         let panel = extract_dataframe_panel(
             &returns,
@@ -342,20 +349,20 @@ impl PyPerformance {
             panel.columns,
             panel.ticker_names,
             benchmark_ticker,
-            freq,
+            frequency,
         )
     }
 
     /// Construct from raw return arrays (dates, returns matrix, ticker names).
     #[staticmethod]
-    #[pyo3(signature = (dates, returns, ticker_names, benchmark_ticker=None, freq="daily"))]
+    #[pyo3(signature = (dates, returns, ticker_names, benchmark_ticker=None, frequency="daily"))]
     fn from_returns_arrays(
         py: Python<'_>,
         dates: Vec<Bound<'_, PyAny>>,
         returns: Vec<Vec<f64>>,
         ticker_names: Vec<String>,
         benchmark_ticker: Option<&str>,
-        freq: &str,
+        frequency: &str,
     ) -> PyResult<Self> {
         let rust_dates = py_dates_to_rust(&dates)?;
         build_returns_performance(
@@ -364,7 +371,7 @@ impl PyPerformance {
             returns,
             ticker_names,
             benchmark_ticker,
-            freq,
+            frequency,
         )
     }
 
@@ -398,11 +405,11 @@ impl PyPerformance {
     }
 
     /// Observation frequency, as the canonical lowercase token (e.g. ``"daily"``,
-    /// ``"monthly"``, ``"semiannual"``) that round-trips through the ``freq``
-    /// constructor argument and :meth:`period_stats` ``agg_freq`` parameter.
+    /// ``"monthly"``, ``"semiannual"``) that round-trips through the ``frequency``
+    /// constructor argument and :meth:`period_stats` ``aggregation_frequency`` parameter.
     #[getter]
-    fn freq(&self) -> String {
-        self.inner.freq().to_string()
+    fn frequency(&self) -> String {
+        self.inner.frequency().to_string()
     }
 
     /// Full return-aligned date grid (independent of any active window).
@@ -886,15 +893,15 @@ impl PyPerformance {
     }
 
     /// Period statistics for a specific ticker at a given aggregation frequency.
-    #[pyo3(signature = (ticker_idx, agg_freq = "monthly", fiscal_year_start_month = None, fiscal_year_start_day = None))]
+    #[pyo3(signature = (ticker_idx, aggregation_frequency = "monthly", fiscal_year_start_month = None, fiscal_year_start_day = None))]
     fn period_stats(
         &self,
         ticker_idx: usize,
-        agg_freq: &str,
+        aggregation_frequency: &str,
         fiscal_year_start_month: Option<u8>,
         fiscal_year_start_day: Option<u8>,
     ) -> PyResult<PyPeriodStats> {
-        let pk = parse_freq(agg_freq)?;
+        let pk = parse_frequency(aggregation_frequency)?;
         let fc = make_fiscal_config(fiscal_year_start_month, fiscal_year_start_day)?;
         Ok(PyPeriodStats {
             inner: self
@@ -988,17 +995,17 @@ impl PyPerformance {
 
     /// Calendar-bucketed compounded returns as a pandas ``DataFrame``.
     ///
-    /// ``freq`` is one of ``"daily"``, ``"weekly"``, ``"monthly"``,
+    /// ``frequency`` is one of ``"daily"``, ``"weekly"``, ``"monthly"``,
     /// ``"quarterly"``, ``"semiannual"``, or ``"annual"``. Returns a DataFrame
     /// indexed by period-end date with one column per ticker; buckets reconcile
     /// with :meth:`cumulative_returns_to_dataframe`.
-    #[pyo3(signature = (freq = "monthly"))]
+    #[pyo3(signature = (frequency = "monthly"))]
     fn periodic_returns_to_dataframe<'py>(
         &self,
         py: Python<'py>,
-        freq: &str,
+        frequency: &str,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let kind = parse_freq(freq)?;
+        let kind = parse_frequency(frequency)?;
         periodic_panel_to_dataframe(py, &self.inner, self.inner.periodic_returns(kind))
     }
 

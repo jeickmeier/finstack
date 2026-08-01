@@ -4,6 +4,8 @@
 //! can be properly integrated into financial statement models.
 
 use finstack_quant_statements::types::DebtInstrumentSpec;
+use finstack_quant_valuations::instruments::fixed_income::term_loan::TermLoan;
+use finstack_quant_valuations::instruments::InstrumentJson;
 
 // ============================================================================
 // TermLoan Variant Tests
@@ -13,13 +15,7 @@ use finstack_quant_statements::types::DebtInstrumentSpec;
 fn test_term_loan_variant_serialization() {
     let spec = DebtInstrumentSpec {
         id: "TL-001".to_string(),
-        spec: serde_json::json!({
-            "type": "term_loan",
-            "spec": {
-                "id": "TL-001",
-                "notional": { "amount": 5000000.0, "currency": "USD" }
-            }
-        }),
+        spec: InstrumentJson::TermLoan(TermLoan::example().expect("valid term loan")),
     };
 
     // Test serialization roundtrip
@@ -45,9 +41,8 @@ fn term_loan_capital_structure_evaluates_with_market() {
     use finstack_quant_statements::builder::ModelBuilder;
     use finstack_quant_statements::evaluator::Evaluator;
     use finstack_quant_valuations::instruments::fixed_income::term_loan::{
-        AmortizationSpec, RateSpec, TermLoan,
+        AmortizationSpec, RateSpec,
     };
-    use finstack_quant_valuations::instruments::InstrumentJson;
     use time::macros::date;
 
     let issue = date!(2025 - 01 - 01);
@@ -61,7 +56,7 @@ fn term_loan_capital_structure_evaluates_with_market() {
         .rate(RateSpec::Fixed { rate_bp: 800 })
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -75,12 +70,10 @@ fn term_loan_capital_structure_evaluates_with_market() {
         .build()
         .expect("valid term loan");
 
-    let tagged = serde_json::to_value(InstrumentJson::TermLoan(loan))
-        .expect("term loan should serialize to tagged registry payload");
     let model = ModelBuilder::new("term-loan-cs")
         .periods("2025Q1..2025Q4", None)
         .expect("valid periods")
-        .add_custom_debt("TL-001", tagged)
+        .add_debt("TL-001", InstrumentJson::TermLoan(loan))
         .compute("tl_interest", "cs.interest_expense.TL-001")
         .expect("valid cs interest formula")
         .compute("tl_balance", "cs.debt_balance.TL-001")

@@ -76,18 +76,14 @@ fn test_pay_receive_inflation_display() {
 fn test_pay_receive_inflation_from_str() {
     use std::str::FromStr;
 
-    assert_eq!(PayReceive::from_str("pay_fixed").unwrap(), PayReceive::Pay);
     assert_eq!(PayReceive::from_str("pay").unwrap(), PayReceive::Pay);
-    assert_eq!(
-        PayReceive::from_str("receive_fixed").unwrap(),
-        PayReceive::Receive
-    );
     assert_eq!(
         PayReceive::from_str("receive").unwrap(),
         PayReceive::Receive
     );
-    assert_eq!(PayReceive::from_str("PAY-FIXED").unwrap(), PayReceive::Pay);
-    assert!(PayReceive::from_str("invalid").is_err());
+    for retired in ["pay_fixed", "receive_fixed", "PAY-FIXED", "invalid"] {
+        assert!(PayReceive::from_str(retired).is_err());
+    }
 }
 
 #[test]
@@ -95,7 +91,7 @@ fn test_swap_with_different_day_counts() {
     let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let maturity = Date::from_calendar_date(2030, Month::January, 1).unwrap();
 
-    for dc in &[
+    for day_count in &[
         DayCount::Act360,
         DayCount::Act365F,
         DayCount::Thirty360,
@@ -109,13 +105,13 @@ fn test_swap_with_different_day_counts() {
             .fixed_rate(Decimal::try_from(0.02).expect("valid decimal"))
             .inflation_index_id("US-CPI-U".into())
             .discount_curve_id("USD-OIS".into())
-            .day_count(*dc)
+            .day_count(*day_count)
             .side(PayReceive::Pay)
             .attributes(Attributes::new())
             .build()
             .unwrap();
 
-        assert_eq!(swap.day_count, *dc);
+        assert_eq!(swap.day_count, *day_count);
     }
 }
 

@@ -23,7 +23,7 @@
           "tick_size": 0.0025,
           "tick_value": 6.25
         },
-        "day_count": "Act360",
+        "day_count": "act_360",
         "discount_curve_id": "USD-OIS",
         "expiry": "2026-06-17",
         "fixing_date": "2026-06-17",
@@ -52,7 +52,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "extrapolation": "flat_forward",
           "id": "USD-OIS",
           "interp_style": "log_linear",
@@ -73,7 +73,7 @@
         },
         {
           "base": "2026-04-30",
-          "day_count": "Act360",
+          "day_count": "act_360",
           "extrapolation": "flat_forward",
           "id": "USD-SOFR-3M",
           "interp_style": "linear",
@@ -102,11 +102,12 @@
       "dividends": [],
       "fx": null,
       "fx_delta_vol_surfaces": [],
+      "hierarchy": null,
       "inflation_indices": [],
       "prices": {},
+      "schema_version": 1,
       "series": [],
       "surfaces": [],
-      "version": 2,
       "vol_cubes": []
     },
     "kind": "snapshot"
@@ -123,11 +124,11 @@
     "review_interval_months": 6,
     "screenshots": [],
     "source": "quantlib",
-    "source_detail": "QuantLib 1.42.1; deterministic flat-curve native instrument benchmark.",
+    "source_detail": "QuantLib 1.43; deterministic flat-curve native instrument benchmark.",
     "valuation_date": "2026-04-30"
   },
   "model": "discounting",
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "tolerances": {
     "convexity_adjustment": {
       "abs": 1e-12,

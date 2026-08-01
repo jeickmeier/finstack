@@ -88,7 +88,7 @@
         {
           "kind": "vol_surface_parallel_pct",
           "surface_kind": "equity",
-          "surface_id": "SPX_VOL",
+          "vol_surface_id": "SPX_VOL",
           "pct": 50.0
         }
       ],

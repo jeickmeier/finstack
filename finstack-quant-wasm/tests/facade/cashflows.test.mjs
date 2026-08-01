@@ -40,7 +40,7 @@ await init({ module_or_path: readFileSync(WASM_BG) });
 const cashflowSpec = JSON.stringify({
   notional: {
     initial: { amount: '1000000', currency: 'USD' },
-    amort: 'None',
+    amort: 'none',
   },
   issue: '2024-08-31',
   maturity: '2025-08-31',
@@ -48,13 +48,13 @@ const cashflowSpec = JSON.stringify({
     {
       kind: 'fixed',
       spec: {
-        coupon_type: 'Cash',
+        coupon_type: 'cash',
         rate: '0.06',
-        freq: { count: 12, unit: 'months' },
-        dc: 'Thirty360',
-        bdc: 'following',
+        frequency: { count: 12, unit: 'months' },
+        day_count: '30_360',
+        business_day_convention: 'following',
         calendar_id: 'weekends_only',
-        stub: 'None',
+        stub: 'none',
         end_of_month: false,
         payment_lag_days: 0,
       },
@@ -102,17 +102,18 @@ test('cashflows end-to-end build/validate/flows/accrual from JSON spec', () => {
   const instrument = JSON.parse(
     valuations.instruments.bondFromCashflowsJson('CUSTOM-CF', scheduleJson, 'USD-OIS', 99.0)
   );
-  assert.equal(instrument.type, 'bond');
+  assert.equal(instrument.schema, 'finstack_quant.instrument/1');
+  assert.equal(instrument.instrument.type, 'bond');
   assert.equal(cashflows.bondFromCashflowsJson, undefined);
 });
 
 test('cashflows facade builds fixed-to-float and preserves Rust window errors', () => {
   const schedule = {
-    freq: { count: 3, unit: 'months' },
-    dc: 'Act360',
-    bdc: 'following',
+    frequency: { count: 3, unit: 'months' },
+    day_count: 'act_360',
+    business_day_convention: 'following',
     calendar_id: 'weekends_only',
-    stub: 'None',
+    stub: 'none',
     end_of_month: false,
     payment_lag_days: 0,
   };
@@ -120,17 +121,17 @@ test('cashflows facade builds fixed-to-float and preserves Rust window errors', 
     rate_spec: {
       index_id: 'TEST-INDEX',
       spread_bp: '150',
-      reset_freq: { count: 3, unit: 'months' },
+      reset_frequency: { count: 3, unit: 'months' },
       reset_lag_days: 0,
-      fallback: 'SpreadOnly',
+      fallback: 'spread_only',
     },
-    coupon_type: 'Cash',
+    coupon_type: 'cash',
     ...schedule,
   };
   const base = {
     notional: {
       initial: { amount: '1000000', currency: 'USD' },
-      amort: 'None',
+      amort: 'none',
     },
     issue: '2025-01-01',
     maturity: '2027-01-01',
@@ -143,30 +144,30 @@ test('cashflows facade builds fixed-to-float and preserves Rust window errors', 
         switch: '2026-01-01',
         fixed: { rate: '0.04', schedule },
         floating,
-        fixed_split: 'Cash',
+        fixed_split: 'cash',
       },
     ],
   });
   const built = JSON.parse(cashflows.buildCashflowScheduleJson(fixedToFloat, null));
   const kinds = new Set(built.flows.map((flow) => flow.kind));
-  assert.ok(kinds.has('Fixed'));
-  assert.ok(kinds.has('FloatReset'));
+  assert.ok(kinds.has('fixed'));
+  assert.ok(kinds.has('float_reset'));
 
   const overlapping = JSON.stringify({
     ...base,
-    coupon_program: [{ kind: 'fixed', spec: { coupon_type: 'Cash', rate: '0.04', ...schedule } }],
+    coupon_program: [{ kind: 'fixed', spec: { coupon_type: 'cash', rate: '0.04', ...schedule } }],
     payment_program: [
       {
         kind: 'window',
         start: '2025-01-01',
         end: '2026-06-01',
-        split: 'PIK',
+        split: 'pik',
       },
       {
         kind: 'window',
         start: '2026-01-01',
         end: '2027-01-01',
-        split: 'Cash',
+        split: 'cash',
       },
     ],
   });

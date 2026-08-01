@@ -427,13 +427,13 @@ fn constructor_defaults_accrual_to_none() {
 }
 
 #[test]
-fn legacy_json_round_trips_without_accrual_field() {
+fn json_round_trips_without_optional_accrual_field() {
     let flow = valid_cashflow();
-    let legacy = serde_json::to_value(flow).unwrap();
-    assert!(legacy.get("accrual").is_none());
+    let payload = serde_json::to_value(flow).unwrap();
+    assert!(payload.get("accrual").is_none());
 
-    let decoded: CashFlow = serde_json::from_value(legacy.clone()).unwrap();
-    assert_eq!(serde_json::to_value(decoded).unwrap(), legacy);
+    let decoded: CashFlow = serde_json::from_value(payload.clone()).unwrap();
+    assert_eq!(serde_json::to_value(decoded).unwrap(), payload);
 }
 
 #[test]

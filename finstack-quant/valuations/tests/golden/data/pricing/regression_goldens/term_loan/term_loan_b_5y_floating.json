@@ -1,12 +1,12 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "term_loan_b_5y_floating",
     "domain": "fixed_income.term_loan",
-    "description": "Synthetic USD term loan B 5Y floating-rate facility with quarterly amortization. Two-step calibration: USD-OIS bootstrapped from synthetic SOFR OIS quotes, USD-SOFR-3M bootstrapped from synthetic 3M-Term-SOFR IRS quotes against the calibrated discount curve. The instrument's primary discount curve (USD-CORP), credit curve (ACME-HZD), and the auxiliary curves (USD-TREASURY, HYCO-HZD) are preserved verbatim in initial_market. Self-test contract: re-running calibration + pricing must reproduce the recorded values within solver tolerance.",
+    "description": "Synthetic USD term loan B 5Y floating-rate facility with quarterly amortization. Two-step calibration: USD-OIS bootstrapped from synthetic SOFR OIS quotes, USD-SOFR-3M bootstrapped from synthetic 3M-Term-SOFR IRS quotes against the calibrated discount curve. The instrument's primary discount curve (USD-CORP), credit curve (ACME-HZD), and the auxiliary curves (USD-TREASURY, HYCO-HZD) are preserved verbatim in prior_market. Self-test contract: re-running calibration + pricing must reproduce the recorded values within solver tolerance.",
     "valuation_date": "2026-04-30",
     "source": "formula",
-    "source_detail": "Finstack Quant canonical fixed-income pricing calculation on deterministic synthetic market inputs Phase-2 envelope migration (2026-05-09): replaced the materialized USD-OIS and USD-SOFR-3M curves with a two-step calibration plan (POC #4 pattern from market-bootstrap-phase-5 plan \u00a716). Other curves (USD-CORP, USD-TREASURY, ACME-HZD, HYCO-HZD) remain materialized in initial_market. Expected outputs recaptured from Finstack itself; the original synthetic-curve test contract is replaced by a self-test contract: bit-stable round-trip through calibrate + price. Re-blessed 2026-05-30: term-loan CS01 now reports the market-standard z-spread bump instead of 0.0. The discounting pricer never consumes the hazard curve, so the canonical par-spread/hazard CS01 was identically zero for loans; CS01 is now computed by solving the z-spread to the quoted clean price and bumping +/-1bp (see metrics::sensitivities::cs01_z_spread). Old: cs01=0.0. New: cs01=-8112.699659444392 (negative = long credit risk; larger magnitude than the floating-rate DV01 because the z-spread shift hits discounting on all flows including principal, whereas DV01 largely offsets via floating-coupon reprojection). Re-blessed 2026-06-16: expected outputs recaptured from the current canonical Python golden runner for this formula self-test after deterministic pricing output drift; no external benchmark source is asserted by this fixture. Re-baselined 2026-07-11 after deterministic bootstrap and cashflow refinements. Added the contractual 2026-04-28 reset fixing for the coupon that starts on the valuation date; historical resets are observed, never projected from the 2026-04-30 curve. The frozen first coupon removes its forward-curve offset from DV01. Later term coupons use the fixed-tenor curve rate at each reset date; they do not use arbitrary-period DF-implied projection, so explicitly honoring the curve's Act365F axis does not change these recorded values. Re-blessed 2026-07-22: discount_margin sign-convention fix from the 2026-07-21 fixed-income audit (commit c5c6a7a3d). The old solver added the trial DM to the loan's *coupon* spread and repriced on the unshifted discount curve, making PV increasing in DM, so the solved DM was approximately the negative of the true DM (old: -0.02870519217354197). The metric now follows the market-standard curve-DM convention (Fabozzi; Bloomberg YAS): cashflows stay projected at the contractual 375bp margin and the DM is added to the periodically-compounded zero rate of the discount curve via the shared z_spread_discount_factor mechanics, identical to the FRN DM path. PV is strictly decreasing in DM. New: discount_margin=0.029426445475274027 (+294bp over USD-CORP; below the 375bp contractual margin because USD-CORP already embeds corporate spread over the SOFR projection curve, and positive because the model PV sits above the 99.0 quoted-clean-price dirty target). Only this metric moved; npv/ytm/dv01/cs01 are unchanged, confirming the base pricing flows were untouched.",
+    "source_detail": "Finstack Quant canonical fixed-income pricing calculation on deterministic synthetic market inputs . Uses calibrated USD-OIS and USD-SOFR-3M curves with a two-step calibration plan (POC #4 pattern from market-bootstrap-phase-5 plan §16). Other curves (USD-CORP, USD-TREASURY, ACME-HZD, HYCO-HZD) remain materialized in prior_market. Expected outputs recaptured from Finstack itself; the original synthetic-curve test contract is replaced by a self-test contract: bit-stable round-trip through calibrate + price. Re-blessed 2026-05-30: term-loan CS01 now reports the market-standard z-spread bump instead of 0.0. The discounting pricer never consumes the hazard curve, so the canonical par-spread/hazard CS01 was identically zero for loans; CS01 is now computed by solving the z-spread to the quoted clean price and bumping +/-1bp (see metrics::sensitivities::cs01_z_spread). Old: cs01=0.0. New: cs01=-8112.699659444392 (negative = long credit risk; larger magnitude than the floating-rate DV01 because the z-spread shift hits discounting on all flows including principal, whereas DV01 largely offsets via floating-coupon reprojection). Re-blessed 2026-06-16: expected outputs recaptured from the current canonical Python golden runner for this formula self-test after deterministic pricing output drift; no external benchmark source is asserted by this fixture. Re-baselined 2026-07-11 after deterministic bootstrap and cashflow refinements. Added the contractual 2026-04-28 reset fixing for the coupon that starts on the valuation date; historical resets are observed, never projected from the 2026-04-30 curve. The frozen first coupon removes its forward-curve offset from DV01. Later term coupons use the fixed-tenor curve rate at each reset date; they do not use arbitrary-period DF-implied projection, so explicitly honoring the curve's Act365F axis does not change these recorded values. Re-blessed 2026-07-22: discount_margin sign-convention fix from the 2026-07-21 fixed-income audit (commit c5c6a7a3d). The old solver added the trial DM to the loan's *coupon* spread and repriced on the unshifted discount curve, making PV increasing in DM, so the solved DM was approximately the negative of the true DM (old: -0.02870519217354197). The metric now follows the market-standard curve-DM convention (Fabozzi; Bloomberg YAS): cashflows stay projected at the contractual 375bp margin and the DM is added to the periodically-compounded zero rate of the discount curve via the shared z_spread_discount_factor mechanics, identical to the FRN DM path. PV is strictly decreasing in DM. New: discount_margin=0.029426445475274027 (+294bp over USD-CORP; below the 375bp contractual margin because USD-CORP already embeds corporate spread over the SOFR projection curve, and positive because the model PV sits above the 99.0 quoted-clean-price dirty target). Only this metric moved; npv/ytm/dv01/cs01 are unchanged, confirming the base pricing flows were untouched.",
     "captured_by": "jeickmeier",
     "captured_on": "2026-05-01",
     "last_reviewed_by": "jeickmeier",
@@ -20,7 +20,7 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
         "id": "term_loan_b_5y_market",
         "quote_sets": {
@@ -57,15 +57,15 @@
             "curve_id": "USD-OIS",
             "currency": "USD",
             "base_date": "2026-04-30",
-            "method": "Bootstrap",
+            "method": "bootstrap",
             "interpolation": "log_linear",
             "extrapolation": "flat_forward",
             "pricing_discount_id": null,
             "pricing_forward_id": null,
             "conventions": {
-              "curve_day_count": "Act365F",
+              "curve_day_count": "act_365f",
               "ois_compounding": {
-                "CompoundedWithRateCutoff": {
+                "compounded_with_rate_cutoff": {
                   "cutoff_days": 1
                 }
               }
@@ -81,13 +81,13 @@
             "tenor_years": 0.25,
             "discount_curve_id": "USD-OIS",
             "method": {
-              "GlobalSolve": {
+              "global_solve": {
                 "use_analytical_jacobian": false
               }
             },
             "interpolation": "linear",
             "conventions": {
-              "curve_day_count": "Act365F"
+              "curve_day_count": "act_365f"
             }
           }
         ],
@@ -404,9 +404,9 @@
           "issuer": null,
           "seniority": null,
           "currency": null,
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "par_points": [],
-          "par_interp": "Linear"
+          "par_interp": "linear"
         },
         {
           "kind": "hazard_curve",
@@ -438,15 +438,15 @@
           "issuer": null,
           "seniority": null,
           "currency": null,
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "par_points": [],
-          "par_interp": "Linear"
+          "par_interp": "linear"
         },
         {
           "kind": "discount_curve",
           "id": "USD-CORP",
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "knot_points": [
             [
               0.0,
@@ -486,13 +486,15 @@
           "min_forward_rate": null,
           "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null
+          "rate_calibration": null,
+          "calibration_ois_cutoff_days": null,
+          "fx_policy": null
         },
         {
           "kind": "discount_curve",
           "id": "USD-TREASURY",
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "knot_points": [
             [
               0.0,
@@ -532,59 +534,66 @@
           "min_forward_rate": null,
           "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null
+          "rate_calibration": null,
+          "calibration_ois_cutoff_days": null,
+          "fx_policy": null
         }
       ]
     }
   },
   "instrument": {
-    "type": "term_loan",
-    "spec": {
-      "id": "TERM-LOAN-B-5Y-FLOATING-GOLDEN",
-      "currency": "USD",
-      "notional_limit": {
-        "amount": "25000000",
-        "currency": "USD"
-      },
-      "issue_date": "2026-04-30",
-      "maturity": "2031-04-30",
-      "rate": {
-        "Floating": {
-          "index_id": "USD-SOFR-3M",
-          "spread_bp": "375",
-          "gearing": "1",
-          "gearing_includes_spread": true,
-          "floor_bp": "0",
-          "reset_freq": {
-            "count": 3,
-            "unit": "months"
-          },
-          "reset_lag_days": 2,
-          "fixing_calendar_id": "weekends_only"
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "type": "term_loan",
+      "spec": {
+        "id": "TERM-LOAN-B-5Y-FLOATING-GOLDEN",
+        "currency": "USD",
+        "notional_limit": {
+          "amount": "25000000",
+          "currency": "USD"
+        },
+        "issue_date": "2026-04-30",
+        "maturity": "2031-04-30",
+        "rate": {
+          "floating": {
+            "index_id": "USD-SOFR-3M",
+            "spread_bp": "375",
+            "gearing": "1",
+            "gearing_includes_spread": true,
+            "reset_frequency": {
+              "count": 3,
+              "unit": "months"
+            },
+            "reset_lag_days": 2,
+            "fixing_calendar_id": "weekends_only",
+            "index_floor_bp": "0"
+          }
+        },
+        "frequency": {
+          "count": 3,
+          "unit": "months"
+        },
+        "day_count": "act_360",
+        "stub": "none",
+        "discount_curve_id": "USD-CORP",
+        "credit_curve_id": "ACME-HZD",
+        "amortization": {
+          "percent_per_period": {
+            "bp": 250
+          }
+        },
+        "instrument_pricing_overrides": {
+          "market_quotes": {
+            "quoted_clean_price": 99.0
+          }
+        },
+        "settlement_days": 2,
+        "attributes": {
+          "tags": [
+            "golden"
+          ],
+          "meta": {}
         }
-      },
-      "frequency": {
-        "count": 3,
-        "unit": "months"
-      },
-      "day_count": "Act360",
-      "stub": "None",
-      "discount_curve_id": "USD-CORP",
-      "credit_curve_id": "ACME-HZD",
-      "amortization": {
-        "PercentPerPeriod": {
-          "bp": 250
-        }
-      },
-      "pricing_overrides": {
-        "quoted_clean_price": 99.0
-      },
-      "settlement_days": 2,
-      "attributes": {
-        "tags": [
-          "golden"
-        ],
-        "meta": {}
       }
     }
   },

@@ -23,13 +23,11 @@ use serde::{Deserialize, Serialize};
 /// projected cashflows — so they are meaningful per note, unlike the deal-level
 /// aggregates.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TrancheMetrics {
     /// Identifier of the tranche.
     pub tranche_id: String,
     /// ISO-4217 code of the currency `pv` and `cs01` are denominated in.
-    ///
-    /// Defaults to an empty string when deserializing legacy payloads.
-    #[serde(default)]
     pub currency: String,
     /// Present value of the tranche (currency units).
     pub pv: f64,
@@ -186,10 +184,9 @@ mod currency_stamp_tests {
         assert_eq!(parsed.currency, "EUR");
     }
 
-    /// Legacy payloads without the currency field still deserialize.
     #[test]
-    fn metrics_without_a_currency_field_still_deserialize() {
-        let legacy = r#"{
+    fn metrics_require_currency() {
+        let incomplete = r#"{
             "tranche_id": "A",
             "pv": 1000.0,
             "price_pct": 100.0,
@@ -201,11 +198,8 @@ mod currency_stamp_tests {
             "convexity": 12.0,
             "target_price_pct": 100.0
         }"#;
-        let parsed: TrancheMetrics =
-            serde_json::from_str(legacy).expect("legacy payload must still parse");
-        assert!(
-            parsed.currency.is_empty(),
-            "an absent currency defaults to empty rather than failing the parse"
-        );
+        let error = serde_json::from_str::<TrancheMetrics>(incomplete)
+            .expect_err("currency is required by the canonical metrics contract");
+        assert!(error.to_string().contains("currency"));
     }
 }

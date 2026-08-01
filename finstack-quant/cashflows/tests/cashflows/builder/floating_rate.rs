@@ -35,7 +35,7 @@ fn make_float_spec(fallback: FloatingRateFallback, spread_bp: Decimal) -> Floati
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,
@@ -45,9 +45,9 @@ fn make_float_spec(fallback: FloatingRateFallback, spread_bp: Decimal) -> Floati
         },
         coupon_type: CouponType::Cash,
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,
@@ -127,8 +127,8 @@ fn term_index_rate_is_invariant_to_payment_frequency() {
     let init = Money::new(1_000_000.0, Currency::USD);
 
     let mut spec = make_float_spec(FloatingRateFallback::Error, dec!(0.0));
-    spec.schedule.freq = Tenor::semi_annual();
-    spec.rate_spec.reset_freq = Tenor::quarterly();
+    spec.schedule.frequency = Tenor::semi_annual();
+    spec.rate_spec.reset_frequency = Tenor::quarterly();
 
     let fwd = ForwardCurve::builder("USD-SOFR-3M", 0.25)
         .base_date(issue)
@@ -209,7 +209,7 @@ fn test_floating_rate_fallback_spread_only_no_curve() {
     let maturity = Date::from_calendar_date(2026, Month::January, 15).unwrap();
     let init = Money::new(1_000_000.0, Currency::USD);
 
-    // 200 bps spread => 0.02 rate when index is 0
+    // 200 bp spread => 0.02 rate when index is 0
     let spec = make_float_spec(FloatingRateFallback::SpreadOnly, dec!(200.0));
 
     let mut b = CashFlowSchedule::builder();
@@ -256,7 +256,7 @@ fn test_floating_rate_fallback_fixed_rate() {
     let maturity = Date::from_calendar_date(2026, Month::January, 15).unwrap();
     let init = Money::new(1_000_000.0, Currency::USD);
 
-    // 200 bps spread + fixed index of 4.5%
+    // 200 bp spread + fixed index of 4.5%
     // Expected all-in rate: (0.045 + 0.02) * 1.0 = 0.065
     let spec = make_float_spec(FloatingRateFallback::FixedRate(dec!(0.045)), dec!(200.0));
 
@@ -404,14 +404,14 @@ fn test_floating_rate_default_fallback_with_curve() {
 #[test]
 fn test_pik_flow_metadata() {
     // Build a 100% PIK floating rate bond with SpreadOnly fallback (no curve needed).
-    // With CouponType::PIK, the full coupon goes to PIK flows.
+    // With CouponType::Pik, the full coupon goes to PIK flows.
     let issue = Date::from_calendar_date(2025, Month::January, 15).unwrap();
     let maturity = Date::from_calendar_date(2026, Month::January, 15).unwrap();
     let init = Money::new(1_000_000.0, Currency::USD);
 
-    // 200 bps spread => 0.02 rate when index is 0 (SpreadOnly)
+    // 200 bp spread => 0.02 rate when index is 0 (SpreadOnly)
     let mut spec = make_float_spec(FloatingRateFallback::SpreadOnly, dec!(200.0));
-    spec.coupon_type = CouponType::PIK;
+    spec.coupon_type = CouponType::Pik;
 
     let mut b = CashFlowSchedule::builder();
     let _ = b.principal(init, issue, maturity).floating_cf(spec);
@@ -424,7 +424,7 @@ fn test_pik_flow_metadata() {
     let pik_flows: Vec<_> = schedule
         .get_flows()
         .iter()
-        .filter(|cf| cf.kind == CFKind::PIK)
+        .filter(|cf| cf.kind == CFKind::Pik)
         .collect();
 
     assert!(
@@ -1032,7 +1032,7 @@ fn make_overnight_float_spec(
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,
@@ -1042,9 +1042,9 @@ fn make_overnight_float_spec(
         },
         coupon_type: CouponType::Cash,
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,
@@ -1071,7 +1071,7 @@ fn test_overnight_compounding_flat_curve() {
     let spec = make_overnight_float_spec(
         OvernightCompoundingMethod::CompoundedInArrears,
         FloatingRateFallback::Error,
-        dec!(200.0), // 200 bps spread
+        dec!(200.0), // 200 bp spread
     );
     let market = make_flat_forward_market(issue, 0.045);
 
@@ -1136,7 +1136,7 @@ fn test_overnight_simple_average_flat() {
     let spec = make_overnight_float_spec(
         OvernightCompoundingMethod::SimpleAverage,
         FloatingRateFallback::Error,
-        dec!(200.0), // 200 bps spread
+        dec!(200.0), // 200 bp spread
     );
     let market = make_flat_forward_market(issue, 0.045);
 
@@ -1590,7 +1590,7 @@ fn test_overnight_compounding_weekend_start_no_lost_days() {
         .unwrap();
     let market = MarketContext::new().insert(fwd);
 
-    let make_spec = |bdc| FloatingCouponSpec {
+    let make_spec = |business_day_convention| FloatingCouponSpec {
         rate_spec: FloatingRateSpec {
             index_id: "USD-SOFR-ON".into(),
             spread_bp: dec!(0),
@@ -1601,7 +1601,7 @@ fn test_overnight_compounding_weekend_start_no_lost_days() {
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,
@@ -1611,9 +1611,9 @@ fn test_overnight_compounding_weekend_start_no_lost_days() {
         },
         coupon_type: CouponType::Cash,
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::ShortBack,
             end_of_month: false,
@@ -1718,7 +1718,7 @@ fn test_overnight_empty_fixing_window_errors() {
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,
@@ -1728,9 +1728,9 @@ fn test_overnight_empty_fixing_window_errors() {
         },
         coupon_type: CouponType::Cash,
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Unadjusted,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Unadjusted,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::ShortFront,
             end_of_month: false,
@@ -2341,7 +2341,7 @@ fn test_seasoned_term_reset_resolves_from_exact_fixing_with_spread_and_gearing()
     ];
     let market = make_market_with_fixings(curve_base, 0.03, &fixings);
 
-    // SOFR + 100 bps, 2x gearing including spread: rate = (index + 1%) * 2.
+    // SOFR + 100 bp, 2x gearing including spread: rate = (index + 1%) * 2.
     let mut spec = make_float_spec(FloatingRateFallback::Error, dec!(100.0));
     spec.rate_spec.gearing = dec!(2.0);
 

@@ -586,11 +586,15 @@ fn test_embedded_option_value_uses_settlement_date_oas_pricing_basis() {
         puts: vec![],
     });
     bond.instrument_pricing_overrides = serde_json::from_value(serde_json::json!({
-        "quoted_oas": quoted_oas,
-        "implied_volatility": 0.20,
-        "tree_steps": 80,
-        "vol_model": "black",
-        "mean_reversion": 0.0
+        "market_quotes": {
+            "quoted_oas": quoted_oas,
+            "implied_volatility": 0.20
+        },
+        "model_config": {
+            "tree_steps": 80,
+            "vol_model": "black",
+            "mean_reversion": 0.0
+        }
     }))
     .expect("BDT pricing overrides should deserialize");
 
@@ -702,11 +706,15 @@ fn test_callable_bond_oas_and_vega_use_explicit_bdt_tree_path() {
         puts: vec![],
     });
     bond.instrument_pricing_overrides = serde_json::from_value(serde_json::json!({
-        "quoted_clean_price": 103.0,
-        "implied_volatility": 0.20,
-        "tree_steps": 40,
-        "vol_model": "black",
-        "mean_reversion": 0.0
+        "market_quotes": {
+            "quoted_clean_price": 103.0,
+            "implied_volatility": 0.20
+        },
+        "model_config": {
+            "tree_steps": 40,
+            "vol_model": "black",
+            "mean_reversion": 0.0
+        }
     }))
     .expect("BDT pricing overrides should deserialize");
 
@@ -778,12 +786,15 @@ fn test_callable_bond_vega_is_invariant_to_vol_bump_size() {
         puts: vec![],
     });
     bond.instrument_pricing_overrides = serde_json::from_value(serde_json::json!({
-        "quoted_clean_price": 103.0,
-        "implied_volatility": 0.20,
-        "implied_volatility": 0.20,
-        "tree_steps": 40,
-        "vol_model": "black",
-        "mean_reversion": 0.0
+        "market_quotes": {
+            "quoted_clean_price": 103.0,
+            "implied_volatility": 0.20
+        },
+        "model_config": {
+            "tree_steps": 40,
+            "vol_model": "black",
+            "mean_reversion": 0.0
+        }
     }))
     .expect("BDT pricing overrides should deserialize");
 
@@ -836,10 +847,14 @@ fn test_callable_bdt_oas_recovers_settlement_date_clean_price() {
         puts: vec![],
     });
     bond.instrument_pricing_overrides = serde_json::from_value(serde_json::json!({
-        "implied_volatility": 0.20,
-        "tree_steps": 80,
-        "vol_model": "black",
-        "mean_reversion": 0.0
+        "market_quotes": {
+            "implied_volatility": 0.20
+        },
+        "model_config": {
+            "tree_steps": 80,
+            "vol_model": "black",
+            "mean_reversion": 0.0
+        }
     }))
     .expect("BDT pricing overrides should deserialize");
 
@@ -905,10 +920,14 @@ fn test_callable_bond_value_uses_same_bdt_tree_dispatch_as_oas_pricer() {
         puts: vec![],
     });
     bond.instrument_pricing_overrides = serde_json::from_value(serde_json::json!({
-        "implied_volatility": 0.20,
-        "tree_steps": 40,
-        "vol_model": "black",
-        "mean_reversion": 0.0
+        "market_quotes": {
+            "implied_volatility": 0.20
+        },
+        "model_config": {
+            "tree_steps": 40,
+            "vol_model": "black",
+            "mean_reversion": 0.0
+        }
     }))
     .expect("BDT pricing overrides should deserialize");
 
@@ -1257,8 +1276,8 @@ fn test_z_spread_solver_convergence_across_spread_regimes() {
             &base_bond.accrual_config(),
         )
         .expect("accrued at quote date");
-        let clean_ccy = dirty_target - accrued;
-        let clean_px = clean_ccy / notional.amount() * 100.0;
+        let clean_currency = dirty_target - accrued;
+        let clean_px = clean_currency / notional.amount() * 100.0;
 
         let mut bond = base_bond.clone();
         bond.instrument_pricing_overrides =

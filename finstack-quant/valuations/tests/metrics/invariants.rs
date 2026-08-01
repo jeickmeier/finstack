@@ -494,7 +494,7 @@ mod cds_invariants {
             let ps = metric_value(&cds_with_recovery, &market, as_of, MetricId::ParSpread);
             prop_assert!(
                 ps > 0.0,
-                "Par spread ({:.2} bps) should be positive for hazard rate {:.4}",
+                "Par spread ({:.2} bp) should be positive for hazard rate {:.4}",
                 ps * 10000.0,
                 hazard_rate
             );

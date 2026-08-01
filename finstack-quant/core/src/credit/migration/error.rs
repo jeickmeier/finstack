@@ -8,6 +8,7 @@ use thiserror::Error;
 /// Covers validation failures for rating scales, transition matrices,
 /// generator matrices, and numerical failures in matrix computations.
 #[derive(Debug, Clone, PartialEq, Error, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum MigrationError {
     /// Matrix is not square.

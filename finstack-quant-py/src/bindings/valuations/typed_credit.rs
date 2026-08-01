@@ -9,7 +9,7 @@ use crate::bindings::core::dates::daycount::PyDayCount;
 use crate::bindings::core::dates::tenor::PyTenor;
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
-use crate::errors::{core_to_py, serde_json_to_py, value_error};
+use crate::errors::{core_to_py, value_error};
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::credit_derivatives::cds::CDSConvention;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_index::IndexPricing;
@@ -17,7 +17,9 @@ use finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::Tra
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 use finstack_quant_valuations::market::conventions::ids::CdsDocClause;
 
-use super::instruments::{enum_from_str, json_field, parse_typed_instrument_json};
+use super::instruments::{
+    enum_from_str, json_field, parse_typed_instrument_json, serialize_typed_instrument_json,
+};
 use super::typed_legs::{PyPremiumLegSpec, PyProtectionLegSpec};
 
 type CdsBuilderInner =
@@ -47,10 +49,12 @@ pub struct PyCreditDefaultSwap {
 }
 
 impl PyCreditDefaultSwap {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::CreditDefaultSwap(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize CreditDefaultSwap"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(
+            InstrumentJson::CreditDefaultSwap(self.inner.clone()),
+            "CreditDefaultSwap",
+        )
     }
 }
 
@@ -76,15 +80,14 @@ impl PyCreditDefaultSwap {
         }
     }
 
-    /// Deserialize a validated CDS from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated CDS from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"credit_default_swap"``, or a
-    ///     full ``finstack_quant.instrument/1`` envelope containing that
-    ///     payload. The UTF-8 input must not exceed 16 MiB; cross-type
-    ///     coercion is not performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"credit_default_swap"`` payload. The UTF-8 input must not exceed
+    ///     16 MiB. Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -116,16 +119,16 @@ impl PyCreditDefaultSwap {
         }
     }
 
-    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``CreditDefaultSwap.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.
@@ -383,10 +386,9 @@ pub struct PyCDSIndex {
 }
 
 impl PyCDSIndex {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::CDSIndex(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize CDSIndex"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(InstrumentJson::CDSIndex(self.inner.clone()), "CDSIndex")
     }
 }
 
@@ -396,7 +398,7 @@ impl PyCDSIndex {
     ///
     /// The builder pre-seeds an empty ``constituents`` list (the Rust field
     /// has no default) so ``build()`` succeeds without calling
-    /// ``constituents_json`` when the index is priced in ``"SingleCurve"``
+    /// ``constituents_json`` when the index is priced in ``"single_curve"``
     /// mode.
     ///
     /// Returns
@@ -420,15 +422,14 @@ impl PyCDSIndex {
         }
     }
 
-    /// Deserialize a validated CDS index from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated CDS index from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"cds_index"``, or a full
-    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
-    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
-    ///     performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"cds_index"`` payload. The UTF-8 input must not exceed 16 MiB.
+    ///     Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -460,16 +461,16 @@ impl PyCDSIndex {
         }
     }
 
-    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``CDSIndex.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.
@@ -715,9 +716,9 @@ impl PyCDSIndexBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"SingleCurve", "Constituents"}
-    ///     ``"SingleCurve"`` prices the index against a single index hazard
-    ///     curve (synthetic CDS). ``"Constituents"`` prices each issuer
+    /// value : {"single_curve", "constituents"}
+    ///     ``"single_curve"`` prices the index against a single index hazard
+    ///     curve (synthetic CDS). ``"constituents"`` prices each issuer
     ///     separately and aggregates by weight; requires
     ///     ``constituents_json`` to be set.
     ///
@@ -829,10 +830,12 @@ pub struct PyCDSTranche {
 }
 
 impl PyCDSTranche {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::CDSTranche(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize CDSTranche"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(
+            InstrumentJson::CDSTranche(self.inner.clone()),
+            "CDSTranche",
+        )
     }
 }
 
@@ -867,15 +870,14 @@ impl PyCDSTranche {
         }
     }
 
-    /// Deserialize a validated CDS tranche from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated CDS tranche from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"cds_tranche"``, or a full
-    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
-    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
-    ///     performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"cds_tranche"`` payload. The UTF-8 input must not exceed 16 MiB.
+    ///     Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -907,16 +909,16 @@ impl PyCDSTranche {
         }
     }
 
-    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``CDSTranche.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.
@@ -1341,10 +1343,12 @@ pub struct PyConvertibleBond {
 }
 
 impl PyConvertibleBond {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::ConvertibleBond(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize ConvertibleBond"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(
+            InstrumentJson::ConvertibleBond(self.inner.clone()),
+            "ConvertibleBond",
+        )
     }
 }
 
@@ -1370,15 +1374,14 @@ impl PyConvertibleBond {
         }
     }
 
-    /// Deserialize a validated convertible bond from bare tagged JSON or an envelope.
+    /// Deserialize a validated convertible bond from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"convertible_bond"``, or a full
-    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
-    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
-    ///     performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"convertible_bond"`` payload. The UTF-8 input must not exceed
+    ///     16 MiB. Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -1411,16 +1414,16 @@ impl PyConvertibleBond {
         }
     }
 
-    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``ConvertibleBond.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.

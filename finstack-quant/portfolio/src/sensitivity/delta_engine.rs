@@ -238,12 +238,15 @@ pub fn mapping_to_market_bumps(
                 as_of,
             }])
         }
-        MarketMapping::VolShift { surface_ids, units } => {
+        MarketMapping::VolShift {
+            vol_surface_ids,
+            units,
+        } => {
             require_unit_matches(*units)?;
-            Ok(surface_ids
+            Ok(vol_surface_ids
                 .iter()
-                .map(|surface_id| MarketBump::Curve {
-                    id: CurveId::new(surface_id),
+                .map(|vol_surface_id| MarketBump::Curve {
+                    id: CurveId::new(vol_surface_id),
                     spec: BumpSpec {
                         mode: BumpMode::Additive,
                         units: *units,
@@ -479,7 +482,7 @@ mod tests {
                 MockKind::CurveZero { curve_id, .. } => {
                     dependencies.curves.discount_curves.push(curve_id.clone());
                 }
-                MockKind::Spot { spot_id } => dependencies.spot_ids.push(spot_id.clone()),
+                MockKind::Spot { spot_id } => dependencies.market_scalar_ids.push(spot_id.clone()),
                 MockKind::FxCross { base, quote } => {
                     dependencies.add_fx_pair(*base, *quote);
                 }
@@ -767,7 +770,7 @@ mod tests {
         let positions = vec![("eur-jpy".to_string(), &instrument as &dyn Instrument, 1.0)];
         let factors = vec![FactorDefinition {
             id: finstack_quant_factor_model::FactorId::new("usd-eur"),
-            factor_type: finstack_quant_factor_model::FactorType::FX,
+            factor_type: finstack_quant_factor_model::FactorType::Fx,
             market_mapping: MarketMapping::FxRate {
                 pair: (Currency::USD, Currency::EUR),
             },

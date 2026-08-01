@@ -68,9 +68,9 @@ def verify_baseline_links(
 
     rust_baseline = json.loads(rust_baseline_path.read_text(encoding="utf-8"))
     python_baseline = json.loads(python_baseline_path.read_text(encoding="utf-8"))
-    if manifest.get("schema") != "finstack_quant.materialization_benchmark_baseline_manifest/2":
+    if manifest.get("schema") != "finstack_quant.materialization_benchmark_baseline_manifest/1":
         raise ValueError("unsupported materialization baseline manifest schema")
-    if artifact.get("schema") != "finstack_quant.materialization_benchmark_results/2":
+    if artifact.get("schema") != "finstack_quant.materialization_benchmark_results/1":
         raise ValueError("unsupported materialization benchmark result schema")
 
     for language, path, baseline in (

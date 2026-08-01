@@ -508,15 +508,19 @@ fn test_bond_different_day_counts() {
         DayCount::ActAct,
     ];
 
-    for dc in day_counts {
+    for day_count in day_counts {
         let bond = Bond::builder()
-            .id(format!("DC_{:?}", dc).into())
+            .id(format!("DC_{:?}", day_count).into())
             .notional(Money::new(1000.0, Currency::USD))
             .issue_date(as_of)
             .maturity(maturity)
             .cashflow_spec(
-                CashflowSpec::fixed(0.05, finstack_quant_core::dates::Tenor::semi_annual(), dc)
-                    .expect("finite test coupon"),
+                CashflowSpec::fixed(
+                    0.05,
+                    finstack_quant_core::dates::Tenor::semi_annual(),
+                    day_count,
+                )
+                .expect("finite test coupon"),
             )
             .discount_curve_id("USD-OIS".into())
             .build()

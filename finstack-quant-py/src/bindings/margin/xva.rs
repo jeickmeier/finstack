@@ -33,17 +33,17 @@ impl PyFundingConfig {
     ///
     /// Parameters
     /// ----------
-    /// funding_spread_bps : float
+    /// funding_spread_bp : float
     ///     Non-negative finite funding cost spread in basis points.
-    /// funding_benefit_bps : float | None
-    ///     Non-negative finite funding benefit spread in bps, no greater than
-    ///     ``funding_spread_bps``. If ``None``, symmetric funding.
+    /// funding_benefit_bp : float | None
+    ///     Non-negative finite funding benefit spread in bp, no greater than
+    ///     ``funding_spread_bp``. If ``None``, symmetric funding.
     /// im_profile : ImProfile | None
     ///     Valid expected initial-margin profile driving MVA. If ``None``, MVA
     ///     is not computed.
-    /// margin_funding_spread_bps : float | None
+    /// margin_funding_spread_bp : float | None
     ///     Non-negative finite spread applied to posted IM. If ``None``, uses
-    ///     ``funding_spread_bps``.
+    ///     ``funding_spread_bp``.
     ///
     /// Raises
     /// ------
@@ -51,22 +51,22 @@ impl PyFundingConfig {
     ///     If a spread or the optional IM profile violates these constraints.
     #[new]
     #[pyo3(signature = (
-        funding_spread_bps,
-        funding_benefit_bps=None,
+        funding_spread_bp,
+        funding_benefit_bp=None,
         im_profile=None,
-        margin_funding_spread_bps=None,
+        margin_funding_spread_bp=None,
     ))]
     fn new(
-        funding_spread_bps: f64,
-        funding_benefit_bps: Option<f64>,
+        funding_spread_bp: f64,
+        funding_benefit_bp: Option<f64>,
         im_profile: Option<&PyImProfile>,
-        margin_funding_spread_bps: Option<f64>,
+        margin_funding_spread_bp: Option<f64>,
     ) -> PyResult<Self> {
         let inner = xva::FundingConfig {
-            funding_spread_bps,
-            funding_benefit_bps,
+            funding_spread_bp,
+            funding_benefit_bp,
             im_profile: im_profile.map(|p| p.inner.clone()),
-            margin_funding_spread_bps,
+            margin_funding_spread_bp,
         };
         inner.validate().map_err(core_to_py)?;
         Ok(Self { inner })
@@ -74,14 +74,14 @@ impl PyFundingConfig {
 
     /// Funding spread in basis points.
     #[getter]
-    fn funding_spread_bps(&self) -> f64 {
-        self.inner.funding_spread_bps
+    fn funding_spread_bp(&self) -> f64 {
+        self.inner.funding_spread_bp
     }
 
     /// Funding benefit spread in basis points (or None).
     #[getter]
-    fn funding_benefit_bps(&self) -> Option<f64> {
-        self.inner.funding_benefit_bps
+    fn funding_benefit_bp(&self) -> Option<f64> {
+        self.inner.funding_benefit_bp
     }
 
     /// Expected IM profile driving MVA (or None).
@@ -94,26 +94,26 @@ impl PyFundingConfig {
 
     /// IM funding spread in basis points (or None).
     #[getter]
-    fn margin_funding_spread_bps(&self) -> Option<f64> {
-        self.inner.margin_funding_spread_bps
+    fn margin_funding_spread_bp(&self) -> Option<f64> {
+        self.inner.margin_funding_spread_bp
     }
 
     /// Effective funding benefit spread in basis points.
-    fn effective_benefit_bps(&self) -> f64 {
-        self.inner.effective_benefit_bps()
+    fn effective_benefit_bp(&self) -> f64 {
+        self.inner.effective_benefit_bp()
     }
 
     /// Effective IM funding spread in basis points (falls back to
-    /// ``funding_spread_bps``).
-    fn effective_margin_spread_bps(&self) -> f64 {
-        self.inner.effective_margin_spread_bps()
+    /// ``funding_spread_bp``).
+    fn effective_margin_spread_bp(&self) -> f64 {
+        self.inner.effective_margin_spread_bp()
     }
 
     fn __repr__(&self) -> String {
         format!(
             "FundingConfig(spread={:.1}bp, benefit={:?}bp, mva={})",
-            self.inner.funding_spread_bps,
-            self.inner.funding_benefit_bps,
+            self.inner.funding_spread_bp,
+            self.inner.funding_benefit_bp,
             self.inner.im_profile.is_some(),
         )
     }
@@ -394,20 +394,12 @@ impl PyXvaResult {
         self.inner.mva
     }
 
-    /// Legacy bilateral adjustment = CVA - DVA + FVA (or None).
-    ///
-    /// Uncomputed FVA contributes zero.
-    #[getter]
-    fn bilateral_cva(&self) -> Option<f64> {
-        self.inner.bilateral_cva
-    }
-
-    /// All-in adjustment = bilateral_cva + MVA (or None).
+    /// All-in adjustment = CVA - DVA + FVA + MVA.
     ///
     /// Uncomputed legs contribute zero. This is the quantity subtracted from
     /// the risk-free value of the netting set.
     #[getter]
-    fn total_xva(&self) -> Option<f64> {
+    fn total_xva(&self) -> f64 {
         self.inner.total_xva
     }
 
@@ -470,7 +462,7 @@ impl PyXvaResult {
 
     fn __repr__(&self) -> String {
         format!(
-            "XvaResult(cva={:.4}, dva={:?}, fva={:?}, mva={:?}, total_xva={:?}, max_pfe={:.2})",
+            "XvaResult(cva={:.4}, dva={:?}, fva={:?}, mva={:?}, total_xva={:.4}, max_pfe={:.2})",
             self.inner.cva,
             self.inner.dva,
             self.inner.fva,
@@ -860,7 +852,7 @@ fn im_profile_from_simm(
 /// im_profile : ImProfile
 ///     Expected IM profile.
 /// funding_spread_curve : list[tuple[float, float]]
-///     ``(time_years, spread_bps)`` pairs; a single pair means a flat spread.
+///     ``(time_years, spread_bp)`` pairs; a single pair means a flat spread.
 /// discount_curve : DiscountCurve
 ///     Risk-free discount curve.
 /// survival_curve : HazardCurve | None
@@ -889,9 +881,8 @@ fn compute_mva(
 /// only when ``funding`` carries an ``im_profile``; that posted IM also reduces
 /// ENE for bilateral DVA.
 ///
-/// The result reports ``bilateral_cva = CVA - DVA + FVA`` for legacy
-/// compatibility and ``total_xva = bilateral_cva + MVA`` for the all-in
-/// adjustment.
+/// The result reports ``total_xva = CVA - DVA + FVA + MVA``. Uncomputed
+/// optional legs contribute zero.
 ///
 /// Parameters
 /// ----------

@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use finstack_quant_portfolio::optimization::PortfolioOptimizationResult;
+use finstack_quant_portfolio::optimization::PortfolioOptimizationResultWire;
 use finstack_quant_portfolio::PortfolioResult;
 use serde_json::Value;
 
@@ -42,8 +42,8 @@ fn portfolio_result_schema_covers_nested_wire_shape() {
 }
 
 #[test]
-fn optimization_result_schema_matches_manual_serialization() {
-    let schema = schema_value::<PortfolioOptimizationResult>();
+fn optimization_result_schema_matches_serde_wire_type() {
+    let schema = schema_value::<PortfolioOptimizationResultWire>();
 
     assert_eq!(
         property_names(&schema),
@@ -60,7 +60,6 @@ fn optimization_result_schema_matches_manual_serialization() {
             "implied_quantities",
             "metric_values",
             "trades",
-            "dual_values",
             "constraint_slacks",
             "binding_constraints",
             "label",
@@ -71,7 +70,12 @@ fn optimization_result_schema_matches_manual_serialization() {
         .expect("required is an array")
         .iter()
         .any(|field| field == "schema_version"));
-    assert_eq!(schema["properties"]["schema_version"]["const"], 1);
+    assert_eq!(
+        schema["properties"]["schema_version"]["$ref"],
+        "#/$defs/SchemaVersion"
+    );
+    assert_eq!(schema["$defs"]["SchemaVersion"]["minimum"], 1);
+    assert_eq!(schema["$defs"]["SchemaVersion"]["maximum"], 1);
     assert!(schema
         .get("properties")
         .and_then(|properties| properties.get("problem"))

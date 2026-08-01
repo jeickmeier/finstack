@@ -54,16 +54,16 @@ impl PyUnknownScalePolicy {
     };
 
     /// Parse a policy name (``error``, ``fallback_to_default``,
-    /// ``warn_and_fallback``; case-insensitive).
+    /// ``warn_and_fallback``) from its exact snake_case value.
     #[classmethod]
     #[pyo3(text_signature = "(cls, name)")]
     fn from_name(_cls: &Bound<'_, PyType>, name: &str) -> PyResult<Self> {
-        match name.to_ascii_lowercase().as_str() {
+        match name {
             "error" => Ok(Self::from_inner(UnknownScalePolicy::Error)),
             "fallback_to_default" => Ok(Self::from_inner(UnknownScalePolicy::FallbackToDefault)),
             "warn_and_fallback" => Ok(Self::from_inner(UnknownScalePolicy::WarnAndFallback)),
-            other => Err(crate::errors::value_error(format!(
-                "unknown UnknownScalePolicy variant {other:?}"
+            _ => Err(crate::errors::value_error(format!(
+                "unknown UnknownScalePolicy variant {name:?}"
             ))),
         }
     }

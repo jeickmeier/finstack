@@ -1,5 +1,83 @@
 {
   "$defs": {
+    "AttributeValue": {
+      "anyOf": [
+        {
+          "description": "Categorical / string attribute (e.g., rating = \"CCC\", sector = \"Energy\").",
+          "type": "string"
+        },
+        {
+          "description": "Numeric attribute (e.g., credit_score = 650.0, esg_score = 72.5).",
+          "format": "double",
+          "type": "number"
+        }
+      ],
+      "description": "Value stored in a position or candidate attribute.\n\nPositions carry key/value attributes for grouping, filtering, and\noptimization constraints.  Text values represent categorical data\n(rating, sector), while numeric values represent continuous data\n(credit score, ESG score) usable in metric expressions."
+    },
+    "Book": {
+      "additionalProperties": false,
+      "description": "A book represents a folder-like organizational unit within a portfolio.\n\nBooks can contain positions and/or child books, forming a hierarchical tree.\nThis allows multi-level aggregation (e.g., Americas > Credit > Investment Grade).\n\n# Design\n\n- Flat position list is default; books are optional\n- Parent-child relationships tracked via `parent_id` field\n- Positions reference books via optional `book_id` field\n- Positions without `book_id` are not in any book\n- Book hierarchies are expected to be acyclic trees or forests; aggregation\n  helpers reject cycles and excessively deep nesting instead of recursing\n  indefinitely\n- [`Book::child_book_ids`] drives rollup in [`crate::grouping::aggregate_by_book`];\n  [`crate::portfolio::Portfolio::validate`] checks parent/child consistency\n  between child lists and [`Book::parent_id`]",
+      "properties": {
+        "child_book_ids": {
+          "description": "Child book IDs (for hierarchical organization)",
+          "items": {
+            "$ref": "#/$defs/BookId"
+          },
+          "type": "array"
+        },
+        "id": {
+          "$ref": "#/$defs/BookId",
+          "description": "Unique identifier for this book"
+        },
+        "meta": {
+          "additionalProperties": true,
+          "description": "Additional metadata",
+          "type": "object"
+        },
+        "name": {
+          "description": "Human-readable name",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BookId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Parent book identifier (None for root books)"
+        },
+        "position_ids": {
+          "description": "Position IDs directly assigned to this book (non-recursive)",
+          "items": {
+            "$ref": "#/$defs/PositionId"
+          },
+          "type": "array"
+        },
+        "tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Book-level tags for grouping and filtering",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "position_ids",
+        "child_book_ids"
+      ],
+      "type": "object"
+    },
+    "BookId": {
+      "description": "Book identifier.",
+      "type": "string"
+    },
     "Currency": {
       "description": "ISO 4217 currency enumeration",
       "oneOf": [
@@ -800,7 +878,50 @@
         }
       ]
     },
+    "DateWire": {
+      "description": "ISO 8601 calendar date encoded as a `YYYY-MM-DD` JSON string.",
+      "format": "date",
+      "type": "string"
+    },
+    "Entity": {
+      "additionalProperties": false,
+      "description": "An entity that can hold positions.\n\nEntities represent companies, funds, or other legal entities that\nown instruments. For standalone instruments (derivatives, FX), use\nthe dummy entity.",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/EntityId",
+          "description": "Unique identifier for the entity"
+        },
+        "meta": {
+          "additionalProperties": true,
+          "description": "Additional metadata",
+          "type": "object"
+        },
+        "name": {
+          "description": "Human-readable name",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Entity-level tags for grouping and filtering",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "EntityId": {
+      "description": "Entity identifier (company, fund, etc.)",
+      "type": "string"
+    },
     "FxPair": {
+      "additionalProperties": false,
       "description": "FX pair identifier using base/quote currency ordering.",
       "properties": {
         "base": {
@@ -850,7 +971,7 @@
         },
         "envelope": {
           "$ref": "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json",
-          "description": "Full strict [`finstack_quant_valuations::instruments::InstrumentEnvelope`]\nJSON retained without constructing a duplicate generic JSON tree during\nthe outer bundle parse."
+          "description": "Full typed, strict instrument envelope."
         }
       },
       "required": [
@@ -860,6 +981,7 @@
       "type": "object"
     },
     "InstrumentCurves": {
+      "additionalProperties": false,
       "description": "Collection of curves used by an instrument, categorized by market role.",
       "properties": {
         "credit_curves": {
@@ -900,6 +1022,7 @@
       "type": "object"
     },
     "MarketDependencies": {
+      "additionalProperties": false,
       "description": "Unified dependency container for instrument market data requirements.",
       "properties": {
         "curves": {
@@ -913,15 +1036,15 @@
           },
           "type": "array"
         },
-        "series_ids": {
-          "description": "Scalar time series identifiers (e.g., OHLC price series for realized variance).",
+        "market_scalar_ids": {
+          "description": "Scalar market-value identifiers resolved through `MarketContext::get_price`.\n\nThis includes tradable spots and non-price unitless scalars such as\ncontinuous dividend yields. [`Self::series_ids`] is reserved for\n`MarketContext::get_series` dependencies.",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
-        "spot_ids": {
-          "description": "Scalar market-value identifiers resolved through `MarketContext::get_price`.\n\nThis includes tradable spots and non-price unitless scalars such as\ncontinuous dividend yields. The historical field name is retained for\nsource compatibility; [`Self::series_ids`] is reserved for\n`MarketContext::get_series` dependencies.",
+        "series_ids": {
+          "description": "Scalar time series identifiers (e.g., OHLC price series for realized variance).",
           "items": {
             "type": "string"
           },
@@ -937,7 +1060,7 @@
       },
       "required": [
         "curves",
-        "spot_ids",
+        "market_scalar_ids",
         "volatility_dependencies",
         "fx_pairs",
         "series_ids"
@@ -953,7 +1076,9 @@
           "type": "string"
         },
         "attributes": {
-          "additionalProperties": true,
+          "additionalProperties": {
+            "$ref": "#/$defs/AttributeValue"
+          },
           "description": "Position attributes used for grouping, filtering, and constraints.",
           "type": "object"
         },
@@ -980,6 +1105,7 @@
           "type": "number"
         },
         "unit": {
+          "$ref": "#/$defs/PositionUnit",
           "description": "Scaling convention applied to `quantity`."
         }
       },
@@ -1029,21 +1155,24 @@
       "description": "Portfolio fields shared by every materialized position.",
       "properties": {
         "as_of": {
-          "description": "Valuation date for the materialized portfolio.",
-          "format": "date",
-          "type": "string"
+          "$ref": "#/$defs/DateWire",
+          "description": "Valuation date for the materialized portfolio."
         },
-        "base_ccy": {
+        "base_currency": {
           "$ref": "#/$defs/Currency",
           "description": "Reporting currency used for portfolio aggregation."
         },
         "books": {
-          "additionalProperties": true,
+          "additionalProperties": {
+            "$ref": "#/$defs/Book"
+          },
           "description": "Optional book hierarchy keyed by stable book IDs.",
           "type": "object"
         },
         "entities": {
-          "additionalProperties": true,
+          "additionalProperties": {
+            "$ref": "#/$defs/Entity"
+          },
           "description": "Entities keyed by their stable IDs in deterministic order.",
           "type": "object"
         },
@@ -1073,13 +1202,68 @@
       },
       "required": [
         "id",
-        "base_ccy",
+        "base_currency",
         "as_of",
         "entities"
       ],
       "type": "object"
     },
+    "PortfolioMaterializationSchema": {
+      "description": "Sole supported portfolio-materialization contract marker.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.portfolio_materialization/1",
+          "description": "Canonical v1 materialization contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "PositionId": {
+      "description": "Position identifier.",
+      "type": "string"
+    },
+    "PositionUnit": {
+      "description": "Unit of position measurement.\n\nThe unit describes how the `quantity` on a [`Position`] should be interpreted.\nCallers should treat it as part of the valuation contract, not display-only\nmetadata.\n\n# Scaling contract\n\nPosition value is computed as ``scale_factor(unit) * per_unit_pv``, where the\nper-unit PV is the monetary value returned by the underlying instrument's\npricing. Each variant defines the scale factor explicitly:\n\n| Variant       | Scale factor              | Per-unit PV interpretation           |\n|---------------|---------------------------|--------------------------------------|\n| `Units`       | `quantity`                | PV of one instrument unit/share      |\n| `Notional(_)` | `quantity`                | PV of **one unit of notional** (``$1`` / 1 FX unit) |\n| `FaceValue`   | `quantity`                | PV per one face-value unit           |\n| `Percentage`  | `quantity / 100`          | PV of 100% of the instrument         |\n\n## `Notional` semantics (important)\n\n`Notional(ccy)` means *\"position notional multiplied by per-unit PV\"*. The\nper-unit PV MUST therefore be priced assuming **unit notional size = 1**\n(``$1``, £1, 1 unit of the notional currency). The binding builders for\nnotional-quoted instruments (swaps, FX forwards, CDS, etc.) follow this\nconvention by default; do not double-count by pricing the instrument with\nits full deal notional and then scaling by `quantity`, as that yields\n``quantity * notional * per-unit PV`` instead of the intended\n``quantity * per-unit PV``.\n\nThe optional [`Currency`] records the notional currency for validation; it\ndoes not change the scale factor. A warning is emitted when it disagrees\nwith the instrument's valuation currency.",
+      "oneOf": [
+        {
+          "const": "units",
+          "description": "Number of units/shares (for equities, baskets). Scale factor = `quantity`.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Notional amount, optionally tagged with a currency (for derivatives, FX).\n\nScale factor = `quantity`. The per-unit PV must be computed with a\nunit notional of 1 (e.g., ``$1`` notional swap PV). The optional\n[`Currency`] is a validation tag and does not alter scaling.",
+          "properties": {
+            "notional": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Currency"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "notional"
+          ],
+          "type": "object"
+        },
+        {
+          "const": "face_value",
+          "description": "Face value of debt instruments (for bonds, loans). Scale factor = `quantity`.",
+          "type": "string"
+        },
+        {
+          "const": "percentage",
+          "description": "Percentage of ownership where the value represents percentage points.\n\nFor example, 50.0 means 50%, not 0.50. The scaling logic always divides\nby 100 to convert to a decimal multiplier.",
+          "type": "string"
+        }
+      ]
+    },
     "VolatilityDependency": {
+      "additionalProperties": false,
       "description": "A volatility-surface dependency with the context needed for diagnostics.",
       "properties": {
         "reference_strike": {
@@ -1089,10 +1273,6 @@
             "number",
             "null"
           ]
-        },
-        "surface_id": {
-          "$ref": "#/$defs/Id",
-          "description": "Volatility surface identifier."
         },
         "underlying_id": {
           "anyOf": [
@@ -1104,10 +1284,14 @@
             }
           ],
           "description": "Optional underlying price identifier paired with the surface."
+        },
+        "vol_surface_id": {
+          "$ref": "#/$defs/Id",
+          "description": "Volatility surface identifier."
         }
       },
       "required": [
-        "surface_id"
+        "vol_surface_id"
       ],
       "type": "object"
     }
@@ -1147,9 +1331,8 @@
       "type": "array"
     },
     "schema": {
-      "const": "finstack_quant.portfolio_materialization/1",
-      "description": "Exact materialization contract marker.",
-      "type": "string"
+      "$ref": "#/$defs/PortfolioMaterializationSchema",
+      "description": "Exact materialization contract marker."
     }
   },
   "required": [

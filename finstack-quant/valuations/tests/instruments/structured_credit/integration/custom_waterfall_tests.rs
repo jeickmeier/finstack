@@ -41,7 +41,7 @@ fn maturity_date() -> Date {
 
 /// Five fixed-rate bullet loans, 150M total, no floating index required.
 fn create_test_pool() -> AssetPool {
-    let mut pool = AssetPool::new("TEST_POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("TEST_POOL", DealType::Clo, Currency::USD);
     for i in 0..5 {
         pool.assets.push(PoolAsset {
             day_count: finstack_quant_core::dates::DayCount::Act360,
@@ -51,7 +51,7 @@ fn create_test_pool() -> AssetPool {
             },
             balance: Money::new(30_000_000.0, Currency::USD),
             rate: 0.08,
-            spread_bps: None,
+            spread_bp: None,
             index_id: None,
             maturity: maturity_date(),
             credit_quality: Some(CreditRating::BB),
@@ -424,7 +424,7 @@ fn executor_allocates_floating_interest_on_the_shifted_path() {
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: finstack_quant_core::dates::Tenor::quarterly(),
+            reset_frequency: finstack_quant_core::dates::Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,
@@ -436,7 +436,7 @@ fn executor_allocates_floating_interest_on_the_shifted_path() {
     )
     .expect("floating tranche");
     let tranches = TrancheStructure::new(vec![float_tranche]).expect("structure");
-    let pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     let forward_curve = ForwardCurve::builder("SOFR-3M", 0.25)
         .base_date(test_date())

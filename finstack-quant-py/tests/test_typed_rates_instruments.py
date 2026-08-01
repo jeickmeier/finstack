@@ -32,29 +32,28 @@ _VALID_BDC_VALUES = (
     "modified_preceding",
 )
 
-# Every serde wire value of the Rust `StubKind` enum (no `rename_all`, so the
-# wire name is the bare variant name: None/ShortFront/ShortBack/LongFront/
-# LongBack). Kept in sync manually with
+# Every canonical snake_case serde wire value of the Rust `StubKind` enum.
+# Kept in sync manually with
 # `finstack-quant/core/src/dates/schedule_iter.rs`; a stub `Literal` that
 # drifts from this set is exactly the bug this test guards against.
 _VALID_STUB_VALUES = (
-    "None",
-    "ShortFront",
-    "ShortBack",
-    "LongFront",
-    "LongBack",
+    "none",
+    "short_front",
+    "short_back",
+    "long_front",
+    "long_back",
 )
 
 
 def _market_json() -> str:
     return json.dumps({
-        "version": 2,
+        "schema_version": 1,
         "curves": [
             {
                 "type": "discount",
                 "id": "USD-OIS",
                 "base": "2024-01-01",
-                "day_count": "Act360",
+                "day_count": "act_360",
                 "knot_points": [[0.0, 1.0], [5.0, 0.90], [10.0, 0.80]],
                 "interp_style": "monotone_convex",
                 "extrapolation": "flat_forward",
@@ -67,7 +66,7 @@ def _market_json() -> str:
                 "id": "USD-SOFR-3M",
                 "base": "2024-01-01",
                 "reset_lag": 2,
-                "day_count": "Act360",
+                "day_count": "act_360",
                 "tenor": 0.25,
                 "knot_points": [[0.0, 0.04], [10.0, 0.045]],
                 "interp_style": "linear",
@@ -84,58 +83,62 @@ def _market_json() -> str:
         "fx_delta_vol_surfaces": [],
         "vol_cubes": [],
         "collateral": {},
+        "hierarchy": None,
     })
 
 
 def _payer_swap_hand_written_json() -> str:
-    """Hand-authored tagged JSON for the same economic swap as `_payer_swap`.
+    """Hand-authored instrument envelope for the same economic swap as `_payer_swap`.
 
     Deliberately NOT derived from `InterestRateSwap.to_json()` — this is the
-    independent side of the typed-vs-JSON golden. If Rust's ``tagged_json()``
+    independent side of the typed-vs-JSON golden. If Rust's envelope
     serializer ever mis-maps a field, this literal (built directly from the
     canonical `FixedLegSpec`/`FloatLegSpec`/`InterestRateSwap` struct
     definitions and their serde wire names) will diverge from the typed path
     instead of silently matching it.
     """
     return json.dumps({
-        "type": "interest_rate_swap",
-        "spec": {
-            "id": "IRS-1",
-            "notional": {"amount": "10000000", "currency": "USD"},
-            "side": "pay",
-            "fixed": {
-                "discount_curve_id": "USD-OIS",
-                "rate": "0.04",
-                "frequency": {"count": 6, "unit": "months"},
-                "day_count": "Thirty360",
-                "bdc": "modified_following",
-                "calendar_id": None,
-                "stub": "ShortFront",
-                "start": "2024-01-15",
-                "end": "2029-01-15",
-                "par_method": None,
-                "compounding_simple": False,
-                "payment_lag_days": 0,
-                "end_of_month": False,
+        "schema": "finstack_quant.instrument/1",
+        "instrument": {
+            "type": "interest_rate_swap",
+            "spec": {
+                "id": "IRS-1",
+                "notional": {"amount": "10000000", "currency": "USD"},
+                "side": "pay",
+                "fixed": {
+                    "discount_curve_id": "USD-OIS",
+                    "rate": "0.04",
+                    "frequency": {"count": 6, "unit": "months"},
+                    "day_count": "30_360",
+                    "business_day_convention": "modified_following",
+                    "calendar_id": None,
+                    "stub": "short_front",
+                    "start": "2024-01-15",
+                    "end": "2029-01-15",
+                    "par_method": None,
+                    "compounding_simple": False,
+                    "payment_lag_days": 0,
+                    "end_of_month": False,
+                },
+                "float": {
+                    "discount_curve_id": "USD-OIS",
+                    "forward_curve_id": "USD-SOFR-3M",
+                    "spread_bp": "0",
+                    "frequency": {"count": 3, "unit": "months"},
+                    "day_count": "act_360",
+                    "business_day_convention": "modified_following",
+                    "calendar_id": None,
+                    "stub": "short_front",
+                    "reset_lag_days": -1,
+                    "fixing_calendar_id": None,
+                    "start": "2024-01-15",
+                    "end": "2029-01-15",
+                    "compounding": "simple",
+                    "payment_lag_days": 0,
+                    "end_of_month": False,
+                },
+                "attributes": {},
             },
-            "float": {
-                "discount_curve_id": "USD-OIS",
-                "forward_curve_id": "USD-SOFR-3M",
-                "spread_bp": "0",
-                "frequency": {"count": 3, "unit": "months"},
-                "day_count": "Act360",
-                "bdc": "modified_following",
-                "calendar_id": None,
-                "stub": "ShortFront",
-                "reset_lag_days": -1,
-                "fixing_calendar_id": None,
-                "start": "2024-01-15",
-                "end": "2029-01-15",
-                "compounding": "Simple",
-                "payment_lag_days": 0,
-                "end_of_month": False,
-            },
-            "attributes": {},
         },
     })
 
@@ -154,8 +157,8 @@ class TestInterestRateSwapTyped:
 
     def test_to_json_is_tagged(self) -> None:
         payload = json.loads(_payer_swap().to_json())
-        assert payload["type"] == "interest_rate_swap"
-        assert payload["spec"]["id"] == "IRS-1"
+        assert payload["instrument"]["type"] == "interest_rate_swap"
+        assert payload["instrument"]["spec"]["id"] == "IRS-1"
 
     def test_from_json_round_trip(self) -> None:
         original = _payer_swap().to_json()
@@ -178,7 +181,7 @@ class TestInterestRateSwapTyped:
 
         The JSON side is NOT derived from ``swap.to_json()`` (that would make
         both sides call the same Rust serializer, so a bug inside
-        `tagged_json()`'s own field mapping would be identically wrong on
+        the envelope serializer's own field mapping would be identically wrong on
         both sides and pass). See `_payer_swap_hand_written_json`.
         """
         swap = _payer_swap()
@@ -223,18 +226,18 @@ class TestFixedLegSpecTyped:
             day_count=DayCount.THIRTY_360,
             start=datetime.date(2024, 1, 15),
             end=datetime.date(2029, 1, 15),
-            bdc="modified_following",
+            business_day_convention="modified_following",
             calendar_id=None,
-            stub="ShortFront",
+            stub="short_front",
             compounding_simple=False,
             payment_lag_days=0,
             end_of_month=False,
         )
         assert "0.04" in repr(leg)
 
-    @pytest.mark.parametrize("bdc", _VALID_BDC_VALUES)
-    def test_every_bdc_literal_value_accepted(self, bdc: str) -> None:
-        """Every value in the `bdc` stub Literal must be a real accepted wire value."""
+    @pytest.mark.parametrize("business_day_convention", _VALID_BDC_VALUES)
+    def test_every_business_day_convention_literal_value_accepted(self, business_day_convention: str) -> None:
+        """Every value in the `business_day_convention` stub Literal must be a real accepted wire value."""
         leg = FixedLegSpec(
             "USD-OIS",
             0.04,
@@ -242,14 +245,14 @@ class TestFixedLegSpecTyped:
             DayCount.THIRTY_360,
             datetime.date(2024, 1, 15),
             datetime.date(2029, 1, 15),
-            bdc=bdc,
+            business_day_convention=business_day_convention,
             compounding_simple=False,
         )
         assert "0.04" in repr(leg)
 
     @pytest.mark.parametrize("stub", _VALID_STUB_VALUES)
     def test_every_stub_literal_value_accepted(self, stub: str) -> None:
-        """Every value in the `stub` Literal (including `"None"`) must be a real accepted wire value."""
+        """Every value in the `stub` Literal (including `"none"`) must be a real accepted wire value."""
         leg = FixedLegSpec(
             "USD-OIS",
             0.04,
@@ -264,9 +267,9 @@ class TestFixedLegSpecTyped:
 
 
 class TestFloatLegSpecTyped:
-    @pytest.mark.parametrize("bdc", _VALID_BDC_VALUES)
-    def test_every_bdc_literal_value_accepted(self, bdc: str) -> None:
-        """Every value in the `bdc` stub Literal must be a real accepted wire value."""
+    @pytest.mark.parametrize("business_day_convention", _VALID_BDC_VALUES)
+    def test_every_business_day_convention_literal_value_accepted(self, business_day_convention: str) -> None:
+        """Every value in the `business_day_convention` stub Literal must be a real accepted wire value."""
         leg = FloatLegSpec(
             "USD-OIS",
             "USD-SOFR-3M",
@@ -275,13 +278,13 @@ class TestFloatLegSpecTyped:
             DayCount.ACT_360,
             datetime.date(2024, 1, 15),
             datetime.date(2029, 1, 15),
-            bdc=bdc,
+            business_day_convention=business_day_convention,
         )
         assert "spread_bp=0" in repr(leg)
 
     @pytest.mark.parametrize("stub", _VALID_STUB_VALUES)
     def test_every_stub_literal_value_accepted(self, stub: str) -> None:
-        """Every value in the `stub` Literal (including `"None"`) must be a real accepted wire value."""
+        """Every value in the `stub` Literal (including `"none"`) must be a real accepted wire value."""
         leg = FloatLegSpec(
             "USD-OIS",
             "USD-SOFR-3M",
@@ -304,9 +307,9 @@ class TestFloatLegSpecTyped:
             day_count=DayCount.ACT_360,
             start=datetime.date(2024, 1, 15),
             end=datetime.date(2029, 1, 15),
-            bdc="modified_following",
+            business_day_convention="modified_following",
             calendar_id=None,
-            stub="ShortFront",
+            stub="short_front",
             reset_lag_days=-1,
             fixing_calendar_id=None,
             payment_lag_days=0,

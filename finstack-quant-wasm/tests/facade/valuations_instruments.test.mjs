@@ -31,7 +31,7 @@ test('instruments namespace exposes typed Bond and TermLoan classes', () => {
   assert.equal(typeof valuations.instruments.TermLoan, 'function');
 });
 
-test('Bond.fixed constructs, round-trips through tagged JSON', () => {
+test('Bond.fixed constructs, round-trips through the canonical envelope', () => {
   const usd = new core.Currency('USD');
   const bond = valuations.instruments.Bond.fixed(
     'BOND-1',
@@ -44,10 +44,12 @@ test('Bond.fixed constructs, round-trips through tagged JSON', () => {
   assert.equal(bond.id, 'BOND-1');
   const json = bond.toJson();
   const payload = JSON.parse(json);
-  assert.equal(payload.type, 'bond');
-  assert.equal(payload.spec.id, 'BOND-1');
+  assert.equal(payload.schema, 'finstack_quant.instrument/1');
+  assert.equal(payload.instrument.type, 'bond');
+  assert.equal(payload.instrument.spec.id, 'BOND-1');
   const roundTripped = valuations.instruments.Bond.fromJson(json);
   assert.equal(roundTripped.toJson(), json);
+  assert.throws(() => valuations.instruments.Bond.fromJson(JSON.stringify(payload.instrument)));
 });
 
 test('Bond.fromJson rejects malformed JSON and wrong instrument types', () => {
@@ -56,11 +58,12 @@ test('Bond.fromJson rejects malformed JSON and wrong instrument types', () => {
   assert.throws(() => valuations.instruments.Bond.fromJson(loanJson));
 });
 
-test('TermLoan.example round-trips through tagged JSON', () => {
+test('TermLoan.example round-trips through the canonical envelope', () => {
   const loan = valuations.instruments.TermLoan.example();
   assert.equal(loan.id, 'TERM-LOAN-USD-5Y');
   const json = loan.toJson();
   const payload = JSON.parse(json);
-  assert.equal(payload.type, 'term_loan');
+  assert.equal(payload.schema, 'finstack_quant.instrument/1');
+  assert.equal(payload.instrument.type, 'term_loan');
   assert.equal(valuations.instruments.TermLoan.fromJson(json).toJson(), json);
 });

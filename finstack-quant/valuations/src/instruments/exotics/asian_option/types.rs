@@ -32,13 +32,12 @@ impl std::str::FromStr for AveragingMethod {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
+        match s {
             "arithmetic" => Ok(Self::Arithmetic),
             "geometric" => Ok(Self::Geometric),
-            other => Err(format!(
+            _ => Err(format!(
                 "Unknown averaging method: '{}'. Valid: arithmetic, geometric",
-                other
+                s
             )),
         }
     }
@@ -97,7 +96,9 @@ impl std::str::FromStr for AveragingMethod {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct AsianOption {
@@ -112,14 +113,14 @@ pub struct AsianOption {
     /// Averaging method (arithmetic or geometric)
     pub averaging_method: AveragingMethod,
     /// Option expiry date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Dates on which underlying is observed for averaging.
     ///
     /// **Note**: These dates should be pre-adjusted for business day conventions.
     /// The pricer uses these dates directly without further adjustment.
     /// See struct-level documentation for business day convention guidance.
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub fixing_dates: Vec<Date>,
     /// Notional amount
     pub notional: Money,
@@ -134,14 +135,25 @@ pub struct AsianOption {
     /// Optional dividend yield curve ID
     pub div_yield_id: Option<CurveId>,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping
     pub attributes: Attributes,
@@ -152,7 +164,7 @@ pub struct AsianOption {
     /// `fixing_dates` and are on or before the valuation date are considered.
     #[builder(default)]
     #[serde(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub past_fixings: Vec<(Date, f64)>,
 }
 
@@ -360,7 +372,7 @@ impl crate::instruments::common_impl::traits::Instrument for AsianOption {
     > {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
-        deps.add_spot_id(self.spot_id.as_str());
+        deps.add_market_scalar_id(self.spot_id.as_str());
         deps.add_volatility_dependency(
             crate::instruments::common_impl::dependencies::VolatilityDependency::new(
                 self.vol_surface_id.clone(),
@@ -369,7 +381,7 @@ impl crate::instruments::common_impl::traits::Instrument for AsianOption {
             ),
         );
         if let Some(dividend_yield) = &self.div_yield_id {
-            deps.add_spot_id(dividend_yield.as_str());
+            deps.add_market_scalar_id(dividend_yield.as_str());
         }
         Ok(deps)
     }
@@ -429,7 +441,9 @@ mod tests {
         let deps =
             crate::instruments::Instrument::market_dependencies(&option).expect("dependencies");
 
-        assert!(deps.spot_ids.contains(&dividend_id.as_str().to_string()));
+        assert!(deps
+            .market_scalar_ids
+            .contains(&dividend_id.as_str().to_string()));
         assert!(deps.series_ids.is_empty());
     }
 

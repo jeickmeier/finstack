@@ -62,7 +62,7 @@ fn simm_calculator_accepts_standalone_marginable_trait_objects() {
     let market = MarketContext::new();
 
     let mut sensitivities = SimmSensitivities::new(Currency::USD);
-    sensitivities.add_ir_delta(Currency::USD, "5y", 50_000.0);
+    sensitivities.add_ir_delta(Currency::USD, "5Y", 50_000.0);
     sensitivities.add_equity_delta("AAPL", 100_000.0);
 
     let instrument = StandaloneMarginable::new(
@@ -86,7 +86,7 @@ fn margin_metrics_accept_standalone_marginable_trait_objects() {
     let market = MarketContext::new();
 
     let mut sensitivities = SimmSensitivities::new(Currency::USD);
-    sensitivities.add_ir_delta(Currency::USD, "5y", 50_000.0);
+    sensitivities.add_ir_delta(Currency::USD, "5Y", 50_000.0);
 
     let instrument =
         StandaloneMarginable::new(Money::new(1_000_000.0, Currency::USD), sensitivities);

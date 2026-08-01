@@ -201,7 +201,7 @@ impl Haircut01 {
 
     /// Get the haircut in basis points.
     #[must_use]
-    pub fn haircut_bps(&self) -> f64 {
+    pub fn haircut_bp(&self) -> f64 {
         self.current_haircut * 10_000.0
     }
 }
@@ -263,6 +263,6 @@ mod tests {
         let h01 = Haircut01::calculate(collateral, 0.02);
 
         assert_eq!(h01.pv_change.amount(), 10_000.0); // 100M × 0.01%
-        assert_eq!(h01.haircut_bps(), 200.0); // 2% = 200bp
+        assert_eq!(h01.haircut_bp(), 200.0); // 2% = 200bp
     }
 }

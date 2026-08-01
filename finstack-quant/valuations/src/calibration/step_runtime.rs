@@ -30,7 +30,7 @@ use finstack_quant_core::dates::{DayCount, DayCountContext};
 use finstack_quant_core::explain::TraceEntry;
 use finstack_quant_core::market_data::context::{CurveStorage, MarketContext};
 use finstack_quant_core::market_data::scalars::{MarketScalar, ScalarTimeSeries};
-use finstack_quant_core::market_data::surfaces::{VolCube, VolSurface};
+use finstack_quant_core::market_data::surfaces::{VolCube, VolQuoteType, VolSurface};
 use finstack_quant_core::market_data::term_structures::CreditIndexData;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_core::Result;
@@ -292,7 +292,7 @@ pub(crate) fn execute_params(
         StepParams::HullWhite(p) => {
             let disc_curve = context.get_discount(&p.curve_id)?;
             let df = |t: f64| disc_curve.df(t);
-            let dc = DayCount::Act365F;
+            let day_count = DayCount::Act365F;
 
             // Extract swaption quotes from MarketQuote::Vol(VolQuote::SwaptionVol { .. }).
             //
@@ -306,7 +306,7 @@ pub(crate) fn execute_params(
                 | finstack_quant_core::currency::Currency::GBP => SwapFrequency::Annual,
                 _ => SwapFrequency::SemiAnnual,
             };
-            let payment_dc = match p.currency {
+            let payment_day_count = match p.currency {
                 finstack_quant_core::currency::Currency::EUR
                 | finstack_quant_core::currency::Currency::GBP => DayCount::Thirty360,
                 _ => DayCount::Act360,
@@ -327,8 +327,10 @@ pub(crate) fn execute_params(
                     continue;
                 };
 
-                let t_exp = dc.year_fraction(p.base_date, *expiry, DayCountContext::default())?;
-                let t_ten = dc.year_fraction(*expiry, *maturity, DayCountContext::default())?;
+                let t_exp =
+                    day_count.year_fraction(p.base_date, *expiry, DayCountContext::default())?;
+                let t_ten =
+                    day_count.year_fraction(*expiry, *maturity, DayCountContext::default())?;
                 if t_exp <= 0.0 || t_ten <= 0.0 {
                     continue;
                 }
@@ -349,14 +351,16 @@ pub(crate) fn execute_params(
                     } else {
                         acc_start + time::Duration::days(period_days)
                     };
-                    let tau =
-                        payment_dc.year_fraction(acc_start, acc_end, DayCountContext::default())?;
+                    let tau = payment_day_count.year_fraction(
+                        acc_start,
+                        acc_end,
+                        DayCountContext::default(),
+                    )?;
                     accruals.push(tau);
                     acc_start = acc_end;
                 }
 
-                let is_normal = crate::market::quotes::vol::parse_vol_quote_type(quote_type)?
-                    == finstack_quant_core::market_data::surfaces::VolQuoteType::Normal;
+                let is_normal = *quote_type == VolQuoteType::Normal;
                 hw_quotes.push(SwaptionQuote {
                     expiry: t_exp,
                     tenor: t_ten,
@@ -407,7 +411,7 @@ pub(crate) fn execute_params(
                     .as_ref()
                     .map_or_else(|| disc_curve.df(t), |curve| curve.df(t).unwrap_or(f64::NAN))
             };
-            let dc = DayCount::Act365F;
+            let day_count = DayCount::Act365F;
 
             let mut cap_floor_quotes = Vec::new();
             for quote in quotes {
@@ -424,7 +428,7 @@ pub(crate) fn execute_params(
                 };
 
                 let maturity =
-                    dc.year_fraction(p.base_date, *expiry, DayCountContext::default())?;
+                    day_count.year_fraction(p.base_date, *expiry, DayCountContext::default())?;
                 if maturity <= 0.0 {
                     continue;
                 }
@@ -433,8 +437,7 @@ pub(crate) fn execute_params(
                     strike: *strike,
                     volatility: *vol,
                     is_cap: *is_cap,
-                    is_normal_vol: crate::market::quotes::vol::parse_vol_quote_type(quote_type)?
-                        == finstack_quant_core::market_data::surfaces::VolQuoteType::Normal,
+                    is_normal_vol: *quote_type == VolQuoteType::Normal,
                 });
             }
 
@@ -677,7 +680,7 @@ mod tests {
             .running_coupon_bp(500.0)
             .frequency("3M".parse().expect("tenor"))
             .day_count(DayCount::Act360)
-            .bdc(finstack_quant_core::dates::BusinessDayConvention::Following)
+            .business_day_convention(finstack_quant_core::dates::BusinessDayConvention::Following)
             .calendar_id_opt(None)
             .discount_curve_id(CurveId::from("USD-OIS"))
             .credit_index_id(CurveId::from("CDX.NA.IG"))
@@ -786,7 +789,7 @@ mod tests {
                 maturity: Date::from_calendar_date(2031, Month::January, 1).expect("maturity"),
                 strike: 0.03,
                 vol: synthesise(1.0, 5.0),
-                quote_type: "normal".to_string(),
+                quote_type: VolQuoteType::Normal,
                 convention: SwaptionConventionId::new("USD"),
             }),
             MarketQuote::Vol(VolQuote::SwaptionVol {
@@ -795,7 +798,7 @@ mod tests {
                 maturity: Date::from_calendar_date(2032, Month::January, 1).expect("maturity"),
                 strike: 0.03,
                 vol: synthesise(2.0, 5.0),
-                quote_type: "normal".to_string(),
+                quote_type: VolQuoteType::Normal,
                 convention: SwaptionConventionId::new("USD"),
             }),
             MarketQuote::Vol(VolQuote::SwaptionVol {
@@ -804,7 +807,7 @@ mod tests {
                 maturity: Date::from_calendar_date(2035, Month::January, 1).expect("maturity"),
                 strike: 0.03,
                 vol: synthesise(5.0, 5.0),
-                quote_type: "normal".to_string(),
+                quote_type: VolQuoteType::Normal,
                 convention: SwaptionConventionId::new("USD"),
             }),
         ];
@@ -866,7 +869,7 @@ mod tests {
             expiry: Date::from_calendar_date(2030, Month::January, 1).expect("expiry"),
             strike: 0.0365,
             vol,
-            quote_type: "normal".to_string(),
+            quote_type: VolQuoteType::Normal,
             is_cap: true,
             convention: CapFloorConventionId::new("USD-SOFR-CAP"),
         })];
@@ -927,7 +930,7 @@ mod tests {
             expiry: Date::from_calendar_date(2030, Month::January, 1).expect("expiry"),
             strike: 0.0365,
             vol,
-            quote_type: "normal".to_string(),
+            quote_type: VolQuoteType::Normal,
             is_cap: true,
             convention: CapFloorConventionId::new("USD-SOFR-CAP"),
         })];
@@ -952,16 +955,16 @@ mod tests {
         let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
         let expiry_1 = Date::from_calendar_date(2025, Month::July, 1).expect("valid date");
         let expiry_2 = Date::from_calendar_date(2026, Month::January, 1).expect("valid date");
-        let time_dc = DayCount::Act365F;
-        let t1 = time_dc
+        let time_day_count = DayCount::Act365F;
+        let t1 = time_day_count
             .year_fraction(base_date, expiry_1, DayCountContext::default())
             .expect("valid year fraction");
-        let t2 = time_dc
+        let t2 = time_day_count
             .year_fraction(base_date, expiry_2, DayCountContext::default())
             .expect("valid year fraction");
 
         let params = StepParams::SviSurface(SviSurfaceParams {
-            surface_id: "SPX-SVI".to_string(),
+            vol_surface_id: "SPX-SVI".to_string(),
             base_date,
             underlying_ticker: "SPX".to_string(),
             discount_curve_id: Some("USD-OIS".into()),

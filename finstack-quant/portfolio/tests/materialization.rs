@@ -10,7 +10,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::{content_hash, to_canonical_bytes};
 use finstack_quant_portfolio::materialization::{
     InstrumentArtifact, InstrumentArtifactCache, MaterializedPosition, PortfolioHeader,
-    PortfolioMaterializationEnvelope, PORTFOLIO_MATERIALIZATION_CONTRACT,
+    PortfolioMaterializationEnvelope,
 };
 use finstack_quant_portfolio::position::{Position, PositionUnit};
 use finstack_quant_portfolio::types::{Entity, PositionId};
@@ -22,7 +22,6 @@ use finstack_quant_valuations::instruments::{
 };
 use finstack_quant_valuations::pricer::InstrumentType;
 use indexmap::IndexMap;
-use serde_json::value::{to_raw_value, RawValue};
 use time::macros::date;
 
 fn deposit_envelope(index: usize) -> InstrumentEnvelope {
@@ -43,7 +42,7 @@ fn artifact(index: usize) -> InstrumentArtifact {
     InstrumentArtifact {
         artifact_id: format!("artifact-{index}"),
         content_hash: Some(envelope.content_hash().expect("hash fixture")),
-        envelope: to_raw_value(&envelope).expect("raw fixture"),
+        envelope,
         dependencies: None,
     }
 }
@@ -63,11 +62,11 @@ fn position(index: usize, artifact_index: usize) -> MaterializedPosition {
 
 fn envelope(artifact_count: usize, position_count: usize) -> PortfolioMaterializationEnvelope {
     PortfolioMaterializationEnvelope {
-        schema: PORTFOLIO_MATERIALIZATION_CONTRACT.schema_string(),
+        schema: finstack_quant_portfolio::materialization::PortfolioMaterializationSchema::CURRENT,
         portfolio: PortfolioHeader {
             id: "portfolio".to_string(),
             name: Some("Materialized Portfolio".to_string()),
-            base_ccy: Currency::USD,
+            base_currency: Currency::USD,
             as_of: date!(2025 - 01 - 01),
             entities: IndexMap::from([("entity".into(), Entity::new("entity"))]),
             books: IndexMap::new(),
@@ -98,7 +97,7 @@ fn materialization_envelope_has_exact_canonical_bytes_and_hash() {
             .expect("instrument envelope is an object")
             .keys()
             .all(|key| !key.starts_with("$serde_json")),
-        "canonical RawValue must not expose serde_json internals"
+        "canonical typed envelope must not expose serde_json internals"
     );
     let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
@@ -266,6 +265,35 @@ fn limits_are_enforced_before_artifact_decode() {
 }
 
 #[test]
+fn collection_limits_precede_typed_element_validation() {
+    let bytes = serde_json::to_vec(&serde_json::json!({
+        "schema": "finstack_quant.portfolio_materialization/1",
+        "portfolio": {},
+        "instruments": [{}, {}],
+        "positions": []
+    }))
+    .expect("serialize malformed over-limit fixture");
+    let cache = InstrumentArtifactCache::new();
+
+    let error = Portfolio::from_materialization(
+        &bytes,
+        &cache,
+        &LoadLimits::default().with_max_artifacts(1),
+    )
+    .expect_err("artifact limit must precede element validation");
+
+    assert!(matches!(
+        error,
+        finstack_quant_portfolio::Error::ContractLimitExceeded {
+            ref what,
+            found: 2,
+            limit: 1,
+        } if what == "artifacts"
+    ));
+    assert_eq!(cache.len(), 0);
+}
+
+#[test]
 fn materialization_depth_limit_covers_outer_and_raw_instrument_json() {
     let cache = InstrumentArtifactCache::new();
     let mut outer = serde_json::to_value(envelope(1, 1)).expect("serialize outer fixture");
@@ -333,22 +361,24 @@ fn materialization_depth_limit_covers_outer_and_raw_instrument_json() {
 #[test]
 fn schema_and_strict_instrument_envelopes_are_required() {
     let cache = InstrumentArtifactCache::new();
-    let mut bundle = envelope(1, 1);
-    bundle.schema = "finstack_quant.portfolio_materialization/2".to_string();
-    let error = load(&bundle, &cache, &LoadLimits::default()).expect_err("schema rejected");
-    assert!(error.to_string().contains("version"));
-
-    let mut bundle = envelope(1, 1);
-    bundle.instruments[0].envelope =
-        to_raw_value(&deposit_envelope(0).instrument).expect("bare instrument");
-    bundle.instruments[0].content_hash = None;
+    let mut value = serde_json::to_value(envelope(1, 1)).expect("serialize fixture");
+    value["schema"] = serde_json::json!("finstack_quant.portfolio_materialization/2");
+    let bytes = serde_json::to_vec(&value).expect("serialize wrong schema");
     let report = report_from_error(
-        load(&bundle, &cache, &LoadLimits::default()).expect_err("bare instrument rejected"),
+        Portfolio::from_materialization(&bytes, &cache, &LoadLimits::default())
+            .expect_err("schema rejected"),
     );
-    assert!(report
-        .diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.code == "portfolio/instrument-envelope-required"));
+    assert_eq!(report.diagnostics[0].code, "contract/structure-invalid");
+
+    let mut value = serde_json::to_value(envelope(1, 1)).expect("serialize fixture");
+    value["instruments"][0]["envelope"] = value["instruments"][0]["envelope"]["instrument"].take();
+    value["instruments"][0]["content_hash"] = serde_json::Value::Null;
+    let bytes = serde_json::to_vec(&value).expect("serialize bare instrument");
+    let report = report_from_error(
+        Portfolio::from_materialization(&bytes, &cache, &LoadLimits::default())
+            .expect_err("bare instrument rejected"),
+    );
+    assert_eq!(report.diagnostics[0].code, "contract/structure-invalid");
 }
 
 #[test]
@@ -453,7 +483,7 @@ fn duplicate_artifact_id_remains_a_fatal_error() {
 }
 
 #[test]
-fn mixed_predecode_failures_aggregate_across_categories() {
+fn mixed_semantic_failures_aggregate_across_categories() {
     let mut bundle = envelope(3, 2);
     bundle.instruments[1].artifact_id = bundle.instruments[0].artifact_id.clone();
     bundle.positions[1].id = bundle.positions[0].id.clone();
@@ -463,13 +493,7 @@ fn mixed_predecode_failures_aggregate_across_categories() {
     bundle.instruments[1].content_hash = None;
     bundle.instruments[2].content_hash = None;
 
-    let mut value = serde_json::to_value(bundle).expect("serialize mixed-invalid fixture");
-    value["instruments"][0]["dependencies"] = serde_json::json!({"curves": {}, "spot_ids": [], "volatility_dependencies": [], "fx_pairs": [], "series_ids": [], "__unknown__": true});
-    value["instruments"][1]["envelope"]["schema"] =
-        serde_json::json!("finstack_quant.instrument/2");
-    value["instruments"][2]["envelope"] = serde_json::json!({"type": "deposit", "spec": {}});
-
-    let bytes = serde_json::to_vec(&value).expect("serialize mutation");
+    let bytes = serde_json::to_vec(&bundle).expect("serialize mixed-invalid fixture");
     let error = Portfolio::from_materialization(
         &bytes,
         &InstrumentArtifactCache::new(),
@@ -477,15 +501,13 @@ fn mixed_predecode_failures_aggregate_across_categories() {
     )
     .expect_err("mixed invalid bundle");
     let report = report_from_error(error);
-    assert_eq!(report.diagnostics.len(), 7);
-    assert!(report.truncated);
+    assert_eq!(report.diagnostics.len(), 5);
+    assert!(!report.truncated);
     for code in [
         "portfolio/duplicate-artifact-id",
         "portfolio/duplicate-position-id",
         "portfolio/missing-artifact",
-        "portfolio/dependencies-invalid",
         "portfolio/content-hash-mismatch",
-        "contract/version-unsupported",
     ] {
         assert!(
             report
@@ -586,7 +608,7 @@ fn materialization_roundtrip_matches_from_spec_visible_state() {
     let portable = Portfolio::from_spec(
         Portfolio::builder("portfolio")
             .name("Materialized Portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2025 - 01 - 01))
             .entity(Entity::new("entity"))
             .tag("desk", "rates")
@@ -654,7 +676,7 @@ fn export_deduplicates_instruments_by_content_hash() {
     )
     .expect("second position");
     let portfolio = Portfolio::builder("portfolio")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(date!(2025 - 01 - 01))
         .entity(Entity::new("entity"))
         .positions([first, second])
@@ -726,7 +748,7 @@ fn export_fails_instead_of_emitting_null_for_non_serializable_instrument() {
         attributes: Attributes::new(),
     };
     let portfolio = Portfolio::builder("portfolio")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(date!(2025 - 01 - 01))
         .entity(Entity::new("entity"))
         .position(
@@ -765,7 +787,9 @@ fn bounded_cache_evicts_without_invalidating_shared_arcs() {
 #[test]
 fn cache_byte_budget_evicts_least_recently_used_artifact() {
     let first = envelope(1, 1);
-    let first_bytes = first.instruments[0].envelope.get().len();
+    let first_bytes = serde_json::to_vec(&first.instruments[0].envelope)
+        .expect("serialize instrument envelope")
+        .len();
     let cache = InstrumentArtifactCache::with_limits(10, first_bytes + 32);
     load(&first, &cache, &LoadLimits::default()).expect("first load");
 
@@ -809,44 +833,35 @@ fn concurrent_same_key_materialization_decodes_once() {
 }
 
 #[test]
-fn decode_diagnostics_use_original_artifact_indices() {
-    let mut bundle = envelope(2, 2);
-    for artifact in &mut bundle.instruments {
-        artifact.content_hash = None;
-        let mut value: serde_json::Value =
-            serde_json::from_str(artifact.envelope.get()).expect("instrument envelope");
-        value["instrument"]["spec"]["__unknown__"] = serde_json::json!(true);
-        artifact.envelope = to_raw_value(&value).expect("mutated raw envelope");
+fn typed_artifact_rejects_unknown_instrument_fields_before_decode() {
+    let bundle = envelope(2, 2);
+    let mut value = serde_json::to_value(bundle).expect("serialize fixture");
+    for artifact in value["instruments"]
+        .as_array_mut()
+        .expect("instrument array")
+    {
+        artifact["content_hash"] = serde_json::Value::Null;
+        artifact["envelope"]["instrument"]["spec"]["__unknown__"] = serde_json::json!(true);
     }
+    let bytes = serde_json::to_vec(&value).expect("serialize invalid fixtures");
+    let cache = InstrumentArtifactCache::new();
     let report = report_from_error(
-        load(
-            &bundle,
-            &InstrumentArtifactCache::new(),
-            &LoadLimits::default(),
-        )
-        .expect_err("invalid instrument specs"),
+        Portfolio::from_materialization(&bytes, &cache, &LoadLimits::default())
+            .expect_err("invalid instrument specs"),
     );
-    let pointers: Vec<_> = report
-        .diagnostics
-        .iter()
-        .filter(|diagnostic| diagnostic.code == "portfolio/instrument-invalid")
-        .filter_map(|diagnostic| diagnostic.pointer.as_deref())
-        .collect();
-    assert_eq!(
-        pointers,
-        vec!["/instruments/0/envelope", "/instruments/1/envelope"]
-    );
+    assert_eq!(report.diagnostics[0].code, "contract/structure-invalid");
+    assert_eq!(cache.decode_count(), 0);
 }
 
 #[test]
-fn raw_artifact_field_roundtrips_without_materializing_as_null() {
+fn typed_artifact_field_roundtrips_without_materializing_as_null() {
     let bundle = envelope(1, 1);
     let bytes = serde_json::to_vec(&bundle).expect("serialize");
     let decoded: PortfolioMaterializationEnvelope =
         serde_json::from_slice(&bytes).expect("deserialize");
-    let raw: &RawValue = decoded.instruments[0].envelope.as_ref();
-    assert!(raw
-        .get()
-        .contains("\"schema\":\"finstack_quant.instrument/1\""));
-    assert_ne!(raw.get(), "null");
+    assert_eq!(
+        serde_json::to_value(&decoded.instruments[0].envelope).expect("serialize envelope")
+            ["schema"],
+        "finstack_quant.instrument/1"
+    );
 }

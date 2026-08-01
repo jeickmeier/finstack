@@ -123,7 +123,7 @@ impl core::str::FromStr for InflationInterpolation {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
+        match s {
             "step" => Ok(InflationInterpolation::Step),
             "linear" => Ok(InflationInterpolation::Linear),
             other => Err(format!("Unknown inflation interpolation: {}", other)),
@@ -258,8 +258,9 @@ pub enum InflationLag {
 ///     Accounting*, 2(1), 1-19.
 ///   - Hurd, M., & Relleen, J. (2006). "Estimating the Inflation Risk Premium."
 ///     Bank of England Quarterly Bulletin, Q2 2006.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(try_from = "RawInflationIndex", into = "RawInflationIndex")]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, JsonSchema)]
+#[serde(try_from = "InflationIndexWire", into = "InflationIndexWire")]
+#[schemars(try_from = "InflationIndexWire")]
 pub struct InflationIndex {
     /// Unique identifier for this index (e.g., "US-CPI-U", "UK-RPI")
     pub id: String,
@@ -267,7 +268,7 @@ pub struct InflationIndex {
     series: ScalarTimeSeries,
     /// Pre-built series with the active interpolation applied, used by `value_on`
     /// to avoid a clone on every call. Not part of the serialized representation
-    /// (the struct uses try_from/into via RawInflationIndex).
+    /// (the struct uses try_from/into via InflationIndexWire).
     series_interp: ScalarTimeSeries,
     /// Interpolation method between observations
     pub interpolation: InflationInterpolation,
@@ -555,13 +556,13 @@ impl InflationIndex {
 /// Raw serializable state of an InflationIndex
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct RawInflationIndex {
+struct InflationIndexWire {
     /// Unique identifier
     pub id: String,
     /// Currency
     pub currency: Currency,
     /// Observations as (date, value) pairs
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[schemars(with = "Vec<(crate::wire::DateWire, f64)>")]
     pub observations: Vec<(Date, f64)>,
     /// Interpolation method
     pub interpolation: InflationInterpolation,
@@ -571,21 +572,11 @@ struct RawInflationIndex {
     pub seasonality: Option<[f64; 12]>,
 }
 
-impl JsonSchema for InflationIndex {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        "InflationIndex".into()
-    }
-
-    fn json_schema(gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        RawInflationIndex::json_schema(gen)
-    }
-}
-
-impl From<InflationIndex> for RawInflationIndex {
+impl From<InflationIndex> for InflationIndexWire {
     fn from(index: InflationIndex) -> Self {
         let observations = index.observations();
 
-        RawInflationIndex {
+        InflationIndexWire {
             id: index.id.to_owned(),
             currency: index.currency,
             observations,
@@ -596,10 +587,10 @@ impl From<InflationIndex> for RawInflationIndex {
     }
 }
 
-impl TryFrom<RawInflationIndex> for InflationIndex {
+impl TryFrom<InflationIndexWire> for InflationIndex {
     type Error = crate::Error;
 
-    fn try_from(state: RawInflationIndex) -> crate::Result<Self> {
+    fn try_from(state: InflationIndexWire) -> crate::Result<Self> {
         let mut index = Self::new(state.id, state.observations, state.currency)?
             .with_interpolation(state.interpolation)
             .with_lag(state.lag);

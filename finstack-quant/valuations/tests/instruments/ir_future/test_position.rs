@@ -13,19 +13,15 @@ fn test_position_display() {
 fn test_position_from_str() {
     assert_eq!(Position::from_str("long").unwrap(), Position::Long);
     assert_eq!(Position::from_str("short").unwrap(), Position::Short);
-    assert_eq!(Position::from_str("buy").unwrap(), Position::Long);
-    assert_eq!(Position::from_str("buyer").unwrap(), Position::Long);
-    assert_eq!(Position::from_str("sell").unwrap(), Position::Short);
-    assert_eq!(Position::from_str("seller").unwrap(), Position::Short);
-    assert_eq!(Position::from_str("Long").unwrap(), Position::Long);
-    assert_eq!(Position::from_str("SHORT").unwrap(), Position::Short);
-    assert_eq!(Position::from_str("LONG").unwrap(), Position::Long);
+    for retired in ["buy", "buyer", "sell", "seller", "Long", "SHORT", "LONG"] {
+        assert!(Position::from_str(retired).is_err());
+    }
 }
 
 #[test]
-fn test_position_from_str_mixed_case() {
-    assert_eq!(Position::from_str("LoNg").unwrap(), Position::Long);
-    assert_eq!(Position::from_str("ShOrT").unwrap(), Position::Short);
+fn test_position_from_str_rejects_mixed_case() {
+    assert!(Position::from_str("LoNg").is_err());
+    assert!(Position::from_str("ShOrT").is_err());
 }
 
 #[test]

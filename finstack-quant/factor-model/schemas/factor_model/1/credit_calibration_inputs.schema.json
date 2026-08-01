@@ -1,5 +1,10 @@
 {
   "$defs": {
+    "DateWire": {
+      "description": "ISO 8601 calendar date encoded as a `YYYY-MM-DD` JSON string.",
+      "format": "date",
+      "type": "string"
+    },
     "GenericFactorSeries": {
       "additionalProperties": false,
       "description": "Generic (PC) factor reference and aligned values.",
@@ -49,8 +54,7 @@
         "dates": {
           "description": "Observation dates (sorted ascending).",
           "items": {
-            "format": "date",
-            "type": "string"
+            "$ref": "#/$defs/DateWire"
           },
           "type": "array"
         },
@@ -106,11 +110,10 @@
   "description": "Typed issuer histories, tags, generic factor series, anchor date, and overrides for one credit calibration run.",
   "properties": {
     "as_of": {
-      "description": "Calibration anchor date (must appear in `history_panel.dates`).",
-      "format": "date",
-      "type": "string"
+      "$ref": "#/$defs/DateWire",
+      "description": "Calibration anchor date (must appear in `history_panel.dates`)."
     },
-    "asof_spreads": {
+    "as_of_spreads": {
       "additionalProperties": {
         "format": "double",
         "type": "number"
@@ -144,7 +147,7 @@
     "issuer_tags",
     "generic_factor",
     "as_of",
-    "asof_spreads",
+    "as_of_spreads",
     "idiosyncratic_overrides"
   ],
   "title": "CreditCalibrationInputs",

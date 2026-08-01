@@ -30,8 +30,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// Internal error type that preserves structured [`EnvelopeError`] detail
 /// across the engine pipeline.
 ///
-/// The public [`execute`] flattens this back to [`finstack_quant_core::Error`] for
-/// backwards compatibility. Bindings that want full structured detail (e.g.,
+/// The public [`execute`] maps this to [`finstack_quant_core::Error`] for callers
+/// using the workspace-wide result type. Bindings that want full structured detail (e.g.,
 /// `worst_quote_id` on solver non-convergence) call
 /// [`execute_with_diagnostics`] directly.
 #[derive(Debug, thiserror::Error)]
@@ -39,7 +39,7 @@ pub enum ExecuteError {
     /// Structured envelope validation or solver non-convergence failure.
     #[error(transparent)]
     Envelope(EnvelopeError),
-    /// Other (legacy, stringly-typed) errors from the engine pipeline:
+    /// Other errors from the engine pipeline:
     /// quote-set lookup, preflight validation, market-context construction,
     /// and step-runtime failures.
     #[error(transparent)]
@@ -121,7 +121,7 @@ fn resolve_step_quotes(
 ///
 /// Holds an owned `Vec<MarketQuote>` because quotes are resolved on demand
 /// from the envelope's flat `market_data` list per step (rather than being
-/// pre-materialized on the plan as in v2).
+/// pre-materialized on the plan as in canonical).
 struct StepBatchItem<'a> {
     step: &'a CalibrationStep,
     quotes: Vec<MarketQuote>,
@@ -513,8 +513,8 @@ fn bad_fit_envelope_error(step_id: &str, report: &CalibrationReport) -> Envelope
 
 /// Execute a full [`CalibrationEnvelope`] plan.
 ///
-/// Primary entry point — flattens any structured envelope failure to
-/// [`finstack_quant_core::Error`] for backwards-compatible callers. Bindings that
+/// Primary entry point — maps any structured envelope failure to
+/// [`finstack_quant_core::Error`]. Bindings that
 /// want full structured detail (e.g., `worst_quote_id` on solver
 /// non-convergence) should call [`execute_with_diagnostics`] directly.
 ///

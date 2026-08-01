@@ -41,7 +41,7 @@ fn test_observation_dates_are_monotonically_increasing() {
 fn test_observation_dates_daily_frequency_generates_many_dates() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::daily();
+    swap.observation_frequency = Tenor::daily();
 
     // Act
     let dates = swap.observation_dates().expect("observation schedule");
@@ -58,7 +58,7 @@ fn test_observation_dates_daily_frequency_generates_many_dates() {
 fn test_observation_dates_weekly_frequency() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
 
     // Act
     let dates = swap.observation_dates().expect("observation schedule");
@@ -72,7 +72,7 @@ fn test_observation_dates_weekly_frequency() {
 fn test_observation_dates_monthly_frequency() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::monthly();
+    swap.observation_frequency = Tenor::monthly();
 
     // Act
     let dates = swap.observation_dates().expect("observation schedule");
@@ -86,7 +86,7 @@ fn test_observation_dates_monthly_frequency() {
 fn test_observation_dates_quarterly_frequency() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::quarterly();
+    swap.observation_frequency = Tenor::quarterly();
 
     // Act
     let dates = swap.observation_dates().expect("observation schedule");
@@ -117,7 +117,7 @@ fn test_realized_variance_rejects_missing_exact_observation() {
 fn test_annualization_factor_daily_equals_252() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::daily();
+    swap.observation_frequency = Tenor::daily();
 
     // Act
     let factor = swap.annualization_factor();
@@ -133,7 +133,7 @@ fn test_annualization_factor_weekly_uses_calendar_weeks() {
     // basis with a calendar-day step and understates realized variance.
     // Matches the FX variance-swap convention.
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
 
     // Act
     let factor = swap.annualization_factor();
@@ -146,7 +146,7 @@ fn test_annualization_factor_weekly_uses_calendar_weeks() {
 fn test_annualization_factor_monthly_equals_12() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::monthly();
+    swap.observation_frequency = Tenor::monthly();
 
     // Act
     let factor = swap.annualization_factor();
@@ -159,7 +159,7 @@ fn test_annualization_factor_monthly_equals_12() {
 fn test_annualization_factor_quarterly_equals_4() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::quarterly();
+    swap.observation_frequency = Tenor::quarterly();
 
     // Act
     let factor = swap.annualization_factor();
@@ -172,7 +172,7 @@ fn test_annualization_factor_quarterly_equals_4() {
 fn test_annualization_factor_semi_annual_equals_2() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::semi_annual();
+    swap.observation_frequency = Tenor::semi_annual();
 
     // Act
     let factor = swap.annualization_factor();
@@ -380,7 +380,7 @@ fn test_realized_fraction_by_observations_at_maturity_is_one() {
 fn test_realized_fraction_by_observations_increases_with_time() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
     let dates = swap.observation_dates().expect("observation schedule");
     let mid_idx = dates.len() / 2;
     let mid_date = dates[mid_idx];
@@ -399,7 +399,7 @@ fn test_realized_fraction_by_observations_increases_with_time() {
 fn test_realized_fraction_by_observations_matches_observation_count() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
     let dates = swap.observation_dates().expect("observation schedule");
     let as_of = dates[dates.len() / 2];
 

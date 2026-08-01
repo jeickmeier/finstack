@@ -136,12 +136,12 @@ fn test_tranche_floating_coupon() {
             spread_bp: rust_decimal::Decimal::try_from(150.0).expect("valid"),
             gearing: rust_decimal::Decimal::try_from(1.0).expect("valid"),
             gearing_includes_spread: true,
-            index_floor_bp: Some(rust_decimal::Decimal::try_from(0.0).expect("valid")), // 0 bps floor
+            index_floor_bp: Some(rust_decimal::Decimal::try_from(0.0).expect("valid")), // 0 bp floor
             all_in_cap_bp: None,
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: finstack_quant_core::dates::Tenor::quarterly(),
+            reset_frequency: finstack_quant_core::dates::Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,

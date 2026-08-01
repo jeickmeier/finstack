@@ -661,6 +661,7 @@ impl SwaptionQuote {
     schemars::JsonSchema,
     Default,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum SwapFrequency {
     /// 1 payment per year (EUR, GBP standard).
     Annual,
@@ -678,6 +679,20 @@ impl SwapFrequency {
             Self::SemiAnnual => 2,
             Self::Quarterly => 4,
         }
+    }
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Annual => "annual",
+            Self::SemiAnnual => "semi_annual",
+            Self::Quarterly => "quarterly",
+        }
+    }
+}
+
+impl std::fmt::Display for SwapFrequency {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
     }
 }
 
@@ -1228,7 +1243,7 @@ fn calibrate_hull_white_to_swaptions_core(
             "residual_weighting",
             "1/vega (vega-weighted price residual)".to_string(),
         )
-        .with_metadata("swap_frequency", format!("{frequency:?}"))
+        .with_metadata("swap_frequency", frequency.to_string())
         .with_metadata("vega_floor_hits", vega_floor_hits.len().to_string());
     if let Some(schedule_source) = schedule_source {
         // Stamp the actual per-basket source: if any quote fell back to the
@@ -1574,7 +1589,7 @@ fn enrich_cap_floor_report(
             "1/vega (vega-weighted price residual)".to_string(),
         )
         .with_metadata("calibration_family", "cap_floor_hw1f".to_string())
-        .with_metadata("frequency", format!("{frequency:?}"))
+        .with_metadata("frequency", frequency.to_string())
         .with_metadata("vega_floor_hits", vega_floor_hits.len().to_string())
         // Audit P3a: off-ATM diagnostic. Vega-weighted residuals linearise
         // around the *ATM* vega, so quotes whose strikes are far from the
@@ -2922,6 +2937,13 @@ fn hw1f_swaption_price_inner(
 mod tests {
     use super::*;
 
+    #[test]
+    fn swap_frequency_display_matches_serde_contract() {
+        assert_eq!(SwapFrequency::Annual.to_string(), "annual");
+        assert_eq!(SwapFrequency::SemiAnnual.to_string(), "semi_annual");
+        assert_eq!(SwapFrequency::Quarterly.to_string(), "quarterly");
+    }
+
     /// Flat discount curve at a given continuously compounded rate.
     fn flat_df(rate: f64) -> impl Fn(f64) -> f64 {
         move |t: f64| (-rate * t).exp()
@@ -3394,7 +3416,7 @@ mod tests {
     fn item7_cap_floor_fixed_kappa_minimises_norm_not_signed_sum() {
         let kappa = 0.03_f64;
         let df_fn = flat_df(0.035);
-        let freq = SwapFrequency::Quarterly;
+        let frequency = SwapFrequency::Quarterly;
 
         // Two caps, very different maturities -> very different vega.
         let q_short = CapFloorQuote {
@@ -3414,16 +3436,17 @@ mod tests {
         let quotes = [q_short, q_long];
 
         // Inconsistent market prices: short cap priced at sigma=0.004, long at 0.020.
-        let spec_short = CapFloorPriceSpec::from_quote(&q_short, freq);
-        let spec_long = CapFloorPriceSpec::from_quote(&q_long, freq);
+        let spec_short = CapFloorPriceSpec::from_quote(&q_short, frequency);
+        let spec_long = CapFloorPriceSpec::from_quote(&q_long, frequency);
         let market = [
             hw1f_cap_floor_price(kappa, 0.004, &df_fn, &df_fn, spec_short),
             hw1f_cap_floor_price(kappa, 0.020, &df_fn, &df_fn, spec_long),
         ];
 
-        let sigma =
-            solve_cap_floor_sigma_for_fixed_kappa(kappa, &df_fn, &df_fn, &quotes, &market, freq)
-                .expect("fixed-kappa sigma calibration should succeed");
+        let sigma = solve_cap_floor_sigma_for_fixed_kappa(
+            kappa, &df_fn, &df_fn, &quotes, &market, frequency,
+        )
+        .expect("fixed-kappa sigma calibration should succeed");
 
         // SSE objective replicated locally.
         let sse = |s: f64| -> f64 {
@@ -3873,22 +3896,22 @@ mod tests {
     fn hw1f_cap_floor_zcb_option_parity() {
         let df_fn = flat_df(0.03);
         let (kappa, sigma, maturity, strike) = (0.05, 0.012, 5.0, 0.035);
-        let freq = SwapFrequency::Quarterly;
+        let frequency = SwapFrequency::Quarterly;
         let cap = hw1f_cap_floor_price(
             kappa,
             sigma,
             &df_fn,
             &df_fn,
-            CapFloorPriceSpec::new(maturity, strike, true, freq),
+            CapFloorPriceSpec::new(maturity, strike, true, frequency),
         );
         let floor = hw1f_cap_floor_price(
             kappa,
             sigma,
             &df_fn,
             &df_fn,
-            CapFloorPriceSpec::new(maturity, strike, false, freq),
+            CapFloorPriceSpec::new(maturity, strike, false, frequency),
         );
-        let forward_leg: f64 = cap_floor_periods(maturity, freq)
+        let forward_leg: f64 = cap_floor_periods(maturity, frequency)
             .map(|(t_start, t_end, accrual)| {
                 let fwd = forward_rate_from_df(&df_fn, t_start, t_end);
                 df_fn(t_end) * accrual * (fwd - strike)

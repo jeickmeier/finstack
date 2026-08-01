@@ -54,14 +54,14 @@ fn test_tree_calibration_preserves_discount_factors() {
             .sum();
 
         let error = (sum_q - target_df).abs();
-        let error_bps = (error / target_df) * 10000.0;
+        let error_bp = (error / target_df) * 10000.0;
 
         // Production tolerance: < 1 basis point
         assert!(
-            error_bps < 1.0,
-            "State price calibration error {:.6} ({:.4} bps) exceeds 1 bp at step {} (t={:.2})",
+            error_bp < 1.0,
+            "State price calibration error {:.6} ({:.4} bp) exceeds 1 bp at step {} (t={:.2})",
             error,
-            error_bps,
+            error_bp,
             step,
             t
         );
@@ -81,12 +81,12 @@ fn test_tree_bond_price_at_maturity() {
     // Industry standard: < 1 basis point error for bond prices
     for node in 0..tree.num_nodes(final_step) {
         let bp = tree.bond_price(final_step, node, 2.0, &curve);
-        let error_bps = (bp - 1.0).abs() * 10000.0;
+        let error_bp = (bp - 1.0).abs() * 10000.0;
         assert!(
-            error_bps < 1.0, // < 1 bp tolerance
-            "Bond price at maturity should be 1.0, got {:.8} (error: {:.4} bps) at node {}",
+            error_bp < 1.0, // < 1 bp tolerance
+            "Bond price at maturity should be 1.0, got {:.8} (error: {:.4} bp) at node {}",
             bp,
-            error_bps,
+            error_bp,
             node
         );
     }
@@ -126,13 +126,13 @@ fn test_tree_forward_swap_rate() {
     let market_forward = (df_start - df_end) / annuity;
 
     // Production standard: swap rate accuracy < 1 basis point (0.0001)
-    let error_bps = (swap_rate_at_root - market_forward).abs() * 10000.0;
+    let error_bp = (swap_rate_at_root - market_forward).abs() * 10000.0;
     assert!(
-        error_bps < 1.0, // < 1 bp tolerance
-        "Tree forward rate {:.8} should match market forward {:.8} (error: {:.4} bps)",
+        error_bp < 1.0, // < 1 bp tolerance
+        "Tree forward rate {:.8} should match market forward {:.8} (error: {:.4} bp)",
         swap_rate_at_root,
         market_forward,
-        error_bps
+        error_bp
     );
 }
 
@@ -153,15 +153,15 @@ fn test_tree_backward_induction_unit_payoff() {
 
     let target_df = curve.df(1.0);
     let error = (value - target_df).abs();
-    let error_bps = (error / target_df) * 10000.0;
+    let error_bp = (error / target_df) * 10000.0;
 
     // Production standard: pricing error < 1 basis point
     assert!(
-        error_bps < 1.0,
-        "Unit payoff value {:.8} should match df {:.8} (error: {:.4} bps)",
+        error_bp < 1.0,
+        "Unit payoff value {:.8} should match df {:.8} (error: {:.4} bp)",
         value,
         target_df,
-        error_bps
+        error_bp
     );
 }
 
@@ -226,18 +226,18 @@ fn test_tree_different_parameters() {
         .map(|j| tree_low_kappa.state_price(step, j))
         .sum();
 
-    let error_high_bps = ((sum_high - target_df).abs() / target_df) * 10000.0;
-    let error_low_bps = ((sum_low - target_df).abs() / target_df) * 10000.0;
+    let error_high_bp = ((sum_high - target_df).abs() / target_df) * 10000.0;
+    let error_low_bp = ((sum_low - target_df).abs() / target_df) * 10000.0;
 
     assert!(
-        error_high_bps < 1.0,
-        "High kappa tree should match df (error: {:.4} bps)",
-        error_high_bps
+        error_high_bp < 1.0,
+        "High kappa tree should match df (error: {:.4} bp)",
+        error_high_bp
     );
     assert!(
-        error_low_bps < 1.0,
-        "Low kappa tree should match df (error: {:.4} bps)",
-        error_low_bps
+        error_low_bp < 1.0,
+        "Low kappa tree should match df (error: {:.4} bp)",
+        error_low_bp
     );
 }
 

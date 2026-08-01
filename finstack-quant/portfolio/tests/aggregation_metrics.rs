@@ -124,7 +124,7 @@ fn summable_vs_non_summable_metrics() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E1"))
         .position(position)
@@ -187,7 +187,7 @@ fn m17_aggregate_metrics_rejects_mismatched_base_currency() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E1"))
         .position(position)
@@ -212,7 +212,7 @@ fn m17_aggregate_metrics_rejects_mismatched_base_currency() {
     )
     .expect_err("M-17: mismatched aggregation base currency must fail");
     assert!(
-        err.to_string().contains("base_ccy"),
+        err.to_string().contains("base_currency"),
         "unexpected error: {err}"
     );
 }
@@ -246,7 +246,7 @@ fn m17_aggregate_metrics_rejects_mismatched_as_of() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E1"))
         .position(position)
@@ -306,7 +306,7 @@ fn summable_metrics_scale_with_quantity_and_short_sign() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E1"))
         .position(long)

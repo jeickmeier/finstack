@@ -12,42 +12,46 @@
 use serde_json::Value;
 use std::sync::OnceLock;
 
+#[cfg(test)]
 const JSON_SCHEMA_DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
-const COMMON_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/common/1/";
+const COMMON_SCHEMA_BASE: &str = finstack_quant_core::schema::COMMON_SCHEMA_BASE;
+
+fn pricing_override_schema_ref(definition: &str) -> Option<String> {
+    let filename = match definition {
+        "InstrumentPricingOverrides" => "instrument_pricing_overrides.schema.json",
+        "MetricPricingOverrides" => "metric_pricing_overrides.schema.json",
+        "ScenarioPricingOverrides" => "scenario_pricing_overrides.schema.json",
+        _ => return None,
+    };
+    Some(format!("{COMMON_SCHEMA_BASE}{filename}"))
+}
+
+/// Package a derived valuation schema using canonical shared definitions.
+///
+/// This pass changes only reference placement: common and cashflow definitions
+/// are replaced by their equivalent published `$id`, then newly unreachable
+/// local definitions are removed.
+///
+/// # Arguments
+///
+/// * `schema` - Complete schema generated from a valuation serde type.
+#[doc(hidden)]
+pub fn package_valuations_schema(schema: &mut Value) {
+    finstack_quant_core::schema::externalize_schema_definitions(schema, |definition| {
+        finstack_quant_core::schema::common_definition_uri(definition)
+            .or_else(|| pricing_override_schema_ref(definition))
+            .or_else(|| finstack_quant_cashflows::schema::definition_uri(definition))
+    });
+}
 
 /// Parse embedded JSON schema at compile time, returning a Result.
 /// The JSON is embedded via `include_str!` so the content is always present,
 /// but parsing can still fail if the JSON is malformed.
 macro_rules! try_include_schema {
-    ($path:literal) => {
+    ($path:expr) => {
         serde_json::from_str::<Value>(include_str!($path))
             .map_err(|e| format!("invalid schema JSON at {}: {}", $path, e))
     };
-}
-
-macro_rules! build_schema_cache {
-    (
-        []
-        $(plain: $variant:ident($ty:ty) => $tag:literal @ $schema_path:literal $(, $alias:literal)*;)*
-        $(boxed: $boxed_variant:ident($boxed_ty:ty) => $boxed_tag:literal @ $boxed_schema_path:literal $(, $boxed_alias:literal)*;)*
-    ) => {{
-        let mut cache = std::collections::BTreeMap::new();
-        $(
-            let schema = try_include_schema!($schema_path);
-            cache.insert($tag, schema.clone());
-            $(
-                cache.insert($alias, schema.clone());
-            )*
-        )*
-        $(
-            let schema = try_include_schema!($boxed_schema_path);
-            cache.insert($boxed_tag, schema.clone());
-            $(
-                cache.insert($boxed_alias, schema.clone());
-            )*
-        )*
-        cache
-    }};
 }
 
 /// Get JSON-Schema for Bond configuration.
@@ -86,41 +90,10 @@ fn instrument_schema_cache(
     static CACHE: OnceLock<std::collections::BTreeMap<&'static str, Result<Value, String>>> =
         OnceLock::new();
     CACHE.get_or_init(|| {
-        crate::instruments::json_loader::with_instrument_json_registry!(build_schema_cache)
-    })
-}
-
-fn fallback_instrument_schema(instrument_type: &str) -> Value {
-    serde_json::json!({
-        "$schema": JSON_SCHEMA_DIALECT,
-        "title": format!("{instrument_type} (generic)"),
-        "description": format!(
-            "Fallback schema for instrument type '{instrument_type}'. Dedicated schema is not yet available; 'spec' remains untyped."
-        ),
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-            "schema": {
-                "const": "finstack_quant.instrument/1",
-                "type": "string"
-            },
-            "instrument": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                    "type": {
-                        "const": instrument_type,
-                        "type": "string"
-                    },
-                    "spec": {
-                        "type": "object",
-                        "description": "Dedicated schema unavailable; accepts any object payload."
-                    }
-                },
-                "required": ["type", "spec"]
-            }
-        },
-        "required": ["schema", "instrument"]
+        crate::instruments::json_loader::instrument_registry()
+            .into_iter()
+            .map(|entry| (entry.tag, entry.load_embedded_schema()))
+            .collect()
     })
 }
 
@@ -176,8 +149,16 @@ fn common_schema_resources() -> finstack_quant_core::Result<Vec<(String, jsonsch
             include_str!("../schemas/common/1/money.schema.json"),
         ),
         (
-            "pricing_overrides.schema.json",
-            include_str!("../schemas/common/1/pricing_overrides.schema.json"),
+            "instrument_pricing_overrides.schema.json",
+            include_str!("../schemas/common/1/instrument_pricing_overrides.schema.json"),
+        ),
+        (
+            "metric_pricing_overrides.schema.json",
+            include_str!("../schemas/common/1/metric_pricing_overrides.schema.json"),
+        ),
+        (
+            "scenario_pricing_overrides.schema.json",
+            include_str!("../schemas/common/1/scenario_pricing_overrides.schema.json"),
         ),
         (
             "tenor.schema.json",
@@ -228,15 +209,13 @@ fn external_schema_resources() -> finstack_quant_core::Result<Vec<(String, jsons
 pub fn instrument_types() -> finstack_quant_core::Result<Vec<String>> {
     Ok(crate::instruments::json_loader::registry_tags()
         .iter()
-        .map(|(tag, _)| (*tag).to_string())
+        .map(|tag| (*tag).to_string())
         .collect())
 }
 
 /// Get the JSON Schema for a single instrument type.
 ///
-/// Returns a dedicated schema when available. For supported instrument tags
-/// without a dedicated checked-in schema file, returns a fallback tagged schema
-/// with an untyped `spec` payload.
+/// Returns the dedicated generated schema for a canonical registry tag.
 ///
 /// # Errors
 ///
@@ -245,18 +224,13 @@ pub fn instrument_types() -> finstack_quant_core::Result<Vec<String>> {
 ///
 /// # Arguments
 ///
-/// * `instrument_type` - Registered tagged-instrument type string whose
-///   dedicated schema, or supported fallback schema, is requested.
+/// * `instrument_type` - Canonical registered tagged-instrument type string.
 pub fn instrument_schema(instrument_type: &str) -> finstack_quant_core::Result<Value> {
     if let Some(schema) = instrument_schema_cache().get(instrument_type) {
         return schema
             .as_ref()
             .cloned()
             .map_err(|e| finstack_quant_core::Error::Validation(e.clone()));
-    }
-
-    if instrument_types()?.iter().any(|ty| ty == instrument_type) {
-        return Ok(fallback_instrument_schema(instrument_type));
     }
 
     Err(finstack_quant_core::Error::Validation(format!(
@@ -300,10 +274,10 @@ pub fn valuation_result_schema() -> finstack_quant_core::Result<&'static Value> 
 ///             "issue_date": "2024-01-15",
 ///             "maturity": "2034-01-15",
 ///             "cashflow_spec": {
-///                 "Fixed": {
-///                     "coupon_type": "Cash",
-///                     "freq": { "count": 6, "unit": "months" },
-///                     "dc": "ActActIsma",
+///                 "fixed": {
+///                     "coupon_type": "cash",
+///                     "frequency": { "count": 6, "unit": "months" },
+///                     "day_count": "act_act_isma",
 ///                     "calendar_id": "sifma",
 ///                     "rate": "0.0425"
 ///                 }
@@ -325,7 +299,7 @@ pub fn valuation_result_schema() -> finstack_quant_core::Result<&'static Value> 
 /// # Arguments
 ///
 /// * `instance` - Parsed JSON instrument envelope to validate against the
-///   versioned envelope schema and its selected type schema.
+///   canonical v1 envelope schema and its selected type schema.
 pub fn validate_instrument_envelope_json(instance: &Value) -> finstack_quant_core::Result<()> {
     let schema = instrument_envelope_schema()?;
     let envelope_result = validate_against_schema(instance, schema, "instrument envelope");
@@ -422,14 +396,14 @@ mod tests {
         // Verify stub schemas are valid JSON and have expected structure
         let bond = bond_schema().expect("bond schema should parse");
         assert_eq!(bond["$schema"], JSON_SCHEMA_DIALECT);
-        assert_eq!(bond["title"], "Bond");
+        assert_eq!(bond["title"], "bond");
 
         let envelope =
             instrument_envelope_schema().expect("instrument envelope schema should parse");
         assert_eq!(envelope["title"], "Finstack Quant Instrument");
 
         let result = valuation_result_schema().expect("valuation result schema should parse");
-        assert_eq!(result["title"], "ValuationResult");
+        assert_eq!(result["title"], "Valuation Result");
     }
 
     #[test]
@@ -452,7 +426,7 @@ mod tests {
         let types = instrument_types().expect("instrument types should parse");
         let expected: Vec<String> = crate::instruments::json_loader::registry_tags()
             .iter()
-            .map(|(tag, _)| (*tag).to_string())
+            .map(|tag| (*tag).to_string())
             .collect();
         assert_eq!(types, expected);
         assert!(types.iter().any(|ty| ty == "bond"));
@@ -462,7 +436,7 @@ mod tests {
     #[test]
     fn test_instrument_schema_returns_dedicated_schema_when_available() {
         let schema = instrument_schema("bond").expect("bond schema should load");
-        assert_eq!(schema["title"], "Bond");
+        assert_eq!(schema["title"], "bond");
         assert_eq!(
             schema["$id"],
             "https://finstack_quant.dev/schemas/instrument/1/fixed_income/bond.schema.json"
@@ -479,8 +453,8 @@ mod tests {
                 .as_str()
                 .unwrap_or_else(|| panic!("schema for '{ty}' should have a description"));
             assert!(
-                !desc.contains("Dedicated schema is not yet available"),
-                "'{ty}' is using a fallback schema — add a dedicated schema file"
+                !desc.trim().is_empty(),
+                "schema for '{ty}' should be documented"
             );
         }
     }
@@ -496,13 +470,12 @@ mod tests {
     }
 
     #[test]
-    fn test_instrument_schema_cache_covers_registered_aliases() {
+    fn test_instrument_schema_cache_covers_canonical_tags_only() {
         let bond = instrument_schema("bond").expect("bond");
-        assert_eq!(bond["title"], "Bond");
+        assert_eq!(bond["title"], "bond");
         let swap = instrument_schema("interest_rate_swap").expect("irs");
-        assert_eq!(swap["title"], "Interest Rate Swap");
-        let cap_floor_alias = instrument_schema("interest_rate_option").expect("cap/floor alias");
-        assert_eq!(cap_floor_alias["title"], "Cap Floor");
+        assert_eq!(swap["title"], "interest_rate_swap");
+        assert!(instrument_schema("interest_rate_option").is_err());
     }
 
     #[test]

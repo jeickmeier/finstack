@@ -1,5 +1,130 @@
 {
   "$defs": {
+    "CFKind": {
+      "description": "Enumeration of cash-flow kinds for classification and ordering.\n\nUsed to distinguish between different types of cashflows for\nproper sequencing, risk calculation, and accounting treatment.\n\n# Sign Convention\n\nThe enum itself is **view agnostic**: individual instruments are\nresponsible for mapping these kinds into a holder or issuer view.\nBy convention in this crate:\n\n| Kind | Holder View (Long) | Issuer View (Short) |\n|------|-------------------|---------------------|\n| Interest (Fixed/Float) | Positive (receive) | Negative (pay) |\n| Notional (initial) | Negative (pay) | Positive (receive) |\n| Notional (final) | Positive (receive) | Negative (pay) |\n| Amortization | Positive (receive) | Negative (pay) |\n| PIK | Increases notional | Increases liability |\n| Fee | Negative (pay) | Positive (receive) |\n\nWhen constructing cashflow schedules, instruments should apply the appropriate\nsign based on the economic perspective being represented.\n\n# Cashflow Categories\n\nVariants are grouped by category:\n- **Interest**: `Fixed`, `FloatReset`, `Stub`\n- **Inflation**: `InflationCoupon`\n- **Fees**: `Fee`, `CommitmentFee`, `UsageFee`, `FacilityFee`\n- **Principal**: `Notional`, `PIK`, `Amortization`, `PrePayment`\n- **Revolving**: `RevolvingDraw`, `RevolvingRepayment`\n- **Credit Events**: `DefaultedNotional`, `Recovery`\n- **Margin/Collateral**: `InitialMarginPost`, `VariationMarginPay`, etc.",
+      "oneOf": [
+        {
+          "const": "fixed",
+          "description": "Fixed-rate coupon cash-flow.\n\nPeriodic interest payment calculated as: `notional × rate × accrual_factor`.\nThe `rate` field on [`CashFlow`] stores the coupon rate used.",
+          "type": "string"
+        },
+        {
+          "const": "float_reset",
+          "description": "Floating-rate coupon cash-flow (or index fixing event).\n\nInterest payment based on a reference rate (e.g., SOFR, EURIBOR) plus spread.\nThe `reset_date` field on [`CashFlow`] indicates when the rate was fixed.\nThe `rate` field stores the all-in rate (index + spread) if known.",
+          "type": "string"
+        },
+        {
+          "const": "inflation_coupon",
+          "description": "Inflation-linked coupon cash-flow.\n\nPeriodic coupon payment on an inflation-linked bond or swap leg where the\nreal coupon is multiplied by an index ratio (e.g., CPI / base CPI).\nThe `rate` field stores the real coupon rate when known.",
+          "type": "string"
+        },
+        {
+          "const": "fee",
+          "description": "Up-front fee or cost paid at inception.\n\nOne-time fee paid at trade date or settlement date, such as origination fees,\narrangement fees, or underwriting fees.",
+          "type": "string"
+        },
+        {
+          "const": "commitment_fee",
+          "description": "Commitment fee on undrawn balance.\n\nPeriodic fee charged on the undrawn portion of a revolving facility.\nTypically quoted in basis points per annum on the unused commitment.",
+          "type": "string"
+        },
+        {
+          "const": "usage_fee",
+          "description": "Usage fee on drawn balance.\n\nAdditional fee charged when facility utilization exceeds a threshold,\ncommon in leveraged loan facilities.",
+          "type": "string"
+        },
+        {
+          "const": "facility_fee",
+          "description": "Facility fee on total commitment.\n\nFee charged on the entire committed amount regardless of utilization,\ncovering the lender's cost of keeping the facility available.",
+          "type": "string"
+        },
+        {
+          "const": "notional",
+          "description": "Principal exchange or notional flow.\n\nUsed for initial notional payment (at inception), final notional repayment\n(at maturity), or intermediate notional exchanges in cross-currency swaps.\nFor bonds: initial = purchase price, final = par redemption.",
+          "type": "string"
+        },
+        {
+          "const": "pik",
+          "description": "Payment-in-kind interest capitalization.\n\nInterest that is added to the outstanding principal rather than paid in cash.\nCreates a new notional amount: `new_notional = old_notional + PIK_interest`.\nThe amount field represents the interest capitalized.",
+          "type": "string"
+        },
+        {
+          "const": "amortization",
+          "description": "Scheduled amortization (principal repayment).\n\nReduces the outstanding principal per the amortization schedule.\nAmount is positive from holder perspective (principal returned).\nAfter amortization: `remaining_notional = previous_notional - amortization`.",
+          "type": "string"
+        },
+        {
+          "const": "pre_payment",
+          "description": "Prepayment of principal (unscheduled early repayment).\n\nVoluntary or mandatory early return of principal, common in:\n- Mortgage-backed securities (borrower refinancing)\n- CLO/CDO structures (collateral prepayments)\n- Callable bonds (issuer exercise)",
+          "type": "string"
+        },
+        {
+          "const": "revolving_draw",
+          "description": "Revolving facility draw (borrowing).\n\nIncrease in outstanding principal when borrower draws on a revolving facility.\nFrom holder (lender) view: negative (cash out to borrower).\nIncreases the drawn balance used for interest calculations.",
+          "type": "string"
+        },
+        {
+          "const": "revolving_repayment",
+          "description": "Revolving facility repayment.\n\nDecrease in outstanding principal when borrower repays revolving facility.\nFrom holder (lender) view: positive (cash in from borrower).\nRestores availability under the commitment.",
+          "type": "string"
+        },
+        {
+          "const": "defaulted_notional",
+          "description": "Defaulted notional (principal written down due to credit event).\n\nRepresents the portion of principal that has experienced a credit event\n(failure to pay, bankruptcy, restructuring). Amount reflects the\nwrite-down from par.",
+          "type": "string"
+        },
+        {
+          "const": "recovery",
+          "description": "Recovery cashflow from defaulted principal.\n\nAmount recovered through workout, liquidation, or settlement of defaulted\ndebt. Typically expressed as a percentage of defaulted notional\n(recovery rate × defaulted amount).",
+          "type": "string"
+        },
+        {
+          "const": "accrued_on_default",
+          "description": "Accrued-on-default interest (ISDA standard for CDS).\n\nInterest accrued but unpaid at the time of a credit event.\nUnder ISDA standard conventions, the protection buyer pays\nthe accrued premium from the last payment date to the default date.",
+          "type": "string"
+        },
+        {
+          "const": "stub",
+          "description": "Irregular stub period interest.\n\nInterest payment for a non-standard accrual period at the beginning (front stub)\nor end (back stub) of a schedule. May be short stub (< regular period) or\nlong stub (> regular period). Accrual factor reflects actual period length.",
+          "type": "string"
+        },
+        {
+          "const": "initial_margin_post",
+          "description": "Initial margin posting (collateral transfer out to counterparty).\n\nRepresents the posting of initial margin collateral under CSA or clearing\nhouse rules. The amount is typically calculated using SIMM, schedule-based,\nor haircut methodologies.",
+          "type": "string"
+        },
+        {
+          "const": "initial_margin_return",
+          "description": "Initial margin return (collateral returned from counterparty).\n\nRepresents the return of previously posted initial margin when exposure\ndecreases or trade is terminated.",
+          "type": "string"
+        },
+        {
+          "const": "variation_margin_receive",
+          "description": "Variation margin received (positive VM payment to us).\n\nDaily or periodic mark-to-market payment received when exposure moves\nin our favor. Governed by CSA threshold, MTA, and rounding rules.",
+          "type": "string"
+        },
+        {
+          "const": "variation_margin_pay",
+          "description": "Variation margin paid (negative VM payment from us).\n\nDaily or periodic mark-to-market payment made when exposure moves\nagainst us. Governed by CSA threshold, MTA, and rounding rules.",
+          "type": "string"
+        },
+        {
+          "const": "margin_interest",
+          "description": "Interest accrued on posted margin collateral.\n\nRepresents interest paid or received on cash collateral posted as margin.\nRate typically defined in CSA (e.g., Fed Funds, EONIA, SONIA).",
+          "type": "string"
+        },
+        {
+          "const": "collateral_substitution_in",
+          "description": "Collateral substitution inflow (replacement collateral received).\n\nWhen a counterparty substitutes one form of eligible collateral for another,\nthis represents the incoming replacement asset.",
+          "type": "string"
+        },
+        {
+          "const": "collateral_substitution_out",
+          "description": "Collateral substitution outflow (original collateral returned).\n\nWhen a counterparty substitutes collateral, this represents the return\nof the original collateral being replaced.",
+          "type": "string"
+        }
+      ]
+    },
     "CapitalStructureCashflows": {
       "additionalProperties": false,
       "description": "Aggregated cashflows from capital structure instruments by period.\n\nInstances of this type are produced by the evaluator and exposed to the DSL\nvia the `cs.*` namespace. It keeps both per-instrument details and totals so\nthat downstream consumers can drill down or report aggregates.\n\nMonetary fields are stored as [`Money`] to preserve currency identity. The\naccessor methods return raw `f64` amounts in the reporting currency for\nconvenience; callers that need full currency fidelity should inspect the\nunderlying maps directly.\n\n# Example\n\n```rust\n# use finstack_quant_statements::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};\n# use finstack_quant_core::dates::PeriodId;\n# use finstack_quant_core::money::Money;\n# use finstack_quant_core::currency::Currency;\nlet mut cs = CapitalStructureCashflows::new();\nlet period = PeriodId::quarter(2025, 1);\ncs.by_instrument\n    .entry(\"BOND-1\".into())\n    .or_default()\n    .insert(period, CashflowBreakdown {\n        interest_expense_cash: Money::new(10_000.0, Currency::USD),\n        interest_income_cash: None,\n        interest_expense_pik: Money::new(2_500.0, Currency::USD),\n        principal_payment: Money::new(100_000.0, Currency::USD),\n        fees: Money::new(0.0, Currency::USD),\n        debt_balance: Money::new(4_900_000.0, Currency::USD),\n        accrued_interest: Money::new(5_000.0, Currency::USD),\n    });\ncs.totals.insert(period, CashflowBreakdown {\n    interest_expense_cash: Money::new(10_000.0, Currency::USD),\n    interest_income_cash: None,\n    interest_expense_pik: Money::new(2_500.0, Currency::USD),\n    principal_payment: Money::new(100_000.0, Currency::USD),\n    fees: Money::new(0.0, Currency::USD),\n    debt_balance: Money::new(4_900_000.0, Currency::USD),\n    accrued_interest: Money::new(5_000.0, Currency::USD),\n});\n\nassert_eq!(cs.get_total_interest(&period).unwrap(), 12_500.0);\n```",
@@ -55,6 +180,218 @@
       ],
       "type": "object"
     },
+    "CapitalStructureClaimCategory": {
+      "description": "Cash claim category affected by a capital-structure warning.",
+      "oneOf": [
+        {
+          "const": "fees",
+          "description": "Fee claims such as commitment or facility fees.",
+          "type": "string"
+        },
+        {
+          "const": "interest",
+          "description": "Cash-interest claims.",
+          "type": "string"
+        }
+      ]
+    },
+    "CapitalStructureWarning": {
+      "description": "Typed reason for a capital-structure evaluation warning.",
+      "oneOf": [
+        {
+          "description": "A schedule-to-model balance ratio exceeded the safety bound and was clamped.",
+          "properties": {
+            "clamped_ratio": {
+              "description": "Ratio used after applying the safety bound.",
+              "format": "double",
+              "type": "number"
+            },
+            "kind": {
+              "const": "scale_clamped",
+              "type": "string"
+            },
+            "raw_ratio": {
+              "description": "Unbounded ratio calculated from model and schedule balances.",
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "raw_ratio",
+            "clamped_ratio"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A contractual cashflow kind is not represented in statement debt service.",
+          "properties": {
+            "cashflow_date": {
+              "$ref": "#/$defs/DateWire",
+              "description": "Original contractual payment date."
+            },
+            "cashflow_kind": {
+              "$ref": "#/$defs/CFKind",
+              "description": "Canonical cashflow classification that was excluded."
+            },
+            "kind": {
+              "const": "cashflow_ignored",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "cashflow_kind",
+            "cashflow_date"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A negative creditor claim was neutralized instead of reducing other claims.",
+          "properties": {
+            "amount": {
+              "description": "Negative claim amount in the waterfall currency.",
+              "format": "double",
+              "type": "number"
+            },
+            "category": {
+              "$ref": "#/$defs/CapitalStructureClaimCategory",
+              "description": "Payment category containing the invalid negative claim."
+            },
+            "instrument_id": {
+              "description": "Instrument whose claim was neutralized.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "negative_claim_neutralized",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "category",
+            "instrument_id",
+            "amount"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A negative available-cash pool was floored to zero before allocation.",
+          "properties": {
+            "amount": {
+              "description": "Negative amount that was floored, in the waterfall currency.",
+              "format": "double",
+              "type": "number"
+            },
+            "kind": {
+              "const": "negative_available_cash_floored",
+              "type": "string"
+            },
+            "node_id": {
+              "description": "Statement node supplying the available-cash amount.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "node_id",
+            "amount"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Sweep cash exceeded debt capacity while no equity residual was configured.",
+          "properties": {
+            "amount": {
+              "description": "Unallocated excess amount in the waterfall currency.",
+              "format": "double",
+              "type": "number"
+            },
+            "kind": {
+              "const": "sweep_excess_unallocated",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "amount"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Available cash was insufficient to pay a cash-interest claim.",
+          "properties": {
+            "amount": {
+              "description": "Unpaid amount in the waterfall currency.",
+              "format": "double",
+              "type": "number"
+            },
+            "instrument_id": {
+              "description": "Instrument carrying the unpaid claim forward.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "interest_shortfall",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "instrument_id",
+            "amount"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Available cash was insufficient to pay a fee claim.",
+          "properties": {
+            "amount": {
+              "description": "Unpaid amount in the waterfall currency.",
+              "format": "double",
+              "type": "number"
+            },
+            "instrument_id": {
+              "description": "Instrument carrying the unpaid claim forward.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "fee_shortfall",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "instrument_id",
+            "amount"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Available cash was insufficient to pay scheduled principal.",
+          "properties": {
+            "amount": {
+              "description": "Unpaid amount in the waterfall currency.",
+              "format": "double",
+              "type": "number"
+            },
+            "instrument_id": {
+              "description": "Instrument carrying the unpaid claim forward.",
+              "type": "string"
+            },
+            "kind": {
+              "const": "principal_shortfall",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "instrument_id",
+            "amount"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "CashflowBreakdown": {
       "additionalProperties": false,
       "description": "Breakdown of cashflows by type for a single period.\n\nOutflow-like fields such as interest, fees, and principal payments are\nstored as positive amounts representing debt service paid or accrued during\nthe period.\n\nInterest expense is split into cash and PIK components for visibility\ninto non-cash interest accrual. Use `interest_expense_total()` for the\ncombined value. All monetary fields use the Money type for currency safety.\n\nInterest *expense* and interest *income* are tracked separately rather than\nas one signed field: a two-leg instrument (an interest-rate swap) can net to\na receipt in a period — a pay-fixed hedge is in the money whenever the\nfloating leg exceeds the fixed leg — and a receipt is not debt service. The\nwaterfall allocates cash against expense claims, so folding a receipt into\n`interest_expense_cash` as a negative claim would corrupt pro-rata\nallocation. See [`Self::net_interest_expense_cash`] for the combined view.",
@@ -88,7 +425,7 @@
               "type": "null"
             }
           ],
-          "description": "Net cash interest **received** during the period.\n\nNon-zero only for two-leg instruments whose legs net to a receipt (e.g.\nan in-the-money pay-fixed swap). Stored as a positive amount, like the\noutflow-oriented fields, and reported through the `cs.interest_income`\nnamespace.\n\n`None` in payloads written before this field existed, which is\nsemantically identical to the old behaviour (no income was tracked).\nRead it via [`Self::interest_income_cash_or_zero`] rather than\nunwrapping, so legacy payloads resolve to a zero in the correct\ncurrency."
+          "description": "Net cash interest **received** during the period.\n\nNon-zero only for two-leg instruments whose legs net to a receipt (e.g.\nan in-the-money pay-fixed swap). Stored as a positive amount, like the\noutflow-oriented fields, and reported through the `cs.interest_income`\nnamespace.\n\n`None` means that no income leg applies. Read it via\n[`Self::interest_income_cash_or_zero`] when a currency-preserving zero\nis more convenient than an optional value."
         },
         "principal_payment": {
           "$ref": "#/$defs/Money",
@@ -1090,6 +1427,16 @@
         }
       ]
     },
+    "DateWire": {
+      "description": "ISO 8601 calendar date encoded as a `YYYY-MM-DD` JSON string.",
+      "format": "date",
+      "type": "string"
+    },
+    "DecimalWire": {
+      "description": "Exact decimal encoded only as a JSON string.",
+      "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
+      "type": "string"
+    },
     "EvalWarning": {
       "description": "Warning emitted during evaluation.",
       "oneOf": [
@@ -1097,7 +1444,7 @@
           "additionalProperties": false,
           "description": "Division by zero encountered",
           "properties": {
-            "DivisionByZero": {
+            "division_by_zero": {
               "properties": {
                 "node_id": {
                   "description": "Identifier of the node that triggered the warning.",
@@ -1116,7 +1463,7 @@
             }
           },
           "required": [
-            "DivisionByZero"
+            "division_by_zero"
           ],
           "type": "object"
         },
@@ -1124,7 +1471,7 @@
           "additionalProperties": false,
           "description": "NaN value bubbled up to a node result",
           "properties": {
-            "NaNPropagated": {
+            "na_n_propagated": {
               "properties": {
                 "node_id": {
                   "description": "Identifier of the node that produced the NaN value.",
@@ -1143,7 +1490,7 @@
             }
           },
           "required": [
-            "NaNPropagated"
+            "na_n_propagated"
           ],
           "type": "object"
         },
@@ -1151,7 +1498,7 @@
           "additionalProperties": false,
           "description": "Non-finite value (NaN, Inf, -Inf) detected when storing a node result.\n\nThis warning is emitted by the finiteness validation pipeline so that\nconsumers can identify which node/period introduced bad values.",
           "properties": {
-            "NonFiniteValue": {
+            "non_finite_value": {
               "properties": {
                 "node_id": {
                   "description": "Identifier of the node that produced the non-finite value.",
@@ -1176,40 +1523,34 @@
             }
           },
           "required": [
-            "NonFiniteValue"
+            "non_finite_value"
           ],
           "type": "object"
         },
         {
           "additionalProperties": false,
-          "description": "Capital-structure cashflow classification was ignored during statement extraction.",
+          "description": "Capital-structure extraction or waterfall processing required a guarded fallback.",
           "properties": {
-            "CapitalStructureCashflowIgnored": {
+            "capital_structure": {
               "properties": {
-                "cashflow_date": {
-                  "description": "Original cashflow date as a string for diagnostics.",
-                  "format": "date",
-                  "type": "string"
-                },
-                "kind": {
-                  "description": "Ignored cashflow kind.",
-                  "type": "string"
-                },
                 "period": {
-                  "description": "Period in which the ignored cashflow was encountered.",
+                  "description": "Period in which the warning was raised.",
                   "type": "string"
+                },
+                "warning": {
+                  "$ref": "#/$defs/CapitalStructureWarning",
+                  "description": "Typed reason and associated diagnostic values."
                 }
               },
               "required": [
                 "period",
-                "kind",
-                "cashflow_date"
+                "warning"
               ],
               "type": "object"
             }
           },
           "required": [
-            "CapitalStructureCashflowIgnored"
+            "capital_structure"
           ],
           "type": "object"
         },
@@ -1217,7 +1558,7 @@
           "additionalProperties": false,
           "description": "One or more non-finite inputs were skipped by a skip-NaN aggregate\n(`sum`, `mean`, ...).\n\nThe aggregate's skip-NaN policy is intentional, but silently dropping a\nbroken line item can mask upstream problems (e.g. a division by zero in\none argument), so the drop is surfaced here.",
           "properties": {
-            "NonFiniteSkipped": {
+            "non_finite_skipped": {
               "properties": {
                 "count": {
                   "description": "Number of non-finite inputs dropped.",
@@ -1248,7 +1589,7 @@
             }
           },
           "required": [
-            "NonFiniteSkipped"
+            "non_finite_skipped"
           ],
           "type": "object"
         }
@@ -1290,11 +1631,7 @@
       "description": "Currency-tagged monetary amount with safe arithmetic.\n\nValues are stored using a fixed-point representation derived from ISO 4217\ndecimal places.\n\nWhen you need configurable rounding during ingestion, use\n[`Money::new_with_config`].\n\n# Examples\n```rust\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::currency::Currency;\n\nlet notional = Money::new(1_000_000.0, Currency::EUR);\nassert_eq!(notional.currency(), Currency::EUR);\nassert_eq!(notional.amount(), 1_000_000.0);\n```",
       "properties": {
         "amount": {
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "$ref": "#/$defs/DecimalWire"
         },
         "currency": {
           "$ref": "#/$defs/Currency"
@@ -1307,6 +1644,7 @@
       "type": "object"
     },
     "NodeId": {
+      "description": "Type-safe identifier for a node in a financial model.\n\nSerializes as a plain string and is interoperable with `&str` via\n[`Borrow`] and [`AsRef`].",
       "type": "string"
     },
     "NodeValueType": {
@@ -1361,6 +1699,7 @@
       ]
     },
     "ResultsMeta": {
+      "additionalProperties": false,
       "description": "Metadata about evaluation results.",
       "properties": {
         "eval_time_ms": {
@@ -1394,17 +1733,6 @@
           "description": "Whether parallel evaluation was used",
           "type": "boolean"
         },
-        "rounding_context": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/RoundingContext"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Rounding context reserved for future fixed-point evaluation metadata.\n\nKept in the wire format for forward compatibility; statement evaluation\ncurrently runs in [`NumericMode::Float64`] and leaves this as `None`."
-        },
         "warnings": {
           "description": "Warnings encountered during evaluation (division by zero, NaN propagation, etc.)",
           "items": {
@@ -1419,83 +1747,12 @@
       ],
       "type": "object"
     },
-    "RoundingContext": {
-      "description": "Snapshot of active rounding settings used for result stamping.\n\nInstances are typically produced via [`rounding_context_from`] and persisted\nalongside valuation results.",
-      "properties": {
-        "ingest_scale_by_ccy": {
-          "additionalProperties": {
-            "format": "uint32",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "description": "Ingest scale map snapshot by currency code.",
-          "type": "object"
-        },
-        "mode": {
-          "$ref": "#/$defs/RoundingMode",
-          "description": "Active rounding mode."
-        },
-        "output_scale_by_ccy": {
-          "additionalProperties": {
-            "format": "uint32",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "description": "Output scale map snapshot by currency code.",
-          "type": "object"
-        },
-        "tolerances": {
-          "$ref": "#/$defs/ToleranceConfig",
-          "default": {
-            "generic_epsilon": 1e-10,
-            "rate_epsilon": 1e-12
-          },
-          "description": "Tolerance settings snapshot for floating-point comparisons."
-        },
-        "version": {
-          "description": "Schema version for forward compatibility.",
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "mode",
-        "ingest_scale_by_ccy",
-        "output_scale_by_ccy",
-        "version"
-      ],
-      "type": "object"
-    },
-    "RoundingMode": {
-      "description": "Rounding modes supported by the library.\n\nThe variants mirror the most common conventions found in pricing engines.\n\n# Examples\n```rust\nuse finstack_quant_core::config::{FinstackConfig, RoundingMode};\n\nlet mut cfg = FinstackConfig::default();\ncfg.rounding.mode = RoundingMode::TowardZero;\nassert!(matches!(cfg.rounding.mode, RoundingMode::TowardZero));\n```",
-      "oneOf": [
-        {
-          "const": "Bankers",
-          "description": "Banker's rounding (ties to even).",
-          "type": "string"
-        },
-        {
-          "const": "AwayFromZero",
-          "description": "Round halves away from zero.",
-          "type": "string"
-        },
-        {
-          "const": "TowardZero",
-          "description": "Round toward zero (truncate).",
-          "type": "string"
-        },
-        {
-          "const": "Floor",
-          "description": "Round toward negative infinity.",
-          "type": "string"
-        },
-        {
-          "const": "Ceil",
-          "description": "Round toward positive infinity.",
-          "type": "string"
-        }
-      ]
+    "SchemaVersion": {
+      "description": "Numeric schema revision for contracts whose sole supported revision is v1.",
+      "format": "uint32",
+      "maximum": 1,
+      "minimum": 1,
+      "type": "integer"
     },
     "Severity": {
       "description": "Severity level for a check finding, ordered from least to most severe.",
@@ -1516,28 +1773,11 @@
           "type": "string"
         }
       ]
-    },
-    "ToleranceConfig": {
-      "description": "Numerical tolerance configuration for floating-point comparisons.\n\nProvides configurable epsilon values for zero-checks in rate calculations\nand generic floating-point comparisons. These defaults are chosen to balance\nnumerical stability with practical precision requirements.\n\n# Examples\n```rust\nuse finstack_quant_core::config::ToleranceConfig;\n\nlet mut tol = ToleranceConfig::default();\nassert_eq!(tol.rate_epsilon, 1e-12);\n\n// Customize for stricter rate comparisons\ntol.rate_epsilon = 1e-14;\n```",
-      "properties": {
-        "generic_epsilon": {
-          "default": 1e-10,
-          "description": "Epsilon for generic floating-point comparisons (default: 1e-10).\n\nUsed for general numerical comparisons where higher tolerance is acceptable.",
-          "format": "double",
-          "type": "number"
-        },
-        "rate_epsilon": {
-          "default": 1e-12,
-          "description": "Epsilon for rate comparisons (default: 1e-12).\n\nUsed when comparing interest rates, yields, and other small ratios.",
-          "format": "double",
-          "type": "number"
-        }
-      },
-      "type": "object"
     }
   },
   "$id": "https://finstack_quant.dev/schemas/statements/1/statement_result.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
   "description": "Versioned financial statement evaluation result.",
   "properties": {
     "check_report": {
@@ -1595,14 +1835,12 @@
       "type": "object"
     },
     "schema_version": {
-      "default": 1,
-      "description": "Wire-format schema version. Current wire format: `STATEMENT_RESULT_SCHEMA_VERSION`.",
-      "format": "uint32",
-      "minimum": 0,
-      "type": "integer"
+      "$ref": "#/$defs/SchemaVersion",
+      "description": "Required wire-format schema version. Only numeric `1` is accepted."
     }
   },
   "required": [
+    "schema_version",
     "nodes",
     "meta"
   ],

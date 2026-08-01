@@ -1,7 +1,7 @@
 {
   "schema": "finstack_quant.cashflow/1",
   "amortization_spec": {
-    "LinearTo": {
+    "linear_to": {
       "final_notional": {
         "amount": "100000",
         "currency": "USD"

@@ -5,10 +5,9 @@ use finstack_quant_core::to_canonical_bytes;
 use finstack_quant_statements::types::FinancialModelSpec;
 
 fn model_bytes(meta: &str) -> Vec<u8> {
-    let matrix: serde_json::Value =
-        serde_json::from_str(include_str!("data/financial_model_version_matrix.json"))
-            .expect("contract matrix parses");
-    let mut base = matrix["base"].clone();
+    let mut base: serde_json::Value =
+        serde_json::from_str(include_str!("data/canonical/financial_model.json"))
+            .expect("canonical model parses");
     base["meta"] = serde_json::json!({});
     serde_json::to_string(&base)
         .expect("financial-model fixture serializes")
@@ -26,10 +25,9 @@ fn financial_model_has_golden_canonical_bytes_hash_and_order_invariance() {
         .expect("second financial model is strictly valid");
 
     let canonical = to_canonical_bytes(&first).expect("financial model canonicalizes");
-    assert_eq!(
-        canonical,
-        include_bytes!("data/canonical/financial_model.json")
-    );
+    let fixture = include_bytes!("data/canonical/financial_model.json");
+    let fixture = fixture.strip_suffix(b"\n").unwrap_or(fixture);
+    assert_eq!(canonical, fixture);
     assert_eq!(
         first.content_hash().expect("financial model hashes"),
         include_str!("data/canonical/financial_model.sha256").trim()

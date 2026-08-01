@@ -6,26 +6,26 @@
       "spread_bp": "150.0",
       "gearing": "1.0",
       "gearing_includes_spread": true,
-      "floor_bp": null,
+      "index_floor_bp": null,
       "all_in_floor_bp": null,
-      "cap_bp": null,
+      "all_in_cap_bp": null,
       "index_cap_bp": null,
-      "reset_freq": {
+      "reset_frequency": {
         "count": 6,
         "unit": "months"
       },
       "reset_lag_days": 2,
       "fixing_calendar_id": null
     },
-    "coupon_type": "Cash",
-    "freq": {
+    "coupon_type": "cash",
+    "frequency": {
       "count": 6,
       "unit": "months"
     },
-    "dc": "Act360",
-    "bdc": "modified_following",
+    "day_count": "act_360",
+    "business_day_convention": "modified_following",
     "calendar_id": "EUR",
-    "stub": "None",
+    "stub": "none",
     "end_of_month": false,
     "payment_lag_days": 0
   }

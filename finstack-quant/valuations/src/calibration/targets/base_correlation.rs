@@ -243,7 +243,7 @@ impl BaseCorrelationTarget {
             series: self.params.series,
             frequency: self.params.frequency,
             day_count: self.params.day_count,
-            bdc: self.params.bdc,
+            business_day_convention: self.params.business_day_convention,
             calendar_id: self.params.calendar_id.clone(),
             use_imm_dates: self.params.use_imm_dates,
         }
@@ -263,7 +263,7 @@ impl BaseCorrelationTarget {
         quote: &CDSTrancheQuote,
         build_ctx: &BuildCtx,
         overrides: &CDSTrancheBuildOverrides,
-        time_dc: DayCount,
+        time_day_count: DayCount,
     ) -> Result<CalibrationQuote> {
         let fields = TrancheQuoteFields::extract(quote);
 
@@ -276,7 +276,7 @@ impl BaseCorrelationTarget {
                 ))
             })?;
 
-        let pillar_time = time_dc.year_fraction(
+        let pillar_time = time_day_count.year_fraction(
             self.params.base_date,
             fields.maturity,
             DayCountContext::default(),
@@ -313,7 +313,7 @@ impl BaseCorrelationTarget {
 
         let expected_detachments = self.normalized_expected_detachments();
         let maturity_tol_days: i64 = if self.params.use_imm_dates { 40 } else { 7 };
-        let time_dc = self.params.day_count.unwrap_or(DayCount::Act365F);
+        let time_day_count = self.params.day_count.unwrap_or(DayCount::Act365F);
         let build_ctx = self.build_ctx();
         let overrides = self.build_overrides();
 
@@ -337,7 +337,8 @@ impl BaseCorrelationTarget {
             )?;
 
             // Build calibration quote
-            let calib_quote = self.build_calibration_quote(&q, &build_ctx, &overrides, time_dc)?;
+            let calib_quote =
+                self.build_calibration_quote(&q, &build_ctx, &overrides, time_day_count)?;
             seen_detachments.push(detachment_pct);
             prepared.push(calib_quote);
         }
@@ -594,7 +595,7 @@ mod tests {
             notional: 1_000_000.0,
             frequency: None,
             day_count: Some(DayCount::Act365F),
-            bdc: Some(BusinessDayConvention::Following),
+            business_day_convention: Some(BusinessDayConvention::Following),
             calendar_id: None,
             detachment_points: vec![3.0, 7.0],
             use_imm_dates: false,
@@ -698,7 +699,10 @@ mod tests {
 
         let overrides = target.build_overrides();
         assert_eq!(overrides.day_count, target.params.day_count);
-        assert_eq!(overrides.bdc, target.params.bdc);
+        assert_eq!(
+            overrides.business_day_convention,
+            target.params.business_day_convention
+        );
         assert_eq!(overrides.use_imm_dates, target.params.use_imm_dates);
 
         assert!(target.validate_knot(7.0, 0.5).is_ok());

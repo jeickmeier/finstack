@@ -63,11 +63,11 @@ pub enum CDSTrancheQuote {
         detachment: f64,
         /// Maturity date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         maturity: finstack_quant_core::dates::Date,
         /// Upfront payment as a decimal fraction of tranche notional (e.g., -0.025 for -2.5%).
         upfront_pct: f64,
-        /// Running spread (bps).
+        /// Running spread (bp).
         running_spread_bp: f64,
         /// Convention key (currency + doc clause).
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]

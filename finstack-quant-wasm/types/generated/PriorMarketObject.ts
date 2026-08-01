@@ -4,10 +4,7 @@
  * A pre-built calibrated market object.
  *
  * Variants are tagged via serde as `{"kind": "<snake_case_variant>", ...}` so
- * callers can author flat heterogeneous lists in JSON/YAML. None of the
- * underlying curve / surface types currently derive [`JsonSchema`] directly,
- * so we apply the established `#[schemars(with = "serde_json::Value")]`
- * workaround (matching the pattern in `market_datum.rs`). The same applies
- * on the TypeScript side via `#[ts(type = "unknown")]`.
+ * callers can author flat heterogeneous lists in JSON/YAML. Each wrapped
+ * curve or surface contributes its own derived JSON Schema.
  */
 export type PriorMarketObject = { "kind": "discount_curve" } & unknown | { "kind": "forward_curve" } & unknown | { "kind": "hazard_curve" } & unknown | { "kind": "inflation_curve" } & unknown | { "kind": "base_correlation_curve" } & unknown | { "kind": "basis_spread_curve" } & unknown | { "kind": "parametric_curve" } & unknown | { "kind": "price_curve" } & unknown | { "kind": "volatility_index_curve" } & unknown | { "kind": "vol_surface" } & unknown;

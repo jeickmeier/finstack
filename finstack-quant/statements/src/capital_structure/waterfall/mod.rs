@@ -64,7 +64,9 @@ use crate::capital_structure::cashflows::CashflowBreakdown;
 use crate::capital_structure::state::CapitalStructureState;
 use crate::capital_structure::waterfall_spec::{PaymentPriority, WaterfallSpec};
 use crate::error::Result;
-use crate::evaluator::{EvalWarning, EvaluationContext};
+use crate::evaluator::{
+    CapitalStructureClaimCategory, CapitalStructureWarning, EvalWarning, EvaluationContext,
+};
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_core::money::Money;
 use indexmap::IndexMap;
@@ -357,12 +359,12 @@ pub fn execute_waterfall(
         // this warning the period simply shorts every creditor and the
         // negative signal disappears.
         if cash < 0.0 {
-            warnings.push(EvalWarning::CapitalStructureCashflowIgnored {
+            warnings.push(EvalWarning::CapitalStructure {
                 period: *_period_id,
-                kind: format!(
-                    "negative_available_cash_floored(node={available_cash_node}, amount={cash:.4})"
-                ),
-                cashflow_date: _period_id.to_string(),
+                warning: CapitalStructureWarning::NegativeAvailableCashFloored {
+                    node_id: available_cash_node.clone(),
+                    amount: cash,
+                },
             });
             tracing::warn!(
                 node = available_cash_node.as_str(),
@@ -581,10 +583,9 @@ pub fn execute_waterfall(
     // mode (`available_cash_node: None`) there is no equity bucket and the
     // cash would silently vanish from the model. Surface it.
     if residual > MONEY_TOLERANCE && available_cash.is_none() {
-        warnings.push(EvalWarning::CapitalStructureCashflowIgnored {
+        warnings.push(EvalWarning::CapitalStructure {
             period: *_period_id,
-            kind: format!("sweep_excess_unallocated(amount={residual:.4})"),
-            cashflow_date: _period_id.to_string(),
+            warning: CapitalStructureWarning::SweepExcessUnallocated { amount: residual },
         });
         tracing::warn!(
             excess = residual,
@@ -655,7 +656,7 @@ pub fn execute_waterfall(
                         &mut staged,
                         &mut remaining_cash,
                         *_period_id,
-                        "fees",
+                        CapitalStructureClaimCategory::Fees,
                         &mut warnings,
                         |s| &mut s.breakdown.fees,
                     );
@@ -665,7 +666,7 @@ pub fn execute_waterfall(
                         &mut staged,
                         &mut remaining_cash,
                         *_period_id,
-                        "interest",
+                        CapitalStructureClaimCategory::Interest,
                         &mut warnings,
                         |s| &mut s.breakdown.interest_expense_cash,
                     );
@@ -715,13 +716,12 @@ pub fn execute_waterfall(
                     s.instrument_id.clone(),
                     Money::new(unpaid_interest, currency),
                 );
-                warnings.push(EvalWarning::CapitalStructureCashflowIgnored {
+                warnings.push(EvalWarning::CapitalStructure {
                     period: *_period_id,
-                    kind: format!(
-                        "interest_shortfall(instrument={}, amount={unpaid_interest:.4})",
-                        s.instrument_id
-                    ),
-                    cashflow_date: _period_id.to_string(),
+                    warning: CapitalStructureWarning::InterestShortfall {
+                        instrument_id: s.instrument_id.clone(),
+                        amount: unpaid_interest,
+                    },
                 });
                 tracing::warn!(
                     instrument = s.instrument_id.as_str(),
@@ -739,13 +739,12 @@ pub fn execute_waterfall(
                     format!("fees::{}", s.instrument_id),
                     Money::new(unpaid_fees, currency),
                 );
-                warnings.push(EvalWarning::CapitalStructureCashflowIgnored {
+                warnings.push(EvalWarning::CapitalStructure {
                     period: *_period_id,
-                    kind: format!(
-                        "fee_shortfall(instrument={}, amount={unpaid_fees:.4})",
-                        s.instrument_id
-                    ),
-                    cashflow_date: _period_id.to_string(),
+                    warning: CapitalStructureWarning::FeeShortfall {
+                        instrument_id: s.instrument_id.clone(),
+                        amount: unpaid_fees,
+                    },
                 });
                 tracing::warn!(
                     instrument = s.instrument_id.as_str(),
@@ -764,13 +763,12 @@ pub fn execute_waterfall(
                     format!("principal::{}", s.instrument_id),
                     Money::new(unpaid_principal, currency),
                 );
-                warnings.push(EvalWarning::CapitalStructureCashflowIgnored {
+                warnings.push(EvalWarning::CapitalStructure {
                     period: *_period_id,
-                    kind: format!(
-                        "principal_shortfall(instrument={}, amount={unpaid_principal:.4})",
-                        s.instrument_id
-                    ),
-                    cashflow_date: _period_id.to_string(),
+                    warning: CapitalStructureWarning::PrincipalShortfall {
+                        instrument_id: s.instrument_id.clone(),
+                        amount: unpaid_principal,
+                    },
                 });
                 tracing::warn!(
                     instrument = s.instrument_id.as_str(),
@@ -1072,8 +1070,10 @@ mod tests {
         assert!(
             result.warnings.iter().any(|w| matches!(
                 w,
-                EvalWarning::CapitalStructureCashflowIgnored { kind, .. }
-                    if kind.contains("negative_available_cash")
+                EvalWarning::CapitalStructure {
+                    warning: CapitalStructureWarning::NegativeAvailableCashFloored { .. },
+                    ..
+                }
             )),
             "the negative cash pool must be surfaced: {:?}",
             result.warnings
@@ -1142,8 +1142,10 @@ mod tests {
         assert!(
             result.warnings.iter().any(|w| matches!(
                 w,
-                EvalWarning::CapitalStructureCashflowIgnored { kind, .. }
-                    if kind.contains("sweep_excess")
+                EvalWarning::CapitalStructure {
+                    warning: CapitalStructureWarning::SweepExcessUnallocated { .. },
+                    ..
+                }
             )),
             "unallocated sweep excess must be surfaced: {:?}",
             result.warnings
@@ -2317,10 +2319,13 @@ mod tests {
             40.0
         );
         assert!(
-            result_short
-                .warnings
-                .iter()
-                .any(|warning| matches!(warning, EvalWarning::CapitalStructureCashflowIgnored { kind, .. } if kind.starts_with("principal_shortfall"))),
+            result_short.warnings.iter().any(|warning| matches!(
+                warning,
+                EvalWarning::CapitalStructure {
+                    warning: CapitalStructureWarning::PrincipalShortfall { .. },
+                    ..
+                }
+            )),
             "principal shortfall must surface a structured warning"
         );
 

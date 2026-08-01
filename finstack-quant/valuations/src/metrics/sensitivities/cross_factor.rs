@@ -139,7 +139,7 @@ impl FactorBumper for ParallelCurveBumper {
 
 #[derive(Debug, Clone)]
 struct VolParallelBumper {
-    surface_ids: Vec<CurveId>,
+    vol_surface_ids: Vec<CurveId>,
     bump_abs: f64,
 }
 
@@ -151,7 +151,7 @@ impl FactorBumper for VolParallelBumper {
         direction: f64,
     ) -> Result<MarketContext> {
         market.bump(
-            self.surface_ids
+            self.vol_surface_ids
                 .iter()
                 .cloned()
                 .map(|id| MarketBump::Curve {
@@ -171,9 +171,9 @@ impl FactorBumper for VolParallelBumper {
     }
 
     fn is_applicable(&self, market: &MarketContext, _as_of: Date) -> bool {
-        self.surface_ids
+        self.vol_surface_ids
             .iter()
-            .all(|surface_id| market.get_surface(surface_id.as_str()).is_ok())
+            .all(|vol_surface_id| market.get_surface(vol_surface_id.as_str()).is_ok())
     }
 }
 
@@ -288,19 +288,19 @@ pub(crate) fn make_credit_bumper(context: &MetricContext) -> Result<Option<Box<d
 /// Create a volatility bumper from runtime instrument dependencies.
 pub(crate) fn make_vol_bumper(context: &MetricContext) -> Result<Option<Box<dyn FactorBumper>>> {
     let deps = context.instrument.market_dependencies()?;
-    let surface_ids: Vec<_> = deps
+    let vol_surface_ids: Vec<_> = deps
         .unique_vol_surface_ids()
         .into_iter()
-        .filter(|surface_id| context.curves.get_surface(surface_id.as_str()).is_ok())
+        .filter(|vol_surface_id| context.curves.get_surface(vol_surface_id.as_str()).is_ok())
         .collect();
-    if surface_ids.is_empty() {
+    if vol_surface_ids.is_empty() {
         return Ok(None);
     }
 
     let defaults =
         sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
     Ok(Some(Box::new(VolParallelBumper {
-        surface_ids,
+        vol_surface_ids,
         bump_abs: defaults.vol_bump_pct,
     })))
 }
@@ -308,7 +308,7 @@ pub(crate) fn make_vol_bumper(context: &MetricContext) -> Result<Option<Box<dyn 
 /// Create a spot bumper from runtime instrument dependencies.
 pub(crate) fn make_spot_bumper(context: &MetricContext) -> Result<Option<Box<dyn FactorBumper>>> {
     let deps = context.instrument.market_dependencies()?;
-    let Some(price_id) = deps.spot_ids.first() else {
+    let Some(price_id) = deps.market_scalar_ids.first() else {
         return Ok(None);
     };
 
@@ -453,7 +453,7 @@ mod tests {
             .insert_surface(flat_surface("VOL-A", 0.20))
             .insert_surface(flat_surface("VOL-B", 0.30));
         let bumper = VolParallelBumper {
-            surface_ids: vec![CurveId::new("VOL-A"), CurveId::new("VOL-B")],
+            vol_surface_ids: vec![CurveId::new("VOL-A"), CurveId::new("VOL-B")],
             bump_abs: 0.01,
         };
 

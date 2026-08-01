@@ -183,8 +183,7 @@ def check_surface_grid(
     strikes: list[float],
     expiries: list[float],
     vols: list[list[float]],
-    forward: Optional[float] = None,
-    forward_prices: Optional[list[float]] = None,
+    forward_prices: list[float],
     tolerance: float = 1e-6,
 ) -> _ArbitrageReport:
     """
@@ -198,11 +197,8 @@ def check_surface_grid(
         Monotonically increasing expiry grid in years.
     vols : list[list[float]]
         Implied vols shaped ``[n_expiries][n_strikes]``.
-    forward : float, optional
-        Single forward price broadcast to all expiries. Mutually exclusive with
-        ``forward_prices`` when both would supply different values.
-    forward_prices : list[float], optional
-        Per-expiry forward prices. When omitted, ``forward`` must be supplied.
+    forward_prices : list[float]
+        One forward price to broadcast or one price per expiry.
     tolerance : float, optional
         Tolerance in total-variance units. Default ``1e-6``.
 
@@ -215,13 +211,12 @@ def check_surface_grid(
     Raises
     ------
     ValueError
-        If neither ``forward`` nor ``forward_prices`` is supplied, or grid
-        inputs are invalid.
+        If the forward-price shape or grid inputs are invalid.
 
     Examples
     --------
     >>> from finstack_quant.core.market_data.arbitrage import check_surface_grid
-    >>> report = check_surface_grid(strikes, expiries, vols, forward=100.0)  # doctest: +SKIP
+    >>> report = check_surface_grid(strikes, expiries, vols, forward_prices=[100.0])  # doctest: +SKIP
     >>> report["passed"]  # doctest: +SKIP
     True
     """

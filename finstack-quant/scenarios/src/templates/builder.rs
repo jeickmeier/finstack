@@ -316,9 +316,13 @@ impl ScenarioSpecBuilder {
                         *curve_id = replacement.as_str().into();
                     }
                 }
-                OperationSpec::VolSurfaceParallelPct { surface_id, .. }
-                | OperationSpec::VolSurfaceBucketPct { surface_id, .. }
-                | OperationSpec::BaseCorrParallelPts { surface_id, .. }
+                OperationSpec::VolSurfaceParallelPct { vol_surface_id, .. }
+                | OperationSpec::VolSurfaceBucketPct { vol_surface_id, .. } => {
+                    if let Some(replacement) = self.curve_overrides.get(vol_surface_id.as_str()) {
+                        *vol_surface_id = replacement.as_str().into();
+                    }
+                }
+                OperationSpec::BaseCorrParallelPts { surface_id, .. }
                 | OperationSpec::BaseCorrBucketPts { surface_id, .. } => {
                     if let Some(replacement) = self.curve_overrides.get(surface_id.as_str()) {
                         *surface_id = replacement.as_str().into();
@@ -443,7 +447,7 @@ mod tests {
             })
             .with_operation(OperationSpec::BaseCorrBucketPts {
                 surface_id: "USD-SOFR".into(),
-                detachment_bps: Some(vec![300]),
+                detachment_bp: Some(vec![300]),
                 maturities: Some(vec!["5Y".into()]),
                 points: 0.03,
             })
@@ -597,12 +601,12 @@ mod tests {
         let spec = ScenarioSpecBuilder::new("test")
             .with_operation(OperationSpec::VolSurfaceParallelPct {
                 surface_kind: VolSurfaceKind::Equity,
-                surface_id: "SPX_VOL".into(),
+                vol_surface_id: "SPX_VOL".into(),
                 pct: 50.0,
             })
             .with_operation(OperationSpec::VolSurfaceBucketPct {
                 surface_kind: VolSurfaceKind::Equity,
-                surface_id: "SPX_VOL".into(),
+                vol_surface_id: "SPX_VOL".into(),
                 tenors: Some(vec!["1M".into()]),
                 strikes: Some(vec![100.0]),
                 pct: 25.0,
@@ -612,15 +616,15 @@ mod tests {
             .expect("should build");
 
         match &spec.operations[0] {
-            OperationSpec::VolSurfaceParallelPct { surface_id, .. } => {
-                assert_eq!(surface_id, "MY_VOL_SURFACE");
+            OperationSpec::VolSurfaceParallelPct { vol_surface_id, .. } => {
+                assert_eq!(vol_surface_id, "MY_VOL_SURFACE");
             }
             _ => panic!("unexpected operation type"),
         }
 
         match &spec.operations[1] {
-            OperationSpec::VolSurfaceBucketPct { surface_id, .. } => {
-                assert_eq!(surface_id, "MY_VOL_SURFACE");
+            OperationSpec::VolSurfaceBucketPct { vol_surface_id, .. } => {
+                assert_eq!(vol_surface_id, "MY_VOL_SURFACE");
             }
             _ => panic!("unexpected operation type"),
         }

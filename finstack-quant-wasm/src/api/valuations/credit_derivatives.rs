@@ -14,33 +14,36 @@ use finstack_quant_valuations::instruments::credit_derivatives::cds::CreditDefau
 use finstack_quant_valuations::instruments::credit_derivatives::cds_index::CDSIndex;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::CDSOption;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::CDSTranche;
-use finstack_quant_valuations::instruments::InstrumentJson;
+use finstack_quant_valuations::instruments::{InstrumentEnvelope, InstrumentJson};
 use wasm_bindgen::prelude::*;
 
-/// Example tagged `CreditDefaultSwap` instrument JSON.
+fn serialize_example(instrument: InstrumentJson) -> Result<String, JsValue> {
+    serde_json::to_string(&InstrumentEnvelope::new(instrument)).map_err(to_js_err)
+}
+
+/// Example `CreditDefaultSwap` canonical instrument envelope.
 #[wasm_bindgen(js_name = creditDefaultSwapExampleJson)]
 pub fn credit_default_swap_example_json() -> Result<String, JsValue> {
-    serde_json::to_string(&InstrumentJson::CreditDefaultSwap(
+    serialize_example(InstrumentJson::CreditDefaultSwap(
         CreditDefaultSwap::example(),
     ))
-    .map_err(to_js_err)
 }
 
-/// Example tagged `CDSIndex` instrument JSON.
+/// Example `CDSIndex` canonical instrument envelope.
 #[wasm_bindgen(js_name = cdsIndexExampleJson)]
 pub fn cds_index_example_json() -> Result<String, JsValue> {
-    serde_json::to_string(&InstrumentJson::CDSIndex(CDSIndex::example())).map_err(to_js_err)
+    serialize_example(InstrumentJson::CDSIndex(CDSIndex::example()))
 }
 
-/// Example tagged `CDSTranche` instrument JSON.
+/// Example `CDSTranche` canonical instrument envelope.
 #[wasm_bindgen(js_name = cdsTrancheExampleJson)]
 pub fn cds_tranche_example_json() -> Result<String, JsValue> {
-    serde_json::to_string(&InstrumentJson::CDSTranche(CDSTranche::example())).map_err(to_js_err)
+    serialize_example(InstrumentJson::CDSTranche(CDSTranche::example()))
 }
 
-/// Example tagged `CDSOption` instrument JSON.
+/// Example `CDSOption` canonical instrument envelope.
 #[wasm_bindgen(js_name = cdsOptionExampleJson)]
 pub fn cds_option_example_json() -> Result<String, JsValue> {
     let option = CDSOption::example().map_err(to_js_err)?;
-    serde_json::to_string(&InstrumentJson::CDSOption(option)).map_err(to_js_err)
+    serialize_example(InstrumentJson::CDSOption(option))
 }

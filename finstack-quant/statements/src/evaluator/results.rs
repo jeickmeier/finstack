@@ -1,25 +1,16 @@
 //! Results types for statement evaluation.
 
 use crate::types::NodeValueType;
-use finstack_quant_core::dates::PeriodId;
+use finstack_quant_core::cashflow::CFKind;
+use finstack_quant_core::dates::{Date, PeriodId};
 use finstack_quant_core::money::Money;
+use finstack_quant_core::wire::SchemaVersion;
 use indexmap::IndexMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
 use crate::types::FinancialModelSpec;
-
-/// Wire-format schema version for [`StatementResult`].
-///
-/// Bump this when adding, removing, or renaming fields in a way that is NOT
-/// handled by `#[serde(default)]` on the new field. Document every bump in
-/// the workspace `CHANGELOG.md` and `docs/SERDE_STABILITY.md`.
-pub const STATEMENT_RESULT_SCHEMA_VERSION: u32 = 1;
-
-fn default_statement_result_schema_version() -> u32 {
-    STATEMENT_RESULT_SCHEMA_VERSION
-}
 
 /// Results from evaluating a financial model.
 ///
@@ -55,10 +46,10 @@ fn default_statement_result_schema_version() -> u32 {
 /// # }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct StatementResult {
-    /// Wire-format schema version. Current wire format: `STATEMENT_RESULT_SCHEMA_VERSION`.
-    #[serde(default = "default_statement_result_schema_version")]
-    pub schema_version: u32,
+    /// Required wire-format schema version. Only numeric `1` is accepted.
+    pub schema_version: SchemaVersion,
 
     /// Map of node_id → (period_id → value) [f64 for scalar results]
     #[schemars(with = "IndexMap<String, IndexMap<String, f64>>")]
@@ -87,6 +78,7 @@ pub struct StatementResult {
 
 /// Metadata about evaluation results.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ResultsMeta {
     /// Evaluation time in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -101,13 +93,6 @@ pub struct ResultsMeta {
     /// Numeric mode used for evaluation
     #[serde(default)]
     pub numeric_mode: NumericMode,
-
-    /// Rounding context reserved for future fixed-point evaluation metadata.
-    ///
-    /// Kept in the wire format for forward compatibility; statement evaluation
-    /// currently runs in [`NumericMode::Float64`] and leaves this as `None`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rounding_context: Option<finstack_quant_core::config::RoundingContext>,
 
     /// Whether parallel evaluation was used
     #[serde(default)]
@@ -125,7 +110,6 @@ impl Default for ResultsMeta {
             num_nodes: 0,
             num_periods: 0,
             numeric_mode: NumericMode::Float64,
-            rounding_context: None,
             parallel: false,
             warnings: Vec::new(),
         }
@@ -150,7 +134,7 @@ pub enum NumericMode {
 impl Default for StatementResult {
     fn default() -> Self {
         Self {
-            schema_version: STATEMENT_RESULT_SCHEMA_VERSION,
+            schema_version: SchemaVersion::CURRENT,
             nodes: IndexMap::new(),
             monetary_nodes: IndexMap::new(),
             node_value_types: IndexMap::new(),
@@ -383,8 +367,91 @@ fn monetary_map_skipping_nonfinite(
     (money_map, skipped)
 }
 
+/// Cash claim category affected by a capital-structure warning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CapitalStructureClaimCategory {
+    /// Fee claims such as commitment or facility fees.
+    Fees,
+    /// Cash-interest claims.
+    Interest,
+}
+
+impl std::fmt::Display for CapitalStructureClaimCategory {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Fees => "fees",
+            Self::Interest => "interest",
+        })
+    }
+}
+
+/// Typed reason for a capital-structure evaluation warning.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CapitalStructureWarning {
+    /// A schedule-to-model balance ratio exceeded the safety bound and was clamped.
+    ScaleClamped {
+        /// Unbounded ratio calculated from model and schedule balances.
+        raw_ratio: f64,
+        /// Ratio used after applying the safety bound.
+        clamped_ratio: f64,
+    },
+    /// A contractual cashflow kind is not represented in statement debt service.
+    CashflowIgnored {
+        /// Canonical cashflow classification that was excluded.
+        cashflow_kind: CFKind,
+        /// Original contractual payment date.
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        cashflow_date: Date,
+    },
+    /// A negative creditor claim was neutralized instead of reducing other claims.
+    NegativeClaimNeutralized {
+        /// Payment category containing the invalid negative claim.
+        category: CapitalStructureClaimCategory,
+        /// Instrument whose claim was neutralized.
+        instrument_id: String,
+        /// Negative claim amount in the waterfall currency.
+        amount: f64,
+    },
+    /// A negative available-cash pool was floored to zero before allocation.
+    NegativeAvailableCashFloored {
+        /// Statement node supplying the available-cash amount.
+        node_id: String,
+        /// Negative amount that was floored, in the waterfall currency.
+        amount: f64,
+    },
+    /// Sweep cash exceeded debt capacity while no equity residual was configured.
+    SweepExcessUnallocated {
+        /// Unallocated excess amount in the waterfall currency.
+        amount: f64,
+    },
+    /// Available cash was insufficient to pay a cash-interest claim.
+    InterestShortfall {
+        /// Instrument carrying the unpaid claim forward.
+        instrument_id: String,
+        /// Unpaid amount in the waterfall currency.
+        amount: f64,
+    },
+    /// Available cash was insufficient to pay a fee claim.
+    FeeShortfall {
+        /// Instrument carrying the unpaid claim forward.
+        instrument_id: String,
+        /// Unpaid amount in the waterfall currency.
+        amount: f64,
+    },
+    /// Available cash was insufficient to pay scheduled principal.
+    PrincipalShortfall {
+        /// Instrument carrying the unpaid claim forward.
+        instrument_id: String,
+        /// Unpaid amount in the waterfall currency.
+        amount: f64,
+    },
+}
+
 /// Warning emitted during evaluation.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum EvalWarning {
     /// Division by zero encountered
     DivisionByZero {
@@ -415,15 +482,13 @@ pub enum EvalWarning {
         /// The actual non-finite value (NaN, Inf, or -Inf).
         value: f64,
     },
-    /// Capital-structure cashflow classification was ignored during statement extraction.
-    CapitalStructureCashflowIgnored {
-        /// Period in which the ignored cashflow was encountered.
+    /// Capital-structure extraction or waterfall processing required a guarded fallback.
+    CapitalStructure {
+        /// Period in which the warning was raised.
         #[schemars(with = "String")]
         period: PeriodId,
-        /// Ignored cashflow kind.
-        kind: String,
-        /// Original cashflow date as a string for diagnostics.
-        cashflow_date: String,
+        /// Typed reason and associated diagnostic values.
+        warning: CapitalStructureWarning,
     },
     /// One or more non-finite inputs were skipped by a skip-NaN aggregate
     /// (`sum`, `mean`, ...).

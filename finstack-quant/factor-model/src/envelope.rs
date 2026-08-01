@@ -11,14 +11,19 @@ use crate::FactorModelConfig;
 
 /// Persistence contract for [`FactorModelConfigEnvelope`].
 pub const FACTOR_MODEL_CONFIG_CONTRACT: ContractDescriptor =
-    ContractDescriptor::new("finstack_quant.factor_model_config", 1);
+    ContractDescriptor::new("finstack_quant.factor_model_config");
 
-fn factor_model_config_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    let marker = FACTOR_MODEL_CONFIG_CONTRACT.schema_string();
-    schemars::json_schema!({
-        "type": "string",
-        "const": marker,
-    })
+/// Exact schema marker accepted by [`FactorModelConfigEnvelope`].
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub enum FactorModelConfigSchema {
+    /// The sole supported factor-model configuration contract.
+    #[serde(rename = "finstack_quant.factor_model_config/1")]
+    FactorModelConfig,
+}
+
+impl FactorModelConfigSchema {
+    /// The exact marker required by every persisted factor-model envelope.
+    pub const CURRENT: Self = Self::FactorModelConfig;
 }
 
 /// Versioned wrapper used when persisting factor-model configuration.
@@ -26,8 +31,7 @@ fn factor_model_config_schema_marker(_: &mut schemars::SchemaGenerator) -> schem
 #[serde(deny_unknown_fields)]
 pub struct FactorModelConfigEnvelope {
     /// Exact factor-model configuration contract marker.
-    #[schemars(schema_with = "factor_model_config_schema_marker")]
-    pub schema: String,
+    pub schema: FactorModelConfigSchema,
     /// Bare configuration used by in-process analysis APIs.
     pub config: FactorModelConfig,
 }
@@ -41,7 +45,7 @@ impl FactorModelConfigEnvelope {
     #[must_use]
     pub fn new(config: FactorModelConfig) -> Self {
         Self {
-            schema: FACTOR_MODEL_CONFIG_CONTRACT.schema_string(),
+            schema: FactorModelConfigSchema::CURRENT,
             config,
         }
     }

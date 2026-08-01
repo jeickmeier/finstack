@@ -12,7 +12,7 @@ use crate::errors::{display_to_py, portfolio_to_py};
 use pyo3::prelude::*;
 use std::str::FromStr;
 
-/// Run the shared valuation engine for JSON- and typed-return entry points.
+/// Run the shared valuation engine for the typed Python entry point.
 fn run_portfolio_valuation(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
@@ -81,48 +81,12 @@ fn run_portfolio_valuation(
 ///
 /// Returns
 /// -------
-/// str
-///     JSON-serialized ``PortfolioValuation``. To avoid a JSON re-parse in
-///     downstream calls (``aggregate_metrics``, etc.), wrap the returned
-///     string once via :meth:`PortfolioValuation.from_json` and pass the
-///     typed object to the next step.
-#[pyfunction]
-#[pyo3(signature = (portfolio, market, strict_risk=false, metrics=None))]
-fn value_portfolio(
-    py: Python<'_>,
-    portfolio: &Bound<'_, PyAny>,
-    market: &Bound<'_, PyAny>,
-    strict_risk: bool,
-    metrics: Option<Vec<String>>,
-) -> PyResult<String> {
-    let valuation = run_portfolio_valuation(py, portfolio, market, strict_risk, metrics)?;
-    py.detach(move || serde_json::to_string(&valuation))
-        .map_err(display_to_py)
-}
-
-/// Value a portfolio and return a typed result without JSON serialization.
-///
-/// Parameters
-/// ----------
-/// portfolio : Portfolio | str
-///     A :class:`Portfolio` object (fast path, no rebuild) or a
-///     JSON-serialized ``PortfolioSpec`` string.
-/// market : MarketContext | str
-///     A ``MarketContext`` object or a JSON string.
-/// strict_risk : bool
-///     If ``True``, any risk metric failure aborts the entire valuation.
-/// metrics : list[str] | None
-///     Exact risk metrics to compute. ``None`` requests the standard set;
-///     an empty list performs PV-only valuation.
-///
-/// Returns
-/// -------
 /// PortfolioValuation
 ///     Typed valuation wrapper that can be passed directly to
 ///     ``aggregate_metrics`` without a JSON round-trip.
 #[pyfunction]
 #[pyo3(signature = (portfolio, market, strict_risk=false, metrics=None))]
-fn value_portfolio_typed(
+fn value_portfolio(
     py: Python<'_>,
     portfolio: &Bound<'_, PyAny>,
     market: &Bound<'_, PyAny>,
@@ -336,7 +300,6 @@ fn scenario_pnl_batch(
 /// Register pipeline functions on the portfolio submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(value_portfolio, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(value_portfolio_typed, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(aggregate_full_cashflows, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(apply_scenario_and_revalue, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(scenario_pnl, m)?)?;

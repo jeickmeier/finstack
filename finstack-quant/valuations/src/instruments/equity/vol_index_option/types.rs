@@ -85,7 +85,9 @@ use time::macros::date;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = VolatilityIndexOption::validate)]
 #[serde(deny_unknown_fields, try_from = "VolatilityIndexOptionUnchecked")]
@@ -103,12 +105,12 @@ pub struct VolatilityIndexOption {
     #[serde(default)]
     pub exercise_style: ExerciseStyle,
     /// Option expiry date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Settlement date (typically same as expiry for cash-settled).
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub settlement_date: Option<Date>,
     /// Observed volatility-index settlement fixing, required after expiry when
     /// cash settlement occurs later than expiry.
@@ -129,13 +131,24 @@ pub struct VolatilityIndexOption {
     pub vol_of_vol_surface_id: CurveId,
     /// Attributes for tagging and selection.
     #[builder(default)]
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     #[serde(default)]
@@ -194,10 +207,10 @@ struct VolatilityIndexOptionUnchecked {
     option_type: OptionType,
     #[serde(default)]
     exercise_style: ExerciseStyle,
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     expiry: Date,
     #[serde(default)]
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     settlement_date: Option<Date>,
     #[serde(default)]
     expiry_fixing: Option<f64>,
@@ -884,7 +897,7 @@ mod tests {
         );
         assert_eq!(deps.volatility_dependencies.len(), 1);
         let volatility = &deps.volatility_dependencies[0];
-        assert_eq!(volatility.surface_id, option.vol_of_vol_surface_id);
+        assert_eq!(volatility.vol_surface_id, option.vol_of_vol_surface_id);
         assert_eq!(
             volatility.underlying_id.as_ref().map(|id| id.as_str()),
             Some(option.vol_index_curve_id.as_str())

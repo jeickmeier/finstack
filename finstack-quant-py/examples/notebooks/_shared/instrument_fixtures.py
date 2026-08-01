@@ -2,10 +2,26 @@
 
 from __future__ import annotations
 
+import copy
 from datetime import date
+import json
 
 AS_OF = date(2025, 1, 15)
 AS_OF_STR = AS_OF.isoformat()
+INSTRUMENT_SCHEMA = "finstack_quant.instrument/1"
+
+
+def instrument_envelope(instrument: dict) -> dict:
+    """Wrap an ``InstrumentJson`` payload in the canonical v1 envelope."""
+    return {
+        "schema": INSTRUMENT_SCHEMA,
+        "instrument": copy.deepcopy(instrument),
+    }
+
+
+def instrument_envelope_json(instrument: dict) -> str:
+    """Serialize an ``InstrumentJson`` payload as a canonical v1 envelope."""
+    return json.dumps(instrument_envelope(instrument))
 
 def fixed_bond(idx: int) -> tuple[str, dict]:
     iid = f"BOND-FIXED-{idx}"
@@ -14,16 +30,15 @@ def fixed_bond(idx: int) -> tuple[str, dict]:
     return iid, {"type": "bond", "spec": {
         "id": iid, "notional": {"amount": "1000000", "currency": "USD"},
         "issue_date": "2024-01-15", "maturity": f"{mat_year}-01-15",
-        "discount_curve_id": "USD-OIS", "accrual_method": "Linear",
+        "discount_curve_id": "USD-OIS", "accrual_method": "linear",
         "settlement_days": 1, "ex_coupon_days": 0,
-        "cashflow_spec": {"Fixed": {
-            "coupon_type": "Cash", "freq": {"count": 6, "unit": "months"},
-            "dc": "Thirty360", "bdc": "following", "calendar_id": "weekends_only",
-            "end_of_month": False, "payment_lag_days": 0, "rate": str(coupon), "stub": "None",
+        "cashflow_spec": {"fixed": {
+            "coupon_type": "cash", "frequency": {"count": 6, "unit": "months"},
+            "day_count": "30_360", "business_day_convention": "following", "calendar_id": "weekends_only",
+            "end_of_month": False, "payment_lag_days": 0, "rate": str(coupon), "stub": "none",
         }},
         "call_put": None, "credit_curve_id": None,
         "attributes": {"tags": ["fixed-income"], "meta": {"sector": "IG"}},
-        "pricing_overrides": {},
     }}
 
 
@@ -34,22 +49,22 @@ def floating_bond(idx: int) -> tuple[str, dict]:
     return iid, {"type": "bond", "spec": {
         "id": iid, "notional": {"amount": "1000000", "currency": "USD"},
         "issue_date": "2024-01-15", "maturity": f"{mat_year}-01-15",
-        "discount_curve_id": "USD-OIS", "accrual_method": "Linear",
+        "discount_curve_id": "USD-OIS", "accrual_method": "linear",
         "settlement_days": 2, "ex_coupon_days": 0,
-        "cashflow_spec": {"Floating": {
-            "coupon_type": "Cash", "freq": {"count": 3, "unit": "months"}, "stub": "ShortFront",
-            "dc": "Act360", "bdc": "modified_following", "calendar_id": "weekends_only",
+        "cashflow_spec": {"floating": {
+            "coupon_type": "cash", "frequency": {"count": 3, "unit": "months"}, "stub": "short_front",
+            "day_count": "act_360", "business_day_convention": "modified_following", "calendar_id": "weekends_only",
             "payment_lag_days": 0, "end_of_month": False,
             "rate_spec": {
                 "index_id": "USD-SOFR-3M", "spread_bp": str(spread), "gearing": "1",
-                "gearing_includes_spread": True, "floor_bp": "0",
-                "all_in_floor_bp": None, "cap_bp": None, "index_cap_bp": None,
-                "fixing_calendar_id": None, "reset_freq": {"count": 3, "unit": "months"},
+                "gearing_includes_spread": True, "index_floor_bp": "0",
+                "all_in_floor_bp": None, "all_in_cap_bp": None, "index_cap_bp": None,
+                "fixing_calendar_id": None, "reset_frequency": {"count": 3, "unit": "months"},
                 "reset_lag_days": 2,
             },
         }},
         "call_put": None, "credit_curve_id": None,
-        "attributes": {"tags": ["fixed-income", "frn"], "meta": {}}, "pricing_overrides": {},
+        "attributes": {"tags": ["fixed-income", "frn"], "meta": {}},
     }}
 
 
@@ -64,18 +79,17 @@ def term_loan(idx: int) -> tuple[str, dict]:
         "id": iid, "notional_limit": {"amount": "10000000", "currency": "USD"},
         "currency": "USD", "issue_date": "2024-01-01", "maturity": f"{mat_year}-01-01",
         "discount_curve_id": "USD-OIS",
-        "rate": {"Floating": {
+        "rate": {"floating": {
             "index_id": "USD-SOFR-3M", "spread_bp": str(spread), "gearing": "1",
-            "gearing_includes_spread": True, "floor_bp": index_floor_bp,
-            "all_in_floor_bp": None, "cap_bp": None, "index_cap_bp": None,
-            "fixing_calendar_id": None, "reset_freq": {"count": 3, "unit": "months"},
+            "gearing_includes_spread": True, "index_floor_bp": index_floor_bp,
+            "all_in_floor_bp": None, "all_in_cap_bp": None, "index_cap_bp": None,
+            "fixing_calendar_id": None, "reset_frequency": {"count": 3, "unit": "months"},
             "reset_lag_days": 2,
         }},
-        "day_count": "Act360", "frequency": {"count": 3, "unit": "months"},
-        "bdc": "modified_following", "calendar_id": None, "stub": "None",
-        "amortization": {"PercentPerPeriod": {"bp": 250}}, "coupon_type": "Cash",
+        "day_count": "act_360", "frequency": {"count": 3, "unit": "months"},
+        "business_day_convention": "modified_following", "calendar_id": None, "stub": "none",
+        "amortization": {"percent_per_period": {"bp": 250}}, "coupon_type": "cash",
         "settlement_days": 2, "attributes": {"tags": ["leveraged-loan"], "meta": {}},
-        "pricing_overrides": {},
     }}
 
 
@@ -87,22 +101,22 @@ def revolver(idx: int) -> tuple[str, dict]:
         "id": iid, "commitment_amount": {"amount": "50000000", "currency": "USD"},
         "drawn_amount": {"amount": "10000000", "currency": "USD"},
         "commitment_date": "2024-01-01", "maturity": f"{mat_year}-01-01",
-        "discount_curve_id": "USD-OIS", "day_count": "Act360",
-        "frequency": {"count": 3, "unit": "months"}, "stub": "ShortFront", "recovery_rate": 0.70,
-        "base_rate_spec": {"Floating": {
+        "discount_curve_id": "USD-OIS", "day_count": "act_360",
+        "frequency": {"count": 3, "unit": "months"}, "stub": "short_front", "recovery_rate": 0.70,
+        "base_rate_spec": {"floating": {
             "index_id": "USD-SOFR-3M", "spread_bp": str(spread), "gearing": "1",
-            "gearing_includes_spread": True, "floor_bp": "0",
-            "all_in_floor_bp": None, "cap_bp": None, "index_cap_bp": None,
-            "fixing_calendar_id": None, "reset_freq": {"count": 3, "unit": "months"},
+            "gearing_includes_spread": True, "index_floor_bp": "0",
+            "all_in_floor_bp": None, "all_in_cap_bp": None, "index_cap_bp": None,
+            "fixing_calendar_id": None, "reset_frequency": {"count": 3, "unit": "months"},
             "reset_lag_days": 2,
         }},
-        "draw_repay_spec": {"Deterministic": [
+        "draw_repay_spec": {"deterministic": [
             {"date": "2024-06-01", "amount": {"amount": "5000000", "currency": "USD"}, "is_draw": True},
             {"date": "2025-06-01", "amount": {"amount": "3000000", "currency": "USD"}, "is_draw": False},
         ]},
-        "fees": {"commitment_fee_tiers": [{"threshold": "0", "bps": "25"}],
-                 "usage_fee_tiers": [{"threshold": "0", "bps": "10"}], "facility_fee_bp": 5.0},
-        "attributes": {"tags": ["revolving"], "meta": {}}, "pricing_overrides": {},
+        "fees": {"commitment_fee_tiers": [{"threshold": "0", "bp": "25"}],
+                 "usage_fee_tiers": [{"threshold": "0", "bp": "10"}], "facility_fee_bp": 5.0},
+        "attributes": {"tags": ["revolving"], "meta": {}},
     }}
 
 
@@ -112,14 +126,14 @@ def cds(idx: int) -> tuple[str, dict]:
     side = "pay" if idx % 2 == 0 else "receive"
     mat_year = 2028 + (idx % 5)
     return iid, {"type": "credit_default_swap", "spec": {
-        "id": iid, "notional": {"amount": 10_000_000.0, "currency": "USD"},
+        "id": iid, "notional": {"amount": "10000000", "currency": "USD"},
         "side": side, "convention": "isda_na",
         "premium": {"start": "2025-03-20", "end": f"{mat_year}-03-20",
-                    "frequency": {"count": 3, "unit": "months"}, "stub": "ShortFront",
-                    "bdc": "following", "calendar_id": "usny", "day_count": "Act360",
-                    "spread_bp": float(spread), "discount_curve_id": "USD-OIS"},
+                    "frequency": {"count": 3, "unit": "months"}, "stub": "short_front",
+                    "business_day_convention": "following", "calendar_id": "usny", "day_count": "act_360",
+                    "spread_bp": str(spread), "discount_curve_id": "USD-OIS"},
         "protection": {"credit_curve_id": "CORP-HAZARD", "recovery_rate": 0.4, "settlement_delay": 3},
-        "pricing_overrides": {}, "attributes": {"tags": ["credit"], "meta": {}},
+        "attributes": {"tags": ["credit"], "meta": {}},
     }}
 
 
@@ -130,15 +144,16 @@ def cds_index(idx: int) -> tuple[str, dict]:
     mat_year = 2029 + (idx % 3)
     return iid, {"type": "cds_index", "spec": {
         "id": iid, "index_name": "CDX.NA.IG", "series": 42, "version": 1,
+        "num_constituents": 125,
         "notional": {"amount": "10000000", "currency": "USD"}, "index_factor": 1.0,
         "side": side, "convention": "isda_na",
         "premium": {"start": "2025-03-20", "end": f"{mat_year}-12-20",
-                    "frequency": {"count": 3, "unit": "months"}, "stub": "ShortFront",
-                    "bdc": "following", "calendar_id": None, "day_count": "Act360",
-                    "spread_bp": float(spread), "discount_curve_id": "USD-OIS"},
+                    "frequency": {"count": 3, "unit": "months"}, "stub": "short_front",
+                    "business_day_convention": "following", "calendar_id": None, "day_count": "act_360",
+                    "spread_bp": str(spread), "discount_curve_id": "USD-OIS"},
         "protection": {"credit_curve_id": "CDX-HAZ", "recovery_rate": 0.4, "settlement_delay": 3},
-        "pricing": "SingleCurve", "constituents": [],
-        "pricing_overrides": {}, "attributes": {"tags": ["credit-index"], "meta": {}},
+        "pricing": "single_curve", "constituents": [],
+        "attributes": {"tags": ["credit-index"], "meta": {}},
     }}
 
 
@@ -152,7 +167,7 @@ def cds_tranche(idx: int) -> tuple[str, dict]:
         "attach_pct": a, "detach_pct": d,
         "notional": {"amount": "10000000", "currency": "USD"}, "maturity": "2029-12-20",
         "running_coupon_bp": coupon, "frequency": {"count": 3, "unit": "months"},
-        "day_count": "Act360", "bdc": "following", "calendar_id": "weekends_only",
+        "day_count": "act_360", "business_day_convention": "following", "calendar_id": "weekends_only",
         "discount_curve_id": "USD-OIS", "credit_index_id": "CDX.NA.IG.HAZARD",
         "side": "buy_protection", "accumulated_loss": 0.0, "standard_imm_dates": False,
         "attributes": {"tags": ["structured-credit"], "meta": {}},
@@ -171,20 +186,20 @@ def cds_option(idx: int) -> tuple[str, dict]:
         "discount_curve_id": "USD-OIS", "credit_curve_id": "CORP-HAZARD",
         "vol_surface_id": "CDS-SPREAD-VOL",
         "underlying_is_index": False, "index_factor": None,
-        "pricing_overrides": {}, "attributes": {"tags": ["credit-vol"], "meta": {}},
+        "attributes": {"tags": ["credit-vol"], "meta": {}},
     }}
 
 
 def _pool_assets(iid: str, n: int = 5) -> list[dict]:
     return [{
         "id": f"{iid}-LOAN-{j}",
-        "asset_type": {"type": "FirstLienLoan", "industry": None},
+        "asset_type": {"type": "first_lien_loan", "industry": None},
         "balance": {"amount": "2000000", "currency": "USD"},
-        "rate": 0.055 + 0.005 * (j % 3), "spread_bps": 300.0 + 50.0 * (j % 4),
+        "rate": 0.055 + 0.005 * (j % 3), "spread_bp": 300.0 + 50.0 * (j % 4),
         "index_id": None, "maturity": f"{2029 + (j % 3)}-01-01",
         "credit_quality": "BB", "industry": "Technology", "obligor_id": f"OBL-{j}",
         "is_defaulted": False, "recovery_amount": None, "purchase_price": None,
-        "acquisition_date": None, "day_count": "Act360",
+        "acquisition_date": None, "day_count": "act_360",
         "smm_override": None, "mdr_override": None,
     } for j in range(n)]
 
@@ -204,10 +219,10 @@ def _structured_credit_spec(iid: str, deal_type: str, idx: int) -> dict:
         },
         "tranches": {"tranches": [{
             "id": f"{iid}-A", "attachment_point": 0.0, "detachment_point": 100.0,
-            "behavior_type": "Standard", "seniority": "Senior", "rating": None,
+            "behavior_type": "standard", "seniority": "senior", "rating": None,
             "original_balance": {"amount": "10000000", "currency": "USD"},
             "current_balance": {"amount": "10000000", "currency": "USD"}, "target_balance": None,
-            "coupon": {"Fixed": {"rate": 0.05 + 0.005 * (idx % 4)}},
+            "coupon": {"fixed": {"rate": 0.05 + 0.005 * (idx % 4)}},
             "oc_trigger": None, "ic_trigger": None,
             "credit_enhancement": {
                 "subordination": {"amount": "0", "currency": "USD"},
@@ -215,7 +230,7 @@ def _structured_credit_spec(iid: str, deal_type: str, idx: int) -> dict:
                 "reserve_account": {"amount": "0", "currency": "USD"},
                 "excess_spread": 0.0, "cash_trap_active": False,
             },
-            "frequency": {"count": 3, "unit": "months"}, "day_count": "Act360",
+            "frequency": {"count": 3, "unit": "months"}, "day_count": "act_360",
             "deferred_interest": {"amount": "0", "currency": "USD"},
             "is_revolving": False, "can_reinvest": False,
             "maturity": "2034-01-01", "expected_maturity": None, "payment_priority": 1,
@@ -224,7 +239,7 @@ def _structured_credit_spec(iid: str, deal_type: str, idx: int) -> dict:
         "closing_date": "2024-01-01", "first_payment_date": "2025-04-01",
         "reinvestment_end_date": None, "maturity": "2034-01-01",
         "frequency": {"count": 3, "unit": "months"}, "discount_curve_id": "USD-OIS",
-        "pricing_overrides": {"quoted_price_pct": 98.5},
+        "metric_pricing_overrides": {"quoted_price_pct": 98.5},
         "payment_calendar_id": "nyse",
         "attributes": {"tags": [deal_type.lower()], "meta": {}},
         "prepayment_spec": {"cpr": 0.15, "curve": None},
@@ -247,12 +262,12 @@ def _structured_credit_spec(iid: str, deal_type: str, idx: int) -> dict:
 
 def clo_deal(idx: int) -> tuple[str, dict]:
     iid = f"CLO-{idx}"
-    return iid, _structured_credit_spec(iid, "CLO", idx)
+    return iid, _structured_credit_spec(iid, "clo", idx)
 
 
 def abs_deal(idx: int) -> tuple[str, dict]:
     iid = f"ABS-{idx}"
-    return iid, _structured_credit_spec(iid, "ABS", idx)
+    return iid, _structured_credit_spec(iid, "abs", idx)
 
 
 def irs(idx: int) -> tuple[str, dict]:
@@ -261,17 +276,17 @@ def irs(idx: int) -> tuple[str, dict]:
     side = "pay" if idx % 2 == 0 else "receive"
     mat_year = 2028 + (idx % 7)
     return iid, {"type": "interest_rate_swap", "spec": {
-        "id": iid, "notional": {"amount": 10_000_000.0, "currency": "USD"}, "side": side,
-        "fixed": {"discount_curve_id": "USD-OIS", "rate": rate,
-                  "frequency": {"count": 6, "unit": "months"}, "day_count": "Thirty360",
-                  "bdc": "modified_following", "calendar_id": None, "stub": "None",
+        "id": iid, "notional": {"amount": "10000000", "currency": "USD"}, "side": side,
+        "fixed": {"discount_curve_id": "USD-OIS", "rate": str(rate),
+                  "frequency": {"count": 6, "unit": "months"}, "day_count": "30_360",
+                  "business_day_convention": "modified_following", "calendar_id": None, "stub": "none",
                   "start": "2025-04-15", "end": f"{mat_year}-04-15",
                   "par_method": None, "compounding_simple": True},
         "float": {"discount_curve_id": "USD-OIS", "forward_curve_id": "USD-SOFR-3M",
-                  "spread_bp": 0.0, "frequency": {"count": 3, "unit": "months"},
-                  "day_count": "Act360", "bdc": "modified_following", "calendar_id": None,
-                  "stub": "None", "reset_lag_days": 2,
-                  "start": "2025-04-15", "end": f"{mat_year}-04-15", "compounding": "Simple"},
+                  "spread_bp": "0", "frequency": {"count": 3, "unit": "months"},
+                  "day_count": "act_360", "business_day_convention": "modified_following", "calendar_id": None,
+                  "stub": "none", "reset_lag_days": 2,
+                  "start": "2025-04-15", "end": f"{mat_year}-04-15", "compounding": "simple"},
         "attributes": {"tags": ["rates"], "meta": {}},
     }}
 
@@ -283,13 +298,27 @@ def swaption(idx: int) -> tuple[str, dict]:
     swap_end_year = 2030 + (idx % 5)
     return iid, {"type": "swaption", "spec": {
         "id": iid, "option_type": opt_type,
-        "notional": {"amount": "10000000", "currency": "USD"}, "strike": strike,
-        "expiry": "2025-07-15", "swap_start": "2025-07-17", "swap_end": f"{swap_end_year}-07-17",
-        "fixed_freq": {"count": 6, "unit": "months"}, "float_freq": {"count": 3, "unit": "months"},
-        "day_count": "Thirty360", "exercise_style": "european", "settlement": "cash",
-        "vol_model": "black", "discount_curve_id": "USD-OIS",
-        "forward_curve_id": "USD-SOFR-3M", "vol_surface_id": "USD-SWPNVOL",
-        "pricing_overrides": {}, "sabr_params": None,
+        "notional": {"amount": "10000000", "currency": "USD"},
+        "expiry": "2025-07-15", "exercise_style": "european", "settlement": "cash",
+        "cash_settlement_method": "isda_par_par", "vol_model": "black",
+        "vol_surface_id": "USD-SWPNVOL",
+        "underlying_fixed_leg": {
+            "discount_curve_id": "USD-OIS", "rate": str(strike),
+            "frequency": {"count": 6, "unit": "months"}, "day_count": "30_360",
+            "business_day_convention": "modified_following", "calendar_id": None,
+            "stub": "none", "start": "2025-07-17", "end": f"{swap_end_year}-07-17",
+            "par_method": None, "compounding_simple": True,
+            "end_of_month": False, "payment_lag_days": 0,
+        },
+        "underlying_float_leg": {
+            "discount_curve_id": "USD-OIS", "forward_curve_id": "USD-SOFR-3M",
+            "spread_bp": "0", "frequency": {"count": 3, "unit": "months"},
+            "day_count": "act_360", "business_day_convention": "modified_following",
+            "calendar_id": None, "fixing_calendar_id": None, "stub": "none",
+            "reset_lag_days": 2, "start": "2025-07-17", "end": f"{swap_end_year}-07-17",
+            "compounding": "simple", "end_of_month": False, "payment_lag_days": 0,
+        },
+        "sabr_params": None,
         "attributes": {"tags": ["rates-vol"], "meta": {}},
     }}
 
@@ -308,7 +337,7 @@ def ir_future(idx: int) -> tuple[str, dict]:
         "expiry": f"{y}-{m}-17", "fixing_date": f"{y}-{m}-17",
         "period_start": f"{y}-{m}-19",
         "period_end": f"{ey}-{em}-18",
-        "quoted_price": price, "day_count": "Act360",
+        "quoted_price": price, "day_count": "act_360",
         "position": "long" if idx % 2 == 0 else "short",
         "contract_specs": {"face_value": 1000000.0, "tick_size": 0.0025,
                            "tick_value": 6.25, "delivery_months": 3, "convexity_adjustment": 0.0002},
@@ -338,10 +367,10 @@ def variance_swap(idx: int) -> tuple[str, dict]:
         "notional": {"amount": "100000", "currency": "USD"},
         "strike_variance": strike_var, "start_date": AS_OF_STR,
         "maturity": f"{mat_year}-01-15",
-        "observation_freq": {"count": 1, "unit": "days"},
+        "observation_frequency": {"count": 1, "unit": "days"},
         "observation_calendar_id": "USNY",
-        "realized_var_method": "CloseToClose", "side": side,
-        "discount_curve_id": "USD-OIS", "day_count": "Act365F",
+        "realized_var_method": "close_to_close", "side": side,
+        "discount_curve_id": "USD-OIS", "day_count": "act_365f",
         "attributes": {"tags": ["equity-vol"], "meta": {}},
     }}
 
@@ -369,14 +398,14 @@ def convertible_bond(idx: int) -> tuple[str, dict]:
         "id": iid, "notional": {"amount": "1000000", "currency": "USD"},
         "issue_date": "2024-01-15", "maturity": f"{mat_year}-01-15",
         "discount_curve_id": "USD-IG", "credit_curve_id": "USD-CREDIT-BBB",
-        "conversion": {"ratio": ratio, "policy": "Voluntary",
-                       "anti_dilution": "None", "dividend_adjustment": "None"},
+        "conversion": {"ratio": ratio, "policy": "voluntary",
+                       "anti_dilution": "none", "dividend_adjustment": "none"},
         "underlying_equity_id": "TECH",
-        "fixed_coupon": {"coupon_type": "Cash", "rate": coupon,
-                         "freq": {"count": 6, "unit": "months"}, "dc": "Thirty360",
-                         "bdc": "following", "calendar_id": "weekends_only",
-                         "end_of_month": False, "payment_lag_days": 0, "stub": "None"},
-        "attributes": {"tags": ["convertible"], "meta": {}}, "pricing_overrides": {},
+        "fixed_coupon": {"coupon_type": "cash", "rate": str(coupon),
+                         "frequency": {"count": 6, "unit": "months"}, "day_count": "30_360",
+                         "business_day_convention": "following", "calendar_id": "weekends_only",
+                         "end_of_month": False, "payment_lag_days": 0, "stub": "none"},
+        "attributes": {"tags": ["convertible"], "meta": {}},
     }}
 
 
@@ -391,17 +420,16 @@ def acme_bond() -> dict:
         "notional": {"amount": "10000000", "currency": "USD"},
         "issue_date": "2024-03-15",
         "maturity": "2034-03-15",
-        "cashflow_spec": {"Fixed": {
-            "coupon_type": "Cash", "rate": 0.0425,
-            "freq": {"count": 6, "unit": "months"},
-            "dc": "Thirty360", "bdc": "following",
-            "calendar_id": "weekends_only", "stub": "None",
+        "cashflow_spec": {"fixed": {
+            "coupon_type": "cash", "rate": "0.0425",
+            "frequency": {"count": 6, "unit": "months"},
+            "day_count": "30_360", "business_day_convention": "following",
+            "calendar_id": "weekends_only", "stub": "none",
             "end_of_month": False, "payment_lag_days": 0,
         }},
         "discount_curve_id": "USD-OIS",
         "call_put": None,
         "attributes": {"tags": [], "meta": {}},
-        "pricing_overrides": {},
     }}
 
 
@@ -414,20 +442,20 @@ def instrument_description(instrument_spec: dict) -> str:
     if itype == "bond":
         tenor = int(s["maturity"][:4]) - ref_year
         cf = s["cashflow_spec"]
-        if "Fixed" in cf:
-            cpn = float(cf["Fixed"]["rate"]) * 100
+        if "fixed" in cf:
+            cpn = float(cf["fixed"]["rate"]) * 100
             return f"Fixed {tenor}Y {cpn:.1f}%"
-        sp = cf["Floating"]["rate_spec"]["spread_bp"]
+        sp = cf["floating"]["rate_spec"]["spread_bp"]
         return f"FRN {tenor}Y SOFR+{sp}bp"
 
     if itype == "term_loan":
         tenor = int(s["maturity"][:4]) - ref_year
         rate = s["rate"]
-        if "Fixed" in rate:
-            return f"TL Fixed {tenor}Y {rate['Fixed']['rate_bp']}bp"
-        flt = rate["Floating"]
+        if "fixed" in rate:
+            return f"TL Fixed {tenor}Y {rate['fixed']['rate_bp']}bp"
+        flt = rate["floating"]
         sp = flt["spread_bp"]
-        floor = flt.get("floor_bp", "0")
+        floor = flt.get("index_floor_bp", "0")
         return f"TL Flt {tenor}Y SOFR+{sp}bp (fl {floor}bp)"
 
     if itype == "revolving_credit":
@@ -449,7 +477,7 @@ def instrument_description(instrument_spec: dict) -> str:
         return f"CDX IG {side} {tenor}Y {spread:.0f}bp"
 
     if itype == "cds_tranche":
-        a, d = s["attach_pct"], s["detach_pct"]
+        a, d = float(s["attach_pct"]), float(s["detach_pct"])
         return f"CDX Tr {a:.0f}-{d:.0f}%"
 
     if itype == "cds_option":
@@ -461,27 +489,28 @@ def instrument_description(instrument_spec: dict) -> str:
         deal = s["deal_type"]
         tr = s["tranches"]["tranches"][0]
         cpn = tr["coupon"]
-        if "Fixed" in cpn:
-            rate = cpn["Fixed"]["rate"] * 100
+        if "fixed" in cpn:
+            rate = float(cpn["fixed"]["rate"]) * 100
             return f"{deal} Snr {rate:.1f}%"
         return f"{deal} Snr"
 
     if itype == "interest_rate_swap":
         tenor = int(s["fixed"]["end"][:4]) - ref_year
-        rate = s["fixed"]["rate"] * 100
+        rate = float(s["fixed"]["rate"]) * 100
         side = s["side"].title()
         return f"IRS {side} {tenor}Y {rate:.1f}%"
 
     if itype == "swaption":
-        swap_tenor = int(s["swap_end"][:4]) - ref_year
-        strike = s["strike"] * 100
+        fixed_leg = s["underlying_fixed_leg"]
+        swap_tenor = int(fixed_leg["end"][:4]) - ref_year
+        strike = float(fixed_leg["rate"]) * 100
         opt = s["option_type"].title()
         return f"Swpn {opt} {swap_tenor}Y K={strike:.1f}%"
 
     if itype == "interest_rate_future":
         exp = s["expiry"][:7]
         pos = s["position"][:1].upper()
-        price = s["quoted_price"]
+        price = float(s["quoted_price"])
         return f"SOFR Fut {exp} {pos} @{price:.2f}"
 
     if itype == "equity":
@@ -490,7 +519,7 @@ def instrument_description(instrument_spec: dict) -> str:
     if itype == "variance_swap":
         tenor = int(s["maturity"][:4]) - ref_year
         side = s["side"][:3].title()
-        strike_vol = (s["strike_variance"] ** 0.5) * 100
+        strike_vol = (float(s["strike_variance"]) ** 0.5) * 100
         return f"VarSwap {s['underlying_ticker']} {side} {tenor}Y σ={strike_vol:.0f}%"
 
     if itype == "fx_swap":
@@ -498,7 +527,7 @@ def instrument_description(instrument_spec: dict) -> str:
 
     if itype == "convertible_bond":
         tenor = int(s["maturity"][:4]) - ref_year
-        cpn = s["fixed_coupon"]["rate"] * 100
+        cpn = float(s["fixed_coupon"]["rate"]) * 100
         return f"CB {s['underlying_equity_id']} {tenor}Y {cpn:.1f}%"
 
     return itype

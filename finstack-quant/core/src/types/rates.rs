@@ -3,12 +3,12 @@
 //! This module provides strongly-typed wrappers for financial rates and percentages,
 //! with clear conversion semantics and arithmetic operations. The types prevent
 //! confusion between different representations of the same concept (e.g., 0.05 vs
-//! 5% vs 500 bps).
+//! 5% vs 500 bp).
 //!
 //! # Types
 //!
 //! - [`Rate`]: Interest rates stored as decimal (0.05 = 5%)
-//! - [`Bps`]: Basis points (1 bp = 0.01%, 10,000 bps = 100%)
+//! - [`Bps`]: Basis points (1 bp = 0.01%, 10,000 bp = 100%)
 //! - [`Percentage`]: Percentage values (5.0 = 5%)
 //!
 //! # Conversions
@@ -32,7 +32,7 @@
 //!
 //! // Create rates in different formats
 //! let rate1 = Rate::from_percent(5.0);
-//! let rate2 = Rate::from_bps(500);
+//! let rate2 = Rate::from_bp(500);
 //! let rate3 = Rate::from_decimal(0.05);
 //!
 //! assert_eq!(rate1, rate2);
@@ -40,7 +40,7 @@
 //!
 //! // Convert between formats
 //! assert_eq!(rate1.as_percent(), 5.0);
-//! assert_eq!(rate1.as_bps(), 500);
+//! assert_eq!(rate1.as_bp(), 500);
 //! assert_eq!(rate1.as_decimal(), 0.05);
 //! ```
 //!
@@ -50,7 +50,7 @@
 //! use finstack_quant_core::types::Rate;
 //!
 //! let base_rate = Rate::from_percent(3.0);
-//! let spread = Rate::from_bps(50); // 0.5%
+//! let spread = Rate::from_bp(50); // 0.5%
 //!
 //! let total = base_rate + spread;
 //! assert!((total.as_percent() - 3.5).abs() < 1e-10);
@@ -71,16 +71,16 @@
 //!
 //! // Arithmetic in basis points
 //! let total_spread = spread + Bps::new(10);
-//! assert_eq!(total_spread.as_bps(), 35);
+//! assert_eq!(total_spread.as_bp(), 35);
 //! ```
 //!
 //! # Industry Conventions
 //!
 //! Basis points are the standard unit for quoting spreads and small rate changes
 //! in fixed income markets:
-//! - **Credit spreads**: Quoted in bps (e.g., "50 bps over SOFR")
-//! - **Swap spreads**: Quoted in bps (e.g., "5y swap spread at 25 bps")
-//! - **Yield changes**: Often reported in bps (e.g., "yields up 10 bps")
+//! - **Credit spreads**: Quoted in bp (e.g., "50 bp over SOFR")
+//! - **Swap spreads**: Quoted in bp (e.g., "5y swap spread at 25 bp")
+//! - **Yield changes**: Often reported in bp (e.g., "yields up 10 bp")
 //!
 //! # See Also
 //!
@@ -126,7 +126,7 @@ fn non_finite_kind(v: f64) -> NonFiniteKind {
 /// Provides methods to convert to/from:
 /// - **Decimal**: The internal representation (0.05 for 5%)
 /// - **Percentage**: Human-readable format (5.0 for 5%)
-/// - **Basis points**: Fixed income market convention (500 bps for 5%)
+/// - **Basis points**: Fixed income market convention (500 bp for 5%)
 ///
 /// # Examples
 ///
@@ -136,7 +136,7 @@ fn non_finite_kind(v: f64) -> NonFiniteKind {
 /// // Create from different formats
 /// let r1 = Rate::from_decimal(0.05);
 /// let r2 = Rate::from_percent(5.0);
-/// let r3 = Rate::from_bps(500);
+/// let r3 = Rate::from_bp(500);
 /// assert_eq!(r1, r2);
 /// assert_eq!(r2, r3);
 ///
@@ -236,11 +236,11 @@ impl Rate {
         Self::try_from_decimal(percent / 100.0)
     }
 
-    /// Create a rate from an integer basis-point quote (500 bps = 5%).
+    /// Create a rate from an integer basis-point quote (500 bp = 5%).
     ///
     /// Negative values are accepted because spreads and rates may be negative.
-    pub fn from_bps(bps: i32) -> Self {
-        Self(bps as f64 / 10_000.0)
+    pub fn from_bp(bp: i32) -> Self {
+        Self(bp as f64 / 10_000.0)
     }
 
     /// Return the internal decimal representation (0.05 for 5%).
@@ -260,10 +260,10 @@ impl Rate {
     /// # Overflow
     ///
     /// The rounded value is then saturated to the `i32` range by the float-to-int
-    /// cast. For rates beyond about `±2_147_483_647` bps
+    /// cast. For rates beyond about `±2_147_483_647` bp
     /// (`±21_474_836.47%`), prefer `(self.as_decimal() * 10_000.0).round() as i64`.
     #[must_use]
-    pub fn as_bps(self) -> i32 {
+    pub fn as_bp(self) -> i32 {
         (self.0 * 10_000.0).round() as i32
     }
 
@@ -406,16 +406,16 @@ impl Neg for Rate {
 /// Commonly used in financial markets where small rate differences matter.
 /// One basis point equals one hundredth of a percent:
 /// - 1 bp = 0.01% = 0.0001 decimal
-/// - 100 bps = 1%
-/// - 10,000 bps = 100%
+/// - 100 bp = 1%
+/// - 10,000 bp = 100%
 ///
 /// # Industry Usage
 ///
 /// Basis points are the standard unit for quoting:
-/// - **Credit spreads**: Corporate bond spread over benchmark (e.g., "150 bps")
+/// - **Credit spreads**: Corporate bond spread over benchmark (e.g., "150 bp")
 /// - **Swap spreads**: Swap rate vs government bond yield
-/// - **Rate changes**: Central bank moves (e.g., "Fed raised rates by 25 bps")
-/// - **Fees**: Management fees (e.g., "expense ratio of 50 bps")
+/// - **Rate changes**: Central bank moves (e.g., "Fed raised rates by 25 bp")
+/// - **Fees**: Management fees (e.g., "expense ratio of 50 bp")
 ///
 /// # Precision
 ///
@@ -443,27 +443,27 @@ pub struct Bps(i32);
 
 impl Bps {
     /// Create a basis-point value from an integer quote.
-    pub fn new(bps: i32) -> Self {
-        Self(bps)
+    pub fn new(bp: i32) -> Self {
+        Self(bp)
     }
 
     /// Create a Bps value from a floating-point basis-point amount, rejecting non-finite inputs.
     ///
-    /// Accepts a `f64` (e.g., `25.0` for 25 bps), validates finiteness, then rounds to
+    /// Accepts a `f64` (e.g., `25.0` for 25 bp), validates finiteness, then rounds to
     /// the nearest integer. Use this when the raw input originates from an external source
     /// that could supply NaN or infinity.
     ///
     /// # Errors
     ///
-    /// Returns `Error::Input(InputError::NonFiniteValue { .. })` when `bps` is NaN or infinite.
-    pub fn try_new(bps: f64) -> Result<Self> {
-        if !bps.is_finite() {
+    /// Returns `Error::Input(InputError::NonFiniteValue { .. })` when `bp` is NaN or infinite.
+    pub fn try_new(bp: f64) -> Result<Self> {
+        if !bp.is_finite() {
             return Err(InputError::NonFiniteValue {
-                kind: non_finite_kind(bps),
+                kind: non_finite_kind(bp),
             }
             .into());
         }
-        let rounded = bps.round();
+        let rounded = bp.round();
         if rounded < i32::MIN as f64 || rounded > i32::MAX as f64 {
             return Err(InputError::ConversionOverflow.into());
         }
@@ -471,23 +471,23 @@ impl Bps {
     }
 
     /// Return the integer basis-point quote.
-    pub fn as_bps(self) -> i32 {
+    pub fn as_bp(self) -> i32 {
         self.0
     }
 
-    /// Return the decimal-rate representation (100 bps = 0.01).
+    /// Return the decimal-rate representation (100 bp = 0.01).
     pub fn as_decimal(self) -> f64 {
         self.0 as f64 / 10_000.0
     }
 
-    /// Return the percentage representation (100 bps = 1.0).
+    /// Return the percentage representation (100 bp = 1.0).
     pub fn as_percent(self) -> f64 {
         self.0 as f64 / 100.0
     }
 
     /// Convert the basis-point quote to a Rate decimal wrapper.
     pub fn as_rate(self) -> Rate {
-        Rate::from_bps(self.0)
+        Rate::from_bp(self.0)
     }
 
     /// The zero basis-point quote.
@@ -589,14 +589,14 @@ impl fmt::Display for Bps {
 }
 
 impl From<i32> for Bps {
-    fn from(bps: i32) -> Self {
-        Self::new(bps)
+    fn from(bp: i32) -> Self {
+        Self::new(bp)
     }
 }
 
 impl From<Bps> for i32 {
-    fn from(bps: Bps) -> Self {
-        bps.as_bps()
+    fn from(bp: Bps) -> Self {
+        bp.as_bp()
     }
 }
 
@@ -607,7 +607,7 @@ impl From<Bps> for i32 {
 // conversions asymmetric: round-tripping 25bp through f64 yielded 0bp
 // . Use the explicit
 // accessors instead: [`Bps::as_decimal`], [`Bps::as_percent`], or
-// `f64::from(bps.as_bps())` for the raw bp count.
+// `f64::from(bp.as_bp())` for the raw bp count.
 
 // Arithmetic operations for Bps
 impl Add for Bps {
@@ -746,7 +746,7 @@ impl Percentage {
     }
 
     /// Convert to integer basis points, rounding to the nearest basis point.
-    pub fn as_bps(self) -> i32 {
+    pub fn as_bp(self) -> i32 {
         (self.0 * 100.0).round() as i32
     }
 
@@ -845,8 +845,8 @@ impl TryFrom<f64> for Bps {
 
     /// Fallible conversion from basis-point `f64`. Rejects `NaN` and
     /// `±Infinity`.
-    fn try_from(bps: f64) -> Result<Self> {
-        Self::try_new(bps)
+    fn try_from(bp: f64) -> Result<Self> {
+        Self::try_new(bp)
     }
 }
 
@@ -899,7 +899,7 @@ impl Neg for Percentage {
 /// Keep the [`Rate`] (or use [`Rate::as_decimal`]) when full precision matters.
 impl From<Rate> for Bps {
     fn from(rate: Rate) -> Self {
-        Bps::new(rate.as_bps())
+        Bps::new(rate.as_bp())
     }
 }
 
@@ -910,14 +910,14 @@ impl From<Rate> for Percentage {
 }
 
 impl From<Bps> for Rate {
-    fn from(bps: Bps) -> Self {
-        Rate::from_bps(bps.as_bps())
+    fn from(bp: Bps) -> Self {
+        Rate::from_bp(bp.as_bp())
     }
 }
 
 impl From<Bps> for Percentage {
-    fn from(bps: Bps) -> Self {
-        Percentage::new(bps.as_percent())
+    fn from(bp: Bps) -> Self {
+        Percentage::new(bp.as_percent())
     }
 }
 
@@ -931,7 +931,7 @@ impl From<Percentage> for Rate {
 /// integer type, so sub-bp precision is lost.
 impl From<Percentage> for Bps {
     fn from(pct: Percentage) -> Self {
-        Bps::new(pct.as_bps())
+        Bps::new(pct.as_bp())
     }
 }
 
@@ -944,9 +944,9 @@ mod tests {
         let rate = Rate::from_percent(2.5);
         assert_eq!(rate.as_decimal(), 0.025);
         assert_eq!(rate.as_percent(), 2.5);
-        assert_eq!(rate.as_bps(), 250);
+        assert_eq!(rate.as_bp(), 250);
 
-        let rate2 = Rate::from_bps(250);
+        let rate2 = Rate::from_bp(250);
         assert_eq!(rate, rate2);
 
         let rate3 = Rate::from_decimal(0.025);
@@ -994,17 +994,17 @@ mod tests {
     }
 
     #[test]
-    fn bps_creation_and_conversion() {
-        let bps = Bps::new(250);
-        assert_eq!(bps.as_bps(), 250);
-        assert_eq!(bps.as_decimal(), 0.025);
-        assert_eq!(bps.as_percent(), 2.5);
+    fn bp_creation_and_conversion() {
+        let bp = Bps::new(250);
+        assert_eq!(bp.as_bp(), 250);
+        assert_eq!(bp.as_decimal(), 0.025);
+        assert_eq!(bp.as_percent(), 2.5);
     }
 
     #[test]
-    fn bps_try_new_and_try_from_reject_non_finite_values() {
-        assert_eq!(Bps::try_new(12.4).expect("finite bps").as_bps(), 12);
-        assert_eq!(Bps::try_from(12.6).expect("finite bps").as_bps(), 13);
+    fn bp_try_new_and_try_from_reject_non_finite_values() {
+        assert_eq!(Bps::try_new(12.4).expect("finite bp").as_bp(), 12);
+        assert_eq!(Bps::try_from(12.6).expect("finite bp").as_bp(), 13);
 
         for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert!(Bps::try_new(bad).is_err(), "try_new must reject {bad}");
@@ -1013,9 +1013,9 @@ mod tests {
     }
 
     #[test]
-    fn bps_try_new_rejects_values_that_round_outside_i32() {
-        assert_eq!(Bps::try_new(i32::MAX as f64).unwrap().as_bps(), i32::MAX);
-        assert_eq!(Bps::try_new(i32::MIN as f64).unwrap().as_bps(), i32::MIN);
+    fn bp_try_new_rejects_values_that_round_outside_i32() {
+        assert_eq!(Bps::try_new(i32::MAX as f64).unwrap().as_bp(), i32::MAX);
+        assert_eq!(Bps::try_new(i32::MIN as f64).unwrap().as_bp(), i32::MIN);
         assert!(Bps::try_new(i32::MAX as f64 + 1.0).is_err());
         assert!(Bps::try_new(i32::MIN as f64 - 1.0).is_err());
     }
@@ -1025,22 +1025,22 @@ mod tests {
         let pct = Percentage::new(12.5);
         assert_eq!(pct.as_percent(), 12.5);
         assert_eq!(pct.as_decimal(), 0.125);
-        assert_eq!(pct.as_bps(), 1250);
+        assert_eq!(pct.as_bp(), 1250);
     }
 
     #[test]
     fn cross_conversions() {
         let rate = Rate::from_percent(2.5);
-        let bps: Bps = rate.into();
+        let bp: Bps = rate.into();
         let pct: Percentage = rate.into();
 
-        assert_eq!(bps.as_bps(), 250);
+        assert_eq!(bp.as_bp(), 250);
         assert_eq!(pct.as_percent(), 2.5);
 
-        let rate_from_bps: Rate = bps.into();
+        let rate_from_bp: Rate = bp.into();
         let rate_from_pct: Rate = pct.into();
 
-        assert_eq!(rate, rate_from_bps);
+        assert_eq!(rate, rate_from_bp);
         assert_eq!(rate, rate_from_pct);
     }
 
@@ -1069,11 +1069,11 @@ mod tests {
             serde_json::from_str(&json).expect("JSON deserialization should succeed in test");
         assert_eq!(rate, deserialized);
 
-        let bps = Bps::new(250);
-        let json = serde_json::to_string(&bps).expect("JSON serialization should succeed in test");
+        let bp = Bps::new(250);
+        let json = serde_json::to_string(&bp).expect("JSON serialization should succeed in test");
         let deserialized: Bps =
             serde_json::from_str(&json).expect("JSON deserialization should succeed in test");
-        assert_eq!(bps, deserialized);
+        assert_eq!(bp, deserialized);
 
         let pct = Percentage::new(12.5);
         let json = serde_json::to_string(&pct).expect("JSON serialization should succeed in test");

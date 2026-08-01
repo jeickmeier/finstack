@@ -68,25 +68,25 @@ impl StructuredCredit {
     /// - ABS: Low correlation, consumer-focused
     pub fn enable_stochastic_defaults(&mut self) -> &mut Self {
         let (prepay, default, corr) = match self.deal_type {
-            DealType::RMBS => (
+            DealType::Rmbs => (
                 // Pool WAC is the coupon side of the Richard-Roll incentive;
                 // market rate arrives via `tree_config.market_refi_rate`.
                 StochasticPrepaySpec::rmbs_agency(self.pool.weighted_avg_coupon()),
                 StochasticDefaultSpec::rmbs_standard(),
                 CorrelationStructure::rmbs_standard(),
             ),
-            DealType::CLO | DealType::CBO => (
+            DealType::Clo | DealType::Cbo => (
                 StochasticPrepaySpec::clo_standard(),
                 StochasticDefaultSpec::clo_standard(),
                 CorrelationStructure::clo_standard(),
             ),
-            DealType::CMBS => (
+            DealType::Cmbs => (
                 // CMBS has minimal prepayment due to lockout/defeasance
                 StochasticPrepaySpec::deterministic(PrepaymentModelSpec::constant_cpr(0.02)),
                 StochasticDefaultSpec::gaussian_copula(0.02, 0.20),
                 CorrelationStructure::cmbs_standard(),
             ),
-            DealType::ABS | DealType::Auto | DealType::Card => (
+            DealType::Abs | DealType::Auto | DealType::Card => (
                 StochasticPrepaySpec::factor_correlated(
                     self.credit_model.prepayment_spec.clone(),
                     0.30,

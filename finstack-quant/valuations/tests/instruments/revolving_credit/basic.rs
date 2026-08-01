@@ -441,7 +441,7 @@ fn test_term_forward_with_floor() {
             .unwrap(),
         );
 
-    // Facility with floor at 0 bps
+    // Facility with floor at 0 bp
     let facility_with_floor = RevolvingCredit::builder()
         .id("RC-FLOOR".into())
         .commitment_amount(Money::new(1_000_000.0, Currency::USD))
@@ -451,7 +451,7 @@ fn test_term_forward_with_floor() {
         .base_rate_spec(BaseRateSpec::Floating(
             finstack_quant_cashflows::builder::FloatingRateSpec {
                 index_id: "USD-SOFR-3M".into(),
-                spread_bp: rust_decimal::Decimal::try_from(500.0).expect("valid"), // +500 bps margin = +5%
+                spread_bp: rust_decimal::Decimal::try_from(500.0).expect("valid"), // +500 bp margin = +5%
                 gearing: rust_decimal::Decimal::try_from(1.0).expect("valid"),
                 gearing_includes_spread: true,
                 index_floor_bp: Some(rust_decimal::Decimal::try_from(100.0).expect("valid")), // 1% floor on base rate (floors 1bp to 1%)
@@ -459,7 +459,7 @@ fn test_term_forward_with_floor() {
                 all_in_cap_bp: None,
                 index_cap_bp: None,
                 overnight_index_constraints: Default::default(),
-                reset_freq: Tenor::quarterly(),
+                reset_frequency: Tenor::quarterly(),
                 index_tenor: None,
                 reset_lag_days: 2,
                 fixing_calendar_id: None,
@@ -486,7 +486,7 @@ fn test_term_forward_with_floor() {
         .base_rate_spec(BaseRateSpec::Floating(
             finstack_quant_cashflows::builder::FloatingRateSpec {
                 index_id: "USD-SOFR-3M".into(),
-                spread_bp: rust_decimal::Decimal::try_from(500.0).expect("valid"), // +500 bps margin = +5%
+                spread_bp: rust_decimal::Decimal::try_from(500.0).expect("valid"), // +500 bp margin = +5%
                 gearing: rust_decimal::Decimal::try_from(1.0).expect("valid"),
                 gearing_includes_spread: true,
                 index_floor_bp: None, // No floor, so 1bp base passes through
@@ -494,7 +494,7 @@ fn test_term_forward_with_floor() {
                 all_in_cap_bp: None,
                 index_cap_bp: None,
                 overnight_index_constraints: Default::default(),
-                reset_freq: Tenor::quarterly(),
+                reset_frequency: Tenor::quarterly(),
                 index_tenor: None,
                 reset_lag_days: 2,
                 fixing_calendar_id: None,
@@ -695,7 +695,7 @@ fn test_deterministic_stochastic_convergence_with_credit_risk() {
         correlation_matrix: None,
         recovery_rate: 0.40,
         credit_spread_process: CreditSpreadProcessSpec::MarketAnchored {
-            hazard_curve_id: "BORROWER-A".into(),
+            credit_curve_id: "BORROWER-A".into(),
             kappa: 0.3,
             // Near-zero spread volatility is required for a deterministic
             // convergence test. A 50% implied volatility introduces genuine

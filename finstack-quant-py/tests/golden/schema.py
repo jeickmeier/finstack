@@ -1,4 +1,4 @@
-"""Dataclasses mirroring the Rust `finstack_quant.golden/2` fixture schema."""
+"""Dataclasses mirroring the Rust `finstack_quant.golden/1` fixture schema."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = "finstack_quant.golden/2"
+SCHEMA = "finstack_quant.golden/1"
 
 _COMMON_TOP_LEVEL_KEYS = {
-    "schema_version",
+    "schema",
     "metadata",
     "kind",
     "expected",
@@ -89,7 +89,7 @@ class ToleranceEntry:
 class GoldenFixture:
     """Top-level fixture envelope loaded from one JSON file."""
 
-    schema_version: str
+    schema: str
     metadata: Metadata
     kind: str
     body: dict[str, Any]
@@ -119,7 +119,7 @@ class GoldenFixture:
             tolerances[metric] = ToleranceEntry(**tolerance)
         body = {key: raw[key] for key in body_keys if key in raw}
         return cls(
-            schema_version=raw["schema_version"],
+            schema=raw["schema"],
             metadata=metadata,
             kind=kind,
             body=body,

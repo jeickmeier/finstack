@@ -88,8 +88,8 @@ Everything is accessible via `finstack_quant_core::dates`:
       - Parsing from strings (`"3M"`, `"6M"`, `"1Y"`)
       - Conversions:
         - `to_years_simple()` – simple approximation
-        - `to_years_with_context(as_of, calendar, bdc, day_count)`
-        - `add_to_date(date, calendar, bdc)`
+        - `to_years_with_context(as_of, calendar, business_day_convention, day_count)`
+        - `add_to_date(date, calendar, business_day_convention)`
       - Constructors: `overnight`, `one_week`, `one_month`, `three_months`, `six_months`, `one_year`
 - **`periods.rs`**
   - Financial reporting period system for statements and time‑series:
@@ -383,8 +383,8 @@ use time::Month;
 let start = Date::from_calendar_date(2025, Month::January, 1)?;
 let end   = Date::from_calendar_date(2025, Month::July, 1)?;
 
-let dc = DayCount::Act360;
-let yf = dc.year_fraction(start, end, DayCountContext::default())?;
+let day_count = DayCount::Act360;
+let yf = day_count.year_fraction(start, end, DayCountContext::default())?;
 ```
 
 For `Bus252`, provide a calendar:

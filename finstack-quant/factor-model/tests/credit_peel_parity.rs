@@ -34,8 +34,8 @@ fn calibrated_anchor_matches_decompose_levels_for_single_level_case() {
     );
     let mut spreads = BTreeMap::new();
     spreads.insert(issuer.clone(), vec![Some(100.0), Some(110.0), Some(120.0)]);
-    let mut asof_spreads = BTreeMap::new();
-    asof_spreads.insert(issuer, 120.0);
+    let mut as_of_spreads = BTreeMap::new();
+    as_of_spreads.insert(issuer, 120.0);
     let config = CreditCalibrationConfig {
         policy: IssuerBetaPolicy::GloballyOff,
         hierarchy,
@@ -58,13 +58,13 @@ fn calibrated_anchor_matches_decompose_levels_for_single_level_case() {
                 values: vec![10.0, 11.0, 12.0],
             },
             as_of,
-            asof_spreads: asof_spreads.clone(),
+            as_of_spreads: as_of_spreads.clone(),
             idiosyncratic_overrides: BTreeMap::new(),
         })
         .expect("calibration succeeds");
 
     let decomposed =
-        decompose_levels(&model, &asof_spreads, 12.0, as_of, None).expect("decompose succeeds");
+        decompose_levels(&model, &as_of_spreads, 12.0, as_of, None).expect("decompose succeeds");
 
     assert!((decomposed.generic - model.anchor_state.pc).abs() < 1e-10);
     assert_eq!(decomposed.by_level.len(), model.anchor_state.by_level.len());

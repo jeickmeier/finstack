@@ -726,7 +726,7 @@ class Performance:
         self,
         prices: pd.DataFrame,
         benchmark_ticker: str | None = None,
-        freq: str = "daily",
+        frequency: str = "daily",
     ) -> None:
         """
         Build from a pandas DataFrame of prices.
@@ -738,7 +738,7 @@ class Performance:
             ``pd.Timestamp``) and one column per ticker.
         benchmark_ticker : str, optional
             Benchmark column name. Defaults to the first column when ``None``.
-        freq : str, optional
+        frequency : str, optional
             Return aggregation frequency. One of ``"daily"``, ``"weekly"``,
             ``"monthly"``, ``"quarterly"``, ``"semiannual"``, or ``"annual"``.
             Default ``"daily"``.
@@ -756,7 +756,7 @@ class Performance:
         --------
         >>> import pandas as pd
         >>> from finstack_quant.analytics import Performance
-        >>> perf = Performance(prices_df, benchmark_ticker="SPX", freq="daily")  # doctest: +SKIP
+        >>> perf = Performance(prices_df, benchmark_ticker="SPX", frequency="daily")  # doctest: +SKIP
         """
 
     @staticmethod
@@ -765,7 +765,7 @@ class Performance:
         prices: list[list[float]],
         ticker_names: list[str],
         benchmark_ticker: str | None = None,
-        freq: str = "daily",
+        frequency: str = "daily",
     ) -> Performance:
         """
         Construct from raw arrays (dates, prices matrix, ticker names).
@@ -782,7 +782,7 @@ class Performance:
             Column labels, one per price series.
         benchmark_ticker : str, optional
             Benchmark ticker name. Defaults to the first column when ``None``.
-        freq : str, optional
+        frequency : str, optional
             One of ``"daily"``, ``"weekly"``, ``"monthly"``, ``"quarterly"``,
             ``"semiannual"``, or ``"annual"``. Default ``"daily"``.
 
@@ -794,7 +794,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If dimensions are inconsistent, dates are invalid, or ``freq`` is
+            If dimensions are inconsistent, dates are invalid, or ``frequency`` is
             unrecognized.
 
         Examples
@@ -807,7 +807,7 @@ class Performance:
     def from_returns(
         returns: pd.DataFrame,
         benchmark_ticker: str | None = None,
-        freq: str = "daily",
+        frequency: str = "daily",
     ) -> Performance:
         """
         Build from a pandas DataFrame of simple returns.
@@ -819,7 +819,7 @@ class Performance:
             ticker (decimal returns, e.g. ``0.01`` for +1%).
         benchmark_ticker : str, optional
             Benchmark column name. Defaults to the first column when ``None``.
-        freq : str, optional
+        frequency : str, optional
             One of ``"daily"``, ``"weekly"``, ``"monthly"``, ``"quarterly"``,
             ``"semiannual"``, or ``"annual"``. Default ``"daily"``.
 
@@ -839,7 +839,7 @@ class Performance:
         Examples
         --------
         >>> from finstack_quant.analytics import Performance
-        >>> perf = Performance.from_returns(returns_df, freq="monthly")  # doctest: +SKIP
+        >>> perf = Performance.from_returns(returns_df, frequency="monthly")  # doctest: +SKIP
         """
 
     @staticmethod
@@ -848,7 +848,7 @@ class Performance:
         returns: list[list[float]],
         ticker_names: list[str],
         benchmark_ticker: str | None = None,
-        freq: str = "daily",
+        frequency: str = "daily",
     ) -> Performance:
         """
         Construct from raw return arrays (dates, returns matrix, ticker names).
@@ -864,7 +864,7 @@ class Performance:
             Column labels.
         benchmark_ticker : str, optional
             Benchmark ticker name.
-        freq : str, optional
+        frequency : str, optional
             One of ``"daily"``, ``"weekly"``, ``"monthly"``, ``"quarterly"``,
             ``"semiannual"``, or ``"annual"``. Default ``"daily"``.
 
@@ -876,7 +876,7 @@ class Performance:
         Raises
         ------
         AnalyticsError
-            If dimensions are inconsistent or ``freq`` is unrecognized.
+            If dimensions are inconsistent or ``frequency`` is unrecognized.
 
         Examples
         --------
@@ -943,7 +943,7 @@ class Performance:
         """
 
     @property
-    def freq(self) -> str:
+    def frequency(self) -> str:
         """
         Observation frequency as the canonical lowercase token.
 
@@ -1983,7 +1983,7 @@ class Performance:
     def period_stats(
         self,
         ticker_idx: int,
-        agg_freq: str = "monthly",
+        aggregation_frequency: str = "monthly",
         fiscal_year_start_month: int | None = None,
         fiscal_year_start_day: int | None = None,
     ) -> PeriodStats:
@@ -1994,7 +1994,7 @@ class Performance:
         ----------
         ticker_idx : int
             Zero-based ticker column index.
-        agg_freq : str, default "monthly"
+        aggregation_frequency : str, default "monthly"
             Aggregation frequency (``"daily"``, ``"weekly"``, ``"monthly"``,
             ``"quarterly"``, ``"annual"``).
         fiscal_year_start_month : int, optional
@@ -2075,13 +2075,13 @@ class Performance:
         """
         ...
 
-    def periodic_returns_to_dataframe(self, freq: str = "monthly") -> pd.DataFrame:
+    def periodic_returns_to_dataframe(self, frequency: str = "monthly") -> pd.DataFrame:
         """
         Calendar-bucketed compounded returns for all tickers.
 
         Parameters
         ----------
-        freq : str, default "monthly"
+        frequency : str, default "monthly"
             Bucketing frequency: one of ``"daily"``, ``"weekly"``,
             ``"monthly"``, ``"quarterly"``, ``"semiannual"``, ``"annual"``.
 
@@ -2095,7 +2095,7 @@ class Performance:
         Raises
         ------
         ValueError
-            If ``freq`` is not a recognized frequency.
+            If ``frequency`` is not a recognized frequency.
         """
         ...
 

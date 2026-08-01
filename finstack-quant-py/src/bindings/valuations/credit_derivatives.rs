@@ -7,7 +7,7 @@
 //! the generic `price_instrument`, `price_instrument_with_metrics`, and
 //! `validate_instrument_json` entry points under
 //! `finstack_quant.valuations.instruments`; this module only owns the
-//! example-payload factories that produce canonical tagged instrument JSON.
+//! example-payload factories that produce canonical v1 instrument envelopes.
 
 use crate::errors::display_to_py;
 use finstack_quant_valuations::instruments::credit_derivatives::cds::CreditDefaultSwap;
@@ -18,60 +18,68 @@ use finstack_quant_valuations::instruments::InstrumentJson;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
-/// Example tagged ``CreditDefaultSwap`` instrument JSON.
+use super::instruments::serialize_typed_instrument_json;
+
+/// Example ``CreditDefaultSwap`` instrument envelope.
 ///
 /// Returns
 /// -------
 /// str
-///     Tagged instrument JSON (``{"type": "credit_default_swap", ...}``)
-///     accepted by ``validate_instrument_json`` and ``price_instrument``.
+///     Canonical ``finstack_quant.instrument/1`` envelope accepted by
+///     ``validate_instrument_json`` and ``price_instrument``.
 #[pyfunction]
 #[pyo3(text_signature = "()")]
 fn credit_default_swap_example_json() -> PyResult<String> {
-    serde_json::to_string(&InstrumentJson::CreditDefaultSwap(
-        CreditDefaultSwap::example(),
-    ))
-    .map_err(display_to_py)
+    serialize_typed_instrument_json(
+        InstrumentJson::CreditDefaultSwap(CreditDefaultSwap::example()),
+        "CreditDefaultSwap example",
+    )
 }
 
-/// Example tagged ``CDSIndex`` instrument JSON.
+/// Example ``CDSIndex`` instrument envelope.
 ///
 /// Returns
 /// -------
 /// str
-///     Tagged instrument JSON (``{"type": "cds_index", ...}``) accepted by
+///     Canonical ``finstack_quant.instrument/1`` envelope accepted by
 ///     ``validate_instrument_json`` and ``price_instrument``.
 #[pyfunction]
 #[pyo3(text_signature = "()")]
 fn cds_index_example_json() -> PyResult<String> {
-    serde_json::to_string(&InstrumentJson::CDSIndex(CDSIndex::example())).map_err(display_to_py)
+    serialize_typed_instrument_json(
+        InstrumentJson::CDSIndex(CDSIndex::example()),
+        "CDSIndex example",
+    )
 }
 
-/// Example tagged ``CDSTranche`` instrument JSON.
+/// Example ``CDSTranche`` instrument envelope.
 ///
 /// Returns
 /// -------
 /// str
-///     Tagged instrument JSON (``{"type": "cds_tranche", ...}``) accepted by
+///     Canonical ``finstack_quant.instrument/1`` envelope accepted by
 ///     ``validate_instrument_json`` and ``price_instrument``.
 #[pyfunction]
 #[pyo3(text_signature = "()")]
 fn cds_tranche_example_json() -> PyResult<String> {
-    serde_json::to_string(&InstrumentJson::CDSTranche(CDSTranche::example())).map_err(display_to_py)
+    serialize_typed_instrument_json(
+        InstrumentJson::CDSTranche(CDSTranche::example()),
+        "CDSTranche example",
+    )
 }
 
-/// Example tagged ``CDSOption`` instrument JSON.
+/// Example ``CDSOption`` instrument envelope.
 ///
 /// Returns
 /// -------
 /// str
-///     Tagged instrument JSON (``{"type": "cds_option", ...}``) accepted by
+///     Canonical ``finstack_quant.instrument/1`` envelope accepted by
 ///     ``validate_instrument_json`` and ``price_instrument``.
 #[pyfunction]
 #[pyo3(text_signature = "()")]
 fn cds_option_example_json() -> PyResult<String> {
     let option = CDSOption::example().map_err(display_to_py)?;
-    serde_json::to_string(&InstrumentJson::CDSOption(option)).map_err(display_to_py)
+    serialize_typed_instrument_json(InstrumentJson::CDSOption(option), "CDSOption example")
 }
 
 pub(super) fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

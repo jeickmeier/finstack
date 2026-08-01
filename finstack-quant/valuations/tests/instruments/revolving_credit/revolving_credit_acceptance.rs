@@ -197,7 +197,7 @@ fn test_floating_vs_margin_only() {
         .base_rate_spec(BaseRateSpec::Floating(
             finstack_quant_cashflows::builder::FloatingRateSpec {
                 index_id: "USD-SOFR-3M".into(),
-                spread_bp: rust_decimal::Decimal::try_from(100.0).expect("valid"), // 100 bps margin
+                spread_bp: rust_decimal::Decimal::try_from(100.0).expect("valid"), // 100 bp margin
                 gearing: rust_decimal::Decimal::try_from(1.0).expect("valid"),
                 gearing_includes_spread: true,
                 index_floor_bp: None,
@@ -205,7 +205,7 @@ fn test_floating_vs_margin_only() {
                 all_in_cap_bp: None,
                 index_cap_bp: None,
                 overnight_index_constraints: Default::default(),
-                reset_freq: Tenor::quarterly(),
+                reset_frequency: Tenor::quarterly(),
                 index_tenor: None,
                 reset_lag_days: 2,
                 fixing_calendar_id: None,
@@ -295,7 +295,7 @@ fn test_reset_frequency_mismatch() {
                 all_in_cap_bp: None,
                 index_cap_bp: None,
                 overnight_index_constraints: Default::default(),
-                reset_freq: Tenor::monthly(), // Monthly resets
+                reset_frequency: Tenor::monthly(), // Monthly resets
                 index_tenor: None,
                 reset_lag_days: 2,
                 fixing_calendar_id: None,
@@ -366,16 +366,16 @@ fn test_utilization_tier() {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let end = Date::from_calendar_date(2025, Month::April, 1).unwrap();
 
-    // Create tiered usage fees: 10 bps below 50%, 20 bps above 50%
+    // Create tiered usage fees: 10 bp below 50%, 20 bp above 50%
     use finstack_quant_cashflows::builder::FeeTier;
     let usage_tiers = vec![
         FeeTier {
             threshold: rust_decimal::Decimal::try_from(0.0).expect("valid"),
-            bps: rust_decimal::Decimal::try_from(10.0).expect("valid"),
+            bp: rust_decimal::Decimal::try_from(10.0).expect("valid"),
         },
         FeeTier {
             threshold: rust_decimal::Decimal::try_from(0.5).expect("valid"),
-            bps: rust_decimal::Decimal::try_from(20.0).expect("valid"),
+            bp: rust_decimal::Decimal::try_from(20.0).expect("valid"),
         },
     ];
 
@@ -448,8 +448,8 @@ fn test_utilization_tier() {
         .sum();
 
     // High utilization (70%) should pay more fees than low (30%)
-    // Low: 3M * 10 bps * 0.25 = 750
-    // High: 7M * 20 bps * 0.25 = 3,500
+    // Low: 3M * 10 bp * 0.25 = 750
+    // High: 7M * 20 bp * 0.25 = 3,500
     assert!(
         fee_high > fee_low,
         "High utilization should pay more fees. Low: {}, High: {}",

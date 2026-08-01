@@ -164,7 +164,7 @@ fn compute_multiple(company_metrics: &Bound<'_, PyDict>, multiple: &str) -> PyRe
 
 /// Convert a ``{metric_name: value}`` dict into a `CompanyMetrics`.
 ///
-/// Known field names (e.g. ``"leverage"``, ``"oas_bps"``, ``"ebitda"``)
+/// Known field names (e.g. ``"leverage"``, ``"oas_bp"``, ``"ebitda"``)
 /// are mapped onto their dedicated optional fields; everything else is
 /// stored in the `custom` map. ``None`` values are treated as missing;
 /// any other non-numeric value raises ``ValueError`` naming the key.
@@ -188,7 +188,7 @@ fn dict_to_company_metrics(id: &str, d: &Bound<'_, PyDict>) -> PyResult<CompanyM
             "enterprise_value" => m.enterprise_value = Some(v),
             "market_cap" => m.market_cap = Some(v),
             "share_price" => m.share_price = Some(v),
-            "oas_bps" => m.oas_bps = Some(v),
+            "oas_bp" => m.oas_bp = Some(v),
             "yield_pct" => m.yield_pct = Some(v),
             "ebitda" => m.ebitda = Some(v),
             "revenue" => m.revenue = Some(v),
@@ -219,7 +219,7 @@ fn is_named_field(name: &str) -> bool {
         "enterprise_value"
             | "market_cap"
             | "share_price"
-            | "oas_bps"
+            | "oas_bp"
             | "yield_pct"
             | "ebitda"
             | "revenue"

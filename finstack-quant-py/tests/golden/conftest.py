@@ -22,7 +22,7 @@ from finstack_quant.core.market_data import MarketContext
 from finstack_quant.valuations import validate_calibration_json
 
 from .pricing_validation import requested_metrics, validate_requested_metrics, validated_instrument_json
-from .schema import SCHEMA_VERSION, GoldenFixture
+from .schema import SCHEMA, GoldenFixture
 from .tolerance import compare
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
@@ -308,9 +308,7 @@ def run_golden(relative_path: str) -> None:
 def validate_fixture(path: Path, fixture: GoldenFixture) -> None:
     """Validate one golden fixture before runner dispatch."""
     metadata = fixture.metadata
-    assert fixture.schema_version == SCHEMA_VERSION, (
-        f"schema_version is {fixture.schema_version!r}, expected {SCHEMA_VERSION!r}"
-    )
+    assert fixture.schema == SCHEMA, f"schema is {fixture.schema!r}, expected {SCHEMA!r}"
     assert metadata.name.strip(), "metadata.name is empty"
     assert metadata.domain.strip(), "metadata.domain is empty"
     assert metadata.description.strip(), "metadata.description is empty"

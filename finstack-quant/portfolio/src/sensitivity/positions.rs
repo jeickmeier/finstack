@@ -1,36 +1,37 @@
 //! JSON position parsing helpers for factor-model bindings.
 
-use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::instruments::{Instrument, InstrumentEnvelope};
 use serde::Deserialize;
 
 /// A parsed factor-model position ready for repricing or sensitivity analysis.
 pub struct ParsedPosition {
     /// Position identifier.
     pub id: String,
-    /// Boxed instrument parsed from tagged JSON.
+    /// Boxed instrument parsed from its canonical v1 envelope.
     pub instrument: Box<dyn Instrument>,
     /// Position weight or notional multiplier.
     pub weight: f64,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PositionInput {
     id: String,
-    instrument: serde_json::Value,
+    instrument: InstrumentEnvelope,
     weight: f64,
 }
 
 /// Parse factor-model position JSON into boxed instruments using the shared
 /// instrument JSON pipeline.
 ///
-/// Each element must contain an ID, a serialized supported instrument, and a
+/// Each element must contain an ID, a canonical v1 instrument envelope, and a
 /// weight/notional multiplier. Instrument decoding is delegated to the
 /// valuations crate so its canonical instrument schema remains authoritative.
 ///
 /// # Arguments
 ///
 /// * `positions_json` - UTF-8 JSON array of position inputs; every entry has a
-///   user ID, an instrument JSON payload, and a risk weight multiplier.
+///   user ID, an instrument envelope, and a risk weight multiplier.
 ///
 /// # Errors
 ///
@@ -46,16 +47,7 @@ pub fn parse_positions_json(
     specs
         .into_iter()
         .map(|spec| {
-            let instrument_json = serde_json::to_string(&spec.instrument).map_err(|e| {
-                finstack_quant_core::Error::Validation(format!(
-                    "invalid factor-model instrument JSON for position '{}': {e}",
-                    spec.id
-                ))
-            })?;
-            let instrument = finstack_quant_valuations::pricer::parse_boxed_instrument_json(
-                &instrument_json,
-                None,
-            )?;
+            let instrument = spec.instrument.into_boxed()?;
             Ok(ParsedPosition {
                 id: spec.id,
                 instrument,
@@ -91,10 +83,37 @@ mod tests {
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::money::Money;
     use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-    use finstack_quant_valuations::instruments::InstrumentJson;
+    use finstack_quant_valuations::instruments::{InstrumentEnvelope, InstrumentJson};
 
     #[test]
     fn parse_positions_json_builds_boxed_instruments() {
+        let bond = Bond::fixed(
+            "TEST-BOND",
+            Money::new(1_000_000.0, Currency::USD),
+            0.05,
+            time::Date::from_calendar_date(2024, time::Month::January, 1).expect("date"),
+            time::Date::from_calendar_date(2034, time::Month::January, 1).expect("date"),
+            "USD-OIS",
+        )
+        .expect("bond");
+        let positions_json = serde_json::json!([
+            {
+                "id": "POS-1",
+                "instrument": InstrumentEnvelope::new(InstrumentJson::Bond(bond)),
+                "weight": 2.0
+            }
+        ])
+        .to_string();
+
+        let positions = parse_positions_json(&positions_json).expect("positions");
+        assert_eq!(positions.len(), 1);
+        assert_eq!(positions[0].id, "POS-1");
+        assert_eq!(positions[0].weight, 2.0);
+        assert_eq!(positions[0].instrument.id(), "TEST-BOND");
+    }
+
+    #[test]
+    fn parse_positions_json_rejects_bare_instruments() {
         let bond = Bond::fixed(
             "TEST-BOND",
             Money::new(1_000_000.0, Currency::USD),
@@ -113,11 +132,11 @@ mod tests {
         ])
         .to_string();
 
-        let positions = parse_positions_json(&positions_json).expect("positions");
-        assert_eq!(positions.len(), 1);
-        assert_eq!(positions[0].id, "POS-1");
-        assert_eq!(positions[0].weight, 2.0);
-        assert_eq!(positions[0].instrument.id(), "TEST-BOND");
+        // schema-rejection-test: sensitivity positions require an envelope.
+        let result = parse_positions_json(&positions_json);
+        assert!(result.is_err(), "bare instrument JSON must be rejected");
+        let error = result.err().expect("error should be present");
+        assert!(error.to_string().contains("factor-model positions JSON"));
     }
 
     #[test]
@@ -134,7 +153,7 @@ mod tests {
         let positions_json = serde_json::json!([
             {
                 "id": "POS-1",
-                "instrument": InstrumentJson::Bond(bond),
+                "instrument": InstrumentEnvelope::new(InstrumentJson::Bond(bond)),
                 "weight": 2.0
             }
         ])

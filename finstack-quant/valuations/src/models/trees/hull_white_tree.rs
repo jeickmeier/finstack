@@ -54,7 +54,7 @@ use finstack_quant_core::{Error, Result};
 /// | Parameter | Typical Range | Description |
 /// |-----------|---------------|-------------|
 /// | kappa | 0.01-0.10 | Mean reversion (higher = faster reversion) |
-/// | sigma | 0.005-0.015 | Normal volatility (50-150 bps) |
+/// | sigma | 0.005-0.015 | Normal volatility (50-150 bp) |
 /// | steps | 50-200 | Tree steps (more = accuracy, O(n²) cost) |
 #[derive(Debug, Clone)]
 pub struct HullWhiteTreeConfig {
@@ -67,7 +67,7 @@ pub struct HullWhiteTreeConfig {
     /// Short rate volatility (σ), annualized.
     ///
     /// This is normal/absolute volatility in rate units.
-    /// Typical range: 0.005-0.015 (50-150 bps per year)
+    /// Typical range: 0.005-0.015 (50-150 bp per year)
     pub sigma: f64,
 
     /// Number of time steps in the tree.
@@ -1195,13 +1195,13 @@ mod tests {
                 .sum();
 
             let error = (sum_q - target_df).abs();
-            let error_bps = (error / target_df) * 10000.0;
+            let error_bp = (error / target_df) * 10000.0;
 
             assert!(
-                error_bps < 0.1,
-                "State price calibration error {:.6} ({:.4} bps) at step {} (t={:.2})",
+                error_bp < 0.1,
+                "State price calibration error {:.6} ({:.4} bp) at step {} (t={:.2})",
                 error,
-                error_bps,
+                error_bp,
                 step,
                 t
             );
@@ -1264,11 +1264,11 @@ mod tests {
                 .map(|j| tree.state_price(step, j))
                 .sum();
 
-            let error_bps = ((sum_q - target_df) / target_df).abs() * 10000.0;
+            let error_bp = ((sum_q - target_df) / target_df).abs() * 10000.0;
             assert!(
-                error_bps < 0.1,
-                "Steep-curve calibration error {:.4} bps at step {} (t={:.2})",
-                error_bps,
+                error_bp < 0.1,
+                "Steep-curve calibration error {:.4} bp at step {} (t={:.2})",
+                error_bp,
                 step,
                 t
             );
@@ -1281,11 +1281,11 @@ mod tests {
             .backward_induction(&terminal, |_, _, cont| cont)
             .expect("terminal values sized to final step");
         let target_df = steep_curve.df(10.0);
-        let error_bps = ((value - target_df) / target_df).abs() * 10000.0;
+        let error_bp = ((value - target_df) / target_df).abs() * 10000.0;
         assert!(
-            error_bps < 0.1,
-            "Steep-curve backward induction error {:.4} bps (value={:.8}, df={:.8})",
-            error_bps,
+            error_bp < 0.1,
+            "Steep-curve backward induction error {:.4} bp (value={:.8}, df={:.8})",
+            error_bp,
             value,
             target_df
         );
@@ -1305,12 +1305,12 @@ mod tests {
         // Bond price at maturity should be exactly 1.0
         // Production standard: < 1 bp error
         let bp = tree.bond_price(final_step, mid_node, 2.0, &curve);
-        let error_bps = (bp - 1.0).abs() * 10000.0;
+        let error_bp = (bp - 1.0).abs() * 10000.0;
         assert!(
-            error_bps < 1.0,
-            "Bond price at maturity should be 1.0, got {:.8} (error: {:.4} bps)",
+            error_bp < 1.0,
+            "Bond price at maturity should be 1.0, got {:.8} (error: {:.4} bp)",
             bp,
-            error_bps
+            error_bp
         );
     }
 
@@ -1423,15 +1423,15 @@ mod tests {
 
         let target_df = curve.df(1.0);
         let error = (value - target_df).abs();
-        let error_bps = (error / target_df) * 10000.0;
+        let error_bp = (error / target_df) * 10000.0;
 
         // Production standard: pricing error < 1 basis point
         assert!(
-            error_bps < 1.0,
-            "Unit payoff value {:.8} should match df {:.8} (error: {:.4} bps)",
+            error_bp < 1.0,
+            "Unit payoff value {:.8} should match df {:.8} (error: {:.4} bp)",
             value,
             target_df,
-            error_bps
+            error_bp
         );
     }
 
@@ -1547,11 +1547,11 @@ mod tests {
                 .map(|j| tree.state_price(step, j))
                 .sum();
 
-            let error_bps = ((sum_q - target_df) / target_df).abs() * 10000.0;
+            let error_bp = ((sum_q - target_df) / target_df).abs() * 10000.0;
             assert!(
-                error_bps < 5.0,
-                "Boundary-heavy calibration error {:.2} bps at step {} (t={:.2})",
-                error_bps,
+                error_bp < 5.0,
+                "Boundary-heavy calibration error {:.2} bp at step {} (t={:.2})",
+                error_bp,
                 step,
                 t
             );
@@ -1564,11 +1564,11 @@ mod tests {
             .backward_induction(&terminal, |_, _, cont| cont)
             .expect("terminal values sized to final step");
         let target_df = curve.df(5.0);
-        let error_bps = ((value - target_df) / target_df).abs() * 10000.0;
+        let error_bp = ((value - target_df) / target_df).abs() * 10000.0;
         assert!(
-            error_bps < 5.0,
-            "Backward induction error {:.2} bps with boundary nodes (value={:.8}, df={:.8})",
-            error_bps,
+            error_bp < 5.0,
+            "Backward induction error {:.2} bp with boundary nodes (value={:.8}, df={:.8})",
+            error_bp,
             value,
             target_df
         );
@@ -1667,11 +1667,11 @@ mod tests {
             let sum_q: f64 = (0..tree.num_nodes(step))
                 .map(|j| tree.state_price(step, j))
                 .sum();
-            let error_bps = ((sum_q - target_df) / target_df).abs() * 10000.0;
+            let error_bp = ((sum_q - target_df) / target_df).abs() * 10000.0;
             assert!(
-                error_bps < 0.1,
-                "Steep-curve per-step-dt calibration error {:.4} bps at pillar t={:.2}",
-                error_bps,
+                error_bp < 0.1,
+                "Steep-curve per-step-dt calibration error {:.4} bp at pillar t={:.2}",
+                error_bp,
                 t
             );
         }
@@ -1682,11 +1682,11 @@ mod tests {
             .backward_induction(&terminal, |_, _, cont| cont)
             .expect("terminal values sized to final step");
         let target_df = steep_curve.df(10.0);
-        let error_bps = ((value - target_df) / target_df).abs() * 10000.0;
+        let error_bp = ((value - target_df) / target_df).abs() * 10000.0;
         assert!(
-            error_bps < 0.1,
-            "Steep-curve per-step-dt backward induction error {:.4} bps",
-            error_bps
+            error_bp < 0.1,
+            "Steep-curve per-step-dt backward induction error {:.4} bp",
+            error_bp
         );
     }
 }

@@ -285,13 +285,9 @@ fn test_metric_parse_strict() {
         other => panic!("Expected UnknownMetric error, got: {:?}", other),
     }
 
-    // Verify case insensitivity
+    // Retired noncanonical casing is rejected.
     let ytm_upper = MetricId::parse_strict("YTM");
-    assert!(
-        ytm_upper.is_ok(),
-        "Strict parsing should be case insensitive"
-    );
-    assert_eq!(ytm_upper.unwrap(), MetricId::Ytm);
+    assert!(ytm_upper.is_err(), "Strict parsing must require snake_case");
 }
 
 #[test]

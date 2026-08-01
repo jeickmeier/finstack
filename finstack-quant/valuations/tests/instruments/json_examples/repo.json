@@ -2,46 +2,25 @@
   "instrument": {
     "spec": {
       "attributes": {},
-      "bdc": "following",
+      "business_day_convention": "following",
       "calendar_id": "usny",
       "cash_amount": {
         "amount": "10000000",
         "currency": "USD"
       },
       "collateral": {
-        "collateral_type": "General",
+        "collateral_type": "general",
         "instrument_id": "UST-10Y",
         "market_value_id": "UST_10Y_PRICE",
         "quantity": 10000.0
       },
-      "day_count": "Act360",
+      "day_count": "act_360",
       "discount_curve_id": "USD-OIS",
       "haircut": 0.02,
       "id": "REPO-GC-7D",
       "maturity": "2024-01-09",
-      "pricing_overrides": {
-        "adaptive_bumps": false,
-        "call_friction_cents": null,
-        "cds_quote_bp": null,
-        "credit_spread_bump_bp": null,
-        "implied_volatility": null,
-        "mc_seed_scenario": null,
-        "mean_reversion": null,
-        "quoted_clean_price": null,
-        "rate_bump_bp": null,
-        "rho_bump_decimal": null,
-        "spot_bump_pct": null,
-        "theta_period": null,
-        "tree_steps": null,
-        "upfront_payment": null,
-        "use_gobet_miri": false,
-        "vega_bump_decimal": null,
-        "vol_bump_pct": null,
-        "vol_surface_extrapolation": "error",
-        "ytm_bump_decimal": null
-      },
       "repo_rate": "0.0525",
-      "repo_type": "Term",
+      "repo_type": "term",
       "start_date": "2024-01-02",
       "triparty": false
     },

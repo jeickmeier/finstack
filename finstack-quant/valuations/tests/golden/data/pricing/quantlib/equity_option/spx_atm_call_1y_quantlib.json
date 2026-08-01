@@ -7,29 +7,32 @@
     "vega": 38.32995298410414
   },
   "instrument": {
-    "spec": {
-      "attributes": {
-        "meta": {},
-        "tags": [
-          "golden",
-          "quantlib"
-        ]
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "spec": {
+        "attributes": {
+          "meta": {},
+          "tags": [
+            "golden",
+            "quantlib"
+          ]
+        },
+        "discount_curve_id": "USD-OIS",
+        "div_yield_id": "SPX-DIVYIELD",
+        "expiry": "2027-04-30",
+        "id": "SPX-ATM-CALL-1Y-QUANTLIB",
+        "notional": {
+          "amount": "100.0",
+          "currency": "USD"
+        },
+        "option_type": "call",
+        "spot_id": "SPX-SPOT",
+        "strike": 100.0,
+        "underlying_ticker": "SPX",
+        "vol_surface_id": "SPX-VOL-QL"
       },
-      "discount_curve_id": "USD-OIS",
-      "div_yield_id": "SPX-DIVYIELD",
-      "expiry": "2027-04-30",
-      "id": "SPX-ATM-CALL-1Y-QUANTLIB",
-      "notional": {
-        "amount": "100.0",
-        "currency": "USD"
-      },
-      "option_type": "call",
-      "spot_id": "SPX-SPOT",
-      "strike": 100.0,
-      "underlying_ticker": "SPX",
-      "vol_surface_id": "SPX-VOL-QL"
-    },
-    "type": "equity_option"
+      "type": "equity_option"
+    }
   },
   "kind": "pricing",
   "market": {
@@ -40,7 +43,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "extrapolation": "flat_forward",
           "id": "USD-OIS",
           "interp_style": "log_linear",
@@ -63,6 +66,7 @@
       "dividends": [],
       "fx": null,
       "fx_delta_vol_surfaces": [],
+      "hierarchy": null,
       "inflation_indices": [],
       "prices": {
         "SPX-DIVYIELD": {
@@ -75,6 +79,7 @@
           }
         }
       },
+      "schema_version": 1,
       "series": [],
       "surfaces": [
         {
@@ -105,7 +110,6 @@
           ]
         }
       ],
-      "version": 2,
       "vol_cubes": []
     },
     "kind": "snapshot"
@@ -122,11 +126,11 @@
     "review_interval_months": 6,
     "screenshots": [],
     "source": "quantlib",
-    "source_detail": "QuantLib 1.42.1; deterministic flat-curve native instrument benchmark.",
+    "source_detail": "QuantLib 1.43; deterministic flat-curve native instrument benchmark.",
     "valuation_date": "2026-04-30"
   },
   "model": "black76",
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "tolerances": {
     "delta": {
       "abs": 1e-07,

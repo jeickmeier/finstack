@@ -1,4 +1,4 @@
-//! Serde structs for the `finstack_quant.golden/2` fixture schema.
+//! Serde structs for the `finstack_quant.golden/1` fixture schema.
 //!
 //! A fixture is a strict envelope with five sections, in order:
 //! `metadata` (identity, provenance, valuation date), a `kind`-tagged body
@@ -13,13 +13,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Current golden fixture schema version.
-pub const SCHEMA_VERSION: &str = "finstack_quant.golden/2";
+pub const SCHEMA: &str = "finstack_quant.golden/1";
 
 /// Top-level fixture envelope. One per JSON file under `tests/golden/data/`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GoldenFixture {
-    /// Schema version. Must equal [`SCHEMA_VERSION`].
-    pub schema_version: String,
+    /// Schema version. Must equal [`SCHEMA`].
+    pub schema: String,
     /// Identity, provenance, and review metadata.
     pub metadata: Metadata,
     /// Domain-specific body, discriminated by the `kind` field.
@@ -185,7 +185,7 @@ mod tests {
     use super::*;
 
     const PRICING_JSON: &str = r#"{
-      "schema_version": "finstack_quant.golden/2",
+      "schema": "finstack_quant.golden/1",
       "metadata": {
         "name": "test_fixture",
         "domain": "rates.irs",
@@ -202,14 +202,14 @@ mod tests {
       },
       "kind": "pricing",
       "model": "discounting",
-      "market": {"kind": "envelope", "envelope": {"schema": "finstack_quant.calibration"}},
+      "market": {"kind": "envelope", "envelope": {"schema": "finstack_quant.calibration/1"}},
       "instrument": {"foo": 1},
       "expected": {"npv": 100.0},
       "tolerances": {"npv": {"abs": 0.01}}
     }"#;
 
     const SABR_JSON: &str = r#"{
-      "schema_version": "finstack_quant.golden/2",
+      "schema": "finstack_quant.golden/1",
       "metadata": {
         "name": "smile",
         "domain": "volatility.sabr",
@@ -240,7 +240,7 @@ mod tests {
     fn deserialize_pricing_fixture() {
         let fixture: GoldenFixture = serde_json::from_str(PRICING_JSON).expect("fixture parses");
 
-        assert_eq!(fixture.schema_version, SCHEMA_VERSION);
+        assert_eq!(fixture.schema, SCHEMA);
         assert_eq!(fixture.metadata.name, "test_fixture");
         assert_eq!(fixture.metadata.valuation_date, "2026-04-30");
         assert_eq!(fixture.expected.get("npv"), Some(&100.0));

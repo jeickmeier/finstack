@@ -2,6 +2,7 @@
 //! the [`StagedInstrumentFlow`] working struct.
 
 use crate::capital_structure::cashflows::CashflowBreakdown;
+use crate::evaluator::{CapitalStructureClaimCategory, CapitalStructureWarning, EvalWarning};
 use finstack_quant_core::money::Money;
 
 /// Per-instrument working state during waterfall allocation.
@@ -41,8 +42,8 @@ pub(super) fn apply_cash_cap_to_category<F>(
     staged: &mut [StagedInstrumentFlow],
     remaining_cash: &mut Money,
     period_id: finstack_quant_core::dates::PeriodId,
-    category: &str,
-    warnings: &mut Vec<crate::evaluator::EvalWarning>,
+    category: CapitalStructureClaimCategory,
+    warnings: &mut Vec<EvalWarning>,
     mut field: F,
 ) where
     F: FnMut(&mut StagedInstrumentFlow) -> &mut Money,
@@ -55,16 +56,14 @@ pub(super) fn apply_cash_cap_to_category<F>(
                 // A negative outflow claim is neutralized to zero. Surface it:
                 // it usually signals an upstream sign-convention bug, and it
                 // silently changes the model's totals when a cash cap is active.
-                warnings.push(
-                    crate::evaluator::EvalWarning::CapitalStructureCashflowIgnored {
-                        period: period_id,
-                        kind: format!(
-                            "negative_{category}_neutralized(instrument={}, amount={amount:.4})",
-                            s.instrument_id
-                        ),
-                        cashflow_date: period_id.to_string(),
+                warnings.push(EvalWarning::CapitalStructure {
+                    period: period_id,
+                    warning: CapitalStructureWarning::NegativeClaimNeutralized {
+                        category,
+                        instrument_id: s.instrument_id.clone(),
+                        amount,
                     },
-                );
+                });
             }
             amount.max(0.0)
         })

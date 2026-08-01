@@ -26,7 +26,7 @@ fn legal_maturity() -> Date {
 }
 
 fn simple_pool(balance: f64) -> AssetPool {
-    let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
     if balance > 0.0 {
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
@@ -126,7 +126,13 @@ fn stochastic_pricing_is_deterministic_and_returns_tranche_results() {
 
     assert!(first.npv.amount().is_finite());
     assert_eq!(first.tranche_results.len(), 1);
-    assert_eq!(first.pricing_mode, "MonteCarlo(1)");
+    assert_eq!(
+        first.pricing_mode,
+        PricingMode::MonteCarlo {
+            num_paths: 1,
+            antithetic: false,
+        }
+    );
     assert_eq!(first.npv.amount(), second.npv.amount());
     assert_eq!(first.tranche_results.len(), second.tranche_results.len());
 }
@@ -243,9 +249,9 @@ fn enable_stochastic_defaults_populates_specs_for_each_deal_family() {
     };
 
     for mut sc in [
-        make(DealType::RMBS),
-        make(DealType::CLO),
-        make(DealType::CMBS),
+        make(DealType::Rmbs),
+        make(DealType::Clo),
+        make(DealType::Cmbs),
         make(DealType::Card),
     ] {
         sc.enable_stochastic_defaults();
@@ -539,7 +545,7 @@ fn mc_variance_no_catastrophic_cancellation_on_large_pv_deal() {
     let close = Date::from_calendar_date(2024, Month::January, 1).unwrap();
     let maturity = Date::from_calendar_date(2026, Month::January, 1).unwrap();
 
-    let mut pool = AssetPool::new("POOL-LARGE", DealType::ABS, Currency::USD);
+    let mut pool = AssetPool::new("POOL-LARGE", DealType::Abs, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "A1",
         Money::new(50_000_000.0, Currency::USD),
@@ -666,7 +672,7 @@ fn philox_rng_discipline_determinism_and_stream_identity() {
 
     // Build a deal with factor-correlated defaults so `has_stochastic_rates()`
     // returns true and the RNG is actually exercised on every path.
-    let mut pool = AssetPool::new("POOL-PHILOX", DealType::ABS, Currency::USD);
+    let mut pool = AssetPool::new("POOL-PHILOX", DealType::Abs, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "A1",
         Money::new(1_000_000.0, Currency::USD),
@@ -875,8 +881,23 @@ fn all_pricing_modes_succeed_on_canonical_deal() {
         &finstack_quant_valuations::instruments::fixed_income::structured_credit::StochasticPricingResult,
     )> = Vec::new();
     if let Some(t) = tree_priced.as_ref() {
+        assert_eq!(t.pricing_mode, PricingMode::Tree);
         entries.push(("Tree", t));
     }
+    assert_eq!(
+        mc.pricing_mode,
+        PricingMode::MonteCarlo {
+            num_paths: 16,
+            antithetic: true,
+        }
+    );
+    assert_eq!(
+        hybrid.pricing_mode,
+        PricingMode::Hybrid {
+            tree_periods: 6,
+            mc_paths: 16,
+        }
+    );
     entries.push(("MonteCarlo", &mc));
     entries.push(("Hybrid", &hybrid));
 
@@ -895,10 +916,6 @@ fn all_pricing_modes_succeed_on_canonical_deal() {
             result.tranche_results.len(),
             reference_tranche_count,
             "{label} tranche count must match reference"
-        );
-        assert!(
-            !result.pricing_mode.is_empty(),
-            "{label} must populate pricing_mode metadata"
         );
     }
 }

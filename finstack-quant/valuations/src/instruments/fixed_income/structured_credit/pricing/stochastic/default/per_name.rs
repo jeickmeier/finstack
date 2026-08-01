@@ -50,6 +50,7 @@ use finstack_quant_monte_carlo::traits::RandomStream;
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum PoolGranularity {
     /// Simulate each name's default independently conditional on the
     /// systematic factor (finite-pool copula). Captures name-level lumpiness;

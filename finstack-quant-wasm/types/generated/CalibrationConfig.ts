@@ -44,7 +44,7 @@ import type { ValidationMode } from "./ValidationMode";
  *
  * 1. **Step-level** (`CalibrationStep.params.method`): Per-instrument-type overrides
  * 2. **Plan-level** (`CalibrationPlan.settings`): Plan-wide defaults
- * 3. **Finstack config extensions** (`valuations.calibration.v2`): application defaults
+ * 3. **Finstack config extensions** (`valuations.calibration.canonical`): application defaults
  * 4. **Global defaults** (`CalibrationConfig::default()`): fallback values
  *
  * Step-level settings always take precedence over plan-level settings.
@@ -141,17 +141,15 @@ inflation_curve: InflationCurveSolveConfig,
  *
  * Defaults to `true` — this is the safe production choice because
  * a non-converged solver would otherwise silently poison downstream
- * pricing. Legacy or exploratory workflows that want to inspect the
+ * pricing. Diagnostic workflows that want to inspect the
  * report without aborting can set this to `false`.
  */
 fail_on_bad_fit: boolean,
 /**
  * FX matrix runtime config (pivot currency, triangulation, cache capacity).
- * Hoisted out of `initial_market.fx.config` in v3 envelopes.
  */
 fx: Record<string, unknown>,
 /**
  * Optional market-data hierarchy snapshot.
- * Hoisted out of `initial_market.hierarchy` in v3 envelopes.
  */
 hierarchy?: Record<string, unknown> | null, };

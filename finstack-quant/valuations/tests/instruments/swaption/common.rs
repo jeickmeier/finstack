@@ -39,8 +39,8 @@ pub fn build_flat_discount_curve(rate: f64, base_date: Date, curve_id: &str) -> 
 }
 
 /// Build a flat volatility surface
-pub fn build_flat_vol_surface(vol: f64, _base_date: Date, surface_id: &str) -> VolSurface {
-    VolSurface::builder(surface_id)
+pub fn build_flat_vol_surface(vol: f64, _base_date: Date, vol_surface_id: &str) -> VolSurface {
+    VolSurface::builder(vol_surface_id)
         .expiries(&[0.25, 1.0, 5.0, 10.0])
         .strikes(&[0.02, 0.03, 0.05, 0.07])
         .row(&[vol, vol, vol, vol])
@@ -52,8 +52,8 @@ pub fn build_flat_vol_surface(vol: f64, _base_date: Date, surface_id: &str) -> V
 }
 
 /// Build a vol surface with realistic smile (lower vol for OTM puts, higher for OTM calls)
-pub fn build_smile_vol_surface(_base_date: Date, surface_id: &str) -> VolSurface {
-    VolSurface::builder(surface_id)
+pub fn build_smile_vol_surface(_base_date: Date, vol_surface_id: &str) -> VolSurface {
+    VolSurface::builder(vol_surface_id)
         .expiries(&[0.25, 1.0, 5.0])
         .strikes(&[0.02, 0.03, 0.05, 0.07])
         .row(&[0.25, 0.22, 0.20, 0.22]) // 3M expiry

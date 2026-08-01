@@ -70,7 +70,7 @@ def _fixture_inputs() -> dict:
 
     spreads: dict[str, list[float | None]] = {}
     tags: dict[str, dict[str, str]] = {}
-    asof_spreads: dict[str, float] = {}
+    as_of_spreads: dict[str, float] = {}
 
     for idx, (issuer_id, rating, region) in enumerate(issuer_specs):
         base = 100.0 + idx * 25.0
@@ -80,7 +80,7 @@ def _fixture_inputs() -> dict:
         ]
         spreads[issuer_id] = series
         tags[issuer_id] = {"rating": rating, "region": region}
-        asof_spreads[issuer_id] = float(series[-1])  # type: ignore[arg-type]
+        as_of_spreads[issuer_id] = float(series[-1])  # type: ignore[arg-type]
 
     return {
         "history_panel": {
@@ -95,7 +95,7 @@ def _fixture_inputs() -> dict:
             "values": generic_values,
         },
         "as_of": as_of_str,
-        "asof_spreads": asof_spreads,
+        "as_of_spreads": as_of_spreads,
         "idiosyncratic_overrides": {},
     }
 
@@ -128,7 +128,7 @@ def _calibrate() -> CreditFactorModel:
 # ---------------------------------------------------------------------------
 
 _MINIMAL_MODEL_JSON = json.dumps({
-    "schema_version": "finstack_quant.credit_factor_model/1",
+    "schema": "finstack_quant.credit_factor_model/1",
     "as_of": "2024-03-29",
     "calibration_window": {
         "start": "2022-03-29",
@@ -140,7 +140,7 @@ _MINIMAL_MODEL_JSON = json.dumps({
     "config": {
         "factors": [],
         "covariance": {"n": 0, "factor_ids": [], "data": []},
-        "matching": {"MappingTable": []},
+        "matching": {"mapping_table": []},
         "pricing_mode": "delta_based",
     },
     "issuer_betas": [],
@@ -165,7 +165,7 @@ _MINIMAL_MODEL_JSON = json.dumps({
 
 def test_credit_factor_model_from_json_minimal() -> None:
     model = CreditFactorModel.from_json(_MINIMAL_MODEL_JSON)
-    assert model.schema_version == "finstack_quant.credit_factor_model/1"
+    assert model.schema == "finstack_quant.credit_factor_model/1"
     assert model.as_of == "2024-03-29"
     assert model.n_levels == 2
     assert model.n_issuers == 0
@@ -179,7 +179,7 @@ def test_credit_factor_model_to_json_round_trips() -> None:
     model = CreditFactorModel.from_json(_MINIMAL_MODEL_JSON)
     out = model.to_json()
     parsed = json.loads(out)
-    assert parsed["schema_version"] == "finstack_quant.credit_factor_model/1"
+    assert parsed["schema"] == "finstack_quant.credit_factor_model/1"
     assert parsed["as_of"] == "2024-03-29"
     # Structural fields preserved
     assert len(parsed["issuer_betas"]) == 0
@@ -205,7 +205,7 @@ def test_credit_factor_model_bad_json_raises() -> None:
 def test_calibrator_produces_valid_artifact() -> None:
     model = _calibrate()
     assert isinstance(model, CreditFactorModel)
-    assert model.schema_version == "finstack_quant.credit_factor_model/1"
+    assert model.schema == "finstack_quant.credit_factor_model/1"
     # At least the generic factor should exist.
     assert model.n_factors >= 1
     # The panel has 6 issuers.
@@ -223,7 +223,7 @@ def test_calibrated_model_serializes_to_json() -> None:
     model = _calibrate()
     out = model.to_json()
     parsed = json.loads(out)
-    assert parsed["schema_version"] == "finstack_quant.credit_factor_model/1"
+    assert parsed["schema"] == "finstack_quant.credit_factor_model/1"
     assert len(parsed["issuer_betas"]) == 6
 
 
@@ -233,7 +233,7 @@ def test_calibrated_model_round_trips_json() -> None:
     json1 = model.to_json()
     model2 = CreditFactorModel.from_json(json1)
     # Schema version, as_of, issuer count, and factor count must be preserved.
-    assert model2.schema_version == model.schema_version
+    assert model2.schema == model.schema
     assert model2.as_of == model.as_of
     assert model2.n_issuers == model.n_issuers
     assert model2.n_factors == model.n_factors
@@ -308,9 +308,9 @@ def test_calibrator_bad_inputs_raises() -> None:
 def _simple_decompose_model_and_spreads() -> tuple[CreditFactorModel, dict[str, float]]:
     """Return a calibrated model + a spread map for decomposition tests."""
     model = _calibrate()
-    # Use the asof_spreads from the fixture as observed spreads.
+    # Use the as_of_spreads from the fixture as observed spreads.
     inputs = _fixture_inputs()
-    observed: dict[str, float] = inputs["asof_spreads"]
+    observed: dict[str, float] = inputs["as_of_spreads"]
     return model, observed
 
 

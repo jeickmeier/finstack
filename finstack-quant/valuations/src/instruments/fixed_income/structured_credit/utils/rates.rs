@@ -164,7 +164,7 @@ pub fn psa_to_cpr(psa_speed: f64, month: u32) -> f64 {
 ///
 /// # Arguments
 ///
-/// * `freq` - Payment frequency specification
+/// * `frequency` - Payment frequency specification
 ///
 /// # Returns
 ///
@@ -187,34 +187,34 @@ pub fn psa_to_cpr(psa_speed: f64, month: u32) -> f64 {
 /// assert_eq!(frequency_periods_per_year(Tenor::semi_annual()), 2.0);
 /// ```
 #[inline]
-pub(crate) fn frequency_periods_per_year(freq: finstack_quant_core::dates::Tenor) -> f64 {
+pub(crate) fn frequency_periods_per_year(frequency: finstack_quant_core::dates::Tenor) -> f64 {
     use finstack_quant_core::dates::TenorUnit;
-    match freq.unit() {
+    match frequency.unit() {
         TenorUnit::Months => {
-            if freq.count() > 0 {
-                12.0 / freq.count() as f64
+            if frequency.count() > 0 {
+                12.0 / frequency.count() as f64
             } else {
                 4.0
             }
         }
         TenorUnit::Days => {
-            if freq.count() > 0 {
-                365.0 / freq.count() as f64
+            if frequency.count() > 0 {
+                365.0 / frequency.count() as f64
             } else {
                 4.0
             }
         }
 
         TenorUnit::Weeks => {
-            if freq.count() > 0 {
-                52.0 / freq.count() as f64
+            if frequency.count() > 0 {
+                52.0 / frequency.count() as f64
             } else {
                 4.0
             }
         }
         TenorUnit::Years => {
-            if freq.count() > 0 {
-                1.0 / freq.count() as f64
+            if frequency.count() > 0 {
+                1.0 / frequency.count() as f64
             } else {
                 4.0
             }

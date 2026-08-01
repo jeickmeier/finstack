@@ -55,6 +55,7 @@ pub struct CreditState {
 
 /// Which credit metric drives the toggle decision.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum CreditStateVariable {
     /// Use the hazard rate.
     HazardRate,
@@ -79,6 +80,7 @@ impl FromStr for CreditStateVariable {
 
 /// Direction for threshold comparison.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ThresholdDirection {
     /// PIK when state > threshold (e.g., hazard rate above limit).
     Above,
@@ -100,6 +102,7 @@ impl FromStr for ThresholdDirection {
 
 /// Toggle exercise model for PIK/cash decision.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ToggleExerciseModel {
     /// Hard threshold: PIK when credit metric crosses boundary.
     Threshold(ThresholdToggle),

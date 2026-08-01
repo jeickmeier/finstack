@@ -450,20 +450,16 @@ finstack_quant.credit_factor_model/1
   automatically. Consumers MUST call `validate()` or use a public loader that
   does so before trusting the model. Python/WASM JSON loaders and calibration
   entry points MUST retain this validation.
-- Adding a root key is a forward-compatibility break for older v1 readers,
-  even when the new Rust field is optional and has `#[serde(default)]`.
-  Root additions therefore require a new schema version.
+- During the pre-alpha contract consolidation, root changes replace v1 in
+  place and MUST update every in-workspace consumer and generated artifact in
+  the same slice. No compatibility branch or alternate marker is retained.
 - Only explicitly open nested extension types that omit both
   `deny_unknown_fields` and schema-level `additionalProperties: false` may
   accept new keys without a root version bump. `CalibrationDiagnostics` is
   one such extension point.
 - Field removal, type change, semantic change, required-field addition, or
-  root-key addition requires a new identifier such as
-  `finstack_quant.credit_factor_model/2`, a schema under
-  `finstack-quant/factor-model/schemas/factor_model/2/`, migration guidance,
-  and compatibility tests.
-- `#[serde(default)]` lets newer readers consume older payloads. It does not
-  make older closed readers accept newer payloads.
+  root-key addition MUST be made at the canonical Rust serde type, followed by
+  deterministic v1 schema regeneration and complete in-workspace propagation.
 
 `docs/SERDE_STABILITY.md` MUST use the same compatibility terminology and
 canonical module paths.

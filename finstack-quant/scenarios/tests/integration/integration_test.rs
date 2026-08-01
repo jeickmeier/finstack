@@ -192,7 +192,7 @@ fn test_vol_surface_parallel_shock() {
         description: None,
         operations: vec![OperationSpec::VolSurfaceParallelPct {
             surface_kind: VolSurfaceKind::Equity,
-            surface_id: "SPX".into(),
+            vol_surface_id: "SPX".into(),
             pct: 15.0, // +15% vol increase
         }],
         priority: 0,

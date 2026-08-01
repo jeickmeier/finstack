@@ -41,13 +41,8 @@ pub(super) fn parse_vol_surface_axis(s: &str) -> PyResult<VolSurfaceAxis> {
 
 /// Parse a [`VolQuoteType`] from a Python string.
 pub(super) fn parse_vol_quote_type(s: &str) -> PyResult<VolQuoteType> {
-    match s {
-        "black_lognormal" => Ok(VolQuoteType::BlackLognormal),
-        "normal" => Ok(VolQuoteType::Normal),
-        _ => Err(crate::errors::value_error(format!(
-            "Invalid vol quote type {s:?}: expected 'black_lognormal' or 'normal'",
-        ))),
-    }
+    s.parse::<VolQuoteType>()
+        .map_err(crate::errors::value_error)
 }
 
 /// Parse a [`VolInterpolationMode`] from a Python string.

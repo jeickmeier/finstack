@@ -1,5 +1,6 @@
 //! Rate-binding spec wrapper.
 
+use crate::bindings::core::dates::daycount::PyDayCount;
 use crate::errors::display_to_py;
 use finstack_quant_core::types::CurveId;
 use finstack_quant_scenarios::spec::RateBindingSpec;
@@ -41,9 +42,8 @@ impl PyRateBindingSpec {
     ///     Tenor at which to sample the curve (e.g. ``"1Y"``).
     /// compounding : Compounding, optional
     ///     Output compounding convention. Defaults to ``Compounding.continuous()``.
-    /// day_count : str, optional
-    ///     Day-count override (e.g. ``"act/360"``). ``None`` uses the curve's
-    ///     native day count.
+    /// day_count : DayCount, optional
+    ///     Typed day-count override. ``None`` uses the curve's native day count.
     #[new]
     #[pyo3(signature = (node_id, curve_id, tenor, compounding=None, day_count=None))]
     fn new(
@@ -51,7 +51,7 @@ impl PyRateBindingSpec {
         curve_id: &str,
         tenor: &str,
         compounding: Option<PyRef<'_, PyCompounding>>,
-        day_count: Option<String>,
+        day_count: Option<PyRef<'_, PyDayCount>>,
     ) -> Self {
         let compounding = compounding.map(|c| c.inner).unwrap_or_default();
         Self {
@@ -60,7 +60,7 @@ impl PyRateBindingSpec {
                 curve_id: CurveId::from(curve_id),
                 tenor: tenor.to_string(),
                 compounding,
-                day_count,
+                day_count: day_count.map(|value| value.inner),
             },
         }
     }
@@ -88,8 +88,8 @@ impl PyRateBindingSpec {
     }
 
     #[getter]
-    fn day_count(&self) -> Option<String> {
-        self.inner.day_count.clone()
+    fn day_count(&self) -> Option<PyDayCount> {
+        self.inner.day_count.map(PyDayCount::from_inner)
     }
 
     /// Serialize to JSON.

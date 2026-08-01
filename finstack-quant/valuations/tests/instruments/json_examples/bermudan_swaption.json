@@ -24,40 +24,19 @@
         "lockout_end": null,
         "notice_days": 0
       },
-      "bermudan_type": "CoTerminal",
+      "bermudan_type": "co_terminal",
       "id": "BERM-10NC2-USD",
       "notional": {
         "amount": "10000000",
         "currency": "USD"
       },
       "option_type": "call",
-      "pricing_overrides": {
-        "adaptive_bumps": false,
-        "call_friction_cents": null,
-        "cds_act360_include_last_day": false,
-        "cds_aod_half_day_bias": false,
-        "credit_spread_bump_bp": null,
-        "mc_seed_scenario": null,
-        "mean_reversion": null,
-        "oas_price_basis": "settlement_dirty",
-        "oas_quote_compounding": "continuous",
-        "rate_bump_bp": null,
-        "rho_bump_decimal": null,
-        "spot_bump_pct": null,
-        "theta_period": null,
-        "tree_steps": null,
-        "use_gobet_miri": false,
-        "vega_bump_decimal": null,
-        "vol_bump_pct": null,
-        "vol_surface_extrapolation": "error",
-        "ytm_bump_decimal": null
-      },
       "settlement": "physical",
       "underlying_fixed_leg": {
-        "bdc": "modified_following",
+        "business_day_convention": "modified_following",
         "calendar_id": null,
         "compounding_simple": true,
-        "day_count": "Thirty360",
+        "day_count": "30_360",
         "discount_curve_id": "USD-OIS",
         "end": "2037-01-17",
         "end_of_month": false,
@@ -69,13 +48,13 @@
         "payment_lag_days": 0,
         "rate": "0.03",
         "start": "2027-01-17",
-        "stub": "None"
+        "stub": "none"
       },
       "underlying_float_leg": {
-        "bdc": "modified_following",
+        "business_day_convention": "modified_following",
         "calendar_id": null,
-        "compounding": "Simple",
-        "day_count": "Act360",
+        "compounding": "simple",
+        "day_count": "act_360",
         "discount_curve_id": "USD-OIS",
         "end": "2037-01-17",
         "end_of_month": false,
@@ -89,7 +68,7 @@
         "reset_lag_days": 0,
         "spread_bp": "0",
         "start": "2027-01-17",
-        "stub": "None"
+        "stub": "none"
       },
       "vol_surface_id": "USD-SWPNVOL"
     },

@@ -75,7 +75,7 @@
     },
     "BumpSizeConfig": {
       "additionalProperties": false,
-      "description": "Per-factor-type bump magnitudes for finite-difference sensitivity engines.\n\nUnknown fields are rejected on deserialization: every field here has a\nserde default, so a typo'd key (e.g. `\"credit_bps\"`) would otherwise be\nsilently dropped and the bump would silently revert to 1.0.",
+      "description": "Per-factor-type bump magnitudes for finite-difference sensitivity engines.\n\nUnknown fields are rejected on deserialization: every field here has a\nserde default, so a typo'd key (e.g. `\"credit_bp\"`) would otherwise be\nsilently dropped and the bump would silently revert to 1.0.",
       "properties": {
         "credit_bp": {
           "default": 1.0,
@@ -992,27 +992,27 @@
       "description": "Classification of a curve dependency's role.",
       "oneOf": [
         {
-          "const": "Discount",
+          "const": "discount",
           "description": "Discounting curve.",
           "type": "string"
         },
         {
-          "const": "Forward",
+          "const": "forward",
           "description": "Forward projection curve.",
           "type": "string"
         },
         {
-          "const": "Hazard",
+          "const": "hazard",
           "description": "Credit or hazard curve.",
           "type": "string"
         },
         {
-          "const": "Inflation",
+          "const": "inflation",
           "description": "Inflation curve.",
           "type": "string"
         },
         {
-          "const": "BaseCorrelation",
+          "const": "base_correlation",
           "description": "Base-correlation surface-backed curve.",
           "type": "string"
         }
@@ -1058,37 +1058,37 @@
       "description": "Classification used by dependency filters and declarative matching config.",
       "oneOf": [
         {
-          "const": "Discount",
+          "const": "discount",
           "description": "Discounting curve dependency.",
           "type": "string"
         },
         {
-          "const": "Forward",
+          "const": "forward",
           "description": "Forward projection curve dependency.",
           "type": "string"
         },
         {
-          "const": "Credit",
+          "const": "credit",
           "description": "Credit or hazard curve dependency.",
           "type": "string"
         },
         {
-          "const": "Spot",
+          "const": "spot",
           "description": "Equity or commodity spot dependency.",
           "type": "string"
         },
         {
-          "const": "Vol",
+          "const": "vol",
           "description": "Volatility surface dependency.",
           "type": "string"
         },
         {
-          "const": "Fx",
+          "const": "fx",
           "description": "FX pair dependency.",
           "type": "string"
         },
         {
-          "const": "Series",
+          "const": "series",
           "description": "Time-series dependency.",
           "type": "string"
         }
@@ -1096,6 +1096,7 @@
     },
     "FactorCovarianceMatrix": {
       "additionalProperties": false,
+      "description": "User-supplied factor covariance matrix with row-major storage.\n\nThe factor ID order is part of the contract: row `i`, column `j`\ncorresponds to `factor_ids[i]` and `factor_ids[j]`.\n\n# Units contract\n\nEntries are **annualized (co)variances of factor moves expressed in each\nfactor's canonical bump unit** — the same unit the sensitivity engines use\nfor deltas (see [`crate::BumpSizeConfig`] / [`crate::FactorBumpUnit`]):\nbasis points for rates/credit/inflation, percent for equity/commodity/FX,\nvol points for volatility. With sensitivities `s` in P&L-per-canonical-unit\nand `Σ` in canonical-unit², `sᵀΣs` is directly an annual P&L variance.\nMixing conventions — e.g. a covariance in decimal² (`0.0001²` per bp²)\nagainst per-bp sensitivities — mis-scales portfolio variance by `1e8`.\nThe credit calibrator produces matrices in this convention from the spread\npanel's native units; hand-built matrices must match it.",
       "properties": {
         "data": {
           "items": {
@@ -1217,6 +1218,16 @@
       ],
       "type": "object"
     },
+    "FactorModelConfigSchema": {
+      "description": "Exact schema marker accepted by [`FactorModelConfigEnvelope`].",
+      "oneOf": [
+        {
+          "const": "finstack_quant.factor_model_config/1",
+          "description": "The sole supported factor-model configuration contract.",
+          "type": "string"
+        }
+      ]
+    },
     "FactorNode": {
       "additionalProperties": false,
       "description": "A node in a hierarchical factor classification tree.",
@@ -1253,37 +1264,37 @@
       "description": "Broad classification of a risk factor.",
       "oneOf": [
         {
-          "const": "Rates",
+          "const": "rates",
           "description": "Interest-rate factor.",
           "type": "string"
         },
         {
-          "const": "Credit",
+          "const": "credit",
           "description": "Credit-spread or hazard factor.",
           "type": "string"
         },
         {
-          "const": "Equity",
+          "const": "equity",
           "description": "Equity price factor.",
           "type": "string"
         },
         {
-          "const": "FX",
+          "const": "fx",
           "description": "Foreign-exchange factor.",
           "type": "string"
         },
         {
-          "const": "Volatility",
+          "const": "volatility",
           "description": "Volatility factor.",
           "type": "string"
         },
         {
-          "const": "Commodity",
+          "const": "commodity",
           "description": "Commodity factor.",
           "type": "string"
         },
         {
-          "const": "Inflation",
+          "const": "inflation",
           "description": "Inflation factor.",
           "type": "string"
         },
@@ -1291,12 +1302,12 @@
           "additionalProperties": false,
           "description": "User-defined factor bucket.",
           "properties": {
-            "Custom": {
+            "custom": {
               "type": "string"
             }
           },
           "required": [
-            "Custom"
+            "custom"
           ],
           "type": "object"
         }
@@ -1520,7 +1531,7 @@
           "additionalProperties": false,
           "description": "Parallel shift to one or more curves.",
           "properties": {
-            "CurveParallel": {
+            "curve_parallel": {
               "properties": {
                 "curve_ids": {
                   "description": "Curves bumped by the factor.",
@@ -1542,7 +1553,7 @@
             }
           },
           "required": [
-            "CurveParallel"
+            "curve_parallel"
           ],
           "type": "object"
         },
@@ -1550,7 +1561,7 @@
           "additionalProperties": false,
           "description": "Bucketed curve shift with tenor weights.",
           "properties": {
-            "CurveBucketed": {
+            "curve_bucketed": {
               "properties": {
                 "curve_id": {
                   "$ref": "#/$defs/Id",
@@ -1584,7 +1595,7 @@
             }
           },
           "required": [
-            "CurveBucketed"
+            "curve_bucketed"
           ],
           "type": "object"
         },
@@ -1592,7 +1603,7 @@
           "additionalProperties": false,
           "description": "Equity spot move.",
           "properties": {
-            "EquitySpot": {
+            "equity_spot": {
               "properties": {
                 "tickers": {
                   "description": "Tickers moved by the factor.",
@@ -1609,7 +1620,7 @@
             }
           },
           "required": [
-            "EquitySpot"
+            "equity_spot"
           ],
           "type": "object"
         },
@@ -1617,7 +1628,7 @@
           "additionalProperties": false,
           "description": "FX rate move.",
           "properties": {
-            "FxRate": {
+            "fx_rate": {
               "properties": {
                 "pair": {
                   "description": "Currency pair moved by the factor.",
@@ -1641,7 +1652,7 @@
             }
           },
           "required": [
-            "FxRate"
+            "fx_rate"
           ],
           "type": "object"
         },
@@ -1649,29 +1660,29 @@
           "additionalProperties": false,
           "description": "Volatility shift.",
           "properties": {
-            "VolShift": {
+            "vol_shift": {
               "properties": {
-                "surface_ids": {
+                "units": {
+                  "$ref": "#/$defs/BumpUnits",
+                  "description": "Units used for the bump magnitude."
+                },
+                "vol_surface_ids": {
                   "description": "Volatility surfaces moved by the factor.",
                   "items": {
                     "type": "string"
                   },
                   "type": "array"
-                },
-                "units": {
-                  "$ref": "#/$defs/BumpUnits",
-                  "description": "Units used for the bump magnitude."
                 }
               },
               "required": [
-                "surface_ids",
+                "vol_surface_ids",
                 "units"
               ],
               "type": "object"
             }
           },
           "required": [
-            "VolShift"
+            "vol_shift"
           ],
           "type": "object"
         }
@@ -1684,7 +1695,7 @@
           "additionalProperties": false,
           "description": "Flat mapping table with first-match-wins semantics.",
           "properties": {
-            "MappingTable": {
+            "mapping_table": {
               "items": {
                 "$ref": "#/$defs/MappingRule"
               },
@@ -1692,7 +1703,7 @@
             }
           },
           "required": [
-            "MappingTable"
+            "mapping_table"
           ],
           "type": "object"
         },
@@ -1700,7 +1711,7 @@
           "additionalProperties": false,
           "description": "Ordered matcher cascade.",
           "properties": {
-            "Cascade": {
+            "cascade": {
               "items": {
                 "$ref": "#/$defs/MatchingConfig"
               },
@@ -1708,7 +1719,7 @@
             }
           },
           "required": [
-            "Cascade"
+            "cascade"
           ],
           "type": "object"
         },
@@ -1716,12 +1727,12 @@
           "additionalProperties": false,
           "description": "Hierarchical attribute-based tree matcher.",
           "properties": {
-            "Hierarchical": {
+            "hierarchical": {
               "$ref": "#/$defs/HierarchicalConfig"
             }
           },
           "required": [
-            "Hierarchical"
+            "hierarchical"
           ],
           "type": "object"
         },
@@ -1729,12 +1740,12 @@
           "additionalProperties": false,
           "description": "Calibrated credit hierarchy matcher.\n\nEmits `(credit::generic, β_pc)` plus\n`(credit::level{idx}::{dim_path}::{val_path}, β_level{idx})` entries\nusing calibrated betas from\n[`crate::credit::hierarchy::CreditFactorModel`].",
           "properties": {
-            "CreditHierarchical": {
+            "credit_hierarchical": {
               "$ref": "#/$defs/CreditHierarchicalConfig"
             }
           },
           "required": [
-            "CreditHierarchical"
+            "credit_hierarchical"
           ],
           "type": "object"
         }
@@ -1778,6 +1789,7 @@
                   "description": "Confidence level in the open interval `(0.5, 1)`.",
                   "exclusiveMaximum": 1.0,
                   "exclusiveMinimum": 0.5,
+                  "format": "double",
                   "type": "number"
                 }
               },
@@ -1802,6 +1814,7 @@
                   "description": "Confidence level in the open interval `(0.5, 1)`.",
                   "exclusiveMaximum": 1.0,
                   "exclusiveMinimum": 0.5,
+                  "format": "double",
                   "type": "number"
                 }
               },
@@ -1819,15 +1832,24 @@
       ]
     },
     "UnmatchedPolicy": {
-      "enum": [
-        "strict",
-        "residual",
-        "warn",
-        "Strict",
-        "Residual",
-        "Warn"
-      ],
-      "type": "string"
+      "description": "Policy for handling dependencies that do not match any factor.\n\nSerializes in `snake_case`, matching the crate-wide wire convention and\nthis type's own `Display`/`FromStr` representation.",
+      "oneOf": [
+        {
+          "const": "strict",
+          "description": "Fail immediately when any dependency is unmatched.\n\nUse this in production risk runs where dropping unmapped risk would be a\ncontrol failure.",
+          "type": "string"
+        },
+        {
+          "const": "residual",
+          "description": "Roll unmatched risk into a residual bucket.\n\nUse this when the engine should preserve total exposure while making the\nunmatched component explicit as residual risk.",
+          "type": "string"
+        },
+        {
+          "const": "warn",
+          "description": "Continue but surface a warning to the caller.\n\nSuitable for exploratory workflows where visibility matters but a hard\nfailure would be too disruptive.",
+          "type": "string"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/factor_model/1/factor_model_config.schema.json",
@@ -1840,9 +1862,8 @@
       "description": "Bare configuration used by in-process analysis APIs."
     },
     "schema": {
-      "const": "finstack_quant.factor_model_config/1",
-      "description": "Exact factor-model configuration contract marker.",
-      "type": "string"
+      "$ref": "#/$defs/FactorModelConfigSchema",
+      "description": "Exact factor-model configuration contract marker."
     }
   },
   "required": [

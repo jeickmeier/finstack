@@ -62,7 +62,7 @@ pub struct InstrumentCashflowEnvelope {
     /// Model key used (`"discounting"` or `"hazard_rate"`).
     pub model: String,
     /// Valuation date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of: Date,
     /// Discount curve ID used.
     pub discount_curve_id: CurveId,
@@ -87,7 +87,7 @@ pub struct InstrumentCashflowEnvelope {
 #[derive(Debug, Clone, Serialize, serde::Deserialize, JsonSchema)]
 pub struct CashflowRow {
     /// Payment date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Signed cashflow amount in row currency.
     pub amount: f64,
@@ -104,7 +104,7 @@ pub struct CashflowRow {
     pub rate: Option<f64>,
     /// Reset date when the flow is a floating-rate fixing.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub reset_date: Option<Date>,
     /// `df(as_of, date)`.
     pub discount_factor: f64,
@@ -147,8 +147,7 @@ pub struct CashflowRow {
 ///
 /// # Arguments
 ///
-/// * `instrument_json` - UTF-8 canonical tagged instrument JSON, either in a
-///   versioned envelope or bare registry-supported form.
+/// * `instrument_json` - UTF-8 canonical v1 instrument envelope.
 /// * `market` - Market context supplying discount, credit, index, and FX data
 ///   required to build and value the cashflow schedule.
 /// * `as_of` - ISO-8601 valuation date used for schedule eligibility and
@@ -334,8 +333,8 @@ fn build_envelope(
         } else {
             market.get_discount(row_discount_curve_id.as_str())?
         };
-        let curve_dc = row_discount.day_count();
-        let year_fraction = curve_dc.signed_year_fraction(as_of_date, flow.date, dc_ctx)?;
+        let curve_day_count = row_discount.day_count();
+        let year_fraction = curve_day_count.signed_year_fraction(as_of_date, flow.date, dc_ctx)?;
 
         // Flows on or before `as_of` are already settled (holder view): they
         // are not part of present value, matching `core::cashflow::npv` and
@@ -509,7 +508,7 @@ mod tests {
 
     fn serialize_bond(bond: &Bond) -> String {
         let envelope = InstrumentEnvelope {
-            schema: InstrumentEnvelope::CURRENT_SCHEMA.to_string(),
+            schema: crate::instruments::json_loader::InstrumentSchema::CURRENT,
             instrument: InstrumentJson::Bond(bond.clone()),
         };
         serde_json::to_string(&envelope).expect("serialize bond envelope")
@@ -551,8 +550,10 @@ mod tests {
                     .build()
                     .expect("hazard curve"),
             );
-        let json =
-            serde_json::to_string(&InstrumentJson::RevolvingCredit(facility)).expect("serialize");
+        let json = serde_json::to_string(&InstrumentEnvelope::new(
+            InstrumentJson::RevolvingCredit(facility),
+        ))
+        .expect("serialize");
 
         let err = instrument_cashflows_json(&json, &market, "2025-01-01", "discounting")
             .expect_err("generic rows cannot represent the recovery leg");
@@ -567,8 +568,10 @@ mod tests {
     fn malformed_instrument_precedes_model_and_date_errors() {
         let mut deal = StructuredCredit::example();
         deal.cleanup_call_pct = Some(-0.5);
-        let json = serde_json::to_string(&InstrumentJson::StructuredCredit(Box::new(deal)))
-            .expect("serialize structured credit");
+        let json = serde_json::to_string(&InstrumentEnvelope::new(
+            InstrumentJson::StructuredCredit(Box::new(deal)),
+        ))
+        .expect("serialize structured credit");
 
         let err =
             instrument_cashflows_json(&json, &MarketContext::new(), "not-a-date", "not-a-model")
@@ -605,7 +608,7 @@ mod tests {
             )
             .insert_fx(FxMatrix::new(provider));
         let instrument = InstrumentEnvelope {
-            schema: InstrumentEnvelope::CURRENT_SCHEMA.to_string(),
+            schema: crate::instruments::json_loader::InstrumentSchema::CURRENT,
             instrument: InstrumentJson::FxSwap(swap),
         };
         let json = serde_json::to_string(&instrument).expect("serialize fx swap");

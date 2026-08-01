@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from .schema import SCHEMA_VERSION, GoldenFixture
+from .schema import SCHEMA, GoldenFixture
 
 
 def test_parse_pricing_fixture(tmp_path: Path) -> None:
@@ -17,7 +17,7 @@ def test_parse_pricing_fixture(tmp_path: Path) -> None:
 
     fixture = GoldenFixture.from_path(path)
 
-    assert fixture.schema_version == SCHEMA_VERSION
+    assert fixture.schema == SCHEMA
     assert fixture.metadata.name == "test_fixture"
     assert fixture.metadata.valuation_date == "2026-04-30"
     assert fixture.kind == "pricing"
@@ -87,11 +87,11 @@ def _metadata() -> dict:
 
 def _pricing_fixture_json() -> dict:
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": _metadata(),
         "kind": "pricing",
         "model": "discounting",
-        "market": {"kind": "envelope", "envelope": {"schema": "finstack_quant.calibration"}},
+        "market": {"kind": "envelope", "envelope": {"schema": "finstack_quant.calibration/1"}},
         "instrument": {"foo": 1},
         "expected": {"npv": 100.0},
         "tolerances": {"npv": {"abs": 0.01}},
@@ -102,7 +102,7 @@ def _sabr_fixture_json() -> dict:
     metadata = _metadata()
     metadata["domain"] = "volatility.sabr"
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata,
         "kind": "sabr_smile",
         "alpha": 0.05,

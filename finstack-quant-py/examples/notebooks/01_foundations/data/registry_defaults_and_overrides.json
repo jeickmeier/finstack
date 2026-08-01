@@ -5,7 +5,7 @@
     "contract_specs": "valuations.contract_specs.v1",
     "credit_assumptions": "core.credit_assumptions.v1",
     "ecl_policy": "statements_analytics.ecl_policy.v1",
-    "margin_registry": "valuations.margin_registry.v1",
+    "margin_registry": "margin.registry.v1",
     "monte_carlo_defaults": "monte_carlo.defaults.v1",
     "portfolio_liquidity_defaults": "portfolio.liquidity_defaults.v1",
     "rating_scales": "core.rating_scales.v1",

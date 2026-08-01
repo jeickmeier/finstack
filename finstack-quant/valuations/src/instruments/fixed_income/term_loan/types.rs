@@ -88,7 +88,7 @@ fn default_settlement_days() -> u32 {
 ///
 /// let floating = RateSpec::Floating(FloatingRateSpec {
 ///     index_id: CurveId::new("USD-SOFR-3M"),
-///     spread_bp: dec!(300),     // +300 bps spread
+///     spread_bp: dec!(300),     // +300 bp spread
 ///     gearing: dec!(1),
 ///     gearing_includes_spread: true,
 ///     index_floor_bp: Some(dec!(0)),  // 0% floor
@@ -96,7 +96,7 @@ fn default_settlement_days() -> u32 {
 ///     all_in_cap_bp: None,
 ///     index_cap_bp: None,
 ///     overnight_index_constraints: Default::default(),
-///     reset_freq: Tenor::quarterly(),
+///     reset_frequency: Tenor::quarterly(),
 ///     index_tenor: None,
 ///     reset_lag_days: 2,
 ///     fixing_calendar_id: None,
@@ -108,6 +108,7 @@ fn default_settlement_days() -> u32 {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[allow(clippy::large_enum_variant)]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum RateSpec {
     /// Fixed annual rate in basis points
     Fixed {
@@ -130,16 +131,16 @@ pub enum RateSpec {
 
 impl RateSpec {
     /// Create a fixed-rate spec using typed basis points.
-    pub fn fixed_bps(rate: Bps) -> Self {
+    pub fn fixed_bp(rate: Bps) -> Self {
         Self::Fixed {
-            rate_bp: rate.as_bps(),
+            rate_bp: rate.as_bp(),
         }
     }
 
     /// Create a fixed-rate spec using a typed rate.
     pub fn fixed_rate(rate: Rate) -> Self {
         Self::Fixed {
-            rate_bp: rate.as_bps(),
+            rate_bp: rate.as_bp(),
         }
     }
 }
@@ -195,7 +196,9 @@ impl RateSpec {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = TermLoan::validate)]
 #[serde(deny_unknown_fields)]
@@ -210,11 +213,11 @@ pub struct TermLoan {
     pub notional_limit: Money,
 
     /// Issue (effective) date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue_date: Date,
 
     /// Maturity date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
 
     /// Rate specification (fixed or floating)
@@ -229,7 +232,7 @@ pub struct TermLoan {
     /// Business day convention
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
 
     /// Optional calendar id for adjustments
     pub calendar_id: Option<String>,
@@ -264,16 +267,25 @@ pub struct TermLoan {
 
     /// Pricing overrides (quoted price, seed, etc.)
     #[builder(default)]
-    #[serde(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
 
     /// Optional EIR amortization settings for reporting schedules
@@ -395,7 +407,7 @@ impl TermLoan {
                 end: self.maturity,
                 frequency: self.frequency,
                 stub: self.stub,
-                bdc: self.bdc,
+                business_day_convention: self.business_day_convention,
                 calendar_id,
                 end_of_month: false,
                 day_count: self.day_count,
@@ -668,7 +680,7 @@ impl TermLoan {
             .rate(RateSpec::Fixed { rate_bp: 600 }) // 6%
             .frequency(Tenor::quarterly())
             .day_count(DayCount::Act360)
-            .bdc(BusinessDayConvention::ModifiedFollowing)
+            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
             .calendar_id_opt(None)
             .stub(StubKind::None)
             .discount_curve_id(CurveId::new("USD-OIS"))
@@ -709,7 +721,7 @@ impl TermLoan {
             all_in_cap_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,
@@ -751,7 +763,7 @@ impl TermLoan {
             .rate(RateSpec::Floating(floating_rate))
             .frequency(Tenor::quarterly())
             .day_count(DayCount::Act360)
-            .bdc(BusinessDayConvention::ModifiedFollowing)
+            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
             .calendar_id_opt(None)
             .stub(StubKind::ShortFront)
             .discount_curve_id(CurveId::new("USD-OIS"))
@@ -824,7 +836,7 @@ impl TermLoan {
             .rate(RateSpec::Fixed { rate_bp: 600 })
             .frequency(Tenor::quarterly())
             .day_count(DayCount::Act360)
-            .bdc(BusinessDayConvention::ModifiedFollowing)
+            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
             .calendar_id_opt(None)
             .stub(StubKind::None)
             .discount_curve_id(CurveId::new("USD-OIS"))
@@ -883,7 +895,7 @@ impl TermLoan {
             .rate(RateSpec::Fixed { rate_bp: 450 })
             .frequency(Tenor::semi_annual())
             .day_count(DayCount::Thirty360)
-            .bdc(BusinessDayConvention::ModifiedFollowing)
+            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
             .calendar_id_opt(None)
             .stub(StubKind::None)
             .discount_curve_id(CurveId::new("USD-OIS"))
@@ -957,7 +969,7 @@ impl TryFrom<TermLoanSpec> for TermLoan {
             rate,
             frequency,
             day_count,
-            bdc,
+            business_day_convention,
             calendar_id,
             stub,
             amortization,
@@ -1068,7 +1080,7 @@ impl TryFrom<TermLoanSpec> for TermLoan {
             .rate(rate)
             .frequency(frequency)
             .day_count(day_count)
-            .bdc(bdc)
+            .business_day_convention(business_day_convention)
             .calendar_id_opt(calendar_id)
             .stub(stub)
             .discount_curve_id(discount_curve_id)
@@ -1215,13 +1227,13 @@ impl finstack_quant_covenants::InstrumentMutator for TermLoan {
     }
 
     fn increase_rate(&mut self, increase: f64) -> finstack_quant_core::Result<()> {
-        let bps_increase = (increase * 10_000.0).round() as i32;
+        let bp_increase = (increase * 10_000.0).round() as i32;
         match &mut self.rate {
             RateSpec::Fixed { rate_bp } => {
-                *rate_bp += bps_increase;
+                *rate_bp += bp_increase;
             }
             RateSpec::Floating(spec) => {
-                spec.spread_bp += rust_decimal::Decimal::new(bps_increase as i64, 0);
+                spec.spread_bp += rust_decimal::Decimal::new(bp_increase as i64, 0);
             }
         }
         Ok(())
@@ -1309,7 +1321,7 @@ mod tests {
             rate: RateSpec::Fixed { rate_bp: 550 },
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::None,
             amortization: AmortizationSpec::None,
@@ -1359,7 +1371,7 @@ mod tests {
             rate: RateSpec::Fixed { rate_bp: 450 },
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::None,
             amortization: AmortizationSpec::None,
@@ -1395,7 +1407,7 @@ mod tests {
             rate: RateSpec::Fixed { rate_bp: 500 },
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::None,
             amortization: AmortizationSpec::None,

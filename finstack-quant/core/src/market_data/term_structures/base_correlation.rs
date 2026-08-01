@@ -139,6 +139,7 @@ impl ArbitrageCheckResult {
 ///
 /// Each violation type captures the relevant data points involved.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ArbitrageViolation {
     /// Correlation decreases as detachment increases (violates monotonicity).
     ///
@@ -249,6 +250,7 @@ impl core::fmt::Display for ArbitrageViolation {
 /// When calibration produces non-monotonic correlations, these methods
 /// can be used to create an arbitrage-free curve.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SmoothingMethod {
     /// No smoothing - use raw calibrated values.
     #[default]

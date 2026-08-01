@@ -20,8 +20,8 @@ use rust_decimal::Decimal;
 pub struct MbsFeeSpec {
     /// Fee name (e.g., "servicing", "guarantee")
     pub name: String,
-    /// Annual fee rate in basis points (e.g., 25.0 for 25 bps)
-    pub annual_rate_bps: f64,
+    /// Annual fee rate in basis points (e.g., 25.0 for 25 bp)
+    pub annual_rate_bp: f64,
     /// Day count convention for accrual
     pub day_count: DayCount,
     /// Payment frequency
@@ -33,15 +33,15 @@ impl MbsFeeSpec {
     ///
     /// # Arguments
     ///
-    /// * `annual_rate_bps` - Annual servicing fee rate in basis points
+    /// * `annual_rate_bp` - Annual servicing fee rate in basis points
     ///
     /// # Returns
     ///
     /// Fee spec with standard MBS conventions (30/360, monthly)
-    pub fn servicing(annual_rate_bps: f64) -> Self {
+    pub fn servicing(annual_rate_bp: f64) -> Self {
         Self {
             name: "servicing".to_string(),
-            annual_rate_bps,
+            annual_rate_bp,
             day_count: DayCount::Thirty360,
             frequency: Tenor::monthly(),
         }
@@ -51,12 +51,12 @@ impl MbsFeeSpec {
     ///
     /// # Arguments
     ///
-    /// * `annual_rate_bps` - Annual servicing fee in basis points, preserved
+    /// * `annual_rate_bp` - Annual servicing fee in basis points, preserved
     ///   without float conversion in the standard monthly 30/360 convention.
-    pub fn servicing_bps(annual_rate_bps: Bps) -> Self {
+    pub fn servicing_bp(annual_rate_bp: Bps) -> Self {
         Self {
             name: "servicing".to_string(),
-            annual_rate_bps: annual_rate_bps.as_bps() as f64,
+            annual_rate_bp: annual_rate_bp.as_bp() as f64,
             day_count: DayCount::Thirty360,
             frequency: Tenor::monthly(),
         }
@@ -66,15 +66,15 @@ impl MbsFeeSpec {
     ///
     /// # Arguments
     ///
-    /// * `annual_rate_bps` - Annual guarantee fee rate in basis points
+    /// * `annual_rate_bp` - Annual guarantee fee rate in basis points
     ///
     /// # Returns
     ///
     /// Fee spec with standard MBS conventions (30/360, monthly)
-    pub fn guarantee(annual_rate_bps: f64) -> Self {
+    pub fn guarantee(annual_rate_bp: f64) -> Self {
         Self {
             name: "guarantee_fee".to_string(),
-            annual_rate_bps,
+            annual_rate_bp,
             day_count: DayCount::Thirty360,
             frequency: Tenor::monthly(),
         }
@@ -84,12 +84,12 @@ impl MbsFeeSpec {
     ///
     /// # Arguments
     ///
-    /// * `annual_rate_bps` - Annual agency guarantee fee in basis points,
+    /// * `annual_rate_bp` - Annual agency guarantee fee in basis points,
     ///   preserved in the standard monthly 30/360 convention.
-    pub fn guarantee_bps(annual_rate_bps: Bps) -> Self {
+    pub fn guarantee_bp(annual_rate_bp: Bps) -> Self {
         Self {
             name: "guarantee_fee".to_string(),
-            annual_rate_bps: annual_rate_bps.as_bps() as f64,
+            annual_rate_bp: annual_rate_bp.as_bp() as f64,
             day_count: DayCount::Thirty360,
             frequency: Tenor::monthly(),
         }
@@ -97,7 +97,7 @@ impl MbsFeeSpec {
 
     /// Get the annual fee rate as a decimal.
     pub fn annual_rate(&self) -> f64 {
-        self.annual_rate_bps / 10_000.0
+        self.annual_rate_bp / 10_000.0
     }
 
     /// Calculate the fee amount for a given balance and accrual period.
@@ -133,17 +133,17 @@ pub fn to_cashflow_fee_spec(mbs_fee: &MbsFeeSpec) -> crate::cashflow::builder::F
     use crate::cashflow::builder::{FeeBase, FeeSpec};
 
     debug_assert!(
-        mbs_fee.annual_rate_bps.is_finite(),
-        "to_cashflow_fee_spec: annual_rate_bps is not finite ({})",
-        mbs_fee.annual_rate_bps
+        mbs_fee.annual_rate_bp.is_finite(),
+        "to_cashflow_fee_spec: annual_rate_bp is not finite ({})",
+        mbs_fee.annual_rate_bp
     );
-    FeeSpec::PeriodicBps {
+    FeeSpec::PeriodicBp {
         base: FeeBase::Drawn,
-        // Convert f64 bps to Decimal for exact representation
-        bps: Decimal::try_from(mbs_fee.annual_rate_bps).unwrap_or(Decimal::ZERO),
-        freq: mbs_fee.frequency,
-        dc: mbs_fee.day_count,
-        bdc: BusinessDayConvention::Following,
+        // Convert f64 bp to Decimal for exact representation
+        bp: Decimal::try_from(mbs_fee.annual_rate_bp).unwrap_or(Decimal::ZERO),
+        frequency: mbs_fee.frequency,
+        day_count: mbs_fee.day_count,
+        business_day_convention: BusinessDayConvention::Following,
         calendar_id: "weekends_only".to_string(),
         stub: StubKind::None,
         accrual_basis: Default::default(),
@@ -212,44 +212,44 @@ pub fn gross_wac_rate(net_rate: Rate, servicing_rate: Rate, guarantee_rate: Rate
 #[derive(Debug, Clone)]
 pub struct AgencyFeeRates {
     /// Servicing fee in basis points
-    pub servicing_bps: f64,
+    pub servicing_bp: f64,
     /// Guarantee fee in basis points
-    pub guarantee_bps: f64,
+    pub guarantee_bp: f64,
 }
 
 impl AgencyFeeRates {
-    /// Typical FNMA fee rates (25 bps each).
+    /// Typical FNMA fee rates (25 bp each).
     pub fn fnma_standard() -> Self {
         Self {
-            servicing_bps: 25.0,
-            guarantee_bps: 25.0,
+            servicing_bp: 25.0,
+            guarantee_bp: 25.0,
         }
     }
 
-    /// Typical FHLMC fee rates (25 bps each).
+    /// Typical FHLMC fee rates (25 bp each).
     pub fn fhlmc_standard() -> Self {
         Self {
-            servicing_bps: 25.0,
-            guarantee_bps: 25.0,
+            servicing_bp: 25.0,
+            guarantee_bp: 25.0,
         }
     }
 
     /// Typical GNMA fee rates (lower g-fee due to government backing).
     pub fn gnma_standard() -> Self {
         Self {
-            servicing_bps: 25.0,
-            guarantee_bps: 6.0, // Lower g-fee for government-backed
+            servicing_bp: 25.0,
+            guarantee_bp: 6.0, // Lower g-fee for government-backed
         }
     }
 
     /// Total fee strip in basis points.
-    pub fn total_bps(&self) -> f64 {
-        self.servicing_bps + self.guarantee_bps
+    pub fn total_bp(&self) -> f64 {
+        self.servicing_bp + self.guarantee_bp
     }
 
     /// Total fee strip as decimal rate.
     pub fn total_rate(&self) -> f64 {
-        self.total_bps() / 10_000.0
+        self.total_bp() / 10_000.0
     }
 }
 
@@ -277,7 +277,7 @@ mod tests {
         let balance = 1_000_000.0;
         let accrual_days = 30;
 
-        // 25 bps annual on 1M for 30 days (30/360)
+        // 25 bp annual on 1M for 30 days (30/360)
         // = 1,000,000 * 0.0025 * (30/360) = 208.33
         let amount = fee.calculate_fee(balance, accrual_days);
         assert!((amount - 208.33).abs() < 0.01);
@@ -286,8 +286,8 @@ mod tests {
     #[test]
     fn test_net_coupon_calculation() {
         let wac = 0.045; // 4.5%
-        let servicing = 0.0025; // 25 bps
-        let guarantee = 0.0025; // 25 bps
+        let servicing = 0.0025; // 25 bp
+        let guarantee = 0.0025; // 25 bp
 
         let net = net_coupon(wac, servicing, guarantee);
         assert!((net - 0.04).abs() < 1e-10); // 4.0%
@@ -306,10 +306,10 @@ mod tests {
     #[test]
     fn test_agency_fee_rates() {
         let fnma = AgencyFeeRates::fnma_standard();
-        assert_eq!(fnma.total_bps(), 50.0);
+        assert_eq!(fnma.total_bp(), 50.0);
         assert!((fnma.total_rate() - 0.005).abs() < 1e-10);
 
         let gnma = AgencyFeeRates::gnma_standard();
-        assert!(gnma.guarantee_bps < fnma.guarantee_bps);
+        assert!(gnma.guarantee_bp < fnma.guarantee_bp);
     }
 }

@@ -8,18 +8,20 @@
 //!
 //! # Schema version
 //!
-//! [`CreditFactorModel::SCHEMA_VERSION`](crate::credit::hierarchy::CreditFactorModel::SCHEMA_VERSION)
-//! is `"finstack_quant.credit_factor_model/1"`.
+//! [`CreditFactorModel::schema`] is the exact
+//! `"finstack_quant.credit_factor_model/1"` marker.
 //! Consumers must check this field before trusting any other field.
 //!
 //! # Usage
 //!
 //! ```rust
-//! use finstack_quant_factor_model::credit::hierarchy::CreditFactorModel;
+//! use finstack_quant_factor_model::credit::hierarchy::{
+//!     CreditFactorModel, CreditFactorModelSchema,
+//! };
 //!
-//! // Deserialize from JSON — call `model.validate()` to check schema_version and consistency
+//! // Deserialize from JSON, then validate internal consistency.
 //! let json = r#"{
-//!   "schema_version": "finstack_quant.credit_factor_model/1",
+//!   "schema": "finstack_quant.credit_factor_model/1",
 //!   "as_of": "2024-03-29",
 //!   "calibration_window": { "start": "2022-03-29", "end": "2024-03-29" },
 //!   "policy": "globally_off",
@@ -28,7 +30,7 @@
 //!   "config": {
 //!     "factors": [],
 //!     "covariance": { "n": 0, "factor_ids": [], "data": [] },
-//!     "matching": { "MappingTable": [] },
+//!     "matching": { "mapping_table": [] },
 //!     "pricing_mode": "delta_based"
 //!   },
 //!   "issuer_betas": [],
@@ -46,15 +48,14 @@
 //! }"#;
 //!
 //! let model: CreditFactorModel = serde_json::from_str(json).expect("valid artifact");
-//! assert_eq!(model.schema_version, CreditFactorModel::SCHEMA_VERSION);
+//! assert_eq!(model.schema, CreditFactorModelSchema::CURRENT);
 //! ```
 //!
 //! # Design notes
 //!
 //! - Stable artifact structs use `#[serde(deny_unknown_fields)]` to catch schema
-//!   drift early. Sub-types where future extension is anticipated (e.g.
-//!   `FactorVolModel`, `CalibrationDiagnostics`) omit `deny_unknown_fields` to
-//!   allow additive forward-compatible extension without breaking older writers.
+//!   drift early. `CalibrationDiagnostics` is the explicitly open extension
+//!   object for additive diagnostic fields.
 //! - All keyed maps use `BTreeMap` for deterministic serialization order.
 //! - `Vec<IssuerBetaRow>` is kept sorted by `issuer_id` so two calibrations on
 //!   the same inputs produce byte-identical JSON.
@@ -70,33 +71,28 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-fn date_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    schemars::json_schema!({
-        "type": "string",
-        "format": "date",
-    })
-}
-
-fn date_array_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    schemars::json_schema!({
-        "type": "array",
-        "items": {
-            "type": "string",
-            "format": "date",
-        },
-    })
-}
-
-fn credit_factor_model_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    schemars::json_schema!({
-        "type": "string",
-        "const": CreditFactorModel::SCHEMA_VERSION,
-    })
-}
-
 /// Persistence contract for [`CreditFactorModel`].
 pub const CREDIT_FACTOR_MODEL_CONTRACT: ContractDescriptor =
-    ContractDescriptor::new("finstack_quant.credit_factor_model", 1);
+    ContractDescriptor::new("finstack_quant.credit_factor_model");
+
+/// Sole supported credit-factor-model contract marker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum CreditFactorModelSchema {
+    /// Canonical v1 credit factor model.
+    #[serde(rename = "finstack_quant.credit_factor_model/1")]
+    CreditFactorModel,
+}
+
+impl CreditFactorModelSchema {
+    /// The exact marker required by every persisted credit factor model.
+    pub const CURRENT: Self = Self::CreditFactorModel;
+
+    /// Return the exact namespaced persistence marker.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        "finstack_quant.credit_factor_model/1"
+    }
+}
 
 // ---------------------------------------------------------------------------
 // dimension_key helper — lives here so CreditHierarchySpec can use it
@@ -134,10 +130,10 @@ pub fn dimension_key(dim: &HierarchyDimension) -> String {
 #[serde(deny_unknown_fields)]
 pub struct DateRange {
     /// First date of the window (inclusive).
-    #[schemars(schema_with = "date_schema")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// Last date of the window (inclusive).
-    #[schemars(schema_with = "date_schema")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
 }
 
@@ -641,7 +637,7 @@ pub struct VolState {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct FactorHistories {
     /// Ordered sequence of observation dates (aligned with value vectors).
-    #[schemars(schema_with = "date_array_schema")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub dates: Vec<Date>,
     /// Factor return series keyed by factor ID.
     ///
@@ -737,8 +733,7 @@ pub struct GenericFactorSpec {
 ///
 /// # Schema version
 ///
-/// Always check [`schema_version`][Self::schema_version] against
-/// [`SCHEMA_VERSION`][Self::SCHEMA_VERSION] before trusting content.
+/// [`schema`][Self::schema] is deserialized as an exact v1 marker.
 ///
 /// # Determinism
 ///
@@ -750,11 +745,10 @@ pub struct GenericFactorSpec {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreditFactorModel {
-    /// Schema version string; must equal [`SCHEMA_VERSION`][Self::SCHEMA_VERSION].
-    #[schemars(schema_with = "credit_factor_model_schema_marker")]
-    pub schema_version: String,
+    /// Exact namespaced v1 schema marker.
+    pub schema: CreditFactorModelSchema,
     /// Calibration anchor date (`as_of`).
-    #[schemars(schema_with = "date_schema")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of: Date,
     /// History window consumed by calibration.
     pub calibration_window: DateRange,
@@ -809,9 +803,6 @@ pub struct CreditFactorModel {
 }
 
 impl CreditFactorModel {
-    /// Canonical schema version for this artifact format.
-    pub const SCHEMA_VERSION: &'static str = "finstack_quant.credit_factor_model/1";
-
     /// Load and validate a persisted credit-factor-model artifact.
     ///
     /// This entry point fuses bounded JSON deserialization, explicit schema
@@ -834,15 +825,11 @@ impl CreditFactorModel {
         limits: &LoadLimits,
     ) -> Result<(Self, ValidationReport), ContractError> {
         let value = parse_json_value(bytes, limits)?;
-        let schema = match value.get("schema_version") {
+        let schema = match value.get("schema") {
             Some(schema) => Some(deserialize_json_value::<String>(schema.clone(), limits)?),
             None => None,
         };
-        CREDIT_FACTOR_MODEL_CONTRACT.parse_schema_strict(
-            schema.as_deref(),
-            "/schema_version",
-            limits,
-        )?;
+        CREDIT_FACTOR_MODEL_CONTRACT.parse_schema_strict(schema.as_deref(), "/schema", limits)?;
         let model: Self = deserialize_json_value(value, limits)?;
         model.validate().map_err(|error| {
             let mut report = ValidationReport::default();
@@ -861,12 +848,11 @@ impl CreditFactorModel {
         Ok((model, ValidationReport::default()))
     }
 
-    /// Validate the artifact's schema version and internal consistency.
+    /// Validate the artifact's internal consistency.
     ///
     /// # Errors
     ///
     /// Returns `Err` when:
-    /// - `schema_version` does not equal [`Self::SCHEMA_VERSION`].
     /// - `issuer_betas` contains duplicate `issuer_id` values.
     /// - `hierarchy.levels` contains duplicate dimension names.
     /// - any issuer tag value used by a hierarchy dimension contains `'.'`
@@ -879,15 +865,6 @@ impl CreditFactorModel {
     ///   [`crate::FactorModelConfig::validate_matching_factor_ids`]) — such a
     ///   factor would silently contribute zero risk at lookup time.
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
-        // Schema version
-        if self.schema_version != Self::SCHEMA_VERSION {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "CreditFactorModel: expected schema_version {:?}, got {:?}",
-                Self::SCHEMA_VERSION,
-                self.schema_version
-            )));
-        }
-
         // Duplicate issuers
         let mut seen_issuers: BTreeSet<&IssuerId> = BTreeSet::new();
         for row in &self.issuer_betas {
@@ -990,7 +967,7 @@ mod tests {
 
     fn minimal_model() -> CreditFactorModel {
         CreditFactorModel {
-            schema_version: CreditFactorModel::SCHEMA_VERSION.to_owned(),
+            schema: CreditFactorModelSchema::CURRENT,
             as_of: create_date(2024, Month::March, 29).unwrap(),
             calibration_window: DateRange {
                 start: create_date(2022, Month::March, 29).unwrap(),
@@ -1055,7 +1032,7 @@ mod tests {
         let json = serde_json::to_string(&model).unwrap();
         let back: CreditFactorModel = serde_json::from_str(&json).unwrap();
         // Verify key fields survive the round-trip
-        assert_eq!(back.schema_version, CreditFactorModel::SCHEMA_VERSION);
+        assert_eq!(back.schema, CreditFactorModelSchema::CreditFactorModel);
         assert_eq!(back.as_of, model.as_of);
         assert_eq!(back.hierarchy.levels, model.hierarchy.levels);
         assert_eq!(back.issuer_betas.len(), 0);
@@ -1073,7 +1050,7 @@ mod tests {
             &finstack_quant_core::LoadLimits::default(),
         )
         .expect("valid model");
-        assert_eq!(loaded.schema_version, CreditFactorModel::SCHEMA_VERSION);
+        assert_eq!(loaded.schema, CreditFactorModelSchema::CreditFactorModel);
         assert!(report.diagnostics.is_empty());
 
         let base = serde_json::to_value(model).expect("serialize fixture");
@@ -1085,12 +1062,12 @@ mod tests {
         ] {
             let mut value = base.clone();
             match schema {
-                Some(schema) => value["schema_version"] = serde_json::json!(schema),
+                Some(schema) => value["schema"] = serde_json::json!(schema),
                 None => {
                     value
                         .as_object_mut()
                         .expect("model object")
-                        .remove("schema_version");
+                        .remove("schema");
                 }
             }
             assert!(
@@ -1115,54 +1092,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn credit_factor_model_version_matrix_fixture_drives_strict_loader() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../tests/data/contract_version_matrix.json"
-        ))
-        .expect("version matrix fixture parses");
-        let matrix = &fixture["credit"];
-        let base = matrix["base"].clone();
-        let cases = matrix["cases"]
-            .as_array()
-            .expect("matrix contains schema cases");
-
-        for case in cases {
-            let name = case["name"].as_str().expect("case name");
-            let mut document = base.clone();
-            match case.get("schema_version") {
-                Some(serde_json::Value::Null) | None => {
-                    document
-                        .as_object_mut()
-                        .expect("credit model object")
-                        .remove("schema_version");
-                }
-                Some(schema) => document["schema_version"] = schema.clone(),
-            }
-            let bytes = serde_json::to_vec(&document).expect("case serializes");
-            let expected = case["expected"].as_str().expect("expected outcome");
-            match CreditFactorModel::from_slice_strict(
-                &bytes,
-                &finstack_quant_core::LoadLimits::default(),
-            ) {
-                Ok((_loaded, report)) => {
-                    assert_eq!(expected, "ok", "{name} unexpectedly loaded");
-                    assert!(report.diagnostics.is_empty(), "{name}");
-                }
-                Err(finstack_quant_core::ContractError::Report(report)) => {
-                    assert_eq!(report.diagnostics[0].code, expected, "{name}");
-                }
-                Err(error) => panic!("{name} returned unstructured error: {error}"),
-            }
-        }
-    }
-
     // ------------------------------------------------------------------
-    // INVARIANTS.md §8 compatibility contract: the root artifact is closed
+    // INVARIANTS.md §8 contract: the root artifact is closed
     // (`deny_unknown_fields`), so an unknown root key must FAIL to
     // deserialize; `CalibrationDiagnostics` is an open extension point, so
     // an unknown diagnostics key must deserialize successfully. Adding a
-    // root key therefore requires a schema-version bump.
+    // root key therefore requires a coordinated v1 contract change.
     // ------------------------------------------------------------------
     #[test]
     fn unknown_root_key_is_rejected_but_diagnostics_extension_is_accepted() {
@@ -1199,21 +1134,12 @@ mod tests {
         );
     }
 
-    // ------------------------------------------------------------------
-    // INVARIANTS.md §8: wrong schema_version deserializes (serde does not
-    // validate it) but MUST be rejected by validate().
-    // ------------------------------------------------------------------
     #[test]
-    fn wrong_schema_version_deserializes_but_fails_validate() {
-        let mut model = minimal_model();
-        model.schema_version = "finstack_quant.credit_factor_model/999".to_owned();
-        let json = serde_json::to_string(&model).unwrap();
-        let parsed: CreditFactorModel =
-            serde_json::from_str(&json).expect("serde alone does not check schema_version");
-        assert!(
-            parsed.validate().is_err(),
-            "validate() must reject a schema_version other than SCHEMA_VERSION"
-        );
+    fn wrong_schema_marker_is_rejected_during_deserialization() {
+        let mut value = serde_json::to_value(minimal_model()).expect("serialize model");
+        value["schema"] = serde_json::json!("finstack_quant.credit_factor_model/999");
+        serde_json::from_value::<CreditFactorModel>(value)
+            .expect_err("unsupported schema marker must fail during deserialization");
     }
 
     // ------------------------------------------------------------------
@@ -1302,16 +1228,6 @@ mod tests {
         let back: CreditFactorModel = serde_json::from_str(&json).unwrap();
         assert!(back.validate().is_ok());
         assert!(back.hierarchy.levels.is_empty());
-    }
-
-    // ------------------------------------------------------------------
-    // Additional: schema version mismatch is rejected
-    // ------------------------------------------------------------------
-    #[test]
-    fn validate_rejects_wrong_schema_version() {
-        let mut model = minimal_model();
-        model.schema_version = "finstack_quant.credit_factor_model/0".to_owned();
-        assert!(model.validate().is_err());
     }
 
     // ------------------------------------------------------------------

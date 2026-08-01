@@ -49,9 +49,9 @@ let financing_spec = FinancingLegSpec {
 
 // 2. Define the schedule parameters
 let schedule_params = ScheduleParams {
-    freq: Tenor::quarterly(),                        // Quarterly resets
-    dc: DayCount::Act360,                            // Day count for accrual
-    bdc: BusinessDayConvention::ModifiedFollowing,   // Business day adjustment
+    frequency: Tenor::quarterly(),                        // Quarterly resets
+    day_count: DayCount::Act360,                            // Day count for accrual
+    business_day_convention: BusinessDayConvention::ModifiedFollowing,   // Business day adjustment
     calendar_id: "NYC".to_string(),                  // New York calendar
     stub: StubKind::ShortFront,                      // Short stub at front
     end_of_month: false,

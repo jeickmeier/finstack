@@ -280,8 +280,8 @@ impl PyHaircut01 {
     }
 
     /// Current haircut in basis points.
-    fn haircut_bps(&self) -> f64 {
-        self.inner.haircut_bps()
+    fn haircut_bp(&self) -> f64 {
+        self.inner.haircut_bp()
     }
 
     fn __repr__(&self) -> String {

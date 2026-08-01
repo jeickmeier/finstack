@@ -9,14 +9,6 @@ etc.) over plain `f64` slices. It provides:
 - **DAG‑optimized**: shared sub‑expressions across many formulas are evaluated once per `eval()` call.
 - **Embedding‑friendly**: no Polars dependency, `SimpleContext` handles column resolution and can be constructed from any ordered iterator of column names.
 
-> **Note (cache removal)**: an earlier version persisted intermediate node
-> results across `eval()` calls in an LRU cache keyed on `(dag_node_id, len)`.
-> Because the key carried no input fingerprint, re-evaluating the same
-> `CompiledExpr` on different same-length data returned stale results
-> . The cache
-> was removed; `CompiledExpr::with_cache` and `EvalOpts.cache_budget_mb`
-> remain as no-ops for API compatibility.
-
 Semantics note: when input columns have mismatched lengths, missing tail values
 propagate as `NaN` instead of being silently zero-filled. Adjusted EWM mean also
 uses the standard weighted numerator/denominator form (`adjust=true`) rather than
@@ -73,18 +65,15 @@ The Polars `Series` API is not exposed here; callers work with simple slices (`&
   - `SimpleContext`: name→index map for small, in‑memory frames.
 
 - **`dag.rs`**: DAG planning and execution plans
-  - `DagNode { id, expr, dependencies, ref_count, cost }`.
-  - `ExecutionPlan { nodes, roots, meta, cache_strategy }`.
-  - `CacheStrategy { cache_nodes, expected_hit_rate, memory_budget }` — vestigial
-    statistics from the removed result cache; nothing consults them at eval time.
-    Retained only because `ExecutionPlan` is part of the serialized `CompiledExpr`.
+  - `DagNode { id, expr, dependencies, ref_count }`.
+  - `ExecutionPlan { nodes, roots, meta }`.
   - `DagBuilder`: walks one or more roots, deduplicates identical sub‑trees, assigns
     IDs, computes ref counts and topological order. Expressions nested deeper than
     512 levels are rejected with a validation error (guards plan construction,
     ref counting, and topological sort against stack overflow).
 
 - **`eval.rs`**: compiled evaluator and scalar implementations
-  - `EvalOpts { plan: Option<ExecutionPlan> /* serde-skipped */, cache_budget_mb: Option<usize> /* no-op */, max_arena_bytes: usize }`.
+  - `EvalOpts { plan: Option<ExecutionPlan> /* serde-skipped */, max_arena_bytes: usize }`.
   - `CompiledExpr`:
     - `ast: Expr`
     - `plan: Option<ExecutionPlan>`

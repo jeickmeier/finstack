@@ -7,28 +7,22 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::bumps::BumpSpec;
 use finstack_quant_core::market_data::context::MarketContext;
-use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve, DiscountCurveRateCalibration, DiscountCurveRateQuote,
-    DiscountCurveRateQuoteType, HazardCurve,
+    DiscountCurve, HazardCurve, RateCalibrationCurveRole, RateCalibrationMethod,
+    RateCalibrationPillar, RateCalibrationQuote, RateCalibrationRecipe,
 };
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IndexId};
-use finstack_quant_valuations::calibration::api::schema::DiscountCurveParams;
 use finstack_quant_valuations::calibration::bumps::{
-    bump_discount_curve, bump_hazard_spreads, BumpRequest,
+    bump_discount_curve_from_rate_calibration, bump_hazard_spreads, BumpRequest,
 };
-use finstack_quant_valuations::calibration::{CalibrationMethod, RatesStepConventions};
 use finstack_quant_valuations::instruments::credit_derivatives::cds::{
     CdsValuationConvention, CreditDefaultSwap,
 };
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::market::conventions::ids::CdsDocClause;
-use finstack_quant_valuations::market::quotes::ids::{Pillar, QuoteId};
-use finstack_quant_valuations::market::quotes::rates::RateQuote;
 use finstack_quant_valuations::metrics::MetricId;
 use time::macros::date;
-use time::Duration;
 
 fn sum_bucketed_cs01(result: &finstack_quant_valuations::results::ValuationResult) -> f64 {
     result
@@ -65,23 +59,28 @@ fn build_test_discount(rate: f64, base: Date, id: &str) -> DiscountCurve {
 fn build_quote_calibrated_discount(rate: f64, base: Date, id: &str) -> DiscountCurve {
     build_test_discount(rate, base, id)
         .to_builder_with_id(id)
-        .rate_calibration(DiscountCurveRateCalibration {
-            index_id: "USD-SOFR-1M".to_string(),
+        .rate_calibration(RateCalibrationRecipe {
             currency: Currency::USD,
+            method: RateCalibrationMethod::Bootstrap,
+            curve_day_count: DayCount::Act360,
+            ois_compounding: None,
+            role: RateCalibrationCurveRole::Discount {
+                projection_curve_id: CurveId::new(id),
+            },
             quotes: vec![
-                DiscountCurveRateQuote {
-                    quote_type: DiscountCurveRateQuoteType::Deposit,
-                    tenor: "1Y".to_string(),
+                RateCalibrationQuote::Deposit {
+                    index_id: IndexId::new("USD-SOFR-1M"),
+                    pillar: RateCalibrationPillar::Tenor("1Y".parse().unwrap()),
                     rate,
                 },
-                DiscountCurveRateQuote {
-                    quote_type: DiscountCurveRateQuoteType::Deposit,
-                    tenor: "5Y".to_string(),
+                RateCalibrationQuote::Deposit {
+                    index_id: IndexId::new("USD-SOFR-1M"),
+                    pillar: RateCalibrationPillar::Tenor("5Y".parse().unwrap()),
                     rate,
                 },
-                DiscountCurveRateQuote {
-                    quote_type: DiscountCurveRateQuoteType::Deposit,
-                    tenor: "10Y".to_string(),
+                RateCalibrationQuote::Deposit {
+                    index_id: IndexId::new("USD-SOFR-1M"),
+                    pillar: RateCalibrationPillar::Tenor("10Y".parse().unwrap()),
                     rate,
                 },
             ],
@@ -92,74 +91,17 @@ fn build_quote_calibrated_discount(rate: f64, base: Date, id: &str) -> DiscountC
 
 fn bump_quote_calibrated_discount(
     curve: &DiscountCurve,
-    calibration: &DiscountCurveRateCalibration,
+    calibration: &RateCalibrationRecipe,
     market: &MarketContext,
     bump_bp: f64,
 ) -> DiscountCurve {
-    let index = IndexId::new(calibration.index_id.as_str());
-    let quotes: Vec<RateQuote> = calibration
-        .quotes
-        .iter()
-        .map(|quote| RateQuote::Deposit {
-            id: QuoteId::new(format!("{}-{}", curve.id(), quote.tenor)),
-            index: index.clone(),
-            pillar: Pillar::Tenor(quote.tenor.parse().unwrap()),
-            rate: quote.rate,
-        })
-        .collect();
-    let first_rate = calibration
-        .quotes
-        .first()
-        .map(|quote| quote.rate)
-        .unwrap_or(0.0);
-    let fixings = ScalarTimeSeries::new(
-        format!("FIXING:{}", curve.id()),
-        vec![
-            (curve.base_date() - Duration::days(3), first_rate),
-            (curve.base_date() - Duration::days(2), first_rate),
-            (curve.base_date() - Duration::days(1), first_rate),
-            (curve.base_date(), first_rate),
-        ],
-        None,
+    bump_discount_curve_from_rate_calibration(
+        curve,
+        calibration,
+        market,
+        &BumpRequest::Parallel(bump_bp),
     )
-    .unwrap();
-    let params = DiscountCurveParams {
-        curve_id: curve.id().clone(),
-        currency: calibration.currency,
-        base_date: curve.base_date(),
-        method: CalibrationMethod::Bootstrap,
-        interpolation: curve.interp_style(),
-        extrapolation: curve.extrapolation(),
-        pricing_discount_id: None,
-        pricing_forward_id: None,
-        conventions: RatesStepConventions {
-            ois_compounding: None,
-            curve_day_count: Some(curve.day_count()),
-        },
-    };
-    // Mirror the production delta-overlay semantics: re-bootstrap both the
-    // bumped and the unbumped quote sets and apply only their df ratio to the
-    // stored curve, preserving the stored base shape.
-    let ctx = market.clone().insert_series(fixings);
-    let bumped =
-        bump_discount_curve(&quotes, &params, &ctx, &BumpRequest::Parallel(bump_bp)).unwrap();
-    let unbumped =
-        bump_discount_curve(&quotes, &params, &ctx, &BumpRequest::Parallel(0.0)).unwrap();
-    let overlaid: Vec<(f64, f64)> = curve
-        .knots()
-        .iter()
-        .zip(curve.dfs())
-        .map(|(&t, &df)| (t, df * bumped.df(t) / unbumped.df(t)))
-        .collect();
-    DiscountCurve::builder(curve.id().clone())
-        .base_date(curve.base_date())
-        .day_count(curve.day_count())
-        .knots(overlaid)
-        .interp(curve.interp_style())
-        .extrapolation(curve.extrapolation())
-        .rate_calibration(calibration.clone())
-        .build()
-        .unwrap()
+    .unwrap()
 }
 
 fn build_test_hazard(hz: f64, rec: f64, base: Date, id: &str) -> HazardCurve {
@@ -397,7 +339,7 @@ fn test_par_spread_metric() {
     // Reasonable range for investment grade
     assert!(
         par_spread > 10.0 && par_spread < 500.0,
-        "Par spread={:.2} bps outside typical IG range",
+        "Par spread={:.2} bp outside typical IG range",
         par_spread
     );
 }

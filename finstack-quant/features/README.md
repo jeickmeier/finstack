@@ -216,7 +216,7 @@ let spec = json!({
 });
 
 let result_json = transform_panel(&spec.to_string())?;
-// result_json => {"columns": {"ret1": [...], "rank": [...]}}
+// result_json => {"columns": [{"name": "ret1", "values": [...]}, ...]}
 let _ = result_json;
 # Ok(())
 # }

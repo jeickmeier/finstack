@@ -14,12 +14,12 @@ AS_OF_T0 = "2025-01-15"
 AS_OF_T1 = "2025-01-16"
 
 
-def _portfolio_json(currency: str = "USD", base_ccy: str = "USD") -> str:
+def _portfolio_json(currency: str = "USD", base_currency: str = "USD") -> str:
     curve_id = f"{currency}-OIS"
     return json.dumps({
         "id": f"{currency}-ATTR",
         "as_of": AS_OF_T0,
-        "base_ccy": base_ccy,
+        "base_currency": base_currency,
         "entities": {"FUND": {"id": "FUND"}},
         "positions": [
             {
@@ -30,11 +30,11 @@ def _portfolio_json(currency: str = "USD", base_ccy: str = "USD") -> str:
                     "type": "deposit",
                     "spec": {
                         "id": f"{currency}-DEP",
-                        "notional": {"amount": 1_000_000.0, "currency": currency},
+                        "notional": {"amount": "1000000", "currency": currency},
                         "start_date": AS_OF_T0,
                         "maturity": "2025-07-15",
-                        "day_count": "Act360",
-                        "quote_rate": 0.04,
+                        "day_count": "act_360",
+                        "quote_rate": "0.04",
                         "discount_curve_id": curve_id,
                         "attributes": {},
                     },
@@ -86,7 +86,7 @@ def test_attribute_portfolio_pnl_returns_typed_aggregate_money_and_nested_json()
         market_t1,
         AS_OF_T0,
         AS_OF_T1,
-        "Parallel",
+        "parallel",
     )
 
     assert isinstance(result, PortfolioAttribution)
@@ -117,7 +117,7 @@ def test_nested_attribution_json_preserves_portfolio_insertion_order() -> None:
         _market("USD", AS_OF_T1, shift=0.002),
         AS_OF_T0,
         AS_OF_T1,
-        "Parallel",
+        "parallel",
     )
 
     assert list(json.loads(result.by_position_json())) == ["USD-POS-Z", "USD-POS-A"]
@@ -133,7 +133,7 @@ def test_attribute_portfolio_pnl_accepts_json_extractors_and_tracks_fx_translati
         market_t1,
         AS_OF_T0,
         AS_OF_T1,
-        "Parallel",
+        "parallel",
     )
     from_json = attribute_portfolio_pnl(
         _portfolio_json("EUR"),
@@ -141,7 +141,7 @@ def test_attribute_portfolio_pnl_accepts_json_extractors_and_tracks_fx_translati
         market_t1.to_json(),
         AS_OF_T0,
         AS_OF_T1,
-        "Parallel",
+        "parallel",
     )
 
     assert typed.fx_translation_pnl.currency == Currency("USD")

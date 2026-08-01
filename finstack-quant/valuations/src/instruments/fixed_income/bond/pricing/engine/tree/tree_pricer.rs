@@ -690,7 +690,7 @@ impl TreePricer {
 
         let Ok(surface) = market_context.get_surface(swaption_vol_surface_id) else {
             tracing::warn!(
-                surface_id = swaption_vol_surface_id,
+                vol_surface_id = swaption_vol_surface_id,
                 "Swaption vol surface not found in market context; \
                  falling back to HoLee tree model"
             );
@@ -727,7 +727,7 @@ impl TreePricer {
 
         if quotes.len() < 2 {
             tracing::warn!(
-                surface_id = swaption_vol_surface_id,
+                vol_surface_id = swaption_vol_surface_id,
                 n_valid = quotes.len(),
                 "Insufficient swaption quotes from vol surface; \
                  falling back to HoLee tree model"
@@ -735,8 +735,8 @@ impl TreePricer {
             return TreeModelChoice::HoLee;
         }
 
-        let dc = std::sync::Arc::clone(discount_curve);
-        let df_fn = move |t: f64| dc.df(t);
+        let day_count = std::sync::Arc::clone(discount_curve);
+        let df_fn = move |t: f64| day_count.df(t);
 
         match calibrate_hull_white_to_swaptions(&df_fn, &quotes, SwapFrequency::SemiAnnual, None) {
             Ok((params, report)) => {
@@ -787,8 +787,8 @@ fn validate_bdt_calibration_quality(quality: Option<&CalibrationResult>) -> Resu
     }
 
     Err(Error::Validation(format!(
-        "BDT calibration quality is unacceptable: max_error_bps={:.6}, max_error_step={}, fallback_count={}, converged={}",
-        quality.max_error_bps, quality.max_error_step, quality.fallback_count, quality.converged
+        "BDT calibration quality is unacceptable: max_error_bp={:.6}, max_error_step={}, fallback_count={}, converged={}",
+        quality.max_error_bp, quality.max_error_step, quality.fallback_count, quality.converged
     )))
 }
 
@@ -844,7 +844,7 @@ mod tests {
     #[test]
     fn bdt_calibration_quality_rejects_fallbacks_and_large_error() {
         let poor = CalibrationResult {
-            max_error_bps: 1.25,
+            max_error_bp: 1.25,
             max_error_step: 4,
             fallback_count: 1,
             converged: true,

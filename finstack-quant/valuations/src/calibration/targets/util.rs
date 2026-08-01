@@ -14,7 +14,7 @@ use std::cell::RefCell;
 /// Resolve the day count convention for a discount or forward curve from market conventions.
 pub(crate) fn curve_day_count_from_quotes(quotes: &[RateQuote]) -> Result<DayCount> {
     let registry = ConventionRegistry::try_global()?;
-    let mut curve_dc: Option<DayCount> = None;
+    let mut curve_day_count: Option<DayCount> = None;
 
     for q in quotes {
         let index_id = match q {
@@ -27,19 +27,19 @@ pub(crate) fn curve_day_count_from_quotes(quotes: &[RateQuote]) -> Result<DayCou
         };
 
         let idx_conv = registry.require_rate_index(&index_id)?;
-        match curve_dc {
-            Some(dc) if dc != idx_conv.day_count => {
+        match curve_day_count {
+            Some(day_count) if day_count != idx_conv.day_count => {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "Mixed rate index day counts for curve construction: got {:?} and {:?}",
-                    dc, idx_conv.day_count
+                    day_count, idx_conv.day_count
                 )));
             }
             Some(_) => {}
-            None => curve_dc = Some(idx_conv.day_count),
+            None => curve_day_count = Some(idx_conv.day_count),
         }
     }
 
-    curve_dc.ok_or_else(|| {
+    curve_day_count.ok_or_else(|| {
         finstack_quant_core::Error::Validation(
             "Unable to resolve curve day count: no rate quotes provided".to_string(),
         )
@@ -59,20 +59,20 @@ pub(crate) struct PreparedRateQuotes {
 /// [`CalibrationQuote::Rates`].
 ///
 /// Pass `curve_ids` as the role -> id mapping the underlying instruments expect (typically
-/// "discount" and, for projection-aware quotes, "forward"). Pass `explicit_curve_dc = None`
+/// "discount" and, for projection-aware quotes, "forward"). Pass `explicit_curve_day_count = None`
 /// to derive the curve time-axis day count from the quote indices.
 pub(crate) fn prepare_rate_calibration_quotes(
     quotes: &[MarketQuote],
     base_date: Date,
     curve_ids: finstack_quant_core::HashMap<String, String>,
-    explicit_curve_dc: Option<DayCount>,
+    explicit_curve_day_count: Option<DayCount>,
     residual_notional: f64,
 ) -> Result<PreparedRateQuotes> {
     prepare_rate_calibration_quotes_with_ois_override(
         quotes,
         base_date,
         curve_ids,
-        explicit_curve_dc,
+        explicit_curve_day_count,
         residual_notional,
         None,
     )
@@ -86,7 +86,7 @@ pub(crate) fn prepare_rate_calibration_quotes_with_ois_override(
     quotes: &[MarketQuote],
     base_date: Date,
     curve_ids: finstack_quant_core::HashMap<String, String>,
-    explicit_curve_dc: Option<DayCount>,
+    explicit_curve_day_count: Option<DayCount>,
     residual_notional: f64,
     ois_compounding_override: Option<FloatingLegCompounding>,
 ) -> Result<PreparedRateQuotes> {
@@ -97,8 +97,8 @@ pub(crate) fn prepare_rate_calibration_quotes_with_ois_override(
         ));
     }
 
-    let curve_day_count = match explicit_curve_dc {
-        Some(dc) => dc,
+    let curve_day_count = match explicit_curve_day_count {
+        Some(day_count) => day_count,
         None => curve_day_count_from_quotes(&rates_quotes)?,
     };
 

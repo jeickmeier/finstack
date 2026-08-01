@@ -28,7 +28,7 @@
 //!
 //! // Define a max leverage covenant (4.5x Debt/EBITDA) with quarterly testing
 //! let covenant = Covenant::new(
-//!     CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+//!     CovenantType::MaxDebtToEbitda { threshold: 4.5 },
 //!     Tenor::quarterly(),
 //! );
 //!

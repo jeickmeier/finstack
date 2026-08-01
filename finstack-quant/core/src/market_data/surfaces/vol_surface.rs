@@ -136,6 +136,20 @@ impl std::fmt::Display for VolQuoteType {
     }
 }
 
+impl std::str::FromStr for VolQuoteType {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "black_lognormal" => Ok(Self::BlackLognormal),
+            "normal" => Ok(Self::Normal),
+            _ => Err(format!(
+                "unknown volatility quote type {value:?}; expected black_lognormal or normal"
+            )),
+        }
+    }
+}
+
 /// Interpolation contract for vol surfaces.
 #[derive(
     Clone,
@@ -165,8 +179,8 @@ pub enum VolInterpolationMode {
     /// arbitrage-free. For arbitrage-sensitive workflows (Dupire local vol,
     /// no-arb checks, term-structure interpolation) select
     /// [`TotalVariance`](Self::TotalVariance) via
-    /// [`VolSurface::with_interpolation_mode`]. The default is retained
-    /// for backward compatibility and quote-space fidelity at the pillars.
+    /// [`VolSurface::with_interpolation_mode`]. Use this default when
+    /// quote-space fidelity at the pillars is the governing convention.
     #[default]
     Vol,
     /// Interpolate total variance `sigma^2 * t`, then convert back to implied vol.
@@ -181,8 +195,9 @@ pub enum VolInterpolationMode {
 /// Volatility surface defined on expiry × strike grid.
 ///
 /// Internally stores volatilities in row-major order as a boxed slice.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(try_from = "RawVolSurface", into = "RawVolSurface")]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(try_from = "VolSurfaceWire", into = "VolSurfaceWire")]
+#[schemars(try_from = "VolSurfaceWire")]
 pub struct VolSurface {
     id: CurveId,
     expiries: Box<[f64]>,
@@ -197,39 +212,26 @@ pub struct VolSurface {
 /// Raw serializable state of a VolSurface
 #[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct RawVolSurface {
+struct VolSurfaceWire {
     /// Surface identifier
     pub id: String,
     /// Expiry times in years
     pub expiries: Vec<f64>,
     /// Strike prices
     pub strikes: Vec<f64>,
-    /// Semantic meaning of the secondary axis. Defaults to strike for older payloads.
-    #[serde(default)]
+    /// Semantic meaning of the secondary axis.
     pub secondary_axis: VolSurfaceAxis,
-    /// Quote convention. Defaults to Black/lognormal for older payloads.
-    #[serde(default)]
+    /// Quote convention.
     pub quote_type: VolQuoteType,
-    /// Interpolation contract. Defaults to direct vol interpolation for older payloads.
-    #[serde(default)]
+    /// Interpolation contract.
     pub interpolation_mode: VolInterpolationMode,
     /// Volatility values in row-major order
     pub vols_row_major: Vec<f64>,
 }
 
-impl schemars::JsonSchema for VolSurface {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        "VolSurface".into()
-    }
-
-    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        <RawVolSurface as schemars::JsonSchema>::json_schema(generator)
-    }
-}
-
-impl From<VolSurface> for RawVolSurface {
+impl From<VolSurface> for VolSurfaceWire {
     fn from(surface: VolSurface) -> Self {
-        RawVolSurface {
+        VolSurfaceWire {
             id: surface.id.to_string(),
             expiries: surface.expiries.to_vec(),
             strikes: surface.strikes.to_vec(),
@@ -241,10 +243,10 @@ impl From<VolSurface> for RawVolSurface {
     }
 }
 
-impl TryFrom<RawVolSurface> for VolSurface {
+impl TryFrom<VolSurfaceWire> for VolSurface {
     type Error = crate::Error;
 
-    fn try_from(state: RawVolSurface) -> crate::Result<Self> {
+    fn try_from(state: VolSurfaceWire) -> crate::Result<Self> {
         Ok(Self::from_grid(
             &state.id,
             &state.expiries,
@@ -1477,22 +1479,23 @@ mod tests {
     }
 
     #[test]
-    fn quote_type_serde_round_trips_and_defaults_to_black() {
+    fn quote_type_serde_round_trips_and_is_required() {
         // Round trip: an explicit Normal tag must survive serde.
         let normal = flat_surface().with_quote_type(VolQuoteType::Normal);
         let json = serde_json::to_string(&normal).expect("serialize");
         let back: VolSurface = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(back.quote_type(), VolQuoteType::Normal);
 
-        // Back-compat: older payloads without the field default to Black/lognormal.
-        let legacy = r#"{
-            "id": "EQ-LEGACY",
+        let incomplete = r#"{
+            "id": "EQ-INCOMPLETE",
             "expiries": [1.0, 2.0],
             "strikes": [90.0, 100.0],
             "vols_row_major": [0.2, 0.2, 0.2, 0.2]
         }"#;
-        let surface: VolSurface = serde_json::from_str(legacy).expect("legacy deserialize");
-        assert_eq!(surface.quote_type(), VolQuoteType::BlackLognormal);
+        assert!(
+            serde_json::from_str::<VolSurface>(incomplete).is_err(),
+            "surface axis, quote convention, and interpolation mode are required"
+        );
     }
 
     #[test]

@@ -52,7 +52,7 @@ impl std::fmt::Display for SnowballVariant {
 /// # References
 ///
 /// - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models*. Chapter 14.
-#[derive(PartialEq, Clone, Debug, finstack_quant_valuations_macros::FocusedPricingOverrides)]
+#[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Snowball {
     /// Unique instrument identifier.
@@ -72,7 +72,7 @@ pub struct Snowball {
     /// Notional amount.
     pub notional: Money,
     /// Coupon payment dates (must be sorted ascending).
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub coupon_dates: Vec<Date>,
     /// Floating rate index identifier.
     pub floating_index_id: CurveId,
@@ -88,14 +88,23 @@ pub struct Snowball {
     /// Day count convention.
     pub day_count: DayCount,
     /// Pricing overrides.
-    #[serde(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes.
     pub attributes: Attributes,
@@ -298,10 +307,10 @@ impl crate::instruments::common_impl::traits::Instrument for Snowball {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
         deps.add_forward_curve(self.floating_index_id.clone());
-        if let Some(surface_id) = &self.vol_surface_id {
+        if let Some(vol_surface_id) = &self.vol_surface_id {
             deps.add_volatility_dependency(
                 crate::instruments::common_impl::dependencies::VolatilityDependency::new(
-                    surface_id.clone(),
+                    vol_surface_id.clone(),
                     None,
                     None,
                 ),

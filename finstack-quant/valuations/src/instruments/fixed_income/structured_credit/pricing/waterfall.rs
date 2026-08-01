@@ -1570,7 +1570,7 @@ mod ic_diversion_tests {
 
         // AssetPool with a single large performing asset: OC numerator is huge so
         // the OC test comfortably passes.
-        let mut pool = AssetPool::new("POOL", DealType::CLO, currency);
+        let mut pool = AssetPool::new("POOL", DealType::Clo, currency);
         {
             use crate::instruments::fixed_income::structured_credit::types::{
                 AssetType, PoolAsset,
@@ -1584,7 +1584,7 @@ mod ic_diversion_tests {
                 },
                 balance: Money::new(500_000_000.0, currency),
                 rate: 0.08,
-                spread_bps: Some(400.0),
+                spread_bp: Some(400.0),
                 index_id: None,
                 maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
                 credit_quality: Some(CreditRating::BB),
@@ -1796,7 +1796,7 @@ mod ic_diversion_tests {
         // AssetPool: one performing asset sized so BOTH OC tests breach but by
         // different amounts (the junior test, with a smaller denominator,
         // needs a larger cure than the senior test).
-        let mut pool = AssetPool::new("POOL", DealType::CLO, currency);
+        let mut pool = AssetPool::new("POOL", DealType::Clo, currency);
         {
             use crate::instruments::fixed_income::structured_credit::types::{
                 AssetType, PoolAsset,
@@ -1812,7 +1812,7 @@ mod ic_diversion_tests {
                 // OC ratios breach their triggers.
                 balance: Money::new(118_000_000.0, currency),
                 rate: 0.08,
-                spread_bps: Some(400.0),
+                spread_bp: Some(400.0),
                 index_id: None,
                 maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
                 credit_quality: Some(CreditRating::BB),
@@ -1980,7 +1980,7 @@ mod ic_diversion_tests {
     fn diversion_never_over_pays_senior_principal() {
         let currency = Currency::USD;
 
-        let mut pool = AssetPool::new("POOL", DealType::CLO, currency);
+        let mut pool = AssetPool::new("POOL", DealType::Clo, currency);
         {
             use crate::instruments::fixed_income::structured_credit::types::{
                 AssetType, PoolAsset,
@@ -1996,7 +1996,7 @@ mod ic_diversion_tests {
                 // and the junior tier diverts to the senior principal tier.
                 balance: Money::new(20_000_000.0, currency),
                 rate: 0.08,
-                spread_bps: Some(400.0),
+                spread_bp: Some(400.0),
                 index_id: None,
                 maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
                 credit_quality: Some(CreditRating::BB),
@@ -2131,7 +2131,7 @@ mod ic_diversion_tests {
     #[test]
     fn coverage_economics_late_junior_fee_is_not_deducted_from_ic_numerator() {
         let currency = Currency::USD;
-        let pool = AssetPool::new("POOL", DealType::CLO, currency);
+        let pool = AssetPool::new("POOL", DealType::Clo, currency);
         let tranche = Tranche::new(
             "CLASS_A",
             0.0,
@@ -2216,7 +2216,7 @@ mod ic_diversion_tests {
     #[test]
     fn coverage_economics_custom_principal_recipient_order_drives_ic_cure() {
         let currency = Currency::USD;
-        let pool = AssetPool::new("POOL", DealType::CLO, currency);
+        let pool = AssetPool::new("POOL", DealType::Clo, currency);
         let maturity = Date::from_calendar_date(2031, Month::January, 1).expect("date");
         let class_a = Tranche::new(
             "CLASS_A",
@@ -2320,7 +2320,7 @@ mod ic_diversion_tests {
     #[test]
     fn coverage_economics_non_curative_principal_recipient_consumes_cure_cash() {
         let currency = Currency::USD;
-        let pool = AssetPool::new("POOL", DealType::CLO, currency);
+        let pool = AssetPool::new("POOL", DealType::Clo, currency);
         let maturity = Date::from_calendar_date(2031, Month::January, 1).expect("date");
         let class_a = Tranche::new(
             "CLASS_A",
@@ -2482,7 +2482,7 @@ mod water_fill_tests {
         let result = execute_waterfall(
             &waterfall,
             &tranches,
-            &AssetPool::new("POOL", DealType::CLO, ccy),
+            &AssetPool::new("POOL", DealType::Clo, ccy),
             WaterfallContext {
                 available_cash: Money::new(300_000.0, ccy),
                 interest_collections: Money::new(300_000.0, ccy),

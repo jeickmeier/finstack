@@ -34,7 +34,8 @@ pub(crate) fn default_rate_bounds_policy_for_serde() -> RateBoundsPolicy {
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RateBounds {
     /// Minimum allowed rate (decimal, e.g., -0.02 for -2%)
     pub min_rate: f64,
@@ -160,7 +161,7 @@ impl RateBounds {
 /// explicit and avoids relying on `RateBounds::default()` as an implicit assumption.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RateBoundsPolicy {
     /// Pick currency-specific bounds via `RateBounds::for_currency(currency)`.
@@ -183,12 +184,11 @@ impl std::str::FromStr for RateBoundsPolicy {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
-            "auto_currency" | "autocurrency" | "auto" => Ok(Self::AutoCurrency),
+        match s {
+            "auto_currency" => Ok(Self::AutoCurrency),
             "explicit" => Ok(Self::Explicit),
             other => Err(format!(
-                "Unknown rate bounds policy: '{}'. Valid: auto_currency, auto, explicit",
+                "Unknown rate bounds policy: '{}'. Valid: auto_currency, explicit",
                 other
             )),
         }
@@ -198,7 +198,8 @@ impl std::str::FromStr for RateBoundsPolicy {
 /// Runtime validation behavior for arbitrage/consistency checks.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ValidationMode {
     /// Emit warnings (non-fatal) when validations fail.
     /// Useful for exploratory analysis or legacy data.
@@ -221,12 +222,11 @@ impl std::str::FromStr for ValidationMode {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
-            "warn" | "warning" => Ok(Self::Warn),
-            "error" | "strict" => Ok(Self::Error),
+        match s {
+            "warn" => Ok(Self::Warn),
+            "error" => Ok(Self::Error),
             other => Err(format!(
-                "Unknown validation mode: '{}'. Valid: warn, warning, error, strict",
+                "Unknown validation mode: '{}'. Valid: warn, error",
                 other
             )),
         }
@@ -240,7 +240,8 @@ impl std::str::FromStr for ValidationMode {
 /// for specific arbitrage and monotonicity checks.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ValidationConfig {
     /// Enable forward rate positivity check
     pub check_forward_positivity: bool,
@@ -471,36 +472,29 @@ mod tests {
 
     #[test]
     fn validation_mode_fromstr_display_roundtrip() {
-        fn assert_validation_mode(label: &str, expected: ValidationMode) {
-            assert!(matches!(ValidationMode::from_str(label), Ok(value) if value == expected));
-        }
-
         let variants = [ValidationMode::Warn, ValidationMode::Error];
         for v in variants {
             let s = v.to_string();
             let parsed = ValidationMode::from_str(&s).expect("roundtrip parse should succeed");
             assert_eq!(v, parsed, "roundtrip failed for {s}");
         }
-        // Test aliases
-        assert_validation_mode("warning", ValidationMode::Warn);
-        assert_validation_mode("strict", ValidationMode::Error);
+        for rejected in ["warning", "strict", "Warn", " warn"] {
+            assert!(ValidationMode::from_str(rejected).is_err());
+        }
         assert!(ValidationMode::from_str("invalid").is_err());
     }
 
     #[test]
     fn rate_bounds_policy_fromstr_display_roundtrip() {
-        fn assert_rate_bounds_policy(label: &str, expected: RateBoundsPolicy) {
-            assert!(matches!(RateBoundsPolicy::from_str(label), Ok(value) if value == expected));
-        }
-
         let variants = [RateBoundsPolicy::AutoCurrency, RateBoundsPolicy::Explicit];
         for v in variants {
             let s = v.to_string();
             let parsed = RateBoundsPolicy::from_str(&s).expect("roundtrip parse should succeed");
             assert_eq!(v, parsed, "roundtrip failed for {s}");
         }
-        // Test aliases
-        assert_rate_bounds_policy("auto", RateBoundsPolicy::AutoCurrency);
+        for rejected in ["auto", "autocurrency", "auto-currency", "AutoCurrency"] {
+            assert!(RateBoundsPolicy::from_str(rejected).is_err());
+        }
         assert!(RateBoundsPolicy::from_str("invalid").is_err());
     }
 }

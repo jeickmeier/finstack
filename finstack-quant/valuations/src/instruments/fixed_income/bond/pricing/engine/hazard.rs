@@ -194,7 +194,7 @@ impl HazardBondEngine {
         // signed canonical schedule cashflows, so the recovery leg tracks the correct
         // notional at each interval boundary.
         for cf in schedule.get_flows() {
-            if cf.date > as_of && matches!(cf.kind, CFKind::PIK | CFKind::Amortization) {
+            if cf.date > as_of && matches!(cf.kind, CFKind::Pik | CFKind::Amortization) {
                 dates.push(cf.date);
             }
         }
@@ -286,7 +286,7 @@ impl HazardBondEngine {
                             *future_balance_delta.entry(cf.date).or_insert(0.0) -= amt;
                         }
                     }
-                    CFKind::PIK => {
+                    CFKind::Pik => {
                         if cf.date <= as_of {
                             outstanding += amt;
                         } else {
@@ -438,7 +438,7 @@ mod tests {
         let mut spec = CashflowSpec::fixed(0.05, Tenor::semi_annual(), DayCount::Act365F)
             .expect("finite test coupon");
         if let CashflowSpec::Fixed(ref mut inner) = spec {
-            inner.coupon_type = CouponType::PIK;
+            inner.coupon_type = CouponType::Pik;
         }
         Bond::builder()
             .id("TEST_PIK_BOND_HAZARD".into())

@@ -15,7 +15,7 @@ use crate::xva::mva::ImProfile;
 /// Setting [`im_profile`](Self::im_profile) additionally turns on MVA — the
 /// funding cost of the initial margin the desk posts over the life of the
 /// netting set. Both adjustments are driven off the same unsecured funding
-/// spread unless [`margin_funding_spread_bps`](Self::margin_funding_spread_bps)
+/// spread unless [`margin_funding_spread_bp`](Self::margin_funding_spread_bp)
 /// overrides it.
 ///
 /// # Examples
@@ -25,7 +25,7 @@ use crate::xva::mva::ImProfile;
 ///
 /// // FVA only.
 /// let fva_only = FundingConfig {
-///     funding_spread_bps: 50.0,
+///     funding_spread_bp: 50.0,
 ///     ..Default::default()
 /// };
 /// assert!(fva_only.im_profile.is_none());
@@ -42,8 +42,8 @@ pub struct FundingConfig {
     ///
     /// This is the spread over the risk-free rate that the institution
     /// pays to fund positive (out-of-the-money to counterparty) exposure.
-    /// Typical values: 20–100 bps depending on the institution's credit quality.
-    pub funding_spread_bps: f64,
+    /// Typical values: 20–100 bp depending on the institution's credit quality.
+    pub funding_spread_bp: f64,
 
     /// Funding benefit spread in basis points (benefit on negative exposure).
     ///
@@ -51,7 +51,7 @@ pub struct FundingConfig {
     /// In practice, the benefit spread may be lower than the cost spread
     /// due to asymmetric funding conditions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub funding_benefit_bps: Option<f64>,
+    pub funding_benefit_bp: Option<f64>,
 
     /// Expected initial-margin profile `E[IM(t)]` that drives MVA.
     ///
@@ -69,12 +69,12 @@ pub struct FundingConfig {
 
     /// Spread in basis points applied to posted initial margin (MVA).
     ///
-    /// If `None`, MVA uses `funding_spread_bps` — the desk's unsecured
+    /// If `None`, MVA uses `funding_spread_bp` — the desk's unsecured
     /// funding spread, which is the standard assumption (Green 2015, ch. 10).
     /// Override when IM is funded at a different (typically term or partially
     /// secured) level than uncollateralized derivative exposure.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub margin_funding_spread_bps: Option<f64>,
+    pub margin_funding_spread_bp: Option<f64>,
 }
 
 impl FundingConfig {
@@ -90,30 +90,30 @@ impl FundingConfig {
     /// Returns an error when a spread is negative or non-finite, the funding
     /// benefit exceeds the funding cost, or the optional IM profile is invalid.
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
-        if !self.funding_spread_bps.is_finite() || self.funding_spread_bps < 0.0 {
+        if !self.funding_spread_bp.is_finite() || self.funding_spread_bp < 0.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "FundingConfig: funding_spread_bps {} must be non-negative and finite",
-                self.funding_spread_bps
+                "FundingConfig: funding_spread_bp {} must be non-negative and finite",
+                self.funding_spread_bp
             )));
         }
-        if let Some(benefit) = self.funding_benefit_bps {
+        if let Some(benefit) = self.funding_benefit_bp {
             if !benefit.is_finite() || benefit < 0.0 {
                 return Err(finstack_quant_core::Error::Validation(format!(
-                    "FundingConfig: funding_benefit_bps {benefit} must be non-negative and finite"
+                    "FundingConfig: funding_benefit_bp {benefit} must be non-negative and finite"
                 )));
             }
-            if benefit > self.funding_spread_bps {
+            if benefit > self.funding_spread_bp {
                 return Err(finstack_quant_core::Error::Validation(format!(
-                    "FundingConfig: funding_benefit_bps {benefit} must not exceed \
-                     funding_spread_bps {}",
-                    self.funding_spread_bps
+                    "FundingConfig: funding_benefit_bp {benefit} must not exceed \
+                     funding_spread_bp {}",
+                    self.funding_spread_bp
                 )));
             }
         }
-        if let Some(margin_spread) = self.margin_funding_spread_bps {
+        if let Some(margin_spread) = self.margin_funding_spread_bp {
             if !margin_spread.is_finite() || margin_spread < 0.0 {
                 return Err(finstack_quant_core::Error::Validation(format!(
-                    "FundingConfig: margin_funding_spread_bps {margin_spread} must be \
+                    "FundingConfig: margin_funding_spread_bp {margin_spread} must be \
                      non-negative and finite"
                 )));
             }
@@ -126,26 +126,26 @@ impl FundingConfig {
 
     /// Returns the effective funding benefit spread in basis points.
     ///
-    /// If `funding_benefit_bps` is `None`, returns `funding_spread_bps`
+    /// If `funding_benefit_bp` is `None`, returns `funding_spread_bp`
     /// (symmetric funding assumption).
     ///
     /// # Returns
     ///
     /// The benefit spread in basis points.
-    pub fn effective_benefit_bps(&self) -> f64 {
-        self.funding_benefit_bps.unwrap_or(self.funding_spread_bps)
+    pub fn effective_benefit_bp(&self) -> f64 {
+        self.funding_benefit_bp.unwrap_or(self.funding_spread_bp)
     }
 
     /// Returns the effective IM funding spread in basis points (MVA).
     ///
-    /// If `margin_funding_spread_bps` is `None`, returns `funding_spread_bps`.
+    /// If `margin_funding_spread_bp` is `None`, returns `funding_spread_bp`.
     ///
     /// # Returns
     ///
     /// The IM funding spread in basis points.
-    pub fn effective_margin_spread_bps(&self) -> f64 {
-        self.margin_funding_spread_bps
-            .unwrap_or(self.funding_spread_bps)
+    pub fn effective_margin_spread_bp(&self) -> f64 {
+        self.margin_funding_spread_bp
+            .unwrap_or(self.funding_spread_bp)
     }
 }
 
@@ -278,19 +278,18 @@ impl XvaConfig {
 /// the desk**. They compose additively into the all-in adjustment:
 ///
 /// ```text
-/// bilateral_cva = CVA − DVA + FVA               (legacy funding-inclusive)
-/// total_xva     = bilateral_cva + MVA            (all-in)
+/// total_xva = CVA − DVA + FVA + MVA
 /// ```
 ///
-/// `bilateral_cva` retains its legacy funding-inclusive meaning for
-/// compatibility. `total_xva` is the quantity subtracted from the risk-free
-/// value of the netting set when MVA is modeled.
+/// `total_xva` is the quantity subtracted from the risk-free value of the
+/// netting set. Uncomputed optional legs contribute zero.
 ///
 /// # Exposure Profiles
 ///
 /// Each profile entry is a `(time, value)` pair where time is in years
 /// from the valuation date and value is in the portfolio's base currency.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct XvaResult {
     /// Unilateral CVA (positive = cost to the desk).
     ///
@@ -332,32 +331,19 @@ pub struct XvaResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mva: Option<f64>,
 
-    /// Legacy bilateral adjustment: `CVA − DVA + FVA`.
-    ///
-    /// This field retains the historical funding-inclusive meaning for API
-    /// compatibility. Uncomputed FVA contributes zero.
-    ///
-    /// `None` when bilateral CVA is not computed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bilateral_cva: Option<f64>,
-
-    /// All-in valuation adjustment: `bilateral_cva + MVA`.
+    /// All-in valuation adjustment: `CVA − DVA + FVA + MVA`.
     ///
     /// Equivalently, this is `CVA − DVA + FVA + MVA`. Uncomputed components
-    /// contribute zero, so a run without an IM profile yields
-    /// `total_xva == bilateral_cva`.
+    /// contribute zero.
     ///
     /// This is the quantity subtracted from the risk-free value of the
     /// netting set.
-    ///
-    /// `None` when only a unilateral CVA was computed.
     ///
     /// # References
     ///
     /// - Gregory, J. (2020). *The xVA Challenge*, 4th ed. Wiley. Chapter 14.
     /// - Green, A. (2015). *XVA*. Wiley. Chapters 9-10.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub total_xva: Option<f64>,
+    pub total_xva: f64,
 
     /// Expected Positive Exposure profile: `(time, EPE(t))`.
     ///
@@ -786,32 +772,32 @@ mod tests {
     #[test]
     fn funding_config_defaults_leave_mva_off() {
         let fva_only = FundingConfig {
-            funding_spread_bps: 50.0,
+            funding_spread_bp: 50.0,
             ..Default::default()
         };
         assert!(fva_only.im_profile.is_none());
-        assert!(fva_only.margin_funding_spread_bps.is_none());
+        assert!(fva_only.margin_funding_spread_bp.is_none());
         // Both derived spreads fall back to the single quoted funding spread.
-        assert!((fva_only.effective_benefit_bps() - 50.0).abs() < f64::EPSILON);
-        assert!((fva_only.effective_margin_spread_bps() - 50.0).abs() < f64::EPSILON);
+        assert!((fva_only.effective_benefit_bp() - 50.0).abs() < f64::EPSILON);
+        assert!((fva_only.effective_margin_spread_bp() - 50.0).abs() < f64::EPSILON);
     }
 
     #[test]
-    fn funding_config_mva_fields_are_wire_additive() {
-        let legacy = r#"{"funding_spread_bps":50.0,"funding_benefit_bps":30.0}"#;
-        let parsed: FundingConfig = serde_json::from_str(legacy).expect("legacy payload parses");
+    fn funding_config_optional_mva_fields_may_be_omitted() {
+        let minimal = r#"{"funding_spread_bp":50.0,"funding_benefit_bp":30.0}"#;
+        let parsed: FundingConfig = serde_json::from_str(minimal).expect("minimal payload parses");
         assert!(parsed.im_profile.is_none());
-        assert!(parsed.margin_funding_spread_bps.is_none());
+        assert!(parsed.margin_funding_spread_bp.is_none());
 
         // Unset optionals stay off the wire.
         let json = serde_json::to_string(&parsed).expect("serialize");
         assert!(!json.contains("im_profile"), "{json}");
-        assert!(!json.contains("margin_funding_spread_bps"), "{json}");
+        assert!(!json.contains("margin_funding_spread_bp"), "{json}");
     }
 
     #[test]
     fn funding_config_rejects_unknown_json_fields() {
-        let json = r#"{"funding_spread_bps":50.0,"funding_spred_bps":40.0}"#;
+        let json = r#"{"funding_spread_bp":50.0,"funding_spred_bp":40.0}"#;
         assert!(
             serde_json::from_str::<FundingConfig>(json).is_err(),
             "misspelled funding fields must fail closed"
@@ -821,14 +807,14 @@ mod tests {
     #[test]
     fn funding_config_validates_direct_use() {
         let invalid = FundingConfig {
-            funding_spread_bps: -1.0,
+            funding_spread_bp: -1.0,
             ..Default::default()
         };
         assert!(invalid.validate().is_err());
 
         let benefit_above_cost = FundingConfig {
-            funding_spread_bps: 25.0,
-            funding_benefit_bps: Some(30.0),
+            funding_spread_bp: 25.0,
+            funding_benefit_bp: Some(30.0),
             ..Default::default()
         };
         assert!(benefit_above_cost.validate().is_err());
@@ -838,8 +824,8 @@ mod tests {
     fn config_validation_rejects_negative_margin_funding_spread() {
         let config = XvaConfig {
             funding: Some(FundingConfig {
-                funding_spread_bps: 50.0,
-                margin_funding_spread_bps: Some(-1.0),
+                funding_spread_bp: 50.0,
+                margin_funding_spread_bp: Some(-1.0),
                 ..Default::default()
             }),
             ..XvaConfig::default()
@@ -851,7 +837,7 @@ mod tests {
     fn config_validation_rejects_invalid_im_profile() {
         let config = XvaConfig {
             funding: Some(FundingConfig {
-                funding_spread_bps: 50.0,
+                funding_spread_bp: 50.0,
                 im_profile: Some(crate::xva::mva::ImProfile {
                     times: vec![2.0, 1.0],
                     im_values: vec![1.0, 1.0],
@@ -867,13 +853,13 @@ mod tests {
     fn config_validation_accepts_valid_mva_funding() {
         let config = XvaConfig {
             funding: Some(FundingConfig {
-                funding_spread_bps: 50.0,
-                funding_benefit_bps: Some(30.0),
+                funding_spread_bp: 50.0,
+                funding_benefit_bp: Some(30.0),
                 im_profile: Some(crate::xva::mva::ImProfile {
                     times: vec![1.0, 2.0],
                     im_values: vec![1_000_000.0, 500_000.0],
                 }),
-                margin_funding_spread_bps: Some(20.0),
+                margin_funding_spread_bp: Some(20.0),
             }),
             ..XvaConfig::default()
         };
@@ -947,8 +933,8 @@ mod tests {
             recovery_rate: 0.40,
             own_recovery_rate: None,
             funding: Some(FundingConfig {
-                funding_spread_bps: 35.0,
-                funding_benefit_bps: Some(40.0),
+                funding_spread_bp: 35.0,
+                funding_benefit_bp: Some(40.0),
                 ..Default::default()
             }),
         };

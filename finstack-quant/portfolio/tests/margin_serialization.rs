@@ -174,9 +174,9 @@ fn im_breakdown_serializes_in_sorted_order_across_reversed_insertions() {
 }
 
 #[test]
-fn legacy_simm_margin_without_bucketed_credit_deserializes() {
+fn simm_margin_without_bucketed_credit_deserializes() {
     let margin: NettingSetMargin = serde_json::from_str(include_str!(
-        "data/legacy_simm_margin_without_bucketed_credit.json"
+        "data/simm_margin_without_bucketed_credit.json"
     ))
     .expect("legacy SIMM margin deserializes");
 

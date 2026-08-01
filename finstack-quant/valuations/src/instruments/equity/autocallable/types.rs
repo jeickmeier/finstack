@@ -44,6 +44,7 @@ use time::macros::date;
 #[derive(
     Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum FinalPayoffType {
     /// Capital protection: max(floor, participation * min(S_T/S_0, cap))
     CapitalProtection {
@@ -68,7 +69,9 @@ pub enum FinalPayoffType {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = Autocallable::validate)]
 #[serde(deny_unknown_fields, try_from = "AutocallableUnchecked")]
@@ -81,10 +84,10 @@ pub struct Autocallable {
     ///
     /// Barriers are monitored **discretely** at these exact dates only.
     /// The Monte Carlo time grid is constructed to include these dates precisely.
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub observation_dates: Vec<Date>,
     /// Explicit terminal expiry date for the structure.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Autocall barrier levels (as ratios of initial spot, e.g., 1.0 = 100%).
     ///
@@ -149,17 +152,28 @@ pub struct Autocallable {
     /// remaining future observation dates are simulated.
     #[builder(default)]
     #[serde(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub past_fixings: Vec<(Date, f64)>,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping
     pub attributes: Attributes,
@@ -172,9 +186,9 @@ pub struct Autocallable {
 struct AutocallableUnchecked {
     id: InstrumentId,
     underlying_ticker: String,
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     observation_dates: Vec<Date>,
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     expiry: Date,
     autocall_barriers: Vec<f64>,
     coupons: Vec<f64>,
@@ -194,7 +208,7 @@ struct AutocallableUnchecked {
     #[serde(default)]
     initial_level: Option<f64>,
     #[serde(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     past_fixings: Vec<(Date, f64)>,
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
@@ -434,7 +448,7 @@ impl crate::instruments::common_impl::traits::Instrument for Autocallable {
     > {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
-        deps.add_spot_id(self.spot_id.as_str());
+        deps.add_market_scalar_id(self.spot_id.as_str());
         deps.add_volatility_dependency(
             crate::instruments::common_impl::dependencies::VolatilityDependency::new(
                 self.vol_surface_id.clone(),
@@ -443,7 +457,7 @@ impl crate::instruments::common_impl::traits::Instrument for Autocallable {
             ),
         );
         if let Some(dividend_yield) = &self.div_yield_id {
-            deps.add_spot_id(dividend_yield.as_str());
+            deps.add_market_scalar_id(dividend_yield.as_str());
         }
         Ok(deps)
     }
@@ -513,37 +527,36 @@ mod validation_tests {
         let deps =
             crate::instruments::Instrument::market_dependencies(&autocall).expect("dependencies");
 
-        assert!(deps.spot_ids.contains(&dividend_id.as_str().to_string()));
+        assert!(deps
+            .market_scalar_ids
+            .contains(&dividend_id.as_str().to_string()));
         assert!(deps.series_ids.is_empty());
     }
 
     #[test]
-    fn focused_overrides_preserve_legacy_wire_shape() {
+    fn focused_overrides_use_canonical_wire_shape() {
         let mut autocall = base_builder().build().expect("valid autocallable");
         autocall.instrument_pricing_overrides.model_config.mc_paths = Some(12_345);
         autocall.metric_pricing_overrides.mc_seed_scenario = Some("delta_up".to_string());
         autocall.scenario_pricing_overrides.scenario_price_shock_pct = Some(-0.08);
 
         let value = serde_json::to_value(&autocall).expect("serialize focused overrides");
-        assert!(value.get("instrument_pricing_overrides").is_none());
-        assert!(value.get("metric_pricing_overrides").is_none());
-        assert!(value.get("scenario_pricing_overrides").is_none());
-        let wire = value
-            .get("pricing_overrides")
-            .and_then(serde_json::Value::as_object)
-            .expect("legacy pricing_overrides object");
-        assert_eq!(wire.get("mc_paths"), Some(&serde_json::json!(12_345)));
         assert_eq!(
-            wire.get("mc_seed_scenario"),
+            value.pointer("/instrument_pricing_overrides/model_config/mc_paths"),
+            Some(&serde_json::json!(12_345))
+        );
+        assert_eq!(
+            value.pointer("/metric_pricing_overrides/mc_seed_scenario"),
             Some(&serde_json::json!("delta_up"))
         );
         assert_eq!(
-            wire.get("scenario_price_shock_pct"),
+            value.pointer("/scenario_pricing_overrides/scenario_price_shock_pct"),
             Some(&serde_json::json!(-0.08))
         );
+        assert!(value.get("pricing_overrides").is_none());
 
         let roundtrip: Autocallable =
-            serde_json::from_value(value).expect("deserialize legacy wire");
+            serde_json::from_value(value).expect("deserialize canonical wire");
         assert_eq!(
             roundtrip.instrument_pricing_overrides.model_config.mc_paths,
             Some(12_345)

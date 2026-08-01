@@ -126,7 +126,7 @@ impl UnknownScalePolicy {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RatingScaleRegistry {
-    schema_version: String,
+    schema: String,
     scorecard_policy: ScorecardPolicy,
     rating_scales: Vec<RatingScaleEntry>,
 }
@@ -220,10 +220,10 @@ impl RatingScaleRegistry {
     }
 
     fn validate(&self) -> Result<()> {
-        if self.schema_version != "finstack_quant.rating_scales/1" {
+        if self.schema != "finstack_quant.rating_scales/1" {
             return Err(Error::Validation(format!(
                 "unsupported rating scale registry schema version '{}'",
-                self.schema_version
+                self.schema
             )));
         }
         validate_score(self.scorecard_policy.default_score, "default score")?;

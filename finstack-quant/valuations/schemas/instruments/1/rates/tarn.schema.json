@@ -1,139 +1,185 @@
 {
-  "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/tarn.schema.json",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "description": "Target redemption note instrument schema",
-  "properties": {
-    "instrument": {
-      "additionalProperties": false,
-      "description": "The Tarn instrument definition",
-      "properties": {
-        "spec": {
+  "$defs": {
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
           "additionalProperties": false,
           "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection."
+            "spec": {
+              "$ref": "#/$defs/Tarn"
             },
-            "coupon_dates": {
-              "description": "Coupon payment dates (must be sorted ascending).",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "coupon_floor": {
-              "description": "Floor on each period's coupon (typically 0.0).",
-              "format": "double",
-              "type": "number"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention for coupon accrual."
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID for PV calculations."
-            },
-            "fixed_rate": {
-              "description": "Fixed coupon rate (the \"strike\" rate).",
-              "format": "double",
-              "type": "number"
-            },
-            "floating_index_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Floating rate index identifier."
-            },
-            "floating_tenor": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-              "description": "Floating rate tenor (e.g., \"3M\", \"6M\")."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides.\nInstrument-owned pricing inputs."
-            },
-            "target_coupon": {
-              "description": "Target cumulative coupon level (triggers early redemption).\n\nA zero target is allowed and represents redemption at the first\nfuture coupon date without coupon accrual.",
-              "format": "double",
-              "type": "number"
-            },
-            "vol_surface_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional normal-vol surface used to infer HW1F short-rate σ for stress scenarios."
+            "type": {
+              "const": "tarn",
+              "type": "string"
             }
           },
           "required": [
-            "id",
-            "fixed_rate",
-            "coupon_floor",
-            "target_coupon",
-            "notional",
-            "coupon_dates",
-            "floating_tenor",
-            "floating_index_id",
-            "discount_curve_id",
-            "day_count",
-            "attributes"
+            "type",
+            "spec"
           ],
           "type": "object"
+        }
+      ]
+    },
+    "Tarn": {
+      "additionalProperties": false,
+      "description": "Target Redemption Note (TARN).\n\nPays periodic coupons = max(fixed_rate - floating_rate, floor) until the\ncumulative coupon reaches a target level, at which point the note redeems\nat par. Path-dependent due to the knockout on cumulative coupon.\n\n# Coupon Formula\n\n```text\nc_i = max(fixed_rate - L_i, floor)\n```\n\nwhere L_i is the floating rate (e.g., SOFR) for period i.\n\n# Target Knockout\n\n```text\nIf sum(c_1, ..., c_i) >= target => redeem at par, stop paying coupons\n```\n\nThe final coupon is reduced so the cumulative equals the target exactly.\n\n# References\n\n- Brigo, D., & Mercurio, F. (2006). *Interest Rate Models - Theory and\n  Practice* (2nd ed.). Springer. Chapter 14: Exotic Derivatives.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection."
         },
-        "type": {
-          "const": "tarn",
-          "type": "string"
+        "coupon_dates": {
+          "description": "Coupon payment dates (must be sorted ascending).",
+          "items": {
+            "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+          },
+          "type": "array"
+        },
+        "coupon_floor": {
+          "description": "Floor on each period's coupon (typically 0.0).",
+          "format": "double",
+          "type": "number"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention for coupon accrual."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID for PV calculations."
+        },
+        "fixed_rate": {
+          "description": "Fixed coupon rate (the \"strike\" rate).",
+          "format": "double",
+          "type": "number"
+        },
+        "floating_index_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Floating rate index identifier."
+        },
+        "floating_tenor": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
+          "description": "Floating rate tenor (e.g., \"3M\", \"6M\")."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides.\nInstrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "target_coupon": {
+          "description": "Target cumulative coupon level (triggers early redemption).\n\nA zero target is allowed and represents redemption at the first\nfuture coupon date without coupon accrual.",
+          "format": "double",
+          "type": "number"
+        },
+        "vol_surface_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional normal-vol surface used to infer HW1F short-rate σ for stress scenarios."
         }
       },
       "required": [
-        "type",
-        "spec"
+        "id",
+        "fixed_rate",
+        "coupon_floor",
+        "target_coupon",
+        "notional",
+        "coupon_dates",
+        "floating_tenor",
+        "floating_index_id",
+        "discount_curve_id",
+        "day_count",
+        "attributes"
       ],
       "type": "object"
+    }
+  },
+  "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/tarn.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
+  "examples": [
+    {
+      "instrument": {
+        "spec": {
+          "attributes": {},
+          "coupon_dates": [
+            "2026-06-30",
+            "2026-12-31",
+            "2027-06-30",
+            "2027-12-31",
+            "2028-06-30",
+            "2028-12-31",
+            "2029-06-30",
+            "2029-12-31",
+            "2030-06-30",
+            "2030-12-31"
+          ],
+          "coupon_floor": 0.0,
+          "day_count": "act_360",
+          "discount_curve_id": "USD-OIS",
+          "fixed_rate": 0.06,
+          "floating_index_id": "USD-SOFR-6M",
+          "floating_tenor": {
+            "count": 6,
+            "unit": "months"
+          },
+          "id": "TARN-USD-5Y",
+          "notional": {
+            "amount": "1000000",
+            "currency": "USD"
+          },
+          "target_coupon": 0.15,
+          "vol_surface_id": "USD-SOFR-HW-VOL"
+        },
+        "type": "tarn"
+      },
+      "schema": "finstack_quant.instrument/1"
+    }
+  ],
+  "properties": {
+    "instrument": {
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "TARN",
+  "title": "tarn",
   "type": "object"
 }

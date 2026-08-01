@@ -1,0 +1,300 @@
+{
+  "$defs": {
+    "OptimizationStatus": {
+      "description": "Status of an optimization run.",
+      "oneOf": [
+        {
+          "const": "optimal",
+          "description": "Found optimal solution.",
+          "type": "string"
+        },
+        {
+          "const": "feasible_but_suboptimal",
+          "description": "Found feasible solution but solver stopped early.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "No feasible solution exists.",
+          "properties": {
+            "infeasible": {
+              "properties": {
+                "conflicting_constraints": {
+                  "description": "Constraints that appear to conflict (if determinable).",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "conflicting_constraints"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "infeasible"
+          ],
+          "type": "object"
+        },
+        {
+          "const": "unbounded",
+          "description": "Objective is unbounded.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Solver error.",
+          "properties": {
+            "error": {
+              "properties": {
+                "message": {
+                  "description": "Error message describing what went wrong.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "message"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PositionId": {
+      "description": "Position identifier.",
+      "type": "string"
+    },
+    "SchemaVersion": {
+      "description": "Numeric schema revision for contracts whose sole supported revision is v1.",
+      "format": "uint32",
+      "maximum": 1,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "TradeDirection": {
+      "description": "Direction of a trade.",
+      "oneOf": [
+        {
+          "const": "buy",
+          "description": "Buy more of the instrument (increase exposure).",
+          "type": "string"
+        },
+        {
+          "const": "sell",
+          "description": "Sell the instrument (decrease exposure).",
+          "type": "string"
+        },
+        {
+          "const": "hold",
+          "description": "No change in exposure.",
+          "type": "string"
+        }
+      ]
+    },
+    "TradeSpec": {
+      "additionalProperties": false,
+      "description": "Trade specification for a single position.",
+      "properties": {
+        "current_quantity": {
+          "description": "Pre‑trade quantity.",
+          "format": "double",
+          "type": "number"
+        },
+        "current_weight": {
+          "description": "Pre‑trade weight.",
+          "format": "double",
+          "type": "number"
+        },
+        "delta_quantity": {
+          "description": "Quantity change (`target - current`).",
+          "format": "double",
+          "type": "number"
+        },
+        "direction": {
+          "$ref": "#/$defs/TradeDirection",
+          "description": "Buy / Sell / Hold classification."
+        },
+        "instrument_id": {
+          "description": "Underlying instrument identifier (or candidate id).",
+          "type": "string"
+        },
+        "position_id": {
+          "$ref": "#/$defs/PositionId",
+          "description": "Position identifier in the optimized portfolio."
+        },
+        "target_quantity": {
+          "description": "Post‑trade quantity.",
+          "format": "double",
+          "type": "number"
+        },
+        "target_weight": {
+          "description": "Post‑trade weight.",
+          "format": "double",
+          "type": "number"
+        },
+        "trade_type": {
+          "$ref": "#/$defs/TradeType",
+          "description": "Trade type (existing, new position, close‑out)."
+        }
+      },
+      "required": [
+        "position_id",
+        "instrument_id",
+        "trade_type",
+        "current_quantity",
+        "target_quantity",
+        "delta_quantity",
+        "direction",
+        "current_weight",
+        "target_weight"
+      ],
+      "type": "object"
+    },
+    "TradeType": {
+      "description": "Whether a trade is for an existing position or a new candidate.",
+      "oneOf": [
+        {
+          "const": "existing",
+          "description": "Adjusting an existing portfolio position.",
+          "type": "string"
+        },
+        {
+          "const": "new_position",
+          "description": "Adding a new position from the candidate universe.",
+          "type": "string"
+        },
+        {
+          "const": "close_out",
+          "description": "Closing out an existing position entirely.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://finstack_quant.dev/schemas/portfolio/1/portfolio_optimization_result.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical typed v1 output from portfolio optimization.",
+  "properties": {
+    "binding_constraints": {
+      "description": "Approximately binding constraint names.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "constraint_slacks": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "description": "Constraint slack values.",
+      "type": "object"
+    },
+    "current_weights": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "description": "Current weights keyed by position.",
+      "type": "object"
+    },
+    "implied_quantities": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "description": "Implied target quantities keyed by position.",
+      "type": "object"
+    },
+    "is_feasible": {
+      "description": "Whether the solution can be consumed.",
+      "type": "boolean"
+    },
+    "label": {
+      "description": "Optional user-supplied problem label.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "metric_values": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "description": "Evaluated metrics.",
+      "type": "object"
+    },
+    "objective_value": {
+      "description": "Objective value at the solution.",
+      "format": "double",
+      "type": "number"
+    },
+    "optimal_weights": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "description": "Optimal weights keyed by position.",
+      "type": "object"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/SchemaVersion",
+      "description": "Required numeric v1 marker."
+    },
+    "status": {
+      "$ref": "#/$defs/OptimizationStatus",
+      "description": "Solver outcome."
+    },
+    "status_label": {
+      "description": "Stable snake-case status label.",
+      "type": "string"
+    },
+    "trades": {
+      "description": "Executable trade list.",
+      "items": {
+        "$ref": "#/$defs/TradeSpec"
+      },
+      "type": "array"
+    },
+    "turnover": {
+      "description": "Gross turnover.",
+      "format": "double",
+      "type": "number"
+    },
+    "weight_deltas": {
+      "additionalProperties": {
+        "format": "double",
+        "type": "number"
+      },
+      "description": "Weight changes keyed by position.",
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "status",
+    "status_label",
+    "is_feasible",
+    "objective_value",
+    "turnover",
+    "optimal_weights",
+    "current_weights",
+    "weight_deltas",
+    "implied_quantities",
+    "metric_values",
+    "trades",
+    "constraint_slacks",
+    "binding_constraints"
+  ],
+  "title": "Portfolio Optimization Result",
+  "type": "object"
+}

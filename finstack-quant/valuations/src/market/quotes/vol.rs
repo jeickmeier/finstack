@@ -12,46 +12,8 @@ use crate::market::conventions::ids::{
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::surfaces::VolQuoteType;
 use finstack_quant_core::types::UnderlyingId;
-use finstack_quant_core::{Error, Result};
 #[cfg(feature = "ts_export")]
 use ts_rs::TS;
-
-/// Parse a vol quote's `quote_type` string into a typed [`VolQuoteType`].
-///
-/// Accepts normal/Bachelier and lognormal/Black aliases case-insensitively.
-///
-/// # Arguments
-///
-/// * `quote_type` - Case-insensitive quote convention label.
-///
-/// # Errors
-///
-/// Returns [`Error::Validation`] for an unrecognized label.
-///
-/// # Examples
-/// ```rust
-/// use finstack_quant_valuations::market::quotes::vol::parse_vol_quote_type;
-/// use finstack_quant_core::market_data::surfaces::VolQuoteType;
-///
-/// assert_eq!(parse_vol_quote_type("Normal").unwrap(), VolQuoteType::Normal);
-/// assert_eq!(
-///     parse_vol_quote_type("black_lognormal").unwrap(),
-///     VolQuoteType::BlackLognormal
-/// );
-/// assert!(parse_vol_quote_type("implied_vol").is_err());
-/// ```
-pub fn parse_vol_quote_type(quote_type: &str) -> Result<VolQuoteType> {
-    match quote_type.to_ascii_lowercase().as_str() {
-        "normal" | "bachelier" => Ok(VolQuoteType::Normal),
-        "lognormal" | "log_normal" | "black" | "black_lognormal" => {
-            Ok(VolQuoteType::BlackLognormal)
-        }
-        other => Err(Error::Validation(format!(
-            "Unrecognized vol quote_type '{other}': expected one of \
-             'normal', 'bachelier', 'lognormal', 'log_normal', 'black', 'black_lognormal'"
-        ))),
-    }
-}
 
 /// Volatility quotes for option and swaption surface calibration.
 ///
@@ -87,6 +49,7 @@ pub fn parse_vol_quote_type(quote_type: &str) -> Result<VolQuoteType> {
 /// use finstack_quant_valuations::market::quotes::ids::QuoteId;
 /// use finstack_quant_valuations::market::conventions::ids::SwaptionConventionId;
 /// use finstack_quant_core::dates::Date;
+/// use finstack_quant_core::market_data::surfaces::VolQuoteType;
 ///
 /// let quote = VolQuote::SwaptionVol {
 ///     id: QuoteId::new("USD-SWPTN-VOL-1Yx5Y-ATM"),
@@ -94,15 +57,15 @@ pub fn parse_vol_quote_type(quote_type: &str) -> Result<VolQuoteType> {
 ///     maturity: Date::from_calendar_date(2030, time::Month::June, 20).unwrap(),
 ///     strike: 0.045, // 4.5% strike rate
 ///     vol: 0.15, // 15% implied volatility
-///     quote_type: "Normal".to_string(),
+///     quote_type: VolQuoteType::Normal,
 ///     convention: SwaptionConventionId::new("USD"),
 /// };
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
 #[cfg_attr(feature = "ts_export", ts(rename_all = "snake_case"))]
-// Keep this enum externally tagged. Market quote schemas, golden calibration
-// payloads, and Python envelope payloads already depend on this shape.
+// The externally tagged shape makes each quote payload's concrete kind
+// explicit while keeping every nested field fully typed.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[allow(clippy::large_enum_variant)]
@@ -117,7 +80,7 @@ pub enum VolQuote {
         underlying: UnderlyingId,
         /// Option expiry
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         expiry: Date,
         /// Strike
         strike: f64,
@@ -136,18 +99,19 @@ pub enum VolQuote {
         id: QuoteId,
         /// Option expiry
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         expiry: Date,
         /// Underlying swap maturity date
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         maturity: Date,
         /// Strike rate
         strike: f64,
         /// Implied volatility
         vol: f64,
-        /// Quote type label; see [`parse_vol_quote_type`].
-        quote_type: String,
+        /// Volatility quoting convention.
+        #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        quote_type: VolQuoteType,
         /// Option exercise conventions
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         convention: SwaptionConventionId,
@@ -159,14 +123,15 @@ pub enum VolQuote {
         id: QuoteId,
         /// Cap/floor maturity or caplet expiry.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         expiry: Date,
         /// Strike rate.
         strike: f64,
         /// Implied volatility.
         vol: f64,
-        /// Quote type label, e.g. `"normal"`; see [`parse_vol_quote_type`].
-        quote_type: String,
+        /// Volatility quoting convention.
+        #[cfg_attr(feature = "ts_export", ts(type = "string"))]
+        quote_type: VolQuoteType,
         /// `true` for cap, `false` for floor.
         is_cap: bool,
         /// Cap/floor market conventions.
@@ -251,7 +216,7 @@ impl VolQuote {
                 maturity: *maturity,
                 strike: *strike,
                 vol: vol + vol_bump,
-                quote_type: quote_type.clone(),
+                quote_type: *quote_type,
                 convention: convention.clone(),
             },
             VolQuote::CapFloorVol {
@@ -267,7 +232,7 @@ impl VolQuote {
                 expiry: *expiry,
                 strike: *strike,
                 vol: vol + vol_bump,
-                quote_type: quote_type.clone(),
+                quote_type: *quote_type,
                 is_cap: *is_cap,
                 convention: convention.clone(),
             },
@@ -282,49 +247,13 @@ mod tests {
     use time::macros::date;
 
     #[test]
-    fn parse_vol_quote_type_accepts_standard_vocabulary() {
-        for s in ["normal", "Normal", "NORMAL", "bachelier", "Bachelier"] {
-            assert_eq!(
-                parse_vol_quote_type(s).expect("normal vocabulary"),
-                VolQuoteType::Normal,
-                "'{s}' should parse as Normal"
-            );
-        }
-        for s in [
-            "lognormal",
-            "log_normal",
-            "black",
-            "Black",
-            "black_lognormal",
-            "BLACK_LOGNORMAL",
-        ] {
-            assert_eq!(
-                parse_vol_quote_type(s).expect("lognormal vocabulary"),
-                VolQuoteType::BlackLognormal,
-                "'{s}' should parse as BlackLognormal"
-            );
-        }
-    }
-
-    /// Regression: unknown strings must fail closed, never silently default
-    /// to lognormal. "implied_vol" and moneyness labels are the historical
-    /// offenders.
-    #[test]
-    fn parse_vol_quote_type_rejects_unknown_strings() {
-        for s in ["implied_vol", "ATM", "ATM-50", "nrmal", "", "vol"] {
-            let result = parse_vol_quote_type(s);
-            assert!(result.is_err(), "'{s}' should be rejected");
-        }
-    }
-
-    #[test]
     fn cap_floor_vol_quote_bumps_absolute_vol() {
         let quote = VolQuote::CapFloorVol {
             id: QuoteId::new("USD-CAP-VOL-20310506-0.0366561"),
             expiry: date!(2031 - 05 - 06),
             strike: 0.0366561,
             vol: 0.0088,
-            quote_type: "normal".to_string(),
+            quote_type: VolQuoteType::Normal,
             is_cap: true,
             convention: CapFloorConventionId::new("USD-SOFR-CAP"),
         };

@@ -12,7 +12,7 @@
         "quote_index_id": "USD-SOFR-OIS",
         "spot_lag_days": 2,
         "payment_frequency": "3M",
-        "day_count": "Act360",
+        "day_count": "act_360",
         "business_day_convention": "modified_following",
         "base_calendar_id": "target2",
         "quote_calendar_id": "usny",

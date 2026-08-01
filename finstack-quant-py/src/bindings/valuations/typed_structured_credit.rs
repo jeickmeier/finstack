@@ -9,7 +9,7 @@
 //! the nested-spec rule; only the flat deal-modeling types above are typed.
 //!
 //! `DealType` and `TrancheSeniority` have no `#[serde(rename_all)]` in Rust —
-//! their wire representation is PascalCase/acronym (`"ABS"`, `"CLO"`,
+//! their wire representation is PascalCase/acronym (`"abs"`, `"clo"`,
 //! `"Senior"`, ...). This binding accepts exactly that wire casing at the
 //! Python surface, routed through the generic [`enum_from_str`] helper like
 //! every other typed instrument on this branch, so `to_json()` output round-
@@ -23,7 +23,7 @@ use crate::bindings::core::dates::daycount::PyDayCount;
 use crate::bindings::core::dates::tenor::PyTenor;
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
-use crate::errors::{core_to_py, serde_json_to_py, value_error};
+use crate::errors::{core_to_py, value_error};
 use finstack_quant_core::dates::BusinessDayConvention;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
@@ -33,7 +33,9 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
-use super::instruments::{enum_from_str, json_field, parse_typed_instrument_json};
+use super::instruments::{
+    enum_from_str, json_field, parse_typed_instrument_json, serialize_typed_instrument_json,
+};
 
 type TrancheBuilderInner =
     finstack_quant_valuations::instruments::fixed_income::structured_credit::TrancheBuilder;
@@ -76,7 +78,7 @@ impl PyRepLine {
     ///     Weighted average seasoning in months.
     /// day_count : DayCount
     ///     Day count convention.
-    /// spread_bps : float, optional
+    /// spread_bp : float, optional
     ///     Weighted average spread over the reference index, in basis
     ///     points (e.g. ``150.0`` = 150bp), for floating-rate lines.
     /// index_id : str, optional
@@ -118,11 +120,11 @@ impl PyRepLine {
     /// True
     #[new]
     #[pyo3(signature = (id, balance, rate, maturity, seasoning_months, day_count, *,
-                        spread_bps = None, index_id = None, cpr = None, cdr = None,
+                        spread_bp = None, index_id = None, cpr = None, cdr = None,
                         recovery_rate = None))]
     #[pyo3(
         text_signature = "(id, balance, rate, maturity, seasoning_months, day_count, *, \
-spread_bps=None, index_id=None, cpr=None, cdr=None, recovery_rate=None)"
+spread_bp=None, index_id=None, cpr=None, cdr=None, recovery_rate=None)"
     )]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -132,7 +134,7 @@ spread_bps=None, index_id=None, cpr=None, cdr=None, recovery_rate=None)"
         maturity: &Bound<'_, PyAny>,
         seasoning_months: u32,
         day_count: PyRef<'_, PyDayCount>,
-        spread_bps: Option<f64>,
+        spread_bp: Option<f64>,
         index_id: Option<String>,
         cpr: Option<f64>,
         cdr: Option<f64>,
@@ -143,7 +145,7 @@ spread_bps=None, index_id=None, cpr=None, cdr=None, recovery_rate=None)"
             id,
             balance.inner,
             rate,
-            spread_bps,
+            spread_bp,
             index_id,
             maturity,
             seasoning_months,
@@ -195,7 +197,7 @@ impl PyAssetPool {
     /// ----------
     /// id : str
     ///     Pool identifier.
-    /// deal_type : {"CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"}
+    /// deal_type : {"clo", "cbo", "abs", "rmbs", "cmbs", "auto", "card"}
     ///     Deal classification for pool-level assumptions.
     /// base_currency : Currency
     ///     Base currency for every asset and pool-level account.
@@ -215,7 +217,7 @@ impl PyAssetPool {
     /// --------
     /// >>> from finstack_quant.core.currency import Currency
     /// >>> from finstack_quant.valuations.instruments import AssetPool
-    /// >>> pool = AssetPool("POOL-1", "ABS", Currency("USD"))
+    /// >>> pool = AssetPool("POOL-1", "abs", Currency("USD"))
     /// >>> "POOL-1" in repr(pool)
     /// True
     #[new]
@@ -251,7 +253,7 @@ impl PyAssetPool {
     /// >>> from finstack_quant.core.dates import DayCount
     /// >>> from finstack_quant.core.money import Money
     /// >>> from finstack_quant.valuations.instruments import AssetPool, RepLine
-    /// >>> pool = AssetPool("POOL-1", "ABS", Currency("USD")).with_rep_lines([
+    /// >>> pool = AssetPool("POOL-1", "abs", Currency("USD")).with_rep_lines([
     /// ...     RepLine(
     /// ...         "LINE-1", Money(80_000_000.0, Currency("USD")), 0.07,
     /// ...         datetime.date(2031, 1, 15), 12, DayCount.ACT_360,
@@ -472,7 +474,7 @@ impl PyTrancheBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"Senior", "Mezzanine", "Subordinated", "Equity"}
+    /// value : {"senior", "mezzanine", "subordinated", "equity"}
     ///     Structural seniority of the tranche.
     ///
     /// Returns
@@ -557,7 +559,7 @@ impl PyTrancheBuilder {
     /// ----------
     /// value : str
     ///     JSON-encoded, externally-tagged ``TrancheCoupon`` value, e.g.
-    ///     ``{"Floating": {...FloatingRateSpec fields...}}``.
+    ///     ``{"floating": {...FloatingRateSpec fields...}}``.
     ///
     /// Returns
     /// -------
@@ -739,7 +741,7 @@ impl PyTrancheStructure {
     /// ...     .id("A")
     /// ...     .attachment_point(10.0)
     /// ...     .detachment_point(100.0)
-    /// ...     .seniority("Senior")
+    /// ...     .seniority("senior")
     /// ...     .original_balance(Money(72_000_000.0, Currency("USD")))
     /// ...     .coupon_fixed(0.05)
     /// ...     .maturity(datetime.date(2031, 1, 15))
@@ -750,7 +752,7 @@ impl PyTrancheStructure {
     /// ...     .id("E")
     /// ...     .attachment_point(0.0)
     /// ...     .detachment_point(10.0)
-    /// ...     .seniority("Equity")
+    /// ...     .seniority("equity")
     /// ...     .original_balance(Money(8_000_000.0, Currency("USD")))
     /// ...     .coupon_fixed(0.0)
     /// ...     .maturity(datetime.date(2031, 1, 15))
@@ -795,12 +797,12 @@ pub struct PyStructuredCredit {
 }
 
 impl PyStructuredCredit {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::StructuredCredit(Box::new(
-            self.inner.clone(),
-        )))
-        .map_err(|err| serde_json_to_py(err, "failed to serialize StructuredCredit"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(
+            InstrumentJson::StructuredCredit(Box::new(self.inner.clone())),
+            "StructuredCredit",
+        )
     }
 }
 
@@ -878,7 +880,7 @@ impl PyStructuredCredit {
     /// >>> from finstack_quant.valuations.instruments import (
     /// ...     AssetPool, RepLine, StructuredCredit, Tranche, TrancheStructure,
     /// ... )
-    /// >>> pool = AssetPool("POOL-1", "ABS", Currency("USD")).with_rep_lines([
+    /// >>> pool = AssetPool("POOL-1", "abs", Currency("USD")).with_rep_lines([
     /// ...     RepLine(
     /// ...         "LINE-1", Money(80_000_000.0, Currency("USD")), 0.07,
     /// ...         datetime.date(2031, 1, 15), 12, DayCount.ACT_360,
@@ -886,12 +888,12 @@ impl PyStructuredCredit {
     /// ... ])
     /// >>> senior = (
     /// ...     Tranche.builder().id("A").attachment_point(10.0).detachment_point(100.0)
-    /// ...     .seniority("Senior").original_balance(Money(72_000_000.0, Currency("USD")))
+    /// ...     .seniority("senior").original_balance(Money(72_000_000.0, Currency("USD")))
     /// ...     .coupon_fixed(0.05).maturity(datetime.date(2031, 1, 15)).build()
     /// ... )
     /// >>> equity = (
     /// ...     Tranche.builder().id("E").attachment_point(0.0).detachment_point(10.0)
-    /// ...     .seniority("Equity").original_balance(Money(8_000_000.0, Currency("USD")))
+    /// ...     .seniority("equity").original_balance(Money(8_000_000.0, Currency("USD")))
     /// ...     .coupon_fixed(0.0).maturity(datetime.date(2031, 1, 15)).build()
     /// ... )
     /// >>> deal = StructuredCredit.new_abs(
@@ -1000,15 +1002,14 @@ impl PyStructuredCredit {
         Ok(Self { inner })
     }
 
-    /// Deserialize a validated deal from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated deal from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"structured_credit"``, or a
-    ///     full ``finstack_quant.instrument/1`` envelope containing that
-    ///     payload. The UTF-8 input must not exceed 16 MiB; cross-type
-    ///     coercion is not performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"structured_credit"`` payload. The UTF-8 input must not exceed
+    ///     16 MiB. Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -1042,16 +1043,16 @@ impl PyStructuredCredit {
         }
     }
 
-    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``StructuredCredit.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.
@@ -1118,7 +1119,7 @@ impl PyStructuredCreditBuilder {
     ///
     /// Parameters
     /// ----------
-    /// value : {"CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"}
+    /// value : {"clo", "cbo", "abs", "rmbs", "cmbs", "auto", "card"}
     ///     Deal classification.
     ///
     /// Returns
@@ -1379,13 +1380,14 @@ impl PyStructuredCreditBuilder {
     /// ValueError
     ///     If ``value`` is not a recognized business day convention.
     #[pyo3(text_signature = "($self, value)")]
-    fn payment_bdc<'py>(
+    fn payment_business_day_convention<'py>(
         mut slf: PyRefMut<'py, Self>,
         value: &str,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let bdc: BusinessDayConvention = enum_from_str(value, "payment_bdc")?;
+        let business_day_convention: BusinessDayConvention =
+            enum_from_str(value, "payment_business_day_convention")?;
         let b = take_sc(&mut slf)?;
-        slf.inner = Some(b.payment_bdc(bdc));
+        slf.inner = Some(b.payment_business_day_convention(business_day_convention));
         Ok(slf)
     }
 

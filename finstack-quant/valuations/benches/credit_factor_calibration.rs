@@ -71,7 +71,7 @@ fn build_inputs(n_issuers: usize, n_months: usize, n_levels: usize) -> CreditCal
 
     let mut spreads = serde_json::Map::new();
     let mut tags_map = serde_json::Map::new();
-    let mut asof_spreads = serde_json::Map::new();
+    let mut as_of_spreads = serde_json::Map::new();
 
     for idx in 0..n_issuers {
         let id = format!("ISSUER-{idx:04}");
@@ -85,7 +85,7 @@ fn build_inputs(n_issuers: usize, n_months: usize, n_levels: usize) -> CreditCal
             })
             .collect();
 
-        asof_spreads.insert(
+        as_of_spreads.insert(
             id.clone(),
             Value::from(series.last().unwrap().as_f64().unwrap()),
         );
@@ -115,7 +115,7 @@ fn build_inputs(n_issuers: usize, n_months: usize, n_levels: usize) -> CreditCal
             "values": generic_values,
         },
         "as_of": as_of,
-        "asof_spreads": asof_spreads,
+        "as_of_spreads": as_of_spreads,
         "idiosyncratic_overrides": {},
     });
 

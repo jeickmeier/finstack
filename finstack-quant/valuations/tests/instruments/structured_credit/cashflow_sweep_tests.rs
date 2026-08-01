@@ -50,7 +50,7 @@ fn maturity() -> Date {
 }
 
 fn create_pool() -> AssetPool {
-    let mut pool = AssetPool::new("SWEEP_POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("SWEEP_POOL", DealType::Clo, Currency::USD);
 
     for i in 0..10 {
         pool.assets.push(PoolAsset {
@@ -61,7 +61,7 @@ fn create_pool() -> AssetPool {
             },
             balance: Money::new(25_000_000.0, Currency::USD),
             rate: 0.08,
-            spread_bps: Some(400.0),
+            spread_bp: Some(400.0),
             index_id: Some("SOFR-3M".to_string()),
             maturity: maturity(),
             credit_quality: Some(CreditRating::BB),

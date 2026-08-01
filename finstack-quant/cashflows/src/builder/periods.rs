@@ -56,7 +56,7 @@ pub struct BuildPeriodsParams<'a> {
     /// Stub handling convention.
     pub stub: StubKind,
     /// Business day convention for date adjustments.
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Holiday calendar identifier (use "weekends_only" for weekends-only adjustments).
     pub calendar_id: &'a str,
     /// Whether to enforce end-of-month rolling.
@@ -92,12 +92,12 @@ impl<'a> BuildPeriodsParams<'a> {
         Self {
             start,
             end,
-            frequency: schedule.freq,
+            frequency: schedule.frequency,
             stub: schedule.stub,
-            bdc: schedule.bdc,
+            business_day_convention: schedule.business_day_convention,
             calendar_id: &schedule.calendar_id,
             end_of_month: schedule.end_of_month,
-            day_count: schedule.dc,
+            day_count: schedule.day_count,
             payment_lag_days: schedule.payment_lag_days,
             reset_lag_days,
             adjust_accrual_dates: schedule.adjust_accrual_dates,
@@ -127,20 +127,28 @@ fn enrich_period(
     // itself. For stub periods the reference period is not cleanly derivable
     // from a single period, so it is left unset and core falls back to the
     // quasi-coupon grid anchored on the accrual start.
-    let dc_ctx = DayCountContext {
+    let day_count_context = DayCountContext {
         calendar: Some(cal),
         frequency: Some(params.frequency),
         bus_basis: None,
         coupon_period: regular.then_some((period.unadjusted_start, period.unadjusted_end)),
         end_is_termination_date: period.accrual_end >= params.end,
     };
-    period.accrual_year_fraction =
-        params
-            .day_count
-            .year_fraction(period.accrual_start, period.accrual_end, dc_ctx)?;
+    period.accrual_year_fraction = params.day_count.year_fraction(
+        period.accrual_start,
+        period.accrual_end,
+        day_count_context,
+    )?;
     period.reset_date = params
         .reset_lag_days
-        .map(|lag| compute_reset_date(period.accrual_start, lag, params.bdc, cal))
+        .map(|lag| {
+            compute_reset_date(
+                period.accrual_start,
+                lag,
+                params.business_day_convention,
+                cal,
+            )
+        })
         .transpose()?;
     Ok(period)
 }
@@ -195,7 +203,7 @@ fn enrich_periods(
 ///     end: Date::from_calendar_date(2025, Month::April, 15).expect("valid date"),
 ///     frequency: Tenor::quarterly(),
 ///     stub: StubKind::None,
-///     bdc: BusinessDayConvention::ModifiedFollowing,
+///     business_day_convention: BusinessDayConvention::ModifiedFollowing,
 ///     calendar_id: "weekends_only",
 ///     end_of_month: false,
 ///     day_count: DayCount::Act360,
@@ -216,7 +224,7 @@ pub fn build_single_period(
     let period = build_schedule_period(
         params.start,
         params.end,
-        params.bdc,
+        params.business_day_convention,
         params.payment_lag_days,
         cal,
         params.adjust_accrual_dates,
@@ -262,7 +270,7 @@ pub fn build_single_period(
 ///     end: Date::from_calendar_date(2026, Month::January, 15).expect("valid date"),
 ///     frequency: Tenor::quarterly(),
 ///     stub: StubKind::None,
-///     bdc: BusinessDayConvention::ModifiedFollowing,
+///     business_day_convention: BusinessDayConvention::ModifiedFollowing,
 ///     calendar_id: "weekends_only",
 ///     end_of_month: false,
 ///     day_count: DayCount::Act360,
@@ -283,7 +291,7 @@ pub fn build_periods(
         params.end,
         params.frequency,
         params.stub,
-        params.bdc,
+        params.business_day_convention,
         params.end_of_month,
         params.payment_lag_days,
         params.calendar_id,
@@ -304,7 +312,7 @@ mod tests {
             end: Date::from_calendar_date(2025, Month::April, 15).expect("valid date"),
             frequency: Tenor::quarterly(),
             stub: StubKind::None,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: "weekends_only",
             end_of_month: false,
             day_count: DayCount::Act360,
@@ -341,7 +349,7 @@ mod tests {
             end: Date::from_calendar_date(2025, Month::April, 5).expect("valid date"),
             frequency: Tenor::quarterly(),
             stub: StubKind::None,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: "weekends_only",
             end_of_month: false,
             day_count: DayCount::Act360,
@@ -399,7 +407,7 @@ mod tests {
             end: Date::from_calendar_date(2026, Month::January, 4).expect("valid date"),
             frequency: Tenor::semi_annual(),
             stub: StubKind::None,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: "weekends_only",
             end_of_month: false,
             day_count: DayCount::ActActIsma,
@@ -435,7 +443,7 @@ mod tests {
             end: Date::from_calendar_date(2030, Month::May, 4).expect("valid date"),
             frequency: Tenor::annual(),
             stub: StubKind::None,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: "usny",
             end_of_month: false,
             day_count: DayCount::Act360,
@@ -455,7 +463,7 @@ mod tests {
             end: Date::from_calendar_date(2030, Month::May, 4).expect("valid date"),
             frequency: Tenor::annual(),
             stub: StubKind::None,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: "usny",
             end_of_month: false,
             day_count: DayCount::Act360,
@@ -478,7 +486,7 @@ mod tests {
             end: Date::from_calendar_date(2025, Month::January, 6).expect("valid date"),
             frequency: Tenor::daily(),
             stub: StubKind::None,
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only",
             end_of_month: false,
             day_count: DayCount::Act360,

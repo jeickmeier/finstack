@@ -136,10 +136,10 @@ impl JsDayCountContext {
 /// ```javascript
 /// import init, { core } from "finstack-quant-wasm";
 /// await init();
-/// const dc = core.DayCount.act365f();
+/// const day_count = core.DayCount.act365f();
 /// const start = core.createDate(2025, 1, 15);
 /// const end   = core.createDate(2025, 7, 15);
-/// const yf    = dc.yearFraction(start, end);
+/// const yf    = day_count.yearFraction(start, end);
 /// // yf ≈ 0.4959 (181 / 365)
 /// ```
 #[wasm_bindgen(js_name = DayCount)]
@@ -251,10 +251,10 @@ impl JsDayCount {
     ///
     /// @example
     /// ```javascript
-    /// const dc = core.DayCount.act360();
+    /// const day_count = core.DayCount.act360();
     /// const start = core.createDate(2025, 1, 15);
     /// const end   = core.createDate(2025, 4, 15);
-    /// dc.yearFraction(start, end); // 90 / 360 = 0.25
+    /// day_count.yearFraction(start, end); // 90 / 360 = 0.25
     /// ```
     #[wasm_bindgen(js_name = yearFraction)]
     pub fn year_fraction(
@@ -468,12 +468,12 @@ pub fn date_from_epoch_days(days: i32) -> Result<Vec<i32>, JsValue> {
 #[wasm_bindgen(js_name = adjust)]
 pub fn adjust(epoch_days: i32, convention: &str, calendar_code: &str) -> Result<i32, JsValue> {
     let date = epoch_to_date(epoch_days)?;
-    let bdc: BusinessDayConvention = convention
+    let business_day_convention: BusinessDayConvention = convention
         .parse()
         .map_err(|e: String| JsValue::from_str(&e))?;
     let cal = calendar_by_id(calendar_code)
         .ok_or_else(|| JsValue::from_str(&format!("unknown calendar: {calendar_code}")))?;
-    let adjusted = core_adjust(date, bdc, cal).map_err(to_js_err)?;
+    let adjusted = core_adjust(date, business_day_convention, cal).map_err(to_js_err)?;
     Ok(finstack_quant_core::dates::days_since_epoch(adjusted))
 }
 
@@ -518,34 +518,34 @@ mod tests {
 
     #[test]
     fn daycount_constructors() {
-        let dc = JsDayCount::act360();
-        assert_eq!(dc.to_string(), "act_360");
-        let dc = JsDayCount::act365f();
-        assert_eq!(dc.to_string(), "act_365f");
-        let dc = JsDayCount::thirty360();
-        assert_eq!(dc.to_string(), "30_360");
-        let dc = JsDayCount::thirty_e360();
-        assert_eq!(dc.to_string(), "30e_360");
-        let dc = JsDayCount::thirty_e360_isda();
-        assert_eq!(dc.to_string(), "30e_360_isda");
-        let dc = JsDayCount::act_act();
-        assert_eq!(dc.to_string(), "act_act");
-        let dc = JsDayCount::act_act_isma();
-        assert_eq!(dc.to_string(), "act_act_isma");
-        let dc = JsDayCount::bus252();
-        assert_eq!(dc.to_string(), "bus_252");
+        let day_count = JsDayCount::act360();
+        assert_eq!(day_count.to_string(), "act_360");
+        let day_count = JsDayCount::act365f();
+        assert_eq!(day_count.to_string(), "act_365f");
+        let day_count = JsDayCount::thirty360();
+        assert_eq!(day_count.to_string(), "30_360");
+        let day_count = JsDayCount::thirty_e360();
+        assert_eq!(day_count.to_string(), "30e_360");
+        let day_count = JsDayCount::thirty_e360_isda();
+        assert_eq!(day_count.to_string(), "30e_360_isda");
+        let day_count = JsDayCount::act_act();
+        assert_eq!(day_count.to_string(), "act_act");
+        let day_count = JsDayCount::act_act_isma();
+        assert_eq!(day_count.to_string(), "act_act_isma");
+        let day_count = JsDayCount::bus252();
+        assert_eq!(day_count.to_string(), "bus_252");
     }
 
     #[test]
     fn thirty_e_360_isda_uses_termination_context() {
         let start = epoch(2025, 1, 31);
         let end = epoch(2025, 2, 28);
-        let dc = JsDayCount::thirty_e360_isda();
-        let regular = dc
+        let day_count = JsDayCount::thirty_e360_isda();
+        let regular = day_count
             .year_fraction_with_context(start, end, &JsDayCountContext::new())
             .expect("regular period");
         let terminal_ctx = JsDayCountContext::new().with_end_is_termination_date(true);
-        let terminal = dc
+        let terminal = day_count
             .year_fraction_with_context(start, end, &terminal_ctx)
             .expect("terminal period");
 
@@ -555,21 +555,21 @@ mod tests {
 
     #[test]
     fn daycount_from_string() {
-        let dc = JsDayCount::new("act_360").expect("valid");
-        assert_eq!(dc.to_string(), "act_360");
+        let day_count = JsDayCount::new("act_360").expect("valid");
+        assert_eq!(day_count.to_string(), "act_360");
     }
 
     #[test]
     fn year_fraction_act365f() {
-        let dc = JsDayCount::act365f();
-        let yf = dc.year_fraction(jan15(), jul15()).expect("valid");
+        let day_count = JsDayCount::act365f();
+        let yf = day_count.year_fraction(jan15(), jul15()).expect("valid");
         assert!(yf > 0.49 && yf < 0.51, "yf={yf}");
     }
 
     #[test]
     fn calendar_days() {
-        let dc = JsDayCount::act365f();
-        let days = dc.calendar_days(jan15(), jul15()).expect("valid");
+        let day_count = JsDayCount::act365f();
+        let days = day_count.calendar_days(jan15(), jul15()).expect("valid");
         assert_eq!(days, (jul15() - jan15()) as i64);
     }
 
@@ -633,16 +633,16 @@ mod tests {
 
     #[test]
     fn year_fraction_act360() {
-        let dc = JsDayCount::act360();
-        let yf = dc.year_fraction(jan15(), jul15()).expect("valid");
+        let day_count = JsDayCount::act360();
+        let yf = day_count.year_fraction(jan15(), jul15()).expect("valid");
         let days = (jul15() - jan15()) as f64;
         assert!((yf - days / 360.0).abs() < 1e-10);
     }
 
     #[test]
     fn year_fraction_thirty360() {
-        let dc = JsDayCount::thirty360();
-        let yf = dc.year_fraction(jan15(), jul15()).expect("valid");
+        let day_count = JsDayCount::thirty360();
+        let yf = day_count.year_fraction(jan15(), jul15()).expect("valid");
         assert!(yf > 0.0);
     }
 

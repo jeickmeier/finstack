@@ -69,7 +69,9 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = IrFutureOption::validate)]
 #[serde(deny_unknown_fields)]
@@ -81,7 +83,7 @@ pub struct IrFutureOption {
     /// Option strike price (in futures price terms, e.g., 95.00)
     pub strike: f64,
     /// Option expiry date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Call or Put
     pub option_type: OptionType,
@@ -104,24 +106,31 @@ pub struct IrFutureOption {
     pub volatility: f64,
     /// Volatility model the quote refers to. CME SOFR/STIR options are quoted
     /// in normal (basis-point) vols — use [`VolatilityModel::Normal`] for
-    /// those. Defaults to Black (lognormal) for backward compatibility.
-    #[builder(default)]
-    #[serde(default)]
+    /// those. The persisted contract requires this convention explicitly.
     pub vol_model: VolatilityModel,
     /// Discount curve ID for PV calculation
     pub discount_curve_id: CurveId,
     /// Pricing overrides
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     #[serde(default)]
@@ -472,6 +481,7 @@ impl IrFutureOption {
             .tick_size(futures_specs.tick_size)
             .tick_value(futures_specs.tick_value)
             .volatility(0.20)
+            .vol_model(VolatilityModel::Normal)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .build()
     }

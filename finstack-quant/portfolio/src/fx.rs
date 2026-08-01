@@ -26,16 +26,16 @@ use finstack_quant_core::money::Money;
 
 use crate::error::{Error, Result};
 
-/// Convert a monetary amount into `base_ccy` using the market FX matrix.
+/// Convert a monetary amount into `base_currency` using the market FX matrix.
 ///
-/// Returns the input unchanged when it is already denominated in `base_ccy`.
+/// Returns the input unchanged when it is already denominated in `base_currency`.
 ///
 /// # Arguments
 ///
 /// * `amount` - Monetary amount to convert.
 /// * `as_of` - Date used for the FX rate lookup.
 /// * `market` - Market context supplying the FX matrix.
-/// * `base_ccy` - Target reporting currency.
+/// * `base_currency` - Target reporting currency.
 ///
 /// # Errors
 ///
@@ -46,9 +46,9 @@ pub fn convert_to_base(
     amount: Money,
     as_of: Date,
     market: &MarketContext,
-    base_ccy: Currency,
+    base_currency: Currency,
 ) -> Result<Money> {
-    if amount.currency() == base_ccy {
+    if amount.currency() == base_currency {
         return Ok(amount);
     }
 
@@ -56,13 +56,16 @@ pub fn convert_to_base(
         .fx()
         .ok_or_else(|| Error::MissingMarketData("FX matrix not available".to_string()))?;
 
-    let query = FxQuery::new(amount.currency(), base_ccy, as_of);
+    let query = FxQuery::new(amount.currency(), base_currency, as_of);
     let rate_result = fx_matrix
         .rate(query)
         .map_err(|_| Error::FxConversionFailed {
             from: amount.currency(),
-            to: base_ccy,
+            to: base_currency,
         })?;
 
-    Ok(Money::new(amount.amount() * rate_result.rate, base_ccy))
+    Ok(Money::new(
+        amount.amount() * rate_result.rate,
+        base_currency,
+    ))
 }

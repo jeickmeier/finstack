@@ -4,17 +4,8 @@
 //! constituent factors: carry, curve shifts, credit spreads, FX, volatility,
 //! cross-factor interactions, model parameters, and market scalars.
 
-use finstack_quant_core::currency::Currency;
-use finstack_quant_core::money::Money;
-
 pub(crate) mod detail;
 pub(crate) mod result;
 
 pub(crate) use detail::*;
 pub(crate) use result::*;
-
-/// Zero USD `Money` — serde default for [`CreditFactorAttribution::curve_shape_pnl`]
-/// so attributions serialized before that field was added still deserialize.
-pub(crate) fn zero_money_usd() -> Money {
-    Money::new(0.0, Currency::USD)
-}

@@ -5,202 +5,23 @@ use crate::position::PositionUnit;
 use crate::types::{AttributeValue, Entity, EntityId, PositionId};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
-use finstack_quant_core::types::{CurveId, PriceId};
-use finstack_quant_valuations::instruments::{
-    FxPair, InstrumentCurves, MarketDependencies, VolatilityDependency,
-};
+use finstack_quant_valuations::instruments::{InstrumentEnvelope, MarketDependencies};
 use indexmap::IndexMap;
 use schemars::JsonSchema;
-use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::value::RawValue;
+use serde::{Deserialize, Serialize};
 
-const INSTRUMENT_ENVELOPE_SCHEMA_URI: &str =
-    "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json";
-
-fn materialization_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    schemars::json_schema!({
-        "type": "string",
-        "const": super::PORTFOLIO_MATERIALIZATION_CONTRACT.schema_string(),
-    })
+/// Sole supported portfolio-materialization contract marker.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
+pub enum PortfolioMaterializationSchema {
+    /// Canonical v1 materialization contract.
+    #[serde(rename = "finstack_quant.portfolio_materialization/1")]
+    Materialization,
 }
 
-fn instrument_envelope_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    schemars::json_schema!({
-        "$ref": INSTRUMENT_ENVELOPE_SCHEMA_URI,
-    })
-}
-
-/// Producer-supplied market-dependency claim for an instrument artifact.
-///
-/// The alias names the dependency payload's role in the materialization
-/// contract while retaining the canonical valuations representation.
-pub type MarketDependenciesSpec = MarketDependencies;
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct StrictEntityWire {
-    id: EntityId,
-    name: Option<String>,
-    #[serde(default)]
-    tags: IndexMap<String, String>,
-    #[serde(default)]
-    meta: IndexMap<String, serde_json::Value>,
-}
-
-impl From<StrictEntityWire> for Entity {
-    fn from(value: StrictEntityWire) -> Self {
-        Self {
-            id: value.id,
-            name: value.name,
-            tags: value.tags,
-            meta: value.meta,
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct StrictBookWire {
-    id: BookId,
-    name: Option<String>,
-    parent_id: Option<BookId>,
-    position_ids: Vec<PositionId>,
-    child_book_ids: Vec<BookId>,
-    #[serde(default)]
-    tags: IndexMap<String, String>,
-    #[serde(default)]
-    meta: IndexMap<String, serde_json::Value>,
-}
-
-impl From<StrictBookWire> for Book {
-    fn from(value: StrictBookWire) -> Self {
-        Self {
-            id: value.id,
-            name: value.name,
-            parent_id: value.parent_id,
-            position_ids: value.position_ids,
-            child_book_ids: value.child_book_ids,
-            tags: value.tags,
-            meta: value.meta,
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct StrictInstrumentCurvesWire {
-    discount_curves: Vec<CurveId>,
-    forward_curves: Vec<CurveId>,
-    credit_curves: Vec<CurveId>,
-    inflation_curves: Vec<CurveId>,
-}
-
-impl From<StrictInstrumentCurvesWire> for InstrumentCurves {
-    fn from(value: StrictInstrumentCurvesWire) -> Self {
-        Self {
-            discount_curves: value.discount_curves.into_iter().collect(),
-            forward_curves: value.forward_curves.into_iter().collect(),
-            credit_curves: value.credit_curves.into_iter().collect(),
-            inflation_curves: value.inflation_curves.into_iter().collect(),
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct StrictVolatilityDependencyWire {
-    surface_id: CurveId,
-    underlying_id: Option<PriceId>,
-    reference_strike: Option<f64>,
-}
-
-impl From<StrictVolatilityDependencyWire> for VolatilityDependency {
-    fn from(value: StrictVolatilityDependencyWire) -> Self {
-        Self::new(
-            value.surface_id,
-            value.underlying_id,
-            value.reference_strike,
-        )
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct StrictFxPairWire {
-    base: Currency,
-    quote: Currency,
-}
-
-impl From<StrictFxPairWire> for FxPair {
-    fn from(value: StrictFxPairWire) -> Self {
-        Self::new(value.base, value.quote)
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct StrictMarketDependenciesWire {
-    curves: StrictInstrumentCurvesWire,
-    spot_ids: Vec<String>,
-    volatility_dependencies: Vec<StrictVolatilityDependencyWire>,
-    fx_pairs: Vec<StrictFxPairWire>,
-    series_ids: Vec<String>,
-}
-
-impl From<StrictMarketDependenciesWire> for MarketDependencies {
-    fn from(value: StrictMarketDependenciesWire) -> Self {
-        Self {
-            curves: value.curves.into(),
-            spot_ids: value.spot_ids,
-            volatility_dependencies: value
-                .volatility_dependencies
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            fx_pairs: value.fx_pairs.into_iter().map(Into::into).collect(),
-            series_ids: value.series_ids,
-        }
-    }
-}
-
-fn deserialize_entities<'de, D>(deserializer: D) -> Result<IndexMap<EntityId, Entity>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    IndexMap::<EntityId, StrictEntityWire>::deserialize(deserializer).map(|values| {
-        values
-            .into_iter()
-            .map(|(id, entity)| (id, entity.into()))
-            .collect()
-    })
-}
-
-fn deserialize_books<'de, D>(deserializer: D) -> Result<IndexMap<BookId, Book>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    IndexMap::<BookId, StrictBookWire>::deserialize(deserializer).map(|values| {
-        values
-            .into_iter()
-            .map(|(id, book)| (id, book.into()))
-            .collect()
-    })
-}
-
-pub(super) fn deserialize_dependencies(
-    raw: &RawValue,
-) -> serde_json::Result<MarketDependenciesSpec> {
-    serde_json::from_str::<StrictMarketDependenciesWire>(raw.get()).map(Into::into)
-}
-
-fn deserialize_optional_dependencies<'de, D>(
-    deserializer: D,
-) -> Result<Option<MarketDependenciesSpec>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Option::<StrictMarketDependenciesWire>::deserialize(deserializer)
-        .map(|value| value.map(Into::into))
+impl PortfolioMaterializationSchema {
+    /// The exact marker required by every persisted materialization envelope.
+    pub const CURRENT: Self = Self::Materialization;
 }
 
 /// Strict, versioned portfolio materialization bundle.
@@ -213,8 +34,7 @@ where
 #[serde(deny_unknown_fields)]
 pub struct PortfolioMaterializationEnvelope {
     /// Exact materialization contract marker.
-    #[schemars(schema_with = "materialization_schema_marker")]
-    pub schema: String,
+    pub schema: PortfolioMaterializationSchema,
     /// Portfolio fields that do not contain runtime instrument trait objects.
     pub portfolio: PortfolioHeader,
     /// Unique strict instrument envelopes referenced by positions.
@@ -238,23 +58,16 @@ pub struct PortfolioHeader {
     pub name: Option<String>,
     /// Reporting currency used for portfolio aggregation.
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-    pub base_ccy: Currency,
+    pub base_currency: Currency,
     /// Valuation date for the materialized portfolio.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub as_of: Date,
     /// Entities keyed by their stable IDs in deterministic order.
-    #[serde(deserialize_with = "deserialize_entities")]
-    #[schemars(with = "std::collections::BTreeMap<String, serde_json::Value>")]
     #[cfg_attr(feature = "ts_export", ts(type = "Record<string, unknown>"))]
     pub entities: IndexMap<EntityId, Entity>,
     /// Optional book hierarchy keyed by stable book IDs.
-    #[serde(
-        default,
-        skip_serializing_if = "IndexMap::is_empty",
-        deserialize_with = "deserialize_books"
-    )]
-    #[schemars(with = "std::collections::BTreeMap<String, serde_json::Value>")]
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     #[cfg_attr(feature = "ts_export", ts(type = "Record<string, unknown>"))]
     pub books: IndexMap<BookId, Book>,
     /// Portfolio-level grouping and classification tags.
@@ -277,20 +90,13 @@ pub struct InstrumentArtifact {
     /// Optional claimed canonical digest, verified before decoding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content_hash: Option<String>,
-    /// Full strict [`finstack_quant_valuations::instruments::InstrumentEnvelope`]
-    /// JSON retained without constructing a duplicate generic JSON tree during
-    /// the outer bundle parse.
-    #[schemars(schema_with = "instrument_envelope_schema")]
+    /// Full typed, strict instrument envelope.
     #[cfg_attr(feature = "ts_export", ts(type = "unknown"))]
-    pub envelope: Box<RawValue>,
+    pub envelope: InstrumentEnvelope,
     /// Optional producer dependency claim, checked against runtime extraction.
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_optional_dependencies"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts_export", ts(type = "Record<string, unknown>"))]
-    pub dependencies: Option<MarketDependenciesSpec>,
+    pub dependencies: Option<MarketDependencies>,
 }
 
 /// Lightweight position referencing a unique instrument artifact.
@@ -314,12 +120,10 @@ pub struct MaterializedPosition {
     /// Signed holding quantity interpreted according to [`PositionUnit`].
     pub quantity: f64,
     /// Scaling convention applied to `quantity`.
-    #[schemars(with = "serde_json::Value")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub unit: PositionUnit,
     /// Position attributes used for grouping, filtering, and constraints.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    #[schemars(with = "std::collections::BTreeMap<String, serde_json::Value>")]
     #[cfg_attr(feature = "ts_export", ts(type = "Record<string, unknown>"))]
     pub attributes: IndexMap<String, AttributeValue>,
     /// Extension metadata retained with the position.

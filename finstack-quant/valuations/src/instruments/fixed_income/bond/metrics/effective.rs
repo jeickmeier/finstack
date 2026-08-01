@@ -13,7 +13,7 @@
 //! C_eff = (P_up + P_down - 2 * P_base) / (P_base * shock^2)
 //! ```
 //!
-//! where `shock` is the parallel rate bump in decimal (e.g., 0.0025 for 25 bps).
+//! where `shock` is the parallel rate bump in decimal (e.g., 0.0025 for 25 bp).
 
 use crate::instruments::common_impl::traits::Instrument;
 use crate::instruments::Bond;
@@ -34,7 +34,7 @@ pub(crate) struct EffectiveDurationResult {
     pub base_price: f64,
     pub price_up: f64,
     pub price_down: f64,
-    pub shock_bps: f64,
+    pub shock_bp: f64,
 }
 
 /// Calculate effective duration for a bond using parallel curve bumps.
@@ -46,9 +46,9 @@ pub(crate) fn effective_duration(
     bond: &Bond,
     market: &MarketContext,
     as_of: Date,
-    shock_bps: Option<f64>,
+    shock_bp: Option<f64>,
 ) -> Result<f64> {
-    Ok(effective_duration_convexity(bond, market, as_of, shock_bps)?.duration)
+    Ok(effective_duration_convexity(bond, market, as_of, shock_bp)?.duration)
 }
 
 /// Calculate effective convexity for a bond using parallel curve bumps.
@@ -56,9 +56,9 @@ pub(crate) fn effective_convexity(
     bond: &Bond,
     market: &MarketContext,
     as_of: Date,
-    shock_bps: Option<f64>,
+    shock_bp: Option<f64>,
 ) -> Result<f64> {
-    Ok(effective_duration_convexity(bond, market, as_of, shock_bps)?.convexity)
+    Ok(effective_duration_convexity(bond, market, as_of, shock_bp)?.convexity)
 }
 
 /// Calculate both effective duration and convexity in one pass (three pricings).
@@ -66,10 +66,10 @@ pub(crate) fn effective_duration_convexity(
     bond: &Bond,
     market: &MarketContext,
     as_of: Date,
-    shock_bps: Option<f64>,
+    shock_bp: Option<f64>,
 ) -> Result<EffectiveDurationResult> {
-    let shock_bps = shock_bps.unwrap_or(DEFAULT_SHOCK_BPS);
-    let shock = shock_bps / 10_000.0;
+    let shock_bp = shock_bp.unwrap_or(DEFAULT_SHOCK_BPS);
+    let shock = shock_bp / 10_000.0;
 
     let (risk_bond, base_price) = option_risk_bond_and_base_price(bond, market, as_of)?;
 
@@ -80,18 +80,18 @@ pub(crate) fn effective_duration_convexity(
             base_price,
             price_up: 0.0,
             price_down: 0.0,
-            shock_bps,
+            shock_bp,
         });
     }
 
     let curve_id = option_risk_curve_id(&risk_bond);
     let market_up = market.bump([MarketBump::Curve {
         id: curve_id.clone(),
-        spec: BumpSpec::parallel_bp(shock_bps),
+        spec: BumpSpec::parallel_bp(shock_bp),
     }])?;
     let market_down = market.bump([MarketBump::Curve {
         id: curve_id,
-        spec: BumpSpec::parallel_bp(-shock_bps),
+        spec: BumpSpec::parallel_bp(-shock_bp),
     }])?;
 
     let price_up = risk_bond.value(&market_up, as_of)?.amount();
@@ -106,7 +106,7 @@ pub(crate) fn effective_duration_convexity(
         base_price,
         price_up,
         price_down,
-        shock_bps,
+        shock_bp,
     })
 }
 
@@ -291,8 +291,8 @@ mod tests {
         });
         bond.call_put = Some(schedule);
 
-        let shock_bps = 25.0;
-        let result = effective_duration_convexity(&bond, &market, as_of, Some(shock_bps))
+        let shock_bp = 25.0;
+        let result = effective_duration_convexity(&bond, &market, as_of, Some(shock_bp))
             .expect("effective duration/convexity");
 
         // Reconstruct the expected finite difference with all three prices on
@@ -303,19 +303,19 @@ mod tests {
         let market_up = market
             .bump([MarketBump::Curve {
                 id: curve_id.clone(),
-                spec: BumpSpec::parallel_bp(shock_bps),
+                spec: BumpSpec::parallel_bp(shock_bp),
             }])
             .expect("bump up");
         let market_down = market
             .bump([MarketBump::Curve {
                 id: curve_id,
-                spec: BumpSpec::parallel_bp(-shock_bps),
+                spec: BumpSpec::parallel_bp(-shock_bp),
             }])
             .expect("bump down");
         let base = risk_bond.value(&market, as_of).expect("base").amount();
         let up = risk_bond.value(&market_up, as_of).expect("up").amount();
         let down = risk_bond.value(&market_down, as_of).expect("down").amount();
-        let shock = shock_bps / 10_000.0;
+        let shock = shock_bp / 10_000.0;
         let expected_duration = (down - up) / (2.0 * base * shock);
         let expected_convexity = (up + down - 2.0 * base) / (base * shock * shock);
 
@@ -391,8 +391,8 @@ mod tests {
         });
         bond.call_put = Some(schedule);
 
-        let shock_bps = 25.0;
-        let result = effective_duration_convexity(&bond, &market, as_of, Some(shock_bps))
+        let shock_bp = 25.0;
+        let result = effective_duration_convexity(&bond, &market, as_of, Some(shock_bp))
             .expect("effective duration/convexity");
 
         let (risk_bond, _) =
@@ -401,19 +401,19 @@ mod tests {
         let market_up = market
             .bump([MarketBump::Curve {
                 id: curve_id.clone(),
-                spec: BumpSpec::parallel_bp(shock_bps),
+                spec: BumpSpec::parallel_bp(shock_bp),
             }])
             .expect("bump up");
         let market_down = market
             .bump([MarketBump::Curve {
                 id: curve_id,
-                spec: BumpSpec::parallel_bp(-shock_bps),
+                spec: BumpSpec::parallel_bp(-shock_bp),
             }])
             .expect("bump down");
         let base = risk_bond.value(&market, as_of).expect("base").amount();
         let up = risk_bond.value(&market_up, as_of).expect("up").amount();
         let down = risk_bond.value(&market_down, as_of).expect("down").amount();
-        let shock = shock_bps / 10_000.0;
+        let shock = shock_bp / 10_000.0;
         let expected_duration = (down - up) / (2.0 * base * shock);
 
         assert!(

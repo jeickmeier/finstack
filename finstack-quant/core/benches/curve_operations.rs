@@ -211,8 +211,8 @@ fn bench_curve_interp_styles(c: &mut Criterion) {
     let mut group = c.benchmark_group("curve_interp_styles");
 
     let styles = [
-        ("Linear", InterpStyle::Linear),
-        ("LogLinear", InterpStyle::LogLinear),
+        ("linear", InterpStyle::Linear),
+        ("log_linear", InterpStyle::LogLinear),
         ("CubicHermite", InterpStyle::CubicHermite),
         ("MonotoneConvex", InterpStyle::MonotoneConvex),
         (

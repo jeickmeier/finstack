@@ -23,10 +23,10 @@ pub struct CashflowScheduleBuildSpec {
     /// Principal amount and amortization behavior.
     pub notional: Notional,
     /// Contract issue date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue: Date,
     /// Contract maturity date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Coupon instructions, applied in order through the canonical builder.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -63,10 +63,10 @@ pub enum CouponLegSpec {
     },
     /// Fixed coupon over an explicit half-open date window.
     FixedWindow {
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Inclusive window start.
         start: Date,
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Exclusive window end.
         end: Date,
         /// Fixed coupon specification for the window.
@@ -74,10 +74,10 @@ pub enum CouponLegSpec {
     },
     /// Floating coupon over an explicit half-open date window.
     FloatingWindow {
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Inclusive window start.
         start: Date,
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Exclusive window end.
         end: Date,
         /// Floating coupon specification for the window.
@@ -85,7 +85,7 @@ pub enum CouponLegSpec {
     },
     /// Fixed coupons followed by floating coupons at `switch`.
     FixedToFloat {
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Date on which the floating leg begins.
         switch: Date,
         /// Fixed-rate quote and schedule before the switch.
@@ -109,9 +109,10 @@ pub enum CouponLegSpec {
 #[serde(deny_unknown_fields)]
 pub struct RateStepSpec {
     /// Boundary date at which the step ends or changes.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Fixed rate or floating margin, according to the parent instruction.
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub rate: Decimal,
 }
 
@@ -121,10 +122,10 @@ pub struct RateStepSpec {
 pub enum PaymentProgramSpec {
     /// Apply a split over one explicit half-open date window.
     Window {
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Inclusive window start.
         start: Date,
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         /// Exclusive window end.
         end: Date,
         /// Settlement behavior active in the window.
@@ -142,7 +143,7 @@ pub enum PaymentProgramSpec {
 #[serde(deny_unknown_fields)]
 pub struct PaymentStepSpec {
     /// Boundary date for the payment split.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Settlement behavior active for the step.
     pub split: CouponType,
@@ -153,7 +154,7 @@ pub struct PaymentStepSpec {
 #[serde(deny_unknown_fields)]
 pub struct PrincipalEventSpec {
     /// Event date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Outstanding balance delta. Positive increases outstanding, negative repays.
     pub delta: Money,
@@ -169,7 +170,7 @@ pub struct PrincipalEventSpec {
 #[serde(deny_unknown_fields)]
 pub struct DatedFlowJson {
     /// Flow date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Dated amount.
     pub amount: Money,
@@ -207,20 +208,20 @@ impl CashflowScheduleBuildSpec {
     /// let spec_json = r#"{
     ///   "notional": {
     ///     "initial": { "amount": "1000000", "currency": "USD" },
-    ///     "amort": "None"
+    ///     "amort": "none"
     ///   },
     ///   "issue": "2024-08-31",
     ///   "maturity": "2025-08-31",
     ///   "coupon_program": [{
     ///     "kind": "fixed",
     ///     "spec": {
-    ///       "coupon_type": "Cash",
+    ///       "coupon_type": "cash",
     ///       "rate": "0.06",
-    ///       "freq": { "count": 12, "unit": "months" },
-    ///       "dc": "Thirty360",
-    ///       "bdc": "following",
+    ///       "frequency": { "count": 12, "unit": "months" },
+    ///       "day_count": "30_360",
+    ///       "business_day_convention": "following",
     ///       "calendar_id": "weekends_only",
-    ///       "stub": "None",
+    ///       "stub": "none",
     ///       "end_of_month": false,
     ///       "payment_lag_days": 0
     ///     }
@@ -330,20 +331,20 @@ impl CashflowScheduleBuildSpec {
 /// let spec_json = r#"{
 ///   "notional": {
 ///     "initial": { "amount": "1000000", "currency": "USD" },
-///     "amort": "None"
+///     "amort": "none"
 ///   },
 ///   "issue": "2024-08-31",
 ///   "maturity": "2025-08-31",
 ///   "coupon_program": [{
 ///     "kind": "fixed",
 ///     "spec": {
-///       "coupon_type": "Cash",
+///       "coupon_type": "cash",
 ///       "rate": "0.06",
-///       "freq": { "count": 12, "unit": "months" },
-///       "dc": "Thirty360",
-///       "bdc": "following",
+///       "frequency": { "count": 12, "unit": "months" },
+///       "day_count": "30_360",
+///       "business_day_convention": "following",
 ///       "calendar_id": "weekends_only",
-///       "stub": "None",
+///       "stub": "none",
 ///       "end_of_month": false,
 ///       "payment_lag_days": 0
 ///     }
@@ -399,7 +400,7 @@ pub fn build_cashflow_schedule_json(spec_json: &str, market_json: Option<&str>) 
 /// let spec_json = r#"{
 ///   "notional": {
 ///     "initial": { "amount": "1000000", "currency": "USD" },
-///     "amort": "None"
+///     "amort": "none"
 ///   },
 ///   "issue": "2024-08-31",
 ///   "maturity": "2025-08-31",
@@ -465,7 +466,7 @@ pub fn validate_cashflow_schedule(schedule: &CashFlowSchedule) -> Result<()> {
 /// let spec_json = r#"{
 ///   "notional": {
 ///     "initial": { "amount": "1000000", "currency": "USD" },
-///     "amort": "None"
+///     "amort": "none"
 ///   },
 ///   "issue": "2024-08-31",
 ///   "maturity": "2025-08-31",
@@ -522,20 +523,20 @@ pub fn dated_flows_json(schedule_json: &str) -> Result<String> {
 /// let spec_json = r#"{
 ///   "notional": {
 ///     "initial": { "amount": "1000000", "currency": "USD" },
-///     "amort": "None"
+///     "amort": "none"
 ///   },
 ///   "issue": "2024-08-31",
 ///   "maturity": "2025-08-31",
 ///   "coupon_program": [{
 ///     "kind": "fixed",
 ///     "spec": {
-///       "coupon_type": "Cash",
+///       "coupon_type": "cash",
 ///       "rate": "0.06",
-///       "freq": { "count": 12, "unit": "months" },
-///       "dc": "Thirty360",
-///       "bdc": "following",
+///       "frequency": { "count": 12, "unit": "months" },
+///       "day_count": "30_360",
+///       "business_day_convention": "following",
 ///       "calendar_id": "weekends_only",
-///       "stub": "None",
+///       "stub": "none",
 ///       "end_of_month": false,
 ///       "payment_lag_days": 0
 ///     }

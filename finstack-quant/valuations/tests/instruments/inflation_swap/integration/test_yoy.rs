@@ -34,7 +34,7 @@ fn build_yoy(side: PayReceive, fixed_rate: f64, notional: f64) -> YoYInflationSw
         .day_count(DayCount::Act365F)
         .side(side)
         .lag_override(InflationLag::Months(3))
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .attributes(Attributes::new())
         .build()
         .expect("valid YoY swap")

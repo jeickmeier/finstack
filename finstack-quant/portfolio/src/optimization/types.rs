@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 /// `UnitScaling` is a direct multiplier on current quantity for existing
 /// positions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum WeightingScheme {
     /// `w_i` is share of gross portfolio base-currency PV.
     ///
@@ -41,6 +42,7 @@ pub enum WeightingScheme {
 
 /// Where a per‑position scalar metric comes from.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum PerPositionMetric {
     /// Directly from `ValuationResult::measures` using a standard `MetricId`.
     ///
@@ -79,6 +81,7 @@ pub enum PerPositionMetric {
 
 /// How to handle missing metrics for a position.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MissingMetricPolicy {
     /// Treat missing as 0.0 (default, appropriate for duration‑like metrics).
     #[default]
@@ -96,6 +99,7 @@ pub enum MissingMetricPolicy {
 /// These expressions are intentionally restricted to linear or linearized forms
 /// so they can be represented by the LP-based optimizer.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum MetricExpr {
     /// `sum_i w_i * m_i`, where `m_i` comes from a `PerPositionMetric`.
     WeightedSum {
@@ -119,6 +123,7 @@ pub enum MetricExpr {
 
 /// Optimization direction and target.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Objective {
     /// Maximize a portfolio‑level metric.
     Maximize(MetricExpr),

@@ -24,10 +24,10 @@ notes.
   requirements for the versioned database platform, artifact compiler,
   multi-backend adapters, pandas research interface, and portfolio
   materialization targets.
-- [`SERDE_STABILITY.md`](SERDE_STABILITY.md): serialization compatibility rules
-  and stability expectations.
+- [`SERDE_STABILITY.md`](SERDE_STABILITY.md): canonical serde contract rules,
+  source-of-truth policy, and reproducible generation requirements.
 - [`CONTRACTS.md`](CONTRACTS.md): current persisted-contract matrix, strict
-  loaders, migration recipes, canonical JSON, generated schemas, structured
+  loaders, exact v1 markers, canonical JSON, generated schemas, structured
   diagnostics, and materialization API links.
 - [`MATERIALIZATION_BENCHMARKS.md`](MATERIALIZATION_BENCHMARKS.md): reproducible
   portfolio materialization fixtures, performance gates, profiling procedure,
@@ -72,8 +72,8 @@ mise run python-examples
   invariants that must hold across releases.
 - [`SERDE_STABILITY.md`](SERDE_STABILITY.md): wire-format and schema-version
   policy for persisted payloads.
-- [`CONTRACTS.md`](CONTRACTS.md): maintained contract and migration catalog,
-  including generation and CI drift checks.
+- [`CONTRACTS.md`](CONTRACTS.md): maintained contract catalog, including
+  generation and CI drift checks.
 - [`superpowers/specs/`](superpowers/specs/): design specs for planned or
   recently implemented feature work.
 - [`superpowers/plans/`](superpowers/plans/): implementation plans. Do not edit

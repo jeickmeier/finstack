@@ -1,9 +1,65 @@
 {
   "$defs": {
+    "BasisSwap": {
+      "additionalProperties": false,
+      "description": "Basis swap instrument that exchanges two floating rate payments with different tenors.\n\nA basis swap allows parties to exchange floating rate payments based on different\nreference rates (e.g., 3M SOFR vs 6M SOFR) plus an optional spread on one leg.\nThe primary leg typically receives the spread, while the reference leg pays flat.\n\nEach leg owns its own dates, discount curve, calendar, and stub conventions,\nfollowing the IRS leg-centric pattern.\n\n# Cross-Currency (XCCY) Basis Swaps\n\n**Important**: This implementation supports **single-currency** basis swaps only.\nFor cross-currency basis swaps, use `XccySwap` instead.\n\n# Examples\n```rust\nuse finstack_quant_core::{dates::*, money::Money, currency::Currency, types::CurveId};\nuse finstack_quant_valuations::instruments::rates::basis_swap::{BasisSwap, BasisSwapLeg};\nuse time::Month;\n\nlet start = Date::from_calendar_date(2024, Month::January, 3).expect(\"valid date\");\nlet end = Date::from_calendar_date(2025, Month::January, 3).expect(\"valid date\");\n\nlet primary_leg = BasisSwapLeg {\n    forward_curve_id: CurveId::new(\"3M-SOFR\"),\n    discount_curve_id: CurveId::new(\"OIS\"),\n    start,\n    end,\n    frequency: Tenor::quarterly(),\n    day_count: DayCount::Act360,\n    business_day_convention: BusinessDayConvention::ModifiedFollowing,\n    calendar_id: None,\n    stub: StubKind::ShortFront,\n    spread_bp: rust_decimal::Decimal::from(5),\n    payment_lag_days: 0,\n    reset_lag_days: 0,\n};\n\nlet reference_leg = BasisSwapLeg {\n    forward_curve_id: CurveId::new(\"6M-SOFR\"),\n    discount_curve_id: CurveId::new(\"OIS\"),\n    start,\n    end,\n    frequency: Tenor::semi_annual(),\n    day_count: DayCount::Act360,\n    business_day_convention: BusinessDayConvention::ModifiedFollowing,\n    calendar_id: None,\n    stub: StubKind::ShortFront,\n    spread_bp: rust_decimal::Decimal::ZERO,\n    payment_lag_days: 0,\n    reset_lag_days: 0,\n};\n\nlet swap = BasisSwap::new(\n    \"BASIS_SWAP_001\",\n    Money::new(1_000_000.0, Currency::USD),\n    primary_leg,\n    reference_leg,\n);\n```",
+      "properties": {
+        "allow_calendar_fallback": {
+          "default": false,
+          "description": "Allow calendar-day fallback when the calendar cannot be resolved.\n\nWhen `false` (default), missing calendars are treated as an input error to\navoid silently misaligning schedule and payment-lag conventions.",
+          "type": "boolean"
+        },
+        "allow_same_curve": {
+          "default": false,
+          "description": "Allow both legs to reference the same forward curve.\n\nWhen `false` (default), having identical forward curves on both legs produces\na validation error, as this is almost always a configuration mistake (NPV would\nequal spread × annuity by construction). Set to `true` only for testing or\ndeliberate same-index spread trades.",
+          "type": "boolean"
+        },
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for instrument selection and tagging."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique identifier for this instrument."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides for scenario analysis and model configuration.\nInstrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount for both legs."
+        },
+        "primary_leg": {
+          "$ref": "#/$defs/BasisSwapLeg",
+          "description": "Primary leg that typically receives the spread."
+        },
+        "reference_leg": {
+          "$ref": "#/$defs/BasisSwapLeg",
+          "description": "Reference leg that typically pays flat."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        }
+      },
+      "required": [
+        "id",
+        "notional",
+        "primary_leg",
+        "reference_leg",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "BasisSwapLeg": {
       "description": "Specification for basis swap legs (floating vs floating)\n\nA basis swap leg represents one side of a floating-for-floating interest rate swap,\nwhere two parties exchange payments linked to different floating rate indices\n(e.g., 3M SOFR vs 6M SOFR).\n\nEach leg owns its own dates, discount curve, schedule conventions, and calendar,\nfollowing the IRS leg-centric pattern used by `FixedLegSpec` and `FloatLegSpec`.",
       "properties": {
-        "bdc": {
+        "business_day_convention": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
           "default": "modified_following",
           "description": "Business day convention for date adjustments"
@@ -24,8 +80,8 @@
           "description": "Discount curve identifier for present value calculations"
         },
         "end": {
-          "description": "End date of the leg",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "End date of the leg"
         },
         "forward_curve_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
@@ -48,20 +104,16 @@
           "type": "integer"
         },
         "spread_bp": {
-          "description": "Spread added to the floating rate, in **basis points**.\n\n# Units\n\n- `Decimal::from(5)` represents 5 basis points (5bp)\n- `Decimal::from(100)` represents 100 basis points (1%)\n- `Decimal::from(-10)` represents -10 basis points\n\nThis is consistent with `FloatLegSpec::spread_bp` and `PremiumLegSpec::spread_bp`.\n\n# Typical Market Range\n\nBasis spreads in liquid markets typically range from -50bp to +50bp.\nValues outside ±5000bp are considered extreme and\nwill trigger a validation warning during pricing.",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Spread added to the floating rate, in **basis points**.\n\n# Units\n\n- `Decimal::from(5)` represents 5 basis points (5bp)\n- `Decimal::from(100)` represents 100 basis points (1%)\n- `Decimal::from(-10)` represents -10 basis points\n\nThis is consistent with `FloatLegSpec::spread_bp` and `PremiumLegSpec::spread_bp`.\n\n# Typical Market Range\n\nBasis spreads in liquid markets typically range from -50bp to +50bp.\nValues outside ±5000bp are considered extreme and\nwill trigger a validation warning during pricing."
         },
         "start": {
-          "description": "Start date of the leg",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of the leg"
         },
         "stub": {
           "$ref": "#/$defs/StubKind",
-          "default": "ShortFront",
+          "default": "short_front",
           "description": "Stub period handling rule"
         }
       },
@@ -76,31 +128,62 @@
       ],
       "type": "object"
     },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/BasisSwap"
+            },
+            "type": {
+              "const": "basis_swap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "StubKind": {
       "description": "Stub period handling when start/end dates don't align with payment frequency.\n\nControls how schedules are generated when the start and end dates don't\ndivide evenly by the payment frequency, resulting in an irregular period\n(stub) at the beginning or end of the schedule.\n\n# Variants\n\n- **`None`**: No stub allowed (default). Generates regular periods from\n  start to end and returns an error\n  ([`InputError::NonIntegerScheduleTenor`]) when the dates don't divide\n  evenly by the frequency. Use a stub variant for misaligned schedules.\n\n[`InputError::NonIntegerScheduleTenor`]: crate::error::InputError::NonIntegerScheduleTenor\n- **`ShortFront`**: Short stub period at the start. Schedule is built\n  backward from the end date, creating a short first period.\n- **`ShortBack`**: Short stub period at the end. Schedule is built forward\n  from the start date, creating a short final period.\n- **`LongFront`**: Long stub period at the start. Combines the first two\n  periods into a single longer period.\n- **`LongBack`**: Long stub period at the end. Combines the last two periods\n  into a single longer period.\n\n# Financial Context\n\nStub conventions are important for:\n- Interest accrual calculations (short/long first coupons)\n- Cash flow present value computations\n- Matching market conventions for specific instruments\n\n# Examples\n\n```rust\nuse finstack_quant_core::dates::{ScheduleBuilder, Tenor, StubKind};\nuse time::{Date, Month};\n\nlet start = Date::from_calendar_date(2025, Month::January, 10)?;\nlet end = Date::from_calendar_date(2025, Month::December, 15)?;\n\n// Short stub at front\nlet sched = ScheduleBuilder::new(start, end)?\n    .frequency(Tenor::quarterly())\n    .stub_rule(StubKind::ShortFront)\n    .build()?;\n# Ok::<(), Box<dyn std::error::Error>>(())\n```\n\n# See Also\n\n- [`ScheduleBuilder::stub_rule`] to configure stub behavior",
       "oneOf": [
         {
-          "const": "None",
+          "const": "none",
           "description": "No stub allowed: start/end must align exactly with the frequency,\notherwise schedule generation returns an error.",
           "type": "string"
         },
         {
-          "const": "ShortFront",
+          "const": "short_front",
           "description": "Short stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "ShortBack",
+          "const": "short_back",
           "description": "Short stub period at the end of the schedule (final step truncated to maturity).",
           "type": "string"
         },
         {
-          "const": "LongFront",
+          "const": "long_front",
           "description": "Long stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "LongBack",
+          "const": "long_back",
           "description": "Long stub period at the end of the schedule (merges final two periods).",
           "type": "string"
         }
@@ -110,12 +193,12 @@
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/basis_swap.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Basis swap exchanging two floating rate payments with different tenors",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
-          "allow_calendar_fallback": true,
+          "allow_calendar_fallback": false,
           "allow_same_curve": false,
           "attributes": {},
           "id": "BASIS-SWAP-USD-3M1M-5Y",
@@ -123,30 +206,10 @@
             "amount": "10000000",
             "currency": "USD"
           },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "primary_leg": {
-            "bdc": "modified_following",
-            "day_count": "Act360",
+            "business_day_convention": "modified_following",
+            "calendar_id": "weekends_only",
+            "day_count": "act_360",
             "discount_curve_id": "USD-OIS",
             "end": "2029-01-03",
             "forward_curve_id": "USD-SOFR-3M",
@@ -158,11 +221,12 @@
             "reset_lag_days": 0,
             "spread_bp": "5",
             "start": "2024-01-03",
-            "stub": "ShortFront"
+            "stub": "short_front"
           },
           "reference_leg": {
-            "bdc": "modified_following",
-            "day_count": "Act360",
+            "business_day_convention": "modified_following",
+            "calendar_id": "weekends_only",
+            "day_count": "act_360",
             "discount_curve_id": "USD-OIS",
             "end": "2029-01-03",
             "forward_curve_id": "USD-SOFR-1M",
@@ -174,7 +238,7 @@
             "reset_lag_days": 0,
             "spread_bp": "0",
             "start": "2024-01-03",
-            "stub": "ShortFront"
+            "stub": "short_front"
           }
         },
         "type": "basis_swap"
@@ -184,98 +248,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Basis Swap instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "allow_calendar_fallback": {
-              "default": false,
-              "description": "Allow calendar-day fallback when the calendar cannot be resolved.\n\nWhen `false` (default), missing calendars are treated as an input error to\navoid silently misaligning schedule and payment-lag conventions.",
-              "type": "boolean"
-            },
-            "allow_same_curve": {
-              "default": false,
-              "description": "Allow both legs to reference the same forward curve.\n\nWhen `false` (default), having identical forward curves on both legs produces\na validation error, as this is almost always a configuration mistake (NPV would\nequal spread × annuity by construction). Set to `true` only for testing or\ndeliberate same-index spread trades.",
-              "type": "boolean"
-            },
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for instrument selection and tagging."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique identifier for this instrument."
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount for both legs."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides for scenario analysis and model configuration.\nInstrument-owned pricing inputs."
-            },
-            "primary_leg": {
-              "$ref": "#/$defs/BasisSwapLeg",
-              "description": "Primary leg that typically receives the spread."
-            },
-            "reference_leg": {
-              "$ref": "#/$defs/BasisSwapLeg",
-              "description": "Reference leg that typically pays flat."
-            }
-          },
-          "required": [
-            "id",
-            "notional",
-            "primary_leg",
-            "reference_leg",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "basis_swap",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Basis Swap",
+  "title": "basis_swap",
   "type": "object"
 }

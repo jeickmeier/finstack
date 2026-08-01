@@ -14,18 +14,15 @@ reference those separately generated artifacts.
 ## Regenerating Schemas
 
 ```bash
-# Regenerate cashflows, valuations, and portfolio schemas, then apply overrides
+# Regenerate every registry-owned Rust schema
 mise run rust-gen-schemas
 
 # Regenerate only valuations-owned schemas
-cargo run -p finstack-quant-valuations --bin gen_schemas
+cargo run -p finstack-quant-valuations --bin gen_schemas -- --write
 
 # Run the other owning generators directly when needed
-cargo run -p finstack-quant-cashflows --bin gen_cashflow_schemas
-cargo run -p finstack-quant-portfolio --bin gen_materialization_schemas
-
-# Reapply only the deterministic valuations override layer
-mise run rust-sync-schemas
+cargo run -p finstack-quant-cashflows --bin gen_cashflow_schemas -- --write
+cargo run -p finstack-quant-portfolio --bin gen_materialization_schemas -- --write
 
 # Validate schema parity and the checked-in schema audit
 mise run rust-check-schemas
@@ -34,14 +31,11 @@ mise run rust-check-schemas
 mise run gen-check
 ```
 
-The Rust generators always write their schemars output first.
-`scripts/sync_instrument_schema_overrides.py` then reapplies two deterministic,
-checked-in documentation/example corrections to the generated bond and
-interest-rate-future schemas. `rust-sync-schemas` does not regenerate schemas;
-it only reapplies that override layer to existing generated files. Keep the
-generator output and override script synchronized, and never hand-edit their
-combined output. JSON Schema validation is supplementary: strict Rust loaders
-still own version-marker, resource-limit, migration, and semantic checks.
+Every artifact is generated directly from its runtime serde type and registry
+metadata. Examples come from deterministic Rust providers. Never hand-edit a
+checked-in schema; update the owning Rust type, registry metadata, or example
+provider and regenerate. JSON Schema validation is supplementary: strict Rust
+loaders still own resource limits and semantic checks.
 
 ## Directory structure
 
@@ -59,8 +53,7 @@ schemas/
     fx/                    # FX spots, forwards, options, barriers
     commodity/             # Commodity forwards, options, swaps
     exotics/               # Asian, barrier, lookback, basket options
-  calibration/2/           # Frozen calibration schema (v2)
-  calibration/3/           # Current calibration schema (v3)
+  calibration/1/           # Canonical calibration schema (v1)
   market/1/                # Market quote schemas (v1)
   results/1/               # Valuation result schema (v1)
 ```
@@ -80,7 +73,7 @@ Add to your `.vscode/settings.json`:
     },
     {
       "fileMatch": ["**/calibration/**/*.json"],
-      "url": "./finstack-quant/valuations/schemas/calibration/3/calibration.schema.json"
+      "url": "./finstack-quant/valuations/schemas/calibration/1/calibration.schema.json"
     }
   ]
 }
@@ -103,12 +96,12 @@ Every instrument uses the envelope format:
       "cashflow_spec": {
         "Fixed": {
           "coupon_type": "Cash",
-          "freq": { "count": 6, "unit": "months" },
-          "dc": "ActActIsma",
+          "frequency": { "count": 6, "unit": "months" },
+          "day_count": "act_act_isma",
           "calendar_id": "sifma",
           "rate": "0.0425",
-          "bdc": "following",
-          "stub": "None"
+          "business_day_convention": "following",
+          "stub": "none"
         }
       },
       "discount_curve_id": "USD-TREASURY",
@@ -174,7 +167,7 @@ Calibration uses a plan-based approach:
 
 ```json
 {
-  "schema": "finstack_quant.calibration/3",
+  "schema": "finstack_quant.calibration/1",
   "plan": {
     "id": "my-calibration",
     "quote_sets": {
@@ -202,7 +195,7 @@ Calibration uses a plan-based approach:
 Schema versions are encoded in directory paths (`/1/`, `/2/`, `/3/`). On
 database-oriented paths, the strict Rust loaders enforce the `schema` field
 (for example, `"finstack_quant.instrument/1"` and
-`"finstack_quant.calibration/3"`). Raw `serde_json` deserialization and generic
+`"finstack_quant.calibration/1"`). Raw `serde_json` deserialization and generic
 JSON Schema validators only check what their caller invokes; they do not
 replace strict loader version, resource-limit, migration, or semantic checks.
 

@@ -8,12 +8,6 @@ use core::hash::Hash;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::HashMap;
 
-fn normalize_simm_label(raw: &str) -> String {
-    raw.trim()
-        .to_ascii_lowercase()
-        .replace([' ', '-', '.'], "_")
-}
-
 /// Add every `(key, value)` from `source` into `target`, accumulating
 /// values for keys that already exist.
 ///
@@ -42,6 +36,7 @@ where
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SimmRiskClass {
     /// Interest rate risk
@@ -73,6 +68,7 @@ pub enum SimmRiskClass {
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SimmCreditSector {
     /// Bucket 1: IG sovereigns including central banks.
@@ -99,10 +95,6 @@ pub enum SimmCreditSector {
     HighYieldTechnologyMedia,
     /// Bucket 12: HY / non-rated health care, utilities, local government, and government-backed corporates.
     HighYieldHealthCare,
-    /// Legacy broad index bucket. Production v2.6 registry parameters map this to Residual.
-    Index,
-    /// Legacy broad securitized bucket. Production v2.6 registry parameters map this to Residual.
-    Securitized,
     /// Residual bucket.
     Residual,
 }
@@ -110,12 +102,12 @@ pub enum SimmCreditSector {
 impl std::fmt::Display for SimmRiskClass {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SimmRiskClass::InterestRate => write!(f, "InterestRate"),
-            SimmRiskClass::CreditQualifying => write!(f, "CreditQualifying"),
-            SimmRiskClass::CreditNonQualifying => write!(f, "CreditNonQualifying"),
-            SimmRiskClass::Equity => write!(f, "Equity"),
-            SimmRiskClass::Commodity => write!(f, "Commodity"),
-            SimmRiskClass::Fx => write!(f, "FX"),
+            SimmRiskClass::InterestRate => write!(f, "interest_rate"),
+            SimmRiskClass::CreditQualifying => write!(f, "credit_qualifying"),
+            SimmRiskClass::CreditNonQualifying => write!(f, "credit_non_qualifying"),
+            SimmRiskClass::Equity => write!(f, "equity"),
+            SimmRiskClass::Commodity => write!(f, "commodity"),
+            SimmRiskClass::Fx => write!(f, "fx"),
         }
     }
 }
@@ -124,14 +116,14 @@ impl std::str::FromStr for SimmRiskClass {
     type Err = String;
 
     fn from_str(raw: &str) -> Result<Self, Self::Err> {
-        match normalize_simm_label(raw).as_str() {
-            "interest_rate" | "ir" | "rates" => Ok(Self::InterestRate),
-            "credit_qualifying" | "credit_qual" | "cq" => Ok(Self::CreditQualifying),
-            "credit_non_qualifying" | "credit_nonqual" | "cnq" => Ok(Self::CreditNonQualifying),
-            "equity" | "eq" => Ok(Self::Equity),
-            "commodity" | "comm" => Ok(Self::Commodity),
-            "fx" | "foreign_exchange" => Ok(Self::Fx),
-            other => Err(format!("unknown SIMM risk class '{other}'")),
+        match raw {
+            "interest_rate" => Ok(Self::InterestRate),
+            "credit_qualifying" => Ok(Self::CreditQualifying),
+            "credit_non_qualifying" => Ok(Self::CreditNonQualifying),
+            "equity" => Ok(Self::Equity),
+            "commodity" => Ok(Self::Commodity),
+            "fx" => Ok(Self::Fx),
+            _ => Err(format!("unknown SIMM risk class '{raw}'")),
         }
     }
 }
@@ -140,33 +132,21 @@ impl std::str::FromStr for SimmCreditSector {
     type Err = String;
 
     fn from_str(raw: &str) -> Result<Self, Self::Err> {
-        match normalize_simm_label(raw).as_str() {
-            "sovereign" | "ig_sovereign" => Ok(Self::Sovereign),
-            "financial" | "ig_financial" => Ok(Self::Financial),
-            "basic_materials" | "energy_industrials" | "ig_basic_materials" => {
-                Ok(Self::BasicMaterials)
-            }
-            "consumer_goods" | "ig_consumer_goods" => Ok(Self::ConsumerGoods),
-            "technology_media" | "technology" | "telecom" | "ig_technology_media" => {
-                Ok(Self::TechnologyMedia)
-            }
-            "health_care" | "healthcare" | "utilities" | "ig_health_care" => Ok(Self::HealthCare),
-            "high_yield_sovereign" | "hy_sovereign" => Ok(Self::HighYieldSovereign),
-            "high_yield_financial" | "hy_financial" => Ok(Self::HighYieldFinancial),
-            "high_yield_basic_materials" | "hy_basic_materials" => {
-                Ok(Self::HighYieldBasicMaterials)
-            }
-            "high_yield_consumer_goods" | "hy_consumer_goods" => Ok(Self::HighYieldConsumerGoods),
-            "high_yield_technology_media" | "hy_technology_media" => {
-                Ok(Self::HighYieldTechnologyMedia)
-            }
-            "high_yield_health_care" | "hy_health_care" | "hy_healthcare" => {
-                Ok(Self::HighYieldHealthCare)
-            }
-            "index" => Ok(Self::Index),
-            "securitized" | "securitised" => Ok(Self::Securitized),
-            "residual" | "other" => Ok(Self::Residual),
-            other => Err(format!("unknown SIMM credit sector '{other}'")),
+        match raw {
+            "sovereign" => Ok(Self::Sovereign),
+            "financial" => Ok(Self::Financial),
+            "basic_materials" => Ok(Self::BasicMaterials),
+            "consumer_goods" => Ok(Self::ConsumerGoods),
+            "technology_media" => Ok(Self::TechnologyMedia),
+            "health_care" => Ok(Self::HealthCare),
+            "high_yield_sovereign" => Ok(Self::HighYieldSovereign),
+            "high_yield_financial" => Ok(Self::HighYieldFinancial),
+            "high_yield_basic_materials" => Ok(Self::HighYieldBasicMaterials),
+            "high_yield_consumer_goods" => Ok(Self::HighYieldConsumerGoods),
+            "high_yield_technology_media" => Ok(Self::HighYieldTechnologyMedia),
+            "high_yield_health_care" => Ok(Self::HighYieldHealthCare),
+            "residual" => Ok(Self::Residual),
+            _ => Err(format!("unknown SIMM credit sector '{raw}'")),
         }
     }
 }
@@ -177,6 +157,7 @@ impl std::str::FromStr for SimmCreditSector {
 /// DTO stores each bucket as an array of tuples. It is the canonical JSON shape
 /// used by language bindings and examples.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SimmSensitivitiesJson {
     /// Base currency for the sensitivities.
     pub base_currency: Currency,
@@ -341,9 +322,7 @@ const fn simm_credit_sector_sort_key(sector: SimmCreditSector) -> u8 {
         SimmCreditSector::HighYieldConsumerGoods => 9,
         SimmCreditSector::HighYieldTechnologyMedia => 10,
         SimmCreditSector::HighYieldHealthCare => 11,
-        SimmCreditSector::Index => 12,
-        SimmCreditSector::Securitized => 13,
-        SimmCreditSector::Residual => 14,
+        SimmCreditSector::Residual => 12,
     }
 }
 
@@ -973,23 +952,25 @@ mod tests {
     }
 
     #[test]
-    fn simm_enum_parsers_accept_binding_aliases() {
+    fn simm_enum_parsers_reject_noncanonical_values() {
         assert_eq!(
-            "rates".parse::<SimmRiskClass>().expect("risk class alias"),
+            "interest_rate"
+                .parse::<SimmRiskClass>()
+                .expect("canonical risk class"),
             SimmRiskClass::InterestRate
         );
         assert_eq!(
-            "hy_financial"
+            "high_yield_financial"
                 .parse::<SimmCreditSector>()
-                .expect("credit sector alias"),
+                .expect("canonical credit sector"),
             SimmCreditSector::HighYieldFinancial
         );
-        assert_eq!(
-            "securitised"
-                .parse::<SimmCreditSector>()
-                .expect("UK spelling alias"),
-            SimmCreditSector::Securitized
-        );
+        for noncanonical in ["rates", "IR", "foreign_exchange", " interest_rate"] {
+            assert!(noncanonical.parse::<SimmRiskClass>().is_err());
+        }
+        for noncanonical in ["hy_financial", "securitised", "other", "bucket_8"] {
+            assert!(noncanonical.parse::<SimmCreditSector>().is_err());
+        }
     }
 
     #[test]
@@ -1080,11 +1061,11 @@ mod tests {
 
     #[test]
     fn test_simm_risk_class_display() {
-        assert_eq!(SimmRiskClass::InterestRate.to_string(), "InterestRate");
+        assert_eq!(SimmRiskClass::InterestRate.to_string(), "interest_rate");
         assert_eq!(
             SimmRiskClass::CreditQualifying.to_string(),
-            "CreditQualifying"
+            "credit_qualifying"
         );
-        assert_eq!(SimmRiskClass::Fx.to_string(), "FX");
+        assert_eq!(SimmRiskClass::Fx.to_string(), "fx");
     }
 }

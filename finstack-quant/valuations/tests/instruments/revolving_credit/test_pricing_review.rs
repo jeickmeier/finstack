@@ -29,7 +29,7 @@ fn test_pricing_recovery_consistency() {
 
     // Scenario: 1-year fully drawn facility (bullet loan behavior).
     // Risk-free rate (r) = 5%.
-    // Market Spread (s) = 2% (200 bps).
+    // Market Spread (s) = 2% (200 bp).
     // Recovery Rate (R) = 40%.
     // Coupon = r + s = 7%.
 
@@ -144,7 +144,7 @@ fn test_floating_rcf_declares_forward_dependency() {
                 all_in_floor_bp: None,
                 index_cap_bp: None,
                 overnight_index_constraints: Default::default(),
-                reset_freq: Tenor::quarterly(),
+                reset_frequency: Tenor::quarterly(),
                 index_tenor: None,
                 reset_lag_days: 2,
                 fixing_calendar_id: None,
@@ -200,7 +200,7 @@ fn test_floating_rcf_dv01_bumps_forward_curve() {
                 all_in_floor_bp: None,
                 index_cap_bp: None,
                 overnight_index_constraints: Default::default(),
-                reset_freq: Tenor::quarterly(),
+                reset_frequency: Tenor::quarterly(),
                 index_tenor: None,
                 reset_lag_days: 2,
                 fixing_calendar_id: None,

@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SaCcrAssetClass {
     /// Interest rate derivatives.
@@ -53,6 +54,7 @@ impl std::fmt::Display for SaCcrAssetClass {
 
 /// SA-CCR option type for delta computation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SaCcrOptionType {
     /// Long call option.
     CallLong,

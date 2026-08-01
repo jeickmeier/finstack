@@ -15,7 +15,7 @@ name?: string | null,
 /**
  * Reporting currency used for portfolio aggregation.
  */
-base_ccy: string,
+base_currency: string,
 /**
  * Valuation date for the materialized portfolio.
  */

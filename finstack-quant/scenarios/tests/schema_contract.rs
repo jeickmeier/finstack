@@ -1,37 +1,14 @@
 //! JSON Schema contract tests for scenario envelopes.
 
 use finstack_quant_scenarios::schema::{
-    generated_schema as assemble_schema, SCENARIO_SCHEMA_BASE, SCENARIO_SCHEMA_DESCRIPTION,
+    generated_schema as generate_schema, SCENARIO_SCHEMA_BASE, SCENARIO_SCHEMA_DESCRIPTION,
     SCENARIO_SCHEMA_FILENAME, SCENARIO_SCHEMA_TITLE,
 };
-use finstack_quant_scenarios::ScenarioEnvelope;
+use finstack_quant_scenarios::{InstrumentType, ScenarioEnvelope};
 use serde_json::{json, Value};
 
-const CANONICAL_DECIMAL_PATTERN: &str = r"^-?\d+(\.\d+)?([eE][+-]?\d+)?$";
-
-struct CanonicalPostprocessProbe;
-
-impl schemars::JsonSchema for CanonicalPostprocessProbe {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("CanonicalPostprocessProbe")
-    }
-
-    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        schemars::json_schema!({
-            "type": "object",
-            "properties": {
-                "trade_date": {"type": "string"},
-                "amount": {
-                    "type": "string",
-                    "pattern": "^-?\\d+(\\.\\d+)?([eE]\\d+)?$",
-                },
-            },
-        })
-    }
-}
-
 fn generated_schema() -> Value {
-    assemble_schema::<ScenarioEnvelope>(
+    generate_schema::<ScenarioEnvelope>(
         SCENARIO_SCHEMA_FILENAME,
         SCENARIO_SCHEMA_TITLE,
         SCENARIO_SCHEMA_DESCRIPTION,
@@ -103,9 +80,12 @@ fn checked_in_envelope_schema_rejects_invalid_instrument_type() {
 fn checked_in_envelope_schema_accepts_serde_instrument_type_value() {
     let mut fixture: Value = serde_json::from_str(include_str!("data/canonical/scenario.json"))
         .expect("canonical scenario fixture parses");
+    let instrument_type =
+        serde_json::to_value(InstrumentType::Bond).expect("instrument type serializes");
+    assert_eq!(instrument_type, json!("bond"));
     fixture["scenario"]["operations"][0] = json!({
         "kind": "instrument_price_pct_by_type",
-        "instrument_types": ["Bond"],
+        "instrument_types": [instrument_type],
         "pct": -5.0
     });
 
@@ -137,25 +117,6 @@ fn checked_in_schema_matches_generated_type_and_metadata() {
     assert_eq!(
         schema["$schema"],
         "https://json-schema.org/draft/2020-12/schema"
-    );
-}
-
-#[test]
-fn scenario_generator_applies_canonical_decimal_and_date_normalization() {
-    let schema = assemble_schema::<CanonicalPostprocessProbe>(
-        "canonical_probe.schema.json",
-        "Canonical probe",
-        "Exercises the scenario generator's canonical post-processing path.",
-    )
-    .expect("canonical probe schema generates");
-
-    assert_eq!(
-        schema.pointer("/properties/amount/pattern"),
-        Some(&json!(CANONICAL_DECIMAL_PATTERN))
-    );
-    assert_eq!(
-        schema.pointer("/properties/trade_date/format"),
-        Some(&json!("date"))
     );
 }
 

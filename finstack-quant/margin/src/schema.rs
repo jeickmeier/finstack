@@ -1,9 +1,7 @@
-//! JSON Schema generation for the published margin contract.
-//!
-//! The root is a synthetic schema-only union. It does not represent a Rust
-//! ingress envelope or imply that the margin crate provides a root loader.
+//! Versioned serde contract and generated JSON Schema for margin payloads.
 
 use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{CsaSpec, MarginCall, OtcMarginSpec};
@@ -16,76 +14,117 @@ pub const MARGIN_SCHEMA_FILENAME: &str = "margin.schema.json";
 pub const MARGIN_SCHEMA_TITLE: &str = "Finstack Quant Margin Specification";
 /// Canonical description of the published margin schema.
 pub const MARGIN_SCHEMA_DESCRIPTION: &str = "OTC derivative margin specifications including CSA terms, thresholds, and collateral eligibility. Covers ISDA CSA, BCBS-IOSCO regulatory margin, and CCP clearing requirements.";
-/// Version marker required by each synthetic published schema variant.
-pub const MARGIN_SCHEMA_V1: &str = "finstack_quant.margin/1";
+/// Required marker for the published margin contract.
+pub const MARGIN_SCHEMA: &str = "finstack_quant.margin/1";
 
-fn margin_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    schemars::json_schema!({
-        "type": "string",
-        "const": MARGIN_SCHEMA_V1,
-        "description": "Schema version identifier",
-    })
+/// Typed value of the required margin schema marker.
+#[derive(Clone, Copy, Debug, Eq, JsonSchema, PartialEq, Deserialize, Serialize)]
+pub enum MarginSchema {
+    /// The sole pre-release margin contract.
+    #[serde(rename = "finstack_quant.margin/1")]
+    Margin,
 }
 
-/// Synthetic union used only to publish the supported margin payload shapes.
-struct MarginSchemaContract;
+impl MarginSchema {
+    /// The exact marker required by every persisted margin envelope.
+    pub const CURRENT: Self = Self::Margin;
+}
 
-impl JsonSchema for MarginSchemaContract {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("MarginSchemaContract")
+/// Strict root envelope for every supported margin payload.
+#[derive(Clone, Debug, JsonSchema, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, untagged)]
+pub enum MarginEnvelope {
+    /// An OTC margin specification.
+    OtcMarginSpec {
+        /// Required contract marker.
+        schema: MarginSchema,
+        /// OTC margin specification payload.
+        otc_margin_spec: OtcMarginSpec,
+    },
+    /// A standalone CSA specification.
+    CsaSpec {
+        /// Required contract marker.
+        schema: MarginSchema,
+        /// CSA specification payload.
+        csa_spec: CsaSpec,
+    },
+    /// A concrete margin call.
+    MarginCall {
+        /// Required contract marker.
+        schema: MarginSchema,
+        /// Margin call payload.
+        margin_call: MarginCall,
+    },
+}
+
+impl MarginEnvelope {
+    /// Wrap an OTC margin specification in the canonical envelope.
+    ///
+    /// # Arguments
+    ///
+    /// * `otc_margin_spec` - Complete OTC margin specification to persist.
+    #[must_use]
+    pub fn otc_margin_spec(otc_margin_spec: OtcMarginSpec) -> Self {
+        Self::OtcMarginSpec {
+            schema: MarginSchema::CURRENT,
+            otc_margin_spec,
+        }
     }
 
-    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        let schema_marker = margin_schema_marker(generator);
-        let otc_margin_spec = generator.subschema_for::<OtcMarginSpec>();
-        let csa_spec = generator.subschema_for::<CsaSpec>();
-        let margin_call = generator.subschema_for::<MarginCall>();
-        schemars::json_schema!({
-            "oneOf": [
-                {
-                    "type": "object",
-                    "required": ["schema", "otc_margin_spec"],
-                    "additionalProperties": false,
-                    "properties": {
-                        "schema": schema_marker,
-                        "otc_margin_spec": otc_margin_spec,
-                    },
-                },
-                {
-                    "type": "object",
-                    "required": ["schema", "csa_spec"],
-                    "additionalProperties": false,
-                    "properties": {
-                        "schema": schema_marker,
-                        "csa_spec": csa_spec,
-                    },
-                },
-                {
-                    "type": "object",
-                    "required": ["schema", "margin_call"],
-                    "additionalProperties": false,
-                    "properties": {
-                        "schema": schema_marker,
-                        "margin_call": margin_call,
-                    },
-                },
-            ],
+    /// Wrap a CSA specification in the canonical envelope.
+    ///
+    /// # Arguments
+    ///
+    /// * `csa_spec` - Complete CSA specification to persist.
+    #[must_use]
+    pub fn csa_spec(csa_spec: CsaSpec) -> Self {
+        Self::CsaSpec {
+            schema: MarginSchema::CURRENT,
+            csa_spec,
+        }
+    }
+
+    /// Wrap a margin call in the canonical envelope.
+    ///
+    /// # Arguments
+    ///
+    /// * `margin_call` - Complete margin call to persist.
+    #[must_use]
+    pub fn margin_call(margin_call: MarginCall) -> Self {
+        Self::MarginCall {
+            schema: MarginSchema::CURRENT,
+            margin_call,
+        }
+    }
+
+    /// Deserialize a strict margin envelope from JSON bytes.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Complete UTF-8 JSON document containing one margin envelope.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`finstack_quant_core::Error::Validation`] for malformed JSON,
+    /// an absent or unsupported schema marker, an unknown field, or a payload
+    /// that does not match exactly one supported envelope variant.
+    pub fn from_slice(bytes: &[u8]) -> finstack_quant_core::Result<Self> {
+        serde_json::from_slice(bytes).map_err(|error| {
+            finstack_quant_core::Error::Validation(format!(
+                "invalid {MARGIN_SCHEMA} envelope: {error}"
+            ))
         })
     }
 }
 
-/// Generate the published margin schema from its Rust contract types.
-///
-/// The schema-only top-level union is emitted as `oneOf` to preserve the
-/// existing published contract. There is no corresponding Rust envelope or
-/// strict root loader.
+/// Generate the published margin schema from [`MarginEnvelope`].
 ///
 /// # Errors
 ///
 /// Returns [`finstack_quant_core::Error::Internal`] if schemars output cannot
 /// be represented as a JSON object.
 pub fn generated_margin_schema() -> finstack_quant_core::Result<Value> {
-    finstack_quant_core::schema::generated_schema::<MarginSchemaContract>(
+    finstack_quant_core::schema::generated_schema::<MarginEnvelope>(
         MARGIN_SCHEMA_BASE,
         MARGIN_SCHEMA_FILENAME,
         MARGIN_SCHEMA_TITLE,

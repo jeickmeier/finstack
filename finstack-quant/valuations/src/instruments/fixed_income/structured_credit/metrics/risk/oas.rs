@@ -81,7 +81,7 @@ impl Default for OasConfig {
 /// Result of an OAS calculation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OasResult {
-    /// Option-adjusted spread (decimal; `0.01` = 100 bps).
+    /// Option-adjusted spread (decimal; `0.01` = 100 bp).
     pub oas: f64,
     /// Model price (% of original balance) at the solved OAS.
     pub model_price: f64,

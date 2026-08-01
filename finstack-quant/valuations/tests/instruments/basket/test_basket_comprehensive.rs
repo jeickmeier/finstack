@@ -1265,7 +1265,7 @@ fn test_basket_value_weight_without_aum_or_shares_errors() {
 fn test_very_small_expense_ratio() {
     // Arrange
     let mut basket = simple_equity_basket();
-    basket.expense_ratio = 0.000001; // 0.0001 bps
+    basket.expense_ratio = 0.000001; // 0.0001 bp
     let context = equity_market_context();
     let calc = basket.calculator();
     let as_of = date(2025, 1, 1);
@@ -1581,7 +1581,7 @@ fn test_basket_envelope_roundtrip_with_instruments() {
     };
 
     let envelope = InstrumentEnvelope {
-        schema: "finstack_quant.instrument/1".to_string(),
+        schema: finstack_quant_valuations::instruments::json_loader::InstrumentSchema::CURRENT,
         instrument: InstrumentJson::Basket(basket.clone()),
     };
 
@@ -1765,7 +1765,7 @@ fn test_real_world_etf_scenario() {
                 ticker: None,
             },
         ],
-        expense_ratio: 0.0009, // 9 bps (typical for equity ETF)
+        expense_ratio: 0.0009, // 9 bp (typical for equity ETF)
         currency: Currency::USD,
         notional: usd(1_000_000.0),
         discount_curve_id: "USD-OIS".into(),

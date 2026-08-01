@@ -11,17 +11,17 @@ use wasm_bindgen::prelude::*;
 /// - **Percent**: `5.0` represents 5%.
 /// - **Basis points**: `500` represents 5% (1 bp = 0.01%).
 ///
-/// Use the `fromPercent` or `fromBps` factories to avoid scaling errors
+/// Use the `fromPercent` or `fromBp` factories to avoid scaling errors
 /// when working with quoted rates.
 ///
 /// @example
 /// ```javascript
 /// import init, { core } from "finstack-quant-wasm";
 /// await init();
-/// const r = core.Rate.fromBps(250);     // 2.5% as 250 bps
+/// const r = core.Rate.fromBp(250);     // 2.5% as 250 bp
 /// r.asDecimal;  // 0.025
 /// r.asPercent;  // 2.5
-/// r.asBps;      // 250
+/// r.asBp;      // 250
 /// ```
 #[wasm_bindgen(js_name = Rate)]
 pub struct JsRate {
@@ -68,25 +68,25 @@ impl JsRate {
 
     /// Create a rate from a whole number of basis points.
     ///
-    /// The canonical Rust `Rate::from_bps` takes an integer (`i32`) number
+    /// The canonical Rust `Rate::from_bp` takes an integer (`i32`) number
     /// of basis points. Because JavaScript numbers are `f64`, this binding
     /// accepts a float but **rejects fractional input** rather than
     /// silently rounding it: a sub-bp rate quietly rounded to whole bp is a
     /// pricing bug, not a convenience. Use `new Rate(decimal)` or
     /// `Rate.fromPercent` for sub-bp rates.
     ///
-    /// @param bps - Rate in whole basis points (e.g. `500` for 5%).
+    /// @param bp - Rate in whole basis points (e.g. `500` for 5%).
     /// @returns The constructed `Rate`.
-    /// @throws If `bps` is non-finite or not a whole number of basis points.
+    /// @throws If `bp` is non-finite or not a whole number of basis points.
     ///
     /// @example
     /// ```javascript
-    /// const r = core.Rate.fromBps(250);  // 2.5%
+    /// const r = core.Rate.fromBp(250);  // 2.5%
     /// r.asDecimal;  // 0.025
     /// ```
-    #[wasm_bindgen(js_name = fromBps)]
-    pub fn from_bps(bps: f64) -> Result<JsRate, JsValue> {
-        let b = try_whole_bps(bps)?;
+    #[wasm_bindgen(js_name = fromBp)]
+    pub fn from_bp(bp: f64) -> Result<JsRate, JsValue> {
+        let b = try_whole_bp(bp)?;
         Ok(JsRate { inner: b.as_rate() })
     }
 
@@ -108,10 +108,10 @@ impl JsRate {
 
     /// Rate in basis points, rounded to the nearest integer (e.g. `500` for 5%).
     ///
-    /// @returns Rate in bps.
-    #[wasm_bindgen(getter, js_name = asBps)]
-    pub fn as_bps(&self) -> i32 {
-        self.inner.as_bps()
+    /// @returns Rate in bp.
+    #[wasm_bindgen(getter, js_name = asBp)]
+    pub fn as_bp(&self) -> i32 {
+        self.inner.as_bp()
     }
 }
 
@@ -121,7 +121,7 @@ impl JsRate {
 /// fractional spread (e.g. an FRN margin of 62.5bp) to whole bp would make
 /// the typed construction path price differently from the JSON path. Reject
 /// instead, pointing callers at the sub-bp-capable alternatives.
-fn try_whole_bps(value: f64) -> Result<RustBps, JsValue> {
+fn try_whole_bp(value: f64) -> Result<RustBps, JsValue> {
     if !value.is_finite() {
         return Err(JsValue::from_str(&format!(
             "basis-point value must be finite; got {value}"
@@ -137,9 +137,9 @@ fn try_whole_bps(value: f64) -> Result<RustBps, JsValue> {
     RustBps::try_new(value).map_err(to_js_err)
 }
 
-/// Basis points (1 bp = 0.01%, 10_000 bps = 100%).
+/// Basis points (1 bp = 0.01%, 10_000 bp = 100%).
 ///
-/// Stored as integer bps internally; constructors reject fractional input.
+/// Stored as integer bp internally; constructors reject fractional input.
 ///
 /// @example
 /// ```javascript
@@ -147,7 +147,7 @@ fn try_whole_bps(value: f64) -> Result<RustBps, JsValue> {
 /// await init();
 /// const spread = new core.Bps(125);
 /// spread.asDecimal();  // 0.0125
-/// spread.asBps();      // 125
+/// spread.asBp();      // 125
 /// ```
 #[wasm_bindgen(js_name = Bps)]
 pub struct JsBps {
@@ -158,14 +158,14 @@ pub struct JsBps {
 impl JsBps {
     /// Create basis points from a whole-number value.
     ///
-    /// @param value - Value in whole basis points (e.g. `25` for 25 bps).
+    /// @param value - Value in whole basis points (e.g. `25` for 25 bp).
     /// @returns The constructed `Bps`.
     /// @throws If `value` is non-finite or not a whole number of basis
     /// points. Sub-bp spreads must use the JSON instrument path (which
     /// preserves fractional values) or a decimal `Rate`.
     #[wasm_bindgen(constructor)]
     pub fn new(value: f64) -> Result<JsBps, JsValue> {
-        try_whole_bps(value).map(|inner| JsBps { inner })
+        try_whole_bp(value).map(|inner| JsBps { inner })
     }
 
     /// Value as a decimal (e.g. 25 bp → 0.0025).
@@ -178,10 +178,10 @@ impl JsBps {
 
     /// Value in whole basis points.
     ///
-    /// @returns Integer bps.
-    #[wasm_bindgen(js_name = asBps)]
-    pub fn as_bps(&self) -> i32 {
-        self.inner.as_bps()
+    /// @returns Integer bp.
+    #[wasm_bindgen(js_name = asBp)]
+    pub fn as_bp(&self) -> i32 {
+        self.inner.as_bp()
     }
 }
 
@@ -243,7 +243,7 @@ mod tests {
         let r = JsRate::new(0.05).expect("valid");
         assert!((r.as_decimal() - 0.05).abs() < 1e-12);
         assert!((r.as_percent() - 5.0).abs() < 1e-10);
-        assert_eq!(r.as_bps(), 500);
+        assert_eq!(r.as_bp(), 500);
     }
 
     #[test]
@@ -253,17 +253,17 @@ mod tests {
     }
 
     #[test]
-    fn rate_from_bps() {
-        let r = JsRate::from_bps(250.0).expect("valid");
+    fn rate_from_bp() {
+        let r = JsRate::from_bp(250.0).expect("valid");
         assert!((r.as_decimal() - 0.025).abs() < 1e-10);
-        assert_eq!(r.as_bps(), 250);
+        assert_eq!(r.as_bp(), 250);
     }
 
     #[test]
-    fn bps_roundtrip() {
+    fn bp_roundtrip() {
         let b = JsBps::new(25.0).expect("valid");
         assert!((b.as_decimal() - 0.0025).abs() < 1e-10);
-        assert_eq!(b.as_bps(), 25);
+        assert_eq!(b.as_bp(), 25);
     }
 
     #[test]
@@ -278,11 +278,11 @@ mod tests {
         let r = JsRate::new(0.0).expect("valid");
         assert_eq!(r.as_decimal(), 0.0);
         assert_eq!(r.as_percent(), 0.0);
-        assert_eq!(r.as_bps(), 0);
+        assert_eq!(r.as_bp(), 0);
     }
 
     #[test]
-    fn bps_large_value() {
+    fn bp_large_value() {
         let b = JsBps::new(10_000.0).expect("valid");
         assert!((b.as_decimal() - 1.0).abs() < 1e-10);
     }
@@ -314,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn bps_rejects_nan() {
+    fn bp_rejects_nan() {
         assert!(RustBps::try_new(f64::NAN).is_err());
     }
 

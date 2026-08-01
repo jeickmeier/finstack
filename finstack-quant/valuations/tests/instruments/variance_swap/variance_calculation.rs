@@ -306,7 +306,7 @@ fn test_expected_variance_at_maturity_equals_realized() {
 fn test_expected_variance_mid_period_is_weighted_blend() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
     let prices = price_series(&swap, 4_950.0, 10.0);
     let ctx = add_series(base_context(), &prices);
     let dates = swap.observation_dates().expect("observation schedule");
@@ -328,7 +328,7 @@ fn test_expected_variance_mid_period_is_weighted_blend() {
 fn test_expected_variance_transitions_smoothly() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
     let prices = price_series(&swap, 5_000.0, 5.0);
     let _ctx = add_series(base_context(), &prices);
     let dates = swap.observation_dates().expect("observation schedule");
@@ -400,7 +400,7 @@ fn ohlc_swap(method: RealizedVarMethod) -> VarianceSwap {
         .strike_variance(DEFAULT_STRIKE_VAR)
         .start_date(start)
         .maturity(end)
-        .observation_freq(Tenor::daily())
+        .observation_frequency(Tenor::daily())
         .observation_calendar_id("USNY".to_string())
         .realized_var_method(method)
         .open_series_id("SPX-OPEN".to_string())
@@ -468,7 +468,7 @@ fn test_ohlc_missing_series_id_returns_error() {
         .strike_variance(DEFAULT_STRIKE_VAR)
         .start_date(start)
         .maturity(end)
-        .observation_freq(Tenor::daily())
+        .observation_frequency(Tenor::daily())
         .observation_calendar_id("USNY".to_string())
         .realized_var_method(RealizedVarMethod::Parkinson)
         // Intentionally omit open/high/low series IDs

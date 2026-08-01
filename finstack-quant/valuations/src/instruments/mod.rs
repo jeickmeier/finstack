@@ -237,6 +237,8 @@ pub use exotics::{
 };
 
 // === Common Functionality ===
+mod breakeven;
+pub use breakeven::{BreakevenConfig, BreakevenMode, BreakevenTarget};
 pub use common_impl::dependencies::{
     FxPair, InstrumentCurves, MarketDependencies, RatesCurveKind, VolatilityDependency,
 };
@@ -261,9 +263,8 @@ pub use common_impl::parameters::trs_common::{TrsScheduleSpec, TrsSide};
 /// Pricing overrides module.
 pub mod pricing_overrides;
 pub use pricing_overrides::{
-    BondRiskBasis, BreakevenConfig, BreakevenMode, BreakevenTarget, BumpConfig,
-    InstrumentPricingOverrides, MarketQuoteOverrides, MetricPricingOverrides, ModelConfig,
-    ScenarioPricingOverrides,
+    BondRiskBasis, BumpConfig, InstrumentPricingOverrides, MarketQuoteOverrides,
+    MetricPricingOverrides, ModelConfig, ScenarioPricingOverrides,
 };
 
 // === JSON Import/Export ===

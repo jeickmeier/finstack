@@ -45,7 +45,7 @@ impl Bond {
         let mut flows = Vec::with_capacity(schedule.get_flows().len());
         for cf in schedule.get_flows() {
             let keep = cf.date > as_of
-                && cf.kind != CFKind::PIK
+                && cf.kind != CFKind::Pik
                 && !(cf.kind == CFKind::Notional && cf.amount.amount() < 0.0);
             if !keep {
                 continue;
@@ -323,7 +323,7 @@ mod tests {
         call.price_pct_of_par = 101.0;
         call.make_whole = Some(MakeWholeSpec {
             reference_curve_id: CurveId::new("USD-TREASURY"),
-            spread_bps: f64::INFINITY,
+            spread_bp: f64::INFINITY,
         });
         assert!(bond
             .validate()

@@ -47,14 +47,14 @@ pub enum BermudanPricingMethod {
     #[default]
     HullWhiteTree,
     /// Longstaff-Schwartz Monte Carlo (more flexible)
-    LSMC,
+    Lsmc,
 }
 
 impl std::fmt::Display for BermudanPricingMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             BermudanPricingMethod::HullWhiteTree => write!(f, "hull_white_tree"),
-            BermudanPricingMethod::LSMC => write!(f, "lsmc"),
+            BermudanPricingMethod::Lsmc => write!(f, "lsmc"),
         }
     }
 }
@@ -63,13 +63,12 @@ impl std::str::FromStr for BermudanPricingMethod {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "hull_white_tree" | "tree" | "hw" => Ok(Self::HullWhiteTree),
-            "lsmc" | "monte_carlo" | "mc" => Ok(Self::LSMC),
-            other => Err(format!(
+        match s {
+            "hull_white_tree" => Ok(Self::HullWhiteTree),
+            "lsmc" => Ok(Self::Lsmc),
+            _ => Err(format!(
                 "Unknown Bermudan pricing method: '{}'. Valid: hull_white_tree, lsmc",
-                other
+                s
             )),
         }
     }
@@ -273,7 +272,7 @@ impl BermudanSwaptionPricer {
     /// (<0.05% SE).
     pub fn lsmc_with_config(config: BermudanSwaptionPricerConfig) -> Self {
         Self {
-            method: BermudanPricingMethod::LSMC,
+            method: BermudanPricingMethod::Lsmc,
             config,
         }
     }
@@ -652,11 +651,11 @@ impl BermudanSwaptionPricer {
         // (the closure is built inline, capturing the `Arc<DiscountCurve>`, so
         // it stays `Send + Sync` as the LSMC engine requires).
         let curve_base = disc.base_date();
-        let curve_dc = disc.day_count();
+        let curve_day_count = disc.day_count();
         let t_asof = if as_of == curve_base {
             0.0
         } else {
-            curve_dc
+            curve_day_count
                 .year_fraction(
                     curve_base,
                     as_of,
@@ -780,7 +779,7 @@ impl Pricer for BermudanSwaptionPricer {
             BermudanPricingMethod::HullWhiteTree => {
                 PricerKey::new(InstrumentType::BermudanSwaption, ModelKey::HullWhite1F)
             }
-            BermudanPricingMethod::LSMC => PricerKey::new(
+            BermudanPricingMethod::Lsmc => PricerKey::new(
                 InstrumentType::BermudanSwaption,
                 ModelKey::MonteCarloHullWhite1F,
             ),
@@ -803,7 +802,7 @@ impl Pricer for BermudanSwaptionPricer {
 
         match self.method {
             BermudanPricingMethod::HullWhiteTree => self.price_tree(swaption, market, as_of),
-            BermudanPricingMethod::LSMC => self.price_lsmc(swaption, market, as_of),
+            BermudanPricingMethod::Lsmc => self.price_lsmc(swaption, market, as_of),
         }
     }
 }

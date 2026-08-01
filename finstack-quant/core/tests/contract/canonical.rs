@@ -188,7 +188,7 @@ fn extension_metadata_participates_in_content_hashes() {
 fn market_state_with_tags(tags: &str) -> (Vec<u8>, MarketContextState) {
     let json = format!(
         r#"{{
-            "version": 2,
+            "schema_version": 1,
             "curves": [],
             "fx": null,
             "surfaces": [],
@@ -223,10 +223,9 @@ fn market_context_state_has_golden_canonical_bytes_hash_and_order_invariance() {
     let (_, second) = market_state_with_tags(r#"{"region":"us","desk":"rates"}"#);
 
     let canonical = to_canonical_bytes(&first).expect("market state canonicalizes");
-    assert_eq!(
-        canonical,
-        include_bytes!("../data/canonical/market_context_state.json")
-    );
+    let fixture = include_bytes!("../data/canonical/market_context_state.json");
+    let fixture = fixture.strip_suffix(b"\n").unwrap_or(fixture);
+    assert_eq!(canonical, fixture);
     assert_eq!(
         first.content_hash().expect("market state hashes"),
         include_str!("../data/canonical/market_context_state.sha256").trim()

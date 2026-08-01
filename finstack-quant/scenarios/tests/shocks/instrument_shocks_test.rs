@@ -504,7 +504,7 @@ fn test_instrument_shock_no_matching_types() {
         name: None,
         description: None,
         operations: vec![OperationSpec::InstrumentPricePctByType {
-            instrument_types: vec![InstrumentType::CDS], // Looking for CDS, have Bond
+            instrument_types: vec![InstrumentType::Cds], // Looking for CDS, have Bond
             pct: -5.0,
         }],
         priority: 0,

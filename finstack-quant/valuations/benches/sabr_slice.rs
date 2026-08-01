@@ -4,7 +4,9 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
-use finstack_quant_valuations::calibration::api::schema::{StepParams, VolSurfaceParams};
+use finstack_quant_valuations::calibration::api::schema::{
+    StepParams, VolSurfaceModel, VolSurfaceParams,
+};
 use finstack_quant_valuations::calibration::CalibrationConfig;
 use finstack_quant_valuations::instruments::OptionType;
 use finstack_quant_valuations::market::conventions::ids::OptionConventionId;
@@ -62,10 +64,10 @@ fn bench_sabr_slice(c: &mut Criterion) {
         ..Default::default()
     };
     let params = VolSurfaceParams {
-        surface_id: "SPY-VOL".to_string(),
+        vol_surface_id: "SPY-VOL".to_string(),
         base_date,
         underlying_ticker: "SPY".to_string(),
-        model: "SABR".to_string(),
+        model: VolSurfaceModel::Sabr,
         discount_curve_id: Some("USD-OIS".into()),
         beta: 0.5,
         target_expiries: vec![target_expiry],

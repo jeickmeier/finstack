@@ -25,7 +25,7 @@ rustc-hash = { workspace = true }
 parking_lot = "0.12"
 lru = "0.16"
 indexmap = { workspace = true, features = ["serde"] }
-rust_decimal = { workspace = true, features = ["serde-with-str"] }
+rust_decimal = { workspace = true }
 # `schemars` is a build-time/runtime dependency for JSON-Schema derivation.
 # It is consumed downstream by `finstack-quant-valuations` (see
 # `finstack-quant/valuations/tests/schema_audit.rs` and `valuations/schemas/`),

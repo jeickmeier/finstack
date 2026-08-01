@@ -69,7 +69,7 @@ impl MetricCalculator for YtmCalculator {
             .market_quotes
             .quoted_clean_price;
         let notional = bond.notional;
-        let dc = bond.cashflow_spec.day_count();
+        let day_count = bond.cashflow_spec.day_count();
         let discount_curve_id = bond.discount_curve_id.to_owned();
         let coupon = match &bond.cashflow_spec {
             // Rate overflow is extremely unlikely for interest rates,
@@ -77,7 +77,7 @@ impl MetricCalculator for YtmCalculator {
             CashflowSpec::Fixed(spec) => spec.rate.to_f64().unwrap_or(0.0),
             _ => 0.0,
         };
-        let freq = bond.cashflow_spec.frequency();
+        let frequency = bond.cashflow_spec.frequency();
 
         // Compute quote-date context (settlement date and accrued at settlement)
         let quote_ctx = QuoteDateContext::new(bond, &context.curves, context.as_of)?;
@@ -129,7 +129,7 @@ impl MetricCalculator for YtmCalculator {
             let flows = bond.pricing_dated_cashflows(&context.curves, context.as_of)?;
             context.cashflows = Some(flows);
             context.discount_curve_id = Some(discount_curve_id);
-            context.day_count = Some(dc);
+            context.day_count = Some(day_count);
         }
         let flows = context.cashflows.as_ref().ok_or_else(|| {
             finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
@@ -144,12 +144,12 @@ impl MetricCalculator for YtmCalculator {
             quote_ctx.quote_date,
             dirty,
             crate::instruments::fixed_income::bond::pricing::ytm_solver::YtmPricingSpec {
-                day_count: dc,
+                day_count,
                 notional,
                 coupon_rate: coupon,
                 compounding:
                     crate::instruments::fixed_income::bond::pricing::quote_conversions::YieldCompounding::Street,
-                frequency: freq,
+                frequency,
             },
         )?;
 

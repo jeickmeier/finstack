@@ -687,7 +687,7 @@ mod tests {
                 value: 100.0,
                 deps: Vec::new(),
             }),
-            &[InstrumentType::IRS], // Only applies to IRS, not Bond
+            &[InstrumentType::Irs], // Only applies to IRS, not Bond
         );
 
         let mut context = create_test_context(); // MockInstrument has type Bond

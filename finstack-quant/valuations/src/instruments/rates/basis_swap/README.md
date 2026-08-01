@@ -23,7 +23,7 @@ let primary = BasisSwapLeg {
     forward_curve_id: CurveId::new("USD-SOFR-3M"),
     frequency: Tenor::quarterly(),
     day_count: DayCount::Act360,
-    bdc: BusinessDayConvention::ModifiedFollowing,
+    business_day_convention: BusinessDayConvention::ModifiedFollowing,
     spread_bp: 5.0,
     payment_lag_days: 0,
     reset_lag_days: 0,

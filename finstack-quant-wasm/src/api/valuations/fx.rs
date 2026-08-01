@@ -18,25 +18,21 @@ use super::pricing::{
 };
 use crate::utils::{to_js_err, to_js_value};
 use finstack_quant_valuations::pricer::{
-    canonical_instrument_json, canonical_instrument_json_from_str, pretty_instrument_json,
+    instrument_envelope_from_spec, pretty_instrument_json, validate_typed_instrument_json,
 };
 use serde_json::{Map, Value};
 use wasm_bindgen::prelude::*;
 
 fn value_from_spec(spec: JsValue) -> Result<Value, JsValue> {
-    if let Some(json) = spec.as_string() {
-        serde_json::from_str(&json).map_err(to_js_err)
-    } else {
-        serde_wasm_bindgen::from_value(spec).map_err(to_js_err)
-    }
+    serde_wasm_bindgen::from_value(spec).map_err(to_js_err)
 }
 
 fn from_spec(type_tag: &str, spec: JsValue) -> Result<String, JsValue> {
-    canonical_instrument_json(type_tag, value_from_spec(spec)?).map_err(to_js_err)
+    instrument_envelope_from_spec(type_tag, value_from_spec(spec)?).map_err(to_js_err)
 }
 
 fn from_json_payload(type_tag: &str, json: &str) -> Result<String, JsValue> {
-    canonical_instrument_json_from_str(type_tag, json).map_err(to_js_err)
+    validate_typed_instrument_json(type_tag, json).map_err(to_js_err)
 }
 
 fn pretty_json(json: &str) -> Result<String, JsValue> {
@@ -106,7 +102,7 @@ macro_rules! fx_class {
         #[wasm_bindgen(js_class = $js_name)]
         impl $rust_name {
             /// Create the instrument from a JS spec object.
-            /// @param spec - JavaScript object or JSON payload defining the canonical instrument or calculation specification.
+            /// @param spec - Bare JavaScript spec object for this exact instrument type.
             #[wasm_bindgen(constructor)]
             pub fn new(spec: JsValue) -> Result<$rust_name, JsValue> {
                 Ok(Self {
@@ -114,8 +110,8 @@ macro_rules! fx_class {
                 })
             }
 
-            /// Deserialize the instrument from a JSON spec string.
-            /// @param json - Canonical JSON string defining the object to deserialize or normalize.
+            /// Deserialize the instrument from its canonical v1 envelope.
+            /// @param json - A `finstack_quant.instrument/1` envelope for this exact instrument type.
             #[wasm_bindgen(js_name = fromJson)]
             pub fn from_json(json: &str) -> Result<$rust_name, JsValue> {
                 Ok(Self {

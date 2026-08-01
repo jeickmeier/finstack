@@ -7,7 +7,7 @@ import math
 
 import pytest
 
-from .common import SCHEMA_VERSION, flat_forward_curve
+from .common import SCHEMA, flat_forward_curve
 from .generate import generate
 
 
@@ -35,7 +35,7 @@ def test_generate_fra_is_deterministic_and_complete(tmp_path) -> None:
     assert path.read_bytes() == first
 
     fixture = json.loads(first)
-    assert fixture["schema_version"] == SCHEMA_VERSION
+    assert fixture["schema"] == SCHEMA
     assert fixture["metadata"]["source"] == "quantlib"
     assert fixture["metadata"]["valuation_date"] == "2026-04-30"
     assert set(fixture["expected"]) == set(fixture["tolerances"])

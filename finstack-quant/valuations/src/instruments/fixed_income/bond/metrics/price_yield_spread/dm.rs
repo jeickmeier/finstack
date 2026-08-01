@@ -180,8 +180,8 @@ impl DiscountMarginCalculator {
         if as_of >= bond.maturity {
             return Ok(self.config.base_bracket_bp / 10_000.0);
         }
-        let dc = bond.cashflow_spec.day_count();
-        let years = dc
+        let day_count = bond.cashflow_spec.day_count();
+        let years = day_count
             .year_fraction(
                 as_of,
                 bond.maturity,
@@ -209,7 +209,7 @@ impl MetricCalculator for DiscountMarginCalculator {
         let quote_ctx = QuoteDateContext::new(bond, &context.curves, context.as_of)?;
 
         // Determine dirty market price in currency at quote_date
-        let dirty_ccy = if let Some(clean_px) = bond
+        let dirty_currency = if let Some(clean_px) = bond
             .instrument_pricing_overrides
             .market_quotes
             .quoted_clean_price
@@ -236,7 +236,7 @@ impl MetricCalculator for DiscountMarginCalculator {
 
         let objective = |dm: f64| -> f64 {
             match Self::pv_given_dm(bond, &context.curves, quote_date, dm) {
-                Ok(pv) => pv - dirty_ccy,
+                Ok(pv) => pv - dirty_currency,
                 Err(e) => {
                     // Capture the first pricing error and map to a large non-zero residual
                     let mut slot = pricing_error.borrow_mut();

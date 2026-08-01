@@ -31,7 +31,9 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct LeveredRealEstateEquity {
@@ -50,7 +52,7 @@ pub struct LeveredRealEstateEquity {
     /// Optional explicit exit/sale date. Defaults to the last NOI date on/after `as_of`.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub exit_date: Option<Date>,
     /// Discount curve identifier for equity PV attribution (typically same as asset curve).
     ///
@@ -58,13 +60,24 @@ pub struct LeveredRealEstateEquity {
     pub discount_curve_id: CurveId,
     /// Attributes for tagging and scenarios.
     #[builder(default)]
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
 
     /// Attributes for tagging and scenarios.

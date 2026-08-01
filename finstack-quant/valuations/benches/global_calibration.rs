@@ -25,7 +25,7 @@ use finstack_quant_valuations::calibration::api::{
     engine,
     schema::{
         CalibrationEnvelope, CalibrationPlan, CalibrationStep, DiscountCurveParams,
-        HazardCurveParams, StepParams, CALIBRATION_SCHEMA,
+        HazardCurveParams, StepParams,
     },
 };
 use finstack_quant_valuations::calibration::{CalibrationConfig, CalibrationMethod};
@@ -171,7 +171,7 @@ fn discount_envelope(
 
     let curve_id = CurveId::from(format!("USD-OIS-{curve_suffix}"));
     CalibrationEnvelope {
-        schema: CALIBRATION_SCHEMA.to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         schema_url: None,
         market_data,
         prior_market: Vec::new(),
@@ -219,7 +219,7 @@ fn hazard_envelope(
     let haz_curve = CurveId::from(format!("BENCH-ENTITY-HZD-{suffix}"));
 
     CalibrationEnvelope {
-        schema: CALIBRATION_SCHEMA.to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         schema_url: None,
         market_data,
         prior_market: Vec::new(),

@@ -26,7 +26,7 @@ impl Bond {
             Rate::from_decimal(0.0425),
             date!(2024 - 01 - 15),
             date!(2034 - 01 - 15),
-            crate::instruments::common_impl::parameters::BondConvention::USTreasury,
+            crate::instruments::common_impl::parameters::BondConvention::UsTreasury,
             "USD-TREASURY",
         )
     }
@@ -65,32 +65,32 @@ impl Bond {
     /// - **BDC:** Modified Following
     /// - **Calendar:** US (NYSE holidays)
     ///
-    /// ## US Treasury (use `BondConvention::USTreasury`)
+    /// ## US Treasury (use `BondConvention::UsTreasury`)
     /// - **Day Count:** ACT/ACT ICMA
     /// - **Tenor:** Semi-annual
     /// - **Settlement:** T+1
     /// - **Calendar:** US (Federal Reserve holidays)
     ///
-    /// ## US Agency (use `BondConvention::USAgency`)
+    /// ## US Agency (use `BondConvention::UsAgency`)
     /// - **Day Count:** 30/360 (US Bond Basis)
     /// - **Tenor:** Semi-annual
     /// - **Settlement:** T+1
     /// - **Calendar:** US (NYSE holidays)
     ///
-    /// ## United Kingdom (use `BondConvention::UKGilt`)
+    /// ## United Kingdom (use `BondConvention::UkGilt`)
     /// - **Day Count:** ACT/ACT ICMA
     /// - **Tenor:** Semi-annual
     /// - **Settlement:** T+1
     /// - **Ex-coupon:** 7 business days
     /// - **Calendar:** UK (London holidays)
     ///
-    /// ## Europe (use `BondConvention::GermanBund` or `FrenchOAT`)
+    /// ## Europe (use `BondConvention::GermanBund` or `BondConvention::FrenchOat`)
     /// - **Day Count:** ACT/ACT ICMA
     /// - **Tenor:** Annual
     /// - **Settlement:** T+2
     /// - **Calendar:** TARGET2
     ///
-    /// ## Japan (use `BondConvention::JGB`)
+    /// ## Japan (use `BondConvention::Jgb`)
     /// - **Day Count:** ACT/365 Fixed
     /// - **Tenor:** Semi-annual
     /// - **Settlement:** T+2 (cross-border; domestic is T+1 since May 2018)
@@ -122,7 +122,7 @@ impl Bond {
     /// // For US Treasury, use with_convention:
     /// // let treasury = Bond::with_convention("UST-001", notional,
     /// //     finstack_quant_core::types::Rate::from_percent(4.0), issue, maturity,
-    /// //                                       BondConvention::USTreasury, "USD-TREASURY").unwrap();
+    /// //                                       BondConvention::UsTreasury, "USD-TREASURY").unwrap();
     /// ```
     /// # Errors
     ///
@@ -175,7 +175,7 @@ impl Bond {
     /// * `coupon_rate` - Annual coupon rate as a typed `Rate`
     /// * `issue` - Issue date of the bond
     /// * `maturity` - Maturity date of the bond
-    /// * `convention` - Regional bond convention (e.g., `BondConvention::USTreasury`)
+    /// * `convention` - Regional bond convention (e.g., `BondConvention::UsTreasury`)
     /// * `discount_curve_id` - Discount curve identifier for pricing
     ///
     /// # Returns
@@ -203,7 +203,7 @@ impl Bond {
     ///     finstack_quant_core::types::Rate::from_decimal(0.03),
     ///     issue,
     ///     maturity,
-    ///     BondConvention::USTreasury,
+    ///     BondConvention::UsTreasury,
     ///     "USD-TREASURY"
     /// );
     /// # let _ = treasury;
@@ -224,7 +224,7 @@ impl Bond {
         let mut cashflow_spec =
             CashflowSpec::fixed_rate(coupon_rate, convention.frequency(), convention.day_count())?;
         if let CashflowSpec::Fixed(spec) = &mut cashflow_spec {
-            spec.schedule.bdc = convention.business_day_convention();
+            spec.schedule.business_day_convention = convention.business_day_convention();
             spec.schedule.calendar_id = convention
                 .calendar_id()
                 .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID)
@@ -267,8 +267,8 @@ impl Bond {
     /// * `margin_bp` - Spread over index in typed basis points (e.g., `Bps::new(200)`)
     /// * `issue` - Issue date of the bond
     /// * `maturity` - Maturity date of the bond
-    /// * `freq` - Payment frequency (e.g., `Tenor::quarterly()`)
-    /// * `dc` - Day count convention (e.g., `DayCount::Act360`)
+    /// * `frequency` - Payment frequency (e.g., `Tenor::quarterly()`)
+    /// * `day_count` - Day count convention (e.g., `DayCount::Act360`)
     /// * `discount_curve_id` - Discount curve identifier for pricing
     ///
     /// # Returns
@@ -315,8 +315,8 @@ impl Bond {
         margin_bp: impl Into<Bps>,
         issue: Date,
         maturity: Date,
-        freq: finstack_quant_core::dates::Tenor,
-        dc: DayCount,
+        frequency: finstack_quant_core::dates::Tenor,
+        day_count: DayCount,
         discount_curve_id: impl Into<CurveId>,
     ) -> finstack_quant_core::Result<Self> {
         let margin_bp = margin_bp.into();
@@ -325,11 +325,11 @@ impl Bond {
             .notional(notional)
             .issue_date(issue)
             .maturity(maturity)
-            .cashflow_spec(CashflowSpec::floating_bps(
+            .cashflow_spec(CashflowSpec::floating_bp(
                 index_id.into(),
                 margin_bp,
-                freq,
-                dc,
+                frequency,
+                day_count,
             ))
             .discount_curve_id(discount_curve_id.into())
             .credit_curve_id_opt(None)
@@ -447,9 +447,9 @@ impl Bond {
     ///     coupon_type: CouponType::Cash,
     ///     rate: dec!(0.06),
     ///     schedule: ScheduleParams {
-    ///         freq: Tenor::semi_annual(),
-    ///         dc: DayCount::Act365F,
-    ///         bdc: BusinessDayConvention::Following,
+    ///         frequency: Tenor::semi_annual(),
+    ///         day_count: DayCount::Act365F,
+    ///         business_day_convention: BusinessDayConvention::Following,
     ///         calendar_id: "weekends_only".to_string(),
     ///         stub: StubKind::None,
     ///         end_of_month: false,
@@ -518,7 +518,7 @@ impl Bond {
         coupon_dates.sort();
         coupon_dates.dedup();
 
-        let inferred_freq = if coupon_dates.len() < 2 {
+        let inferred_frequency = if coupon_dates.len() < 2 {
             // Fallback to annual if we cannot infer a pattern
             Tenor::annual()
         } else {
@@ -568,7 +568,7 @@ impl Bond {
 
         // Use schedule day count and inferred frequency in the spec so that
         // YTM/YTW/duration/convexity use correct conventions for custom bonds.
-        let cashflow_spec = CashflowSpec::fixed(0.0, inferred_freq, schedule.get_day_count())?;
+        let cashflow_spec = CashflowSpec::fixed(0.0, inferred_frequency, schedule.get_day_count())?;
 
         let pricing_overrides = if let Some(price) = quoted_clean {
             InstrumentPricingOverrides::default().with_quoted_clean_price(price)
@@ -785,7 +785,7 @@ impl Bond {
                 all_in_cap_bp: None,
                 index_cap_bp: None,
                 overnight_index_constraints: Default::default(),
-                reset_freq: Tenor::quarterly(),
+                reset_frequency: Tenor::quarterly(),
                 index_tenor: None,
                 reset_lag_days: 2,
                 fixing_calendar_id: None,
@@ -795,9 +795,9 @@ impl Bond {
             },
             coupon_type: CouponType::Cash,
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::quarterly(),
-                dc: DayCount::Act360,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                frequency: Tenor::quarterly(),
+                day_count: DayCount::Act360,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::ShortFront,
                 end_of_month: false,
@@ -899,9 +899,9 @@ impl Bond {
             coupon_type: CouponType::Cash,
             rate: Decimal::new(4, 2),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
-                dc: DayCount::Thirty360,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                frequency: Tenor::semi_annual(),
+                day_count: DayCount::Thirty360,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::ShortFront,
                 end_of_month: false,

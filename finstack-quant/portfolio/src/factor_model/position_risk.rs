@@ -31,6 +31,7 @@ use tracing::warn;
 
 /// Method used for position-level VaR/ES decomposition.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DecompositionMethod {
     /// Covariance-based using normal distribution assumption.
     ///

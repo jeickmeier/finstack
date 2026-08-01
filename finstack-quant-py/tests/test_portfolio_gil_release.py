@@ -47,13 +47,13 @@ def _portfolio_spec_json(position_count: int) -> str:
                 "spec": {
                     "id": instrument_id,
                     "notional": {
-                        "amount": 1_000_000.0 + index,
+                        "amount": str(1_000_000 + index),
                         "currency": "USD",
                     },
                     "start_date": AS_OF.isoformat(),
                     "maturity": "2025-07-15",
-                    "day_count": "Act360",
-                    "quote_rate": 0.04,
+                    "day_count": "act_360",
+                    "quote_rate": "0.04",
                     "discount_curve_id": "USD-OIS",
                     "attributes": {},
                 },
@@ -64,7 +64,7 @@ def _portfolio_spec_json(position_count: int) -> str:
     return json.dumps({
         "id": f"GIL-{position_count}",
         "as_of": AS_OF.isoformat(),
-        "base_ccy": "USD",
+        "base_currency": "USD",
         "entities": {"FUND": {"id": "FUND"}},
         "positions": positions,
     })
@@ -91,9 +91,9 @@ def _factor_model_config_json() -> str:
         "factors": [
             {
                 "id": "usd_rates",
-                "factor_type": "Rates",
+                "factor_type": "rates",
                 "market_mapping": {
-                    "CurveParallel": {
+                    "curve_parallel": {
                         "curve_ids": ["USD-OIS"],
                         "units": "rate_bp",
                     }
@@ -107,7 +107,7 @@ def _factor_model_config_json() -> str:
             "data": [0.0001],
         },
         "matching": {
-            "MappingTable": [
+            "mapping_table": [
                 {
                     "dependency_filter": {},
                     "attribute_filter": {},
@@ -125,7 +125,10 @@ def _sensitivity_positions_json(position_count: int) -> str:
     return json.dumps([
         {
             "id": position["position_id"],
-            "instrument": position["instrument_spec"],
+            "instrument": {
+                "schema": "finstack_quant.instrument/1",
+                "instrument": position["instrument_spec"],
+            },
             "weight": position["quantity"],
         }
         for position in spec["positions"]
@@ -192,8 +195,8 @@ def test_value_portfolio_json_inputs_release_gil_and_preserve_result() -> None:
     portfolio_json = _portfolio_spec_json(3_000)
     market_json = _market().to_json()
 
-    result_json = _assert_releases_gil(lambda: value_portfolio(portfolio_json, market_json, metrics=[]))
-    result = json.loads(result_json)
+    valuation = _assert_releases_gil(lambda: value_portfolio(portfolio_json, market_json, metrics=[]))
+    result = json.loads(valuation.to_json())
 
     assert len(result["position_values"]) == 3_000
     assert result["as_of"] == AS_OF.isoformat()
@@ -202,11 +205,11 @@ def test_value_portfolio_json_inputs_release_gil_and_preserve_result() -> None:
 def test_raw_valuation_metric_aggregation_releases_gil() -> None:
     portfolio = Portfolio.from_spec(_portfolio_spec_json(3_000))
     market = _market()
-    valuation_json = value_portfolio(portfolio, market, metrics=[])
+    valuation = value_portfolio(portfolio, market, metrics=[])
 
     metrics_json = _assert_releases_gil(
         lambda: aggregate_metrics(
-            valuation_json,
+            valuation,
             "USD",
             market,
             AS_OF.isoformat(),
@@ -227,7 +230,7 @@ def test_attribution_nested_serialization_releases_gil() -> None:
         _market(next_date, 0.041),
         AS_OF.isoformat(),
         next_date.isoformat(),
-        "Parallel",
+        "parallel",
     )
 
     by_position_json = _assert_releases_gil(result.by_position_json)
@@ -239,7 +242,7 @@ def test_replay_parse_compute_and_serialize_release_gil() -> None:
     portfolio = Portfolio.from_spec(_portfolio_spec_json(500))
     snapshots_json = _replay_snapshots_json(20)
 
-    result_json = _assert_releases_gil(lambda: replay_portfolio(portfolio, snapshots_json, '{"mode":"PvOnly"}'))
+    result_json = _assert_releases_gil(lambda: replay_portfolio(portfolio, snapshots_json, '{"mode":"pv_only"}'))
     result = json.loads(result_json)
 
     assert isinstance(result_json, str)
@@ -251,7 +254,7 @@ def test_replay_detached_parse_preserves_value_error_mapping() -> None:
     portfolio = Portfolio.from_spec(_portfolio_spec_json(1))
 
     with pytest.raises(ValueError, match="invalid snapshots JSON"):
-        replay_portfolio(portfolio, "{}", '{"mode":"PvOnly"}')
+        replay_portfolio(portfolio, "{}", '{"mode":"pv_only"}')
 
 
 def test_factor_stress_releases_gil_and_returns_position_results() -> None:

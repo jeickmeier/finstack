@@ -25,21 +25,24 @@
 /// logic and risk characteristics. Used by the pricing registry to route
 /// instruments to appropriate pricer implementations.
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum InstrumentType {
     /// Fixed or floating-rate bond (plain vanilla, callable, amortizing).
     Bond = 1,
     /// Term loan or bilateral lending facility.
     Loan = 2,
     /// Credit Default Swap (single-name credit protection).
-    CDS = 3,
+    #[serde(rename = "credit_default_swap")]
+    Cds = 3,
     /// CDS Index (portfolio credit protection, e.g., CDX, iTraxx).
-    CDSIndex = 4,
+    CdsIndex = 4,
     /// CDS Tranche (mezzanine credit exposure via synthetic CDO).
-    CDSTranche = 5,
+    CdsTranche = 5,
     /// Option on Credit Default Swap.
-    CDSOption = 6,
+    CdsOption = 6,
     /// Interest Rate Swap (fixed-for-floating exchange).
-    IRS = 7,
+    #[serde(rename = "interest_rate_swap")]
+    Irs = 7,
     /// Interest rate cap or floor (portfolio of caplets/floorlets).
     CapFloor = 8,
     /// Option on interest rate swap (European exercise).
@@ -51,6 +54,7 @@ pub enum InstrumentType {
     /// Multi-asset basket (worst-of, best-of, or weighted).
     Basket = 12,
     /// Convertible bond (bond with embedded equity option).
+    #[serde(rename = "convertible_bond")]
     Convertible = 13,
     /// Money market deposit (single-period).
     Deposit = 14,
@@ -69,6 +73,7 @@ pub enum InstrumentType {
     /// Zero-coupon inflation swap.
     InflationSwap = 20,
     /// Year-on-year inflation swap.
+    #[serde(rename = "yoy_inflation_swap")]
     YoYInflationSwap = 53,
     /// Inflation cap/floor (YoY inflation options).
     InflationCapFloor = 66,
@@ -85,7 +90,8 @@ pub enum InstrumentType {
     /// Repurchase agreement (repo or reverse repo).
     Repo = 24,
     /// Forward Rate Agreement (forward-starting interest rate contract).
-    FRA = 25,
+    #[serde(rename = "forward_rate_agreement")]
+    Fra = 25,
     /// Structured credit (ABS, RMBS, CMBS, CLO with tranches and waterfall).
     StructuredCredit = 26,
     /// Private markets fund (PE/credit fund with waterfall).
@@ -115,15 +121,18 @@ pub enum InstrumentType {
     /// Term loan (optionally Delayed Draw Term Loan)
     TermLoan = 41,
     /// Discounted Cash Flow (corporate valuation)
-    DCF = 42,
+    #[serde(rename = "discounted_cash_flow")]
+    Dcf = 42,
     /// Real estate asset valuation (DCF or direct cap).
     RealEstateAsset = 69,
     /// Levered real estate equity (asset minus financing).
     LeveredRealEstateEquity = 73,
     /// Equity Total Return Swap.
+    #[serde(rename = "trs_equity")]
     EquityTotalReturnSwap = 50,
     /// Fixed Income Index Total Return Swap.
-    FIIndexTotalReturnSwap = 51,
+    #[serde(rename = "trs_fixed_income_index")]
+    FiIndexTotalReturnSwap = 51,
     /// Bond future (futures on a deliverable bond basket with CTD mechanics).
     BondFuture = 54,
     /// Commodity forward or futures contract.
@@ -170,22 +179,25 @@ pub enum InstrumentType {
     Snowball = 82,
 }
 
-impl std::fmt::Display for InstrumentType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let label = match self {
+use strum::IntoEnumIterator;
+
+impl InstrumentType {
+    /// Canonical snake_case wire identifier.
+    pub const fn as_str(self) -> &'static str {
+        match self {
             InstrumentType::Bond => "bond",
             InstrumentType::Loan => "loan",
-            InstrumentType::CDS => "cds",
-            InstrumentType::CDSIndex => "cds_index",
-            InstrumentType::CDSTranche => "cds_tranche",
-            InstrumentType::CDSOption => "cds_option",
-            InstrumentType::IRS => "irs",
+            InstrumentType::Cds => "credit_default_swap",
+            InstrumentType::CdsIndex => "cds_index",
+            InstrumentType::CdsTranche => "cds_tranche",
+            InstrumentType::CdsOption => "cds_option",
+            InstrumentType::Irs => "interest_rate_swap",
             InstrumentType::CapFloor => "cap_floor",
             InstrumentType::Swaption => "swaption",
             InstrumentType::BermudanSwaption => "bermudan_swaption",
             InstrumentType::BasisSwap => "basis_swap",
             InstrumentType::Basket => "basket",
-            InstrumentType::Convertible => "convertible",
+            InstrumentType::Convertible => "convertible_bond",
             InstrumentType::Deposit => "deposit",
             InstrumentType::EquityOption => "equity_option",
             InstrumentType::FxOption => "fx_option",
@@ -202,7 +214,7 @@ impl std::fmt::Display for InstrumentType {
             InstrumentType::FxVarianceSwap => "fx_variance_swap",
             InstrumentType::Equity => "equity",
             InstrumentType::Repo => "repo",
-            InstrumentType::FRA => "fra",
+            InstrumentType::Fra => "forward_rate_agreement",
             InstrumentType::StructuredCredit => "structured_credit",
             InstrumentType::PrivateMarketsFund => "private_markets_fund",
             InstrumentType::RevolvingCredit => "revolving_credit",
@@ -217,11 +229,11 @@ impl std::fmt::Display for InstrumentType {
             InstrumentType::RangeAccrual => "range_accrual",
             InstrumentType::FxBarrierOption => "fx_barrier_option",
             InstrumentType::TermLoan => "term_loan",
-            InstrumentType::DCF => "dcf",
+            InstrumentType::Dcf => "discounted_cash_flow",
             InstrumentType::RealEstateAsset => "real_estate_asset",
             InstrumentType::LeveredRealEstateEquity => "levered_real_estate_equity",
-            InstrumentType::EquityTotalReturnSwap => "equity_total_return_swap",
-            InstrumentType::FIIndexTotalReturnSwap => "fi_index_total_return_swap",
+            InstrumentType::EquityTotalReturnSwap => "trs_equity",
+            InstrumentType::FiIndexTotalReturnSwap => "trs_fixed_income_index",
             InstrumentType::BondFuture => "bond_future",
             InstrumentType::CommodityForward => "commodity_forward",
             InstrumentType::CommoditySwap => "commodity_swap",
@@ -244,8 +256,13 @@ impl std::fmt::Display for InstrumentType {
             InstrumentType::CmsSpreadOption => "cms_spread_option",
             InstrumentType::CallableRangeAccrual => "callable_range_accrual",
             InstrumentType::Snowball => "snowball",
-        };
-        write!(f, "{}", label)
+        }
+    }
+}
+
+impl std::fmt::Display for InstrumentType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -253,121 +270,9 @@ impl std::str::FromStr for InstrumentType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "bond" => Ok(InstrumentType::Bond),
-            "loan" => Ok(InstrumentType::Loan),
-            "cds" => Ok(InstrumentType::CDS),
-            "cds_index" | "cdsindex" => Ok(InstrumentType::CDSIndex),
-            "cds_tranche" | "cdstranche" => Ok(InstrumentType::CDSTranche),
-            "cds_option" | "cdsoption" => Ok(InstrumentType::CDSOption),
-            "irs" | "swap" | "interest_rate_swap" => Ok(InstrumentType::IRS),
-            "cap_floor" | "capfloor" | "interest_rate_option" => Ok(InstrumentType::CapFloor),
-            "swaption" => Ok(InstrumentType::Swaption),
-            "bermudan_swaption" | "bermudanswaption" => Ok(InstrumentType::BermudanSwaption),
-            "basis_swap" | "basisswap" => Ok(InstrumentType::BasisSwap),
-            "basket" => Ok(InstrumentType::Basket),
-            "convertible" | "convertible_bond" => Ok(InstrumentType::Convertible),
-            "deposit" => Ok(InstrumentType::Deposit),
-            "equity_option" | "equityoption" => Ok(InstrumentType::EquityOption),
-            "fx_option" | "fxoption" => Ok(InstrumentType::FxOption),
-            "fx_spot" | "fxspot" => Ok(InstrumentType::FxSpot),
-            "fx_swap" | "fxswap" => Ok(InstrumentType::FxSwap),
-            "xccy_swap" | "xccyswap" | "xccy" | "cross_currency_swap" => {
-                Ok(InstrumentType::XccySwap)
-            }
-            "inflation_linked_bond" | "ilb" => Ok(InstrumentType::InflationLinkedBond),
-            "inflation_swap" => Ok(InstrumentType::InflationSwap),
-            "yoy_inflation_swap" | "yo_y_inflation_swap" | "inflation_yoy_swap" | "yoy_swap" => {
-                Ok(InstrumentType::YoYInflationSwap)
-            }
-            "inflation_cap_floor" | "inflation_cap" | "inflation_floor" => {
-                Ok(InstrumentType::InflationCapFloor)
-            }
-            "interest_rate_future" | "ir_future" | "irfuture" => {
-                Ok(InstrumentType::InterestRateFuture)
-            }
-            "ir_future_option" | "irfutureoption" => Ok(InstrumentType::IrFutureOption),
-            "variance_swap" | "varianceswap" => Ok(InstrumentType::VarianceSwap),
-            "fx_variance_swap" | "fxvarianceswap" => Ok(InstrumentType::FxVarianceSwap),
-            "equity" => Ok(InstrumentType::Equity),
-            "repo" => Ok(InstrumentType::Repo),
-            "fra" => Ok(InstrumentType::FRA),
-            "structured_credit" | "clo" | "abs" | "rmbs" | "cmbs" => {
-                Ok(InstrumentType::StructuredCredit)
-            }
-            "private_markets_fund" | "pmf" => Ok(InstrumentType::PrivateMarketsFund),
-            "revolving_credit" | "revolver" | "rc" => Ok(InstrumentType::RevolvingCredit),
-            "asian_option" | "asian" => Ok(InstrumentType::AsianOption),
-            "barrier_option" | "barrier" => Ok(InstrumentType::BarrierOption),
-            "lookback_option" | "lookback" => Ok(InstrumentType::LookbackOption),
-            "quanto_option" | "quanto" => Ok(InstrumentType::QuantoOption),
-            "autocallable" | "auto_callable" => Ok(InstrumentType::Autocallable),
-            "cms_option" | "cms" => Ok(InstrumentType::CmsOption),
-            "cms_swap" => Ok(InstrumentType::CmsSwap),
-            "cliquet_option" | "cliquet" => Ok(InstrumentType::CliquetOption),
-            "range_accrual" | "range_accrual_note" => Ok(InstrumentType::RangeAccrual),
-            "fx_barrier_option" | "fx_barrier" => Ok(InstrumentType::FxBarrierOption),
-            "term_loan" | "termloan" | "loan_term" => Ok(InstrumentType::TermLoan),
-            "dcf" | "discounted_cash_flow" => Ok(InstrumentType::DCF),
-            "real_estate_asset" | "real_estate" | "realestate" | "realestate_asset" => {
-                Ok(InstrumentType::RealEstateAsset)
-            }
-            "levered_real_estate_equity"
-            | "levered_real_estate"
-            | "levered_re_equity"
-            | "real_estate_equity_levered" => Ok(InstrumentType::LeveredRealEstateEquity),
-            "equity_total_return_swap" | "equity_trs" | "equitytrs" => {
-                Ok(InstrumentType::EquityTotalReturnSwap)
-            }
-            "fi_index_total_return_swap" | "fi_index_trs" | "fiindex_trs" | "fiindextrs" => {
-                Ok(InstrumentType::FIIndexTotalReturnSwap)
-            }
-            "bond_future" | "bondfuture" => Ok(InstrumentType::BondFuture),
-            "commodity_forward" | "commodityforward" | "commodity_future" | "commodityfuture" => {
-                Ok(InstrumentType::CommodityForward)
-            }
-            "commodity_swap" | "commodityswap" => Ok(InstrumentType::CommoditySwap),
-            "commodity_option" | "commodityoption" => Ok(InstrumentType::CommodityOption),
-            "commodity_asian_option" | "commodityasianoption" => {
-                Ok(InstrumentType::CommodityAsianOption)
-            }
-            "commodity_swaption" | "commodityswaption" => Ok(InstrumentType::CommoditySwaption),
-            "commodity_spread_option" | "commodityspreadoption" => {
-                Ok(InstrumentType::CommoditySpreadOption)
-            }
-            "volatility_index_future" | "vol_index_future" | "vix_future" | "vixfuture" => {
-                Ok(InstrumentType::VolatilityIndexFuture)
-            }
-            "volatility_index_option" | "vol_index_option" | "vix_option" | "vixoption" => {
-                Ok(InstrumentType::VolatilityIndexOption)
-            }
-            "equity_index_future" | "equityindexfuture" | "eq_future" | "es_future" => {
-                Ok(InstrumentType::EquityIndexFuture)
-            }
-            "fx_forward" | "fxforward" | "outright_forward" => Ok(InstrumentType::FxForward),
-            "ndf" | "non_deliverable_forward" => Ok(InstrumentType::Ndf),
-            "agency_mbs_passthrough" | "agency_mbs" | "mbs" | "passthrough" => {
-                Ok(InstrumentType::AgencyMbsPassthrough)
-            }
-            "agency_tba" | "tba" => Ok(InstrumentType::AgencyTba),
-            "dollar_roll" | "dollarroll" | "roll" => Ok(InstrumentType::DollarRoll),
-            "agency_cmo" | "cmo" => Ok(InstrumentType::AgencyCmo),
-            "fx_digital_option" | "fxdigitaloption" | "fx_digital" | "digital_option" => {
-                Ok(InstrumentType::FxDigitalOption)
-            }
-            "fx_touch_option" | "fxtouchoption" | "fx_touch" | "touch_option" | "one_touch"
-            | "no_touch" => Ok(InstrumentType::FxTouchOption),
-            "tarn" | "target_redemption_note" => Ok(InstrumentType::Tarn),
-            "cms_spread_option" | "cmsspreadoption" | "cms_spread" => {
-                Ok(InstrumentType::CmsSpreadOption)
-            }
-            "callable_range_accrual" | "callablerangeaccrual" | "callable_ra" => {
-                Ok(InstrumentType::CallableRangeAccrual)
-            }
-            "snowball" | "inverse_floater" | "inversefloater" => Ok(InstrumentType::Snowball),
-            other => Err(format!("Unknown instrument type: {}", other)),
-        }
+        Self::iter()
+            .find(|candidate| candidate.as_str() == s)
+            .ok_or_else(|| format!("Unknown instrument type: {s}"))
     }
 }
 
@@ -422,8 +327,10 @@ impl std::str::FromStr for InstrumentType {
     Hash,
     serde::Serialize,
     serde::Deserialize,
+    schemars::JsonSchema,
     strum::EnumIter,
 )]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 #[repr(u16)]
 pub enum ModelKey {
@@ -442,6 +349,7 @@ pub enum ModelKey {
     /// Hull-White one-factor short rate model.
     ///
     /// Used for: callable bonds with OAS, Bermudan swaptions.
+    #[serde(rename = "hull_white_1f")]
     HullWhite1F = 4,
     /// Hazard rate model for credit instruments.
     ///
@@ -454,6 +362,7 @@ pub enum ModelKey {
     /// Monte Carlo with Geometric Brownian Motion.
     ///
     /// Used for: path-dependent options, exotics requiring simulation.
+    #[serde(rename = "monte_carlo_gbm")]
     MonteCarloGBM = 10,
     /// Monte Carlo with Heston stochastic volatility.
     ///
@@ -462,14 +371,17 @@ pub enum ModelKey {
     /// Monte Carlo with Hull-White 1F rates.
     ///
     /// Used for: Bermudan swaptions, CMS options.
+    #[serde(rename = "monte_carlo_hull_white_1f")]
     MonteCarloHullWhite1F = 12,
     /// Reiner-Rubinstein continuous barrier formulas.
     ///
     /// Used for: equity/FX barrier options with continuous monitoring.
+    #[serde(rename = "barrier_bs_continuous")]
     BarrierBSContinuous = 20,
     /// Kemna-Vorst exact geometric Asian formula.
     ///
     /// Used for: geometric average Asian options.
+    #[serde(rename = "asian_geometric_bs")]
     AsianGeometricBS = 21,
     /// Turnbull-Wakeman approximation for arithmetic Asians.
     ///
@@ -478,14 +390,17 @@ pub enum ModelKey {
     /// Conze-Viswanathan lookback option formulas.
     ///
     /// Used for: lookback options with continuous monitoring.
+    #[serde(rename = "lookback_bs_continuous")]
     LookbackBSContinuous = 23,
     /// Quanto BS with drift adjustment.
     ///
     /// Used for: quanto options (cross-currency).
+    #[serde(rename = "quanto_bs")]
     QuantoBS = 24,
     /// FX barrier with Reiner-Rubinstein mapping.
     ///
     /// Used for: FX barrier options.
+    #[serde(rename = "fx_barrier_bs_continuous")]
     FxBarrierBSContinuous = 25,
     /// Heston semi-analytical via Fourier transform.
     ///
@@ -547,12 +462,14 @@ pub enum ModelKey {
     /// FX options. Names the scheme family: production pricers run
     /// Rannacher-damped CN (implicit start-up steps, Rannacher 1984),
     /// with a penalty method for early exercise.
+    #[serde(rename = "pde_crank_nicolson_1d")]
     PdeCrankNicolson1D = 50,
     /// 2D ADI (Craig-Sneyd) finite difference PDE solver.
     ///
     /// Used for: Heston stochastic volatility, local-stochastic vol,
     /// and other 2D pricing problems. Splits the 2D PDE into
     /// directional tridiagonal sweeps with explicit cross-derivative.
+    #[serde(rename = "pde_adi_2d")]
     PdeAdi2D = 51,
     /// Bloomberg CDSO numerical-quadrature model for credit-default-swap
     /// options.
@@ -568,7 +485,7 @@ pub enum ModelKey {
     /// loss settlement. The closed-form Black-on-spreads model was
     /// decommissioned on the Bloomberg CDSO terminal in 2010.
     ///
-    /// Used for: CDS options (`InstrumentType::CDSOption`).
+    /// Used for: CDS options (`InstrumentType::CdsOption`).
     BloombergCdso = 52,
 }
 
@@ -595,9 +512,10 @@ impl ModelKey {
     }
 }
 
-impl std::fmt::Display for ModelKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let label = match self {
+impl ModelKey {
+    /// Canonical snake_case wire identifier.
+    pub const fn as_str(self) -> &'static str {
+        match self {
             ModelKey::Discounting => "discounting",
             ModelKey::Tree => "tree",
             ModelKey::Black76 => "black76",
@@ -627,8 +545,13 @@ impl std::fmt::Display for ModelKey {
             ModelKey::PdeCrankNicolson1D => "pde_crank_nicolson_1d",
             ModelKey::PdeAdi2D => "pde_adi_2d",
             ModelKey::BloombergCdso => "bloomberg_cdso",
-        };
-        write!(f, "{}", label)
+        }
+    }
+}
+
+impl std::fmt::Display for ModelKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
@@ -636,75 +559,9 @@ impl std::str::FromStr for ModelKey {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "discounting" => Ok(ModelKey::Discounting),
-            "tree" | "lattice" => Ok(ModelKey::Tree),
-            "black76" | "black" | "black_76" => Ok(ModelKey::Black76),
-            "hull_white_1f" | "hullwhite1f" | "hw1f" => Ok(ModelKey::HullWhite1F),
-            "hazard_rate" | "hazard" => Ok(ModelKey::HazardRate),
-            "normal" | "bachelier" => Ok(ModelKey::Normal),
-            "monte_carlo_gbm" | "mc_gbm" | "montecarlo_gbm" => Ok(ModelKey::MonteCarloGBM),
-            "monte_carlo_heston" | "mc_heston" | "montecarlo_heston" => {
-                Ok(ModelKey::MonteCarloHeston)
-            }
-            "monte_carlo_hull_white_1f" | "mc_hw1f" | "montecarlo_hw1f" => {
-                Ok(ModelKey::MonteCarloHullWhite1F)
-            }
-            "barrier_bs_continuous" | "barrier_bs" | "barrier_continuous" => {
-                Ok(ModelKey::BarrierBSContinuous)
-            }
-            "asian_geometric_bs" | "asian_geometric" | "geometric_asian_bs" => {
-                Ok(ModelKey::AsianGeometricBS)
-            }
-            "asian_turnbull_wakeman" | "asian_tw" | "arithmetic_asian_tw" => {
-                Ok(ModelKey::AsianTurnbullWakeman)
-            }
-            "lookback_bs_continuous" | "lookback_bs" | "lookback_continuous" => {
-                Ok(ModelKey::LookbackBSContinuous)
-            }
-            "quanto_bs" | "quanto" => Ok(ModelKey::QuantoBS),
-            "fx_barrier_bs_continuous" | "fx_barrier_bs" | "fx_barrier_continuous" => {
-                Ok(ModelKey::FxBarrierBSContinuous)
-            }
-            "heston_fourier" | "heston_semi_analytical" | "heston_analytical" => {
-                Ok(ModelKey::HestonFourier)
-            }
-            "merton_mc" | "merton" | "structural_mc" => Ok(ModelKey::MertonMc),
-            "monte_carlo_schwartz_smith" | "mc_schwartz_smith" | "schwartz_smith_mc" => {
-                Ok(ModelKey::MonteCarloSchwartzSmith)
-            }
-            "static_replication" | "static_rep" | "replication" => Ok(ModelKey::StaticReplication),
-            "lmm_monte_carlo" | "lmm_mc" | "lmm" | "bgm" | "bgm_mc" => Ok(ModelKey::LmmMonteCarlo),
-            "structured_credit_stochastic" | "structured_credit_mc" | "sc_stochastic" => {
-                Ok(ModelKey::StructuredCreditStochastic)
-            }
-            "bond_future_clean_price_proxy" | "bond_future_proxy" | "bond_future_clean_proxy" => {
-                Ok(ModelKey::BondFutureCleanPriceProxy)
-            }
-            "monte_carlo_rough_bergomi" | "mc_rbergomi" | "rbergomi" | "rough_bergomi" => {
-                Ok(ModelKey::MonteCarloRoughBergomi)
-            }
-            "monte_carlo_rough_heston" | "mc_rough_heston" | "rough_heston_mc" => {
-                Ok(ModelKey::MonteCarloRoughHeston)
-            }
-            "rough_heston_fourier" | "rough_heston_analytical" | "rough_heston_semi_analytical" => {
-                Ok(ModelKey::RoughHestonFourier)
-            }
-            "monte_carlo_cheyette_rough_vol" | "mc_cheyette_rough" | "cheyette_rough_vol" => {
-                Ok(ModelKey::MonteCarloCheyetteRoughVol)
-            }
-            "pde_crank_nicolson_1d" | "pde_cn" | "crank_nicolson" | "finite_difference" | "fd" => {
-                Ok(ModelKey::PdeCrankNicolson1D)
-            }
-            "pde_adi_2d" | "adi" | "adi_2d" | "craig_sneyd" | "heston_pde" => {
-                Ok(ModelKey::PdeAdi2D)
-            }
-            "bloomberg_cdso" | "bbg_cdso" | "cdso" | "bloomberg_cdsoption" => {
-                Ok(ModelKey::BloombergCdso)
-            }
-            other => Err(format!("Unknown model key: {}", other)),
-        }
+        Self::iter()
+            .find(|candidate| candidate.as_str() == s)
+            .ok_or_else(|| format!("Unknown model key: {s}"))
     }
 }
 
@@ -735,8 +592,19 @@ impl std::str::FromStr for ModelKey {
 /// ```
 #[repr(C)]
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
+#[serde(deny_unknown_fields)]
 pub struct PricerKey {
     /// The instrument type being priced.
     pub instrument: InstrumentType,
@@ -812,197 +680,42 @@ mod tests {
     }
 
     #[test]
-    fn instrument_type_aliases_parse_to_expected_variant() {
-        let aliases = [
-            ("cdsindex", InstrumentType::CDSIndex),
-            ("cdstranche", InstrumentType::CDSTranche),
-            ("cdsoption", InstrumentType::CDSOption),
-            ("swap", InstrumentType::IRS),
-            ("interest_rate_swap", InstrumentType::IRS),
-            ("capfloor", InstrumentType::CapFloor),
-            ("interest_rate_option", InstrumentType::CapFloor),
-            ("bermudanswaption", InstrumentType::BermudanSwaption),
-            ("basisswap", InstrumentType::BasisSwap),
-            ("convertible_bond", InstrumentType::Convertible),
-            ("equityoption", InstrumentType::EquityOption),
-            ("fxoption", InstrumentType::FxOption),
-            ("fxspot", InstrumentType::FxSpot),
-            ("fxswap", InstrumentType::FxSwap),
-            ("xccyswap", InstrumentType::XccySwap),
-            ("xccy", InstrumentType::XccySwap),
-            ("cross_currency_swap", InstrumentType::XccySwap),
-            ("ilb", InstrumentType::InflationLinkedBond),
-            ("yo_y_inflation_swap", InstrumentType::YoYInflationSwap),
-            ("inflation_yoy_swap", InstrumentType::YoYInflationSwap),
-            ("yoy_swap", InstrumentType::YoYInflationSwap),
-            ("inflation_cap", InstrumentType::InflationCapFloor),
-            ("inflation_floor", InstrumentType::InflationCapFloor),
-            ("ir_future", InstrumentType::InterestRateFuture),
-            ("irfuture", InstrumentType::InterestRateFuture),
-            ("irfutureoption", InstrumentType::IrFutureOption),
-            ("varianceswap", InstrumentType::VarianceSwap),
-            ("fxvarianceswap", InstrumentType::FxVarianceSwap),
-            ("clo", InstrumentType::StructuredCredit),
-            ("abs", InstrumentType::StructuredCredit),
-            ("rmbs", InstrumentType::StructuredCredit),
-            ("cmbs", InstrumentType::StructuredCredit),
-            ("pmf", InstrumentType::PrivateMarketsFund),
-            ("revolver", InstrumentType::RevolvingCredit),
-            ("rc", InstrumentType::RevolvingCredit),
-            ("asian", InstrumentType::AsianOption),
-            ("barrier", InstrumentType::BarrierOption),
-            ("lookback", InstrumentType::LookbackOption),
-            ("quanto", InstrumentType::QuantoOption),
-            ("auto_callable", InstrumentType::Autocallable),
-            ("cms", InstrumentType::CmsOption),
-            ("range_accrual_note", InstrumentType::RangeAccrual),
-            ("fx_barrier", InstrumentType::FxBarrierOption),
-            ("termloan", InstrumentType::TermLoan),
-            ("loan_term", InstrumentType::TermLoan),
-            ("discounted_cash_flow", InstrumentType::DCF),
-            ("real_estate", InstrumentType::RealEstateAsset),
-            ("realestate", InstrumentType::RealEstateAsset),
-            ("realestate_asset", InstrumentType::RealEstateAsset),
-            (
-                "levered_real_estate",
-                InstrumentType::LeveredRealEstateEquity,
-            ),
-            ("levered_re_equity", InstrumentType::LeveredRealEstateEquity),
-            (
-                "real_estate_equity_levered",
-                InstrumentType::LeveredRealEstateEquity,
-            ),
-            ("equity_trs", InstrumentType::EquityTotalReturnSwap),
-            ("equitytrs", InstrumentType::EquityTotalReturnSwap),
-            ("fi_index_trs", InstrumentType::FIIndexTotalReturnSwap),
-            ("fiindex_trs", InstrumentType::FIIndexTotalReturnSwap),
-            ("fiindextrs", InstrumentType::FIIndexTotalReturnSwap),
-            ("bondfuture", InstrumentType::BondFuture),
-            ("commodityforward", InstrumentType::CommodityForward),
-            ("commodity_future", InstrumentType::CommodityForward),
-            ("commodityfuture", InstrumentType::CommodityForward),
-            ("commodityswap", InstrumentType::CommoditySwap),
-            ("commodityoption", InstrumentType::CommodityOption),
-            ("commodityasianoption", InstrumentType::CommodityAsianOption),
-            ("commodityswaption", InstrumentType::CommoditySwaption),
-            (
-                "commodityspreadoption",
-                InstrumentType::CommoditySpreadOption,
-            ),
-            ("vol_index_future", InstrumentType::VolatilityIndexFuture),
-            ("vix_future", InstrumentType::VolatilityIndexFuture),
-            ("vixfuture", InstrumentType::VolatilityIndexFuture),
-            ("vol_index_option", InstrumentType::VolatilityIndexOption),
-            ("vix_option", InstrumentType::VolatilityIndexOption),
-            ("vixoption", InstrumentType::VolatilityIndexOption),
-            ("equityindexfuture", InstrumentType::EquityIndexFuture),
-            ("eq_future", InstrumentType::EquityIndexFuture),
-            ("es_future", InstrumentType::EquityIndexFuture),
-            ("fxforward", InstrumentType::FxForward),
-            ("outright_forward", InstrumentType::FxForward),
-            ("non_deliverable_forward", InstrumentType::Ndf),
-            ("agency_mbs", InstrumentType::AgencyMbsPassthrough),
-            ("mbs", InstrumentType::AgencyMbsPassthrough),
-            ("passthrough", InstrumentType::AgencyMbsPassthrough),
-            ("tba", InstrumentType::AgencyTba),
-            ("dollarroll", InstrumentType::DollarRoll),
-            ("roll", InstrumentType::DollarRoll),
-            ("cmo", InstrumentType::AgencyCmo),
-            ("fxdigitaloption", InstrumentType::FxDigitalOption),
-            ("fx_digital", InstrumentType::FxDigitalOption),
-            ("digital_option", InstrumentType::FxDigitalOption),
-            ("fxtouchoption", InstrumentType::FxTouchOption),
-            ("fx_touch", InstrumentType::FxTouchOption),
-            ("touch_option", InstrumentType::FxTouchOption),
-            ("one_touch", InstrumentType::FxTouchOption),
-            ("no_touch", InstrumentType::FxTouchOption),
-            ("target_redemption_note", InstrumentType::Tarn),
-            ("cmsspreadoption", InstrumentType::CmsSpreadOption),
-            ("cms_spread", InstrumentType::CmsSpreadOption),
-            ("callablerangeaccrual", InstrumentType::CallableRangeAccrual),
-            ("callable_ra", InstrumentType::CallableRangeAccrual),
-            ("inverse_floater", InstrumentType::Snowball),
-            ("inversefloater", InstrumentType::Snowball),
-        ];
-
-        for (alias, expected) in aliases {
-            let parsed = alias
-                .parse::<InstrumentType>()
-                .unwrap_or_else(|e| panic!("alias {alias:?} failed FromStr: {e}"));
-            assert_eq!(parsed, expected, "alias {alias:?} parsed incorrectly");
+    fn instrument_type_rejects_noncanonical_values() {
+        for value in [
+            "swap",
+            "cds",
+            "irs",
+            "convertible",
+            "fra",
+            "dcf",
+            "equity_total_return_swap",
+            "fi_index_total_return_swap",
+            "cdsindex",
+            "cross_currency_swap",
+            "CdsIndex",
+            "bond-future",
+            " bond",
+        ] {
+            assert!(
+                value.parse::<InstrumentType>().is_err(),
+                "accepted {value:?}"
+            );
         }
     }
 
     #[test]
-    fn model_key_aliases_parse_to_expected_variant() {
-        let aliases = [
-            ("lattice", ModelKey::Tree),
-            ("black", ModelKey::Black76),
-            ("black_76", ModelKey::Black76),
-            ("hullwhite1f", ModelKey::HullWhite1F),
-            ("hw1f", ModelKey::HullWhite1F),
-            ("hazard", ModelKey::HazardRate),
-            ("bachelier", ModelKey::Normal),
-            ("mc_gbm", ModelKey::MonteCarloGBM),
-            ("montecarlo_gbm", ModelKey::MonteCarloGBM),
-            ("mc_heston", ModelKey::MonteCarloHeston),
-            ("montecarlo_heston", ModelKey::MonteCarloHeston),
-            ("mc_hw1f", ModelKey::MonteCarloHullWhite1F),
-            ("montecarlo_hw1f", ModelKey::MonteCarloHullWhite1F),
-            ("barrier_bs", ModelKey::BarrierBSContinuous),
-            ("barrier_continuous", ModelKey::BarrierBSContinuous),
-            ("asian_geometric", ModelKey::AsianGeometricBS),
-            ("geometric_asian_bs", ModelKey::AsianGeometricBS),
-            ("asian_tw", ModelKey::AsianTurnbullWakeman),
-            ("arithmetic_asian_tw", ModelKey::AsianTurnbullWakeman),
-            ("lookback_bs", ModelKey::LookbackBSContinuous),
-            ("lookback_continuous", ModelKey::LookbackBSContinuous),
-            ("quanto", ModelKey::QuantoBS),
-            ("fx_barrier_bs", ModelKey::FxBarrierBSContinuous),
-            ("fx_barrier_continuous", ModelKey::FxBarrierBSContinuous),
-            ("heston_semi_analytical", ModelKey::HestonFourier),
-            ("heston_analytical", ModelKey::HestonFourier),
-            ("merton", ModelKey::MertonMc),
-            ("structural_mc", ModelKey::MertonMc),
-            ("mc_schwartz_smith", ModelKey::MonteCarloSchwartzSmith),
-            ("schwartz_smith_mc", ModelKey::MonteCarloSchwartzSmith),
-            ("static_rep", ModelKey::StaticReplication),
-            ("replication", ModelKey::StaticReplication),
-            ("lmm_mc", ModelKey::LmmMonteCarlo),
-            ("lmm", ModelKey::LmmMonteCarlo),
-            ("bgm", ModelKey::LmmMonteCarlo),
-            ("bgm_mc", ModelKey::LmmMonteCarlo),
-            ("structured_credit_mc", ModelKey::StructuredCreditStochastic),
-            ("sc_stochastic", ModelKey::StructuredCreditStochastic),
-            ("bond_future_proxy", ModelKey::BondFutureCleanPriceProxy),
-            (
-                "bond_future_clean_proxy",
-                ModelKey::BondFutureCleanPriceProxy,
-            ),
-            ("mc_rbergomi", ModelKey::MonteCarloRoughBergomi),
-            ("rbergomi", ModelKey::MonteCarloRoughBergomi),
-            ("rough_bergomi", ModelKey::MonteCarloRoughBergomi),
-            ("mc_rough_heston", ModelKey::MonteCarloRoughHeston),
-            ("rough_heston_mc", ModelKey::MonteCarloRoughHeston),
-            ("rough_heston_analytical", ModelKey::RoughHestonFourier),
-            ("rough_heston_semi_analytical", ModelKey::RoughHestonFourier),
-            ("mc_cheyette_rough", ModelKey::MonteCarloCheyetteRoughVol),
-            ("cheyette_rough_vol", ModelKey::MonteCarloCheyetteRoughVol),
-            ("pde_cn", ModelKey::PdeCrankNicolson1D),
-            ("crank_nicolson", ModelKey::PdeCrankNicolson1D),
-            ("finite_difference", ModelKey::PdeCrankNicolson1D),
-            ("fd", ModelKey::PdeCrankNicolson1D),
-            ("adi", ModelKey::PdeAdi2D),
-            ("adi_2d", ModelKey::PdeAdi2D),
-            ("craig_sneyd", ModelKey::PdeAdi2D),
-            ("heston_pde", ModelKey::PdeAdi2D),
-        ];
-
-        for (alias, expected) in aliases {
-            let parsed = alias
-                .parse::<ModelKey>()
-                .unwrap_or_else(|e| panic!("alias {alias:?} failed FromStr: {e}"));
-            assert_eq!(parsed, expected, "alias {alias:?} parsed incorrectly");
+    fn model_key_rejects_noncanonical_values() {
+        for value in [
+            "lattice",
+            "black_76",
+            "hw1f",
+            "bachelier",
+            "mc_gbm",
+            "HullWhite1F",
+            "hull-white-1f",
+            " hull_white_1f",
+        ] {
+            assert!(value.parse::<ModelKey>().is_err(), "accepted {value:?}");
         }
     }
 }

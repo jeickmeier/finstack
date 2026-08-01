@@ -73,10 +73,10 @@ fn bumped_usd_market() -> MarketContext {
 }
 
 fn make_deposit(id: &str, curve_id: &str, notional: f64) -> Deposit {
-    make_deposit_ccy(id, curve_id, notional, Currency::USD)
+    make_deposit_currency(id, curve_id, notional, Currency::USD)
 }
 
-fn make_deposit_ccy(id: &str, curve_id: &str, notional: f64, currency: Currency) -> Deposit {
+fn make_deposit_currency(id: &str, curve_id: &str, notional: f64, currency: Currency) -> Deposit {
     Deposit::builder()
         .id(id.into())
         .notional(Money::new(notional, currency))
@@ -153,7 +153,7 @@ fn build_two_curve_portfolio() -> Portfolio {
     .unwrap();
 
     PortfolioBuilder::new("TEST")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("ENTITY_A"))
         .position(pos_usd)
@@ -237,7 +237,7 @@ fn affected_positions_deduplicates() {
 #[test]
 fn empty_portfolio_has_empty_index() {
     let portfolio = Portfolio::builder("EMPTY")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .build()
         .unwrap();
@@ -272,8 +272,8 @@ fn selective_reprice_matches_full_reprice_when_one_curve_changes() {
     )
     .unwrap();
 
-    let full_total = full_val.total_base_ccy.amount();
-    let selective_total = selective_val.total_base_ccy.amount();
+    let full_total = full_val.total_base_currency.amount();
+    let selective_total = selective_val.total_base_currency.amount();
 
     assert!(
         (full_total - selective_total).abs() < 1e-10,
@@ -313,7 +313,7 @@ fn selective_reprice_no_changes_returns_prior() {
     .unwrap();
 
     assert!(
-        (result.total_base_ccy.amount() - base_val.total_base_ccy.amount()).abs() < 1e-14,
+        (result.total_base_currency.amount() - base_val.total_base_currency.amount()).abs() < 1e-14,
         "no-change reprice should return identical total"
     );
 }
@@ -411,14 +411,14 @@ fn base_then_selective_reprice_round_trip() {
     .unwrap();
 
     assert!(
-        (base.total_base_ccy.amount() - bumped.total_base_ccy.amount()).abs() > 1e-6,
+        (base.total_base_currency.amount() - bumped.total_base_currency.amount()).abs() > 1e-6,
         "bumped total should differ from base"
     );
 }
 
 #[test]
 fn selective_reprice_fx_change_reprices_native_non_base_positions() {
-    let dep_eur = make_deposit_ccy("DEP_EUR", "EUR", 1_000_000.0, Currency::EUR);
+    let dep_eur = make_deposit_currency("DEP_EUR", "EUR", 1_000_000.0, Currency::EUR);
     let pos_eur = Position::new(
         "POS_EUR",
         "ENTITY_A",
@@ -429,7 +429,7 @@ fn selective_reprice_fx_change_reprices_native_non_base_positions() {
     )
     .unwrap();
     let portfolio = PortfolioBuilder::new("TEST")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("ENTITY_A"))
         .position(pos_eur)
@@ -453,13 +453,15 @@ fn selective_reprice_fx_change_reprices_native_non_base_positions() {
     .unwrap();
 
     assert!(
-        (full_val.total_base_ccy.amount() - selective_val.total_base_ccy.amount()).abs() < 1e-10,
+        (full_val.total_base_currency.amount() - selective_val.total_base_currency.amount()).abs()
+            < 1e-10,
         "B-3 selective FX repricing should match full repricing: full={}, selective={}",
-        full_val.total_base_ccy.amount(),
-        selective_val.total_base_ccy.amount()
+        full_val.total_base_currency.amount(),
+        selective_val.total_base_currency.amount()
     );
     assert!(
-        (base_val.total_base_ccy.amount() - selective_val.total_base_ccy.amount()).abs() > 1e-6,
+        (base_val.total_base_currency.amount() - selective_val.total_base_currency.amount()).abs()
+            > 1e-6,
         "FX-only selective repricing should not reuse the stale prior base value"
     );
 }
@@ -563,7 +565,7 @@ fn unresolved_positions_always_included_in_affected() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("TEST")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("ENTITY_A"))
         .position(pos_resolved)
@@ -598,7 +600,7 @@ fn empty_compatibility_dependencies_are_conservatively_unresolved() {
     )
     .unwrap();
     let portfolio = PortfolioBuilder::new("DEFAULT_DEPS")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("ENTITY_A"))
         .position(position)
@@ -773,7 +775,7 @@ fn dependency_probe_instrument(
 
 fn build_dependency_probe_portfolio(position_count: usize) -> (Portfolio, Vec<DependencyProbe>) {
     let mut builder = PortfolioBuilder::new(format!("SELECTIVE_{position_count}"))
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("ENTITY_A"));
     let mut probes = Vec::with_capacity(position_count);
@@ -849,7 +851,7 @@ fn assert_same_valuation(
     actual: &finstack_quant_portfolio::valuation::PortfolioValuation,
 ) {
     assert_eq!(actual.as_of, expected.as_of);
-    assert_eq!(actual.total_base_ccy, expected.total_base_ccy);
+    assert_eq!(actual.total_base_currency, expected.total_base_currency);
     assert_eq!(actual.by_entity, expected.by_entity);
     assert_eq!(
         actual.position_values.keys().collect::<Vec<_>>(),
@@ -1009,7 +1011,7 @@ fn selective_instrument_replacement_with_same_position_id_forces_reprice() {
         None,
     );
     let base_portfolio = PortfolioBuilder::new("BASE")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("ENTITY_A"))
         .position(
@@ -1036,7 +1038,7 @@ fn selective_instrument_replacement_with_same_position_id_forces_reprice() {
         None,
     );
     let replacement_portfolio = PortfolioBuilder::new("REPLACEMENT")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("ENTITY_A"))
         .position(
@@ -1134,7 +1136,7 @@ fn selective_fx_change_reprices_only_fx_dependent_instrument_and_refreshes_all_c
         Some((Currency::EUR, Currency::JPY)),
     );
     let portfolio = PortfolioBuilder::new("FX_SELECTIVE")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("ENTITY_A"))
         .position(

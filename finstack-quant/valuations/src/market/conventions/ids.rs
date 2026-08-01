@@ -131,18 +131,18 @@ impl std::str::FromStr for CdsDocClause {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "cr14" | "cr" => Ok(CdsDocClause::Cr14),
-            "mr14" | "mr" => Ok(CdsDocClause::Mr14),
-            "mm14" | "mm" => Ok(CdsDocClause::Mm14),
-            "xr14" | "xr" => Ok(CdsDocClause::Xr14),
-            "isdana" | "isda_na" | "na" => Ok(CdsDocClause::IsdaNa),
-            "isdaeu" | "isda_eu" | "eu" => Ok(CdsDocClause::IsdaEu),
-            "isdaas" | "isda_as" | "as" => Ok(CdsDocClause::IsdaAs),
-            "isdaau" | "isda_au" | "au" => Ok(CdsDocClause::IsdaAu),
-            "isdanz" | "isda_nz" | "nz" => Ok(CdsDocClause::IsdaNz),
+        match s {
+            "cr14" => Ok(CdsDocClause::Cr14),
+            "mr14" => Ok(CdsDocClause::Mr14),
+            "mm14" => Ok(CdsDocClause::Mm14),
+            "xr14" => Ok(CdsDocClause::Xr14),
+            "isda_na" => Ok(CdsDocClause::IsdaNa),
+            "isda_eu" => Ok(CdsDocClause::IsdaEu),
+            "isda_as" => Ok(CdsDocClause::IsdaAs),
+            "isda_au" => Ok(CdsDocClause::IsdaAu),
+            "isda_nz" => Ok(CdsDocClause::IsdaNz),
             "custom" => Ok(CdsDocClause::Custom),
-            _ => Err(format!("Unknown CDS doc clause: {}", s)),
+            _ => Err(format!("Unknown CDS doc clause: {s}")),
         }
     }
 }

@@ -22,7 +22,7 @@ fn test_builder_fixed_rate_loan() {
         .rate(RateSpec::Fixed { rate_bp: 500 }) // 5%
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -53,7 +53,7 @@ fn test_builder_floating_rate_loan() {
         .maturity(date!(2028 - 01 - 01))
         .rate(RateSpec::Floating(FloatingRateSpec {
             index_id: CurveId::from("USD-SOFR"),
-            spread_bp: rust_decimal::Decimal::try_from(250.0).expect("valid"), // +250 bps
+            spread_bp: rust_decimal::Decimal::try_from(250.0).expect("valid"), // +250 bp
             gearing: rust_decimal::Decimal::try_from(1.0).expect("valid"),
             gearing_includes_spread: true,
             index_floor_bp: None,
@@ -61,7 +61,7 @@ fn test_builder_floating_rate_loan() {
             all_in_cap_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,
@@ -71,7 +71,7 @@ fn test_builder_floating_rate_loan() {
         }))
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -101,7 +101,7 @@ fn test_builder_with_amortization() {
         .rate(RateSpec::Fixed { rate_bp: 600 })
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -149,7 +149,7 @@ fn test_builder_with_callability() {
         .rate(RateSpec::Fixed { rate_bp: 550 })
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -183,7 +183,7 @@ fn test_builder_validation_maturity_after_issue() {
         .rate(RateSpec::Fixed { rate_bp: 500 })
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -211,12 +211,12 @@ fn test_pik_coupon_type() {
         .rate(RateSpec::Fixed { rate_bp: 800 }) // Higher rate for PIK
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
         .amortization(AmortizationSpec::None)
-        .coupon_type(CouponType::PIK) // Payment-in-kind
+        .coupon_type(CouponType::Pik) // Payment-in-kind
         .upfront_fee_opt(None)
         .ddtl_opt(None)
         .covenants_opt(None)
@@ -226,5 +226,5 @@ fn test_pik_coupon_type() {
     // Assert
     assert!(loan.is_ok());
     let loan = loan.unwrap();
-    assert!(matches!(loan.coupon_type, CouponType::PIK));
+    assert!(matches!(loan.coupon_type, CouponType::Pik));
 }

@@ -104,6 +104,7 @@ fn advance_business_days<C: HolidayCalendar + ?Sized>(cal: &C, mut date: Date, d
     Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum AccrualMethod {
     /// Linear accrual (simple interest interpolation).
     ///
@@ -415,7 +416,7 @@ struct CouponBucket {
 struct CouponPeriod {
     start: Date,
     end: Date,
-    dc: DayCount,
+    day_count: DayCount,
     bucket: CouponBucket,
 }
 
@@ -424,7 +425,7 @@ struct CouponPeriod {
 struct PeriodInputs {
     start: Date,
     end: Date,
-    dc: DayCount,
+    day_count: DayCount,
     notional_start: f64,
     coupon_total: f64,
     total_yf: f64,
@@ -432,7 +433,7 @@ struct PeriodInputs {
 
 /// Check if a cashflow kind is a coupon that should be included in accrual.
 fn is_coupon_kind(kind: CFKind, include_pik: bool) -> bool {
-    kind.is_interest_like() || (include_pik && kind == CFKind::PIK)
+    kind.is_interest_like() || (include_pik && kind == CFKind::Pik)
 }
 
 fn derive_horizon_start(
@@ -519,7 +520,7 @@ fn build_coupon_periods(
                     && bucket.accrual_day_count == flow_day_count
             });
         if let Some(bucket) = matching_bucket {
-            if cf.kind == CFKind::PIK {
+            if cf.kind == CFKind::Pik {
                 bucket.pik_amount += cf.amount.amount();
             } else {
                 bucket.cash_amount += cf.amount.amount();
@@ -538,12 +539,12 @@ fn build_coupon_periods(
             accrual_start: true_period.map(|(start, _)| start),
             accrual_end: true_period.map(|(_, end)| end),
             accrual_day_count: flow_day_count,
-            cash_amount: if cf.kind == CFKind::PIK {
+            cash_amount: if cf.kind == CFKind::Pik {
                 0.0
             } else {
                 cf.amount.amount()
             },
-            pik_amount: if cf.kind == CFKind::PIK {
+            pik_amount: if cf.kind == CFKind::Pik {
                 cf.amount.amount()
             } else {
                 0.0
@@ -573,7 +574,7 @@ fn build_coupon_periods(
             periods.push(CouponPeriod {
                 start,
                 end,
-                dc: bucket.accrual_day_count.unwrap_or(schedule.day_count),
+                day_count: bucket.accrual_day_count.unwrap_or(schedule.day_count),
                 bucket,
             });
             prev = end;
@@ -649,7 +650,7 @@ fn build_period_inputs(
                     coupon_period: Some((p.start, p.end)),
                     ..Default::default()
                 };
-                p.dc.year_fraction(p.start, p.end, ctx)?
+                p.day_count.year_fraction(p.start, p.end, ctx)?
             }
         };
 
@@ -660,7 +661,7 @@ fn build_period_inputs(
         result.push(PeriodInputs {
             start: p.start,
             end: p.end,
-            dc: p.dc,
+            day_count: p.day_count,
             notional_start,
             coupon_total,
             total_yf,
@@ -700,7 +701,7 @@ fn find_active_periods_and_elapsed<'a>(
     let mut active = Vec::new();
     for inputs in periods {
         if inputs.start <= as_of && as_of < inputs.end {
-            let dc_ctx = DayCountContext {
+            let day_count_context = DayCountContext {
                 frequency: cfg.frequency,
                 // ACT/ACT ICMA: anchor on the actual coupon period (see
                 // `build_period_inputs`). Other conventions ignore this field.
@@ -708,14 +709,17 @@ fn find_active_periods_and_elapsed<'a>(
                 ..Default::default()
             };
             let dc_elapsed = inputs
-                .dc
-                .year_fraction(inputs.start, as_of, dc_ctx)?
+                .day_count
+                .year_fraction(inputs.start, as_of, day_count_context)?
                 .max(0.0);
 
             // Rescale onto the `total_yf` basis under a single day-count
             // context so stub reference-period choices cancel instead of
             // mixing builder and elapsed bases.
-            let dc_total = inputs.dc.year_fraction(inputs.start, inputs.end, dc_ctx)?;
+            let dc_total =
+                inputs
+                    .day_count
+                    .year_fraction(inputs.start, inputs.end, day_count_context)?;
             let elapsed = if dc_total.is_finite() && dc_total > 0.0 {
                 inputs.total_yf * dc_elapsed / dc_total
             } else {
@@ -1098,7 +1102,7 @@ mod tests {
         PeriodInputs {
             start: make_date(2025, 1, 1),
             end: make_date(2025, 7, 5),
-            dc: DayCount::Thirty360,
+            day_count: DayCount::Thirty360,
             notional_start: 1_000_000.0,
             coupon_total: 25_000.0,
             total_yf: 0.5,
@@ -1143,7 +1147,7 @@ mod tests {
         let inputs = PeriodInputs {
             start: make_date(2025, 1, 1),
             end: make_date(2025, 7, 1),
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
             notional_start: 1_000_000.0,
             coupon_total: 37_500.0,
             total_yf: 0.75,
@@ -1195,7 +1199,7 @@ mod tests {
         PeriodInputs {
             start: make_date(2025, 1, 1),
             end: make_date(2025, 7, 1),
-            dc: DayCount::Thirty360,
+            day_count: DayCount::Thirty360,
             notional_start: 1_000_000.0,
             coupon_total: 25_000.0,
             total_yf: 0.5,
@@ -1278,7 +1282,7 @@ mod tests {
         let periods = [CouponPeriod {
             start: make_date(2025, 1, 1),
             end: make_date(2025, 7, 1),
-            dc: DayCount::Thirty360,
+            day_count: DayCount::Thirty360,
             bucket: CouponBucket {
                 date: make_date(2025, 7, 1),
                 accrual_start: None,
@@ -1314,7 +1318,7 @@ mod tests {
         let inputs = PeriodInputs {
             start: make_date(2025, 1, 1),
             end: make_date(2025, 2, 1),
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
             notional_start: 1_000_000.0,
             coupon_total: 4_166.67,
             total_yf: 1.0 / 12.0,
@@ -1330,13 +1334,13 @@ mod tests {
     #[test]
     fn accrual_config_rejects_unknown_json_fields() {
         let err = serde_json::from_str::<AccrualConfig>(
-            r#"{"method":"Linear","include_pik":true,"frequency":null,"strict_issue_date":true}"#,
+            r#"{"method":"linear","include_pik":true,"frequency":null,"strict_issue_date":true}"#,
         )
         .expect_err("unknown top-level accrual field must be rejected");
         assert!(err.to_string().contains("strict_issue_date"));
 
         let nested = serde_json::from_str::<AccrualConfig>(
-            r#"{"method":"Linear","include_pik":true,"frequency":null,"ex_coupon":{"days_before_coupon":7,"bogus":1}}"#,
+            r#"{"method":"linear","include_pik":true,"frequency":null,"ex_coupon":{"days_before_coupon":7,"bogus":1}}"#,
         )
         .expect_err("unknown nested ex-coupon field must be rejected");
         assert!(nested.to_string().contains("bogus"));

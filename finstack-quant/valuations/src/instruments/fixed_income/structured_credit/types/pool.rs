@@ -33,11 +33,11 @@ pub struct PoolAsset {
     /// Spread over the reference index in basis points for floating-rate assets.
     /// Weighted-average-spread calculations use this field rather than the
     /// all-in coupon because the index component is not a credit spread.
-    pub spread_bps: Option<f64>,
+    pub spread_bp: Option<f64>,
     /// Reference index identifier for floating-rate assets, such as SOFR-3M.
     pub index_id: Option<String>,
     /// Contractual maturity date of the asset.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Optional credit-quality classification of the obligor or asset.
     pub credit_quality: Option<CreditRating>,
@@ -52,7 +52,7 @@ pub struct PoolAsset {
     /// Acquisition price in the asset currency, used for trading gain/loss.
     pub purchase_price: Option<Money>,
     /// Date on which the pool acquired the asset, if known.
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub acquisition_date: Option<Date>,
     /// Day-count convention used for coupon and accrual calculations.
     pub day_count: DayCount,
@@ -84,7 +84,7 @@ impl PoolAsset {
                     })?,
                     None,
                     None,
-                    spec.schedule.dc,
+                    spec.schedule.day_count,
                 )),
                 crate::instruments::fixed_income::bond::CashflowSpec::Floating(spec) => {
                     Err(finstack_quant_core::Error::Validation(format!(
@@ -104,7 +104,7 @@ impl PoolAsset {
             }
         }
 
-        let (rate, spread_bps, index_id, day_count) = economics(&bond.cashflow_spec)?;
+        let (rate, spread_bp, index_id, day_count) = economics(&bond.cashflow_spec)?;
         Ok(Self {
             id: bond.id.to_owned(),
             asset_type: AssetType::HighYieldBond {
@@ -112,7 +112,7 @@ impl PoolAsset {
             },
             balance: bond.notional,
             rate,
-            spread_bps,
+            spread_bp,
             index_id,
             maturity: bond.maturity,
             credit_quality: None,
@@ -135,13 +135,13 @@ impl PoolAsset {
 
     /// Create a floating rate loan asset with explicit spread tracking
     ///
-    /// This helper ensures spread_bps is properly populated for WAS calculations.
+    /// This helper ensures spread_bp is properly populated for WAS calculations.
     ///
     /// # Arguments
     /// * `id` - Unique asset identifier
     /// * `balance` - Current outstanding balance
     /// * `index_id` - Reference rate (e.g., "SOFR-3M", "LIBOR-3M")
-    /// * `spread_bps` - Spread over index in basis points
+    /// * `spread_bp` - Spread over index in basis points
     /// * `maturity` - Maturity date
     /// * `day_count` - Day count convention
     ///
@@ -165,13 +165,13 @@ impl PoolAsset {
     ///     DayCount::Act360,
     /// );
     /// // asset.rate will be 0.0 initially (set after index fixings)
-    /// // asset.spread_bps will be Some(450.0) for WAS calculation
+    /// // asset.spread_bp will be Some(450.0) for WAS calculation
     /// ```
     pub fn floating_rate_loan(
         id: impl Into<InstrumentId>,
         balance: Money,
         index_id: impl Into<String>,
-        spread_bps: f64,
+        spread_bp: f64,
         maturity: Date,
         day_count: DayCount,
     ) -> Self {
@@ -179,8 +179,8 @@ impl PoolAsset {
             id: id.into(),
             asset_type: AssetType::FirstLienLoan { industry: None },
             balance,
-            rate: spread_bps / BASIS_POINTS_DIVISOR, // Initialize with spread only
-            spread_bps: Some(spread_bps),
+            rate: spread_bp / BASIS_POINTS_DIVISOR, // Initialize with spread only
+            spread_bp: Some(spread_bp),
             index_id: Some(index_id.into()),
             maturity,
             credit_quality: None,
@@ -198,11 +198,11 @@ impl PoolAsset {
     }
 
     /// Create a floating rate loan asset using a typed spread in basis points.
-    pub fn floating_rate_loan_bps(
+    pub fn floating_rate_loan_bp(
         id: impl Into<InstrumentId>,
         balance: Money,
         index_id: impl Into<String>,
-        spread_bps: Bps,
+        spread_bp: Bps,
         maturity: Date,
         day_count: DayCount,
     ) -> Self {
@@ -210,7 +210,7 @@ impl PoolAsset {
             id,
             balance,
             index_id,
-            spread_bps.as_bps() as f64,
+            spread_bp.as_bp() as f64,
             maturity,
             day_count,
         )
@@ -218,7 +218,7 @@ impl PoolAsset {
 
     /// Create a fixed rate bond asset
     ///
-    /// For fixed rate assets, spread_bps is None (WAS falls back to rate).
+    /// For fixed rate assets, spread_bp is None (WAS falls back to rate).
     pub fn fixed_rate_bond(
         id: impl Into<InstrumentId>,
         balance: Money,
@@ -231,7 +231,7 @@ impl PoolAsset {
             asset_type: AssetType::HighYieldBond { industry: None },
             balance,
             rate,
-            spread_bps: None, // Fixed rate - no separate spread
+            spread_bp: None, // Fixed rate - no separate spread
             index_id: None,
             maturity,
             credit_quality: None,
@@ -291,8 +291,8 @@ impl PoolAsset {
     /// Get spread component in basis points
     ///
     /// Returns the explicit spread if available, otherwise derives from rate.
-    pub fn spread_bps(&self) -> f64 {
-        self.spread_bps.unwrap_or(self.rate * BASIS_POINTS_DIVISOR)
+    pub fn spread_bp(&self) -> f64 {
+        self.spread_bp.unwrap_or(self.rate * BASIS_POINTS_DIVISOR)
     }
 
     /// Remaining term to maturity in years
@@ -325,7 +325,7 @@ impl PoolAsset {
 #[serde(deny_unknown_fields)]
 pub struct ReinvestmentPeriod {
     /// End date of reinvestment period
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end_date: Date,
     /// Whether reinvestment is currently active
     pub is_active: bool,
@@ -447,11 +447,11 @@ pub struct RepLine {
     /// Weighted average coupon
     pub rate: f64,
     /// Weighted average spread (for floating rate)
-    pub spread_bps: Option<f64>,
+    pub spread_bp: Option<f64>,
     /// Reference index (if floating)
     pub index_id: Option<String>,
     /// Weighted average maturity date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Weighted average seasoning in months
     pub seasoning_months: u32,
@@ -472,7 +472,7 @@ impl RepLine {
         id: impl Into<String>,
         balance: Money,
         rate: f64,
-        spread_bps: Option<f64>,
+        spread_bp: Option<f64>,
         index_id: Option<String>,
         maturity: Date,
         seasoning_months: u32,
@@ -482,7 +482,7 @@ impl RepLine {
             id: id.into(),
             balance,
             rate,
-            spread_bps,
+            spread_bp,
             index_id,
             maturity,
             seasoning_months,
@@ -530,8 +530,8 @@ impl RepLine {
     }
 
     /// Get effective spread in basis points
-    pub fn spread_bps(&self) -> f64 {
-        self.spread_bps.unwrap_or(self.rate * BASIS_POINTS_DIVISOR)
+    pub fn spread_bp(&self) -> f64 {
+        self.spread_bp.unwrap_or(self.rate * BASIS_POINTS_DIVISOR)
     }
 }
 
@@ -581,7 +581,7 @@ impl AssetPool {
         }
 
         let mut rep_lines = Vec::with_capacity(groups.len());
-        let base_ccy = self.base_currency();
+        let base_currency = self.base_currency();
 
         for (i, (_, group_assets)) in groups.into_iter().enumerate() {
             let total_balance: f64 = group_assets.iter().map(|a| a.balance.amount()).sum();
@@ -602,7 +602,7 @@ impl AssetPool {
             for asset in &group_assets {
                 let weight = asset.balance.amount() / total_balance;
                 weighted_rate += asset.rate * weight;
-                weighted_spread += asset.spread_bps() * weight;
+                weighted_spread += asset.spread_bp() * weight;
 
                 let days_to_maturity = (asset.maturity - as_of).whole_days().max(0) as f64;
                 weighted_maturity_days += days_to_maturity * weight;
@@ -624,7 +624,7 @@ impl AssetPool {
 
             let rep_line = RepLine::new(
                 format!("REP_{}", i),
-                Money::new(total_balance, base_ccy),
+                Money::new(total_balance, base_currency),
                 weighted_rate,
                 spread_opt,
                 index_id,
@@ -822,7 +822,7 @@ impl AssetPool {
     /// - performing assets only — defaulted assets are excluded from both the
     ///   numerator and the denominator;
     /// - spread component only — fixed-rate assets without an explicit
-    ///   `spread_bps` are skipped rather than counting their all-in coupon as
+    ///   `spread_bp` are skipped rather than counting their all-in coupon as
     ///   spread (the old `rate × 10⁴` fallback inflated WAS one-sidedly).
     ///
     /// The denominator is the balance of the INCLUDED assets, so a pool of
@@ -834,10 +834,10 @@ impl AssetPool {
             if asset.is_defaulted {
                 continue;
             }
-            let Some(spread_bps) = asset.spread_bps else {
+            let Some(spread_bp) = asset.spread_bp else {
                 continue;
             };
-            weighted_spread += spread_bps * asset.balance.amount();
+            weighted_spread += spread_bp * asset.balance.amount();
             included_balance += asset.balance.amount();
         }
 
@@ -939,15 +939,15 @@ mod tests {
 
     #[test]
     fn test_pool_creation() {
-        let pool = AssetPool::new("TEST_POOL", DealType::CLO, Currency::USD);
+        let pool = AssetPool::new("TEST_POOL", DealType::Clo, Currency::USD);
         assert_eq!(pool.id.as_str(), "TEST_POOL");
-        assert_eq!(pool.deal_type, DealType::CLO);
+        assert_eq!(pool.deal_type, DealType::Clo);
         assert_eq!(pool.base_currency(), Currency::USD);
     }
 
     #[test]
     fn test_rep_line_aggregation() {
-        let mut pool = AssetPool::new("TEST_POOL", DealType::RMBS, Currency::USD);
+        let mut pool = AssetPool::new("TEST_POOL", DealType::Rmbs, Currency::USD);
         let as_of = Date::from_calendar_date(2023, time::Month::January, 1).expect("valid date");
 
         // Add 3 identical assets
@@ -980,7 +980,7 @@ mod tests {
             .as_ref()
             .expect("rep_lines should be set after aggregation");
 
-        // Should have 1 rep line (grouped by type/index/dc)
+        // Should have 1 rep line (grouped by type/index/day_count)
         assert_eq!(rep_lines.len(), 1);
         let rep = &rep_lines[0];
 
@@ -1020,7 +1020,7 @@ mod market_standards_tests {
             DayCount::Thirty360,
         );
 
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(asset_a);
         pool.assets.push(asset_b);
 

@@ -61,7 +61,7 @@ pub struct ImpactEstimate {
     pub total_cost: f64,
 
     /// Cost as basis points of notional value.
-    pub cost_bps: f64,
+    pub cost_bp: f64,
 
     /// Execution risk (standard deviation of cost).
     pub execution_risk: f64,

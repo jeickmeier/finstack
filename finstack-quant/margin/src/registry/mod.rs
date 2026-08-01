@@ -542,13 +542,13 @@ fn parse_defaults(value: Option<&Value>) -> Result<MarginDefaults> {
     };
     let file: wire::DefaultsFile = serde_json::from_value(val.clone()).map_err(to_validation)?;
 
-    let vm_freq = parse_margin_tenor(&file.defaults.vm.frequency)?;
+    let vm_frequency = parse_margin_tenor(&file.defaults.vm.frequency)?;
     let vm = VmDefaults {
         threshold: file.defaults.vm.threshold,
         mta: file.defaults.vm.mta,
         rounding: file.defaults.vm.rounding,
         independent_amount: file.defaults.vm.independent_amount,
-        frequency: vm_freq,
+        frequency: vm_frequency,
         settlement_lag: file.defaults.vm.settlement_lag,
     };
 
@@ -865,9 +865,9 @@ fn parse_simm(value: Option<&Value>) -> Result<HashMap<String, SimmParams>> {
 // Public helper for overrides via FinstackConfig
 // -----------------------------------------------------------------------------//
 
-/// Legacy-compatible extension key used by [`finstack_quant_core::config::FinstackConfig`]
-/// for margin-registry JSON overlays.
-pub const MARGIN_REGISTRY_EXTENSION_KEY: &str = "valuations.margin_registry.v1";
+/// Extension key used by [`finstack_quant_core::config::FinstackConfig`] for
+/// margin-registry JSON overlays.
+pub const MARGIN_REGISTRY_EXTENSION_KEY: &str = "margin.registry.v1";
 
 /// Build a margin registry from a [`finstack_quant_core::config::FinstackConfig`] extension overlay.
 ///
@@ -898,7 +898,7 @@ fn parse_schedule_asset_class(value: &str) -> Result<ScheduleAssetClass> {
 }
 
 fn parse_maturity_bucket(value: &str) -> Result<MaturityBucket> {
-    match value.to_ascii_lowercase().as_str() {
+    match value {
         "short" => Ok(MaturityBucket::Short),
         "medium" => Ok(MaturityBucket::Medium),
         "long" => Ok(MaturityBucket::Long),
@@ -921,72 +921,23 @@ fn parse_margin_tenor(value: &str) -> Result<MarginTenor> {
 }
 
 fn parse_simm_version(id: Option<&str>) -> Result<SimmVersion> {
-    match id.unwrap_or_default().to_ascii_lowercase().as_str() {
-        "v2_5" => Ok(SimmVersion::V2_5),
-        "v2_6" | "default" => Ok(SimmVersion::V2_6),
-        other => Err(Error::Validation(format!(
-            "unknown SIMM version id '{other}'"
-        ))),
-    }
+    let id = id.ok_or_else(|| Error::Validation("SIMM version id is required".to_string()))?;
+    id.parse::<SimmVersion>()
+        .map_err(|error| Error::Validation(format!("invalid SIMM version id '{id}': {error}")))
 }
 
 fn parse_simm_risk_class(value: &str) -> Result<SimmRiskClass> {
-    match value.to_ascii_lowercase().as_str() {
-        "interest_rate" | "ir" => Ok(SimmRiskClass::InterestRate),
-        "credit_qualifying" | "cq" => Ok(SimmRiskClass::CreditQualifying),
-        "credit_non_qualifying" | "cnq" => Ok(SimmRiskClass::CreditNonQualifying),
-        "equity" => Ok(SimmRiskClass::Equity),
-        "commodity" => Ok(SimmRiskClass::Commodity),
-        "fx" => Ok(SimmRiskClass::Fx),
-        other => Err(Error::Validation(format!(
-            "unknown SIMM risk class '{other}'"
-        ))),
-    }
+    value
+        .parse::<SimmRiskClass>()
+        .map_err(|error| Error::Validation(format!("invalid SIMM risk class '{value}': {error}")))
 }
 
 fn parse_simm_credit_sector(value: &str) -> Result<SimmCreditSector> {
-    match value.to_ascii_lowercase().as_str() {
-        "ig_sovereign" | "sovereign" | "bucket_1" | "1" => Ok(SimmCreditSector::Sovereign),
-        "ig_financial" | "financial" | "bucket_2" | "2" => Ok(SimmCreditSector::Financial),
-        "ig_basic_materials" | "basic_materials" | "bucket_3" | "3" => {
-            Ok(SimmCreditSector::BasicMaterials)
-        }
-        "ig_consumer" | "ig_consumer_goods" | "consumer" | "consumer_goods" | "bucket_4" | "4" => {
-            Ok(SimmCreditSector::ConsumerGoods)
-        }
-        "ig_technology_media"
-        | "technology_media"
-        | "technology_telecommunications"
-        | "bucket_5"
-        | "5" => Ok(SimmCreditSector::TechnologyMedia),
-        "ig_health_care" | "health_care" | "healthcare_utilities" | "bucket_6" | "6" => {
-            Ok(SimmCreditSector::HealthCare)
-        }
-        "hy_sovereign" | "high_yield_sovereign" | "bucket_7" | "7" => {
-            Ok(SimmCreditSector::HighYieldSovereign)
-        }
-        "hy_financial" | "high_yield_financial" | "bucket_8" | "8" => {
-            Ok(SimmCreditSector::HighYieldFinancial)
-        }
-        "hy_basic_materials" | "high_yield_basic_materials" | "bucket_9" | "9" => {
-            Ok(SimmCreditSector::HighYieldBasicMaterials)
-        }
-        "hy_consumer" | "hy_consumer_goods" | "high_yield_consumer" | "bucket_10" | "10" => {
-            Ok(SimmCreditSector::HighYieldConsumerGoods)
-        }
-        "hy_technology_media" | "high_yield_technology_media" | "bucket_11" | "11" => {
-            Ok(SimmCreditSector::HighYieldTechnologyMedia)
-        }
-        "hy_health_care" | "high_yield_health_care" | "bucket_12" | "12" => {
-            Ok(SimmCreditSector::HighYieldHealthCare)
-        }
-        "index" => Ok(SimmCreditSector::Index),
-        "securitized" | "securitised" => Ok(SimmCreditSector::Securitized),
-        "residual" => Ok(SimmCreditSector::Residual),
-        other => Err(Error::Validation(format!(
-            "unknown SIMM credit qualifying sector '{other}'"
-        ))),
-    }
+    value.parse::<SimmCreditSector>().map_err(|error| {
+        Error::Validation(format!(
+            "invalid SIMM credit qualifying sector '{value}': {error}"
+        ))
+    })
 }
 
 fn parse_number_map(value: &Value, context: &str) -> Result<HashMap<String, f64>> {
@@ -1620,7 +1571,7 @@ mod tests {
         let params = registry.simm.get("v2_6").expect("v2_6 simm params");
 
         assert!(
-            params.ir_delta_weights.contains_key("5y"),
+            params.ir_delta_weights.contains_key("5Y"),
             "5y IR weight should be present"
         );
         assert!(
@@ -1861,7 +1812,7 @@ mod tests {
         // No underscore separator → parse error mentioning the
         // tenor-label-no-underscore convention.
         let val = serde_json::json!({
-            "5y": 0.5,
+            "5Y": 0.5,
         });
         let err = parse_ir_tenor_correlations(&val).expect_err("malformed key must be rejected");
         let msg = err.to_string();
@@ -1913,7 +1864,7 @@ mod tests {
             "entries": [{
                 "ids": ["v2_6"],
                 "record": {
-                    "ir_delta_weights": { "5y": 50.0 },
+                    "ir_delta_weights": { "5Y": 50.0 },
                     "cq_delta_weights": { "corporates": 73.0 },
                     "cnq_delta_weight": 169.0,
                     "equity_delta_weight": 25.0,

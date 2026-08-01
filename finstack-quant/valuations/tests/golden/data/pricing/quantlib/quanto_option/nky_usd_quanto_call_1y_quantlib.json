@@ -3,41 +3,44 @@
     "npv": 81.84076455808031
   },
   "instrument": {
-    "spec": {
-      "attributes": {
-        "meta": {},
-        "tags": [
-          "golden",
-          "quantlib"
-        ]
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "spec": {
+        "attributes": {
+          "meta": {},
+          "tags": [
+            "golden",
+            "quantlib"
+          ]
+        },
+        "base_currency": "JPY",
+        "correlation": -0.25,
+        "day_count": "act_365f",
+        "div_yield_id": "NKY-DIVYIELD",
+        "domestic_discount_curve_id": "USD-OIS",
+        "equity_strike": {
+          "amount": "100.0",
+          "currency": "JPY"
+        },
+        "expiry": "2027-04-30",
+        "foreign_discount_curve_id": "JPY-OIS",
+        "fx_rate_id": "JPYUSD-SPOT",
+        "fx_vol_id": "JPYUSD-VOL-QL",
+        "id": "NKY-USD-QUANTO-CALL-1Y-QUANTLIB",
+        "notional": {
+          "amount": "1000",
+          "currency": "USD"
+        },
+        "option_type": "call",
+        "payoff_fx_rate": 0.01,
+        "quote_currency": "USD",
+        "spot_id": "NKY-SPOT",
+        "underlying_quantity": 1000.0,
+        "underlying_ticker": "NKY",
+        "vol_surface_id": "NKY-VOL-QL"
       },
-      "base_currency": "JPY",
-      "correlation": -0.25,
-      "day_count": "Act365F",
-      "div_yield_id": "NKY-DIVYIELD",
-      "domestic_discount_curve_id": "USD-OIS",
-      "equity_strike": {
-        "amount": "100.0",
-        "currency": "JPY"
-      },
-      "expiry": "2027-04-30",
-      "foreign_discount_curve_id": "JPY-OIS",
-      "fx_rate_id": "JPYUSD-SPOT",
-      "fx_vol_id": "JPYUSD-VOL-QL",
-      "id": "NKY-USD-QUANTO-CALL-1Y-QUANTLIB",
-      "notional": {
-        "amount": "1000",
-        "currency": "USD"
-      },
-      "option_type": "call",
-      "payoff_fx_rate": 0.01,
-      "quote_currency": "USD",
-      "spot_id": "NKY-SPOT",
-      "underlying_quantity": 1000.0,
-      "underlying_ticker": "NKY",
-      "vol_surface_id": "NKY-VOL-QL"
-    },
-    "type": "quanto_option"
+      "type": "quanto_option"
+    }
   },
   "kind": "pricing",
   "market": {
@@ -48,7 +51,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "extrapolation": "flat_forward",
           "id": "USD-OIS",
           "interp_style": "log_linear",
@@ -70,7 +73,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "extrapolation": "flat_forward",
           "id": "JPY-OIS",
           "interp_style": "log_linear",
@@ -107,6 +110,7 @@
         ]
       },
       "fx_delta_vol_surfaces": [],
+      "hierarchy": null,
       "inflation_indices": [],
       "prices": {
         "JPYUSD-SPOT": {
@@ -122,6 +126,7 @@
           }
         }
       },
+      "schema_version": 1,
       "series": [],
       "surfaces": [
         {
@@ -179,7 +184,6 @@
           ]
         }
       ],
-      "version": 2,
       "vol_cubes": []
     },
     "kind": "snapshot"
@@ -196,11 +200,11 @@
     "review_interval_months": 6,
     "screenshots": [],
     "source": "quantlib",
-    "source_detail": "QuantLib 1.42.1; deterministic flat-curve native instrument benchmark.",
+    "source_detail": "QuantLib 1.43; deterministic flat-curve native instrument benchmark.",
     "valuation_date": "2026-04-30"
   },
   "model": "quanto_bs",
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "tolerances": {
     "npv": {
       "abs": 1e-07,

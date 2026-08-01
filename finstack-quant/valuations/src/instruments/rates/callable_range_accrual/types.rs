@@ -26,7 +26,7 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
 ///   call_price < continuation_value.
 /// - **HW Tree**: Build trinomial tree, attach range accrual cashflows
 ///   at each node, apply backward induction with call decision.
-#[derive(Clone, Debug, finstack_quant_valuations_macros::FocusedPricingOverrides)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CallableRangeAccrual {
     /// Unique instrument identifier.
@@ -36,14 +36,23 @@ pub struct CallableRangeAccrual {
     /// Bermudan call provision.
     pub call_provision: BermudanCallProvision,
     /// Pricing overrides.
-    #[serde(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes.
     pub attributes: Attributes,

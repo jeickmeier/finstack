@@ -136,7 +136,7 @@ fn compute_time_weighted_average(
 /// Processes both periodic fees (based on drawn/undrawn balances) and fixed
 /// fees (explicit amounts) that fall on the given date.
 ///
-/// For periodic fees, computes the fee amount as `base * bps * year_fraction`
+/// For periodic fees, computes the fee amount as `base * bp * year_fraction`
 /// where base is either the drawn balance or the undrawn balance (facility_limit - outstanding).
 ///
 /// When a fee's `accrual_basis` is `PointInTime`, the outstanding balance is
@@ -165,12 +165,12 @@ pub(in crate::builder) fn emit_fees_on(
             // Use proper DayCountContext with calendar and frequency so that
             // conventions like Bus/252 and Act/Act ISMA compute correctly.
             let is_termination_date = pf.terminal_accrual_end == Some(period.accrual_end);
-            let yf = pf.dc.year_fraction(
+            let yf = pf.day_count.year_fraction(
                 period.accrual_start,
                 period.accrual_end,
                 finstack_quant_core::dates::DayCountContext {
                     calendar: Some(pf.calendar),
-                    frequency: Some(pf.freq),
+                    frequency: Some(pf.frequency),
                     bus_basis: None,
                     coupon_period: None,
                     end_is_termination_date: is_termination_date,
@@ -213,14 +213,14 @@ pub(in crate::builder) fn emit_fees_on(
             };
 
             let yf_dec = f64_to_decimal(yf)?;
-            let fee_amt_dec = base_amt * pf.bps * BP_TO_RATE * yf_dec;
+            let fee_amt_dec = base_amt * pf.bp * BP_TO_RATE * yf_dec;
             let fee_amt = decimal_to_f64(fee_amt_dec)?;
 
-            // Convert rate from bps to decimal for storage
-            let rate_dec = pf.bps * BP_TO_RATE;
+            // Convert rate from bp to decimal for storage
+            let rate_dec = pf.bp * BP_TO_RATE;
             let rate = decimal_to_f64(rate_dec)?;
 
-            // Any non-zero fee amount is emitted: negative-bps fees (rebates)
+            // Any non-zero fee amount is emitted: negative-bp fees (rebates)
             // flow through as negative cashflows, matching fixed-fee behavior.
             if fee_amt != 0.0 {
                 new_flows.push(
@@ -235,7 +235,7 @@ pub(in crate::builder) fn emit_fees_on(
                     .with_accrual(CashFlowAccrual {
                         start: period.accrual_start,
                         end: period.accrual_end,
-                        day_count: pf.dc,
+                        day_count: pf.day_count,
                         projected_index_rate: None,
                     }),
                 );
@@ -350,7 +350,7 @@ mod tests {
         accrual_start: Date,
         accrual_end: Date,
         payment_date: Date,
-        bps: Decimal,
+        bp: Decimal,
         accrual_basis: FeeAccrualBasis,
         base: FeeBase,
     ) -> PeriodicFee {
@@ -369,9 +369,9 @@ mod tests {
         );
         PeriodicFee {
             base,
-            bps,
-            dc: DayCount::Act360,
-            freq: Tenor::quarterly(),
+            bp,
+            day_count: DayCount::Act360,
+            frequency: Tenor::quarterly(),
             calendar: crate::builder::calendar::resolve_calendar_strict("weekends_only")
                 .expect("weekends_only calendar should resolve"),
             dates: vec![accrual_start, accrual_end],
@@ -652,7 +652,7 @@ mod tests {
             start,
             end,
             payment,
-            dec!(-50), // negative bps: rebate
+            dec!(-50), // negative bp: rebate
             FeeAccrualBasis::PointInTime,
             FeeBase::Drawn,
         );

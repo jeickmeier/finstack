@@ -20,7 +20,8 @@ pub trait BasisFunctions: Send + Sync {
 }
 
 /// Supported regression basis families for LSMC pricers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BasisKind {
     /// Laguerre polynomials normalized by strike.
     Laguerre,
@@ -31,25 +32,23 @@ pub enum BasisKind {
 }
 
 impl BasisKind {
-    /// Parse a user-facing basis alias.
+    /// Parse a canonical basis-family name.
     ///
     /// # Errors
     ///
     /// Returns a message listing the accepted basis names when `name` is not a
-    /// known alias.
+    /// canonical value.
     ///
     /// # Arguments
     ///
     /// * `name` - Human-readable name used for registry lookup or diagnostic messages
     pub fn parse(name: &str) -> Result<Self, String> {
-        match name.to_ascii_lowercase().as_str() {
+        match name {
             "laguerre" => Ok(Self::Laguerre),
-            "polynomial" | "poly" => Ok(Self::Polynomial),
-            "normalized_polynomial" | "normalized" | "centered_polynomial" => {
-                Ok(Self::NormalizedPolynomial)
-            }
-            other => Err(format!(
-                "unknown basis '{other}'; expected one of 'laguerre', 'polynomial', \
+            "polynomial" => Ok(Self::Polynomial),
+            "normalized_polynomial" => Ok(Self::NormalizedPolynomial),
+            _ => Err(format!(
+                "unknown basis '{name}'; expected one of 'laguerre', 'polynomial', \
                  'normalized_polynomial'"
             )),
         }
@@ -63,6 +62,14 @@ impl BasisKind {
             Self::Polynomial => "polynomial",
             Self::NormalizedPolynomial => "normalized_polynomial",
         }
+    }
+}
+
+impl std::str::FromStr for BasisKind {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::parse(value)
     }
 }
 
@@ -342,6 +349,23 @@ impl BasisFunctions for LaguerreBasis {
         }
         if self.degree >= 4 {
             out[4] = 1.0 - 4.0 * x + 3.0 * x * x - 2.0 * x * x * x / 3.0 + x * x * x * x / 24.0;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BasisKind;
+
+    #[test]
+    fn basis_kind_parsing_is_exact() {
+        assert_eq!(BasisKind::parse("laguerre"), Ok(BasisKind::Laguerre));
+        assert_eq!(
+            BasisKind::parse("normalized_polynomial"),
+            Ok(BasisKind::NormalizedPolynomial)
+        );
+        for retired in ["Laguerre", "poly", "normalized", "centered_polynomial"] {
+            assert!(BasisKind::parse(retired).is_err());
         }
     }
 }

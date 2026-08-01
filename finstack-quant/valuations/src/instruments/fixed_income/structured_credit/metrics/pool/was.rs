@@ -6,7 +6,7 @@ use crate::metrics::MetricContext;
 ///
 /// Market standard: WAS uses the **spread component only**, not the all-in
 /// coupon, over **performing** assets only. Fixed-rate assets without an
-/// explicit `spread_bps` are excluded (no all-in-rate fallback), as are
+/// explicit `spread_bp` are excluded (no all-in-rate fallback), as are
 /// defaulted assets — see [`AssetPool::weighted_avg_spread`].
 ///
 /// [`AssetPool::weighted_avg_spread`]: crate::instruments::fixed_income::structured_credit::types::AssetPool::weighted_avg_spread

@@ -13,7 +13,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 
 fn run_rounding_test(amount: f64, rounding: RoundingConvention) -> f64 {
     let currency = Currency::USD;
-    let pool = AssetPool::new("TEST", DealType::CLO, currency);
+    let pool = AssetPool::new("TEST", DealType::Clo, currency);
     let tranches = TrancheStructure::new(vec![
         finstack_quant_valuations::instruments::fixed_income::structured_credit::Tranche::new(
             "A",

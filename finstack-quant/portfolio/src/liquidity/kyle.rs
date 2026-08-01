@@ -173,7 +173,7 @@ impl MarketImpactModel for KyleLambdaModel {
 
         let reference_price = params.effective_reference_price();
         let notional = q.abs() * reference_price;
-        let cost_bps = if notional > 0.0 {
+        let cost_bp = if notional > 0.0 {
             total_cost_abs / notional * 10_000.0
         } else {
             0.0
@@ -189,7 +189,7 @@ impl MarketImpactModel for KyleLambdaModel {
             permanent_impact,
             temporary_impact,
             total_cost: total_cost_abs,
-            cost_bps,
+            cost_bp,
             execution_risk,
         })
     }
@@ -325,7 +325,7 @@ mod tests {
         let params = test_params(10_000.0)?;
         let est = model.estimate_cost(&params)?;
         assert!((est.total_cost - 50.0).abs() < 1e-10);
-        assert!((est.cost_bps - 0.5).abs() < 1e-10);
+        assert!((est.cost_bp - 0.5).abs() < 1e-10);
         Ok(())
     }
 
@@ -336,7 +336,7 @@ mod tests {
         let est = model.estimate_cost(&params)?;
 
         assert!(est.total_cost >= 0.0);
-        assert!(est.cost_bps >= 0.0);
+        assert!(est.cost_bp >= 0.0);
         let expected_execution_risk = params.daily_volatility * params.horizon_days.sqrt()
             / 3.0_f64.sqrt()
             * params.quantity.abs()

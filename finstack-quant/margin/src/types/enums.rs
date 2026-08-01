@@ -19,6 +19,7 @@ use std::fmt;
     schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum MarginTenor {
     /// Daily margin calls (standard for OTC derivatives post-2016)
     #[default]
@@ -46,11 +47,11 @@ impl std::str::FromStr for MarginTenor {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
+        match s {
             "daily" => Ok(MarginTenor::Daily),
             "weekly" => Ok(MarginTenor::Weekly),
             "monthly" => Ok(MarginTenor::Monthly),
-            "on_demand" | "ondemand" => Ok(MarginTenor::OnDemand),
+            "on_demand" => Ok(MarginTenor::OnDemand),
             other => Err(format!("Unknown margin frequency: {}", other)),
         }
     }
@@ -79,6 +80,7 @@ impl std::str::FromStr for MarginTenor {
     schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum ImMethodology {
     /// Haircut-based IM calculation (standard for repos and securities financing)
     ///
@@ -137,12 +139,12 @@ impl std::str::FromStr for ImMethodology {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().replace('-', "_").as_str() {
+        match s {
             "haircut" => Ok(ImMethodology::Haircut),
             "simm" => Ok(ImMethodology::Simm),
             "schedule" => Ok(ImMethodology::Schedule),
-            "internal_model" | "internalmodel" => Ok(ImMethodology::InternalModel),
-            "clearing_house" | "clearinghouse" | "ccp" => Ok(ImMethodology::ClearingHouse),
+            "internal_model" => Ok(ImMethodology::InternalModel),
+            "clearing_house" => Ok(ImMethodology::ClearingHouse),
             other => Err(format!("Unknown IM methodology: {}", other)),
         }
     }
@@ -164,6 +166,7 @@ impl std::str::FromStr for ImMethodology {
     schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum ClearingStatus {
     /// Bilateral (uncleared) trade governed by CSA
     ///
@@ -207,6 +210,9 @@ mod tests {
             "on_demand".parse::<MarginTenor>().expect("valid"),
             MarginTenor::OnDemand
         );
+        for noncanonical in ["on-demand", "ondemand", "Daily", " daily"] {
+            assert!(noncanonical.parse::<MarginTenor>().is_err());
+        }
     }
 
     #[test]
@@ -221,6 +227,9 @@ mod tests {
             "clearing_house".parse::<ImMethodology>().expect("valid"),
             ImMethodology::ClearingHouse
         );
+        for noncanonical in ["ccp", "clearinghouse", "internal-model", "SIMM"] {
+            assert!(noncanonical.parse::<ImMethodology>().is_err());
+        }
     }
 
     #[test]

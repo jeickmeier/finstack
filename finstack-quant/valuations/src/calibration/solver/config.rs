@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 /// ```
 #[cfg_attr(feature = "ts_export", derive(ts_rs::TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, schemars::JsonSchema)]
 #[serde(transparent)]
 pub struct SolverConfig {
     /// Full Brent solver state from `finstack-quant-core`.

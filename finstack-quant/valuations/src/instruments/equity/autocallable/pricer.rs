@@ -56,8 +56,8 @@ impl AutocallableMcPricer {
         // typically Act/365F for equity), while discounting uses exact
         // date-based factors on the curve's own basis.
         let final_date = inst.expiry;
-        let model_dc = inst.day_count;
-        let t = model_dc.year_fraction(as_of, final_date, DayCountContext::default())?;
+        let model_day_count = inst.day_count;
+        let t = model_day_count.year_fraction(as_of, final_date, DayCountContext::default())?;
         let discount_factor = disc_curve.df_between_dates(as_of, final_date)?;
 
         // Reference (strike-set) level S_0 for barrier and payoff ratios.
@@ -176,7 +176,7 @@ impl AutocallableMcPricer {
         // instrument clock (matches the vol-surface calibration basis).
         let observation_times: Vec<f64> = future_dates
             .iter()
-            .map(|&date| model_dc.year_fraction(as_of, date, DayCountContext::default()))
+            .map(|&date| model_day_count.year_fraction(as_of, date, DayCountContext::default()))
             .collect::<finstack_quant_core::Result<Vec<_>>>()?;
 
         // Bootstrap a piecewise-constant forward GBM over the autocall observation

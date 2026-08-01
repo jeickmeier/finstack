@@ -18,7 +18,7 @@ fn pv(inst: &finstack_quant_valuations::instruments::equity::autocallable::Autoc
     let as_of = date!(2025 - 01 - 01);
     // Near-zero vol makes every path deterministic: S(t) = S0 / DF(as_of, t)
     // (q = 0), so the MC mean equals the analytic value to high precision.
-    let market = build_market_with_dc(as_of, 100.0, 1e-4, 0.03, 0.0, DayCount::Act365F);
+    let market = build_market_with_day_count(as_of, 100.0, 1e-4, 0.03, 0.0, DayCount::Act365F);
     inst.value(&market, as_of)
         .expect("autocallable pv")
         .amount()
@@ -44,7 +44,7 @@ fn terminal_payoff_is_fixed_on_last_observation_not_at_expiry() {
     deferred.expiry = date!(2026 - 07 - 01); // six-month settlement gap
 
     let as_of = date!(2025 - 01 - 01);
-    let market = build_market_with_dc(as_of, 100.0, 1e-4, 0.03, 0.0, DayCount::Act365F);
+    let market = build_market_with_day_count(as_of, 100.0, 1e-4, 0.03, 0.0, DayCount::Act365F);
     let disc = market.get_discount(DISC_ID).expect("curve");
     let df_obs = disc
         .df_between_dates(as_of, last_obs)

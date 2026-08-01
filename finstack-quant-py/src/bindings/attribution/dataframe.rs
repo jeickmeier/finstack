@@ -138,11 +138,11 @@ pub(super) fn build_long_detail_rows(
     }
 
     if let Some(detail) = &attribution.vol_detail {
-        for (surface_id, money) in &detail.by_surface {
+        for (vol_surface_id, money) in &detail.by_surface {
             rows.push(LongDetailRow {
                 kind: "vol.by_surface",
                 factor: "vol",
-                key_a: surface_id.as_str().to_string(),
+                key_a: vol_surface_id.as_str().to_string(),
                 key_b: None,
                 amount: money.amount(),
                 currency: money.currency().to_string(),

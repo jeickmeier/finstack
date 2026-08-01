@@ -12,7 +12,7 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen_test::*;
 
 fn portfolio_spec_json() -> String {
-    r#"{"id":"test_portfolio","name":"Test","base_ccy":"USD","as_of":"2024-01-15","entities":{},"positions":[]}"#.to_string()
+    r#"{"id":"test_portfolio","name":"Test","base_currency":"USD","as_of":"2024-01-15","entities":{},"positions":[]}"#.to_string()
 }
 
 fn empty_market_json() -> String {

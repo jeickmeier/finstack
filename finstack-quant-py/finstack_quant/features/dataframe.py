@@ -362,7 +362,7 @@ def panel(
             default_datetime_index=True,
         )
     result = json.loads(_transform_panel(json.dumps(spec)))
-    columns = result["columns"]
+    columns = {column["name"]: column["values"] for column in result["columns"]}
     ordered = {operation["name"]: columns[operation["name"]] for operation in operations}
     return pd.DataFrame(ordered, index=df.index)
 
@@ -603,7 +603,6 @@ def risk_scaled_weights(
     value: str,
     time_key: KeySelector | None = None,
     volatility: str | None = None,
-    params: TransformParams | None = None,
 ) -> Any:
     """Convert a DataFrame signal column to inverse-risk-scaled weights.
 
@@ -621,7 +620,6 @@ def risk_scaled_weights(
         volatility: Name of the risk-estimate column aligned to ``value``.
             Values are used as ``signal / volatility``; non-positive magnitudes
             map to missing weights.
-        params: Unused; accepted for signature symmetry with other helpers.
 
     Returns:
         pandas.Series: Weights aligned to ``df.index`` and named
@@ -650,7 +648,6 @@ def risk_scaled_weights(
             default_datetime_index=True,
         ),
         _numeric_column(df, _require_column_name(volatility, "volatility")),
-        params,
     )
     return _series(df, out, f"{value}_risk_scaled_weight")
 
@@ -762,7 +759,6 @@ def rank_to_weights(
     df: Any,
     value: str,
     time_key: KeySelector | None = None,
-    params: TransformParams | None = None,
 ) -> Any:
     """Convert DataFrame signal ranks to gross-normalized long/short weights.
 
@@ -776,7 +772,6 @@ def rank_to_weights(
         time_key: Column name, index level name, or integer index level
             position that partitions the cross-section. Entries are coerced to
             strings. Omit when ``df.index`` is a ``DatetimeIndex``.
-        params: Unused; accepted for signature symmetry with other helpers.
 
     Returns:
         pandas.Series: Weights aligned to ``df.index`` and named
@@ -802,7 +797,6 @@ def rank_to_weights(
             role="time_key",
             default_datetime_index=True,
         ),
-        params,
     )
     return _series(df, out, f"{value}_rank_weight")
 

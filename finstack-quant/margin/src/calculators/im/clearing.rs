@@ -28,6 +28,7 @@ use std::sync::Arc;
 /// Represents the clearing-house rulebook used to source conservative fallback
 /// parameters such as MPOR and the decimal conservative-rate proxy.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum CcpMethodology {
     /// LCH SwapClear (VaR-based for IRS)
@@ -45,7 +46,7 @@ pub enum CcpMethodology {
     /// Eurex
     Eurex,
     /// Generic VaR-based
-    GenericVaR {
+    GenericVar {
         /// Confidence level (e.g., 0.99 for 99%)
         confidence: f64,
         /// Lookback period in days
@@ -63,7 +64,7 @@ impl std::fmt::Display for CcpMethodology {
             CcpMethodology::IceClearUs => write!(f, "ICE Clear US"),
             CcpMethodology::Jscc => write!(f, "JSCC"),
             CcpMethodology::Eurex => write!(f, "Eurex"),
-            CcpMethodology::GenericVaR { confidence, .. } => {
+            CcpMethodology::GenericVar { confidence, .. } => {
                 write!(f, "Generic VaR ({:.0}%)", confidence * 100.0)
             }
         }
@@ -80,7 +81,7 @@ impl CcpMethodology {
             CcpMethodology::IceClearUs => "ice_clear_us",
             CcpMethodology::Jscc => "jscc",
             CcpMethodology::Eurex => "eurex",
-            CcpMethodology::GenericVaR { .. } => "generic_var",
+            CcpMethodology::GenericVar { .. } => "generic_var",
         }
     }
 
@@ -94,7 +95,7 @@ impl CcpMethodology {
 
     fn generic_var_from_registry(registry: &MarginRegistry) -> Self {
         let defaults = &registry.ccp_generic_var_defaults;
-        CcpMethodology::GenericVaR {
+        CcpMethodology::GenericVar {
             confidence: defaults.confidence,
             lookback_days: defaults.lookback_days,
         }
@@ -137,7 +138,7 @@ impl CcpMethodology {
     /// Choose a CCP methodology from a CCP display name.
     ///
     /// The mapping is heuristic and string-based. Unknown names fall back to
-    /// registry-backed [`CcpMethodology::GenericVaR`] defaults.
+    /// registry-backed [`CcpMethodology::GenericVar`] defaults.
     ///
     /// # Arguments
     ///
@@ -319,7 +320,7 @@ impl ClearingHouseImCalculator {
     /// A calculator with generic VaR metadata and default conservative-rate lookup.
     #[must_use]
     pub fn generic_var(confidence: f64, lookback_days: u32) -> Self {
-        Self::new(CcpMethodology::GenericVaR {
+        Self::new(CcpMethodology::GenericVar {
             confidence,
             lookback_days,
         })

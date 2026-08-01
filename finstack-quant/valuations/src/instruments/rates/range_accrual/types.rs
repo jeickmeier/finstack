@@ -46,13 +46,12 @@ impl std::str::FromStr for BoundsType {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "absolute" | "abs" => Ok(Self::Absolute),
-            "relative_to_initial_spot" | "relative" | "pct" => Ok(Self::RelativeToInitialSpot),
-            other => Err(format!(
+        match s {
+            "absolute" => Ok(Self::Absolute),
+            "relative_to_initial_spot" => Ok(Self::RelativeToInitialSpot),
+            _ => Err(format!(
                 "Unknown bounds type: '{}'. Valid: absolute, relative_to_initial_spot",
-                other
+                s
             )),
         }
     }
@@ -89,7 +88,9 @@ impl std::str::FromStr for BoundsType {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct RangeAccrual {
@@ -98,7 +99,7 @@ pub struct RangeAccrual {
     /// Underlying asset ticker symbol
     pub underlying_ticker: String,
     /// Observation dates for range checking (must be sorted ascending)
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub observation_dates: Vec<Date>,
     /// Lower bound of accrual range (interpretation depends on bounds_type)
     pub lower_bound: f64,
@@ -121,7 +122,7 @@ pub struct RangeAccrual {
     /// must provide this field explicitly.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub accrual_start_date: Option<Date>,
     /// Explicit rate index for rate-linked range accruals.
     #[builder(optional)]
@@ -144,17 +145,26 @@ pub struct RangeAccrual {
     /// Optional dividend yield curve ID
     pub div_yield_id: Option<CurveId>,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping
     pub attributes: Attributes,
@@ -165,7 +175,7 @@ pub struct RangeAccrual {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quanto: Option<QuantoSpec>,
     /// Optional payment date (defaults to last observation date)
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub payment_date: Option<Date>,
     /// Number of past observations that were in range (for mid-life valuations).
     /// If None, past observations are not included in the accrual calculation.
@@ -433,7 +443,7 @@ impl crate::instruments::common_impl::traits::Instrument for RangeAccrual {
         if let Some(projection_curve) = &self.projection_curve_id {
             deps.add_forward_curve(projection_curve.clone());
         }
-        deps.add_spot_id(self.spot_id.as_str());
+        deps.add_market_scalar_id(self.spot_id.as_str());
         for strike in [self.lower_bound, self.upper_bound] {
             deps.add_volatility_dependency(
                 crate::instruments::common_impl::dependencies::VolatilityDependency::new(
@@ -444,7 +454,7 @@ impl crate::instruments::common_impl::traits::Instrument for RangeAccrual {
             );
         }
         if let Some(dividend_yield) = &self.div_yield_id {
-            deps.add_spot_id(dividend_yield.as_str());
+            deps.add_market_scalar_id(dividend_yield.as_str());
         }
         Ok(deps)
     }
@@ -534,7 +544,7 @@ mod audit_regression_tests {
         assert_eq!(deps.unique_vol_surface_ids(), vec![range.vol_surface_id]);
         let mut expected_spots = vec![range.spot_id.as_str().to_string()];
         expected_spots.extend(range.div_yield_id.iter().map(|id| id.as_str().to_string()));
-        assert_eq!(deps.spot_ids, expected_spots);
+        assert_eq!(deps.market_scalar_ids, expected_spots);
         assert!(deps.series_ids.is_empty());
     }
 }

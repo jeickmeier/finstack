@@ -43,9 +43,8 @@ use std::sync::Arc;
 /// The optional [`Currency`] records the notional currency for validation; it
 /// does not change the scale factor. A warning is emitted when it disagrees
 /// with the instrument's valuation currency.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum PositionUnit {
     /// Number of units/shares (for equities, baskets). Scale factor = `quantity`.
     Units,
@@ -454,12 +453,12 @@ impl Position {
         // See [`PositionUnit`] for the full scaling contract. `Notional` expects
         // `value` to be the per-unit-notional PV (priced with unit notional = 1),
         // so the scale factor is simply `quantity`.
-        if let PositionUnit::Notional(Some(notional_ccy)) = self.unit {
-            if notional_ccy != value.currency() {
+        if let PositionUnit::Notional(Some(notional_currency)) = self.unit {
+            if notional_currency != value.currency() {
                 tracing::warn!(
                     position_id = %self.position_id,
                     "Notional currency {} differs from instrument currency {}",
-                    notional_ccy, value.currency()
+                    notional_currency, value.currency()
                 );
             }
         }

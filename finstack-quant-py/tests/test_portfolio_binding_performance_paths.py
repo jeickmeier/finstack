@@ -14,14 +14,11 @@ from finstack_quant.portfolio import (
     PortfolioValuation,
     build_stress_attribution,
     historical_var_decomposition,
-    historical_var_decomposition_typed,
     parametric_es_decomposition,
     parametric_var_decomposition,
-    parametric_var_decomposition_typed,
     scenario_pnl,
     scenario_pnl_batch,
     value_portfolio,
-    value_portfolio_typed,
 )
 from finstack_quant.scenarios import build_scenario_spec
 
@@ -32,7 +29,7 @@ def _portfolio_json() -> str:
     return json.dumps({
         "id": "PERF-PATHS",
         "as_of": AS_OF,
-        "base_ccy": "USD",
+        "base_currency": "USD",
         "entities": {"FUND": {"id": "FUND"}},
         "positions": [
             {
@@ -43,11 +40,11 @@ def _portfolio_json() -> str:
                     "type": "deposit",
                     "spec": {
                         "id": "USD-DEP",
-                        "notional": {"amount": 1_000_000.0, "currency": "USD"},
+                        "notional": {"amount": "1000000", "currency": "USD"},
                         "start_date": AS_OF,
                         "maturity": "2025-07-15",
-                        "day_count": "Act360",
-                        "quote_rate": 0.04,
+                        "day_count": "act_360",
+                        "quote_rate": "0.04",
                         "discount_curve_id": "USD-OIS",
                         "attributes": {},
                     },
@@ -88,26 +85,26 @@ def _scenario_batch_json() -> str:
     return json.dumps(scenarios)
 
 
-def test_value_portfolio_typed_matches_legacy_json_result() -> None:
+def test_value_portfolio_returns_typed_roundtrippable_result() -> None:
     portfolio = Portfolio.from_spec(_portfolio_json())
     market = _market()
 
-    typed = value_portfolio_typed(portfolio, market)
-    legacy = PortfolioValuation.from_json(value_portfolio(portfolio, market))
+    valuation = value_portfolio(portfolio, market)
+    round_tripped = PortfolioValuation.from_json(valuation.to_json())
 
-    assert isinstance(typed, PortfolioValuation)
-    assert typed.total_value == pytest.approx(legacy.total_value)
-    assert typed.base_ccy == legacy.base_ccy
-    assert typed.as_of == legacy.as_of
-    assert len(typed) == len(legacy)
+    assert isinstance(valuation, PortfolioValuation)
+    assert valuation.total_value == pytest.approx(round_tripped.total_value)
+    assert valuation.base_currency == round_tripped.base_currency
+    assert valuation.as_of == round_tripped.as_of
+    assert len(valuation) == len(round_tripped)
 
 
 def test_value_portfolio_metrics_select_pv_only_or_explicit_risk() -> None:
     portfolio = Portfolio.from_spec(_portfolio_json())
     market = _market()
 
-    pv_only = json.loads(value_portfolio_typed(portfolio, market, metrics=[]).to_json())
-    dv01_only = json.loads(value_portfolio_typed(portfolio, market, metrics=["dv01"]).to_json())
+    pv_only = json.loads(value_portfolio(portfolio, market, metrics=[]).to_json())
+    dv01_only = json.loads(value_portfolio(portfolio, market, metrics=["dv01"]).to_json())
 
     pv_measures = pv_only["position_values"]["USD-POS"]["valuation_result"]["measures"]
     dv01_measures = dv01_only["position_values"]["USD-POS"]["valuation_result"]["measures"]
@@ -152,15 +149,12 @@ def test_numpy_covariance_matches_nested_lists(covariance: np.ndarray) -> None:
     weights = [0.4, 0.6]
     nested = covariance.tolist()
 
-    legacy_numpy = parametric_var_decomposition(position_ids, weights, covariance)
-    legacy_list = parametric_var_decomposition(position_ids, weights, nested)
-    typed_numpy = parametric_var_decomposition_typed(position_ids, weights, covariance)
-    typed_list = parametric_var_decomposition_typed(position_ids, weights, nested)
+    numpy_result = parametric_var_decomposition(position_ids, weights, covariance)
+    list_result = parametric_var_decomposition(position_ids, weights, nested)
 
-    assert legacy_numpy == legacy_list
-    assert typed_numpy.to_json() == typed_list.to_json()
-    assert parametric_es_decomposition(position_ids, weights, covariance) == (
-        parametric_es_decomposition(position_ids, weights, nested)
+    assert numpy_result.to_json() == list_result.to_json()
+    assert parametric_es_decomposition(position_ids, weights, covariance).to_json() == (
+        parametric_es_decomposition(position_ids, weights, nested).to_json()
     )
 
 
@@ -175,15 +169,12 @@ def test_numpy_position_pnls_match_nested_lists() -> None:
     )
     nested = position_pnls.tolist()
 
-    legacy_numpy = historical_var_decomposition(position_ids, position_pnls)
-    legacy_list = historical_var_decomposition(position_ids, nested)
-    typed_numpy = historical_var_decomposition_typed(position_ids, position_pnls)
-    typed_list = historical_var_decomposition_typed(position_ids, nested)
+    numpy_result = historical_var_decomposition(position_ids, position_pnls)
+    list_result = historical_var_decomposition(position_ids, nested)
     stress_numpy = build_stress_attribution(position_ids, position_pnls)
     stress_list = build_stress_attribution(position_ids, nested)
 
-    assert legacy_numpy == legacy_list
-    assert typed_numpy.to_json() == typed_list.to_json()
+    assert numpy_result.to_json() == list_result.to_json()
     assert stress_numpy.to_json() == stress_list.to_json()
 
 

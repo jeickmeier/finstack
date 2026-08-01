@@ -176,23 +176,23 @@ where
             sens_config::from_context_or_default(context.config(), context.get_metric_overrides())?;
 
         let dependencies = instrument.market_dependencies()?;
-        let surface_ids: Vec<_> = dependencies
+        let vol_surface_ids: Vec<_> = dependencies
             .unique_vol_surface_ids()
             .into_iter()
-            .filter(|surface_id| context.curves.get_surface(surface_id.as_str()).is_ok())
+            .filter(|vol_surface_id| context.curves.get_surface(vol_surface_id.as_str()).is_ok())
             .collect();
-        if surface_ids.is_empty() {
+        if vol_surface_ids.is_empty() {
             return Err(finstack_quant_core::InputError::Invalid.into());
         }
 
         let curves = std::sync::Arc::clone(&context.curves);
         let base_ctx = curves.as_ref();
-        let vol_surfaces = surface_ids
+        let vol_surfaces = vol_surface_ids
             .iter()
-            .map(|surface_id| {
+            .map(|vol_surface_id| {
                 Ok((
-                    surface_id.clone(),
-                    base_ctx.get_surface(surface_id.as_str())?,
+                    vol_surface_id.clone(),
+                    base_ctx.get_surface(vol_surface_id.as_str())?,
                 ))
             })
             .collect::<finstack_quant_core::Result<Vec<_>>>()?;
@@ -208,7 +208,7 @@ where
             context.with_market_scratch(|ctx, scratch| {
                 // Central difference O(h²) — consistent with bucketed approach.
                 let tokens_up =
-                    apply_parallel_surface_bumps_in_place(scratch, &surface_ids, bump_pct)?;
+                    apply_parallel_surface_bumps_in_place(scratch, &vol_surface_ids, bump_pct)?;
                 let pv_up = ctx.reprice_money(scratch, as_of);
                 revert_scratch_bumps(scratch, tokens_up)?;
                 let pv_up = pv_up?;
@@ -223,7 +223,7 @@ where
                     .reduce(f64::min);
                 if min_vol.map(|m| m < bump_pct).unwrap_or(false) {
                     tracing::warn!(
-                        surface_ids = ?surface_ids,
+                        vol_surface_ids = ?vol_surface_ids,
                         min_vol = min_vol,
                         bump = bump_pct,
                         "key-rate vega parallel down-bump would clamp σ at 0; \
@@ -233,8 +233,11 @@ where
                     Ok((pv_up.amount() - pv_base.amount())
                         / (bump_pct * VOL_POINTS_PER_ABSOLUTE_VOL))
                 } else {
-                    let tokens_down =
-                        apply_parallel_surface_bumps_in_place(scratch, &surface_ids, -bump_pct)?;
+                    let tokens_down = apply_parallel_surface_bumps_in_place(
+                        scratch,
+                        &vol_surface_ids,
+                        -bump_pct,
+                    )?;
                     let pv_down = ctx.reprice_money(scratch, as_of);
                     revert_scratch_bumps(scratch, tokens_down)?;
                     let pv_down = pv_down?;
@@ -247,7 +250,7 @@ where
         let use_ratio_strikes = self.strikes.iter().all(|k| *k <= 10.0);
         let surface_strike_grids = vol_surfaces
             .iter()
-            .map(|(surface_id, _)| {
+            .map(|(vol_surface_id, _)| {
                 if !use_ratio_strikes {
                     return Ok(self.strikes.clone());
                 }
@@ -255,11 +258,12 @@ where
                     .volatility_dependencies
                     .iter()
                     .find(|dependency| {
-                        dependency.surface_id == *surface_id && dependency.underlying_id.is_some()
+                        dependency.vol_surface_id == *vol_surface_id
+                            && dependency.underlying_id.is_some()
                     })
                     .and_then(|dependency| dependency.underlying_id.as_ref())
                     .map(|id| id.as_str())
-                    .or_else(|| dependencies.spot_ids.first().map(String::as_str))
+                    .or_else(|| dependencies.market_scalar_ids.first().map(String::as_str))
                     .ok_or_else(|| {
                         finstack_quant_core::Error::from(finstack_quant_core::InputError::Invalid)
                     })?;
@@ -277,7 +281,7 @@ where
             let mut raw_total = NeumaierAccumulator::new();
             let mut row_labels = Vec::new();
 
-            for ((surface_id, _vol_surface), strike_grid) in
+            for ((vol_surface_id, _vol_surface), strike_grid) in
                 vol_surfaces.iter().zip(&surface_strike_grids)
             {
                 for &expiry in &self.expiries {
@@ -285,7 +289,7 @@ where
                     for &strike in strike_grid {
                         // Central differences: O(h²) accuracy, consistent with other Greeks.
                         let token_up = scratch.apply_surface_point_bump_in_place(
-                            surface_id.as_str(),
+                            vol_surface_id.as_str(),
                             expiry,
                             strike,
                             bump_pct,
@@ -295,7 +299,7 @@ where
                         let pv_up = pv_up?;
 
                         let token_down = scratch.apply_surface_point_bump_in_place(
-                            surface_id.as_str(),
+                            vol_surface_id.as_str(),
                             expiry,
                             strike,
                             -bump_pct,
@@ -312,7 +316,7 @@ where
                     raw_matrix.push(row);
                     let expiry = expiry_label(expiry);
                     row_labels.push(if multiple_surfaces {
-                        format!("{}::{expiry}", surface_id.as_str())
+                        format!("{}::{expiry}", vol_surface_id.as_str())
                     } else {
                         expiry
                     });
@@ -395,9 +399,9 @@ mod tests {
         fn raw_value(&self, market: &MarketContext) -> finstack_quant_core::Result<f64> {
             self.surface_terms
                 .iter()
-                .try_fold(0.0, |total, (surface_id, coefficient)| {
+                .try_fold(0.0, |total, (vol_surface_id, coefficient)| {
                     let vol = market
-                        .get_surface(surface_id.as_str())?
+                        .get_surface(vol_surface_id.as_str())?
                         .value_checked(1.0, 100.0)?;
                     Ok(total + coefficient * vol)
                 })
@@ -407,9 +411,9 @@ mod tests {
     impl Instrument for MultiSurfaceVegaInstrument {
         fn market_dependencies(&self) -> finstack_quant_core::Result<MarketDependencies> {
             let mut dependencies = MarketDependencies::new();
-            for (surface_id, _) in &self.surface_terms {
+            for (vol_surface_id, _) in &self.surface_terms {
                 dependencies.add_volatility_dependency(VolatilityDependency::new(
-                    surface_id.clone(),
+                    vol_surface_id.clone(),
                     None,
                     None,
                 ));

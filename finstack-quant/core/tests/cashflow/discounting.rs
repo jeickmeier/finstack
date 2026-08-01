@@ -85,7 +85,7 @@ impl Discounting for FlatRateCurve {
 fn npv_100_cashflows_maintains_precision() {
     let base = d(2025, 1, 1);
     let curve = FlatRateCurve::new("TEST", base, 0.05);
-    let dc = DayCount::Act365F;
+    let day_count = DayCount::Act365F;
     let ctx = DayCountContext::default();
 
     // 100 monthly cashflows of $1000 each, all strictly after the valuation
@@ -106,7 +106,7 @@ fn npv_100_cashflows_maintains_precision() {
     let expected_terms: Vec<f64> = flows
         .iter()
         .map(|(date, amt)| {
-            let t = dc.year_fraction(base, *date, ctx).unwrap_or(0.0);
+            let t = day_count.year_fraction(base, *date, ctx).unwrap_or(0.0);
             amt.amount() * (-0.05 * t).exp()
         })
         .collect();
@@ -124,7 +124,7 @@ fn npv_100_cashflows_maintains_precision() {
 fn npv_500_cashflows_maintains_precision() {
     let base = d(2025, 1, 1);
     let curve = FlatRateCurve::new("TEST", base, 0.05);
-    let dc = DayCount::Act365F;
+    let day_count = DayCount::Act365F;
     let ctx = DayCountContext::default();
 
     // 500 weekly cashflows of $100 each (~10 years), all strictly after the
@@ -143,7 +143,7 @@ fn npv_500_cashflows_maintains_precision() {
     let expected_terms: Vec<f64> = flows
         .iter()
         .map(|(date, amt)| {
-            let t = dc.year_fraction(base, *date, ctx).unwrap_or(0.0);
+            let t = day_count.year_fraction(base, *date, ctx).unwrap_or(0.0);
             amt.amount() * (-0.05 * t).exp()
         })
         .collect();
@@ -173,14 +173,14 @@ fn npv_50_year_cashflow_is_positive_and_small() {
     let base = d(2025, 1, 1);
     let maturity = d(2075, 1, 1); // 50 years
     let curve = FlatRateCurve::new("TEST", base, 0.05);
-    let dc = DayCount::Act365F;
+    let day_count = DayCount::Act365F;
     let ctx = DayCountContext::default();
 
     let flows = vec![(maturity, Money::new(1_000_000.0, Currency::USD))];
     let pv = npv(&curve, base, &flows).expect("NPV should succeed");
 
     // Calculate actual year fraction (includes leap years)
-    let t = dc.year_fraction(base, maturity, ctx).unwrap();
+    let t = day_count.year_fraction(base, maturity, ctx).unwrap();
     // DF at 5% continuous = exp(-0.05 * t)
     let expected_df = (-0.05_f64 * t).exp();
     let expected_pv = 1_000_000.0 * expected_df;

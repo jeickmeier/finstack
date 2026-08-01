@@ -225,15 +225,16 @@ pub(crate) fn resolve_rate_quote_dates(
             let fut_conv = registry.require_ir_future(contract)?;
             let idx_conv = registry.require_rate_index(&fut_conv.index_id)?;
             let cal = resolve_calendar(&fut_conv.calendar_id)?;
-            let bdc = idx_conv.market_business_day_convention;
-            let expiry = adjust(*expiry, bdc, cal)?;
+            let business_day_convention = idx_conv.market_business_day_convention;
+            let expiry = adjust(*expiry, business_day_convention, cal)?;
             let period_start_unadj = expiry.add_business_days(fut_conv.settlement_days, cal)?;
-            let period_start = adjust(period_start_unadj, bdc, cal)?;
+            let period_start = adjust(period_start_unadj, business_day_convention, cal)?;
             let delivery_tenor = finstack_quant_core::dates::Tenor::new(
                 fut_conv.delivery_months as u32,
                 TenorUnit::Months,
             );
-            let period_end = delivery_tenor.add_to_date(period_start, Some(cal), bdc)?;
+            let period_end =
+                delivery_tenor.add_to_date(period_start, Some(cal), business_day_convention)?;
             let fixing = resolve_fixing_date(period_start, idx_conv)?;
             Ok(RateResolvedDates::Future {
                 expiry,
@@ -307,7 +308,7 @@ fn build_deposit(
             Decimal::try_from(*rate).map_err(|_| InputError::ConversionOverflow)?,
         ))
         .discount_curve_id(CurveId::new(ctx.require_curve_id("discount")?.to_string()))
-        .bdc(conv.market_business_day_convention)
+        .business_day_convention(conv.market_business_day_convention)
         .calendar_id_opt(Some(conv.market_calendar_id.clone().into()))
         .attributes(Default::default())
         .build()?;
@@ -354,7 +355,7 @@ fn build_fra(
         .forward_curve_id(CurveId::new(ctx.require_curve_id("forward")?.to_string()))
         .side(crate::instruments::common_impl::parameters::legs::PayReceive::Receive)
         .fixing_calendar_id_opt(Some(conv.market_calendar_id.clone().into()))
-        .fixing_bdc_opt(Some(conv.market_business_day_convention))
+        .fixing_business_day_convention_opt(Some(conv.market_business_day_convention))
         .attributes(Default::default())
         .build()?;
 
@@ -454,11 +455,11 @@ fn build_swap(
 
     let end_of_month = start == start.end_of_month();
     let leg_conv = IrsLegConventions {
-        fixed_freq: conv.default_fixed_leg_frequency,
-        float_freq: conv.default_payment_frequency,
-        fixed_dc: conv.default_fixed_leg_day_count,
-        float_dc: conv.day_count,
-        bdc: conv.market_business_day_convention,
+        fixed_frequency: conv.default_fixed_leg_frequency,
+        float_frequency: conv.default_payment_frequency,
+        fixed_day_count: conv.default_fixed_leg_day_count,
+        float_day_count: conv.day_count,
+        business_day_convention: conv.market_business_day_convention,
         payment_calendar_id: Some(conv.market_calendar_id.clone()),
         fixing_calendar_id: Some(conv.market_calendar_id.clone()),
         stub: finstack_quant_core::dates::StubKind::ShortFront,
@@ -500,9 +501,9 @@ fn build_swap(
     let fixed = crate::instruments::common_impl::parameters::legs::FixedLegSpec {
         discount_curve_id: CurveId::new(discount_id.clone()),
         rate: rate_decimal,
-        frequency: leg_conv.fixed_freq,
-        day_count: leg_conv.fixed_dc,
-        bdc: leg_conv.bdc,
+        frequency: leg_conv.fixed_frequency,
+        day_count: leg_conv.fixed_day_count,
+        business_day_convention: leg_conv.business_day_convention,
         calendar_id: leg_conv.payment_calendar_id.clone(),
         stub: leg_conv.stub,
         start,
@@ -517,9 +518,9 @@ fn build_swap(
         discount_curve_id: CurveId::new(discount_id),
         forward_curve_id: CurveId::new(forward_id),
         spread_bp: Decimal::ZERO,
-        frequency: leg_conv.float_freq,
-        day_count: leg_conv.float_dc,
-        bdc: leg_conv.bdc,
+        frequency: leg_conv.float_frequency,
+        day_count: leg_conv.float_day_count,
+        business_day_convention: leg_conv.business_day_convention,
         calendar_id: leg_conv.payment_calendar_id,
         stub: leg_conv.stub,
         reset_lag_days: leg_conv.reset_lag_days,

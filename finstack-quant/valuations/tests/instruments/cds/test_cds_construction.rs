@@ -119,7 +119,7 @@ fn test_builder_pattern() {
             end,
             frequency: convention.frequency(),
             stub: convention.stub_convention(),
-            bdc: convention.business_day_convention(),
+            business_day_convention: convention.business_day_convention(),
             calendar_id: None,
             day_count: convention.day_count(),
             spread_bp: Decimal::from(200),

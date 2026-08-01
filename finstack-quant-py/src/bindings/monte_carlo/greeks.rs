@@ -61,11 +61,11 @@ struct GreekSetup {
 }
 
 fn parse_option(name: &str) -> PyResult<OptionType> {
-    match name.to_ascii_lowercase().as_str() {
-        "call" | "c" => Ok(OptionType::Call),
-        "put" | "p" => Ok(OptionType::Put),
-        other => Err(crate::errors::value_error(format!(
-            "unknown option_type '{other}'; expected 'call' or 'put'"
+    match name {
+        "call" => Ok(OptionType::Call),
+        "put" => Ok(OptionType::Put),
+        _ => Err(crate::errors::value_error(format!(
+            "unknown option_type '{name}'; expected 'call' or 'put'"
         ))),
     }
 }

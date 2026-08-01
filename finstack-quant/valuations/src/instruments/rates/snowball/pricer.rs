@@ -378,8 +378,8 @@ impl SnowballHw1fMcPricer {
         let surface =
             inst.vol_surface_id
                 .as_ref()
-                .map(|surface_id| Hw1fSurfaceCalibration::CapFloor {
-                    surface_id: surface_id.as_str(),
+                .map(|vol_surface_id| Hw1fSurfaceCalibration::CapFloor {
+                    vol_surface_id: vol_surface_id.as_str(),
                     points: surface_points.as_slice(),
                 });
         let context_label = format!("Snowball {}", inst.id);
@@ -439,7 +439,6 @@ impl SnowballHw1fMcPricer {
                 percentile_75: None,
                 min: Some(0.0),
                 max: Some(0.0),
-                num_skipped: 0,
             });
         }
         if as_of > first_coupon_date {
@@ -483,7 +482,6 @@ impl SnowballHw1fMcPricer {
                 percentile_75: None,
                 min: Some(0.0),
                 max: Some(0.0),
-                num_skipped: 0,
             });
         }
 
@@ -585,7 +583,7 @@ fn snowball_surface_points(inst: &Snowball, as_of: Date) -> Result<Vec<Hw1fCaple
                 forward: inst.fixed_rate,
                 strike: inst.fixed_rate,
                 is_cap: true,
-                weight: accrual * inst.notional.amount().abs(),
+                annuity: accrual * inst.notional.amount().abs(),
                 normal_vol_per_unit_sigma: None,
             });
         }
@@ -822,7 +820,6 @@ fn deterministic_estimate(
         percentile_75: None,
         min: Some(pv.amount()),
         max: Some(pv.amount()),
-        num_skipped: 0,
     }
 }
 
@@ -1031,7 +1028,7 @@ mod tests {
         let disc = market
             .get_discount(inst.discount_curve_id.as_ref())
             .expect("discount");
-        let dc = inst.day_count;
+        let day_count = inst.day_count;
         let ctx = DayCountContext::default();
         let mut pv = 0.0;
         let mut prev_coupon = inst.initial_coupon;
@@ -1042,7 +1039,7 @@ mod tests {
             if end <= as_of {
                 continue;
             }
-            let accrual = dc.year_fraction(start, end, ctx).expect("accrual");
+            let accrual = day_count.year_fraction(start, end, ctx).expect("accrual");
             let rate = match floating_rate {
                 Some(r) => r,
                 None => {

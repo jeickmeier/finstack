@@ -15,10 +15,9 @@ use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve, DiscountCurveRateCalibration, DiscountCurveRateQuoteType, ForwardCurve,
-    ForwardCurveRateCalibration, ForwardCurveRateQuote, RateCalibrationCurveRole,
-    RateCalibrationMethod, RateCalibrationOisCompounding, RateCalibrationPillar,
-    RateCalibrationQuote, RateCalibrationRecipe,
+    DiscountCurve, ForwardCurve, RateCalibrationCurveRole, RateCalibrationMethod,
+    RateCalibrationOisCompounding, RateCalibrationPillar, RateCalibrationQuote,
+    RateCalibrationRecipe,
 };
 #[cfg(test)]
 use finstack_quant_core::math::interp::ExtrapolationPolicy;
@@ -186,7 +185,7 @@ pub fn bump_discount_curve(
 ) -> finstack_quant_core::Result<DiscountCurve> {
     // Recipe metadata currently persists the calibration method rather than
     // every numerical solver knob. Preserve the requested method here while
-    // retaining documented CalibrationConfig defaults for legacy solver fields.
+    // retaining the documented defaults for solver fields not stored in the recipe.
     let cfg = CalibrationConfig {
         calibration_method: params.method.clone(),
         ..CalibrationConfig::default()
@@ -194,7 +193,17 @@ pub fn bump_discount_curve(
     bump_discount_curve_with_config(quotes, params, base_context, bump, &cfg)
 }
 
-fn bump_discount_curve_with_config(
+/// Bump a discount curve by shocking rate quotes and re-calibrating with an
+/// explicit solver configuration.
+///
+/// # Arguments
+///
+/// * `quotes` - Original rate calibration quotes to shock and bootstrap.
+/// * `params` - Discount-curve calibration recipe and pricing conventions.
+/// * `base_context` - Unshocked market context supplying calibration dependencies.
+/// * `bump` - Parallel or tenor-specific rate shock in basis points.
+/// * `config` - Solver and validation policy to apply during re-calibration.
+pub fn bump_discount_curve_with_config(
     quotes: &[RateQuote],
     params: &DiscountCurveParams,
     base_context: &MarketContext,
@@ -224,9 +233,16 @@ fn bump_discount_curve_with_config(
 /// the base level and contaminate the sensitivity with a base-shape change.
 /// For self-consistent curves the unbumped re-bootstrap reproduces the stored
 /// curve and the overlay is exact.
-pub(crate) fn bump_discount_curve_from_rate_calibration(
+///
+/// # Arguments
+///
+/// * `curve` - Stored discount curve whose shape and validation policy are preserved.
+/// * `calibration` - Exact typed recipe retained when the curve was calibrated.
+/// * `context` - Market context supplying the recipe's pricing dependencies.
+/// * `bump` - Parallel or tenor-specific quote shock in basis points.
+pub fn bump_discount_curve_from_rate_calibration(
     curve: &DiscountCurve,
-    calibration: &DiscountCurveRateCalibration,
+    calibration: &RateCalibrationRecipe,
     context: &MarketContext,
     bump: &BumpRequest,
 ) -> finstack_quant_core::Result<DiscountCurve> {
@@ -243,7 +259,7 @@ pub(crate) fn bump_discount_curve_from_rate_calibration(
 pub(crate) fn bump_discount_curve_from_rate_calibration_cached(
     cache: Option<&RateRecalibrationCache>,
     curve: &DiscountCurve,
-    calibration: &DiscountCurveRateCalibration,
+    calibration: &RateCalibrationRecipe,
     context: &MarketContext,
     bump: &BumpRequest,
 ) -> finstack_quant_core::Result<Arc<DiscountCurve>> {
@@ -268,18 +284,14 @@ enum DiscountReplayShape {
 
 fn bump_discount_curve_from_rate_calibration_with_projection(
     curve: &DiscountCurve,
-    calibration: &DiscountCurveRateCalibration,
+    calibration: &RateCalibrationRecipe,
     context: &MarketContext,
     bump: &BumpRequest,
     pricing_forward_id_override: Option<CurveId>,
     replay_shape: DiscountReplayShape,
 ) -> finstack_quant_core::Result<DiscountCurve> {
-    let recipe = curve.rate_calibration_recipe();
-    let quotes = if let Some(recipe) = recipe.filter(|recipe| !recipe.quotes.is_empty()) {
-        rate_quotes_from_recipe(recipe, curve.id())?
-    } else {
-        rate_quotes_from_legacy_discount_calibration(calibration, curve.id())?
-    };
+    ensure_recipe_has_quotes(curve.id(), calibration)?;
+    let quotes = rate_quotes_from_recipe(calibration, curve.id())?;
 
     let first_rate = quotes.first().map(rate_quote_level).unwrap_or(0.0);
     let fixings = ScalarTimeSeries::new(
@@ -295,12 +307,10 @@ fn bump_discount_curve_from_rate_calibration_with_projection(
     let base_context = context.clone().insert_series(fixings);
 
     let (method, curve_day_count, ois_compounding, recipe_pricing_forward_id) =
-        discount_replay_conventions(curve, recipe)?;
+        discount_replay_conventions(curve, calibration)?;
     let params = DiscountCurveParams {
         curve_id: curve.id().clone(),
-        currency: recipe
-            .and_then(|recipe| recipe.currency)
-            .unwrap_or(calibration.currency),
+        currency: calibration.currency,
         base_date: curve.base_date(),
         method,
         interpolation: curve.interp_style(),
@@ -354,36 +364,6 @@ fn bump_discount_curve_from_rate_calibration_with_projection(
         .collect();
 
     curve.rebuild_with_knots(overlaid)
-}
-
-fn rate_quotes_from_legacy_discount_calibration(
-    calibration: &DiscountCurveRateCalibration,
-    curve_id: &CurveId,
-) -> finstack_quant_core::Result<Vec<RateQuote>> {
-    let index = IndexId::new(calibration.index_id.as_str());
-    calibration
-        .quotes
-        .iter()
-        .map(|quote| {
-            let pillar = Pillar::Tenor(quote.tenor.parse()?);
-            let id = QuoteId::new(format!("{curve_id}-{}", quote.tenor));
-            Ok(match quote.quote_type {
-                DiscountCurveRateQuoteType::Deposit => RateQuote::Deposit {
-                    id,
-                    index: index.clone(),
-                    pillar,
-                    rate: quote.rate,
-                },
-                DiscountCurveRateQuoteType::Swap => RateQuote::Swap {
-                    id,
-                    index: index.clone(),
-                    pillar,
-                    rate: quote.rate,
-                    spread_decimal: None,
-                },
-            })
-        })
-        .collect()
 }
 
 fn rate_quotes_from_recipe(
@@ -447,6 +427,11 @@ fn rate_quotes_from_recipe(
                     rate: *rate,
                     spread_decimal: *spread_decimal,
                 },
+                RateCalibrationQuote::Basis { .. } => {
+                    return Err(finstack_quant_core::Error::Validation(format!(
+                        "curve {curve_id} uses basis quotes, which require the dedicated basis replay path"
+                    )));
+                }
             })
         })
         .collect()
@@ -474,17 +459,13 @@ fn rate_quote_level(quote: &RateQuote) -> f64 {
 
 fn discount_replay_conventions(
     curve: &DiscountCurve,
-    recipe: Option<&RateCalibrationRecipe>,
+    recipe: &RateCalibrationRecipe,
 ) -> finstack_quant_core::Result<(
     CalibrationMethod,
     DayCount,
     Option<crate::instruments::rates::irs::FloatingLegCompounding>,
     Option<CurveId>,
 )> {
-    let Some(recipe) = recipe else {
-        // Legacy metadata replayed with the historical quote-shock defaults.
-        return Ok((CalibrationMethod::Bootstrap, curve.day_count(), None, None));
-    };
     let projection_curve_id = match &recipe.role {
         RateCalibrationCurveRole::Discount {
             projection_curve_id,
@@ -511,35 +492,34 @@ fn discount_replay_conventions(
 /// and globally recalibrating against the supplied market context.
 ///
 /// The provided `context` must already contain the discount curve referenced by
-/// `calibration.discount_curve_id` (in its bumped form, when bumping both curves
-/// together). The helper does not support [`ForwardCurveRateQuote::Basis`]
-/// quotes; callers handling basis-tenor calibrations must rebuild the forward
-/// curve explicitly.
+/// the calibration recipe (in its bumped form, when bumping both curves
+/// together). Basis-tenor calibrations use their dedicated forward rebuild.
 ///
 /// Like [`bump_discount_curve_from_rate_calibration`], the recalibration is
 /// applied as a delta overlay on the stored curve: the bumped and unbumped
 /// global solves are both run and only their forward-rate difference is added
 /// to the stored knots, so transcribed curves keep their base shape.
-pub(crate) fn bump_forward_curve_from_rate_calibration(
+///
+/// # Arguments
+///
+/// * `curve` - Stored forward curve whose shape and pricing grid are preserved.
+/// * `calibration` - Exact typed recipe retained when the curve was calibrated.
+/// * `context` - Market context containing the linked discount curve.
+/// * `bump` - Parallel or tenor-specific quote shock in basis points.
+pub fn bump_forward_curve_from_rate_calibration(
     curve: &ForwardCurve,
-    calibration: &ForwardCurveRateCalibration,
+    calibration: &RateCalibrationRecipe,
     context: &MarketContext,
     bump: &BumpRequest,
 ) -> finstack_quant_core::Result<ForwardCurve> {
-    let recipe = curve.rate_calibration_recipe();
-    let quotes = if let Some(recipe) = recipe.filter(|recipe| !recipe.quotes.is_empty()) {
-        rate_quotes_from_recipe(recipe, curve.id())?
-    } else {
-        rate_quotes_from_legacy_forward_calibration(calibration, curve.id())?
-    };
+    ensure_recipe_has_quotes(curve.id(), calibration)?;
+    let quotes = rate_quotes_from_recipe(calibration, curve.id())?;
 
     let (method, curve_day_count, ois_compounding, discount_curve_id) =
-        forward_replay_conventions(curve, calibration, recipe)?;
+        forward_replay_conventions(curve, calibration)?;
     let params = ForwardCurveParams {
         curve_id: curve.id().clone(),
-        currency: recipe
-            .and_then(|recipe| recipe.currency)
-            .unwrap_or(calibration.currency),
+        currency: calibration.currency,
         base_date: curve.base_date(),
         tenor_years: curve.tenor(),
         discount_curve_id,
@@ -575,91 +555,21 @@ pub(crate) fn bump_forward_curve_from_rate_calibration(
         .interp(curve.interp_style())
         .extrapolation(curve.extrapolation())
         .rate_calibration(calibration.clone())
-        .rate_calibration_recipe_opt(curve.rate_calibration_recipe().cloned())
         .fx_policy_opt(curve.fx_policy().map(ToOwned::to_owned))
         .build()
 }
 
-fn rate_quotes_from_legacy_forward_calibration(
-    calibration: &ForwardCurveRateCalibration,
-    curve_id: &CurveId,
-) -> finstack_quant_core::Result<Vec<RateQuote>> {
-    let index = IndexId::new(calibration.index_id.as_str());
-    calibration
-        .quotes
-        .iter()
-        .enumerate()
-        .map(|(position, quote)| {
-            let id = QuoteId::new(format!("{curve_id}-{position}"));
-            Ok(match quote {
-                ForwardCurveRateQuote::Deposit { tenor, rate } => RateQuote::Deposit {
-                    id,
-                    index: index.clone(),
-                    pillar: Pillar::Tenor(tenor.parse()?),
-                    rate: *rate,
-                },
-                ForwardCurveRateQuote::Fra { start, end, rate } => RateQuote::Fra {
-                    id,
-                    index: index.clone(),
-                    start: Pillar::Date(*start),
-                    end: Pillar::Date(*end),
-                    rate: *rate,
-                },
-                ForwardCurveRateQuote::Swap {
-                    tenor,
-                    rate,
-                    spread_decimal,
-                } => RateQuote::Swap {
-                    id,
-                    index: index.clone(),
-                    pillar: Pillar::Tenor(tenor.parse()?),
-                    rate: *rate,
-                    spread_decimal: *spread_decimal,
-                },
-                ForwardCurveRateQuote::Basis { .. } => {
-                    return Err(finstack_quant_core::Error::Validation(format!(
-                        "forward curve {curve_id} calibration uses basis quotes; \
-                         exact replay requires a typed rate_calibration_recipe"
-                    )));
-                }
-            })
-        })
-        .collect()
-}
-
 fn forward_replay_conventions(
     curve: &ForwardCurve,
-    calibration: &ForwardCurveRateCalibration,
-    recipe: Option<&RateCalibrationRecipe>,
+    recipe: &RateCalibrationRecipe,
 ) -> finstack_quant_core::Result<(
     CalibrationMethod,
     DayCount,
     Option<crate::instruments::rates::irs::FloatingLegCompounding>,
     CurveId,
 )> {
-    let Some(recipe) = recipe else {
-        // Legacy metadata replayed with the historical forward-curve defaults.
-        return Ok((
-            CalibrationMethod::GlobalSolve {
-                use_analytical_jacobian: false,
-            },
-            curve.day_count(),
-            None,
-            calibration.discount_curve_id.clone(),
-        ));
-    };
     let discount_curve_id = match &recipe.role {
-        RateCalibrationCurveRole::Projection { discount_curve_id } => {
-            if discount_curve_id != &calibration.discount_curve_id {
-                return Err(finstack_quant_core::Error::Validation(format!(
-                    "forward curve {} recipe links discount curve {}, but quote metadata links {}",
-                    curve.id(),
-                    discount_curve_id,
-                    calibration.discount_curve_id
-                )));
-            }
-            discount_curve_id.clone()
-        }
+        RateCalibrationCurveRole::Projection { discount_curve_id } => discount_curve_id.clone(),
         RateCalibrationCurveRole::Discount { .. } => {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "forward curve {} carries a discount calibration recipe",
@@ -745,8 +655,8 @@ fn has_linked_single_curve_ois_recipes(
     discount_curve_id: &CurveId,
     forward_curve_id: &CurveId,
 ) -> finstack_quant_core::Result<bool> {
-    let discount_recipe = discount.rate_calibration_recipe();
-    let forward_recipe = forward.rate_calibration_recipe();
+    let discount_recipe = discount.rate_calibration();
+    let forward_recipe = forward.rate_calibration();
     // A term-index projection normally points at its discount curve too. The
     // OIS compounding marker plus a role pointing at the other representation
     // is what declares that this pair participates in shared single-curve
@@ -991,18 +901,15 @@ fn rebuild_linked_ois_projection(
         .interp(source.interp_style())
         .extrapolation(source.extrapolation())
         .rate_calibration_opt(source.rate_calibration().cloned())
-        .rate_calibration_recipe_opt(source.rate_calibration_recipe().cloned())
         .fx_policy_opt(source.fx_policy().map(ToOwned::to_owned))
         .build()
 }
 
 /// Re-bootstrap both a discount curve and its dependent forward curve from
-/// stored rate-calibration metadata under a parallel quote shock.
+/// stored typed rate-calibration recipes under a parallel quote shock.
 ///
-/// Both curves must carry an exact typed recipe or a legacy rate-calibration
-/// sidecar. Index fixings are seeded from recipe quote indices and curve IDs so
-/// the calibration engine has the reference fixings it needs while replaying.
-/// Legacy forward basis quotes still require a bespoke forward rebuild.
+/// Index fixings are seeded from recipe quote indices and curve IDs so the
+/// calibration engine has the reference fixings it needs while replaying.
 pub(crate) fn bump_market_via_rate_quote_shock(
     market: &MarketContext,
     discount_curve_id: &CurveId,
@@ -1017,24 +924,14 @@ pub(crate) fn bump_market_via_rate_quote_shock(
         discount_curve_id,
         forward_curve_id,
     )?;
-    let discount_cal = discount
-        .rate_calibration()
-        .cloned()
-        .map(Ok)
-        .unwrap_or_else(|| discount_calibration_from_recipe(discount.as_ref()))?;
-    let forward_cal = forward
-        .rate_calibration()
-        .cloned()
-        .map(Ok)
-        .unwrap_or_else(|| forward_calibration_from_recipe(forward.as_ref()))?;
+    let discount_cal = required_discount_rate_calibration(discount.as_ref())?;
+    let forward_cal = required_forward_rate_calibration(forward.as_ref())?;
 
     let fixing_sources = CalibrationFixingSources {
-        discount: discount.as_ref(),
         discount_curve_id,
-        discount_cal: &discount_cal,
-        forward: forward.as_ref(),
+        discount_cal,
         forward_curve_id,
-        forward_cal: &forward_cal,
+        forward_cal,
     };
     let seeded = seed_calibration_fixings(market, discount.base_date(), &fixing_sources)?;
 
@@ -1043,14 +940,14 @@ pub(crate) fn bump_market_via_rate_quote_shock(
     let bumped_discount = if linked_single_curve {
         bump_discount_curve_from_rate_calibration_with_projection(
             discount.as_ref(),
-            &discount_cal,
+            discount_cal,
             &seeded,
             &bump,
             Some(discount_curve_id.clone()),
             DiscountReplayShape::CalibratedOnSourceGrid,
         )?
     } else {
-        bump_discount_curve_from_rate_calibration(discount.as_ref(), &discount_cal, &seeded, &bump)?
+        bump_discount_curve_from_rate_calibration(discount.as_ref(), discount_cal, &seeded, &bump)?
     };
     let seeded_with_discount = seeded.insert(bumped_discount);
 
@@ -1060,7 +957,7 @@ pub(crate) fn bump_market_via_rate_quote_shock(
     } else {
         bump_forward_curve_from_rate_calibration(
             forward.as_ref(),
-            &forward_cal,
+            forward_cal,
             &seeded_with_discount,
             &bump,
         )?
@@ -1104,36 +1001,27 @@ pub(crate) fn bump_single_ois_market_via_rate_quote_shock(
     bump_bp: f64,
 ) -> finstack_quant_core::Result<MarketContext> {
     let discount = market.get_discount(curve_id.as_str())?;
-    let discount_cal = discount
-        .rate_calibration()
-        .cloned()
-        .map(Ok)
-        .unwrap_or_else(|| discount_calibration_from_recipe(discount.as_ref()))?;
+    let discount_cal = required_discount_rate_calibration(discount.as_ref())?;
 
     let mut seeded = market.clone();
     let mut seeded_indices = HashSet::new();
-    if let Some(recipe) = discount.rate_calibration_recipe() {
-        seeded = seed_recipe_fixings(seeded, recipe, discount.base_date(), &mut seeded_indices)?;
-    }
-    let first_rate = discount
-        .rate_calibration_recipe()
-        .and_then(|recipe| recipe.quotes.first())
-        .map(rate_calibration_quote_level)
-        .or_else(|| discount_cal.quotes.first().map(|quote| quote.rate));
+    seeded = seed_recipe_fixings(
+        seeded,
+        discount_cal,
+        discount.base_date(),
+        &mut seeded_indices,
+    )?;
+    let first_rate = discount_cal
+        .quotes
+        .first()
+        .map(rate_calibration_quote_level);
     if let Some(rate) = first_rate {
-        if discount.rate_calibration_recipe().is_none() {
-            seeded = seeded.insert_series(fixing_seed(
-                &discount_cal.index_id,
-                discount.base_date(),
-                rate,
-            )?);
-        }
         seeded = seeded.insert_series(fixing_seed(curve_id.as_str(), discount.base_date(), rate)?);
     }
 
     let bumped = bump_discount_curve_from_rate_calibration_with_projection(
         discount.as_ref(),
-        &discount_cal,
+        discount_cal,
         &seeded,
         &BumpRequest::Parallel(bump_bp),
         Some(curve_id.clone()),
@@ -1170,12 +1058,10 @@ pub(crate) fn bump_single_ois_market_via_rate_quote_shock_cached(
 /// historical fixing — sufficient for risk re-bootstrapping where only the
 /// shape of the curve matters, not the historical realized path.
 struct CalibrationFixingSources<'a> {
-    discount: &'a DiscountCurve,
     discount_curve_id: &'a CurveId,
-    discount_cal: &'a DiscountCurveRateCalibration,
-    forward: &'a ForwardCurve,
+    discount_cal: &'a RateCalibrationRecipe,
     forward_curve_id: &'a CurveId,
-    forward_cal: &'a ForwardCurveRateCalibration,
+    forward_cal: &'a RateCalibrationRecipe,
 }
 
 fn seed_calibration_fixings(
@@ -1185,43 +1071,26 @@ fn seed_calibration_fixings(
 ) -> finstack_quant_core::Result<MarketContext> {
     let mut seeded = market.clone();
     let mut seeded_indices = HashSet::new();
-    if let Some(recipe) = sources.discount.rate_calibration_recipe() {
-        seeded = seed_recipe_fixings(seeded, recipe, base_date, &mut seeded_indices)?;
-    }
+    seeded = seed_recipe_fixings(seeded, sources.discount_cal, base_date, &mut seeded_indices)?;
     let discount_rate = sources
-        .discount
-        .rate_calibration_recipe()
-        .and_then(|recipe| recipe.quotes.first())
-        .map(rate_calibration_quote_level)
-        .or_else(|| sources.discount_cal.quotes.first().map(|quote| quote.rate));
+        .discount_cal
+        .quotes
+        .first()
+        .map(rate_calibration_quote_level);
     if let Some(rate) = discount_rate {
-        if sources.discount.rate_calibration_recipe().is_none() {
-            seeded = seeded.insert_series(fixing_seed(
-                &sources.discount_cal.index_id,
-                base_date,
-                rate,
-            )?);
-        }
         seeded = seeded.insert_series(fixing_seed(
             sources.discount_curve_id.as_str(),
             base_date,
             rate,
         )?);
     }
-    if let Some(recipe) = sources.forward.rate_calibration_recipe() {
-        seeded = seed_recipe_fixings(seeded, recipe, base_date, &mut seeded_indices)?;
-    }
+    seeded = seed_recipe_fixings(seeded, sources.forward_cal, base_date, &mut seeded_indices)?;
     let forward_rate = sources
-        .forward
-        .rate_calibration_recipe()
-        .and_then(|recipe| recipe.quotes.first())
-        .map(rate_calibration_quote_level)
-        .or_else(|| first_forward_calibration_rate(sources.forward_cal));
+        .forward_cal
+        .quotes
+        .first()
+        .map(rate_calibration_quote_level);
     if let Some(rate) = forward_rate {
-        if sources.forward.rate_calibration_recipe().is_none() {
-            seeded =
-                seeded.insert_series(fixing_seed(&sources.forward_cal.index_id, base_date, rate)?);
-        }
         seeded = seeded.insert_series(fixing_seed(
             sources.forward_curve_id.as_str(),
             base_date,
@@ -1241,7 +1110,8 @@ fn seed_recipe_fixings(
         let index_id = match quote {
             RateCalibrationQuote::Deposit { index_id, .. }
             | RateCalibrationQuote::Fra { index_id, .. }
-            | RateCalibrationQuote::Swap { index_id, .. } => Some(index_id),
+            | RateCalibrationQuote::Swap { index_id, .. }
+            | RateCalibrationQuote::Basis { index_id, .. } => Some(index_id),
             RateCalibrationQuote::Futures { .. } => None,
         };
         if let Some(index_id) = index_id {
@@ -1263,6 +1133,7 @@ fn rate_calibration_quote_level(quote: &RateCalibrationQuote) -> f64 {
         RateCalibrationQuote::Deposit { rate, .. }
         | RateCalibrationQuote::Fra { rate, .. }
         | RateCalibrationQuote::Swap { rate, .. } => *rate,
+        RateCalibrationQuote::Basis { spread_decimal, .. } => *spread_decimal,
         RateCalibrationQuote::Futures {
             price,
             convexity_adjustment,
@@ -1271,92 +1142,42 @@ fn rate_calibration_quote_level(quote: &RateCalibrationQuote) -> f64 {
     }
 }
 
-fn discount_calibration_from_recipe(
+fn required_discount_rate_calibration(
     curve: &DiscountCurve,
-) -> finstack_quant_core::Result<DiscountCurveRateCalibration> {
-    let recipe = curve.rate_calibration_recipe().ok_or_else(|| {
+) -> finstack_quant_core::Result<&RateCalibrationRecipe> {
+    let calibration = curve.rate_calibration().ok_or_else(|| {
         finstack_quant_core::Error::Validation(format!(
-            "discount curve {} has no rate calibration metadata; cannot quote-shock DV01",
+            "discount curve {} has no rate calibration; cannot quote-shock DV01",
             curve.id()
         ))
     })?;
-    if recipe.quotes.is_empty() {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "discount curve {} recipe has no typed quotes and no legacy sidecar",
-            curve.id()
-        )));
-    }
-    let currency = recipe.currency.ok_or_else(|| {
-        finstack_quant_core::Error::Validation(format!(
-            "discount curve {} has a legacy recipe without currency",
-            curve.id()
-        ))
-    })?;
-    Ok(DiscountCurveRateCalibration {
-        index_id: first_recipe_index_id(recipe)
-            .unwrap_or_else(|| curve.id().as_str())
-            .to_string(),
-        currency,
-        quotes: Vec::new(),
-    })
+    ensure_recipe_has_quotes(curve.id(), calibration)?;
+    Ok(calibration)
 }
 
-fn forward_calibration_from_recipe(
+fn required_forward_rate_calibration(
     curve: &ForwardCurve,
-) -> finstack_quant_core::Result<ForwardCurveRateCalibration> {
-    let recipe = curve.rate_calibration_recipe().ok_or_else(|| {
+) -> finstack_quant_core::Result<&RateCalibrationRecipe> {
+    let calibration = curve.rate_calibration().ok_or_else(|| {
         finstack_quant_core::Error::Validation(format!(
-            "forward curve {} has no rate calibration metadata; cannot quote-shock DV01",
+            "forward curve {} has no rate calibration; cannot quote-shock DV01",
             curve.id()
         ))
     })?;
-    if recipe.quotes.is_empty() {
+    ensure_recipe_has_quotes(curve.id(), calibration)?;
+    Ok(calibration)
+}
+
+fn ensure_recipe_has_quotes(
+    curve_id: &CurveId,
+    calibration: &RateCalibrationRecipe,
+) -> finstack_quant_core::Result<()> {
+    if calibration.quotes.is_empty() {
         return Err(finstack_quant_core::Error::Validation(format!(
-            "forward curve {} recipe has no typed quotes and no legacy sidecar",
-            curve.id()
+            "curve {curve_id} rate calibration has no quotes"
         )));
     }
-    let currency = recipe.currency.ok_or_else(|| {
-        finstack_quant_core::Error::Validation(format!(
-            "forward curve {} has a legacy recipe without currency",
-            curve.id()
-        ))
-    })?;
-    let discount_curve_id = match &recipe.role {
-        RateCalibrationCurveRole::Projection { discount_curve_id } => discount_curve_id.clone(),
-        RateCalibrationCurveRole::Discount { .. } => {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "forward curve {} carries a discount calibration recipe",
-                curve.id()
-            )));
-        }
-    };
-    Ok(ForwardCurveRateCalibration {
-        index_id: first_recipe_index_id(recipe)
-            .unwrap_or_else(|| curve.id().as_str())
-            .to_string(),
-        currency,
-        discount_curve_id,
-        quotes: Vec::new(),
-    })
-}
-
-fn first_recipe_index_id(recipe: &RateCalibrationRecipe) -> Option<&str> {
-    recipe.quotes.iter().find_map(|quote| match quote {
-        RateCalibrationQuote::Deposit { index_id, .. }
-        | RateCalibrationQuote::Fra { index_id, .. }
-        | RateCalibrationQuote::Swap { index_id, .. } => Some(index_id.as_str()),
-        RateCalibrationQuote::Futures { .. } => None,
-    })
-}
-
-fn first_forward_calibration_rate(calibration: &ForwardCurveRateCalibration) -> Option<f64> {
-    calibration.quotes.first().map(|q| match q {
-        ForwardCurveRateQuote::Deposit { rate, .. }
-        | ForwardCurveRateQuote::Fra { rate, .. }
-        | ForwardCurveRateQuote::Swap { rate, .. } => *rate,
-        ForwardCurveRateQuote::Basis { spread_decimal, .. } => *spread_decimal,
-    })
+    Ok(())
 }
 
 fn fixing_seed(
@@ -1435,7 +1256,7 @@ pub(crate) fn find_closest_quote(
     target_years: f64,
     as_of: Date,
 ) -> Option<usize> {
-    let dc = DayCount::Act365F; // Simple day count for proximity check
+    let day_count = DayCount::Act365F; // Simple day count for proximity check
     quotes
         .iter()
         .enumerate()
@@ -1443,10 +1264,10 @@ pub(crate) fn find_closest_quote(
             let a_date = resolve_maturity(a, as_of).unwrap_or(as_of);
             let b_date = resolve_maturity(b, as_of).unwrap_or(as_of);
 
-            let a_yf = dc
+            let a_yf = day_count
                 .year_fraction(as_of, a_date, DayCountContext::default())
                 .unwrap_or(0.0);
-            let b_yf = dc
+            let b_yf = day_count
                 .year_fraction(as_of, b_date, DayCountContext::default())
                 .unwrap_or(0.0);
             let a_dist = (a_yf - target_years).abs();
@@ -1609,13 +1430,8 @@ mod tests {
                 rate: 0.0390,
             },
         ];
-        let discount_calibration = DiscountCurveRateCalibration {
-            index_id: "USD-SOFR-OIS".to_string(),
-            currency: Currency::USD,
-            quotes: Vec::new(),
-        };
         let discount_recipe = RateCalibrationRecipe {
-            currency: Some(Currency::USD),
+            currency: Currency::USD,
             method: RateCalibrationMethod::Bootstrap,
             curve_day_count: DayCount::Act365F,
             ois_compounding: Some(RateCalibrationOisCompounding::Simple),
@@ -1630,8 +1446,7 @@ mod tests {
             .knots([(0.0, 1.0), (0.5, 0.979), (1.0, 0.960), (2.0, 0.925)])
             .interp(InterpStyle::LogLinear)
             .extrapolation(ExtrapolationPolicy::FlatForward)
-            .rate_calibration(discount_calibration)
-            .rate_calibration_recipe(discount_recipe)
+            .rate_calibration(discount_recipe)
             .fx_policy("single_curve_ois::USD")
             .build()
             .expect("discount representation");
@@ -1653,14 +1468,8 @@ mod tests {
             (discount.df(terminal) / discount.df(terminal + 0.5) - 1.0) / 0.5,
         ));
 
-        let forward_calibration = ForwardCurveRateCalibration {
-            index_id: "USD-SOFR-OIS".to_string(),
-            currency: Currency::USD,
-            discount_curve_id: forward_discount_curve_id.clone(),
-            quotes: Vec::new(),
-        };
         let forward_recipe = RateCalibrationRecipe {
-            currency: Some(Currency::USD),
+            currency: Currency::USD,
             method: RateCalibrationMethod::GlobalSolve {
                 use_analytical_jacobian: false,
             },
@@ -1679,8 +1488,7 @@ mod tests {
             .projection_grid(projection_grid.clone())
             .interp(InterpStyle::CubicHermite)
             .extrapolation(ExtrapolationPolicy::FlatForward)
-            .rate_calibration(forward_calibration)
-            .rate_calibration_recipe(forward_recipe)
+            .rate_calibration(forward_recipe)
             .fx_policy("single_curve_ois::USD")
             .build()
             .expect("projection representation");
@@ -1759,24 +1567,8 @@ mod tests {
         );
         assert_eq!(shocked_forward.fx_policy(), source_forward.fx_policy());
         assert_eq!(
-            shocked_forward.rate_calibration_recipe(),
-            source_forward.rate_calibration_recipe()
-        );
-        let shocked_calibration = shocked_forward
-            .rate_calibration()
-            .expect("projection calibration provenance");
-        let source_calibration = source_forward
-            .rate_calibration()
-            .expect("source projection calibration provenance");
-        assert_eq!(shocked_calibration.index_id, source_calibration.index_id);
-        assert_eq!(shocked_calibration.currency, source_calibration.currency);
-        assert_eq!(
-            shocked_calibration.discount_curve_id,
-            source_calibration.discount_curve_id
-        );
-        assert_eq!(
-            shocked_calibration.quotes.len(),
-            source_calibration.quotes.len()
+            shocked_forward.rate_calibration(),
+            source_forward.rate_calibration()
         );
     }
 
@@ -1906,7 +1698,7 @@ mod tests {
             .expect("discount representation");
         let discount_without_recipe = discount
             .to_builder_with_id(discount_curve_id.clone())
-            .rate_calibration_recipe_opt(None)
+            .rate_calibration_opt(None)
             .build()
             .expect("discount representation without recipe");
         let market = market.insert(discount_without_recipe);
@@ -1922,7 +1714,7 @@ mod tests {
     }
 
     #[test]
-    fn linkage_validation_precedes_missing_discount_sidecar_reconstruction() {
+    fn linkage_validation_precedes_missing_discount_calibration_error() {
         let (market, discount_curve_id, forward_curve_id, _) =
             linked_single_curve_ois_market(CurveId::new("USD-OIS"));
         let discount = market
@@ -1931,14 +1723,13 @@ mod tests {
         let discount_without_metadata = discount
             .to_builder_with_id(discount_curve_id.clone())
             .rate_calibration_opt(None)
-            .rate_calibration_recipe_opt(None)
             .build()
             .expect("discount representation without calibration metadata");
         let market = market.insert(discount_without_metadata);
 
         let error =
             bump_market_via_rate_quote_shock(&market, &discount_curve_id, &forward_curve_id, 1.0)
-                .expect_err("linkage validation must run before sidecar reconstruction");
+                .expect_err("linkage validation must run before calibration validation");
         let message = error.to_string();
 
         assert!(
@@ -1959,7 +1750,7 @@ mod tests {
             .get_discount(discount_curve_id.as_str())
             .expect("discount representation");
         let mut mismatched_recipe = discount
-            .rate_calibration_recipe()
+            .rate_calibration()
             .expect("discount recipe")
             .clone();
         mismatched_recipe.role = RateCalibrationCurveRole::Discount {
@@ -1967,7 +1758,7 @@ mod tests {
         };
         let mismatched_discount = discount
             .to_builder_with_id(discount_curve_id.clone())
-            .rate_calibration_recipe(mismatched_recipe)
+            .rate_calibration(mismatched_recipe)
             .build()
             .expect("mismatched discount representation");
         let market = market.insert(mismatched_discount);
@@ -1991,7 +1782,7 @@ mod tests {
             .expect("projection representation");
         let forward_without_recipe = forward
             .to_builder_with_id(forward_curve_id.clone())
-            .rate_calibration_recipe_opt(None)
+            .rate_calibration_opt(None)
             .build()
             .expect("projection representation without recipe");
         let market = market.insert(forward_without_recipe);
@@ -2014,13 +1805,13 @@ mod tests {
             .get_forward(forward_curve_id.as_str())
             .expect("projection representation");
         let mut partial_recipe = forward
-            .rate_calibration_recipe()
+            .rate_calibration()
             .expect("projection recipe")
             .clone();
         partial_recipe.ois_compounding = None;
         let partial_forward = forward
             .to_builder_with_id(forward_curve_id.clone())
-            .rate_calibration_recipe(partial_recipe)
+            .rate_calibration(partial_recipe)
             .build()
             .expect("projection representation with partial OIS metadata");
         let market = market.insert(partial_forward);
@@ -2043,7 +1834,7 @@ mod tests {
             .get_discount(discount_curve_id.as_str())
             .expect("discount representation");
         let mut discount_recipe = discount
-            .rate_calibration_recipe()
+            .rate_calibration()
             .expect("discount recipe")
             .clone();
         discount_recipe.role = RateCalibrationCurveRole::Discount {
@@ -2051,7 +1842,7 @@ mod tests {
         };
         let discount = discount
             .to_builder_with_id(discount_curve_id.clone())
-            .rate_calibration_recipe(discount_recipe)
+            .rate_calibration(discount_recipe)
             .build()
             .expect("self-projected discount representation");
 
@@ -2059,13 +1850,13 @@ mod tests {
             .get_forward(forward_curve_id.as_str())
             .expect("projection representation");
         let mut forward_recipe = forward
-            .rate_calibration_recipe()
+            .rate_calibration()
             .expect("projection recipe")
             .clone();
         forward_recipe.ois_compounding = None;
         let forward = forward
             .to_builder_with_id(forward_curve_id.clone())
-            .rate_calibration_recipe(forward_recipe)
+            .rate_calibration(forward_recipe)
             .build()
             .expect("term-index projection representation");
         let market = market.insert(discount).insert(forward);
@@ -2078,7 +1869,7 @@ mod tests {
             .expect("independently replayed term-index projection");
         assert_eq!(
             shocked_forward
-                .rate_calibration_recipe()
+                .rate_calibration()
                 .expect("term-index recipe")
                 .ois_compounding,
             None
@@ -2177,17 +1968,26 @@ mod tests {
             .knots([(0.0, 1.0), (5.0, 0.80)])
             .build()
             .expect("discount curve");
-        let calibration = ForwardCurveRateCalibration {
-            index_id: "USD-SOFR-3M".to_string(),
+        let index_id = IndexId::new("USD-SOFR-3M");
+        let calibration = RateCalibrationRecipe {
             currency: Currency::USD,
-            discount_curve_id: CurveId::new("USD-OIS"),
+            method: RateCalibrationMethod::GlobalSolve {
+                use_analytical_jacobian: false,
+            },
+            curve_day_count: DayCount::Act360,
+            ois_compounding: None,
+            role: RateCalibrationCurveRole::Projection {
+                discount_curve_id: CurveId::new("USD-OIS"),
+            },
             quotes: vec![
-                ForwardCurveRateQuote::Deposit {
-                    tenor: "3M".to_string(),
+                RateCalibrationQuote::Deposit {
+                    index_id: index_id.clone(),
+                    pillar: RateCalibrationPillar::Tenor("3M".parse().expect("valid tenor")),
                     rate: 0.0400,
                 },
-                ForwardCurveRateQuote::Deposit {
-                    tenor: "6M".to_string(),
+                RateCalibrationQuote::Deposit {
+                    index_id,
+                    pillar: RateCalibrationPillar::Tenor("6M".parse().expect("valid tenor")),
                     rate: 0.0420,
                 },
             ],
@@ -2250,13 +2050,7 @@ mod tests {
         let shocked_calibration = shocked
             .rate_calibration()
             .expect("calibration metadata must survive quote shock");
-        assert_eq!(shocked_calibration.index_id, calibration.index_id);
-        assert_eq!(shocked_calibration.currency, calibration.currency);
-        assert_eq!(
-            shocked_calibration.discount_curve_id,
-            calibration.discount_curve_id
-        );
-        assert_eq!(shocked_calibration.quotes.len(), calibration.quotes.len());
+        assert_eq!(shocked_calibration, &calibration);
     }
 
     #[test]
@@ -2314,7 +2108,7 @@ mod tests {
             .cloned()
             .expect("calibrated curve recipe metadata");
         let recipe = source
-            .rate_calibration_recipe()
+            .rate_calibration()
             .expect("calibration target must stamp replay recipe");
         assert!(matches!(
             recipe.ois_compounding,
@@ -2365,18 +2159,24 @@ mod tests {
     fn discount_quote_overlay_preserves_source_validation_policy() {
         let base_date =
             Date::from_calendar_date(2025, time::Month::January, 2).expect("valid date");
-        let calibration = DiscountCurveRateCalibration {
-            index_id: "USD-SOFR-OIS".to_string(),
+        let index_id = IndexId::new("USD-SOFR-OIS");
+        let calibration = RateCalibrationRecipe {
             currency: Currency::USD,
+            method: RateCalibrationMethod::Bootstrap,
+            curve_day_count: DayCount::Act365F,
+            ois_compounding: None,
+            role: RateCalibrationCurveRole::Discount {
+                projection_curve_id: CurveId::new("USD-OIS"),
+            },
             quotes: vec![
-                finstack_quant_core::market_data::term_structures::DiscountCurveRateQuote {
-                    quote_type: DiscountCurveRateQuoteType::Deposit,
-                    tenor: "1Y".to_string(),
+                RateCalibrationQuote::Deposit {
+                    index_id: index_id.clone(),
+                    pillar: RateCalibrationPillar::Tenor("1Y".parse().expect("valid tenor")),
                     rate: -0.01,
                 },
-                finstack_quant_core::market_data::term_structures::DiscountCurveRateQuote {
-                    quote_type: DiscountCurveRateQuoteType::Deposit,
-                    tenor: "2Y".to_string(),
+                RateCalibrationQuote::Deposit {
+                    index_id,
+                    pillar: RateCalibrationPillar::Tenor("2Y".parse().expect("valid tenor")),
                     rate: 0.005,
                 },
             ],
@@ -2412,7 +2212,7 @@ mod tests {
     fn typed_recipe_replay_restores_mixed_quote_fields() {
         let date = Date::from_calendar_date(2025, time::Month::September, 17).expect("valid date");
         let recipe = RateCalibrationRecipe {
-            currency: Some(Currency::USD),
+            currency: Currency::USD,
             method: RateCalibrationMethod::Bootstrap,
             curve_day_count: DayCount::Act365F,
             ois_compounding: None,
@@ -2493,7 +2293,7 @@ mod tests {
         let shared_index = IndexId::new("USD-SOFR-OIS");
         let other_index = IndexId::new("USD-SOFR-3M");
         let recipe = RateCalibrationRecipe {
-            currency: Some(Currency::USD),
+            currency: Currency::USD,
             method: RateCalibrationMethod::Bootstrap,
             curve_day_count: DayCount::Act365F,
             ois_compounding: None,

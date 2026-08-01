@@ -178,26 +178,18 @@ pub fn rolling_regression_residual(
 /// @param values - Numeric signal observations aligned with `timeKey` and `volatility`.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
 /// @param volatility - Row-aligned risk estimates used as `signal / volatility`; zero, missing, or non-finite values yield missing weights.
-/// @param params - Reserved parameter object; accepted for API symmetry and has no effect.
 #[wasm_bindgen(js_name = riskScaledWeights)]
 pub fn risk_scaled_weights(
     values: JsValue,
     time_key: JsValue,
     volatility: JsValue,
-    params: Option<JsValue>,
 ) -> Result<JsValue, JsValue> {
     let values: Vec<Option<f64>> = serde_wasm_bindgen::from_value(values).map_err(to_js_err)?;
     let time_key: Vec<String> = serde_wasm_bindgen::from_value(time_key).map_err(to_js_err)?;
     let volatility: Vec<Option<f64>> =
         serde_wasm_bindgen::from_value(volatility).map_err(to_js_err)?;
-    let params = parse_params(params)?;
-    let result = finstack_quant_features::risk_scaled_weights(
-        &values,
-        &time_key,
-        &volatility,
-        params.as_ref(),
-    )
-    .map_err(to_js_err)?;
+    let result = finstack_quant_features::risk_scaled_weights(&values, &time_key, &volatility)
+        .map_err(to_js_err)?;
     to_js_value(&result)
 }
 
@@ -240,18 +232,11 @@ pub fn normalize_signal(
 /// Convert ranks into long/short weights.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
-/// @param params - Operation-specific parameter object defining transformation settings.
 #[wasm_bindgen(js_name = rankToWeights)]
-pub fn rank_to_weights(
-    values: JsValue,
-    time_key: JsValue,
-    params: Option<JsValue>,
-) -> Result<JsValue, JsValue> {
+pub fn rank_to_weights(values: JsValue, time_key: JsValue) -> Result<JsValue, JsValue> {
     let values: Vec<Option<f64>> = serde_wasm_bindgen::from_value(values).map_err(to_js_err)?;
     let time_key: Vec<String> = serde_wasm_bindgen::from_value(time_key).map_err(to_js_err)?;
-    let params = parse_params(params)?;
-    let result = finstack_quant_features::rank_to_weights(&values, &time_key, params.as_ref())
-        .map_err(to_js_err)?;
+    let result = finstack_quant_features::rank_to_weights(&values, &time_key).map_err(to_js_err)?;
     to_js_value(&result)
 }
 

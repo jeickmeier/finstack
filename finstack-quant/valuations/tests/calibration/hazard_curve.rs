@@ -1,4 +1,4 @@
-//! Hazard curve calibration tests (v2).
+//! Hazard curve calibration tests (canonical).
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
@@ -57,13 +57,13 @@ fn hazard_total_variation(
 
 #[test]
 fn hazard_calibration_positive_rates() {
-    // Use ISDA-friendly dates (IMM 20th) because v2 hazard bootstrapping builds
+    // Use ISDA-friendly dates (IMM 20th) because canonical hazard bootstrapping builds
     // canonical CDS instruments under ISDA conventions.
     let base = Date::from_calendar_date(2025, Month::March, 20).unwrap();
     let currency = Currency::USD;
 
     let disc = create_test_discount_curve(base);
-    let initial_market = MarketContext::new().insert(disc);
+    let source_market = MarketContext::new().insert(disc);
 
     let quotes = vec![
         MarketQuote::Cds(CdsQuote::CdsParSpread {
@@ -110,7 +110,7 @@ fn hazard_calibration_positive_rates() {
         }),
     ];
 
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("credit".to_string(), cal_utils::quote_set_ids(&quotes));
@@ -146,7 +146,7 @@ fn hazard_calibration_positive_rates() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -169,7 +169,7 @@ fn hazard_calibration_rejects_zero_spread() {
     let currency = Currency::USD;
 
     let disc = create_test_discount_curve(base);
-    let initial_market = MarketContext::new().insert(disc);
+    let source_market = MarketContext::new().insert(disc);
 
     let quotes = vec![MarketQuote::Cds(CdsQuote::CdsParSpread {
         id: QuoteId::new(format!(
@@ -186,7 +186,7 @@ fn hazard_calibration_rejects_zero_spread() {
         },
     })];
 
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("credit".to_string(), cal_utils::quote_set_ids(&quotes));
@@ -220,7 +220,7 @@ fn hazard_calibration_rejects_zero_spread() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -241,7 +241,7 @@ fn hazard_calibration_rejects_negative_spread() {
     let currency = Currency::USD;
 
     let disc = create_test_discount_curve(base);
-    let initial_market = MarketContext::new().insert(disc);
+    let source_market = MarketContext::new().insert(disc);
 
     let quotes = vec![MarketQuote::Cds(CdsQuote::CdsParSpread {
         id: QuoteId::new(format!(
@@ -258,7 +258,7 @@ fn hazard_calibration_rejects_negative_spread() {
         },
     })];
 
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("credit".to_string(), cal_utils::quote_set_ids(&quotes));
@@ -292,7 +292,7 @@ fn hazard_calibration_rejects_negative_spread() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -313,7 +313,7 @@ fn hazard_calibration_rejects_non_standard_upfront_running_coupon() {
     let currency = Currency::USD;
 
     let disc = create_test_discount_curve(base);
-    let initial_market = MarketContext::new().insert(disc);
+    let source_market = MarketContext::new().insert(disc);
 
     let quotes = vec![MarketQuote::Cds(CdsQuote::CdsUpfront {
         id: QuoteId::new("CDS-UPFRONT-250BP"),
@@ -328,7 +328,7 @@ fn hazard_calibration_rejects_non_standard_upfront_running_coupon() {
         },
     })];
 
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("credit".to_string(), cal_utils::quote_set_ids(&quotes));
@@ -362,7 +362,7 @@ fn hazard_calibration_rejects_non_standard_upfront_running_coupon() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -386,7 +386,7 @@ fn hazard_calibration_handles_extreme_high_spread() {
     let currency = Currency::USD;
 
     let disc = create_test_discount_curve(base);
-    let initial_market = MarketContext::new().insert(disc);
+    let source_market = MarketContext::new().insert(disc);
 
     let quotes = vec![
         MarketQuote::Cds(CdsQuote::CdsParSpread {
@@ -433,7 +433,7 @@ fn hazard_calibration_handles_extreme_high_spread() {
         }),
     ];
 
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("credit".to_string(), cal_utils::quote_set_ids(&quotes));
@@ -469,7 +469,7 @@ fn hazard_calibration_handles_extreme_high_spread() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -496,7 +496,7 @@ fn hazard_calibration_global_solve_sqrt_time_is_not_rougher_than_bootstrap() {
     let currency = Currency::USD;
 
     let disc = create_test_discount_curve(base);
-    let initial_market = MarketContext::new().insert(disc);
+    let source_market = MarketContext::new().insert(disc);
 
     let quotes = vec![
         MarketQuote::Cds(CdsQuote::CdsParSpread {
@@ -557,7 +557,7 @@ fn hazard_calibration_global_solve_sqrt_time_is_not_rougher_than_bootstrap() {
         }),
     ];
 
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("credit".to_string(), cal_utils::quote_set_ids(&quotes));
@@ -594,7 +594,7 @@ fn hazard_calibration_global_solve_sqrt_time_is_not_rougher_than_bootstrap() {
     let bootstrap_env = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan: bootstrap_plan,
         market_data: market_data.clone(),
         prior_market: prior.clone(),
@@ -651,7 +651,7 @@ fn hazard_calibration_global_solve_sqrt_time_is_not_rougher_than_bootstrap() {
     let global_env = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan: global_plan,
         market_data,
         prior_market: prior,
@@ -697,7 +697,7 @@ fn hazard_calibration_reprices_par_spread() {
     let maturity = Date::from_calendar_date(2026, Month::March, 20).unwrap();
 
     let disc = create_test_discount_curve(base);
-    let initial_market = MarketContext::new().insert(disc);
+    let source_market = MarketContext::new().insert(disc);
 
     let cds_quote = CdsQuote::CdsParSpread {
         id: QuoteId::new("CDS-1Y"),
@@ -712,7 +712,7 @@ fn hazard_calibration_reprices_par_spread() {
     };
 
     let credit_quotes = vec![MarketQuote::Cds(cds_quote.clone())];
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &credit_quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert(
@@ -751,7 +751,7 @@ fn hazard_calibration_reprices_par_spread() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,

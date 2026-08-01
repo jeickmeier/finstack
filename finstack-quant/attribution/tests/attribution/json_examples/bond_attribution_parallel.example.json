@@ -12,33 +12,20 @@
         "issue_date": "2024-01-01",
         "maturity": "2029-01-01",
         "cashflow_spec": {
-          "Fixed": {
-            "coupon_type": "Cash",
-            "rate": 0.045,
-            "freq": {"count": 6, "unit": "months"},
-            "dc": "Thirty360",
-            "bdc": "following",
+          "fixed": {
+            "coupon_type": "cash",
+          "rate": "0.045",
+            "frequency": {"count": 6, "unit": "months"},
+            "day_count": "30_360",
+            "business_day_convention": "following",
             "calendar_id": "weekends_only",
-            "stub": "None",
+            "stub": "none",
             "end_of_month": false,
             "payment_lag_days": 0
           }
         },
         "discount_curve_id": "USD-OIS",
         "credit_curve_id": null,
-        "pricing_overrides": {
-          "quoted_clean_price": null,
-          "implied_volatility": null,
-          "cds_quote_bp": null,
-          "upfront_payment": null,
-          "ytm_bump_decimal": null,
-          "theta_period": null,
-          "mc_seed_scenario": null,
-          "adaptive_bumps": false,
-          "spot_bump_pct": null,
-          "vol_bump_pct": null,
-          "rate_bump_bp": null
-        },
         "call_put": null,
         "attributes": {
           "tags": [],
@@ -49,6 +36,7 @@
       }
     },
     "market_t0": {
+      "schema_version": 1,
       "curves": [],
       "fx": null,
       "surfaces": [],
@@ -57,9 +45,15 @@
       "inflation_indices": [],
       "dividends": [],
       "credit_indices": [],
-      "collateral": {}
+      "fx_delta_vol_surfaces": [],
+      "vol_cubes": [],
+      "collateral": {},
+      "hierarchy": {
+        "roots": {}
+      }
     },
     "market_t1": {
+      "schema_version": 1,
       "curves": [],
       "fx": null,
       "surfaces": [],
@@ -68,10 +62,15 @@
       "inflation_indices": [],
       "dividends": [],
       "credit_indices": [],
-      "collateral": {}
+      "fx_delta_vol_surfaces": [],
+      "vol_cubes": [],
+      "collateral": {},
+      "hierarchy": {
+        "roots": {}
+      }
     },
     "as_of_t0": "2025-01-15",
     "as_of_t1": "2025-01-16",
-    "method": "Parallel"
+    "method":"parallel"
   }
 }

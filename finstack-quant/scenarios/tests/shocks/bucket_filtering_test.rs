@@ -35,7 +35,7 @@ fn test_vol_bucket_filtering_by_tenor() {
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
             surface_kind: VolSurfaceKind::Equity,
-            surface_id: "SPX".into(),
+            vol_surface_id: "SPX".into(),
             tenors: Some(vec!["1Y".into()]),
             strikes: None, // All strikes at 1Y
             pct: 10.0,
@@ -105,7 +105,7 @@ fn test_vol_bucket_filtering_by_strike() {
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
             surface_kind: VolSurfaceKind::Equity,
-            surface_id: "SPX".into(),
+            vol_surface_id: "SPX".into(),
             tenors: None,
             strikes: Some(vec![100.0]),
             pct: 20.0, // +20% vol
@@ -167,7 +167,7 @@ fn test_vol_bucket_unfiltered_is_multiplicative() {
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
             surface_kind: VolSurfaceKind::Equity,
-            surface_id: "SPX".into(),
+            vol_surface_id: "SPX".into(),
             tenors: None,
             strikes: None,
             pct: 10.0,
@@ -225,7 +225,7 @@ fn test_basecorr_bucket_filtering() {
         description: None,
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
-            detachment_bps: Some(vec![700]), // 7% = 700bp. Adapter converts 700 -> 0.07
+            detachment_bp: Some(vec![700]), // 7% = 700bp. Adapter converts 700 -> 0.07
             maturities: None,
             points: 0.05, // +5 points
         }],
@@ -289,7 +289,7 @@ fn test_basecorr_bucket_filtering_uses_tight_detachment_match() {
         description: None,
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
-            detachment_bps: Some(vec![300]),
+            detachment_bp: Some(vec![300]),
             maturities: None,
             points: 0.05,
         }],
@@ -337,7 +337,7 @@ fn test_basecorr_bucket_filtering_reports_clamp_and_no_match() {
         description: None,
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
-            detachment_bps: Some(vec![300]),
+            detachment_bp: Some(vec![300]),
             maturities: None,
             points: 0.05,
         }],
@@ -369,7 +369,7 @@ fn test_basecorr_bucket_filtering_reports_clamp_and_no_match() {
         description: None,
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
-            detachment_bps: Some(vec![500]),
+            detachment_bp: Some(vec![500]),
             maturities: None,
             points: 0.02,
         }],

@@ -1,7 +1,5 @@
 //! Identity and version policy for persisted contracts.
 
-use std::ops::RangeInclusive;
-
 use super::{ContractError, Diagnostic, LoadLimits, LoadPhase, Severity, ValidationReport};
 
 /// Identity and version policy for one persisted contract.
@@ -9,47 +7,33 @@ use super::{ContractError, Diagnostic, LoadLimits, LoadPhase, Severity, Validati
 pub struct ContractDescriptor {
     /// Stable contract identifier, such as `"finstack_quant.instrument"`.
     pub id: &'static str,
-    /// Version written by current producers.
-    pub current: u32,
-    /// Inclusive range of versions accepted by the loader.
-    pub supported: RangeInclusive<u32>,
-    /// Version assigned to payloads that omit the version marker.
-    ///
-    /// `None` means a missing version is an error, which is the strict default
-    /// for new contracts.
-    pub legacy_missing: Option<u32>,
 }
 
 impl ContractDescriptor {
-    /// Create a strict descriptor that supports only its current version.
+    /// The sole version emitted and accepted by all persisted contracts.
+    pub const VERSION: u32 = 1;
+
+    /// Create a strict v1 descriptor.
     ///
     /// # Arguments
     ///
     /// * `id` - Stable, exact contract identifier used before the slash in
     ///   schema strings.
-    /// * `current` - Positive version emitted by current producers and accepted
-    ///   as the descriptor's sole supported version.
     #[must_use]
-    pub const fn new(id: &'static str, current: u32) -> Self {
-        Self {
-            id,
-            current,
-            supported: current..=current,
-            legacy_missing: None,
-        }
+    pub const fn new(id: &'static str) -> Self {
+        Self { id }
     }
 
     /// Return the current schema marker as `"<contract>/<version>"`.
     #[must_use]
     pub fn schema_string(&self) -> String {
-        format!("{}/{}", self.id, self.current)
+        format!("{}/{}", self.id, Self::VERSION)
     }
 
     /// Parse and validate an exact schema marker for this contract.
     ///
-    /// The contract identifier must match exactly. Version zero, versions
-    /// outside [`Self::supported`], missing components, and non-decimal version
-    /// text are rejected.
+    /// The contract identifier must match exactly. Any version other than v1,
+    /// missing components, and non-decimal version text are rejected.
     ///
     /// # Arguments
     ///
@@ -59,7 +43,7 @@ impl ContractDescriptor {
     ///
     /// Returns [`ContractError::MalformedSchema`] when the marker is malformed
     /// or names another contract, and [`ContractError::UnsupportedVersion`]
-    /// when its parsed version is zero or outside the supported range.
+    /// when its parsed version is not v1.
     pub fn parse_schema(&self, s: &str) -> Result<u32, ContractError> {
         let expected = self.id.to_string();
         let Some(version_text) = s
@@ -88,21 +72,20 @@ impl ContractDescriptor {
         self.validate_version(version)
     }
 
-    /// Resolve an optional payload version under this descriptor's policy.
+    /// Resolve a required payload version.
     ///
     /// # Arguments
     ///
     /// * `found` - Explicit payload version, or `None` when the payload omitted
-    ///   its version marker. Missing versions use [`Self::legacy_missing`] when
-    ///   configured.
+    ///   its version marker.
     ///
     /// # Errors
     ///
     /// Returns [`ContractError::MissingVersion`] under strict missing-version
     /// policy, or [`ContractError::UnsupportedVersion`] when the resolved
-    /// version is zero or outside [`Self::supported`].
+    /// version is not v1.
     pub fn resolve(&self, found: Option<u32>) -> Result<u32, ContractError> {
-        match found.or(self.legacy_missing) {
+        match found {
             Some(version) => self.validate_version(version),
             None => Err(ContractError::MissingVersion {
                 contract: self.id.to_string(),
@@ -111,11 +94,6 @@ impl ContractDescriptor {
     }
 
     /// Resolve a required explicit numeric version and return structured errors.
-    ///
-    /// Unlike [`Self::resolve`], this method deliberately ignores
-    /// [`Self::legacy_missing`]. It is intended for strict persistence paths
-    /// where accepting an omitted version would make the stored contract
-    /// ambiguous.
     ///
     /// # Arguments
     ///
@@ -175,15 +153,15 @@ impl ContractDescriptor {
     }
 
     fn validate_version(&self, version: u32) -> Result<u32, ContractError> {
-        if version != 0 && self.supported.contains(&version) {
+        if version == Self::VERSION {
             return Ok(version);
         }
 
         Err(ContractError::UnsupportedVersion {
             contract: self.id.to_string(),
             found: version,
-            min: *self.supported.start(),
-            max: *self.supported.end(),
+            min: Self::VERSION,
+            max: Self::VERSION,
         })
     }
 
@@ -202,7 +180,7 @@ impl ContractDescriptor {
             )
             .with_pointer(pointer)
             .with_contract(self.id)
-            .with_expected_version(self.current),
+            .with_expected_version(Self::VERSION),
             ContractError::UnsupportedVersion { found, .. } => Diagnostic::new(
                 "contract/version-unsupported",
                 LoadPhase::Version,
@@ -211,7 +189,7 @@ impl ContractDescriptor {
             )
             .with_pointer(pointer)
             .with_contract(self.id)
-            .with_expected_version(self.current)
+            .with_expected_version(Self::VERSION)
             .with_actual_version(*found),
             ContractError::MalformedSchema { .. } => Diagnostic::new(
                 "contract/schema-malformed",
@@ -221,7 +199,7 @@ impl ContractDescriptor {
             )
             .with_pointer(pointer)
             .with_contract(self.id)
-            .with_expected_version(self.current),
+            .with_expected_version(Self::VERSION),
             _ => return error,
         };
         let mut report = ValidationReport::default();

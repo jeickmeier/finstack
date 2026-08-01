@@ -75,11 +75,7 @@ pub struct LiquidityProfile {
     /// [`SpreadVolatilityKind::Relative`] (the original Bangia convention).
     pub spread_volatility: f64,
 
-    /// Interpretation of [`Self::spread_volatility`]: relative (default) or absolute.
-    ///
-    /// Defaulted via serde so existing serialized profiles continue to deserialize
-    /// as `Relative`, which matches Bangia et al. (1999).
-    #[serde(default)]
+    /// Interpretation of [`Self::spread_volatility`]: relative or absolute.
     pub spread_volatility_kind: SpreadVolatilityKind,
 
     /// Observation window in trading days for volume/spread statistics.
@@ -99,7 +95,6 @@ struct LiquidityProfileWire {
     avg_daily_volume: f64,
     avg_trade_size: f64,
     spread_volatility: f64,
-    #[serde(default)]
     spread_volatility_kind: SpreadVolatilityKind,
     observation_days: u32,
 }
@@ -254,6 +249,7 @@ impl LiquidityProfile {
 ///
 /// - AIFMD liquidity bucketing: `docs/REFERENCES.md#esma2014AifmdGuidelines`
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum LiquidityTier {
     /// Tier 1: < 1 day to liquidate (highly liquid).
     Tier1,
@@ -345,14 +341,7 @@ pub struct LiquidityConfig {
     ///
     /// Set to `0.0` to disable the endogenous term entirely (only the Bangia
     /// exogenous + spread-vol terms remain in `lvar_bangia`). Default: 0.1.
-    #[serde(default = "default_endogenous_spread_coef")]
     pub endogenous_spread_coef: f64,
-}
-
-fn default_endogenous_spread_coef() -> f64 {
-    crate::registry::embedded_liquidity_defaults_or_panic()
-        .default_config
-        .endogenous_spread_coef
 }
 
 impl Default for LiquidityConfig {
@@ -578,29 +567,19 @@ mod tests {
         Ok(())
     }
 
-    /// Legacy `LiquidityConfig` JSON predates the `endogenous_spread_coef`
-    /// field; deserializing such a payload must succeed and fall back to the
-    /// documented default (0.1) so existing on-disk configs keep loading
-    /// after the field was added.
     #[test]
-    fn serde_legacy_config_uses_endogenous_default(
+    fn serde_config_requires_endogenous_spread_coefficient(
     ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let legacy_json = r#"{
+        let incomplete_json = r#"{
             "participation_rate": 0.10,
             "tier_thresholds": [1.0, 5.0, 20.0, 60.0],
             "risk_aversion": 1e-6,
             "holding_period": 1.0,
             "confidence_level": 0.99
         }"#;
-        let parsed: LiquidityConfig = serde_json::from_str(legacy_json)?;
-        assert!(
-            (parsed.endogenous_spread_coef - 0.1).abs() < 1e-12,
-            "missing endogenous_spread_coef must default to 0.1, got {}",
-            parsed.endogenous_spread_coef
-        );
-        // The remaining fields should match the legacy values verbatim.
-        assert!((parsed.participation_rate - 0.10).abs() < 1e-12);
-        assert!((parsed.confidence_level - 0.99).abs() < 1e-12);
+        let error = serde_json::from_str::<LiquidityConfig>(incomplete_json)
+            .expect_err("endogenous_spread_coef is required");
+        assert!(error.to_string().contains("endogenous_spread_coef"));
         Ok(())
     }
 }

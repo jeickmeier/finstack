@@ -1,7 +1,6 @@
 //! Deterministic JSON wire representation for FRTB sensitivities.
 
 use finstack_quant_core::currency::Currency;
-use std::collections::BTreeMap;
 
 use super::types::{DrcPosition, FrtbSensitivities, RraoPosition};
 
@@ -15,76 +14,32 @@ type CurrencyPairValue = (Currency, Currency, f64);
 type CurrencyPairVega = (Currency, Currency, String, f64);
 type CurrencyPairCurvature = (Currency, Currency, f64, f64);
 
-#[derive(serde::Deserialize)]
-#[serde(untagged)]
-enum EntriesOrLegacyEmpty<T> {
-    Entries(Vec<T>),
-    LegacyEmpty(BTreeMap<String, serde::de::IgnoredAny>),
-}
-
-fn deserialize_entries_or_legacy_empty<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: serde::Deserialize<'de>,
-{
-    match <EntriesOrLegacyEmpty<T> as serde::Deserialize>::deserialize(deserializer)? {
-        EntriesOrLegacyEmpty::Entries(entries) => Ok(entries),
-        EntriesOrLegacyEmpty::LegacyEmpty(map) if map.is_empty() => Ok(Vec::new()),
-        EntriesOrLegacyEmpty::LegacyEmpty(_) => Err(serde::de::Error::custom(
-            "legacy FRTB map representation must be empty",
-        )),
-    }
-}
-
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FrtbSensitivitiesWire {
     base_currency: Currency,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     girr_delta: Vec<CurrencyTenor>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     girr_inflation_delta: Vec<CurrencyValue>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     girr_xccy_basis_delta: Vec<CurrencyValue>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     girr_vega: Vec<CurrencyVega>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     girr_curvature: Vec<CurrencyCurvature>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     csr_nonsec_delta: Vec<LabelBucketTenor>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     csr_nonsec_vega: Vec<LabelBucketTenor>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     csr_nonsec_curvature: Vec<LabelBucketCurvature>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     csr_sec_ctp_delta: Vec<LabelBucketTenor>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     csr_sec_ctp_vega: Vec<LabelBucketTenor>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     csr_sec_ctp_curvature: Vec<LabelBucketCurvature>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     csr_sec_nonctp_delta: Vec<LabelBucketTenor>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     csr_sec_nonctp_vega: Vec<LabelBucketTenor>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     csr_sec_nonctp_curvature: Vec<LabelBucketCurvature>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     equity_delta: Vec<(String, u8, f64)>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     equity_vega: Vec<LabelBucketTenor>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     equity_curvature: Vec<LabelBucketCurvature>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     commodity_delta: Vec<LabelBucketTenor>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     commodity_vega: Vec<LabelBucketTenor>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     commodity_curvature: Vec<LabelBucketCurvature>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     fx_delta: Vec<CurrencyPairValue>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     fx_vega: Vec<CurrencyPairVega>,
-    #[serde(deserialize_with = "deserialize_entries_or_legacy_empty")]
     fx_curvature: Vec<CurrencyPairCurvature>,
     drc_positions: Vec<DrcPosition>,
     rrao_exotic_notionals: Vec<RraoPosition>,

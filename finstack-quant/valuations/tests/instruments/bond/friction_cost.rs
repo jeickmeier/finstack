@@ -54,9 +54,9 @@ fn call_friction_raises_callable_price_toward_straight() {
     let market = market(as_of);
 
     let discount_curve = market.get_discount("USD-OIS").unwrap();
-    let dc = discount_curve.day_count();
+    let day_count = discount_curve.day_count();
     let maturity = date!(2030 - 01 - 01);
-    let time_to_maturity = dc
+    let time_to_maturity = day_count
         .year_fraction(as_of, maturity, DayCountContext::default())
         .unwrap();
 

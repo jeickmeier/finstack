@@ -49,11 +49,11 @@ fn convertible_with_credit() -> Arc<dyn Instrument> {
         coupon_type: CouponType::Cash,
         rate: rust_decimal::Decimal::from_f64_retain(0.05).unwrap(),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -91,12 +91,12 @@ fn convertible_with_credit() -> Arc<dyn Instrument> {
 }
 
 /// Market with a risk-free `USD-OIS` curve and a wider risky `USD-CREDIT`
-/// discount curve. Only `credit_spread_bps` varies between the two test dates;
+/// discount curve. Only `credit_spread_bp` varies between the two test dates;
 /// `USD-OIS`, spot and vol are held fixed so the P&L is purely a credit move.
-fn market(credit_spread_bps: f64) -> MarketContext {
+fn market(credit_spread_bp: f64) -> MarketContext {
     let base = t0();
     let rf = 0.03;
-    let credit = rf + credit_spread_bps / 10_000.0;
+    let credit = rf + credit_spread_bp / 10_000.0;
 
     // LogLinear so the flat zero rate extrapolates cleanly past the last knot
     // to the 30Y tenors the key-rate attribution samples (Linear DF

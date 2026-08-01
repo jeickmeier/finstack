@@ -26,7 +26,7 @@ class TestEquityOptionTyped:
     def test_builder_round_trip(self) -> None:
         option = _equity_option()
         payload = json.loads(option.to_json())
-        assert payload["type"] == "equity_option"
+        assert payload["instrument"]["type"] == "equity_option"
         assert EquityOption.from_json(option.to_json()).id == "AAPL-C-200"
 
     def test_invalid_option_type_raises(self) -> None:
@@ -50,7 +50,7 @@ class TestEquityOptionTyped:
             .build()
         )
         payload = json.loads(option.to_json())
-        assert payload["type"] == "equity_option"
+        assert payload["instrument"]["type"] == "equity_option"
 
     def test_invalid_exercise_style_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid exercise_style"):
@@ -76,7 +76,7 @@ class TestEquityOptionTyped:
             .build()
         )
         payload = json.loads(option.to_json())
-        assert payload["type"] == "equity_option"
+        assert payload["instrument"]["type"] == "equity_option"
         assert EquityOption.from_json(option.to_json()).id == "AAPL-C-200-DIV"
 
 
@@ -84,7 +84,7 @@ class TestCDSTrancheTyped:
     def test_builder_round_trip(self) -> None:
         tranche = _cds_tranche()
         payload = json.loads(tranche.to_json())
-        assert payload["type"] == "cds_tranche"
+        assert payload["instrument"]["type"] == "cds_tranche"
         assert CDSTranche.from_json(tranche.to_json()).id == "CDX-IG-42-3-7"
 
     def test_sell_protection_side_and_overrides(self) -> None:
@@ -111,7 +111,7 @@ class TestCDSTrancheTyped:
             .build()
         )
         payload = json.loads(tranche.to_json())
-        assert payload["type"] == "cds_tranche"
+        assert payload["instrument"]["type"] == "cds_tranche"
 
     def test_invalid_side_case_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid side"):
@@ -122,19 +122,19 @@ class TestConvertibleBondTyped:
     def test_builder_with_conversion_json_round_trips(self) -> None:
         bond = _convertible()
         payload = json.loads(bond.to_json())
-        assert payload["type"] == "convertible_bond"
+        assert payload["instrument"]["type"] == "convertible_bond"
         assert ConvertibleBond.from_json(bond.to_json()).id == "CONV-1"
 
     def test_invalid_conversion_json_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid conversion JSON"):
             ConvertibleBond.builder().conversion_json("{nope")
 
-    def test_conversion_json_wrong_case_enum_raises(self) -> None:
+    def test_conversion_json_pascal_case_enum_raises(self) -> None:
         conversion = json.dumps({
             "ratio": 20.0,
             "price": None,
-            "policy": "voluntary",
-            "anti_dilution": "full_ratchet",
+            "policy": "Voluntary",  # schema-rejection-test
+            "anti_dilution": "FullRatchet",  # schema-rejection-test
             "dividend_adjustment": "none",
             "dilution_events": [],
         })
@@ -145,9 +145,9 @@ class TestConvertibleBondTyped:
         conversion = json.dumps({
             "ratio": None,
             "price": 50.0,
-            "policy": "Voluntary",
-            "anti_dilution": "None",
-            "dividend_adjustment": "AdjustRatio",
+            "policy": "voluntary",
+            "anti_dilution": "none",
+            "dividend_adjustment": "adjust_ratio",
             "dilution_events": [],
         })
         bond = (
@@ -166,4 +166,4 @@ class TestConvertibleBondTyped:
             .build()
         )
         payload = json.loads(bond.to_json())
-        assert payload["type"] == "convertible_bond"
+        assert payload["instrument"]["type"] == "convertible_bond"

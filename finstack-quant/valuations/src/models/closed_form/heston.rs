@@ -1742,17 +1742,17 @@ mod tests {
         // noise. The two implementations use different quadrature schemes
         // (composite Gauss-Legendre here, adaptive GL in volatility/heston.rs)
         // so a small tolerance is expected, but the previous 0.1 tolerance was
-        // far too loose — at this parameter set both schemes agree to ~5 bps,
-        // and any drift beyond ~10 bps signals a real divergence between the
+        // far too loose — at this parameter set both schemes agree to ~5 bp,
+        // and any drift beyond ~10 bp signals a real divergence between the
         // two implementations of the same algorithm.
-        let diff_bps = (our_price - vol_price).abs() * 10_000.0 / our_price.max(1e-12);
+        let diff_bp = (our_price - vol_price).abs() * 10_000.0 / our_price.max(1e-12);
         assert!(
-            diff_bps < 10.0,
-            "Heston implementations diverged by {:.2} bps at canonical params \
+            diff_bp < 10.0,
+            "Heston implementations diverged by {:.2} bp at canonical params \
              (closed_form={:.6}, volatility module={:.6}). Cross-validation tolerance \
              tightened from the legacy 100bps to catch silent drift between the two \
              Fourier-inversion implementations.",
-            diff_bps,
+            diff_bp,
             our_price,
             vol_price
         );

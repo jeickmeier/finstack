@@ -320,7 +320,8 @@ fn test_doc_clause_default_when_omitted() {
                 end: as_of.add_months(60),
                 frequency: finstack_quant_core::dates::Tenor::quarterly(),
                 stub: finstack_quant_core::dates::StubKind::ShortFront,
-                bdc: finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+                business_day_convention:
+                    finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
                 calendar_id: Some("nyse".to_string()),
                 day_count: finstack_quant_core::dates::DayCount::Act360,
                 spread_bp: Decimal::try_from(100.0).expect("valid"),

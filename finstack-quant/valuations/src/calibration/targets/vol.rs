@@ -64,14 +64,6 @@ impl VolSurfaceTarget {
             ));
         }
 
-        let model = params.model.trim().to_ascii_lowercase();
-        if model != "sabr" {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "VolSurface model '{}' is not supported (currently supported: 'sabr')",
-                params.model
-            )));
-        }
-
         // Equity surfaces store Black vols; β≈0 produces normal vols.
         const EQUITY_BETA_MIN: f64 = 1e-4;
         if params.beta < EQUITY_BETA_MIN {
@@ -107,11 +99,11 @@ impl VolSurfaceTarget {
         // Group by expiry (year fraction)
         let mut quotes_by_expiry: BTreeMap<OrderedF64, Vec<&VolQuote>> = BTreeMap::new();
         // We need day count for time conversion. Default to Act365F for vol surfaces if not specified.
-        let time_dc = finstack_quant_core::dates::DayCount::Act365F;
+        let time_day_count = finstack_quant_core::dates::DayCount::Act365F;
 
         for q in &vol_quotes {
             if let VolQuote::OptionVol { expiry, .. } = q {
-                let t = time_dc.year_fraction(
+                let t = time_day_count.year_fraction(
                     params.base_date,
                     *expiry,
                     finstack_quant_core::dates::DayCountContext::default(),
@@ -267,7 +259,7 @@ impl VolSurfaceTarget {
         }
 
         let surface = VolSurface::from_grid(
-            &params.surface_id,
+            &params.vol_surface_id,
             &params.target_expiries,
             &params.target_strikes,
             &grid,
@@ -431,6 +423,7 @@ Set params.expiry_extrapolation='clamp' to allow flat extrapolation.",
 mod tests {
     use super::*;
 
+    use crate::calibration::api::schema::VolSurfaceModel;
     use crate::instruments::OptionType;
     use crate::market::conventions::ids::OptionConventionId;
     use crate::market::quotes::ids::QuoteId;
@@ -513,13 +506,13 @@ mod tests {
     }
 
     #[test]
-    fn vol_surface_rejects_non_sabr_model() {
+    fn vol_surface_params_reject_noncanonical_model() {
         let base_date = date(2025, Month::January, 2);
         let params = VolSurfaceParams {
-            surface_id: "SPX-VOL".to_string(),
+            vol_surface_id: "SPX-VOL".to_string(),
             base_date,
             underlying_ticker: "SPX".to_string(),
-            model: "black".to_string(),
+            model: VolSurfaceModel::Sabr,
             discount_curve_id: None,
             beta: 0.5,
             target_expiries: vec![0.5],
@@ -529,14 +522,9 @@ mod tests {
             expiry_extrapolation: SurfaceExtrapolationPolicy::Clamp,
         };
 
-        let err = VolSurfaceTarget::solve(
-            &params,
-            &[],
-            &MarketContext::new(),
-            &CalibrationConfig::default(),
-        )
-        .expect_err("unsupported model should error");
-        assert!(err.to_string().contains("not supported"));
+        let mut json = serde_json::to_value(params).expect("serialize params");
+        json["model"] = serde_json::Value::String("SABR".to_string());
+        assert!(serde_json::from_value::<VolSurfaceParams>(json).is_err());
     }
 
     #[test]
@@ -551,10 +539,10 @@ mod tests {
         let ctx = MarketContext::new().insert(disc);
 
         let params = VolSurfaceParams {
-            surface_id: "SPX-VOL".to_string(),
+            vol_surface_id: "SPX-VOL".to_string(),
             base_date,
             underlying_ticker: "SPX".to_string(),
-            model: "SABR".to_string(),
+            model: VolSurfaceModel::Sabr,
             discount_curve_id: Some("USD-OIS".into()),
             beta: 0.5,
             target_expiries: vec![1.0, 2.0],

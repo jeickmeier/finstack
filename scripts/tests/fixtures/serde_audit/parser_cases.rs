@@ -64,11 +64,6 @@ pub struct MarkerOnlyType {
     pub value: String,
 }
 
-#[derive(Debug, finstack_quant_valuations_macros::FocusedPricingOverrides)]
-pub struct MacroProvidedSpec {
-    pub value: String,
-}
-
 #[cfg(test)]
 mod tests {
     #[derive(serde::Serialize)]

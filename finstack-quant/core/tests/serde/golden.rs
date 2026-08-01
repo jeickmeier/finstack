@@ -45,29 +45,29 @@ fn test_tenor_json_stable() {
 
 #[test]
 fn test_daycount_json_stable() {
-    let dc = DayCount::Act360;
-    let json = serde_json::to_string(&dc).unwrap();
-    assert_eq!(json, r#""Act360""#);
+    let day_count = DayCount::Act360;
+    let json = serde_json::to_string(&day_count).unwrap();
+    assert_eq!(json, r#""act_360""#);
 
     let deserialized: DayCount = serde_json::from_str(&json).unwrap();
-    assert_eq!(deserialized, dc);
+    assert_eq!(deserialized, day_count);
 }
 
 #[test]
 fn test_business_day_convention_json_stable() {
-    let bdc = BusinessDayConvention::ModifiedFollowing;
-    let json = serde_json::to_string(&bdc).unwrap();
+    let business_day_convention = BusinessDayConvention::ModifiedFollowing;
+    let json = serde_json::to_string(&business_day_convention).unwrap();
     assert_eq!(json, r#""modified_following""#);
 
     let deserialized: BusinessDayConvention = serde_json::from_str(&json).unwrap();
-    assert_eq!(deserialized, bdc);
+    assert_eq!(deserialized, business_day_convention);
 }
 
 #[test]
 fn test_stub_kind_json_stable() {
     let stub = StubKind::ShortFront;
     let json = serde_json::to_string(&stub).unwrap();
-    assert_eq!(json, r#""ShortFront""#);
+    assert_eq!(json, r#""short_front""#);
 
     let deserialized: StubKind = serde_json::from_str(&json).unwrap();
     assert_eq!(deserialized, stub);
@@ -77,7 +77,7 @@ fn test_stub_kind_json_stable() {
 fn test_cfkind_json_stable() {
     let kind = CFKind::Fixed;
     let json = serde_json::to_string(&kind).unwrap();
-    assert_eq!(json, r#""Fixed""#);
+    assert_eq!(json, r#""fixed""#);
 
     let deserialized: CFKind = serde_json::from_str(&json).unwrap();
     assert_eq!(deserialized, kind);
@@ -136,10 +136,14 @@ fn test_roundtrip_all_daycounts() {
         DayCount::Bus252,
     ];
 
-    for dc in daycounts {
-        let json = serde_json::to_string(&dc).unwrap();
+    for day_count in daycounts {
+        let json = serde_json::to_string(&day_count).unwrap();
         let deserialized: DayCount = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, dc, "DayCount {:?} failed roundtrip", dc);
+        assert_eq!(
+            deserialized, day_count,
+            "DayCount {:?} failed roundtrip",
+            day_count
+        );
     }
 }
 
@@ -153,13 +157,13 @@ fn test_roundtrip_all_business_day_conventions() {
         BusinessDayConvention::ModifiedPreceding,
     ];
 
-    for bdc in conventions {
-        let json = serde_json::to_string(&bdc).unwrap();
+    for business_day_convention in conventions {
+        let json = serde_json::to_string(&business_day_convention).unwrap();
         let deserialized: BusinessDayConvention = serde_json::from_str(&json).unwrap();
         assert_eq!(
-            deserialized, bdc,
+            deserialized, business_day_convention,
             "BusinessDayConvention {:?} failed roundtrip",
-            bdc
+            business_day_convention
         );
     }
 }
@@ -170,7 +174,7 @@ fn test_roundtrip_all_cfkinds() {
         CFKind::Fixed,
         CFKind::FloatReset,
         CFKind::Notional,
-        CFKind::PIK,
+        CFKind::Pik,
         CFKind::Amortization,
         CFKind::Fee,
         CFKind::Stub,
@@ -191,9 +195,9 @@ fn test_wire_format_documentation() {
     assert_eq!(serde_json::to_string(&Currency::USD).unwrap(), r#""USD""#);
     assert_eq!(
         serde_json::to_string(&DayCount::Act360).unwrap(),
-        r#""Act360""#
+        r#""act_360""#
     );
-    assert_eq!(serde_json::to_string(&CFKind::Fixed).unwrap(), r#""Fixed""#);
+    assert_eq!(serde_json::to_string(&CFKind::Fixed).unwrap(), r#""fixed""#);
 
     // Date uses ISO 8601 format
     assert_eq!(

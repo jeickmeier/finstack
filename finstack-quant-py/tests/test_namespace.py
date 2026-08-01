@@ -327,7 +327,7 @@ class TestPortfolioNamespace:
         spec_json = json.dumps({
             "id": "bad_portfolio",
             "name": "Bad",
-            "base_ccy": "USD",
+            "base_currency": "USD",
             "as_of": "2024-01-15",
             "entities": {},
             "positions": [
@@ -350,7 +350,7 @@ class TestPortfolioNamespace:
         spec_json = json.dumps({
             "id": "test_portfolio",
             "name": "Test",
-            "base_ccy": "USD",
+            "base_currency": "USD",
             "as_of": "2024-01-15",
             "entities": {},
             "positions": [],

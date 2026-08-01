@@ -57,10 +57,10 @@ fn credit_workflow_maps_scoring_migration_and_loss_modules_together() {
             market_equity_to_total_liabilities: 1.50,
             sales_to_total_assets: 1.80,
         },
-        AltmanPdCalibration::HeuristicV1,
+        AltmanPdCalibration::Heuristic,
     )
     .unwrap();
-    let mapped = MasterScale::sp_empirical()
+    let mapped = MasterScale::sp_assumptions()
         .unwrap()
         .map_score(&score)
         .unwrap();

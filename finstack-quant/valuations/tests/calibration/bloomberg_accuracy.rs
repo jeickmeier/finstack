@@ -351,7 +351,6 @@ fn test_bloomberg_usd_ois_calibration_accuracy() {
             CALIBRATION_CONFIG_KEY,
             serde_json::json!({
                 "solver": {
-                    "method": "brent",
                     "tolerance": 1e-12,
                     "max_iterations": 200
                 }
@@ -431,7 +430,7 @@ fn test_bloomberg_usd_ois_calibration_accuracy() {
         };
         if diff >= df_tol || zero_diff_bp >= zero_tol_bp {
             mismatches.push(format!(
-                "maturity={:?}: calibrated_df={:.6}, bloomberg_df={:.6}, diff_df={:.6} (tol={:.6}), calibrated_zero={:.6}%, bb_zero={:.6}%, diff_zero={:.4} bps (tol={:.2} bps)",
+                "maturity={:?}: calibrated_df={:.6}, bloomberg_df={:.6}, diff_df={:.6} (tol={:.6}), calibrated_zero={:.6}%, bb_zero={:.6}%, diff_zero={:.4} bp (tol={:.2} bp)",
                 maturity,
                 calibrated_df,
                 expected_df,

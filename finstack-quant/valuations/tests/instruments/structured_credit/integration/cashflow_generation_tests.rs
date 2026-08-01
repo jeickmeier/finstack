@@ -36,7 +36,7 @@ fn maturity_date() -> Date {
 }
 
 fn create_test_pool() -> AssetPool {
-    let mut pool = AssetPool::new("TEST_POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("TEST_POOL", DealType::Clo, Currency::USD);
 
     for i in 0..5 {
         let asset =
@@ -48,7 +48,7 @@ fn create_test_pool() -> AssetPool {
                 },
                 balance: Money::new(30_000_000.0, Currency::USD),
                 rate: 0.08,
-                spread_bps: Some(450.0 + i as f64 * 50.0),
+                spread_bp: Some(450.0 + i as f64 * 50.0),
                 index_id: Some("SOFR-3M".to_string()),
                 maturity: maturity_date(),
                 credit_quality: Some(CreditRating::BB),
@@ -96,7 +96,7 @@ fn create_test_tranches() -> TrancheStructure {
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: finstack_quant_core::dates::Tenor::quarterly(),
+            reset_frequency: finstack_quant_core::dates::Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,

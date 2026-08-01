@@ -15,6 +15,108 @@
         }
       ]
     },
+    "FxDigitalOption": {
+      "additionalProperties": false,
+      "description": "FX digital (binary) option instrument.\n\nPays a fixed cash amount if the option expires in-the-money.\nTwo payout types:\n- Cash-or-nothing: pays a fixed amount in the payout currency\n- Asset-or-nothing: pays the spot rate (one unit of foreign currency)\n\n# Pricing\n\nUses Garman-Kohlhagen adapted formulas:\n\n**Cash-or-nothing call**: `PV = e^{-r_d T} × N(d2) × payout_amount`\n**Cash-or-nothing put**: `PV = e^{-r_d T} × N(-d2) × payout_amount`\n**Asset-or-nothing call**: `PV = S × e^{-r_f T} × N(d1) × notional`\n**Asset-or-nothing put**: `PV = S × e^{-r_f T} × N(-d1) × notional`\n\n# References\n\n- Reiner, E., & Rubinstein, M. (1991). \"Unscrambling the Binary Code.\"\n  *Risk Magazine*, 4(9), 75-83.\n- Wystup, U. (2006). *FX Options and Structured Products*. Wiley.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and grouping"
+        },
+        "base_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency (foreign currency)"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention"
+        },
+        "domestic_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Domestic currency discount curve ID"
+        },
+        "expiry": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Option expiry date"
+        },
+        "foreign_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Foreign currency discount curve ID"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides (manual price, yield, spread)\nInstrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount in base currency"
+        },
+        "option_type": {
+          "$ref": "#/$defs/OptionType",
+          "description": "Option type (call or put on base currency)"
+        },
+        "payout_amount": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Fixed payout amount (used for cash-or-nothing; for asset-or-nothing this\nis the notional of foreign currency delivered)"
+        },
+        "payout_type": {
+          "$ref": "#/$defs/DigitalPayoutType",
+          "description": "Payout type (cash-or-nothing or asset-or-nothing)"
+        },
+        "quote_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Quote currency (domestic currency)"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "strike": {
+          "description": "Strike exchange rate (quote per base)",
+          "format": "double",
+          "type": "number"
+        },
+        "vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "FX volatility surface ID"
+        }
+      },
+      "required": [
+        "id",
+        "base_currency",
+        "quote_currency",
+        "strike",
+        "option_type",
+        "payout_type",
+        "payout_amount",
+        "expiry",
+        "day_count",
+        "notional",
+        "domestic_discount_curve_id",
+        "foreign_discount_curve_id",
+        "vol_surface_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "OptionType": {
       "description": "Option type for pricing",
       "oneOf": [
@@ -29,21 +131,42 @@
           "type": "string"
         }
       ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/FxDigitalOption"
+            },
+            "type": {
+              "const": "fx_digital_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_digital_option.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "FX digital (binary) option with cash-or-nothing or asset-or-nothing payout",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
           "base_currency": "EUR",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "domestic_discount_curve_id": "USD-OIS",
-          "expiry": "2024-06-21",
+          "expiry": "2030-06-21",
           "foreign_discount_curve_id": "EUR-OIS",
           "id": "FXDIG-EURUSD-CALL",
           "notional": {
@@ -56,27 +179,6 @@
             "currency": "USD"
           },
           "payout_type": "cash_or_nothing",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quote_currency": "USD",
           "strike": 1.12,
           "vol_surface_id": "EURUSD-VOL"
@@ -88,135 +190,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Fx Digital Option instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and grouping"
-            },
-            "base_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency (foreign currency)"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention"
-            },
-            "domestic_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Domestic currency discount curve ID"
-            },
-            "expiry": {
-              "description": "Option expiry date",
-              "format": "date",
-              "type": "string"
-            },
-            "foreign_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Foreign currency discount curve ID"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount in base currency"
-            },
-            "option_type": {
-              "$ref": "#/$defs/OptionType",
-              "description": "Option type (call or put on base currency)"
-            },
-            "payout_amount": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Fixed payout amount (used for cash-or-nothing; for asset-or-nothing this\nis the notional of foreign currency delivered)"
-            },
-            "payout_type": {
-              "$ref": "#/$defs/DigitalPayoutType",
-              "description": "Payout type (cash-or-nothing or asset-or-nothing)"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides (manual price, yield, spread)\nInstrument-owned pricing inputs."
-            },
-            "quote_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Quote currency (domestic currency)"
-            },
-            "strike": {
-              "description": "Strike exchange rate (quote per base)",
-              "format": "double",
-              "type": "number"
-            },
-            "vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "FX volatility surface ID"
-            }
-          },
-          "required": [
-            "id",
-            "base_currency",
-            "quote_currency",
-            "strike",
-            "option_type",
-            "payout_type",
-            "payout_amount",
-            "expiry",
-            "day_count",
-            "notional",
-            "domestic_discount_curve_id",
-            "foreign_discount_curve_id",
-            "vol_surface_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "fx_digital_option",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "FX Digital Option",
+  "title": "fx_digital_option",
   "type": "object"
 }

@@ -357,9 +357,9 @@ struct FxForwardFixture {
 
 #[derive(Debug, Deserialize)]
 struct FxForwardSpec {
-    base_ccy: String,
-    quote_ccy: String,
-    notional_base_ccy: f64,
+    base_currency: String,
+    quote_currency: String,
+    notional_base_currency: f64,
     maturity_date: String,
     strike: f64,
 }
@@ -427,8 +427,8 @@ fn external_quantlib_parity_fx_forward_npv() {
     let fixture: FxForwardFixture = load_fixture("fx_forward_1y_eurusd.json");
     assert_eq!(fixture.instrument, "FxForward");
     assert_eq!(fixture.currency, "USD");
-    assert_eq!(fixture.spec.base_ccy, "EUR");
-    assert_eq!(fixture.spec.quote_ccy, "USD");
+    assert_eq!(fixture.spec.base_currency, "EUR");
+    assert_eq!(fixture.spec.quote_currency, "USD");
 
     let t0 = parse_iso_date(&fixture.scenario.t0);
     let t1 = parse_iso_date(&fixture.scenario.t1);
@@ -441,7 +441,10 @@ fn external_quantlib_parity_fx_forward_npv() {
         .base_currency(Currency::EUR)
         .quote_currency(Currency::USD)
         .maturity(maturity)
-        .notional(Money::new(fixture.spec.notional_base_ccy, Currency::EUR))
+        .notional(Money::new(
+            fixture.spec.notional_base_currency,
+            Currency::EUR,
+        ))
         .domestic_discount_curve_id(finstack_quant_core::types::CurveId::new("USD-OIS"))
         .foreign_discount_curve_id(finstack_quant_core::types::CurveId::new("EUR-OIS"))
         .contract_rate_opt(Some(fixture.spec.strike))

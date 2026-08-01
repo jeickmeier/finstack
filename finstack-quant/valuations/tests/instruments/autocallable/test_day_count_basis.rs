@@ -63,11 +63,11 @@ fn test_autocallable_mismatched_day_count_bases() {
 
     // Create autocallable with ACT/365F day count (standard vol surface basis)
     let autocall =
-        create_quarterly_autocallable(observation_dates, DayCount::Act365F, Some("test_dc"));
+        create_quarterly_autocallable(observation_dates, DayCount::Act365F, Some("test_day_count"));
 
     // Create market with ACT/360 discount curve (money market convention)
     // This tests the mismatched basis scenario that was previously buggy
-    let market = build_market_with_dc(as_of, spot, vol, rate, div_yield, DayCount::Act360);
+    let market = build_market_with_day_count(as_of, spot, vol, rate, div_yield, DayCount::Act360);
 
     // Price using MC
     let pv = autocall.value(&market, as_of).unwrap();
@@ -123,7 +123,7 @@ fn test_autocallable_deterministic_seeding() {
     let autocall2 =
         create_quarterly_autocallable(observation_dates.clone(), DayCount::Act365F, Some("seed_a"));
 
-    let market = build_market_with_dc(as_of, spot, vol, rate, div_yield, DayCount::Act360);
+    let market = build_market_with_day_count(as_of, spot, vol, rate, div_yield, DayCount::Act360);
 
     let pv1 = autocall1.value(&market, as_of).unwrap();
     let pv2 = autocall2.value(&market, as_of).unwrap();
@@ -173,19 +173,21 @@ fn test_autocallable_same_day_count_basis() {
     let autocall = create_quarterly_autocallable(
         observation_dates.clone(),
         DayCount::Act365F,
-        Some("same_dc"),
+        Some("same_day_count"),
     );
 
     // Create market with ACT/365F discount curve (same basis)
-    let market_365 = build_market_with_dc(as_of, spot, vol, rate, div_yield, DayCount::Act365F);
+    let market_365 =
+        build_market_with_day_count(as_of, spot, vol, rate, div_yield, DayCount::Act365F);
 
     // Price with same basis
     let pv_365 = autocall.value(&market_365, as_of).unwrap();
 
     // Now compare with ACT/360 market
-    let market_360 = build_market_with_dc(as_of, spot, vol, rate, div_yield, DayCount::Act360);
+    let market_360 =
+        build_market_with_day_count(as_of, spot, vol, rate, div_yield, DayCount::Act360);
     let autocall_360 =
-        create_quarterly_autocallable(observation_dates, DayCount::Act365F, Some("same_dc"));
+        create_quarterly_autocallable(observation_dates, DayCount::Act365F, Some("same_day_count"));
     let pv_360 = autocall_360.value(&market_360, as_of).unwrap();
 
     // The prices should differ slightly due to different discount factor calculation
@@ -245,8 +247,10 @@ fn test_vol_clock_independent_of_curve_day_count() {
         Some("clock_regression"),
     );
 
-    let market_365 = build_market_with_dc(as_of, spot, vol, rate, div_yield, DayCount::Act365F);
-    let market_360 = build_market_with_dc(as_of, spot, vol, rate, div_yield, DayCount::Act360);
+    let market_365 =
+        build_market_with_day_count(as_of, spot, vol, rate, div_yield, DayCount::Act365F);
+    let market_360 =
+        build_market_with_day_count(as_of, spot, vol, rate, div_yield, DayCount::Act360);
 
     let pv_365 = autocall_365.value(&market_365, as_of).unwrap();
     let pv_360 = autocall_360.value(&market_360, as_of).unwrap();
@@ -291,7 +295,7 @@ fn test_observation_times_consistent_with_df_ratios() {
     let autocall =
         create_quarterly_autocallable(observation_dates, DayCount::Act365F, Some("obs_df"));
 
-    let market = build_market_with_dc(as_of, spot, vol, rate, div_yield, DayCount::Act360);
+    let market = build_market_with_day_count(as_of, spot, vol, rate, div_yield, DayCount::Act360);
 
     let pv = autocall.value(&market, as_of).unwrap();
 

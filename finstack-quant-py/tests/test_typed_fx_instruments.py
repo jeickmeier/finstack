@@ -23,9 +23,9 @@ _TYPED_GOLDEN_NPV_ABS_TOLERANCE = 1e-6
 
 
 class TestFxForwardTyped:
-    def test_tagged_json_and_round_trip(self) -> None:
+    def test_envelope_json_and_round_trip(self) -> None:
         payload = json.loads(_forward().to_json())
-        assert payload["type"] == "fx_forward"
+        assert payload["instrument"]["type"] == "fx_forward"
         assert FxForward.from_json(_forward().to_json()).id == "EURUSD-FWD-6M"
 
     def test_same_base_and_quote_currency_rejected(self) -> None:
@@ -55,7 +55,7 @@ class TestFxForwardTyped:
         The tolerance is far tighter than the fixture's own QuantLib-vs-Finstack
         tolerance (`abs=0.01`, for cross-library agreement): both this test and
         the golden runner exercise the same Rust discounting engine, just via a
-        different instrument-construction path (typed builder -> tagged JSON
+        different instrument-construction path (typed builder -> instrument envelope
         vs. JSON loader), so the two NPVs are expected to agree to within
         float64 JSON round-trip noise (empirically ~3.6e-11), not model-level
         tolerance.
@@ -104,7 +104,7 @@ class TestFxOptionTyped:
             .build()
         )
         payload = json.loads(option.to_json())
-        assert payload["type"] == "fx_option"
+        assert payload["instrument"]["type"] == "fx_option"
         assert FxOption.from_json(option.to_json()).id == "EURUSD-CALL-1Y"
 
     def test_invalid_option_type_raises(self) -> None:

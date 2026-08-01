@@ -597,10 +597,10 @@ impl JsFxMatrix {
     /// * `rate` - Conversion rate.
     #[wasm_bindgen(js_name = setQuote)]
     pub fn set_quote(&self, base: &str, quote: &str, rate: f64) -> Result<(), JsValue> {
-        let base_ccy: RustCurrency = base.parse().map_err(to_js_err)?;
-        let quote_ccy: RustCurrency = quote.parse().map_err(to_js_err)?;
+        let base_currency: RustCurrency = base.parse().map_err(to_js_err)?;
+        let quote_currency: RustCurrency = quote.parse().map_err(to_js_err)?;
         self.inner
-            .set_quote(base_ccy, quote_ccy, rate)
+            .set_quote(base_currency, quote_currency, rate)
             .map_err(to_js_err)?;
         Ok(())
     }
@@ -620,11 +620,11 @@ impl JsFxMatrix {
         policy: &JsFxConversionPolicy,
         rate: f64,
     ) -> Result<(), JsValue> {
-        let base_ccy: RustCurrency = base.parse().map_err(to_js_err)?;
-        let quote_ccy: RustCurrency = quote.parse().map_err(to_js_err)?;
+        let base_currency: RustCurrency = base.parse().map_err(to_js_err)?;
+        let quote_currency: RustCurrency = quote.parse().map_err(to_js_err)?;
         let d = parse_iso_date(date)?;
         self.inner
-            .set_quote_on(base_ccy, quote_ccy, d, policy.inner, rate)
+            .set_quote_on(base_currency, quote_currency, d, policy.inner, rate)
             .map_err(to_js_err)
     }
 
@@ -642,10 +642,10 @@ impl JsFxMatrix {
         date: &str,
         policy: &JsFxConversionPolicy,
     ) -> Result<JsFxRateResult, JsValue> {
-        let base_ccy: RustCurrency = base.parse().map_err(to_js_err)?;
-        let quote_ccy: RustCurrency = quote.parse().map_err(to_js_err)?;
+        let base_currency: RustCurrency = base.parse().map_err(to_js_err)?;
+        let quote_currency: RustCurrency = quote.parse().map_err(to_js_err)?;
         let d = parse_iso_date(date)?;
-        let query = FxQuery::with_policy(base_ccy, quote_ccy, d, policy.inner);
+        let query = FxQuery::with_policy(base_currency, quote_currency, d, policy.inner);
         let result = self.inner.rate(query).map_err(to_js_err)?;
         Ok(JsFxRateResult { inner: result })
     }
@@ -661,11 +661,15 @@ impl JsFxMatrix {
         quote: &str,
         date: &str,
     ) -> Result<JsFxRateResult, JsValue> {
-        let base_ccy: RustCurrency = base.parse().map_err(to_js_err)?;
-        let quote_ccy: RustCurrency = quote.parse().map_err(to_js_err)?;
+        let base_currency: RustCurrency = base.parse().map_err(to_js_err)?;
+        let quote_currency: RustCurrency = quote.parse().map_err(to_js_err)?;
         let d = parse_iso_date(date)?;
-        let query =
-            FxQuery::with_policy(base_ccy, quote_ccy, d, RustFxConversionPolicy::CashflowDate);
+        let query = FxQuery::with_policy(
+            base_currency,
+            quote_currency,
+            d,
+            RustFxConversionPolicy::CashflowDate,
+        );
         self.inner
             .rate(query)
             .map(|inner| JsFxRateResult { inner })
@@ -1040,10 +1044,7 @@ mod tests {
             parse_extrapolation("flat_forward").expect("flat_forward"),
             ExtrapolationPolicy::FlatForward
         );
-        assert_eq!(
-            parse_extrapolation("flat").expect("flat"),
-            ExtrapolationPolicy::FlatZero
-        );
+        assert!("flat".parse::<ExtrapolationPolicy>().is_err());
     }
 
     #[test]

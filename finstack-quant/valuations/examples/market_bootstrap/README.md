@@ -9,7 +9,7 @@ snapshot knots that would drift from quote-shocked risk calculations).
 ## Editor autocomplete and validation
 
 Each file declares `$schema` pointing at
-[`schemas/calibration/2/calibration.schema.json`](../../schemas/calibration/2/calibration.schema.json).
+[`schemas/calibration/1/calibration.schema.json`](../../schemas/calibration/1/calibration.schema.json).
 Modern editors (VS Code, JetBrains, Vim+coc, anything with JSON LSP) pick
 this up automatically and provide:
 

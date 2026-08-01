@@ -148,7 +148,7 @@ fn build_probed_portfolio(
     fail_metrics: bool,
 ) -> (Portfolio, Vec<Probe>) {
     let mut builder = PortfolioBuilder::new(format!("EVALUATION_{position_count}"))
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(date!(2024 - 01 - 01))
         .entity(Entity::new("ENTITY"));
     let mut probes = Vec::with_capacity(position_count);
@@ -325,7 +325,7 @@ fn rayon_threshold_63_and_64_preserves_order_and_totals() {
 
         assert_eq!(actual_ids, expected_ids);
         assert_eq!(
-            valuation.total_base_ccy.amount(),
+            valuation.total_base_currency.amount(),
             (position_count * (position_count + 1) / 2) as f64
         );
         assert_eq!(

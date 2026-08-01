@@ -1,5 +1,149 @@
 {
   "$defs": {
+    "CommoditySwap": {
+      "description": "Commodity swap (fixed-for-floating commodity price exchange).\n\nOne party pays a fixed price per unit, the other pays a floating price\ndetermined by an index or average of spot prices over the period.\n\n# Pricing\n\nFixed leg: ∑ Q × P_fixed × DF(t_i)\nFloating leg: ∑ Q × E[P_float(t_i)] × DF(t_i)\n\nFor a payer of fixed:\nNPV = Floating leg PV - Fixed leg PV\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::commodity::commodity_swap::CommoditySwap;\nuse finstack_quant_valuations::instruments::CommodityUnderlyingParams;\nuse finstack_quant_valuations::instruments::PayReceive;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::{Date, BusinessDayConvention, Tenor, TenorUnit};\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\nlet swap = CommoditySwap::builder()\n    .id(InstrumentId::new(\"NG-SWAP-2025\"))\n    .underlying(CommodityUnderlyingParams::new(\"Energy\", \"NG\", \"MMBTU\", Currency::USD))\n    .quantity(10000.0)\n    .fixed_price(rust_decimal::Decimal::try_from(3.50).expect(\"valid decimal\"))\n    .floating_index_id(CurveId::new(\"NG-SPOT-AVG\"))\n    .side(PayReceive::Pay)\n    .start_date(Date::from_calendar_date(2025, Month::January, 1).unwrap())\n    .maturity(Date::from_calendar_date(2025, Month::December, 31).unwrap())\n    .frequency(Tenor::new(1, TenorUnit::Months))\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .build()\n    .expect(\"Valid swap\");\n```",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "business_day_convention": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
+          "default": "modified_following",
+          "description": "Business day convention for payment-schedule date adjustments.\n\nOnly applied when `calendar_id` is set and resolves to a registered\nholiday calendar; without a calendar the schedule dates are left\nunadjusted."
+        },
+        "calendar_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional calendar ID for date adjustments."
+        },
+        "commodity_type": {
+          "description": "Commodity type (e.g., \"Energy\", \"Metal\", \"Agricultural\")",
+          "type": "string"
+        },
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency for pricing"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID."
+        },
+        "fixed_price": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Fixed price per unit."
+        },
+        "floating_index_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Floating index ID for price lookups."
+        },
+        "frequency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
+          "description": "Payment frequency as a Tenor."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "index_lag_days": {
+          "description": "Optional index lag in **calendar days**: the floating-leg averaging\nwindow is shifted back by exactly this many calendar days (no\nbusiness-day adjustment of the shifted window endpoints).",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs."
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "End date of the swap."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "quantity": {
+          "description": "Notional quantity per period.",
+          "format": "double",
+          "type": "number"
+        },
+        "realized_fixings": {
+          "default": [],
+          "description": "Realized floating-index fixings as `(date, price)` pairs.\n\nFloating-leg observations with date strictly before the valuation date\nread from this store; a missing past fixing is an error — no silent\nsubstitution of today's spot . Observations on or\nafter the valuation date project from the price curve.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+              },
+              {
+                "format": "double",
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only valuation adjustments."
+        },
+        "side": {
+          "$ref": "#/$defs/PayReceive",
+          "default": "pay",
+          "description": "Direction of the swap: Pay means paying the fixed price leg,\nReceive means receiving the fixed price leg."
+        },
+        "start_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of the swap."
+        },
+        "ticker": {
+          "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
+          "type": "string"
+        },
+        "unit": {
+          "description": "Unit of measurement (e.g., \"BBL\", \"OZ\", \"MT\", \"MMBTU\")",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "commodity_type",
+        "ticker",
+        "unit",
+        "currency",
+        "quantity",
+        "fixed_price",
+        "floating_index_id",
+        "start_date",
+        "maturity",
+        "frequency",
+        "discount_curve_id"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "PayReceive": {
       "description": "Direction for instrument legs (universal for IRS, CDS, variance swaps, etc.)\n\nFor interest rate swaps: Pay = pay fixed/receive floating, Receive = receive fixed/pay floating\nFor credit default swaps: Pay = buy protection (pay premium), Receive = sell protection (receive premium)\nFor variance swaps: Pay = short variance, Receive = long variance",
       "oneOf": [
@@ -14,12 +158,33 @@
           "type": "string"
         }
       ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/CommoditySwap"
+            },
+            "type": {
+              "const": "commodity_swap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_swap.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Commodity swap for fixed-for-floating commodity price exchange contracts",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -32,7 +197,7 @@
               "energy"
             ]
           },
-          "bdc": "modified_following",
+          "business_day_convention": "modified_following",
           "commodity_type": "Energy",
           "currency": "USD",
           "discount_curve_id": "USD-OIS",
@@ -44,28 +209,8 @@
           },
           "id": "NG-SWAP-2025",
           "maturity": "2025-12-31",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quantity": 10000.0,
+          "realized_fixings": [],
           "side": "pay",
           "start_date": "2025-01-01",
           "ticker": "NG",
@@ -78,182 +223,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Commodity Swap instrument definition",
-      "properties": {
-        "spec": {
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "default": {},
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "bdc": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
-              "default": "modified_following",
-              "description": "Business day convention for payment-schedule date adjustments.\n\nOnly applied when `calendar_id` is set and resolves to a registered\nholiday calendar; without a calendar the schedule dates are left\nunadjusted."
-            },
-            "calendar_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional calendar ID for date adjustments."
-            },
-            "commodity_type": {
-              "description": "Commodity type (e.g., \"Energy\", \"Metal\", \"Agricultural\")",
-              "type": "string"
-            },
-            "currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency for pricing"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID."
-            },
-            "fixed_price": {
-              "description": "Fixed price per unit.",
-              "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-              "type": [
-                "string",
-                "number"
-              ]
-            },
-            "floating_index_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Floating index ID for price lookups."
-            },
-            "frequency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-              "description": "Payment frequency as a Tenor."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "index_lag_days": {
-              "description": "Optional index lag in **calendar days**: the floating-leg averaging\nwindow is shifted back by exactly this many calendar days (no\nbusiness-day adjustment of the shifted window endpoints).",
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "maturity": {
-              "description": "End date of the swap.",
-              "format": "date",
-              "type": "string"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Instrument-owned pricing inputs."
-            },
-            "quantity": {
-              "description": "Notional quantity per period.",
-              "format": "double",
-              "type": "number"
-            },
-            "realized_fixings": {
-              "default": [],
-              "description": "Realized floating-index fixings as `(date, price)` pairs.\n\nFloating-leg observations with date strictly before the valuation date\nread from this store; a missing past fixing is an error — no silent\nsubstitution of today's spot . Observations on or\nafter the valuation date project from the price curve.",
-              "items": {
-                "maxItems": 2,
-                "minItems": 2,
-                "prefixItems": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "format": "double",
-                    "type": "number"
-                  }
-                ],
-                "type": "array"
-              },
-              "type": "array"
-            },
-            "side": {
-              "$ref": "#/$defs/PayReceive",
-              "default": "pay",
-              "description": "Direction of the swap: Pay means paying the fixed price leg,\nReceive means receiving the fixed price leg."
-            },
-            "start_date": {
-              "description": "Start date of the swap.",
-              "format": "date",
-              "type": "string"
-            },
-            "ticker": {
-              "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
-              "type": "string"
-            },
-            "unit": {
-              "description": "Unit of measurement (e.g., \"BBL\", \"OZ\", \"MT\", \"MMBTU\")",
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "commodity_type",
-            "ticker",
-            "unit",
-            "currency",
-            "quantity",
-            "fixed_price",
-            "floating_index_id",
-            "start_date",
-            "maturity",
-            "frequency",
-            "discount_curve_id"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "commodity_swap",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Commodity Swap",
+  "title": "commodity_swap",
   "type": "object"
 }

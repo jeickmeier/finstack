@@ -160,7 +160,7 @@ fn check_finite_fields(fields: &[(Option<f64>, bool)]) -> finstack_quant_core::R
 /// for bonds. At most one may be set at a time — [`Self::validate`] enforces this.
 /// Precedence (applied top-to-bottom inside `Bond::base_value`):
 ///
-/// 1. `quoted_dirty_price_ccy` — currency units (bond native currency)
+/// 1. `quoted_dirty_price_currency` — currency units (bond native currency)
 /// 2. `quoted_clean_price` — percentage of par
 /// 3. `quoted_ytm` — decimal YTM (e.g. `0.055` = 5.5%)
 /// 4. `quoted_ytw` — decimal yield-to-worst
@@ -172,7 +172,7 @@ fn check_finite_fields(fields: &[(Option<f64>, bool)]) -> finstack_quant_core::R
 #[derive(
     Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct MarketQuoteOverrides {
     /// Quoted clean price as a percentage of par (e.g., `99.5` = 99.5% of par).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -180,7 +180,7 @@ pub struct MarketQuoteOverrides {
 
     /// Quoted dirty price in the bond's currency units.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub quoted_dirty_price_ccy: Option<f64>,
+    pub quoted_dirty_price_currency: Option<f64>,
 
     /// Quoted yield-to-maturity in decimal (e.g., `0.055` = 5.5%).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -217,9 +217,7 @@ pub struct MarketQuoteOverrides {
 
     /// CDS par-spread quote in basis points (for CDS and CDS index pricers).
     ///
-    /// Renamed from `quoted_spread_bp`; the legacy JSON field name is still
-    /// accepted as a serde alias for backward compatibility.
-    #[serde(alias = "quoted_spread_bp", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cds_quote_bp: Option<f64>,
 
     /// PV adjustment at valuation date (primarily credit-instrument upfront quotes).
@@ -246,6 +244,11 @@ pub struct MarketQuoteOverrides {
 }
 
 impl MarketQuoteOverrides {
+    /// Return whether no market quote override is configured.
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+
     /// Return the number of price-driving fields that are currently set.
     ///
     /// The price-driving fields are mutually exclusive inside `Bond::base_value`
@@ -254,7 +257,7 @@ impl MarketQuoteOverrides {
     fn price_driver_count(&self) -> usize {
         [
             self.quoted_clean_price.is_some(),
-            self.quoted_dirty_price_ccy.is_some(),
+            self.quoted_dirty_price_currency.is_some(),
             self.quoted_ytm.is_some(),
             self.quoted_ytw.is_some(),
             self.quoted_z_spread.is_some(),
@@ -296,7 +299,7 @@ impl MarketQuoteOverrides {
         // must be finite; implied vol and CDS spreads must be non-negative.
         check_finite_fields(&[
             (self.quoted_clean_price, false),
-            (self.quoted_dirty_price_ccy, false),
+            (self.quoted_dirty_price_currency, false),
             (self.quoted_ytm, false),
             (self.quoted_ytw, false),
             (self.quoted_z_spread, false),
@@ -325,7 +328,7 @@ impl MarketQuoteOverrides {
 #[derive(
     Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct BumpConfig {
     /// Rho bump size in **decimal rate** units (default `0.0001 = 1bp`).
     ///
@@ -365,6 +368,11 @@ pub struct BumpConfig {
 }
 
 impl BumpConfig {
+    /// Return whether no finite-difference bump override is configured.
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+
     /// Validate bump sizes for non-negativity.
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
         // Every bump size must be finite and non-negative.
@@ -400,7 +408,7 @@ pub struct MertonMcOverride(
 #[derive(
     Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ModelConfig {
     /// Volatility surface extrapolation policy when `implied_volatility` is not set.
     #[serde(default)]
@@ -533,6 +541,11 @@ pub struct ModelConfig {
 }
 
 impl ModelConfig {
+    /// Return whether every model setting is at its default.
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+
     /// Validate model config (tree steps > 0, non-negative vol/friction).
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
         use finstack_quant_core::InputError;
@@ -564,13 +577,13 @@ impl ModelConfig {
 #[derive(
     Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct InstrumentPricingOverrides {
     /// Market-quoted values (prices, implied vol, spreads, upfront payments).
-    #[serde(flatten)]
+    #[serde(default, skip_serializing_if = "MarketQuoteOverrides::is_empty")]
     pub market_quotes: MarketQuoteOverrides,
     /// Model selection and tree pricing parameters.
-    #[serde(flatten)]
+    #[serde(default, skip_serializing_if = "ModelConfig::is_empty")]
     pub model_config: ModelConfig,
     /// Term loan specific overrides.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -578,6 +591,11 @@ pub struct InstrumentPricingOverrides {
 }
 
 impl InstrumentPricingOverrides {
+    /// Return whether no instrument-level override is configured.
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+
     /// Create empty instrument-owned pricing inputs.
     pub fn none() -> Self {
         Self::default()
@@ -590,8 +608,8 @@ impl InstrumentPricingOverrides {
     }
 
     /// Set quoted dirty price in the instrument currency.
-    pub fn with_quoted_dirty_price(mut self, price_ccy: f64) -> Self {
-        self.market_quotes.quoted_dirty_price_ccy = Some(price_ccy);
+    pub fn with_quoted_dirty_price(mut self, price_currency: f64) -> Self {
+        self.market_quotes.quoted_dirty_price_currency = Some(price_currency);
         self
     }
 
@@ -718,11 +736,7 @@ impl InstrumentPricingOverrides {
 // Sub-struct: Metric configuration
 // ---------------------------------------------------------------------------
 
-// Breakeven types live in the breakeven calculator module; re-exported here
-// for backward compatibility (they ship as part of the overrides public API).
-pub use crate::metrics::sensitivities::breakeven::{
-    BreakevenConfig, BreakevenMode, BreakevenTarget,
-};
+use super::breakeven::BreakevenConfig;
 
 /// Basis used for bond duration, convexity, and DV01-style risk metrics.
 #[derive(
@@ -752,10 +766,10 @@ pub enum BondRiskBasis {
 #[derive(
     Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct MetricPricingOverrides {
     /// Bump sizes for finite-difference sensitivities.
-    #[serde(flatten)]
+    #[serde(default, skip_serializing_if = "BumpConfig::is_empty")]
     pub bump_config: BumpConfig,
     /// MC seed scenario override for deterministic greek calculations.
     ///
@@ -785,6 +799,11 @@ pub struct MetricPricingOverrides {
 }
 
 impl MetricPricingOverrides {
+    /// Return whether no metric-level override is configured.
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+
     /// Validate metric override fields.
     pub fn validate(&self) -> finstack_quant_core::Result<()> {
         use finstack_quant_core::InputError;
@@ -895,7 +914,7 @@ impl MetricPricingOverrides {
 #[derive(
     Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ScenarioPricingOverrides {
     /// Scenario price shock as decimal percentage (e.g., -0.05 for -5% price shock).
     ///
@@ -920,6 +939,11 @@ pub struct ScenarioPricingOverrides {
 }
 
 impl ScenarioPricingOverrides {
+    /// Return whether no scenario-level override is configured.
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+
     /// Apply a scenario price shock as a decimal percentage.
     pub fn with_price_shock_pct(mut self, shock_pct: f64) -> Self {
         self.scenario_price_shock_pct = Some(shock_pct);
@@ -961,208 +985,19 @@ impl ScenarioPricingOverrides {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Stable wire representation
-// ---------------------------------------------------------------------------
-
-#[derive(Clone, Copy)]
-enum PricingOverrideCategory {
-    Instrument,
-    Metric,
-    Scenario,
-}
-
-fn schema_fields<T: schemars::JsonSchema>() -> std::collections::BTreeSet<String> {
-    schemars::schema_for!(T)
-        .as_object()
-        .and_then(|schema| schema.get("properties"))
-        .and_then(serde_json::Value::as_object)
-        .map(|properties| properties.keys().cloned().collect())
-        .unwrap_or_default()
-}
-
-fn pricing_override_fields(
-    category: PricingOverrideCategory,
-) -> &'static std::collections::BTreeSet<String> {
-    use std::sync::OnceLock;
-
-    static INSTRUMENT: OnceLock<std::collections::BTreeSet<String>> = OnceLock::new();
-    static METRIC: OnceLock<std::collections::BTreeSet<String>> = OnceLock::new();
-    static SCENARIO: OnceLock<std::collections::BTreeSet<String>> = OnceLock::new();
-
-    match category {
-        PricingOverrideCategory::Instrument => INSTRUMENT.get_or_init(|| {
-            let mut fields = schema_fields::<InstrumentPricingOverrides>();
-            // `schemars` describes canonical output names, while serde also
-            // accepts this legacy input alias.
-            fields.insert("quoted_spread_bp".to_string());
-            fields
-        }),
-        PricingOverrideCategory::Metric => {
-            METRIC.get_or_init(schema_fields::<MetricPricingOverrides>)
-        }
-        PricingOverrideCategory::Scenario => {
-            SCENARIO.get_or_init(schema_fields::<ScenarioPricingOverrides>)
-        }
-    }
-}
-
-/// Stable legacy wire representation used while runtime storage is split by owner.
-///
-/// Serialization stays flat. Deserialization additionally accepts focused
-/// nested objects named `instrument`, `metrics`, or `scenario` (and their
-/// explicit `*_pricing_overrides` aliases), merging them over flat fields.
-#[derive(Debug, Clone, Default, serde::Serialize)]
-#[serde(default)]
-pub(crate) struct PricingOverridesWire {
-    #[serde(flatten)]
-    pub(crate) instrument: InstrumentPricingOverrides,
-    #[serde(flatten)]
-    pub(crate) metrics: MetricPricingOverrides,
-    #[serde(flatten)]
-    pub(crate) scenario: ScenarioPricingOverrides,
-}
-
-impl schemars::JsonSchema for PricingOverridesWire {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("PricingOverrides")
-    }
-
-    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        #[derive(Default, schemars::JsonSchema)]
-        #[allow(dead_code)]
-        #[serde(default)]
-        struct FlatPricingOverridesWire {
-            #[serde(flatten)]
-            instrument: InstrumentPricingOverrides,
-            #[serde(flatten)]
-            metrics: MetricPricingOverrides,
-            #[serde(flatten)]
-            scenario: ScenarioPricingOverrides,
-        }
-
-        FlatPricingOverridesWire::json_schema(generator)
-    }
-}
-
-/// Return the stable pricing-overrides wire schema without exposing its runtime type.
-#[doc(hidden)]
-pub fn pricing_overrides_wire_schema() -> schemars::Schema {
-    schemars::schema_for!(PricingOverridesWire)
-}
-
-impl<'de> serde::Deserialize<'de> for PricingOverridesWire {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let mut value = serde_json::Value::deserialize(deserializer)?;
-        let object = value
-            .as_object_mut()
-            .ok_or_else(|| serde::de::Error::custom("pricing overrides must be a JSON object"))?;
-        if object.contains_key("tree_volatility") {
-            return Err(serde::de::Error::custom(
-                "`tree_volatility` was removed; use `implied_volatility`",
-            ));
-        }
-
-        let nested_keys = [
-            ("instrument", PricingOverrideCategory::Instrument),
-            (
-                "instrument_pricing_overrides",
-                PricingOverrideCategory::Instrument,
-            ),
-            ("metrics", PricingOverrideCategory::Metric),
-            ("metric_pricing_overrides", PricingOverrideCategory::Metric),
-            ("scenario", PricingOverrideCategory::Scenario),
-            (
-                "scenario_pricing_overrides",
-                PricingOverrideCategory::Scenario,
-            ),
-        ];
-        let nested = nested_keys
-            .into_iter()
-            .filter_map(|(key, category)| object.remove(key).map(|value| (key, category, value)))
-            .collect::<Vec<_>>();
-
-        let mut instrument = serde_json::Map::new();
-        let mut metrics = serde_json::Map::new();
-        let mut scenario = serde_json::Map::new();
-        for (field, value) in std::mem::take(object) {
-            let mut owners = [
-                PricingOverrideCategory::Instrument,
-                PricingOverrideCategory::Metric,
-                PricingOverrideCategory::Scenario,
-            ]
-            .into_iter()
-            .filter(|category| pricing_override_fields(*category).contains(&field));
-            let category = owners
-                .next()
-                .ok_or_else(|| serde::de::Error::custom(format!("unknown field `{field}`")))?;
-            if owners.next().is_some() {
-                return Err(serde::de::Error::custom(format!(
-                    "override field `{field}` belongs to multiple focused categories"
-                )));
-            }
-            match category {
-                PricingOverrideCategory::Instrument => instrument.insert(field, value),
-                PricingOverrideCategory::Metric => metrics.insert(field, value),
-                PricingOverrideCategory::Scenario => scenario.insert(field, value),
-            };
-        }
-
-        for (key, category, nested) in nested {
-            if nested.is_null() {
-                continue;
-            }
-            let nested = nested.as_object().ok_or_else(|| {
-                serde::de::Error::custom(format!("`{key}` must be a JSON object"))
-            })?;
-            if nested.contains_key("tree_volatility") {
-                return Err(serde::de::Error::custom(
-                    "`tree_volatility` was removed; use `implied_volatility`",
-                ));
-            }
-            let allowed = pricing_override_fields(category);
-            let target = match category {
-                PricingOverrideCategory::Instrument => &mut instrument,
-                PricingOverrideCategory::Metric => &mut metrics,
-                PricingOverrideCategory::Scenario => &mut scenario,
-            };
-            for (field, value) in nested {
-                if !allowed.contains(field) {
-                    return Err(serde::de::Error::custom(format!(
-                        "unknown field `{field}` in `{key}` overrides"
-                    )));
-                }
-                target.insert(field.clone(), value.clone());
-            }
-        }
-
-        let instrument = serde_json::from_value(serde_json::Value::Object(instrument))
-            .map_err(serde::de::Error::custom)?;
-        let metrics = serde_json::from_value(serde_json::Value::Object(metrics))
-            .map_err(serde::de::Error::custom)?;
-        let scenario = serde_json::from_value(serde_json::Value::Object(scenario))
-            .map_err(serde::de::Error::custom)?;
-        Ok(Self {
-            instrument,
-            metrics,
-            scenario,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[derive(Debug, Clone, finstack_quant_valuations_macros::FocusedPricingOverrides)]
+    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
     #[serde(deny_unknown_fields)]
     struct FocusedWireFixture {
         id: String,
+        #[serde(default, skip_serializing_if = "InstrumentPricingOverrides::is_empty")]
         instrument_pricing_overrides: InstrumentPricingOverrides,
+        #[serde(default, skip_serializing_if = "MetricPricingOverrides::is_empty")]
         metric_pricing_overrides: MetricPricingOverrides,
+        #[serde(default, skip_serializing_if = "ScenarioPricingOverrides::is_empty")]
         scenario_pricing_overrides: ScenarioPricingOverrides,
     }
 
@@ -1209,89 +1044,7 @@ mod tests {
     }
 
     #[test]
-    fn private_wire_accepts_flat_nested_and_mixed_payloads() {
-        let flat = r#"{
-            "quoted_clean_price": 99.5,
-            "rate_bump_bp": 1.0,
-            "scenario_price_shock_pct": -0.05
-        }"#;
-        let wire: PricingOverridesWire = serde_json::from_str(flat).expect("flat wire");
-        assert_eq!(wire.instrument.market_quotes.quoted_clean_price, Some(99.5));
-        assert_eq!(wire.metrics.bump_config.rate_bump_bp, Some(1.0));
-        assert_eq!(wire.scenario.scenario_price_shock_pct, Some(-0.05));
-
-        let mixed = r#"{
-            "quoted_clean_price": 98.0,
-            "rate_bump_bp": 1.0,
-            "scenario_price_shock_pct": -0.01,
-            "instrument_pricing_overrides": {"quoted_clean_price": 101.0},
-            "metric_pricing_overrides": {"rate_bump_bp": 3.0},
-            "scenario_pricing_overrides": {"scenario_price_shock_pct": -0.08}
-        }"#;
-        let wire: PricingOverridesWire = serde_json::from_str(mixed).expect("mixed wire");
-        assert_eq!(
-            wire.instrument.market_quotes.quoted_clean_price,
-            Some(101.0)
-        );
-        assert_eq!(wire.metrics.bump_config.rate_bump_bp, Some(3.0));
-        assert_eq!(wire.scenario.scenario_price_shock_pct, Some(-0.08));
-
-        let focused_names = r#"{
-            "instrument": {"quoted_clean_price": 100.0},
-            "metrics": {"rate_bump_bp": 2.0},
-            "scenario": {"scenario_price_shock_pct": -0.02}
-        }"#;
-        let wire: PricingOverridesWire =
-            serde_json::from_str(focused_names).expect("focused nested wire");
-        assert_eq!(
-            wire.instrument.market_quotes.quoted_clean_price,
-            Some(100.0)
-        );
-        assert_eq!(wire.metrics.bump_config.rate_bump_bp, Some(2.0));
-        assert_eq!(wire.scenario.scenario_price_shock_pct, Some(-0.02));
-
-        let serialized = serde_json::to_value(&wire).expect("serialize flat wire");
-        let object = serialized.as_object().expect("wire object");
-        assert!(!object.contains_key("instrument"));
-        assert!(!object.contains_key("metrics"));
-        assert!(!object.contains_key("scenario"));
-        assert_eq!(
-            object.get("quoted_clean_price"),
-            Some(&serde_json::json!(100.0))
-        );
-    }
-
-    #[test]
-    fn private_wire_rejects_unknown_and_cross_category_fields() {
-        for payload in [
-            r#"{"unknown_override": 1}"#,
-            r#"{"instrument": {"unknown_override": 1}}"#,
-            r#"{"instrument": {"rate_bump_bp": 3.0}}"#,
-            r#"{"metrics": {"quoted_clean_price": 99.0}}"#,
-            r#"{"scenario": {"mc_seed_scenario": "seed"}}"#,
-        ] {
-            let error = serde_json::from_str::<PricingOverridesWire>(payload)
-                .expect_err("unknown or cross-category field must be rejected");
-            assert!(
-                error.to_string().contains("unknown field"),
-                "unexpected error for {payload}: {error}"
-            );
-        }
-    }
-
-    #[test]
-    fn focused_override_schema_fields_are_pairwise_disjoint() {
-        let instrument = pricing_override_fields(PricingOverrideCategory::Instrument);
-        let metrics = pricing_override_fields(PricingOverrideCategory::Metric);
-        let scenario = pricing_override_fields(PricingOverrideCategory::Scenario);
-
-        assert!(instrument.is_disjoint(metrics));
-        assert!(instrument.is_disjoint(scenario));
-        assert!(metrics.is_disjoint(scenario));
-    }
-
-    #[test]
-    fn focused_derive_preserves_legacy_property_and_schema() {
+    fn focused_wire_uses_only_three_closed_canonical_fields() {
         let fixture = FocusedWireFixture {
             id: "fixture".to_string(),
             instrument_pricing_overrides: InstrumentPricingOverrides::default()
@@ -1302,23 +1055,14 @@ mod tests {
         };
 
         let value = serde_json::to_value(&fixture).expect("serialize focused fixture");
-        let wire = value
-            .get("pricing_overrides")
-            .and_then(serde_json::Value::as_object)
-            .expect("legacy pricing_overrides property");
-        assert_eq!(
-            wire.get("quoted_clean_price"),
-            Some(&serde_json::json!(99.5))
-        );
-        assert_eq!(wire.get("theta_period"), Some(&serde_json::json!("1W")));
-        assert_eq!(
-            wire.get("scenario_price_shock_pct"),
-            Some(&serde_json::json!(-0.05))
-        );
+        let object = value.as_object().expect("fixture object");
+        assert!(object.contains_key("instrument_pricing_overrides"));
+        assert!(object.contains_key("metric_pricing_overrides"));
+        assert!(object.contains_key("scenario_pricing_overrides"));
+        assert!(!object.contains_key("pricing_overrides"));
 
         let roundtrip: FocusedWireFixture =
             serde_json::from_value(value).expect("deserialize focused fixture");
-        assert_eq!(roundtrip.id, "fixture");
         assert_eq!(
             roundtrip
                 .instrument_pricing_overrides
@@ -1326,27 +1070,31 @@ mod tests {
                 .quoted_clean_price,
             Some(99.5)
         );
-        assert_eq!(
-            roundtrip.metric_pricing_overrides.theta_period.as_deref(),
-            Some("1W")
-        );
-        assert_eq!(
-            roundtrip
-                .scenario_pricing_overrides
-                .scenario_price_shock_pct,
-            Some(-0.05)
+
+        for field in [
+            "instrument_pricing_overrides",
+            "metric_pricing_overrides",
+            "scenario_pricing_overrides",
+        ] {
+            let mut invalid = serde_json::json!({"id": "fixture"});
+            invalid[field] = serde_json::Value::Null;
+            assert!(serde_json::from_value::<FocusedWireFixture>(invalid).is_err());
+        }
+        assert!(
+            serde_json::from_value::<FocusedWireFixture>(serde_json::json!({
+                "id": "fixture",
+                "pricing_overrides": {}
+            }))
+            .is_err()
         );
 
-        let schema = schemars::schema_for!(FocusedWireFixture);
-        let schema_value = serde_json::to_value(schema).expect("serialize schema");
-        assert!(schema_value.to_string().contains("pricing_overrides"));
-    }
-
-    #[test]
-    fn private_wire_rejects_removed_tree_volatility_field() {
-        let err = serde_json::from_str::<PricingOverridesWire>(r#"{"tree_volatility":0.15}"#)
-            .expect_err("tree_volatility was removed");
-        assert!(err.to_string().contains("tree_volatility"));
+        let schema = serde_json::to_value(schemars::schema_for!(FocusedWireFixture))
+            .expect("serialize schema");
+        let properties = schema["properties"].as_object().expect("schema properties");
+        assert!(properties.contains_key("instrument_pricing_overrides"));
+        assert!(properties.contains_key("metric_pricing_overrides"));
+        assert!(properties.contains_key("scenario_pricing_overrides"));
+        assert!(!properties.contains_key("pricing_overrides"));
     }
 
     #[test]

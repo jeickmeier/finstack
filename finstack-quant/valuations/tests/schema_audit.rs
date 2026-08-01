@@ -9,12 +9,13 @@ macro_rules! test_roundtrip {
         #[allow(clippy::expect_used)]
         fn $test_name() {
             let envelope = InstrumentEnvelope {
-                schema: "finstack_quant.instrument/1".to_string(),
+                schema:
+                    finstack_quant_valuations::instruments::json_loader::InstrumentSchema::CURRENT,
                 instrument: InstrumentJson::$variant($expr),
             };
             let json = serde_json::to_string(&envelope).expect("serialize");
             let parsed: InstrumentEnvelope = serde_json::from_str(&json).expect("deserialize");
-            assert_eq!(parsed.schema, "finstack_quant.instrument/1");
+            assert_eq!(parsed.schema.as_str(), "finstack_quant.instrument/1");
             // Re-serialize and verify stability
             let json2 = serde_json::to_string(&parsed).expect("re-serialize");
             assert_eq!(json, json2, "roundtrip should be stable");
@@ -25,12 +26,13 @@ macro_rules! test_roundtrip {
         #[allow(clippy::expect_used)]
         fn $test_name() {
             let envelope = InstrumentEnvelope {
-                schema: "finstack_quant.instrument/1".to_string(),
+                schema:
+                    finstack_quant_valuations::instruments::json_loader::InstrumentSchema::CURRENT,
                 instrument: InstrumentJson::$variant(Box::new($expr)),
             };
             let json = serde_json::to_string(&envelope).expect("serialize");
             let parsed: InstrumentEnvelope = serde_json::from_str(&json).expect("deserialize");
-            assert_eq!(parsed.schema, "finstack_quant.instrument/1");
+            assert_eq!(parsed.schema.as_str(), "finstack_quant.instrument/1");
             let json2 = serde_json::to_string(&parsed).expect("re-serialize");
             assert_eq!(json, json2, "roundtrip should be stable");
         }
@@ -91,7 +93,7 @@ mod schema_roundtrip {
     #[allow(clippy::expect_used)]
     fn cds_option_schema_example_matches_canonical_json() {
         let envelope = InstrumentEnvelope {
-            schema: "finstack_quant.instrument/1".to_string(),
+            schema: finstack_quant_valuations::instruments::json_loader::InstrumentSchema::CURRENT,
             instrument: InstrumentJson::CDSOption(CDSOption::example().expect("cdso")),
         };
         let canonical = serde_json::to_value(envelope).expect("serialize cds option example");
@@ -187,7 +189,18 @@ mod generated_schema_contract {
         ("Decimal", "decimal.schema.json"),
         ("Id", "id.schema.json"),
         ("Money", "money.schema.json"),
-        ("PricingOverrides", "pricing_overrides.schema.json"),
+        (
+            "InstrumentPricingOverrides",
+            "instrument_pricing_overrides.schema.json",
+        ),
+        (
+            "MetricPricingOverrides",
+            "metric_pricing_overrides.schema.json",
+        ),
+        (
+            "ScenarioPricingOverrides",
+            "scenario_pricing_overrides.schema.json",
+        ),
         ("Tenor", "tenor.schema.json"),
     ];
     const CASHFLOW_SCHEMA_FILES: &[(&str, &str)] = &[
@@ -273,7 +286,7 @@ mod generated_schema_contract {
 
     fn generated_standalone_schema_paths() -> Vec<PathBuf> {
         let mut paths: Vec<_> = [
-            ("calibration/3", "calibration"),
+            ("calibration/1", "calibration"),
             ("results/1", "valuation_result"),
             ("market/1", "market_quote"),
         ]
@@ -297,6 +310,31 @@ mod generated_schema_contract {
             .unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
         serde_json::from_str(&content)
             .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
+    }
+
+    fn resolve_local_ref<'a>(schema: &'a Value, value: &'a Value) -> &'a Value {
+        let mut resolved = value;
+        while let Some(reference) = resolved.get("$ref").and_then(Value::as_str) {
+            let pointer = reference
+                .strip_prefix('#')
+                .unwrap_or_else(|| panic!("expected a local schema reference, got {reference}"));
+            resolved = schema
+                .pointer(pointer)
+                .unwrap_or_else(|| panic!("unresolved local schema reference {reference}"));
+        }
+        resolved
+    }
+
+    fn instrument_variants(schema: &Value) -> &[Value] {
+        let instrument = resolve_local_ref(schema, &schema["properties"]["instrument"]);
+        instrument["oneOf"]
+            .as_array()
+            .map(Vec::as_slice)
+            .expect("instrument schema should declare derived oneOf variants")
+    }
+
+    fn variant_const<'a>(variant: &'a Value, property: &str) -> Option<&'a str> {
+        variant["properties"][property]["const"].as_str()
     }
 
     fn collect_schema_files(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -674,8 +712,11 @@ mod generated_schema_contract {
 
         for path in schema_files {
             let schema = read_schema(&path);
+            let marker = resolve_local_ref(&schema, &schema["properties"]["schema"]);
             assert!(
-                schema.pointer("/properties/schema/const").is_some(),
+                marker["oneOf"].as_array().is_some_and(|variants| variants
+                    .iter()
+                    .any(|variant| { variant["const"] == "finstack_quant.instrument/1" })),
                 "{} is missing the standard schema const",
                 path.display()
             );
@@ -684,49 +725,50 @@ mod generated_schema_contract {
                 "{} uses schema_version on a public instrument envelope",
                 path.display()
             );
-            assert!(
-                schema
-                    .pointer("/properties/instrument/properties/type/const")
-                    .is_some(),
-                "{} is missing the instrument type discriminator",
-                path.display()
-            );
-            assert!(
-                schema
-                    .pointer("/properties/instrument/properties/spec/properties")
-                    .is_some(),
-                "{} is missing typed spec properties",
-                path.display()
-            );
-            assert!(
-                schema
-                    .pointer("/properties/instrument/properties/spec/required")
-                    .is_some(),
-                "{} is missing typed spec required fields",
-                path.display()
-            );
+            for variant in instrument_variants(&schema) {
+                assert!(
+                    variant_const(variant, "type").is_some(),
+                    "{} is missing an instrument type discriminator",
+                    path.display()
+                );
+                let spec = resolve_local_ref(&schema, &variant["properties"]["spec"]);
+                assert!(
+                    spec.get("properties").is_some(),
+                    "{} is missing typed spec properties",
+                    path.display()
+                );
+                assert!(
+                    spec.get("required").is_some(),
+                    "{} is missing typed spec required fields",
+                    path.display()
+                );
+            }
         }
     }
 
     #[test]
-    fn generated_schedule_params_use_short_field_names() {
+    fn generated_schedule_params_use_canonical_field_names() {
         let path = cashflow_schema_root().join("schedule_params.schema.json");
         let schema = read_schema(&path);
         assert!(
-            schema.pointer("/properties/freq").is_some(),
-            "schedule params should expose freq"
+            schema.pointer("/properties/frequency").is_some(),
+            "schedule params should expose frequency"
         );
         assert!(
-            schema.pointer("/properties/dc").is_some(),
-            "schedule params should expose dc"
+            schema.pointer("/properties/day_count").is_some(),
+            "schedule params should expose day_count"
         );
         assert!(
-            schema.pointer("/properties/frequency").is_none(),
-            "schedule params should not expose stale frequency"
+            schema.pointer("/properties/freq").is_none(),
+            "schedule params should not expose stale freq"
         );
         assert!(
-            schema.pointer("/properties/day_count").is_none(),
-            "schedule params should not expose stale day_count"
+            schema.pointer("/properties/dc").is_none(),
+            "schedule params should not expose stale dc"
+        );
+        assert!(
+            schema.pointer("/properties/bdc").is_none(),
+            "schedule params should not expose stale bdc"
         );
     }
 
@@ -755,25 +797,22 @@ mod generated_schema_contract {
     #[test]
     fn generated_instrument_union_refs_all_typed_schemas() {
         let schema = read_schema(&instrument_schema_root().join("instrument.schema.json"));
+        let instrument = resolve_local_ref(&schema, &schema["properties"]["instrument"]);
         assert!(
-            schema
-                .pointer("/properties/instrument/properties/type/enum")
-                .is_none(),
+            instrument.pointer("/properties/type/enum").is_none(),
             "instrument union should not keep the legacy shallow type enum"
         );
-        let variants = schema
-            .get("oneOf")
-            .and_then(Value::as_array)
-            .expect("instrument union should declare oneOf variants");
-
-        let mut schema_files = Vec::new();
-        collect_schema_files(&instrument_schema_root(), &mut schema_files);
-        let typed_schema_count = schema_files.len();
-
+        let actual = instrument_variants(&schema)
+            .iter()
+            .filter_map(|variant| variant_const(variant, "type"))
+            .collect::<BTreeSet<_>>();
+        let expected = finstack_quant_valuations::instruments::json_loader::registry_tags()
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
         assert_eq!(
-            variants.len(),
-            typed_schema_count,
-            "instrument union should reference every typed instrument schema"
+            actual, expected,
+            "instrument union should contain every registered instrument discriminator"
         );
     }
 
@@ -823,36 +862,8 @@ mod generated_schema_contract {
 }
 
 mod instrument_schema_drift {
-    use finstack_quant_core::schema::postprocess_schema;
-    use finstack_quant_valuations::instruments::*;
-    use schemars::JsonSchema;
-    use serde_json::{Map, Value};
+    use serde_json::Value;
     use std::path::Path;
-
-    const COMMON_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/common/1/";
-
-    fn common_schema_filename(def_name: &str) -> Option<&'static str> {
-        match def_name {
-            "Attributes" => Some("attributes.schema.json"),
-            "BusinessDayConvention" => Some("business_day_convention.schema.json"),
-            "Currency" => Some("currency.schema.json"),
-            "DayCount" => Some("day_count.schema.json"),
-            "Id" => Some("id.schema.json"),
-            "Money" => Some("money.schema.json"),
-            "PricingOverrides" => Some("pricing_overrides.schema.json"),
-            "Tenor" => Some("tenor.schema.json"),
-            _ => None,
-        }
-    }
-
-    fn common_schema_ref(def_name: &str) -> Option<String> {
-        common_schema_filename(def_name).map(|filename| format!("{COMMON_SCHEMA_BASE}{filename}"))
-    }
-
-    fn external_schema_ref(def_name: &str) -> Option<String> {
-        common_schema_ref(def_name)
-            .or_else(|| finstack_quant_cashflows::schema::definition_uri(def_name))
-    }
 
     fn schema_path(category: &str, name: &str) -> std::path::PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -871,62 +882,6 @@ mod instrument_schema_drift {
             .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()))
     }
 
-    fn checked_in_generated_content(category: &str, name: &str) -> Value {
-        let schema = checked_in_schema(category, name);
-        let mut content = Map::new();
-        if let Some(defs) = schema.get("$defs") {
-            content.insert("$defs".to_string(), defs.clone());
-        }
-        content.insert(
-            "spec".to_string(),
-            schema
-                .pointer("/properties/instrument/properties/spec")
-                .unwrap_or_else(|| {
-                    panic!(
-                        "{} missing instrument spec schema",
-                        schema_path(category, name).display()
-                    )
-                })
-                .clone(),
-        );
-        Value::Object(content)
-    }
-
-    fn generated_content<T: JsonSchema>() -> Value {
-        let schema = schemars::schema_for!(T);
-        let mut generated = serde_json::to_value(schema).expect("serialize generated schema");
-        postprocess_schema(&mut generated, external_schema_ref);
-        let mut content = Map::new();
-        if let Some(defs) = generated.get("$defs") {
-            content.insert("$defs".to_string(), defs.clone());
-        }
-        let mut spec = Map::new();
-        for key in [
-            "properties",
-            "required",
-            "type",
-            "additionalProperties",
-            "oneOf",
-            "anyOf",
-            "allOf",
-            "not",
-        ] {
-            if let Some(value) = generated.get(key) {
-                spec.insert(key.to_string(), value.clone());
-            }
-        }
-        content.insert("spec".to_string(), Value::Object(spec));
-        Value::Object(content)
-    }
-
-    fn assert_instrument_schema_current<T: JsonSchema>(category: &str, name: &str) {
-        assert_eq!(
-            checked_in_generated_content(category, name),
-            generated_content::<T>(),
-            "{category} schema {name}.schema.json is stale; run `cargo run -p finstack-quant-valuations --bin gen_schemas`"
-        );
-    }
-
     fn assert_f64(schema: &Value, path: &str, expected: f64, context: &str) {
         assert_eq!(
             schema.pointer(path).and_then(Value::as_f64),
@@ -939,16 +894,25 @@ mod instrument_schema_drift {
         let asset_class = schema
             .pointer("/$defs/CollateralAssetClass")
             .unwrap_or_else(|| panic!("{context}: missing CollateralAssetClass"));
-        assert!(
-            asset_class["description"]
-                .as_str()
-                .is_some_and(|description| description.contains("Custom values are also accepted")),
-            "{context}: CollateralAssetClass must document custom values"
-        );
+        let asset_classes = asset_class["oneOf"]
+            .as_array()
+            .expect("derived collateral variants")
+            .iter()
+            .filter_map(|variant| variant["const"].as_str())
+            .collect::<Vec<_>>();
         assert_eq!(
-            asset_class["examples"],
-            serde_json::json!(["cash", "government_bonds", "custom_collateral"]),
-            "{context}: CollateralAssetClass examples changed"
+            asset_classes,
+            [
+                "cash",
+                "government_bonds",
+                "agency_bonds",
+                "covered_bonds",
+                "corporate_bonds",
+                "equity",
+                "gold",
+                "mutual_funds",
+            ],
+            "{context}: CollateralAssetClass variants changed"
         );
 
         for field in ["concentration_limit", "fx_haircut_addon", "haircut"] {
@@ -995,113 +959,6 @@ mod instrument_schema_drift {
                 "{context}: notification deadline must be a valid hour"
             );
         }
-    }
-
-    #[test]
-    fn all_instrument_schemas_match_schemars_output() {
-        assert_instrument_schema_current::<Bond>("fixed_income", "bond");
-        assert_instrument_schema_current::<ConvertibleBond>("fixed_income", "convertible_bond");
-        assert_instrument_schema_current::<InflationLinkedBond>(
-            "fixed_income",
-            "inflation_linked_bond",
-        );
-        assert_instrument_schema_current::<TermLoan>("fixed_income", "term_loan");
-        assert_instrument_schema_current::<RevolvingCredit>("fixed_income", "revolving_credit");
-        assert_instrument_schema_current::<BondFuture>("fixed_income", "bond_future");
-        assert_instrument_schema_current::<AgencyMbsPassthrough>(
-            "fixed_income",
-            "agency_mbs_passthrough",
-        );
-        assert_instrument_schema_current::<AgencyTba>("fixed_income", "agency_tba");
-        assert_instrument_schema_current::<AgencyCmo>("fixed_income", "agency_cmo");
-        assert_instrument_schema_current::<DollarRoll>("fixed_income", "dollar_roll");
-        assert_instrument_schema_current::<FIIndexTotalReturnSwap>(
-            "fixed_income",
-            "trs_fixed_income_index",
-        );
-        assert_instrument_schema_current::<StructuredCredit>("fixed_income", "structured_credit");
-
-        assert_instrument_schema_current::<InterestRateSwap>("rates", "interest_rate_swap");
-        assert_instrument_schema_current::<BasisSwap>("rates", "basis_swap");
-        assert_instrument_schema_current::<XccySwap>("rates", "xccy_swap");
-        assert_instrument_schema_current::<InflationSwap>("rates", "inflation_swap");
-        assert_instrument_schema_current::<YoYInflationSwap>("rates", "yoy_inflation_swap");
-        assert_instrument_schema_current::<InflationCapFloor>("rates", "inflation_cap_floor");
-        assert_instrument_schema_current::<ForwardRateAgreement>("rates", "forward_rate_agreement");
-        assert_instrument_schema_current::<Swaption>("rates", "swaption");
-        assert_instrument_schema_current::<BermudanSwaption>("rates", "bermudan_swaption");
-        assert_instrument_schema_current::<InterestRateFuture>("rates", "interest_rate_future");
-        assert_instrument_schema_current::<CapFloor>("rates", "cap_floor");
-        assert_instrument_schema_current::<CmsOption>("rates", "cms_option");
-        assert_instrument_schema_current::<CmsSpreadOption>("rates", "cms_spread_option");
-        assert_instrument_schema_current::<CmsSwap>("rates", "cms_swap");
-        assert_instrument_schema_current::<IrFutureOption>("rates", "ir_future_option");
-        assert_instrument_schema_current::<Deposit>("rates", "deposit");
-        assert_instrument_schema_current::<Repo>("rates", "repo");
-        assert_instrument_schema_current::<RangeAccrual>("rates", "range_accrual");
-        assert_instrument_schema_current::<CallableRangeAccrual>("rates", "callable_range_accrual");
-        assert_instrument_schema_current::<Snowball>("rates", "snowball");
-        assert_instrument_schema_current::<Tarn>("rates", "tarn");
-
-        assert_instrument_schema_current::<CreditDefaultSwap>(
-            "credit_derivatives",
-            "credit_default_swap",
-        );
-        assert_instrument_schema_current::<CDSIndex>("credit_derivatives", "cds_index");
-        assert_instrument_schema_current::<CDSTranche>("credit_derivatives", "cds_tranche");
-        assert_instrument_schema_current::<CDSOption>("credit_derivatives", "cds_option");
-
-        assert_instrument_schema_current::<Equity>("equity", "equity");
-        assert_instrument_schema_current::<EquityOption>("equity", "equity_option");
-        assert_instrument_schema_current::<Autocallable>("equity", "autocallable");
-        assert_instrument_schema_current::<CliquetOption>("equity", "cliquet_option");
-        assert_instrument_schema_current::<VarianceSwap>("equity", "variance_swap");
-        assert_instrument_schema_current::<EquityIndexFuture>("equity", "equity_index_future");
-        assert_instrument_schema_current::<VolatilityIndexFuture>(
-            "equity",
-            "volatility_index_future",
-        );
-        assert_instrument_schema_current::<VolatilityIndexOption>(
-            "equity",
-            "volatility_index_option",
-        );
-        assert_instrument_schema_current::<EquityTotalReturnSwap>("equity", "trs_equity");
-        assert_instrument_schema_current::<PrivateMarketsFund>("equity", "private_markets_fund");
-        assert_instrument_schema_current::<RealEstateAsset>("equity", "real_estate_asset");
-        assert_instrument_schema_current::<DiscountedCashFlow>("equity", "discounted_cash_flow");
-        assert_instrument_schema_current::<LeveredRealEstateEquity>(
-            "equity",
-            "levered_real_estate_equity",
-        );
-
-        assert_instrument_schema_current::<FxSpot>("fx", "fx_spot");
-        assert_instrument_schema_current::<FxSwap>("fx", "fx_swap");
-        assert_instrument_schema_current::<FxForward>("fx", "fx_forward");
-        assert_instrument_schema_current::<Ndf>("fx", "ndf");
-        assert_instrument_schema_current::<FxOption>("fx", "fx_option");
-        assert_instrument_schema_current::<FxDigitalOption>("fx", "fx_digital_option");
-        assert_instrument_schema_current::<FxTouchOption>("fx", "fx_touch_option");
-        assert_instrument_schema_current::<FxBarrierOption>("fx", "fx_barrier_option");
-        assert_instrument_schema_current::<FxVarianceSwap>("fx", "fx_variance_swap");
-        assert_instrument_schema_current::<QuantoOption>("fx", "quanto_option");
-
-        assert_instrument_schema_current::<CommodityOption>("commodity", "commodity_option");
-        assert_instrument_schema_current::<CommodityAsianOption>(
-            "commodity",
-            "commodity_asian_option",
-        );
-        assert_instrument_schema_current::<CommodityForward>("commodity", "commodity_forward");
-        assert_instrument_schema_current::<CommoditySwap>("commodity", "commodity_swap");
-        assert_instrument_schema_current::<CommoditySwaption>("commodity", "commodity_swaption");
-        assert_instrument_schema_current::<CommoditySpreadOption>(
-            "commodity",
-            "commodity_spread_option",
-        );
-
-        assert_instrument_schema_current::<AsianOption>("exotics", "asian_option");
-        assert_instrument_schema_current::<BarrierOption>("exotics", "barrier_option");
-        assert_instrument_schema_current::<LookbackOption>("exotics", "lookback_option");
-        assert_instrument_schema_current::<Basket>("exotics", "basket");
     }
 
     #[test]

@@ -503,6 +503,7 @@ mod tests {
     fn intra_document_duplicate_metric_ids_are_rejected() {
         let json = r#"{
             "namespace": "custom",
+            "schema_version": 1,
             "metrics": [
                 {"id": "m1", "name": "First", "formula": "revenue * 1"},
                 {"id": "m1", "name": "Second", "formula": "revenue * 2"}
@@ -530,12 +531,12 @@ mod tests {
         let mut registry = Registry::new();
         registry
             .load_from_json_str(
-                r#"{"namespace":"a","metrics":[{"id":"m1","name":"M","formula":"revenue * 1"}]}"#,
+                r#"{"namespace":"a","schema_version":1,"metrics":[{"id":"m1","name":"M","formula":"revenue * 1"}]}"#,
             )
             .expect("first namespace loads");
         registry
             .load_from_json_str(
-                r#"{"namespace":"b","metrics":[{"id":"m1","name":"M","formula":"revenue * 2"}]}"#,
+                r#"{"namespace":"b","schema_version":1,"metrics":[{"id":"m1","name":"M","formula":"revenue * 2"}]}"#,
             )
             .expect("same id in another namespace is a distinct metric");
         assert_eq!(registry.len(), 2);

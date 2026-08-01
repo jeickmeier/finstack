@@ -20,28 +20,28 @@ from finstack_quant.valuations.instruments import (
 )
 from tests.tests_typed_helpers import build_cds as _cds, cds_legs as _legs
 
-# Every serde wire value of the Rust `StubKind` enum (no `rename_all`, so the
-# wire name is the bare variant name). Kept in sync manually with
+# Every canonical snake_case serde wire value of the Rust `StubKind` enum.
+# Kept in sync manually with
 # `finstack-quant/core/src/dates/schedule_iter.rs`; a stub `Literal` that
 # drifts from this set is exactly the bug this test guards against.
 _VALID_STUB_VALUES = (
-    "None",
-    "ShortFront",
-    "ShortBack",
-    "LongFront",
-    "LongBack",
+    "none",
+    "short_front",
+    "short_back",
+    "long_front",
+    "long_back",
 )
 
 
 def _market_json() -> str:
     return json.dumps({
-        "version": 2,
+        "schema_version": 1,
         "curves": [
             {
                 "type": "discount",
                 "id": "USD-OIS",
                 "base": "2024-01-01",
-                "day_count": "Act360",
+                "day_count": "act_360",
                 "knot_points": [[0.0, 1.0], [5.0, 0.90], [10.0, 0.80]],
                 "interp_style": "monotone_convex",
                 "extrapolation": "flat_forward",
@@ -58,7 +58,7 @@ def _market_json() -> str:
                 "issuer": None,
                 "seniority": None,
                 "currency": None,
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "par_points": [],
             },
         ],
@@ -72,67 +72,47 @@ def _market_json() -> str:
         "fx_delta_vol_surfaces": [],
         "vol_cubes": [],
         "collateral": {},
+        "hierarchy": None,
     })
 
 
 def _cds_hand_written_json() -> str:
-    """Hand-authored tagged JSON for the same economic CDS as `_cds`.
+    """Hand-authored instrument envelope for the same economic CDS as `_cds`.
 
     Deliberately NOT derived from `CreditDefaultSwap.to_json()` — this is the
-    independent side of the typed-vs-JSON golden. If Rust's ``tagged_json()``
+    independent side of the typed-vs-JSON golden. If Rust's envelope
     serializer ever mis-maps a field, this literal (built directly from the
     canonical `PremiumLegSpec`/`ProtectionLegSpec`/`CreditDefaultSwap` struct
-    definitions, their serde wire names, and the `FocusedPricingOverrides`
-    derive that merges `instrument_pricing_overrides` /
-    `metric_pricing_overrides` / `scenario_pricing_overrides` into a single
-    `pricing_overrides` wire field) will diverge from the typed path instead
-    of silently matching it.
+    definitions and their canonical serde wire names) will diverge from the
+    typed path instead of silently matching it.
     """
     return json.dumps({
-        "type": "credit_default_swap",
-        "spec": {
-            "id": "CDS-1",
-            "notional": {"amount": "10000000", "currency": "USD"},
-            "side": "pay",
-            "convention": "isda_na",
-            "premium": {
-                "start": "2024-03-20",
-                "end": "2029-06-20",
-                "frequency": {"count": 3, "unit": "months"},
-                "stub": "ShortFront",
-                "bdc": "modified_following",
-                "calendar_id": None,
-                "day_count": "Act360",
-                "spread_bp": "100",
-                "discount_curve_id": "USD-OIS",
-            },
-            "protection": {
-                "credit_curve_id": "ACME-CDS",
-                "recovery_rate": 0.4,
-                "settlement_delay": 3,
-            },
-            "valuation_convention": "bloomberg_cdsw_clean",
-            "attributes": {},
-            "pricing_overrides": {
-                "vol_surface_extrapolation": "error",
-                "tree_steps": None,
-                "use_gobet_miri": False,
-                "call_friction_cents": None,
-                "mean_reversion": None,
-                "oas_quote_compounding": "continuous",
-                "oas_price_basis": "settlement_dirty",
-                "cds_aod_half_day_bias": False,
-                "cds_act360_include_last_day": False,
-                "rho_bump_decimal": None,
-                "vega_bump_decimal": None,
-                "ytm_bump_decimal": None,
-                "spot_bump_pct": None,
-                "vol_bump_pct": None,
-                "rate_bump_bp": None,
-                "credit_spread_bump_bp": None,
-                "adaptive_bumps": False,
-                "mc_seed_scenario": None,
-                "theta_period": None,
+        "schema": "finstack_quant.instrument/1",
+        "instrument": {
+            "type": "credit_default_swap",
+            "spec": {
+                "id": "CDS-1",
+                "notional": {"amount": "10000000", "currency": "USD"},
+                "side": "pay",
+                "convention": "isda_na",
+                "premium": {
+                    "start": "2024-03-20",
+                    "end": "2029-06-20",
+                    "frequency": {"count": 3, "unit": "months"},
+                    "stub": "short_front",
+                    "business_day_convention": "modified_following",
+                    "calendar_id": None,
+                    "day_count": "act_360",
+                    "spread_bp": "100",
+                    "discount_curve_id": "USD-OIS",
+                },
+                "protection": {
+                    "credit_curve_id": "ACME-CDS",
+                    "recovery_rate": 0.4,
+                    "settlement_delay": 3,
+                },
+                "valuation_convention": "bloomberg_cdsw_clean",
+                "attributes": {},
             },
         },
     })
@@ -145,9 +125,9 @@ def _without_timestamp(result_json: str) -> dict[str, object]:
 
 
 class TestCreditDefaultSwapTyped:
-    def test_tagged_json_and_round_trip(self) -> None:
+    def test_envelope_json_and_round_trip(self) -> None:
         payload = json.loads(_cds().to_json())
-        assert payload["type"] == "credit_default_swap"
+        assert payload["instrument"]["type"] == "credit_default_swap"
         assert CreditDefaultSwap.from_json(_cds().to_json()).id == "CDS-1"
 
     def test_invalid_convention_raises(self) -> None:
@@ -217,7 +197,7 @@ class TestCreditDefaultSwapTyped:
             .build()
         )
         payload = json.loads(cds.to_json())
-        assert payload["spec"]["doc_clause"] == value
+        assert payload["instrument"]["spec"]["doc_clause"] == value
 
     def test_invalid_doc_clause_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid doc_clause"):
@@ -246,7 +226,7 @@ class TestCreditDefaultSwapTyped:
             .build()
         )
         payload = json.loads(cds.to_json())
-        assert payload["spec"]["protection_effective_date"] == "2024-06-20"
+        assert payload["instrument"]["spec"]["protection_effective_date"] == "2024-06-20"
 
     def test_builder_setters_accept_keyword_value(self) -> None:
         """Every builder setter's `value` parameter name must match its text_signature."""
@@ -269,7 +249,7 @@ class TestCreditDefaultSwapTyped:
 
         The JSON side is NOT derived from ``cds.to_json()`` (that would make
         both sides call the same Rust serializer, so a bug inside
-        `tagged_json()`'s own field mapping would be identically wrong on
+        the envelope serializer's own field mapping would be identically wrong on
         both sides and pass). See `_cds_hand_written_json`.
         """
         cds = _cds()
@@ -281,7 +261,7 @@ class TestCreditDefaultSwapTyped:
 class TestPremiumLegSpecTyped:
     @pytest.mark.parametrize("stub", _VALID_STUB_VALUES)
     def test_every_stub_literal_value_accepted(self, stub: str) -> None:
-        """Every value in the `stub` Literal (including `"None"`) must be a real accepted wire value."""
+        """Every value in the `stub` Literal (including `"none"`) must be a real accepted wire value."""
         leg = PremiumLegSpec(
             datetime.date(2024, 3, 20),
             datetime.date(2029, 6, 20),
@@ -310,12 +290,12 @@ class TestCDSIndexTyped:
             .convention("isda_na")
             .premium(premium)
             .protection(protection)
-            .pricing("SingleCurve")
+            .pricing("single_curve")
             .num_constituents(125)
             .build()
         )
         payload = json.loads(index.to_json())
-        assert payload["type"] == "cds_index"
+        assert payload["instrument"]["type"] == "cds_index"
         assert CDSIndex.from_json(index.to_json()).id == "CDX-IG-42"
 
     @pytest.mark.parametrize("value", ["isda_na", "isda_eu", "isda_as", "custom"])
@@ -334,13 +314,13 @@ class TestCDSIndexTyped:
             .convention(value)
             .premium(premium)
             .protection(protection)
-            .pricing("SingleCurve")
+            .pricing("single_curve")
             .num_constituents(125)
             .build()
         )
         assert index.id == "CDX-CONV"
 
-    @pytest.mark.parametrize("value", ["SingleCurve", "Constituents"])
+    @pytest.mark.parametrize("value", ["single_curve", "constituents"])
     def test_every_pricing_literal_value_accepted(self, value: str) -> None:
         premium, protection = _legs()
         builder = (
@@ -358,7 +338,7 @@ class TestCDSIndexTyped:
             .protection(protection)
             .pricing(value)
         )
-        if value == "Constituents":
+        if value == "constituents":
             builder = builder.constituents_json(
                 json.dumps([
                     {
@@ -374,11 +354,11 @@ class TestCDSIndexTyped:
             )
         index = builder.build()
         payload = json.loads(index.to_json())
-        assert payload["spec"]["pricing"] == value
+        assert payload["instrument"]["spec"]["pricing"] == value
 
     def test_invalid_pricing_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid pricing"):
-            CDSIndex.builder().pricing("single_curve")
+            CDSIndex.builder().pricing("SingleCurve")  # schema-rejection-test
 
     def test_invalid_convention_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid convention"):
@@ -408,7 +388,7 @@ class TestCDSIndexTyped:
             .convention(value="isda_na")
             .premium(value=premium)
             .protection(value=protection)
-            .pricing(value="SingleCurve")
+            .pricing(value="single_curve")
             .num_constituents(value=125)
             .build()
         )

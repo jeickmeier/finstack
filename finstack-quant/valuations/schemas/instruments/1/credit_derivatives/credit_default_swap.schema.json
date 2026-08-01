@@ -109,7 +109,7 @@
       "description": "Clearing status for OTC derivatives.\n\nDetermines whether a trade is cleared through a CCP or remains bilateral\nunder a CSA agreement.",
       "oneOf": [
         {
-          "const": "Bilateral",
+          "const": "bilateral",
           "description": "Bilateral (uncleared) trade governed by CSA\n\nSubject to BCBS-IOSCO margin requirements for non-centrally cleared derivatives.\nRequires both VM and IM (above thresholds).",
           "type": "string"
         },
@@ -117,7 +117,7 @@
           "additionalProperties": false,
           "description": "Trade cleared through a central counterparty (CCP)\n\nMargin requirements set by the CCP. IM is typically VaR-based.\nVM is exchanged daily with no threshold.",
           "properties": {
-            "Cleared": {
+            "cleared": {
               "properties": {
                 "ccp": {
                   "description": "CCP identifier (e.g., \"LCH\", \"CME\", \"ICE\", \"JSCC\")",
@@ -131,20 +131,56 @@
             }
           },
           "required": [
-            "Cleared"
+            "cleared"
           ],
           "type": "object"
         }
       ]
     },
     "CollateralAssetClass": {
-      "description": "Collateral asset class identifier. Canonical values are cash, government_bonds, agency_bonds, covered_bonds, corporate_bonds, equity, gold, and mutual_funds. Custom values are also accepted and normalized to lowercase snake_case during deserialization.",
-      "examples": [
-        "cash",
-        "government_bonds",
-        "custom_collateral"
-      ],
-      "type": "string"
+      "description": "Collateral asset classes per BCBS-IOSCO standards.\n\nAsset classes determine baseline haircuts and eligibility criteria.\nThe BCBS-IOSCO framework specifies minimum haircuts by asset class.\n\n# Reference\n\nBCBS-IOSCO \"Margin requirements for non-centrally cleared derivatives\" (2020)\nAnnex A: Standardized haircut schedule",
+      "oneOf": [
+        {
+          "const": "cash",
+          "description": "Cash in eligible currency",
+          "type": "string"
+        },
+        {
+          "const": "government_bonds",
+          "description": "Sovereign government bonds accepted as collateral.",
+          "type": "string"
+        },
+        {
+          "const": "agency_bonds",
+          "description": "Debt issued or guaranteed by eligible agencies.",
+          "type": "string"
+        },
+        {
+          "const": "covered_bonds",
+          "description": "Covered bonds meeting the applicable eligibility criteria.",
+          "type": "string"
+        },
+        {
+          "const": "corporate_bonds",
+          "description": "Investment-grade corporate bonds accepted under the CSA.",
+          "type": "string"
+        },
+        {
+          "const": "equity",
+          "description": "Eligible listed equity collateral.",
+          "type": "string"
+        },
+        {
+          "const": "gold",
+          "description": "Eligible gold collateral.",
+          "type": "string"
+        },
+        {
+          "const": "mutual_funds",
+          "description": "Eligible mutual funds or exchange-traded funds.",
+          "type": "string"
+        }
+      ]
     },
     "CollateralEligibility": {
       "additionalProperties": false,
@@ -201,6 +237,117 @@
       "required": [
         "asset_class",
         "haircut"
+      ],
+      "type": "object"
+    },
+    "CreditDefaultSwap": {
+      "additionalProperties": false,
+      "description": "Credit Default Swap instrument.\n\n# Market Standards & Citations (Week 5)\n\n## ISDA Standards\n\nThis implementation follows the **ISDA 2014 Credit Derivatives Definitions**:\n- **Section 1.1:** General Terms and Credit Events\n- **Section 3.2:** Fixed Payments (Premium Leg)\n- **Section 3.3:** Floating Payments (Protection Leg)\n- **Section 7.1:** Settlement Terms\n\n## ISDA CDS Standard Model\n\nThe pricing engine implements the **ISDA CDS Standard Model (2009)**:\n- Quarterly premium payments (20th of Mar/Jun/Sep/Dec - IMM dates)\n- ACT/360 day count\n- Modified Following business day convention\n- Accrual-on-default included in premium leg\n- Settlement: T+3 (North America), T+1 (Europe post-2009)\n\n## Integration Methods\n\nMultiple numerical integration methods available:\n- **ISDA Exact:** Analytical integration at exact cashflow dates (default)\n- **Gaussian Quadrature:** 8-point Gauss-Legendre for smooth integration\n- **Adaptive Simpson:** Adaptive refinement for complex survival curves\n\n## References\n\n- ISDA 2014 Credit Derivatives Definitions\n- \"Modelling Single-name and Multi-name Credit Derivatives\" by O'Kane (2008)\n- ISDA CDS Standard Model Implementation (Markit, 2009)\n- Bloomberg CDSW function documentation\n\nSee unit tests and `examples/` for usage.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Additional attributes"
+        },
+        "convention": {
+          "$ref": "#/$defs/CDSConvention",
+          "description": "ISDA convention"
+        },
+        "doc_clause": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CdsDocClause"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "ISDA documentation clause for restructuring credit events.\n\nControls which restructuring events trigger protection payments and\nthe maximum deliverable obligation maturity upon restructuring:\n\n- **Cr14** (Full Restructuring): All restructuring events trigger; no maturity cap.\n- **Mr14** (Modified Restructuring): Restructuring triggers with 30-month maturity cap.\n- **Mm14** (Modified-Modified Restructuring): Restructuring triggers with 60-month cap.\n- **Xr14** (No Restructuring): Restructuring does not trigger protection.\n\nIf `None`, the effective clause is derived from the CDS convention:\n- `IsdaNa` / `IsdaAs` -> `Xr14` (no restructuring, North American / Asian standard)\n- `IsdaEu` -> `Mm14` (modified-modified restructuring, European standard)\n\nSee [`doc_clause_effective`](Self::doc_clause_effective) for resolution logic."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing overrides (including upfront payment)."
+        },
+        "margin_spec": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OtcMarginSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional OTC margin specification for VM/IM.\n\nFor cleared CDS (e.g., via ICE Clear Credit), use\n`OtcMarginSpec::cleared(\"ICE\", Currency::USD)`. For bilateral\nCDS, use `OtcMarginSpec::bilateral_simm(...)`."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount"
+        },
+        "premium": {
+          "$ref": "#/$defs/PremiumLegSpec",
+          "description": "Premium leg specification"
+        },
+        "protection": {
+          "$ref": "#/$defs/ProtectionLegSpec",
+          "description": "Protection leg specification"
+        },
+        "protection_effective_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional protection effective date for forward-starting CDS.\n\nWhen `Some(date)`, protection begins on the specified date rather than\nthe premium leg start date. This allows a CDS where premium accrues\nfrom the original start date but credit protection only kicks in later.\n\nMust satisfy: `premium.start <= protection_effective_date <= premium.end`.\n\nWhen `None`, protection starts on the premium leg start date (standard CDS)."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only valuation adjustments."
+        },
+        "side": {
+          "$ref": "#/$defs/PayReceive",
+          "description": "Buyer/seller perspective"
+        },
+        "upfront": {
+          "description": "Upfront payment (Date, Money).\n\nThe amount is defined as a payment from Protection Buyer to Protection Seller.\n- If positive: Buyer pays Seller.\n- If negative: Seller pays Buyer.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "valuation_convention": {
+          "$ref": "#/$defs/CdsValuationConvention",
+          "default": "bloomberg_cdsw_clean",
+          "description": "Valuation presentation convention."
+        }
+      },
+      "required": [
+        "id",
+        "notional",
+        "side",
+        "convention",
+        "premium",
+        "protection"
       ],
       "type": "object"
     },
@@ -295,27 +442,27 @@
       "description": "Initial margin calculation methodology.\n\nDifferent methodologies are used depending on regulatory requirements,\nproduct type, and whether trades are cleared or bilateral.\n\n# BCBS-IOSCO Standards\n\nFor bilateral (uncleared) OTC derivatives, either SIMM or the regulatory\nschedule approach may be used. SIMM is the industry standard for large\ndealers due to its risk-sensitivity.",
       "oneOf": [
         {
-          "const": "Haircut",
+          "const": "haircut",
           "description": "Haircut-based IM calculation (standard for repos and securities financing)\n\nIM = Collateral_Value × Haircut\n\nHaircuts are determined by asset class, rating, maturity, and FX mismatch.",
           "type": "string"
         },
         {
-          "const": "Simm",
+          "const": "simm",
           "description": "ISDA Standard Initial Margin Model (SIMM)\n\nSensitivities-based model calculating IM from delta, vega, and curvature\nrisk across interest rate, credit, equity, commodity, and FX risk classes.\n\nReference: ISDA SIMM Methodology v2.6 (2023)",
           "type": "string"
         },
         {
-          "const": "Schedule",
+          "const": "schedule",
           "description": "BCBS-IOSCO regulatory schedule approach\n\nGrid-based IM calculation using notional × rate based on asset class and maturity.\nSimpler but typically more conservative than SIMM.\n\nExample rates:\n- Interest Rate: 0-2yr: 1%, 2-5yr: 2%, 5+yr: 4%\n- Credit: 2-5yr: 5%, 5+yr: 10%\n- Equity: 15%\n- FX: 6%",
           "type": "string"
         },
         {
-          "const": "InternalModel",
+          "const": "internal_model",
           "description": "Internal model approved by regulator\n\nBank's proprietary VaR or ES-based model approved by supervisor.\nMust meet regulatory backtesting and validation requirements.",
           "type": "string"
         },
         {
-          "const": "ClearingHouse",
+          "const": "clearing_house",
           "description": "Clearing house methodology\n\nCCP-specific IM calculation (typically VaR or SPAN-based).\nExamples: LCH SwapClear, CME, ICE Clear Credit",
           "type": "string"
         }
@@ -356,6 +503,16 @@
         "segregated"
       ],
       "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
     },
     "MarginCallTiming": {
       "additionalProperties": false,
@@ -402,22 +559,22 @@
       "description": "Margin call frequency.\n\nDetermines how often margin calls are made and collateral is exchanged.\nIndustry standard for OTC derivatives is daily under BCBS-IOSCO rules.",
       "oneOf": [
         {
-          "const": "Daily",
+          "const": "daily",
           "description": "Daily margin calls (standard for OTC derivatives post-2016)",
           "type": "string"
         },
         {
-          "const": "Weekly",
+          "const": "weekly",
           "description": "Weekly margin calls (pre-regulatory period)",
           "type": "string"
         },
         {
-          "const": "Monthly",
+          "const": "monthly",
           "description": "Monthly margin calls (pre-regulatory period)",
           "type": "string"
         },
         {
-          "const": "OnDemand",
+          "const": "on_demand",
           "description": "On-demand margin calls (used for repos and some bilateral agreements)",
           "type": "string"
         }
@@ -504,7 +661,7 @@
     "PremiumLegSpec": {
       "description": "Specification for CDS premium legs",
       "properties": {
-        "bdc": {
+        "business_day_convention": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
           "default": "modified_following",
           "description": "Business day convention"
@@ -525,28 +682,24 @@
           "description": "Discount curve identifier"
         },
         "end": {
-          "description": "End date of protection",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "End date of protection"
         },
         "frequency": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
           "description": "Payment frequency"
         },
         "spread_bp": {
-          "description": "Fixed spread in basis points (e.g., 100 = 100bp = 1%)",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Fixed spread in basis points (e.g., 100 = 100bp = 1%)"
         },
         "start": {
-          "description": "Start date of protection",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of protection"
         },
         "stub": {
           "$ref": "#/$defs/StubKind",
-          "default": "ShortFront",
+          "default": "short_front",
           "description": "Stub convention"
         }
       },
@@ -587,31 +740,52 @@
       ],
       "type": "object"
     },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/CreditDefaultSwap"
+            },
+            "type": {
+              "const": "credit_default_swap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "StubKind": {
       "description": "Stub period handling when start/end dates don't align with payment frequency.\n\nControls how schedules are generated when the start and end dates don't\ndivide evenly by the payment frequency, resulting in an irregular period\n(stub) at the beginning or end of the schedule.\n\n# Variants\n\n- **`None`**: No stub allowed (default). Generates regular periods from\n  start to end and returns an error\n  ([`InputError::NonIntegerScheduleTenor`]) when the dates don't divide\n  evenly by the frequency. Use a stub variant for misaligned schedules.\n\n[`InputError::NonIntegerScheduleTenor`]: crate::error::InputError::NonIntegerScheduleTenor\n- **`ShortFront`**: Short stub period at the start. Schedule is built\n  backward from the end date, creating a short first period.\n- **`ShortBack`**: Short stub period at the end. Schedule is built forward\n  from the start date, creating a short final period.\n- **`LongFront`**: Long stub period at the start. Combines the first two\n  periods into a single longer period.\n- **`LongBack`**: Long stub period at the end. Combines the last two periods\n  into a single longer period.\n\n# Financial Context\n\nStub conventions are important for:\n- Interest accrual calculations (short/long first coupons)\n- Cash flow present value computations\n- Matching market conventions for specific instruments\n\n# Examples\n\n```rust\nuse finstack_quant_core::dates::{ScheduleBuilder, Tenor, StubKind};\nuse time::{Date, Month};\n\nlet start = Date::from_calendar_date(2025, Month::January, 10)?;\nlet end = Date::from_calendar_date(2025, Month::December, 15)?;\n\n// Short stub at front\nlet sched = ScheduleBuilder::new(start, end)?\n    .frequency(Tenor::quarterly())\n    .stub_rule(StubKind::ShortFront)\n    .build()?;\n# Ok::<(), Box<dyn std::error::Error>>(())\n```\n\n# See Also\n\n- [`ScheduleBuilder::stub_rule`] to configure stub behavior",
       "oneOf": [
         {
-          "const": "None",
+          "const": "none",
           "description": "No stub allowed: start/end must align exactly with the frequency,\notherwise schedule generation returns an error.",
           "type": "string"
         },
         {
-          "const": "ShortFront",
+          "const": "short_front",
           "description": "Short stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "ShortBack",
+          "const": "short_back",
           "description": "Short stub period at the end of the schedule (final step truncated to maturity).",
           "type": "string"
         },
         {
-          "const": "LongFront",
+          "const": "long_front",
           "description": "Long stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "LongBack",
+          "const": "long_back",
           "description": "Long stub period at the end of the schedule (merges final two periods).",
           "type": "string"
         }
@@ -662,7 +836,7 @@
   "$id": "https://finstack_quant.dev/schemas/instrument/1/credit_derivatives/credit_default_swap.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "CDS contract providing credit protection on a reference entity",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -675,9 +849,9 @@
             "currency": "USD"
           },
           "premium": {
-            "bdc": "modified_following",
+            "business_day_convention": "modified_following",
             "calendar_id": "nyse",
-            "day_count": "Act360",
+            "day_count": "act_360",
             "discount_curve_id": "USD-OIS",
             "end": "2029-03-20",
             "frequency": {
@@ -686,100 +860,15 @@
             },
             "spread_bp": "100",
             "start": "2024-03-20",
-            "stub": "ShortFront"
-          },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
+            "stub": "short_front"
           },
           "protection": {
             "credit_curve_id": "CORP-HAZARD",
             "recovery_rate": 0.4,
             "settlement_delay": 3
           },
-          "side": "pay"
-        },
-        "type": "credit_default_swap"
-      },
-      "schema": "finstack_quant.instrument/1"
-    },
-    {
-      "instrument": {
-        "spec": {
-          "attributes": {},
-          "convention": "isda_eu",
-          "doc_clause": "mm14",
-          "id": "CDS-FWD-EU-5Y",
-          "notional": {
-            "amount": "10000000",
-            "currency": "EUR"
-          },
-          "premium": {
-            "bdc": "modified_following",
-            "calendar_id": "target2",
-            "day_count": "Act360",
-            "discount_curve_id": "EUR-OIS",
-            "end": "2029-06-20",
-            "frequency": {
-              "count": 3,
-              "unit": "months"
-            },
-            "spread_bp": "150",
-            "start": "2024-06-20",
-            "stub": "ShortFront"
-          },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
-          "protection": {
-            "credit_curve_id": "EU-CORP-HAZARD",
-            "recovery_rate": 0.4,
-            "settlement_delay": 1
-          },
-          "protection_effective_date": "2024-09-20",
           "side": "pay",
-          "upfront": [
-            "2024-06-21",
-            {
-              "amount": "200000",
-              "currency": "EUR"
-            }
-          ]
+          "valuation_convention": "bloomberg_cdsw_clean"
         },
         "type": "credit_default_swap"
       },
@@ -788,150 +877,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Credit Default Swap instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "default": {},
-              "description": "Additional attributes"
-            },
-            "convention": {
-              "$ref": "#/$defs/CDSConvention",
-              "description": "ISDA convention"
-            },
-            "doc_clause": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/CdsDocClause"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "ISDA documentation clause for restructuring credit events.\n\nControls which restructuring events trigger protection payments and\nthe maximum deliverable obligation maturity upon restructuring:\n\n- **Cr14** (Full Restructuring): All restructuring events trigger; no maturity cap.\n- **Mr14** (Modified Restructuring): Restructuring triggers with 30-month maturity cap.\n- **Mm14** (Modified-Modified Restructuring): Restructuring triggers with 60-month cap.\n- **Xr14** (No Restructuring): Restructuring does not trigger protection.\n\nIf `None`, the effective clause is derived from the CDS convention:\n- `IsdaNa` / `IsdaAs` -> `Xr14` (no restructuring, North American / Asian standard)\n- `IsdaEu` -> `Mm14` (modified-modified restructuring, European standard)\n\nSee [`doc_clause_effective`](Self::doc_clause_effective) for resolution logic."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "margin_spec": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/OtcMarginSpec"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional OTC margin specification for VM/IM.\n\nFor cleared CDS (e.g., via ICE Clear Credit), use\n`OtcMarginSpec::cleared(\"ICE\", Currency::USD)`. For bilateral\nCDS, use `OtcMarginSpec::bilateral_simm(...)`."
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount"
-            },
-            "premium": {
-              "$ref": "#/$defs/PremiumLegSpec",
-              "description": "Premium leg specification"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Instrument-owned pricing overrides (including upfront payment)."
-            },
-            "protection": {
-              "$ref": "#/$defs/ProtectionLegSpec",
-              "description": "Protection leg specification"
-            },
-            "protection_effective_date": {
-              "description": "Optional protection effective date for forward-starting CDS.\n\nWhen `Some(date)`, protection begins on the specified date rather than\nthe premium leg start date. This allows a CDS where premium accrues\nfrom the original start date but credit protection only kicks in later.\n\nMust satisfy: `premium.start <= protection_effective_date <= premium.end`.\n\nWhen `None`, protection starts on the premium leg start date (standard CDS).",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "side": {
-              "$ref": "#/$defs/PayReceive",
-              "description": "Buyer/seller perspective"
-            },
-            "upfront": {
-              "description": "Upfront payment (Date, Money).\n\nThe amount is defined as a payment from Protection Buyer to Protection Seller.\n- If positive: Buyer pays Seller.\n- If negative: Seller pays Buyer.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "string"
-                },
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "valuation_convention": {
-              "$ref": "#/$defs/CdsValuationConvention",
-              "default": "bloomberg_cdsw_clean",
-              "description": "Valuation presentation convention."
-            }
-          },
-          "required": [
-            "id",
-            "notional",
-            "side",
-            "convention",
-            "premium",
-            "protection"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "credit_default_swap",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Credit Default Swap",
+  "title": "credit_default_swap",
   "type": "object"
 }

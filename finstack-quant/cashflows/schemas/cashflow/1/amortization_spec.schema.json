@@ -1,10 +1,10 @@
 {
   "$id": "https://finstack_quant.dev/schemas/cashflow/1/amortization_spec.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Amortization and notional specifications for cashflow principal schedules. Rust types: AmortizationSpec, Notional from finstack_quant_valuations::cashflow::builder::specs::amortization",
+  "description": "Cashflow amortization specification.",
   "oneOf": [
     {
-      "const": "None",
+      "const": "none",
       "description": "No amortization – principal remains constant until final redemption.",
       "type": "string"
     },
@@ -12,7 +12,7 @@
       "additionalProperties": false,
       "description": "Linear principal paydown towards a target final notional amount over all periods.",
       "properties": {
-        "LinearTo": {
+        "linear_to": {
           "additionalProperties": false,
           "properties": {
             "final_notional": {
@@ -27,7 +27,7 @@
         }
       },
       "required": [
-        "LinearTo"
+        "linear_to"
       ],
       "type": "object"
     },
@@ -35,7 +35,7 @@
       "additionalProperties": false,
       "description": "Explicit schedule of remaining principal amounts after given dates.\nEach pair stores `(date, remaining_principal_after_date)`.",
       "properties": {
-        "StepRemaining": {
+        "step_remaining": {
           "additionalProperties": false,
           "properties": {
             "schedule": {
@@ -45,7 +45,7 @@
                 "minItems": 2,
                 "prefixItems": [
                   {
-                    "type": "string"
+                    "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
                   },
                   {
                     "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
@@ -63,7 +63,7 @@
         }
       },
       "required": [
-        "StepRemaining"
+        "step_remaining"
       ],
       "type": "object"
     },
@@ -71,7 +71,7 @@
       "additionalProperties": false,
       "description": "Fixed percentage of **original** notional paid each period (capped by remaining outstanding).\n\nThis is a sinking-fund style amortization where the payment amount is constant\nacross periods: `initial_notional * pct`. It does **not** compound (i.e., it is\nNOT percentage-of-remaining / declining-balance / mortgage-style).",
       "properties": {
-        "PercentOfOriginalPerPeriod": {
+        "percent_of_original_per_period": {
           "additionalProperties": false,
           "properties": {
             "pct": {
@@ -87,7 +87,7 @@
         }
       },
       "required": [
-        "PercentOfOriginalPerPeriod"
+        "percent_of_original_per_period"
       ],
       "type": "object"
     },
@@ -95,7 +95,7 @@
       "additionalProperties": false,
       "description": "Custom principal exchanges on specific dates (absolute cash amounts).\nPositive amounts reduce outstanding (i.e., principal paid by issuer).",
       "properties": {
-        "CustomPrincipal": {
+        "custom_principal": {
           "additionalProperties": false,
           "properties": {
             "items": {
@@ -105,7 +105,7 @@
                 "minItems": 2,
                 "prefixItems": [
                   {
-                    "type": "string"
+                    "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
                   },
                   {
                     "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
@@ -123,10 +123,10 @@
         }
       },
       "required": [
-        "CustomPrincipal"
+        "custom_principal"
       ],
       "type": "object"
     }
   ],
-  "title": "Amortization Specification"
+  "title": "AmortizationSpec"
 }

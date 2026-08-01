@@ -1,5 +1,5 @@
 {
-  "schema_version": "finstack_quant.contract_specs/1",
+  "schema": "finstack_quant.contract_specs/1",
   "bond_futures": [
     {
       "ids": ["cme.ust_10y", "ust_10y", "cbot_10y_t_note"],

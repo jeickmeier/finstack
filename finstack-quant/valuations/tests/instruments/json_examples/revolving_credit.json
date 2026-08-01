@@ -3,7 +3,7 @@
     "spec": {
       "attributes": {},
       "base_rate_spec": {
-        "Floating": {
+        "floating": {
           "all_in_cap_bp": null,
           "all_in_floor_bp": null,
           "fixing_calendar_id": null,
@@ -12,7 +12,7 @@
           "index_cap_bp": null,
           "index_floor_bp": "0",
           "index_id": "USD-SOFR-3M",
-          "reset_freq": {
+          "reset_frequency": {
             "count": 3,
             "unit": "months"
           },
@@ -26,10 +26,10 @@
       },
       "commitment_date": "2024-01-01",
       "credit_curve_id": null,
-      "day_count": "Act360",
+      "day_count": "act_360",
       "discount_curve_id": "USD-OIS",
       "draw_repay_spec": {
-        "Deterministic": [
+        "deterministic": [
           {
             "amount": {
               "amount": "5000000",
@@ -55,7 +55,7 @@
       "fees": {
         "commitment_fee_tiers": [
           {
-            "bps": "25",
+            "bp": "25",
             "threshold": "0"
           }
         ],
@@ -63,7 +63,7 @@
         "upfront_fee": null,
         "usage_fee_tiers": [
           {
-            "bps": "10",
+            "bp": "10",
             "threshold": "0"
           }
         ]
@@ -74,29 +74,8 @@
       },
       "id": "RCF-USD-3Y",
       "maturity": "2027-01-01",
-      "pricing_overrides": {
-        "adaptive_bumps": false,
-        "call_friction_cents": null,
-        "cds_quote_bp": null,
-        "credit_spread_bump_bp": null,
-        "implied_volatility": null,
-        "mc_seed_scenario": null,
-        "mean_reversion": null,
-        "quoted_clean_price": null,
-        "rate_bump_bp": null,
-        "rho_bump_decimal": null,
-        "spot_bump_pct": null,
-        "theta_period": null,
-        "tree_steps": null,
-        "upfront_payment": null,
-        "use_gobet_miri": false,
-        "vega_bump_decimal": null,
-        "vol_bump_pct": null,
-        "vol_surface_extrapolation": "error",
-        "ytm_bump_decimal": null
-      },
       "recovery_rate": 0.0,
-      "stub": "ShortFront"
+      "stub": "short_front"
     },
     "type": "revolving_credit"
   },

@@ -14,6 +14,7 @@ use finstack_quant_core::money::Money;
     Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum AmortizationSpec {
     /// No amortization – principal remains constant until final redemption.
     #[default]
@@ -27,7 +28,7 @@ pub enum AmortizationSpec {
     /// Each pair stores `(date, remaining_principal_after_date)`.
     StepRemaining {
         /// Ordered list of `(date, remaining_principal_after_date)`.
-        #[schemars(with = "Vec<(String, Money)>")]
+        #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")]
         schedule: Vec<(Date, Money)>,
     },
     /// Fixed percentage of **original** notional paid each period (capped by remaining outstanding).
@@ -43,7 +44,7 @@ pub enum AmortizationSpec {
     /// Positive amounts reduce outstanding (i.e., principal paid by issuer).
     CustomPrincipal {
         /// List of `(date, principal_amount)` exchanges; amounts are absolute cashflows.
-        #[schemars(with = "Vec<(String, Money)>")]
+        #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")]
         items: Vec<(Date, Money)>,
     },
 }

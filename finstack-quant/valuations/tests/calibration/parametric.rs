@@ -162,7 +162,7 @@ fn run_parametric_ns_with_config(
 
     let envelope = CalibrationEnvelope {
         schema_url: None,
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),

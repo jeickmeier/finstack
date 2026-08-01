@@ -1,7 +1,7 @@
 {
   "instrument": {
     "spec": {
-      "allow_calendar_fallback": true,
+      "allow_calendar_fallback": false,
       "allow_same_curve": false,
       "attributes": {},
       "id": "BASIS-SWAP-USD-3M1M-5Y",
@@ -9,30 +9,10 @@
         "amount": "10000000",
         "currency": "USD"
       },
-      "pricing_overrides": {
-        "adaptive_bumps": false,
-        "call_friction_cents": null,
-        "cds_quote_bp": null,
-        "credit_spread_bump_bp": null,
-        "implied_volatility": null,
-        "mc_seed_scenario": null,
-        "mean_reversion": null,
-        "quoted_clean_price": null,
-        "rate_bump_bp": null,
-        "rho_bump_decimal": null,
-        "spot_bump_pct": null,
-        "theta_period": null,
-        "tree_steps": null,
-        "upfront_payment": null,
-        "use_gobet_miri": false,
-        "vega_bump_decimal": null,
-        "vol_bump_pct": null,
-        "vol_surface_extrapolation": "error",
-        "ytm_bump_decimal": null
-      },
       "primary_leg": {
-        "bdc": "modified_following",
-        "day_count": "Act360",
+        "business_day_convention": "modified_following",
+        "calendar_id": "weekends_only",
+        "day_count": "act_360",
         "discount_curve_id": "USD-OIS",
         "end": "2029-01-03",
         "forward_curve_id": "USD-SOFR-3M",
@@ -44,11 +24,12 @@
         "reset_lag_days": 0,
         "spread_bp": "5",
         "start": "2024-01-03",
-        "stub": "ShortFront"
+        "stub": "short_front"
       },
       "reference_leg": {
-        "bdc": "modified_following",
-        "day_count": "Act360",
+        "business_day_convention": "modified_following",
+        "calendar_id": "weekends_only",
+        "day_count": "act_360",
         "discount_curve_id": "USD-OIS",
         "end": "2029-01-03",
         "forward_curve_id": "USD-SOFR-1M",
@@ -60,7 +41,7 @@
         "reset_lag_days": 0,
         "spread_bp": "0",
         "start": "2024-01-03",
-        "stub": "ShortFront"
+        "stub": "short_front"
       }
     },
     "type": "basis_swap"

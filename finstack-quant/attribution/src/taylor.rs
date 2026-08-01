@@ -408,19 +408,19 @@ fn compute_taylor_result(
 
     // Volatility sensitivity (vega)
     if let Some(dependency) = market_deps.volatility_dependencies.first() {
-        let surface_id = dependency.surface_id.clone();
+        let vol_surface_id = dependency.vol_surface_id.clone();
         let result = compute_vol_factor(
             instrument,
             market_t0,
             market_t1,
             as_of_t0,
             pv_t0,
-            &surface_id,
+            &vol_surface_id,
             config,
         );
         record_taylor_factor_result(
             "vol",
-            &surface_id,
+            &vol_surface_id,
             result,
             &mut factors,
             &mut total_explained,
@@ -1068,13 +1068,14 @@ fn compute_vol_factor(
     market_t1: &MarketContext,
     as_of_t0: Date,
     pv_t0: Money,
-    surface_id: &CurveId,
+    vol_surface_id: &CurveId,
     config: &TaylorAttributionConfig,
 ) -> Result<TaylorFactorResult> {
-    let bumped_up = bump_surface_vol_absolute(market_t0, surface_id.as_str(), config.vol_bump)?;
+    let bumped_up = bump_surface_vol_absolute(market_t0, vol_surface_id.as_str(), config.vol_bump)?;
     let pv_up = reprice_instrument(instrument, &bumped_up, as_of_t0)?;
 
-    let bumped_down = bump_surface_vol_absolute(market_t0, surface_id.as_str(), -config.vol_bump)?;
+    let bumped_down =
+        bump_surface_vol_absolute(market_t0, vol_surface_id.as_str(), -config.vol_bump)?;
     let pv_down = reprice_instrument(instrument, &bumped_down, as_of_t0)?;
 
     // Central difference vega in $ per vol point.
@@ -1090,7 +1091,7 @@ fn compute_vol_factor(
 
     // vol_move is in vol points (percentage points of absolute vol).
     let vol_move =
-        measure_vol_surface_shift(surface_id.as_str(), market_t0, market_t1, None, None)?;
+        measure_vol_surface_shift(vol_surface_id.as_str(), market_t0, market_t1, None, None)?;
 
     let explained = vega_per_point * vol_move;
 
@@ -1106,7 +1107,7 @@ fn compute_vol_factor(
     };
 
     Ok(TaylorFactorResult {
-        factor_name: format!("Vol:{}", surface_id),
+        factor_name: format!("Vol:{}", vol_surface_id),
         sensitivity: vega_per_point,
         market_move: vol_move,
         explained_pnl: explained,

@@ -43,7 +43,7 @@ fn fixed_market() -> MarketContext {
 /// correlate: with a single asset, per-name default dispersion is invariant
 /// to asset correlation and the sensitivity assertions would be vacuous.
 fn pool() -> AssetPool {
-    let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
     for i in 0..10 {
         pool.assets.push(PoolAsset::fixed_rate_bond(
             format!("A{i}"),

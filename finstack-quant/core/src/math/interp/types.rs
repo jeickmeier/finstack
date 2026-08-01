@@ -168,22 +168,16 @@ impl std::fmt::Display for ExtrapolationPolicy {
     }
 }
 
-impl crate::parse::NormalizedEnum for ExtrapolationPolicy {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("flat_zero", Self::FlatZero),
-        ("flatzero", Self::FlatZero),
-        ("flat", Self::FlatZero),
-        ("flat_forward", Self::FlatForward),
-        ("flatforward", Self::FlatForward),
-        ("none", Self::None),
-    ];
-}
-
 impl std::str::FromStr for ExtrapolationPolicy {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s)
+        match s {
+            "flat_zero" => Ok(Self::FlatZero),
+            "flat_forward" => Ok(Self::FlatForward),
+            "none" => Ok(Self::None),
+            _ => Err(format!("unknown extrapolation policy {s:?}")),
+        }
     }
 }
 
@@ -204,31 +198,18 @@ impl std::fmt::Display for InterpStyle {
     }
 }
 
-impl crate::parse::NormalizedEnum for InterpStyle {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("linear", Self::Linear),
-        ("log_linear", Self::LogLinear),
-        ("loglinear", Self::LogLinear),
-        ("flat_fwd", Self::LogLinear),
-        ("flat_forward", Self::LogLinear),
-        ("monotone_convex", Self::MonotoneConvex),
-        ("monotoneconvex", Self::MonotoneConvex),
-        ("cubic_hermite", Self::CubicHermite),
-        ("cubichermite", Self::CubicHermite),
-        (
-            "piecewise_quadratic_forward",
-            Self::PiecewiseQuadraticForward,
-        ),
-        ("piecewise_quadratic", Self::PiecewiseQuadraticForward),
-        ("pqf", Self::PiecewiseQuadraticForward),
-    ];
-}
-
 impl std::str::FromStr for InterpStyle {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s)
+        match s {
+            "linear" => Ok(Self::Linear),
+            "log_linear" => Ok(Self::LogLinear),
+            "monotone_convex" => Ok(Self::MonotoneConvex),
+            "cubic_hermite" => Ok(Self::CubicHermite),
+            "piecewise_quadratic_forward" => Ok(Self::PiecewiseQuadraticForward),
+            _ => Err(format!("unknown interpolation style {s:?}")),
+        }
     }
 }
 
@@ -449,14 +430,6 @@ impl InterpStyle {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn assert_interp_style(label: &str, expected: InterpStyle) {
-        assert!(matches!(label.parse::<InterpStyle>(), Ok(value) if value == expected));
-    }
-
-    fn assert_extrapolation_policy(label: &str, expected: ExtrapolationPolicy) {
-        assert!(matches!(label.parse::<ExtrapolationPolicy>(), Ok(value) if value == expected));
-    }
 
     fn standard_knots() -> Box<[f64]> {
         vec![0.0, 1.0, 2.0, 3.0].into_boxed_slice()
@@ -740,17 +713,19 @@ mod tests {
     }
 
     #[test]
-    fn interp_style_from_str_aliases() {
-        assert_interp_style("loglinear", InterpStyle::LogLinear);
-        assert_interp_style("flat_fwd", InterpStyle::LogLinear);
-        assert_interp_style("flat_forward", InterpStyle::LogLinear);
-        assert_interp_style("monotoneconvex", InterpStyle::MonotoneConvex);
-        assert_interp_style("cubichermite", InterpStyle::CubicHermite);
-        assert_interp_style("pqf", InterpStyle::PiecewiseQuadraticForward);
-        assert_interp_style(
+    fn interp_style_from_str_rejects_noncanonical_spellings() {
+        for rejected in [
+            "loglinear",
+            "flat_fwd",
+            "flat_forward",
+            "monotoneconvex",
+            "cubichermite",
+            "pqf",
             "piecewise_quadratic",
-            InterpStyle::PiecewiseQuadraticForward,
-        );
+            "Linear",
+        ] {
+            assert!(rejected.parse::<InterpStyle>().is_err());
+        }
     }
 
     #[test]
@@ -780,10 +755,10 @@ mod tests {
     }
 
     #[test]
-    fn extrap_policy_from_str_aliases() {
-        assert_extrapolation_policy("flatzero", ExtrapolationPolicy::FlatZero);
-        assert_extrapolation_policy("flat", ExtrapolationPolicy::FlatZero);
-        assert_extrapolation_policy("flatforward", ExtrapolationPolicy::FlatForward);
+    fn extrap_policy_from_str_rejects_noncanonical_spellings() {
+        for rejected in ["flatzero", "flat", "flatforward", "FlatZero", "flat-zero"] {
+            assert!(rejected.parse::<ExtrapolationPolicy>().is_err());
+        }
     }
 
     #[test]

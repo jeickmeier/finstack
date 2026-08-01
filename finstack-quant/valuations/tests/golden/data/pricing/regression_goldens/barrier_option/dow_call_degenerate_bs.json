@@ -1,5 +1,5 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "dow_call_degenerate_bs",
     "domain": "exotics.barrier_option",
@@ -20,7 +20,7 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
         "id": "barrier_dow_degenerate_bs",
         "description": "Synthetic flat market for degenerate down-and-out call golden test. S=K=100, r=5% (OIS), q=0%, sigma=20% flat.",
@@ -58,7 +58,7 @@
           "kind": "discount_curve",
           "id": "USD-OIS",
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "knot_points": [
             [
               0.0,
@@ -78,7 +78,9 @@
           "min_forward_rate": null,
           "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null
+          "rate_calibration": null,
+          "calibration_ois_cutoff_days": null,
+          "fx_policy": null
         },
         {
           "kind": "vol_surface",
@@ -97,6 +99,7 @@
             150.0
           ],
           "secondary_axis": "strike",
+          "quote_type": "black_lognormal",
           "interpolation_mode": "vol",
           "vols_row_major": [
             0.2,
@@ -125,33 +128,36 @@
     }
   },
   "instrument": {
-    "type": "barrier_option",
-    "spec": {
-      "id": "BAR-SPX-DOW-DEGEN-GOLDEN",
-      "underlying_ticker": "SPX",
-      "strike": 100.0,
-      "barrier": {
-        "amount": "1",
-        "currency": "USD"
-      },
-      "option_type": "call",
-      "barrier_type": "down_and_out",
-      "expiry": "2027-04-30",
-      "notional": {
-        "amount": "1",
-        "currency": "USD"
-      },
-      "day_count": "Act365F",
-      "use_gobet_miri": false,
-      "discount_curve_id": "USD-OIS",
-      "spot_id": "SPX-SPOT",
-      "vol_surface_id": "SPX-VOL",
-      "div_yield_id": "SPX-DIVYIELD",
-      "attributes": {
-        "tags": [
-          "golden"
-        ],
-        "meta": {}
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "type": "barrier_option",
+      "spec": {
+        "id": "BAR-SPX-DOW-DEGEN-GOLDEN",
+        "underlying_ticker": "SPX",
+        "strike": 100.0,
+        "barrier": {
+          "amount": "1",
+          "currency": "USD"
+        },
+        "option_type": "call",
+        "barrier_type": "down_and_out",
+        "expiry": "2027-04-30",
+        "notional": {
+          "amount": "1",
+          "currency": "USD"
+        },
+        "day_count": "act_365f",
+        "use_gobet_miri": false,
+        "discount_curve_id": "USD-OIS",
+        "spot_id": "SPX-SPOT",
+        "vol_surface_id": "SPX-VOL",
+        "div_yield_id": "SPX-DIVYIELD",
+        "attributes": {
+          "tags": [
+            "golden"
+          ],
+          "meta": {}
+        }
       }
     }
   },

@@ -229,7 +229,7 @@ fn test_par_cds_node_shock() {
         .base_date(base_date)
         .recovery_rate(0.4)
         .knots(vec![(0.0, 0.0), (1.0, 0.02), (5.0, 0.025)])
-        .par_spreads(vec![(1.0, 120.0), (5.0, 150.0)]) // Adds Par Spreads (in bps) to enable re-calibration path
+        .par_spreads(vec![(1.0, 120.0), (5.0, 150.0)]) // Adds Par Spreads (in bp) to enable re-calibration path
         .build()
         .unwrap();
 

@@ -424,8 +424,8 @@ pub fn map_exercise_dates_to_steps(
 /// * `event_date` - Calendar date to map to the nearest lattice step.
 /// * `maturity_date` - Terminal lattice date that defines the full time span.
 /// * `steps` - Number of uniform lattice intervals between base and maturity.
-/// * `dc` - Day-count convention used to convert dates to year fractions.
-/// * `ctx` - Supplemental calendar or reference-period data required by `dc`.
+/// * `day_count` - Day-count convention used to convert dates to year fractions.
+/// * `ctx` - Supplemental calendar or reference-period data required by `day_count`.
 ///
 /// # Errors
 ///
@@ -436,14 +436,14 @@ pub fn map_date_to_step(
     event_date: Date,
     maturity_date: Date,
     steps: usize,
-    dc: DayCount,
+    day_count: DayCount,
     ctx: DayCountContext<'_>,
 ) -> crate::Result<usize> {
-    let ttm = dc.year_fraction(base_date, maturity_date, ctx)?;
+    let ttm = day_count.year_fraction(base_date, maturity_date, ctx)?;
     if ttm <= 0.0 || steps == 0 {
         return Ok(0);
     }
-    let t_event = dc
+    let t_event = day_count
         .year_fraction(base_date, event_date, ctx)?
         .clamp(0.0, ttm);
     let step_index = ((t_event / ttm) * steps as f64).round() as usize;
@@ -458,8 +458,8 @@ pub fn map_date_to_step(
 /// * `dates` - Calendar dates to map; output positions preserve this order.
 /// * `maturity_date` - Terminal lattice date that defines the full time span.
 /// * `steps` - Number of uniform lattice intervals between base and maturity.
-/// * `dc` - Day-count convention used to convert dates to year fractions.
-/// * `ctx` - Supplemental calendar or reference-period data required by `dc`.
+/// * `day_count` - Day-count convention used to convert dates to year fractions.
+/// * `ctx` - Supplemental calendar or reference-period data required by `day_count`.
 ///
 /// # Errors
 ///
@@ -469,12 +469,12 @@ pub fn map_dates_to_steps(
     dates: &[Date],
     maturity_date: Date,
     steps: usize,
-    dc: DayCount,
+    day_count: DayCount,
     ctx: DayCountContext<'_>,
 ) -> crate::Result<Vec<usize>> {
     dates
         .iter()
-        .map(|&d| map_date_to_step(base_date, d, maturity_date, steps, dc, ctx))
+        .map(|&d| map_date_to_step(base_date, d, maturity_date, steps, day_count, ctx))
         .collect()
 }
 

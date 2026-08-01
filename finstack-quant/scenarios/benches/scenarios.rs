@@ -451,7 +451,7 @@ fn bench_vol_surface_shock(c: &mut Criterion) {
         description: None,
         operations: vec![OperationSpec::VolSurfaceParallelPct {
             surface_kind: VolSurfaceKind::Equity,
-            surface_id: "SPX_VOL".into(),
+            vol_surface_id: "SPX_VOL".into(),
             pct: 10.0,
         }],
         priority: 0,
@@ -486,7 +486,7 @@ fn bench_vol_surface_shock(c: &mut Criterion) {
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
             surface_kind: VolSurfaceKind::Equity,
-            surface_id: "SPX_VOL".into(),
+            vol_surface_id: "SPX_VOL".into(),
             tenors: Some(vec!["3M".into(), "6M".into()]),
             strikes: Some(vec![90.0, 100.0, 110.0]),
             pct: 15.0,
@@ -565,7 +565,7 @@ fn bench_base_correlation_shock(c: &mut Criterion) {
         description: None,
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
-            detachment_bps: Some(vec![300, 700]),
+            detachment_bp: Some(vec![300, 700]),
             maturities: None,
             points: 0.03,
         }],
@@ -709,7 +709,7 @@ fn bench_complex_multi_operation(c: &mut Criterion) {
                 }),
                 4 => operations.push(OperationSpec::VolSurfaceParallelPct {
                     surface_kind: VolSurfaceKind::Equity,
-                    surface_id: "SPX_VOL".into(),
+                    vol_surface_id: "SPX_VOL".into(),
                     pct: (i as f64 + 1.0) * 3.0,
                 }),
                 _ => unreachable!(),
@@ -797,13 +797,13 @@ fn bench_serde_roundtrip(c: &mut Criterion) {
             // Equity vol
             OperationSpec::VolSurfaceParallelPct {
                 surface_kind: VolSurfaceKind::Equity,
-                surface_id: "SPX_VOL".into(),
+                vol_surface_id: "SPX_VOL".into(),
                 pct: 15.0,
             },
             // Credit vol
             OperationSpec::VolSurfaceParallelPct {
                 surface_kind: VolSurfaceKind::Credit,
-                surface_id: "CDX_IG_VOL".into(),
+                vol_surface_id: "CDX_IG_VOL".into(),
                 pct: 20.0,
             },
             // Base correlation
@@ -813,7 +813,7 @@ fn bench_serde_roundtrip(c: &mut Criterion) {
             },
             // Credit spreads
             OperationSpec::InstrumentSpreadBpByType {
-                instrument_types: vec![finstack_quant_valuations::pricer::InstrumentType::CDS],
+                instrument_types: vec![finstack_quant_valuations::pricer::InstrumentType::Cds],
                 bp: 100.0,
             },
             // Statements
@@ -996,7 +996,7 @@ fn bench_credit_vol_shock(c: &mut Criterion) {
         description: None,
         operations: vec![OperationSpec::VolSurfaceParallelPct {
             surface_kind: VolSurfaceKind::Credit,
-            surface_id: "CDX_IG_VOL".into(),
+            vol_surface_id: "CDX_IG_VOL".into(),
             pct: 20.0, // +20% credit vol increase
         }],
         priority: 0,
@@ -1031,7 +1031,7 @@ fn bench_credit_vol_shock(c: &mut Criterion) {
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
             surface_kind: VolSurfaceKind::Credit,
-            surface_id: "CDX_IG_VOL".into(),
+            vol_surface_id: "CDX_IG_VOL".into(),
             tenors: Some(vec!["3M".into(), "1Y".into()]),
             strikes: Some(vec![90.0, 100.0]),
             pct: 25.0,
@@ -1079,7 +1079,7 @@ fn bench_instrument_spread_shock(c: &mut Criterion) {
         description: None,
         operations: vec![OperationSpec::InstrumentSpreadBpByType {
             instrument_types: vec![
-                finstack_quant_valuations::pricer::InstrumentType::CDS,
+                finstack_quant_valuations::pricer::InstrumentType::Cds,
                 finstack_quant_valuations::pricer::InstrumentType::Bond,
             ],
             bp: 100.0, // +100bp spread widening
@@ -1140,7 +1140,7 @@ fn bench_comprehensive_credit_scenario(c: &mut Criterion) {
             // Increase credit vol
             OperationSpec::VolSurfaceParallelPct {
                 surface_kind: VolSurfaceKind::Credit,
-                surface_id: "CDX_IG_VOL".into(),
+                vol_surface_id: "CDX_IG_VOL".into(),
                 pct: 30.0,
             },
             // Increase correlation (contagion)
@@ -1150,7 +1150,7 @@ fn bench_comprehensive_credit_scenario(c: &mut Criterion) {
             },
             // Spreads widen
             OperationSpec::InstrumentSpreadBpByType {
-                instrument_types: vec![finstack_quant_valuations::pricer::InstrumentType::CDS],
+                instrument_types: vec![finstack_quant_valuations::pricer::InstrumentType::Cds],
                 bp: 150.0,
             },
         ],

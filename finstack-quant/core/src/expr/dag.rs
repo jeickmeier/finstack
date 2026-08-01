@@ -20,8 +20,6 @@ pub(crate) struct DagNode {
     pub dependencies: Vec<u64>,
     /// Reference count (how many other nodes depend on this).
     pub ref_count: usize,
-    /// Estimated cost of computing this node.
-    pub cost: usize,
 }
 #[cfg(test)]
 mod tests {
@@ -37,8 +35,8 @@ mod tests {
             numeric_mode: NumericMode::F64,
             rounding: RoundingContext {
                 mode: RoundingMode::Bankers,
-                ingest_scale_by_ccy: Default::default(),
-                output_scale_by_ccy: Default::default(),
+                ingest_scale_by_currency: Default::default(),
+                output_scale_by_currency: Default::default(),
                 tolerances: ToleranceConfig::default(),
                 version: 1,
             },
@@ -114,7 +112,6 @@ mod tests {
                     expr: Expr::literal(id as f64),
                     dependencies,
                     ref_count: 0,
-                    cost: 1,
                 },
             );
             prev = id;
@@ -187,37 +184,10 @@ mod tests {
             col_node.ref_count > 1,
             "shared column should be referenced twice"
         );
-        assert!(plan.cache_strategy.expected_hit_rate >= 0.0);
     }
 
     #[test]
-    fn dag_builder_costs_reflect_function_complexity() {
-        let mut builder = DagBuilder::new();
-        let col_x = Expr::column("x");
-        let lit_5 = Expr::literal(5.0);
-        let lag = Expr::call(Function::Lag, vec![col_x.clone(), lit_5.clone()]);
-        let rolling_std = Expr::call(Function::RollingStd, vec![col_x, lit_5]);
-
-        let plan = builder
-            .build_plan(vec![lag, rolling_std], explicit_meta())
-            .expect("valid expressions should build a DAG plan");
-
-        let lag_node = plan
-            .nodes
-            .iter()
-            .find(|node| matches!(node.expr.node, ExprNode::Call(Function::Lag, _)))
-            .expect("lag node should be present");
-        let rolling_std_node = plan
-            .nodes
-            .iter()
-            .find(|node| matches!(node.expr.node, ExprNode::Call(Function::RollingStd, _)))
-            .expect("rolling std node should be present");
-
-        assert!(rolling_std_node.cost > lag_node.cost);
-    }
-
-    #[test]
-    fn dag_builder_prefers_caching_expensive_shared_nodes() {
+    fn dag_builder_tracks_expensive_shared_nodes() {
         let mut builder = DagBuilder::new();
         let col_x = Expr::column("x");
         let rolling_std = Expr::call(Function::RollingStd, vec![col_x, Expr::literal(10.0)]);
@@ -237,7 +207,6 @@ mod tests {
             .find(|node| matches!(node.expr.node, ExprNode::Call(Function::RollingStd, _)))
             .expect("shared rolling std node should be present");
         assert!(rolling_std_node.ref_count > 1);
-        assert!(plan.cache_strategy.expected_hit_rate > 0.0);
     }
 
     #[test]
@@ -308,7 +277,6 @@ mod tests {
 
         assert!(plan.nodes.is_empty());
         assert!(plan.roots.is_empty());
-        assert_eq!(plan.cache_strategy.expected_hit_rate, 0.0);
     }
 }
 
@@ -323,33 +291,6 @@ pub(crate) struct ExecutionPlan {
     pub roots: Vec<u64>,
     /// Execution metadata.
     pub meta: crate::config::ResultsMeta,
-    /// Cache strategy recommendations.
-    pub cache_strategy: CacheStrategy,
-}
-
-/// Vestigial cache-strategy statistics carried by [`ExecutionPlan`].
-///
-/// The cross-evaluation result cache these recommendations fed was removed
-/// : nothing
-/// consults any of these fields at evaluation time. The type is retained only
-/// because `ExecutionPlan` remains part of the serialized form of
-/// [`super::eval::CompiledExpr`]; deleting the field would silently change
-/// that wire format.
-///
-/// Field semantics (advisory only):
-/// - `cache_nodes`: nodes a per-node result cache *would* have retained
-///   (high ref count or expensive).
-/// - `expected_hit_rate`: estimated fraction of total node cost such a cache
-///   would have deduplicated — a cost share, not a literal hit rate.
-/// - `memory_budget`: rough unit-less size estimate; never consulted.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct CacheStrategy {
-    /// Nodes that should be cached (high ref count or expensive).
-    pub cache_nodes: HashSet<u64>,
-    /// Estimated fraction of total node cost a cache would deduplicate.
-    pub expected_hit_rate: f64,
-    /// Memory budget estimate (arbitrary units); never consulted.
-    pub memory_budget: usize,
 }
 
 /// DAG builder that detects shared sub-expressions and builds optimized execution plans.
@@ -393,14 +334,10 @@ impl DagBuilder {
         // Build topological order (dependencies first)
         let ordered_nodes = self.topological_sort(&root_ids)?;
 
-        // Generate cache strategy
-        let cache_strategy = self.generate_cache_strategy(&ordered_nodes);
-
         Ok(ExecutionPlan {
             nodes: ordered_nodes,
             roots: root_ids,
             meta,
-            cache_strategy,
         })
     }
 
@@ -430,7 +367,7 @@ impl DagBuilder {
         self.next_id += 1;
 
         let dependencies = match &expr.node {
-            ExprNode::Column(_) | ExprNode::CSRef { .. } | ExprNode::Literal(_) => Vec::new(),
+            ExprNode::Column(_) | ExprNode::CsRef { .. } | ExprNode::Literal(_) => Vec::new(),
             ExprNode::Call(_, args) => args
                 .iter()
                 .map(|arg| self.process_expression(arg.clone(), depth + 1))
@@ -457,16 +394,12 @@ impl DagBuilder {
             }
         };
 
-        // Estimate cost
-        let cost = self.estimate_cost(&expr);
-
         // Create DAG node
         let node = DagNode {
             id,
             expr: expr.clone(),
             dependencies,
             ref_count: 0, // Will be calculated later
-            cost,
         };
 
         // Store node and cache expression
@@ -511,54 +444,6 @@ impl DagBuilder {
         for (id, count) in ref_counts {
             if let Some(node) = self.nodes.get_mut(&id) {
                 node.ref_count = count;
-            }
-        }
-    }
-
-    /// Estimate the computational cost of an expression.
-    fn estimate_cost(&self, expr: &Expr) -> usize {
-        match &expr.node {
-            ExprNode::Column(_) | ExprNode::CSRef { .. } | ExprNode::Literal(_) => 1,
-            ExprNode::BinOp { .. } | ExprNode::UnaryOp { .. } => 2, // Basic arithmetic/comparison/logical operations
-            ExprNode::IfThenElse { .. } => 3,                       // Conditional evaluation
-            ExprNode::Call(func, args) => {
-                let base_cost = match func {
-                    Function::Lag
-                    | Function::Lead
-                    | Function::Shift
-                    | Function::Sum
-                    | Function::Mean
-                    | Function::Min
-                    | Function::Max => 5,
-                    Function::Diff | Function::PctChange => 10,
-                    Function::CumSum
-                    | Function::CumProd
-                    | Function::CumMin
-                    | Function::CumMax
-                    | Function::RollingCount => 20,
-                    Function::RollingMean
-                    | Function::RollingSum
-                    | Function::RollingMin
-                    | Function::RollingMax
-                    | Function::Ttm
-                    | Function::Ytd
-                    | Function::Qtd
-                    | Function::FiscalYtd => 30,
-                    Function::RollingStd | Function::RollingVar | Function::RollingMedian => 50,
-                    Function::EwmMean => 25,
-                    Function::Std | Function::Var => 40,
-                    Function::Median => 60,
-
-                    // New functions
-                    Function::Rank => 80,
-                    Function::Quantile => 90,
-                    Function::EwmStd | Function::EwmVar => 45,
-                    // Custom financial functions
-                    Function::Annualize | Function::Abs | Function::Sign => 2,
-                    Function::AnnualizeRate | Function::Coalesce => 3, // Slightly more expensive due to powf
-                    Function::GrowthRate => 35,
-                };
-                base_cost + args.len() * 5
             }
         }
     }
@@ -621,36 +506,5 @@ impl DagBuilder {
         }
 
         Ok(result)
-    }
-
-    /// Generate cache strategy based on node characteristics.
-    fn generate_cache_strategy(&self, nodes: &[DagNode]) -> CacheStrategy {
-        let mut cache_nodes = HashSet::default();
-        let mut total_cost = 0;
-        let mut cacheable_cost = 0;
-
-        for node in nodes {
-            total_cost += node.cost;
-
-            // Cache nodes with high reference count or high cost
-            let should_cache = node.ref_count > 1 && (node.cost > 30 || node.ref_count > 2);
-
-            if should_cache {
-                cache_nodes.insert(node.id);
-                cacheable_cost += node.cost * (node.ref_count - 1);
-            }
-        }
-
-        let expected_hit_rate = if total_cost > 0 {
-            cacheable_cost as f64 / total_cost as f64
-        } else {
-            0.0
-        };
-
-        CacheStrategy {
-            cache_nodes,
-            expected_hit_rate,
-            memory_budget: nodes.len() * 100, // Rough estimate
-        }
     }
 }

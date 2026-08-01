@@ -7,7 +7,7 @@ from typing import Any
 
 import QuantLib as ql  # type: ignore[import-not-found]  # noqa: N813
 
-from .common import SCHEMA_VERSION, VALUATION_DATE, metadata, tolerance
+from .common import SCHEMA, VALUATION_DATE, metadata, tolerance
 
 NOTIONAL = 10_000_000.0
 QUOTE_RATE = 0.041
@@ -34,7 +34,7 @@ def build_deposit() -> dict[str, Any]:
         "on the committed synthetic discount-curve pillars."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="usd_deposit_3m",
             domain="rates.deposit",
@@ -70,7 +70,7 @@ def build_deposit() -> dict[str, Any]:
                         "kind": "discount_curve",
                         "id": "USD-OIS",
                         "base": VALUATION_DATE,
-                        "day_count": "Act365F",
+                        "day_count": "act_365f",
                         "knot_points": list(zip(CURVE_TIMES, CURVE_DISCOUNTS, strict=True)),
                         "interp_style": "log_linear",
                         "extrapolation": "flat_forward",
@@ -91,7 +91,7 @@ def build_deposit() -> dict[str, Any]:
                     "notional": {"amount": "10000000", "currency": "USD"},
                     "start_date": VALUATION_DATE,
                     "maturity": "2026-07-30",
-                    "day_count": "Act360",
+                    "day_count": "act_360",
                     "quote_rate": str(QUOTE_RATE),
                     "discount_curve_id": "USD-OIS",
                     "attributes": {"tags": ["golden", "quantlib"], "meta": {}},

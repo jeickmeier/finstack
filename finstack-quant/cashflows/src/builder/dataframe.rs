@@ -56,15 +56,15 @@ fn init_optional_column<T>(enabled: bool, capacity: usize, existing: &mut Option
 fn compute_discount_time(
     cf_date: Date,
     base: Date,
-    dc: DayCount,
-    dc_ctx: DayCountContext<'_>,
+    day_count: DayCount,
+    day_count_context: DayCountContext<'_>,
 ) -> finstack_quant_core::Result<f64> {
     if cf_date == base {
         Ok(0.0)
     } else if cf_date > base {
-        dc.year_fraction(base, cf_date, dc_ctx)
+        day_count.year_fraction(base, cf_date, day_count_context)
     } else {
-        Ok(-dc.year_fraction(cf_date, base, dc_ctx)?)
+        Ok(-day_count.year_fraction(cf_date, base, day_count_context)?)
     }
 }
 
@@ -422,7 +422,7 @@ impl CashFlowSchedule {
             ));
         }
 
-        let dc = options.day_count.unwrap_or(self.day_count);
+        let day_count = options.day_count.unwrap_or(self.day_count);
 
         // Resolve calendar for day count context (required for Bus/252 convention)
         let resolved_calendar = options.calendar_id.and_then(calendar_by_id);
@@ -473,14 +473,14 @@ impl CashFlowSchedule {
 
         // Discounting, accrual, and forward-reset year fractions all share the
         // same calendar/frequency context.
-        let dc_ctx = DayCountContext {
+        let day_count_context = DayCountContext {
             calendar: resolved_calendar,
             frequency: options.frequency,
             bus_basis: None,
             coupon_period: None,
             end_is_termination_date: false,
         };
-        let disc_dc_ctx = dc_ctx;
+        let disc_day_count_ctx = day_count_context;
 
         // Builder schedules carry an explicit issue date. Directly constructed
         // schedules remain supported by treating their earliest canonical flow
@@ -497,9 +497,12 @@ impl CashFlowSchedule {
         let hazard_basis = match hazard_arc_opt.as_ref() {
             Some(h) => match Survival::base_date(h.as_ref()) {
                 Some(h_base) => {
-                    let h_dc = h.day_count();
-                    let t_base =
-                        h_dc.signed_year_fraction(h_base, base, DayCountContext::default())?;
+                    let h_day_count = h.day_count();
+                    let t_base = h_day_count.signed_year_fraction(
+                        h_base,
+                        base,
+                        DayCountContext::default(),
+                    )?;
                     let sp_base = h.sp(t_base);
                     if !sp_base.is_finite() || sp_base <= 0.0 {
                         return Err(finstack_quant_core::Error::Validation(format!(
@@ -507,7 +510,7 @@ impl CashFlowSchedule {
                             base, sp_base
                         )));
                     }
-                    Some((h_base, h_dc, sp_base))
+                    Some((h_base, h_day_count, sp_base))
                 }
                 None => None,
             },
@@ -556,7 +559,7 @@ impl CashFlowSchedule {
             }
 
             // YrFraq and Days - use proper DayCountContext with frequency/calendar from options
-            let yr_fraq = dc.year_fraction(period.start, cf.date, dc_ctx)?;
+            let yr_fraq = day_count.year_fraction(period.start, cf.date, day_count_context)?;
             out.yr_fraqs.push(yr_fraq);
             out.days.push((cf.date - period.start).whole_days());
 
@@ -576,13 +579,17 @@ impl CashFlowSchedule {
             let mut sp_row: Option<f64> = None;
             if let (Some(h), Some(spv)) = (hazard_arc_opt.as_ref(), out.survival_probs.as_mut()) {
                 let sp = match hazard_basis {
-                    Some((h_base, h_dc, sp_base)) => {
-                        let t =
-                            h_dc.signed_year_fraction(h_base, cf.date, DayCountContext::default())?;
+                    Some((h_base, h_day_count, sp_base)) => {
+                        let t = h_day_count.signed_year_fraction(
+                            h_base,
+                            cf.date,
+                            DayCountContext::default(),
+                        )?;
                         h.sp(t) / sp_base
                     }
                     None => {
-                        let t = compute_discount_time(cf.date, base, dc, disc_dc_ctx)?;
+                        let t =
+                            compute_discount_time(cf.date, base, day_count, disc_day_count_ctx)?;
                         h.sp(t)
                     }
                 };
@@ -779,7 +786,7 @@ mod tests {
                 d(2025, 5, 15),
                 None,
                 Money::new(10_000.0, Currency::USD),
-                CFKind::PIK,
+                CFKind::Pik,
                 0.25,
                 None,
             ),
@@ -831,7 +838,7 @@ mod tests {
             defaulted_pv.abs() < 1e-12,
             "DefaultedNotional must carry zero PV in the plain view, got {defaulted_pv}"
         );
-        let (pik_pv, _) = pv_of(CFKind::PIK);
+        let (pik_pv, _) = pv_of(CFKind::Pik);
         assert!(pik_pv.abs() < 1e-12, "PIK must carry zero PV");
         let (fixed_pv, fixed_df) = pv_of(CFKind::Fixed);
         assert!(
@@ -1304,7 +1311,7 @@ mod tests {
             .expect("canonical credit PV");
         let canonical_total = canonical
             .get(&PeriodId::annual(2025))
-            .and_then(|by_ccy| by_ccy.get(&Currency::USD))
+            .and_then(|by_currency| by_currency.get(&Currency::USD))
             .map(Money::amount)
             .expect("USD PV");
         assert!((df.pvs.iter().sum::<f64>() - canonical_total).abs() < 1e-12);

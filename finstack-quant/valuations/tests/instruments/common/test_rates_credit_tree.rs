@@ -63,8 +63,8 @@ fn discount_curve() -> DiscountCurve {
         .expect("disc curve")
 }
 
-fn hazard_curve(spread_bps: f64, recovery: f64) -> HazardCurve {
-    let lambda = spread_bps / 10_000.0; // ≈ flat constant hazard
+fn hazard_curve(spread_bp: f64, recovery: f64) -> HazardCurve {
+    let lambda = spread_bp / 10_000.0; // ≈ flat constant hazard
     HazardCurve::builder("TEST-HAZ")
         .base_date(base_date())
         .recovery_rate(recovery)
@@ -98,10 +98,10 @@ fn rates_credit_tree_reproduces_disc_curve_when_hazard_is_silent() {
     let price = tree.price(vars, ttm, &ctx, &val).expect("price");
 
     let market_df = 0.78; // disc curve knot at t=5
-    let err_bps = (price - market_df).abs() * 10_000.0;
+    let err_bp = (price - market_df).abs() * 10_000.0;
     assert!(
-        err_bps < 1.0,
-        "Tree price {price:.6} diverged from market DF {market_df:.6} ({err_bps:.2} bps)",
+        err_bp < 1.0,
+        "Tree price {price:.6} diverged from market DF {market_df:.6} ({err_bp:.2} bp)",
     );
 }
 

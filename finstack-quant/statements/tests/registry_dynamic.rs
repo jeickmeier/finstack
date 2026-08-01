@@ -30,6 +30,7 @@ fn test_load_from_json_str() {
 fn test_get_metric() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "gross_margin",
@@ -54,6 +55,7 @@ fn test_get_metric() {
 fn test_namespace_listing() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "metric1",
@@ -81,6 +83,7 @@ fn test_namespace_listing() {
 fn test_duplicate_metric_error() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "gross_margin",
@@ -103,6 +106,7 @@ fn test_duplicate_metric_error() {
 fn test_namespaces() {
     let json1 = r#"{
         "namespace": "test1",
+        "schema_version": 1,
         "metrics": [
             {"id": "m1", "name": "M1", "formula": "a + b"}
         ]
@@ -110,6 +114,7 @@ fn test_namespaces() {
 
     let json2 = r#"{
         "namespace": "test2",
+        "schema_version": 1,
         "metrics": [
             {"id": "m2", "name": "M2", "formula": "c - d"}
         ]
@@ -133,6 +138,7 @@ fn test_namespaces() {
 fn test_inter_metric_dependencies() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "gross_profit",
@@ -165,6 +171,7 @@ fn test_inter_metric_dependencies() {
 fn test_metric_dependency_order() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "net_margin",
@@ -197,6 +204,7 @@ fn test_metric_dependency_order() {
 fn test_circular_dependency_detection() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "metric_a",
@@ -225,6 +233,7 @@ fn test_circular_dependency_detection() {
 fn test_get_metric_dependencies() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "a",
@@ -271,6 +280,7 @@ fn test_get_metric_dependencies() {
 fn test_transitive_dependencies() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "level1",
@@ -307,6 +317,7 @@ fn test_transitive_dependencies() {
 fn test_mixed_dependencies() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "gross_profit",

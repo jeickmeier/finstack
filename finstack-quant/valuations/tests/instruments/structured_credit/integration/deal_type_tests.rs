@@ -50,7 +50,7 @@ fn test_clo_default_payment_frequency() {
     // Arrange & Act
     let clo = StructuredCredit::new_clo(
         "TEST_CLO",
-        create_minimal_pool(DealType::CLO),
+        create_minimal_pool(DealType::Clo),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -66,7 +66,7 @@ fn test_clo_default_prepayment_model() {
     // Arrange & Act
     let clo = StructuredCredit::new_clo(
         "TEST_CLO",
-        create_minimal_pool(DealType::CLO),
+        create_minimal_pool(DealType::Clo),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -89,7 +89,7 @@ fn test_clo_default_assumptions() {
     // Arrange & Act
     let clo = StructuredCredit::new_clo(
         "TEST_CLO",
-        create_minimal_pool(DealType::CLO),
+        create_minimal_pool(DealType::Clo),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -111,7 +111,7 @@ fn test_abs_default_payment_frequency() {
     // Arrange & Act
     let abs = StructuredCredit::new_abs(
         "TEST_ABS",
-        create_minimal_pool(DealType::ABS),
+        create_minimal_pool(DealType::Abs),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -127,7 +127,7 @@ fn test_abs_default_assumptions() {
     // Arrange & Act
     let abs = StructuredCredit::new_abs(
         "TEST_ABS",
-        create_minimal_pool(DealType::ABS),
+        create_minimal_pool(DealType::Abs),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -149,7 +149,7 @@ fn test_rmbs_default_payment_frequency() {
     // Arrange & Act
     let rmbs = StructuredCredit::new_rmbs(
         "TEST_RMBS",
-        create_minimal_pool(DealType::RMBS),
+        create_minimal_pool(DealType::Rmbs),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -165,7 +165,7 @@ fn test_rmbs_default_prepayment_model() {
     // Arrange & Act
     let rmbs = StructuredCredit::new_rmbs(
         "TEST_RMBS",
-        create_minimal_pool(DealType::RMBS),
+        create_minimal_pool(DealType::Rmbs),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -187,7 +187,7 @@ fn test_rmbs_default_assumptions() {
     // Arrange & Act
     let rmbs = StructuredCredit::new_rmbs(
         "TEST_RMBS",
-        create_minimal_pool(DealType::RMBS),
+        create_minimal_pool(DealType::Rmbs),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -206,7 +206,7 @@ fn test_rmbs_default_credit_factors() {
     // Arrange & Act
     let rmbs = StructuredCredit::new_rmbs(
         "TEST_RMBS",
-        create_minimal_pool(DealType::RMBS),
+        create_minimal_pool(DealType::Rmbs),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -226,7 +226,7 @@ fn test_cmbs_default_payment_frequency() {
     // Arrange & Act
     let cmbs = StructuredCredit::new_cmbs(
         "TEST_CMBS",
-        create_minimal_pool(DealType::CMBS),
+        create_minimal_pool(DealType::Cmbs),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -242,7 +242,7 @@ fn test_cmbs_default_assumptions() {
     // Arrange & Act
     let cmbs = StructuredCredit::new_cmbs(
         "TEST_CMBS",
-        create_minimal_pool(DealType::CMBS),
+        create_minimal_pool(DealType::Cmbs),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -264,7 +264,7 @@ fn test_all_deal_types_have_correct_classification() {
     // Arrange & Act
     let clo = StructuredCredit::new_clo(
         "CLO",
-        create_minimal_pool(DealType::CLO),
+        create_minimal_pool(DealType::Clo),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -273,7 +273,7 @@ fn test_all_deal_types_have_correct_classification() {
 
     let abs = StructuredCredit::new_abs(
         "ABS",
-        create_minimal_pool(DealType::ABS),
+        create_minimal_pool(DealType::Abs),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -282,7 +282,7 @@ fn test_all_deal_types_have_correct_classification() {
 
     let rmbs = StructuredCredit::new_rmbs(
         "RMBS",
-        create_minimal_pool(DealType::RMBS),
+        create_minimal_pool(DealType::Rmbs),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -291,7 +291,7 @@ fn test_all_deal_types_have_correct_classification() {
 
     let cmbs = StructuredCredit::new_cmbs(
         "CMBS",
-        create_minimal_pool(DealType::CMBS),
+        create_minimal_pool(DealType::Cmbs),
         create_minimal_tranches(),
         Date::from_calendar_date(2024, Month::January, 1).unwrap(),
         maturity_date(),
@@ -299,8 +299,8 @@ fn test_all_deal_types_have_correct_classification() {
     );
 
     // Assert
-    assert_eq!(clo.deal_type, DealType::CLO);
-    assert_eq!(abs.deal_type, DealType::ABS);
-    assert_eq!(rmbs.deal_type, DealType::RMBS);
-    assert_eq!(cmbs.deal_type, DealType::CMBS);
+    assert_eq!(clo.deal_type, DealType::Clo);
+    assert_eq!(abs.deal_type, DealType::Abs);
+    assert_eq!(rmbs.deal_type, DealType::Rmbs);
+    assert_eq!(cmbs.deal_type, DealType::Cmbs);
 }

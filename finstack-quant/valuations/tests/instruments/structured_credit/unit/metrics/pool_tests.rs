@@ -53,7 +53,7 @@ fn metric_context(instrument: StructuredCredit) -> MetricContext {
 
 #[test]
 fn test_pool_stats_weighted_spread_and_coupon() {
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::floating_rate_loan(
         "L1",
         Money::new(10_000_000.0, Currency::USD),
@@ -88,7 +88,7 @@ fn test_pool_stats_weighted_spread_and_coupon() {
 
 #[test]
 fn test_pool_stats_default_rate() {
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     let mut defaulted = PoolAsset::fixed_rate_bond(
         "D1",
         Money::new(5_000_000.0, Currency::USD),
@@ -116,7 +116,7 @@ fn test_pool_stats_default_rate() {
 
 #[test]
 fn test_clo_warf_calculator_matches_weighted_average_factors() {
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(
         PoolAsset::fixed_rate_bond(
             "B1",
@@ -159,7 +159,7 @@ fn test_clo_warf_calculator_matches_weighted_average_factors() {
 
 #[test]
 fn test_clo_warf_calculator_uses_default_factor_for_missing_ratings() {
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "UNRATED",
         Money::new(4_000_000.0, Currency::USD),
@@ -187,7 +187,7 @@ fn test_clo_warf_calculator_uses_default_factor_for_missing_ratings() {
 
 #[test]
 fn test_rmbs_cpr_and_cdr_use_current_deal_seasoning() {
-    let pool = AssetPool::new("POOL", DealType::RMBS, Currency::USD);
+    let pool = AssetPool::new("POOL", DealType::Rmbs, Currency::USD);
     let mut instrument = StructuredCredit::new_rmbs(
         "TEST_RMBS_SPEEDS",
         pool,

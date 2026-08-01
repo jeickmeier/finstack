@@ -774,7 +774,7 @@ let bund = BondFuture::bund(...)?;
 
 // Build portfolio
 let portfolio = PortfolioBuilder::new()
-    .base_ccy("USD")
+    .base_currency("USD")
     .as_of(date!(2025-01-15))
     .entity("Fund1", "Treasury Hedge Fund", btreemap! {
         "strategy" => "rates",

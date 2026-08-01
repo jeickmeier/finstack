@@ -52,6 +52,7 @@ fn validate_finite(value: f64) -> Result<()> {
 #[derive(
     Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CollateralType {
     /// Cash and cash equivalents. Typical haircut: 0-5%.
     Cash,
@@ -75,17 +76,14 @@ impl std::str::FromStr for CollateralType {
     type Err = crate::Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let norm = s.trim().to_ascii_lowercase().replace(['-', ' '], "_");
-        match norm.as_str() {
+        match s {
             "cash" => Ok(Self::Cash),
             "securities" => Ok(Self::Securities),
             "receivables" => Ok(Self::Receivables),
             "inventory" => Ok(Self::Inventory),
             "equipment" => Ok(Self::Equipment),
-            "real_estate" | "realestate" => Ok(Self::RealEstate),
-            "intellectual_property" | "intellectualproperty" | "ip" => {
-                Ok(Self::IntellectualProperty)
-            }
+            "real_estate" => Ok(Self::RealEstate),
+            "intellectual_property" => Ok(Self::IntellectualProperty),
             "other" => Ok(Self::Other),
             _ => Err(crate::Error::Validation(format!(
                 "unknown collateral type: '{s}' (expected cash, securities, receivables, inventory, equipment, real_estate, intellectual_property, other)"
@@ -370,26 +368,24 @@ mod tests {
     }
 
     #[test]
-    fn collateral_type_from_str_accepts_aliases_and_rejects_unknown() {
-        assert_eq!(
-            CollateralType::from_str("real estate").expect("alias"),
-            CollateralType::RealEstate
-        );
-        assert_eq!(
-            CollateralType::from_str("IP").expect("alias"),
-            CollateralType::IntellectualProperty
-        );
+    fn collateral_type_from_str_rejects_noncanonical_spellings() {
         assert_eq!(
             CollateralType::from_str("cash").expect("cash"),
             CollateralType::Cash
         );
 
-        let err = CollateralType::from_str("crypto")
-            .expect_err("unknown collateral type should be rejected");
-        assert!(
-            err.to_string().contains("unknown collateral type"),
-            "unexpected error: {err}"
-        );
+        for rejected in [
+            "real estate",
+            "realestate",
+            "IP",
+            "ip",
+            "RealEstate",
+            "crypto",
+        ] {
+            let error = CollateralType::from_str(rejected)
+                .expect_err("noncanonical collateral type should be rejected");
+            assert!(error.to_string().contains("unknown collateral type"));
+        }
     }
 
     #[test]

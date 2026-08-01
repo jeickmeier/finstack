@@ -13,7 +13,9 @@ use time::macros::date;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = CliquetOption::validate)]
 #[serde(deny_unknown_fields, try_from = "CliquetOptionUnchecked")]
@@ -23,10 +25,10 @@ pub struct CliquetOption {
     /// Underlying asset ticker symbol
     pub underlying_ticker: String,
     /// Reset dates for periodic return locking
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub reset_dates: Vec<Date>,
     /// Explicit terminal expiry date for the structure.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Local cap on individual period returns
     pub local_cap: f64,
@@ -71,17 +73,28 @@ pub struct CliquetOption {
     /// cap/floor applied) and only the remaining future periods are simulated.
     #[builder(default)]
     #[serde(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub past_fixings: Vec<(Date, f64)>,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping
     pub attributes: Attributes,
@@ -103,6 +116,7 @@ pub struct CliquetOption {
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CliquetPayoffType {
     /// Additive: Sum of period returns
     #[default]
@@ -118,9 +132,9 @@ pub enum CliquetPayoffType {
 struct CliquetOptionUnchecked {
     id: InstrumentId,
     underlying_ticker: String,
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     reset_dates: Vec<Date>,
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     expiry: Date,
     local_cap: f64,
     local_floor: f64,
@@ -136,7 +150,7 @@ struct CliquetOptionUnchecked {
     #[serde(default)]
     initial_level: Option<f64>,
     #[serde(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     past_fixings: Vec<(Date, f64)>,
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
@@ -322,7 +336,7 @@ impl crate::instruments::common_impl::traits::Instrument for CliquetOption {
     > {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
-        deps.add_spot_id(self.spot_id.as_str());
+        deps.add_market_scalar_id(self.spot_id.as_str());
         deps.add_volatility_dependency(
             crate::instruments::common_impl::dependencies::VolatilityDependency::new(
                 self.vol_surface_id.clone(),
@@ -331,7 +345,7 @@ impl crate::instruments::common_impl::traits::Instrument for CliquetOption {
             ),
         );
         if let Some(dividend_yield) = &self.div_yield_id {
-            deps.add_spot_id(dividend_yield.as_str());
+            deps.add_market_scalar_id(dividend_yield.as_str());
         }
         Ok(deps)
     }
@@ -379,7 +393,9 @@ mod validation_tests {
         let deps =
             crate::instruments::Instrument::market_dependencies(&option).expect("dependencies");
 
-        assert!(deps.spot_ids.contains(&dividend_id.as_str().to_string()));
+        assert!(deps
+            .market_scalar_ids
+            .contains(&dividend_id.as_str().to_string()));
         assert!(deps.series_ids.is_empty());
     }
 

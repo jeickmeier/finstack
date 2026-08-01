@@ -632,8 +632,8 @@ mod master_scale_tests {
     use crate::credit::pd::{MasterScale, MasterScaleGrade, PdCalibrationError};
 
     #[test]
-    fn sp_assumptions_v1_mapping() {
-        let scale = MasterScale::sp_assumptions_v1().expect("registry scale");
+    fn sp_assumptions_mapping() {
+        let scale = MasterScale::sp_assumptions().expect("registry scale");
         assert_eq!(scale.n_grades(), 8);
 
         // AAA: PD <= 0.0001
@@ -658,8 +658,8 @@ mod master_scale_tests {
     }
 
     #[test]
-    fn moodys_assumptions_v1_mapping() {
-        let scale = MasterScale::moodys_assumptions_v1().expect("registry scale");
+    fn moodys_assumptions_mapping() {
+        let scale = MasterScale::moodys_assumptions().expect("registry scale");
         assert_eq!(scale.n_grades(), 8);
 
         let baa = scale.map_pd(0.003).unwrap();
@@ -667,34 +667,8 @@ mod master_scale_tests {
     }
 
     #[test]
-    fn deprecated_registry_ids_resolve_to_canonical_assumptions() {
-        for (canonical, aliases) in [
-            (
-                "sp_assumptions_v1",
-                ["sp_empirical", "sp_corporate_default_1981_2023"],
-            ),
-            (
-                "moodys_assumptions_v1",
-                ["moodys_empirical", "moodys_default_1983_2023"],
-            ),
-        ] {
-            let canonical_scale =
-                MasterScale::from_registry_id(canonical).expect("canonical scale");
-            for alias in aliases {
-                let alias_scale =
-                    MasterScale::from_registry_id(alias).expect("deprecated alias must resolve");
-                assert_eq!(alias_scale.n_grades(), canonical_scale.n_grades());
-                assert_eq!(
-                    alias_scale.grades()[0].label,
-                    canonical_scale.grades()[0].label
-                );
-            }
-        }
-    }
-
-    #[test]
     fn pd_exceeds_all_grades() {
-        let scale = MasterScale::sp_empirical().expect("registry scale");
+        let scale = MasterScale::sp_assumptions().expect("registry scale");
         let result = scale.map_pd(1.5).unwrap();
         assert_eq!(result.grade, "CC/C");
         assert_eq!(result.grade_index, 7);
@@ -702,7 +676,7 @@ mod master_scale_tests {
 
     #[test]
     fn pd_at_boundary() {
-        let scale = MasterScale::sp_empirical().expect("registry scale");
+        let scale = MasterScale::sp_assumptions().expect("registry scale");
         // Exactly at AAA upper boundary (0.0001)
         let result = scale.map_pd(0.0001).unwrap();
         assert_eq!(result.grade, "AAA");
@@ -779,7 +753,7 @@ mod master_scale_tests {
             market_equity_to_total_liabilities: 1.50,
             sales_to_total_assets: 1.80,
         };
-        let scale = MasterScale::sp_empirical().expect("registry scale");
+        let scale = MasterScale::sp_assumptions().expect("registry scale");
         let uncalibrated = altman_z_score(&input).unwrap();
         assert!(matches!(
             scale.map_score(&uncalibrated),
@@ -787,7 +761,7 @@ mod master_scale_tests {
         ));
 
         let scoring_result =
-            altman_z_score_with_pd(&input, AltmanPdCalibration::HeuristicV1).unwrap();
+            altman_z_score_with_pd(&input, AltmanPdCalibration::Heuristic).unwrap();
         let mapped = scale.map_score(&scoring_result).unwrap();
         assert_eq!(Some(mapped.input_pd), scoring_result.implied_pd);
         // Safe zone has low PD, should not be in the worst grades
@@ -800,7 +774,7 @@ mod master_scale_tests {
 
     #[test]
     fn grades_accessor() {
-        let scale = MasterScale::sp_empirical().expect("registry scale");
+        let scale = MasterScale::sp_assumptions().expect("registry scale");
         let grades = scale.grades();
         assert_eq!(grades.len(), 8);
         assert_eq!(grades[0].label, "AAA");
@@ -812,7 +786,7 @@ mod master_scale_tests {
     /// be a validation error.
     #[test]
     fn map_pd_rejects_non_finite() {
-        let scale = MasterScale::sp_empirical().expect("registry scale");
+        let scale = MasterScale::sp_assumptions().expect("registry scale");
         for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert!(matches!(
                 scale.map_pd(bad),

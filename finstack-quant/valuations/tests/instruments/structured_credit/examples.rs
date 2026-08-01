@@ -39,7 +39,7 @@ mod tests {
         // Step 3: Customize as needed for this specific deal
         let mut custom_config = config;
         custom_config.fees.trustee_fee_annual = Money::new(75_000.0, Currency::USD); // Higher fee
-        custom_config.fees.senior_mgmt_fee_bps = 35.0; // 35bps instead of default 40bps
+        custom_config.fees.senior_mgmt_fee_bp = 35.0; // 35bps instead of default 40bps
         custom_config.default_assumptions.base_cdr_annual = 0.025; // 2.5% CDR assumption
 
         // Add coverage test requirements
@@ -66,7 +66,7 @@ mod tests {
             Date::from_calendar_date(2024, Month::March, 15).unwrap()
         );
         assert_eq!(custom_config.fees.trustee_fee_annual.amount(), 75_000.0);
-        assert_eq!(custom_config.fees.senior_mgmt_fee_bps, 35.0);
+        assert_eq!(custom_config.fees.senior_mgmt_fee_bp, 35.0);
         assert_eq!(custom_config.default_assumptions.base_recovery_rate, 0.40); // CLO standard
 
         // This config can now be used in instrument construction
@@ -116,7 +116,7 @@ mod tests {
         .with_industry("Energy");
 
         // Build pool
-        let mut pool = AssetPool::new("CLO_2024_1", DealType::CLO, Currency::USD);
+        let mut pool = AssetPool::new("CLO_2024_1", DealType::Clo, Currency::USD);
         pool.assets.push(loan1);
         pool.assets.push(loan2);
         pool.assets.push(bond1);
@@ -125,18 +125,18 @@ mod tests {
         let was = pool.weighted_avg_spread();
 
         // Expected WAS calculation (market convention):
-        // Loan1: 10M × 425bps = 4,250M·bps
-        // Loan2: 15M × 475bps = 7,125M·bps
+        // Loan1: 10M × 425bps = 4,250M·bp
+        // Loan2: 15M × 475bps = 7,125M·bp
         // Bond1: fixed-rate with no explicit spread → EXCLUDED (no
         //        rate × 10⁴ fallback; the all-in coupon is not a spread)
-        // Total: (4,250 + 7,125) / 25M = 11,375 / 25 = 455.0 bps
+        // Total: (4,250 + 7,125) / 25M = 11,375 / 25 = 455.0 bp
 
         assert!((was - 455.0).abs() < 0.01);
 
         // Verify individual spread access
-        assert_eq!(pool.assets[0].spread_bps(), 425.0);
-        assert_eq!(pool.assets[1].spread_bps(), 475.0);
-        assert_eq!(pool.assets[2].spread_bps(), 900.0); // Accessor still falls back to rate
+        assert_eq!(pool.assets[0].spread_bp(), 425.0);
+        assert_eq!(pool.assets[1].spread_bp(), 475.0);
+        assert_eq!(pool.assets[2].spread_bp(), 900.0); // Accessor still falls back to rate
     }
 
     #[test]
@@ -145,7 +145,7 @@ mod tests {
 
         let maturity = Date::from_calendar_date(2030, Month::December, 31).unwrap();
 
-        let mut pool = AssetPool::new("CLO_WARF_DEMO", DealType::CLO, Currency::USD);
+        let mut pool = AssetPool::new("CLO_WARF_DEMO", DealType::Clo, Currency::USD);
 
         // Add assets with various ratings
         pool.assets.push(
@@ -257,7 +257,7 @@ mod tests {
             ), // 4 years
         ];
 
-        let pool = AssetPool::new("DEMO_POOL", DealType::CLO, Currency::USD);
+        let pool = AssetPool::new("DEMO_POOL", DealType::Clo, Currency::USD);
 
         // Calculate WAL using market-standard cashflow-based method
         let wal = pool
@@ -307,7 +307,7 @@ mod tests {
         let maturity = Date::from_calendar_date(2031, Month::December, 15).unwrap();
 
         // 1. Create pool with proper spread tracking
-        let mut pool = AssetPool::new("CLO_2024_1A", DealType::CLO, Currency::USD);
+        let mut pool = AssetPool::new("CLO_2024_1A", DealType::Clo, Currency::USD);
 
         // Add diversified loan portfolio
         pool.assets.push(
@@ -388,7 +388,7 @@ mod tests {
         let was = pool.weighted_avg_spread();
         // Expected: (15M×425 + 20M×450 + 15M×500) / 50M
         //         = (6,375 + 9,000 + 7,500) / 50
-        //         = 22,875 / 50 = 457.5 bps
+        //         = 22,875 / 50 = 457.5 bp
         assert!((was - 457.5).abs() < 0.01);
 
         // WARF - using shared rating factors
@@ -432,7 +432,7 @@ mod tests {
 
         let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
 
-        let pool = AssetPool::new("DEMO", DealType::RMBS, Currency::USD);
+        let pool = AssetPool::new("DEMO", DealType::Rmbs, Currency::USD);
 
         // Asset with 5-year maturity but principal amortizes over time
         let amortizing_cashflows = vec![
@@ -497,7 +497,7 @@ mod tests {
         assert_eq!(config.dates.frequency.months(), Some(1));
 
         // Lower servicing fees than CLO
-        assert_eq!(config.fees.servicing_fee_bps, 25.0); // 25bps vs 50bps for ABS
+        assert_eq!(config.fees.servicing_fee_bp, 25.0); // 25bps vs 50bps for ABS
     }
 
     #[test]
@@ -518,10 +518,10 @@ mod tests {
         assert_eq!(config.default_assumptions.abs_speed_monthly, Some(0.015)); // 1.5% ABS
 
         // ABS has higher servicing fees than RMBS
-        assert_eq!(config.fees.servicing_fee_bps, 50.0); // 50bps
+        assert_eq!(config.fees.servicing_fee_bp, 50.0); // 50bps
 
         // No management fees (unlike CLO)
-        assert_eq!(config.fees.senior_mgmt_fee_bps, 0.0);
+        assert_eq!(config.fees.senior_mgmt_fee_bp, 0.0);
     }
 
     #[test]
@@ -538,8 +538,8 @@ mod tests {
         let config = DealConfig::cmbs_standard(dates, Currency::USD);
 
         // Verify CMBS-specific settings
-        assert_eq!(config.fees.master_servicer_fee_bps, Some(25.0)); // Master servicer
-        assert_eq!(config.fees.special_servicer_fee_bps, Some(25.0)); // Special servicer
+        assert_eq!(config.fees.master_servicer_fee_bp, Some(25.0)); // Master servicer
+        assert_eq!(config.fees.special_servicer_fee_bp, Some(25.0)); // Special servicer
         assert_eq!(config.default_assumptions.base_recovery_rate, 0.65); // Higher CRE recovery
 
         // Commercial properties have lower default rates

@@ -28,7 +28,7 @@
         "special_servicer_id": null,
         "trustee_id": null
       },
-      "deal_type": "CLO",
+      "deal_type": "clo",
       "default_assumptions": {
         "abs_speed_monthly": null,
         "base_cdr_annual": 0.02,
@@ -63,7 +63,34 @@
       "maturity": "2034-01-01",
       "payment_calendar_id": "nyse",
       "pool": {
-        "assets": [],
+        "assets": [
+          {
+            "acquisition_date": null,
+            "asset_type": {
+              "industry": null,
+              "type": "high_yield_bond"
+            },
+            "balance": {
+              "amount": "100000000",
+              "currency": "USD"
+            },
+            "contractual_payment": null,
+            "credit_quality": null,
+            "day_count": "30_360",
+            "id": "COLLATERAL-1",
+            "index_id": null,
+            "industry": null,
+            "is_defaulted": false,
+            "maturity": "2034-01-01",
+            "mdr_override": null,
+            "obligor_id": null,
+            "purchase_price": null,
+            "rate": 0.07,
+            "recovery_amount": null,
+            "smm_override": null,
+            "spread_bp": null
+          }
+        ],
         "base_currency": "USD",
         "collection_account": {
           "amount": "0",
@@ -82,7 +109,7 @@
           "currency": "USD"
         },
         "cumulative_scheduled_amortization": null,
-        "deal_type": "CLO",
+        "deal_type": "clo",
         "excess_spread_account": {
           "amount": "0",
           "currency": "USD"
@@ -99,27 +126,6 @@
         "cpr": 0.15,
         "curve": null
       },
-      "pricing_overrides": {
-        "adaptive_bumps": false,
-        "call_friction_cents": null,
-        "cds_quote_bp": null,
-        "credit_spread_bump_bp": null,
-        "implied_volatility": null,
-        "mc_seed_scenario": null,
-        "mean_reversion": null,
-        "quoted_clean_price": null,
-        "rate_bump_bp": null,
-        "rho_bump_decimal": null,
-        "spot_bump_pct": null,
-        "theta_period": null,
-        "tree_steps": null,
-        "upfront_payment": null,
-        "use_gobet_miri": false,
-        "vega_bump_decimal": null,
-        "vol_bump_pct": null,
-        "vol_surface_extrapolation": "error",
-        "ytm_bump_decimal": null
-      },
       "recovery_spec": {
         "rate": 0.4,
         "recovery_lag": 18
@@ -134,10 +140,10 @@
           {
             "attachment_point": 0.0,
             "attributes": {},
-            "behavior_type": "Standard",
+            "behavior_type": "standard",
             "can_reinvest": false,
             "coupon": {
-              "Fixed": {
+              "fixed": {
                 "rate": 0.06
               }
             },
@@ -161,7 +167,7 @@
               "amount": "100000000",
               "currency": "USD"
             },
-            "day_count": "Act360",
+            "day_count": "act_360",
             "deferred_interest": {
               "amount": "0",
               "currency": "USD"
@@ -184,7 +190,7 @@
             "payment_priority": 1,
             "pik_enabled": false,
             "rating": null,
-            "seniority": "Senior",
+            "seniority": "senior",
             "target_balance": null
           }
         ]

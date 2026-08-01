@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Inequality/equality operator.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Inequality {
     /// Less‑than or equal: `lhs <= rhs`.
     Le,
@@ -17,6 +18,7 @@ pub enum Inequality {
 
 /// Declarative constraint specification.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Constraint {
     /// General metric bound, e.g. duration `<= 4.0`.
     MetricBound {

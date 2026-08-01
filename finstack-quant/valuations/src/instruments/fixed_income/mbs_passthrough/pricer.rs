@@ -357,13 +357,13 @@ fn discount_schedule(
     as_of: Date,
     spread: f64,
 ) -> Result<f64> {
-    let dc = curve.day_count();
+    let day_count = curve.day_count();
     let mut pv = 0.0;
     for cf in schedule.get_flows() {
         if cf.date <= as_of {
             continue;
         }
-        let years = dc.year_fraction(as_of, cf.date, DayCountContext::default())?;
+        let years = day_count.year_fraction(as_of, cf.date, DayCountContext::default())?;
         let base_df = curve.df_between_dates(as_of, cf.date)?;
         let df = if spread.abs() > f64::EPSILON {
             base_df * (-spread * years).exp()

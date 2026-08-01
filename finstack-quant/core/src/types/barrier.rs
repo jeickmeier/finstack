@@ -10,16 +10,12 @@ use serde::{Deserialize, Serialize};
 pub enum BarrierType {
     /// Up-and-out: knocked out when spot touches or rises above the barrier.
     #[default]
-    #[serde(alias = "UpAndOut")]
     UpAndOut,
     /// Up-and-in: activated when spot touches or rises above the barrier.
-    #[serde(alias = "UpAndIn")]
     UpAndIn,
     /// Down-and-out: knocked out when spot touches or falls below the barrier.
-    #[serde(alias = "DownAndOut")]
     DownAndOut,
     /// Down-and-in: activated when spot touches or falls below the barrier.
-    #[serde(alias = "DownAndIn")]
     DownAndIn,
 }
 
@@ -55,15 +51,11 @@ impl std::str::FromStr for BarrierType {
     type Err = String;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let normalized = value
-            .trim()
-            .to_ascii_lowercase()
-            .replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
-            "up_and_out" | "upandout" => Ok(Self::UpAndOut),
-            "up_and_in" | "upandin" => Ok(Self::UpAndIn),
-            "down_and_out" | "downandout" => Ok(Self::DownAndOut),
-            "down_and_in" | "downandin" => Ok(Self::DownAndIn),
+        match value {
+            "up_and_out" => Ok(Self::UpAndOut),
+            "up_and_in" => Ok(Self::UpAndIn),
+            "down_and_out" => Ok(Self::DownAndOut),
+            "down_and_in" => Ok(Self::DownAndIn),
             other => Err(format!(
                 "Unknown barrier type: '{other}'. Valid: up_and_in, up_and_out, down_and_in, down_and_out"
             )),
@@ -76,8 +68,8 @@ mod tests {
     use super::BarrierType;
 
     #[test]
-    fn serde_emits_snake_case_and_accepts_legacy_pascal_case() {
-        for (variant, canonical, legacy) in [
+    fn serde_accepts_only_canonical_snake_case() {
+        for (variant, canonical, rejected) in [
             (BarrierType::UpAndOut, "up_and_out", "UpAndOut"),
             (BarrierType::UpAndIn, "up_and_in", "UpAndIn"),
             (BarrierType::DownAndOut, "down_and_out", "DownAndOut"),
@@ -87,11 +79,7 @@ mod tests {
                 serde_json::to_string(&variant).expect("serialize barrier"),
                 format!("\"{canonical}\"")
             );
-            assert_eq!(
-                serde_json::from_str::<BarrierType>(&format!("\"{legacy}\""))
-                    .expect("legacy barrier"),
-                variant
-            );
+            assert!(serde_json::from_str::<BarrierType>(&format!("\"{rejected}\"")).is_err());
         }
     }
 }

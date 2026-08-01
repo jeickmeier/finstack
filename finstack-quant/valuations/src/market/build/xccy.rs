@@ -110,7 +110,7 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
                 end: far,
                 frequency: conv.payment_frequency,
                 day_count: conv.day_count,
-                bdc: conv.business_day_convention,
+                business_day_convention: conv.business_day_convention,
                 stub: finstack_quant_core::dates::StubKind::ShortFront,
                 spread_bp: Decimal::try_from(*basis_spread_bp)
                     .map_err(|_| finstack_quant_core::InputError::ConversionOverflow)?,
@@ -130,7 +130,7 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
                 end: far,
                 frequency: conv.payment_frequency,
                 day_count: conv.day_count,
-                bdc: conv.business_day_convention,
+                business_day_convention: conv.business_day_convention,
                 stub: finstack_quant_core::dates::StubKind::ShortFront,
                 spread_bp: Decimal::ZERO,
                 payment_lag_days: quote_index.default_payment_lag_days,
@@ -150,18 +150,26 @@ pub fn build_xccy_instrument(quote: &XccyQuote, ctx: &BuildCtx) -> Result<Box<dy
 fn resolve_far_date(
     spot: finstack_quant_core::dates::Date,
     pillar: &Pillar,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     base_calendar_id: &str,
     quote_calendar_id: &str,
 ) -> Result<finstack_quant_core::dates::Date> {
     match pillar {
         Pillar::Tenor(tenor) => {
             let raw = tenor.add_to_date(spot, None, BusinessDayConvention::Unadjusted)?;
-            adjust_joint_calendar(raw, bdc, Some(base_calendar_id), Some(quote_calendar_id))
+            adjust_joint_calendar(
+                raw,
+                business_day_convention,
+                Some(base_calendar_id),
+                Some(quote_calendar_id),
+            )
         }
-        Pillar::Date(date) => {
-            adjust_joint_calendar(*date, bdc, Some(base_calendar_id), Some(quote_calendar_id))
-        }
+        Pillar::Date(date) => adjust_joint_calendar(
+            *date,
+            business_day_convention,
+            Some(base_calendar_id),
+            Some(quote_calendar_id),
+        ),
     }
 }
 

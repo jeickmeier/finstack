@@ -427,6 +427,10 @@ run = [
   "uv run --no-sync python scripts/sync_generated_ts_index.py",
 ]
 
+[tasks.wasm-check-bindings]
+description = "Verify Rust-exported TypeScript types without mutating the workspace"
+run = "uv run --no-sync python scripts/check_generated_ts.py"
+
 # ─────────────────────────────────────────────────────────────────
 # Packaging (wheels)
 # ─────────────────────────────────────────────────────────────────
@@ -454,7 +458,16 @@ run = [
 description = "Verify JSON schemas match Rust types"
 run = [
   "mise run rust-serde-audit",
-  "uv run python scripts/sync_instrument_schema_overrides.py",
+  "uv run --no-sync python scripts/check_schema_residue.py",
+  "cargo run -p finstack-quant-attribution --bin gen_attribution_schemas -- --check",
+  "cargo run -p finstack-quant-cashflows --bin gen_cashflow_schemas -- --check",
+  "cargo run -p finstack-quant-factor-model --bin gen_factor_model_schemas -- --check",
+  "cargo run -p finstack-quant-margin --bin gen_margin_schema -- --check",
+  "cargo run -p finstack-quant-scenarios --bin gen_scenario_schemas -- --check",
+  "cargo run -p finstack-quant-statements --bin gen_statement_schemas -- --check",
+  "cargo run -p finstack-quant-valuations --bin gen_schemas -- --check",
+  "cargo run -p finstack-quant-portfolio --bin gen_materialization_schemas -- --check",
+  "uv run --no-sync python scripts/check_schema_generation.py",
   "cargo test -p finstack-quant-cashflows --test cashflows schema_roundtrip:: --no-fail-fast",
   "cargo test -p finstack-quant-portfolio --test materialization_schema --no-fail-fast",
   "cargo test -p finstack-quant-margin --test schema_parity --no-fail-fast",
@@ -470,20 +483,15 @@ run = [
 [tasks.rust-gen-schemas]
 description = "Regenerate typed JSON schemas from Rust types"
 run = [
-  "cargo run -p finstack-quant-attribution --bin gen_attribution_schemas",
-  "cargo run -p finstack-quant-cashflows --bin gen_cashflow_schemas",
-  "cargo run -p finstack-quant-factor-model --bin gen_factor_model_schemas",
-  "cargo run -p finstack-quant-margin --bin gen_margin_schema",
-  "cargo run -p finstack-quant-scenarios --bin gen_scenario_schemas",
-  "cargo run -p finstack-quant-statements --bin gen_statement_schemas",
-  "cargo run -p finstack-quant-valuations --bin gen_schemas",
-  "cargo run -p finstack-quant-portfolio --bin gen_materialization_schemas",
-  "uv run python scripts/sync_instrument_schema_overrides.py",
+  "cargo run -p finstack-quant-attribution --bin gen_attribution_schemas -- --write",
+  "cargo run -p finstack-quant-cashflows --bin gen_cashflow_schemas -- --write",
+  "cargo run -p finstack-quant-factor-model --bin gen_factor_model_schemas -- --write",
+  "cargo run -p finstack-quant-margin --bin gen_margin_schema -- --write",
+  "cargo run -p finstack-quant-scenarios --bin gen_scenario_schemas -- --write",
+  "cargo run -p finstack-quant-statements --bin gen_statement_schemas -- --write",
+  "cargo run -p finstack-quant-valuations --bin gen_schemas -- --write",
+  "cargo run -p finstack-quant-portfolio --bin gen_materialization_schemas -- --write",
 ]
-
-[tasks.rust-sync-schemas]
-description = "Apply local schema override sync"
-run = "uv run python scripts/sync_instrument_schema_overrides.py"
 
 [tasks.gen-check]
 description = "Regenerate schemas and bindings; fail on second-run drift"
@@ -492,8 +500,8 @@ set -eu
 mise run rust-serde-audit
 uv run --no-sync python scripts/generation_digest.py --check-manifest
 before_digest=$(uv run --no-sync python scripts/generation_digest.py)
-mise run rust-gen-schemas
-mise run wasm-gen-bindings
+mise run rust-check-schemas
+mise run wasm-check-bindings
 uv run --no-sync python scripts/check_generated_instrument_fixtures.py \
   || (echo 'Generated instrument fixtures do not match the registry manifest'; exit 1)
 uv run --no-sync python scripts/sync_generated_ts_index.py --check \

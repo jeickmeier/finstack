@@ -916,7 +916,7 @@ fn credit_curve_construction() {
 
     // CDS spreads to survival probabilities (approximately)
     let times: [f64; 6] = [0.0, 0.5, 1.0, 3.0, 5.0, 10.0];
-    let cds_spreads: [f64; 6] = [0.0, 50e-4, 75e-4, 120e-4, 150e-4, 200e-4]; // bps
+    let cds_spreads: [f64; 6] = [0.0, 50e-4, 75e-4, 120e-4, 150e-4, 200e-4]; // bp
 
     // Convert spreads to approximate survival probabilities
     let survival_probs: Vec<f64> = times
@@ -1304,9 +1304,9 @@ mod serde_tests {
         let bad_json = r#"{
             "id": "BAD",
             "base": "2025-01-15",
-            "day_count": "Act365F",
+            "day_count": "act_365f",
             "knot_points": [[0.0, 1.0], [1.0, 1.01]],
-            "interp_style": "Linear",
+            "interp_style": "linear",
             "extrapolation": "FlatForward",
             "allow_non_monotonic": false
         }"#;

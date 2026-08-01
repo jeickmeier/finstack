@@ -26,13 +26,13 @@ struct PanelInputs {
     dates: Vec<time::Date>,
     values: Vec<Vec<f64>>,
     ticker_names: Vec<String>,
-    freq: PeriodKind,
+    frequency: PeriodKind,
 }
 
-fn parse_freq(freq: &str) -> Result<PeriodKind, JsValue> {
-    freq.parse::<PeriodKind>().map_err(|_| {
+fn parse_frequency(frequency: &str) -> Result<PeriodKind, JsValue> {
+    frequency.parse::<PeriodKind>().map_err(|_| {
         to_js_err(format!(
-            "Unknown frequency {freq:?}; expected one of: \
+            "Unknown frequency {frequency:?}; expected one of: \
              daily, weekly, monthly, quarterly, semiannual, annual"
         ))
     })
@@ -60,13 +60,13 @@ fn parse_panel_inputs(
     dates: JsValue,
     values: JsValue,
     ticker_names: JsValue,
-    freq: Option<String>,
+    frequency: Option<String>,
 ) -> Result<PanelInputs, JsValue> {
     Ok(PanelInputs {
         dates: parse_dates(dates)?,
         values: parse_f64_matrix(values)?,
         ticker_names: serde_wasm_bindgen::from_value(ticker_names).map_err(to_js_err)?,
-        freq: parse_freq(freq.as_deref().unwrap_or(DEFAULT_FREQ))?,
+        frequency: parse_frequency(frequency.as_deref().unwrap_or(DEFAULT_FREQ))?,
     })
 }
 
@@ -162,22 +162,22 @@ impl JsPerformance {
     /// @param prices - Row-major matrix where `prices[i][j]` is ticker j on observation i.
     /// @param ticker_names - Ticker labels aligned with the price-matrix columns.
     /// @param benchmark_ticker - Optional ticker label to use as the benchmark return series.
-    /// @param freq - Optional observation frequency token; defaults to daily.
+    /// @param frequency - Optional observation frequency token; defaults to daily.
     #[wasm_bindgen(constructor)]
     pub fn new(
         dates: JsValue,
         prices: JsValue,
         ticker_names: JsValue,
         benchmark_ticker: Option<String>,
-        freq: Option<String>,
+        frequency: Option<String>,
     ) -> Result<JsPerformance, JsValue> {
-        let panel = parse_panel_inputs(dates, prices, ticker_names, freq)?;
+        let panel = parse_panel_inputs(dates, prices, ticker_names, frequency)?;
         let inner = fa::Performance::new(
             panel.dates,
             panel.values,
             panel.ticker_names,
             benchmark_ticker.as_deref(),
-            panel.freq,
+            panel.frequency,
         )
         .map_err(to_js_err)?;
         Ok(JsPerformance { inner })
@@ -192,22 +192,22 @@ impl JsPerformance {
     /// @param returns - Row-major simple decimal return matrix where `returns[i][j]` is ticker j on observation i.
     /// @param ticker_names - Ticker labels aligned with the return-matrix columns.
     /// @param benchmark_ticker - Optional ticker label to use as the benchmark return series.
-    /// @param freq - Optional observation frequency token; defaults to daily.
+    /// @param frequency - Optional observation frequency token; defaults to daily.
     #[wasm_bindgen(js_name = fromReturns)]
     pub fn from_returns(
         dates: JsValue,
         returns: JsValue,
         ticker_names: JsValue,
         benchmark_ticker: Option<String>,
-        freq: Option<String>,
+        frequency: Option<String>,
     ) -> Result<JsPerformance, JsValue> {
-        let panel = parse_panel_inputs(dates, returns, ticker_names, freq)?;
+        let panel = parse_panel_inputs(dates, returns, ticker_names, frequency)?;
         let inner = fa::Performance::from_returns(
             panel.dates,
             panel.values,
             panel.ticker_names,
             benchmark_ticker.as_deref(),
-            panel.freq,
+            panel.frequency,
         )
         .map_err(to_js_err)?;
         Ok(JsPerformance { inner })
@@ -247,9 +247,9 @@ impl JsPerformance {
     }
 
     /// Observation frequency token.
-    #[wasm_bindgen(js_name = freq)]
-    pub fn freq(&self) -> String {
-        self.inner.freq().to_string()
+    #[wasm_bindgen(js_name = frequency)]
+    pub fn frequency(&self) -> String {
+        self.inner.frequency().to_string()
     }
 
     /// Full return-aligned date grid as ISO date strings (`"YYYY-MM-DD"`),
@@ -823,18 +823,18 @@ impl JsPerformance {
 
     /// Aggregated period statistics for one asset at the given frequency.
     /// @param ticker_idx - Zero-based ticker column index in tickerNames order.
-    /// @param agg_freq - Optional aggregation frequency token; defaults to monthly.
+    /// @param aggregation_frequency - Optional aggregation frequency token; defaults to monthly.
     /// @param fiscal_year_start_month - Optional fiscal-year start month from 1 through 12.
     /// @param fiscal_year_start_day - Optional fiscal-year start day within the selected month.
     #[wasm_bindgen(js_name = periodStats)]
     pub fn period_stats(
         &self,
         ticker_idx: usize,
-        agg_freq: Option<String>,
+        aggregation_frequency: Option<String>,
         fiscal_year_start_month: Option<u8>,
         fiscal_year_start_day: Option<u8>,
     ) -> Result<JsValue, JsValue> {
-        let pk = parse_freq(agg_freq.as_deref().unwrap_or("monthly"))?;
+        let pk = parse_frequency(aggregation_frequency.as_deref().unwrap_or("monthly"))?;
         let fc = make_fiscal_config(fiscal_year_start_month, fiscal_year_start_day)?;
         to_js(
             &self

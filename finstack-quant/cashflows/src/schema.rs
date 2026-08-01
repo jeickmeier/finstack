@@ -26,6 +26,23 @@ pub fn definition_uri(name: &str) -> Option<String> {
     Some(format!("{CASHFLOW_SCHEMA_BASE}{filename}"))
 }
 
+/// Package a derived cashflow schema using canonical shared definitions.
+///
+/// This pass changes only reference placement: shared definitions are
+/// replaced by their equivalent published `$id`, then newly unreachable local
+/// definitions are removed.
+///
+/// # Arguments
+///
+/// * `schema` - Complete schema generated from a cashflow serde type.
+#[doc(hidden)]
+pub fn package_cashflow_schema(schema: &mut Value) {
+    finstack_quant_core::schema::externalize_schema_definitions(
+        schema,
+        finstack_quant_core::schema::common_definition_uri,
+    );
+}
+
 const SCHEMAS: [(&str, &str); 7] = [
     (
         "amortization_spec.schema.json",

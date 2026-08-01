@@ -11,10 +11,8 @@ use serde::{Deserialize, Serialize};
 pub enum Position {
     /// Long position (buyer of the contract).
     #[default]
-    #[serde(alias = "buy", alias = "buyer")]
     Long,
     /// Short position (seller of the contract).
-    #[serde(alias = "sell", alias = "seller")]
     Short,
 }
 
@@ -42,9 +40,9 @@ impl std::str::FromStr for Position {
     type Err = String;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value.to_ascii_lowercase().as_str() {
-            "long" | "buy" | "buyer" => Ok(Self::Long),
-            "short" | "sell" | "seller" => Ok(Self::Short),
+        match value {
+            "long" => Ok(Self::Long),
+            "short" => Ok(Self::Short),
             other => Err(format!("Unknown position: {other}")),
         }
     }
@@ -55,18 +53,12 @@ mod tests {
     use super::Position;
 
     #[test]
-    fn aliases_parse_and_roundtrip_to_canonical_names() {
-        for alias in ["long", "buy", "buyer"] {
-            assert_eq!(alias.parse::<Position>(), Ok(Position::Long));
-            let parsed =
-                serde_json::from_str::<Position>(&format!("\"{alias}\"")).expect("long alias");
-            assert_eq!(parsed, Position::Long);
-        }
-        for alias in ["short", "sell", "seller"] {
-            assert_eq!(alias.parse::<Position>(), Ok(Position::Short));
-            let parsed =
-                serde_json::from_str::<Position>(&format!("\"{alias}\"")).expect("short alias");
-            assert_eq!(parsed, Position::Short);
+    fn only_canonical_names_parse_and_roundtrip() {
+        assert_eq!("long".parse::<Position>(), Ok(Position::Long));
+        assert_eq!("short".parse::<Position>(), Ok(Position::Short));
+        for rejected in ["buy", "buyer", "sell", "seller", "Long", "Short"] {
+            assert!(rejected.parse::<Position>().is_err());
+            assert!(serde_json::from_str::<Position>(&format!("\"{rejected}\"")).is_err());
         }
         assert_eq!(
             serde_json::to_string(&Position::Long).expect("serialize long"),

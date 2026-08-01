@@ -1,5 +1,125 @@
 {
   "$defs": {
+    "AsianOption": {
+      "additionalProperties": false,
+      "description": "Asian option instrument.\n\nAsian options depend on the average price over a period rather than\njust the terminal price. Supports both call and put options with\narithmetic or geometric averaging.\n\n# Averaging Methods\n\n- **Arithmetic**: `A = (1/n) × Σ S(t_i)` - Market standard, approximated via Turnbull-Wakeman\n- **Geometric**: `G = [Π S(t_i)]^(1/n)` - Closed-form solution available (Kemna-Vorst)\n\n# Fixing Dates and Business Day Conventions\n\n**Important**: The `fixing_dates` field expects dates that have already been adjusted\nfor business day conventions. In production use, callers should:\n\n1. Generate the schedule of observation dates (e.g., monthly end-of-month)\n2. Apply the appropriate business day convention (typically Modified Following)\n3. Adjust for the relevant holiday calendar (based on underlying asset's market)\n\nCommon conventions by market:\n- **US Equity (SPX)**: NYSE calendar, Modified Following\n- **FX Options**: Joint calendar of currency pair, Modified Following\n- **Commodities**: Exchange-specific calendar\n\nThe number of fixing dates directly affects the averaging calculation and pricing.\nTypical configurations:\n- Daily averaging: ~252 dates per year (trading days)\n- Weekly averaging: ~52 dates per year\n- Monthly averaging: 12 dates per year (typically month-end)\n\n# Pricing Models\n\n| Averaging | Model | Accuracy |\n|-----------|-------|----------|\n| Geometric | Kemna-Vorst (1990) | Exact closed-form |\n| Arithmetic | Turnbull-Wakeman (1991) | ~1% vs Monte Carlo |\n| Either | Monte Carlo | Configurable accuracy |\n\n# Example\n\n```ignore\n// For production: pre-adjust fixing dates using business day logic\nlet fixing_dates = generate_monthly_schedule(start, end)\n    .into_iter()\n    .map(|d| adjust_business_day(d, ModifiedFollowing, &nyse_calendar))\n    .collect();\n```",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and grouping"
+        },
+        "averaging_method": {
+          "$ref": "#/$defs/AveragingMethod",
+          "description": "Averaging method (arithmetic or geometric)"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID for present value calculations"
+        },
+        "div_yield_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional dividend yield curve ID"
+        },
+        "expiry": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Option expiry date"
+        },
+        "fixing_dates": {
+          "description": "Dates on which underlying is observed for averaging.\n\n**Note**: These dates should be pre-adjusted for business day conventions.\nThe pricer uses these dates directly without further adjustment.\nSee struct-level documentation for business day convention guidance.",
+          "items": {
+            "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+          },
+          "type": "array"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides (manual price, yield, spread)"
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount"
+        },
+        "option_type": {
+          "$ref": "#/$defs/OptionType",
+          "description": "Option type (call or put)"
+        },
+        "past_fixings": {
+          "default": [],
+          "description": "Past fixings for seasoned options (date, observed price pairs).\n\nFor seasoned options where some averaging observations have already occurred,\nprovide the historical fixings here. Only fixings that match dates in\n`fixing_dates` and are on or before the valuation date are considered.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+              },
+              {
+                "format": "double",
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only valuation adjustments."
+        },
+        "spot_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Spot price identifier"
+        },
+        "strike": {
+          "description": "Strike price",
+          "format": "double",
+          "type": "number"
+        },
+        "underlying_ticker": {
+          "description": "Underlying asset ticker symbol",
+          "type": "string"
+        },
+        "vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Volatility surface ID"
+        }
+      },
+      "required": [
+        "id",
+        "underlying_ticker",
+        "strike",
+        "option_type",
+        "averaging_method",
+        "expiry",
+        "fixing_dates",
+        "notional",
+        "day_count",
+        "discount_curve_id",
+        "spot_id",
+        "vol_surface_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "AveragingMethod": {
       "description": "Averaging method for Asian options.",
       "oneOf": [
@@ -11,6 +131,16 @@
         {
           "const": "geometric",
           "description": "Geometric average: (Π S_i)^(1/n)",
+          "type": "string"
+        }
+      ]
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
           "type": "string"
         }
       ]
@@ -29,19 +159,40 @@
           "type": "string"
         }
       ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/AsianOption"
+            },
+            "type": {
+              "const": "asian_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/asian_option.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Option with payoff based on average underlying price",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
           "averaging_method": "arithmetic",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "discount_curve_id": "USD-OIS",
           "div_yield_id": "SPX-DIV",
           "expiry": "2024-06-30",
@@ -60,27 +211,6 @@
           },
           "option_type": "call",
           "past_fixings": [],
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "spot_id": "SPX-SPOT",
           "strike": 4500.0,
           "underlying_ticker": "SPX",
@@ -93,163 +223,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Asian Option instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and grouping"
-            },
-            "averaging_method": {
-              "$ref": "#/$defs/AveragingMethod",
-              "description": "Averaging method (arithmetic or geometric)"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID for present value calculations"
-            },
-            "div_yield_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional dividend yield curve ID"
-            },
-            "expiry": {
-              "description": "Option expiry date",
-              "format": "date",
-              "type": "string"
-            },
-            "fixing_dates": {
-              "description": "Dates on which underlying is observed for averaging.\n\n**Note**: These dates should be pre-adjusted for business day conventions.\nThe pricer uses these dates directly without further adjustment.\nSee struct-level documentation for business day convention guidance.",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount"
-            },
-            "option_type": {
-              "$ref": "#/$defs/OptionType",
-              "description": "Option type (call or put)"
-            },
-            "past_fixings": {
-              "default": [],
-              "description": "Past fixings for seasoned options (date, observed price pairs).\n\nFor seasoned options where some averaging observations have already occurred,\nprovide the historical fixings here. Only fixings that match dates in\n`fixing_dates` and are on or before the valuation date are considered.",
-              "items": {
-                "maxItems": 2,
-                "minItems": 2,
-                "prefixItems": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "format": "double",
-                    "type": "number"
-                  }
-                ],
-                "type": "array"
-              },
-              "type": "array"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides (manual price, yield, spread)"
-            },
-            "spot_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Spot price identifier"
-            },
-            "strike": {
-              "description": "Strike price",
-              "format": "double",
-              "type": "number"
-            },
-            "underlying_ticker": {
-              "description": "Underlying asset ticker symbol",
-              "type": "string"
-            },
-            "vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Volatility surface ID"
-            }
-          },
-          "required": [
-            "id",
-            "underlying_ticker",
-            "strike",
-            "option_type",
-            "averaging_method",
-            "expiry",
-            "fixing_dates",
-            "notional",
-            "day_count",
-            "discount_curve_id",
-            "spot_id",
-            "vol_surface_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "asian_option",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Asian Option",
+  "title": "asian_option",
   "type": "object"
 }

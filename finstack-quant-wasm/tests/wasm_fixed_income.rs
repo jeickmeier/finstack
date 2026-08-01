@@ -54,12 +54,12 @@ fn without_timestamp(result_json: &str) -> serde_json::Value {
 /// a 62.5bp FRN margin rounded to whole bp would price differently from
 /// the JSON path for the same instrument.
 #[wasm_bindgen_test]
-fn bps_rejects_fractional_input() {
+fn bp_rejects_fractional_input() {
     assert!(JsBps::new(62.5).is_err());
-    assert!(JsRate::from_bps(12.4).is_err());
+    assert!(JsRate::from_bp(12.4).is_err());
     // Whole values still construct.
     assert!(JsBps::new(200.0).is_ok());
-    assert!(JsRate::from_bps(250.0).is_ok());
+    assert!(JsRate::from_bp(250.0).is_ok());
 }
 
 #[wasm_bindgen_test]
@@ -68,8 +68,9 @@ fn bond_fixed_to_json_is_tagged_and_matches_rust() {
     assert_eq!(bond.id(), "BOND-1");
     let json = bond.to_json().expect("toJson");
     let value: serde_json::Value = serde_json::from_str(&json).unwrap();
-    assert_eq!(value["type"], "bond");
-    assert_eq!(value["spec"]["id"], "BOND-1");
+    assert_eq!(value["schema"], "finstack_quant.instrument/1");
+    assert_eq!(value["instrument"]["type"], "bond");
+    assert_eq!(value["instrument"]["spec"]["id"], "BOND-1");
 
     // Same constructor called directly in Rust serializes identically.
     let rust_bond = finstack_quant_valuations::instruments::Bond::fixed(
@@ -85,7 +86,9 @@ fn bond_fixed_to_json_is_tagged_and_matches_rust() {
     )
     .unwrap();
     let rust_json = serde_json::to_string(
-        &finstack_quant_valuations::instruments::InstrumentJson::Bond(rust_bond),
+        &finstack_quant_valuations::instruments::InstrumentEnvelope::new(
+            finstack_quant_valuations::instruments::InstrumentJson::Bond(rust_bond),
+        ),
     )
     .unwrap();
     assert_eq!(json, rust_json);
@@ -114,7 +117,7 @@ fn bond_floating_constructor_builds_frn() {
     .expect("floating bond");
     assert_eq!(frn.id(), "FRN-1");
     let value: serde_json::Value = serde_json::from_str(&frn.to_json().unwrap()).unwrap();
-    assert_eq!(value["type"], "bond");
+    assert_eq!(value["instrument"]["type"], "bond");
 }
 
 #[wasm_bindgen_test]
@@ -154,7 +157,7 @@ fn term_loan_example_round_trips_and_prices() {
     assert_eq!(loan.id(), "TERM-LOAN-USD-5Y");
     let json = loan.to_json().unwrap();
     let value: serde_json::Value = serde_json::from_str(&json).unwrap();
-    assert_eq!(value["type"], "term_loan");
+    assert_eq!(value["instrument"]["type"], "term_loan");
 
     let round_tripped = JsTermLoan::from_json(&json).unwrap().to_json().unwrap();
     assert_eq!(json, round_tripped);

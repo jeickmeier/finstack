@@ -12,6 +12,7 @@ use finstack_quant_portfolio::cashflows::{
 use finstack_quant_portfolio::types::PositionId;
 use finstack_quant_portfolio::MarketFactorKey;
 use finstack_quant_valuations::instruments::RatesCurveKind;
+use finstack_quant_valuations::pricer::InstrumentType;
 use indexmap::IndexMap;
 
 fn roundtrip_json<T>(value: &T) -> T
@@ -45,7 +46,7 @@ fn test_cashflow_report_types_roundtrip() {
     assert_roundtrip_value(&CashflowExtractionIssue {
         position_id: position_id.clone(),
         instrument_id: "LOAN_B".to_string(),
-        instrument_type: "Loan".to_string(),
+        instrument_type: InstrumentType::Loan,
         kind: CashflowExtractionIssueKind::BuildFailed,
         message: "missing forward curve".to_string(),
     });
@@ -53,16 +54,20 @@ fn test_cashflow_report_types_roundtrip() {
     let summary = PortfolioCashflowPositionSummary {
         position_id: position_id.clone(),
         instrument_id: "BOND_A".to_string(),
-        instrument_type: "Bond".to_string(),
+        instrument_type: InstrumentType::Bond,
         representation: CashflowRepresentation::Projected,
         event_count: 1,
     };
+    assert_eq!(
+        serde_json::to_value(&summary).expect("summary should serialize")["instrument_type"],
+        "bond"
+    );
     assert_roundtrip_value(&summary);
 
     let event = PortfolioCashflowEvent {
         position_id: position_id.clone(),
         instrument_id: "BOND_A".to_string(),
-        instrument_type: "Bond".to_string(),
+        instrument_type: InstrumentType::Bond,
         date: payment_date,
         amount: Money::new(12_500.0, Currency::USD),
         kind: CFKind::Fixed,
@@ -93,7 +98,7 @@ fn test_cashflow_report_types_roundtrip() {
         issues: vec![CashflowExtractionIssue {
             position_id: PositionId::new("POS_2"),
             instrument_id: "SWAP_C".to_string(),
-            instrument_type: "Swap".to_string(),
+            instrument_type: InstrumentType::Irs,
             kind: CashflowExtractionIssueKind::BuildFailed,
             message: "cashflow provider unavailable".to_string(),
         }],

@@ -61,7 +61,9 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = DollarRoll::validate)]
 #[serde(deny_unknown_fields)]
@@ -95,14 +97,14 @@ pub struct DollarRoll {
     /// When set, bypasses the SIFMA calendar lookup for the front leg.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub front_settlement_date: Option<Date>,
     /// Explicit back-month settlement date override.
     ///
     /// When set, bypasses the SIFMA calendar lookup for the back leg.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub back_settlement_date: Option<Date>,
     /// Front-month price (sell price).
     pub front_price: f64,
@@ -111,7 +113,7 @@ pub struct DollarRoll {
     /// Trade date.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub trade_date: Option<Date>,
     /// Discount curve identifier.
     pub discount_curve_id: CurveId,
@@ -130,16 +132,25 @@ pub struct DollarRoll {
     pub repo_curve_id: Option<CurveId>,
     /// Pricing overrides.
     #[builder(default)]
-    #[serde(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for tagging and selection.
     #[builder(default)]

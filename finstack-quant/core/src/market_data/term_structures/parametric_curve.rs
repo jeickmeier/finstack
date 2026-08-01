@@ -309,7 +309,7 @@ struct RawParametricCurve {
     /// Curve identifier.
     id: String,
     /// Base date.
-    #[schemars(with = "String")]
+    #[schemars(with = "crate::wire::DateWire")]
     base_date: Date,
     /// Day count convention.
     day_count: DayCount,
@@ -440,8 +440,8 @@ impl ParametricCurveBuilder {
     }
 
     /// Set the day count convention.
-    pub fn day_count(mut self, dc: DayCount) -> Self {
-        self.day_count = dc;
+    pub fn day_count(mut self, day_count: DayCount) -> Self {
+        self.day_count = day_count;
         self
     }
 

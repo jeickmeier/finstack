@@ -31,10 +31,16 @@ impl ResolvedVarianceCalendar {
         }
     }
 
-    fn adjust(&self, date: Date, bdc: BusinessDayConvention) -> finstack_quant_core::Result<Date> {
+    fn adjust(
+        &self,
+        date: Date,
+        business_day_convention: BusinessDayConvention,
+    ) -> finstack_quant_core::Result<Date> {
         match self {
-            Self::Single(calendar) => adjust(date, bdc, *calendar),
-            Self::Joint(calendars) => calendars.adjust_joint_calendar(date, bdc),
+            Self::Single(calendar) => adjust(date, business_day_convention, *calendar),
+            Self::Joint(calendars) => {
+                calendars.adjust_joint_calendar(date, business_day_convention)
+            }
         }
     }
 
@@ -64,7 +70,7 @@ pub(crate) fn variance_observation_dates(
     start: Date,
     maturity: Date,
     frequency: Tenor,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     end_of_month: bool,
     calendar: VarianceCalendar<'_>,
 ) -> finstack_quant_core::Result<Vec<Date>> {
@@ -79,8 +85,8 @@ pub(crate) fn variance_observation_dates(
 
     let mut dates = if frequency.unit() == TenorUnit::Days {
         let mut dates = Vec::new();
-        let mut current = calendar.adjust(start, bdc)?;
-        let end = calendar.adjust(maturity, bdc)?;
+        let mut current = calendar.adjust(start, business_day_convention)?;
+        let end = calendar.adjust(maturity, business_day_convention)?;
         while current <= end {
             dates.push(current);
             current = calendar.add_business_days(current, frequency.count())?;
@@ -97,7 +103,7 @@ pub(crate) fn variance_observation_dates(
             .build()?
             .dates
             .into_iter()
-            .map(|date| calendar.adjust(date, bdc))
+            .map(|date| calendar.adjust(date, business_day_convention))
             .collect::<finstack_quant_core::Result<Vec<_>>>()?
     };
 

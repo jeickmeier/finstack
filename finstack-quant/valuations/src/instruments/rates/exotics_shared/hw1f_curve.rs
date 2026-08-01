@@ -74,11 +74,11 @@ fn rebased_discount_fn<'a>(
     as_of: Date,
 ) -> Result<impl Fn(f64) -> f64 + 'a> {
     let base = curve.base_date();
-    let dc = curve.day_count();
+    let day_count = curve.day_count();
     let t_asof = if as_of == base {
         0.0
     } else {
-        dc.year_fraction(base, as_of, DayCountContext::default())?
+        day_count.year_fraction(base, as_of, DayCountContext::default())?
     };
     let df_asof = curve.df(t_asof);
     if !df_asof.is_finite() || df_asof <= 0.0 {

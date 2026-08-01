@@ -44,7 +44,7 @@
 //!         rate: dec!(0.04),  // 4% fixed rate
 //!         frequency: Tenor::semi_annual(),
 //!         day_count: DayCount::Thirty360,
-//!         bdc: BusinessDayConvention::ModifiedFollowing,
+//!         business_day_convention: BusinessDayConvention::ModifiedFollowing,
 //!         calendar_id: Some("usny".to_string()),
 //!         stub: StubKind::None,
 //!         start: date!(2025-01-15),
@@ -60,7 +60,7 @@
 //!         spread_bp: dec!(0.0),
 //!         frequency: Tenor::quarterly(),
 //!         day_count: DayCount::Act360,
-//!         bdc: BusinessDayConvention::ModifiedFollowing,
+//!         business_day_convention: BusinessDayConvention::ModifiedFollowing,
 //!         calendar_id: Some("usny".to_string()),
 //!         stub: StubKind::None,
 //!         reset_lag_days: 0,

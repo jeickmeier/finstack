@@ -1,5 +1,6 @@
 //! JSON schema types for metric definitions.
 
+use finstack_quant_core::wire::SchemaVersion;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -33,9 +34,8 @@ pub struct MetricRegistry {
     /// Namespace for all metrics in this registry (e.g., "fin", "custom")
     pub namespace: String,
 
-    /// Schema version for forward compatibility
-    #[serde(default = "default_schema_version")]
-    pub schema_version: u32,
+    /// Required schema version. Only numeric `1` is accepted.
+    pub schema_version: SchemaVersion,
 
     /// List of metric definitions contained in the registry
     pub metrics: Vec<MetricDefinition>,
@@ -100,10 +100,6 @@ pub enum UnitType {
     Count,
     /// Time period (days, months, years)
     TimePeriod,
-}
-
-fn default_schema_version() -> u32 {
-    1
 }
 
 impl MetricDefinition {

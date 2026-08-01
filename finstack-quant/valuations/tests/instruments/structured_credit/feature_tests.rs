@@ -54,7 +54,7 @@ fn flat_market() -> MarketContext {
 }
 
 fn build_pool(n_assets: usize, balance_each: f64) -> AssetPool {
-    let mut pool = AssetPool::new("FEAT_POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("FEAT_POOL", DealType::Clo, Currency::USD);
     for i in 0..n_assets {
         pool.assets.push(PoolAsset {
             day_count: finstack_quant_core::dates::DayCount::Act360,
@@ -64,7 +64,7 @@ fn build_pool(n_assets: usize, balance_each: f64) -> AssetPool {
             },
             balance: Money::new(balance_each, Currency::USD),
             rate: 0.08,
-            spread_bps: None,
+            spread_bp: None,
             index_id: None,
             maturity: maturity_5y(),
             credit_quality: Some(CreditRating::BB),
@@ -408,7 +408,7 @@ mod afc_tests {
     /// 6% uncapped, so the only thing that reduces senior interest with AFC on
     /// is the net-WAC cap (6% -> 5%), not a cash shortfall.
     fn deal(with_afc: bool) -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),
@@ -449,7 +449,7 @@ mod afc_tests {
             sc.waterfall_rules = Some(WaterfallRules {
                 afc: Some(AfcSpec {
                     capped_tranches: vec!["SR".to_string()],
-                    net_wac_fee_bps: None,
+                    net_wac_fee_bp: None,
                 }),
                 excess_spread: None,
                 step_down: None,
@@ -501,8 +501,8 @@ mod afc_tests {
 
     /// Pool WAC 6%, senior coupon 5.8%: the gross-WAC cap (6%) does not bind, but
     /// a net-WAC fee lowers the cap below the coupon, so it does.
-    fn net_wac_deal(net_wac_fee_bps: Option<f64>) -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+    fn net_wac_deal(net_wac_fee_bp: Option<f64>) -> StructuredCredit {
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),
@@ -548,7 +548,7 @@ mod afc_tests {
         sc.waterfall_rules = Some(WaterfallRules {
             afc: Some(AfcSpec {
                 capped_tranches: vec!["SR".to_string()],
-                net_wac_fee_bps,
+                net_wac_fee_bp,
             }),
             ..Default::default()
         });
@@ -615,7 +615,7 @@ mod excess_spread_tests {
     /// Pool earns 8%, senior pays 5%, so ~3% excess spread flows to equity each
     /// period. A 2% CDR drives cumulative losses well above any 1% trap trigger.
     fn deal(excess: Option<ExcessSpreadSpec>) -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),
@@ -747,7 +747,7 @@ mod excess_spread_tests {
             all_in_cap_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,
@@ -765,7 +765,7 @@ mod excess_spread_tests {
     /// No defaults, so the senior is never written down — its interest due is
     /// driven by the rising index, not by balance erosion.
     fn draw_deal(with_account: bool) -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),
@@ -898,7 +898,7 @@ mod step_down_tests {
     /// 70/20/10 senior/sub/equity ABS with a 20% CPR throwing off prepayment
     /// principal each period.
     fn deal(step_down: Option<StepDownSpec>, cdr: f64) -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),
@@ -1142,7 +1142,7 @@ mod shifting_interest_tests {
     }
 
     fn deal(shifting: Option<ShiftingInterestSpec>) -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),
@@ -1243,13 +1243,13 @@ mod shifting_interest_tests {
     /// Deal backed by an *amortizing* (level-pay) mortgage, so the pool throws
     /// off scheduled principal every period in addition to prepayments.
     fn amortizing_deal(shifting: Option<ShiftingInterestSpec>) -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::RMBS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Rmbs, Currency::USD);
         pool.assets.push(PoolAsset {
             id: InstrumentId::new("M1"),
             asset_type: AssetType::SingleFamilyMortgage { ltv: Some(0.8) },
             balance: Money::new(1_000_000.0, Currency::USD),
             rate: 0.06,
-            spread_bps: None,
+            spread_bp: None,
             index_id: None,
             maturity: maturity(),
             credit_quality: None,
@@ -1345,7 +1345,7 @@ mod shifting_interest_tests {
 
     /// Senior + two subordinate tranches (200k and 100k) under shifting interest.
     fn two_sub_deal() -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),

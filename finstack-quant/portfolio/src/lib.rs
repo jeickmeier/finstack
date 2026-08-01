@@ -66,7 +66,7 @@
 //!
 //! // Build the portfolio with the entity and position
 //! let portfolio = Portfolio::builder("MY_FUND")
-//!     .base_ccy(Currency::USD)
+//!     .base_currency(Currency::USD)
 //!     .as_of(as_of)
 //!     .entity(Entity::new("ACME_CORP"))
 //!     .position(position)
@@ -295,7 +295,7 @@ pub use valuation::{
 /// Strict versioned portfolio materialization bundles and native bulk loading.
 pub mod materialization;
 pub use materialization::{
-    InstrumentArtifact, InstrumentArtifactCache, MarketDependenciesSpec, MaterializationPhases,
-    MaterializationReport, MaterializedPosition, MaterializerInfo, PortfolioHeader,
-    PortfolioMaterializationEnvelope, PORTFOLIO_MATERIALIZATION_CONTRACT,
+    InstrumentArtifact, InstrumentArtifactCache, MaterializationPhases, MaterializationReport,
+    MaterializedPosition, MaterializerInfo, PortfolioHeader, PortfolioMaterializationEnvelope,
+    PortfolioMaterializationSchema, PORTFOLIO_MATERIALIZATION_CONTRACT,
 };

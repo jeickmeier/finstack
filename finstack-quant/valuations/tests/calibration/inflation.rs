@@ -1,4 +1,4 @@
-//! Integration tests for inflation calibration conventions (v2).
+//! Integration tests for inflation calibration conventions (canonical).
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DateExt, DayCount, DayCountContext};
@@ -85,8 +85,8 @@ fn inflation_quote_time_uses_lagged_fixing_date() {
         index: "USA-CPI-U".to_string(),
         convention: InflationSwapConventionId::new("USD"),
     })];
-    let initial_market = MarketContext::new().insert(create_discount_curve(base_date));
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let source_market = MarketContext::new().insert(create_discount_curve(base_date));
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("infl".to_string(), cal_utils::quote_set_ids(&quotes));
@@ -118,7 +118,7 @@ fn inflation_quote_time_uses_lagged_fixing_date() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -150,10 +150,10 @@ fn inflation_preflight_rejects_base_cpi_mismatch_with_fixings() {
         index: "USA-CPI-U".to_string(),
         convention: InflationSwapConventionId::new("USD"),
     })];
-    let initial_market = MarketContext::new()
+    let source_market = MarketContext::new()
         .insert(create_discount_curve(base_date))
         .insert_inflation_index("USD-CPI", create_us_cpi_fixings_with_seasonality());
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("infl".to_string(), cal_utils::quote_set_ids(&quotes));
@@ -185,7 +185,7 @@ fn inflation_preflight_rejects_base_cpi_mismatch_with_fixings() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,

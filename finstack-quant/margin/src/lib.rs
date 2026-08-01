@@ -52,7 +52,7 @@
 //! # Conventions
 //!
 //! - Registry JSON is embedded at build time. Overlays use the Finstack config
-//!   extension key `valuations.margin_registry.v1`.
+//!   extension key `margin.registry.v1`.
 //! - Factory methods such as `CsaSpec::usd_regulatory()` and
 //!   `OtcMarginSpec::usd_bilateral()` resolve defaults from the embedded
 //!   registry.
@@ -88,6 +88,7 @@ pub use calculators::{
     ImResult, InternalModelImCalculator, ScheduleImCalculator, SimmCalculator, VmCalculator,
     VmResult,
 };
+pub use schema::{MarginEnvelope, MarginSchema};
 pub use traits::Marginable;
 pub use types::{
     generate_margin_cashflows, generate_margin_interest_cashflows, margin_calls_to_cashflows,

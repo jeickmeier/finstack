@@ -73,7 +73,7 @@ fn validate_fx_snapshot(
     global: &HashMap<Pair, f64>,
     pinned: &HashMap<Pair, f64>,
     observed: &HashMap<Pair, f64>,
-    tolerance_bps: f64,
+    tolerance_bp: f64,
     scope: &str,
 ) -> crate::Result<()> {
     let mut currencies = HashSet::default();
@@ -94,10 +94,10 @@ fn validate_fx_snapshot(
                 continue;
             };
             let product = ab * ba;
-            let deviation_bps = (product - 1.0).abs() * 10_000.0;
-            if deviation_bps > tolerance_bps {
+            let deviation_bp = (product - 1.0).abs() * 10_000.0;
+            if deviation_bp > tolerance_bp {
                 return Err(crate::Error::Validation(format!(
-                    "reciprocal FX inconsistency in {scope} for {a}<->{b}: product {product:.12} ({deviation_bps:.6} bps)"
+                    "reciprocal FX inconsistency in {scope} for {a}<->{b}: product {product:.12} ({deviation_bp:.6} bp)"
                 )));
             }
         }
@@ -114,10 +114,10 @@ fn validate_fx_snapshot(
                     continue;
                 };
                 let product = ab * bc * ca;
-                let deviation_bps = (product - 1.0).abs() * 10_000.0;
-                if deviation_bps > tolerance_bps {
+                let deviation_bp = (product - 1.0).abs() * 10_000.0;
+                if deviation_bp > tolerance_bp {
                     return Err(crate::Error::Validation(format!(
-                        "triangular arbitrage detected in {scope} for {a}->{b}->{c}->{a}: cycle product {product:.12} ({deviation_bps:.6} bps)"
+                        "triangular arbitrage detected in {scope} for {a}->{b}->{c}->{a}: cycle product {product:.12} ({deviation_bp:.6} bp)"
                     )));
                 }
             }
@@ -794,21 +794,21 @@ impl FxMatrix {
     /// Pair-global quotes are checked together. Provider-observed and pinned
     /// quotes are checked only within the same `(date, policy)` snapshot, then
     /// combined with pair-global quotes; this avoids false arbitrage signals
-    /// from comparing moving market data across dates. `tolerance_bps` is the
+    /// from comparing moving market data across dates. `tolerance_bp` is the
     /// permitted absolute deviation of a reciprocal or three-leg cycle product
     /// from one, expressed in basis points.
     ///
     /// # Errors
     ///
-    /// Returns a validation error when `tolerance_bps` is non-finite or
+    /// Returns a validation error when `tolerance_bp` is non-finite or
     /// negative, when a reciprocal product differs from one beyond tolerance,
     /// or when a three-currency cycle implies triangular arbitrage beyond
     /// tolerance. It validates the current stored snapshot only and never
     /// performs provider I/O.
-    pub fn validate_triangular(&self, tolerance_bps: f64) -> crate::Result<()> {
-        if !tolerance_bps.is_finite() || tolerance_bps < 0.0 {
+    pub fn validate_triangular(&self, tolerance_bp: f64) -> crate::Result<()> {
+        if !tolerance_bp.is_finite() || tolerance_bp < 0.0 {
             return Err(crate::Error::Validation(format!(
-                "triangular validation tolerance must be finite and non-negative, got {tolerance_bps}"
+                "triangular validation tolerance must be finite and non-negative, got {tolerance_bp}"
             )));
         }
 
@@ -817,7 +817,7 @@ impl FxMatrix {
             &global,
             &HashMap::default(),
             &HashMap::default(),
-            tolerance_bps,
+            tolerance_bp,
             "global",
         )?;
 
@@ -859,7 +859,7 @@ impl FxMatrix {
                 &global,
                 &pinned,
                 &observed,
-                tolerance_bps,
+                tolerance_bp,
                 &format!("{date}/{policy}"),
             )?;
         }

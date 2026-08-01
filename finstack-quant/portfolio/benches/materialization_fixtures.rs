@@ -6,7 +6,7 @@ use finstack_quant_core::dates::{Date, DayCount, Month, Tenor};
 use finstack_quant_core::money::Money;
 use finstack_quant_portfolio::{
     flatten_dependencies, Entity, InstrumentArtifact, MaterializedPosition, PortfolioHeader,
-    PortfolioMaterializationEnvelope, PositionId, PositionUnit, PORTFOLIO_MATERIALIZATION_CONTRACT,
+    PortfolioMaterializationEnvelope, PositionId, PositionUnit,
 };
 use finstack_quant_valuations::instruments::fixed_income::bond::{Bond, CashflowSpec};
 use finstack_quant_valuations::instruments::rates::cms_swap::{CmsSwap, FundingLegSpec};
@@ -14,7 +14,6 @@ use finstack_quant_valuations::instruments::{
     IRSConvention, Instrument, InstrumentEnvelope, InstrumentJson, MarketDependencies, PayReceive,
 };
 use indexmap::IndexMap;
-use serde_json::value::to_raw_value;
 use time::macros::date;
 
 /// Number of artifacts in the unique-instrument acceptance fixture.
@@ -128,11 +127,11 @@ pub fn build_fixture(
         .collect();
 
     let envelope = PortfolioMaterializationEnvelope {
-        schema: PORTFOLIO_MATERIALIZATION_CONTRACT.schema_string(),
+        schema: finstack_quant_portfolio::materialization::PortfolioMaterializationSchema::CURRENT,
         portfolio: PortfolioHeader {
             id: format!("materialization-{}", fixture_name(kind)),
             name: Some("Phase 7 deterministic benchmark".to_string()),
-            base_ccy: Currency::USD,
+            base_currency: Currency::USD,
             as_of: date!(2025 - 01 - 01),
             entities: IndexMap::from([(
                 "benchmark-entity".into(),
@@ -232,7 +231,7 @@ fn schedule_rich_swap(index: usize) -> CmsSwap {
         },
         Money::new(2_000_000.0 + index as f64, Currency::USD),
         DayCount::Act360,
-        IRSConvention::USDStandard,
+        IRSConvention::UsdSofr,
         if index % 4 == 1 {
             PayReceive::Pay
         } else {
@@ -253,7 +252,7 @@ fn artifact(
     InstrumentArtifact {
         artifact_id: format!("artifact-{index:05}"),
         content_hash: Some(envelope.content_hash().expect("benchmark artifact hash")),
-        envelope: to_raw_value(&envelope).expect("benchmark raw envelope"),
+        envelope,
         dependencies: Some(dependencies),
     }
 }

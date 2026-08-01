@@ -27,15 +27,15 @@ ALL_SECTIONS = ["waterfall", "factors", "carry", "credit"]
 # Canonical waterfall-order factor name -> (display label, PnlAttribution attribute).
 # Order matches `attribution.default_waterfall_order()`; see the drift guard test.
 _WF_FIELD: dict[str, tuple[str, str]] = {
-    "Carry": ("Carry", "carry"),
-    "RatesCurves": ("Rates", "rates_curves_pnl"),
-    "CreditCurves": ("Credit", "credit_curves_pnl"),
-    "InflationCurves": ("Inflation", "inflation_curves_pnl"),
-    "Correlations": ("Correlations", "correlations_pnl"),
-    "Fx": ("FX", "fx_pnl"),
-    "Volatility": ("Vol", "vol_pnl"),
-    "ModelParameters": ("Model Params", "model_params_pnl"),
-    "MarketScalars": ("Market Scalars", "market_scalars_pnl"),
+    "carry": ("Carry", "carry"),
+    "rates_curves": ("Rates", "rates_curves_pnl"),
+    "credit_curves": ("Credit", "credit_curves_pnl"),
+    "inflation_curves": ("Inflation", "inflation_curves_pnl"),
+    "correlations": ("Correlations", "correlations_pnl"),
+    "fx": ("FX", "fx_pnl"),
+    "volatility": ("Vol", "vol_pnl"),
+    "model_parameters": ("Model Params", "model_params_pnl"),
+    "market_scalars": ("Market Scalars", "market_scalars_pnl"),
 }
 # Factors not in default_waterfall_order() but present on PnlAttribution; appended so
 # the bars still sum to total_pnl.
@@ -181,7 +181,7 @@ def attribution_tearsheet(
     market_t1: Any = None,
     as_of_t0: str | None = None,
     as_of_t1: str | None = None,
-    method: Any = "Parallel",
+    method: Any = "parallel",
     config: Any = None,
     title: str | None = None,
     subtitle: str | None = None,
@@ -272,7 +272,7 @@ def attribution_tearsheet(
     ]
     meta_lines = [
         f"Instrument {attribution.instrument_id}",
-        f"Method {attribution.method}",
+        f"Method {str(attribution.method).replace('_', ' ').title()}",
         f"{attribution.t0} → {attribution.t1}",
         f"Currency {cur}",
     ]

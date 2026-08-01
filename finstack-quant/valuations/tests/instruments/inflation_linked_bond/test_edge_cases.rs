@@ -434,13 +434,13 @@ fn test_business_day_convention_variants() {
     let (ctx, _) = market_context_with_index();
     let as_of = d(2025, 1, 2);
 
-    for bdc in [
+    for business_day_convention in [
         finstack_quant_core::dates::BusinessDayConvention::Following,
         finstack_quant_core::dates::BusinessDayConvention::Preceding,
         finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
     ] {
         let mut ilb = sample_tips();
-        ilb.bdc = bdc;
+        ilb.business_day_convention = business_day_convention;
 
         // Act
         let pv = ilb.value(&ctx, as_of).unwrap();

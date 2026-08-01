@@ -233,7 +233,7 @@ impl SviSurfaceTarget {
         }
 
         let surface = VolSurface::from_grid(
-            &params.surface_id,
+            &params.vol_surface_id,
             &params.target_expiries,
             &params.target_strikes,
             &grid,
@@ -417,7 +417,7 @@ mod tests {
 
     fn base_params() -> SviSurfaceParams {
         SviSurfaceParams {
-            surface_id: "SPX-SVI".to_string(),
+            vol_surface_id: "SPX-SVI".to_string(),
             base_date: base_date(),
             underlying_ticker: "SPX".to_string(),
             discount_curve_id: None,

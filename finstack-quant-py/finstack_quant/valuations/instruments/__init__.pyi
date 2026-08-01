@@ -173,8 +173,8 @@ class Bond:
         margin_bp: Bps,
         issue: datetime.date,
         maturity: datetime.date,
-        freq: Tenor,
-        dc: DayCount,
+        frequency: Tenor,
+        day_count: DayCount,
         discount_curve_id: str,
     ) -> Bond:
         """
@@ -196,9 +196,9 @@ class Bond:
             Issue date.
         maturity : datetime.date
             Maturity date.
-        freq : Tenor
+        frequency : Tenor
             Payment frequency (e.g. ``Tenor.quarterly()``).
-        dc : DayCount
+        day_count : DayCount
             Day count convention (e.g. ``DayCount.act360()``).
         discount_curve_id : str
             Discount curve identifier used for pricing.
@@ -224,14 +224,14 @@ class Bond:
     @classmethod
     def from_json(cls, json: str) -> Bond:
         """
-        Deserialize a validated bond from bare tagged JSON or a versioned envelope.
+        Deserialize a validated bond from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"bond"``, or a full
-            ``finstack_quant.instrument/1`` envelope containing that payload.
-            Input is capped at 16 MiB and cross-type coercion is not performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"bond"`` payload. The UTF-8 input must not exceed 16 MiB.
+            Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -254,13 +254,13 @@ class Bond:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "bond", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`Bond.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`Bond.from_json`.
         """
         ...
 
@@ -269,8 +269,8 @@ class TermLoan:
     Typed wrapper for the canonical Rust ``TermLoan`` instrument.
 
     Rust has no ``fixed``/``floating`` convenience constructors for term
-    loans; construct via :meth:`TermLoan.from_json` with tagged JSON
-    (``{"type": "term_loan", "spec": ...}``) or start from
+    loans; construct via :meth:`TermLoan.from_json` with a canonical
+    ``finstack_quant.instrument/1`` envelope or start from
     :meth:`TermLoan.example`. Instances are accepted directly by
     :func:`price_instrument`, :func:`price_instrument_with_metrics`, and
     :func:`instrument_cashflows_json`.
@@ -298,14 +298,14 @@ class TermLoan:
     @classmethod
     def from_json(cls, json: str) -> TermLoan:
         """
-        Deserialize a validated term loan from bare tagged JSON or an envelope.
+        Deserialize a validated term loan from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"term_loan"``, or a full
-            ``finstack_quant.instrument/1`` envelope containing that payload.
-            Input is capped at 16 MiB and cross-type coercion is not performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"term_loan"`` payload. The UTF-8 input must not exceed 16 MiB.
+            Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -352,13 +352,13 @@ class TermLoan:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "term_loan", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`TermLoan.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`TermLoan.from_json`.
         """
         ...
 
@@ -398,11 +398,11 @@ class FixedLegSpec:
         end: datetime.date,
         *,
         compounding_simple: bool,
-        bdc: Literal[
+        business_day_convention: Literal[
             "unadjusted", "following", "modified_following", "preceding", "modified_preceding"
         ] = "modified_following",
         calendar_id: str | None = None,
-        stub: Literal["None", "ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
+        stub: Literal["none", "short_front", "short_back", "long_front", "long_back"] = "short_front",
         payment_lag_days: int = 0,
         end_of_month: bool = False,
     ) -> None:
@@ -426,11 +426,11 @@ class FixedLegSpec:
         compounding_simple : bool
             If true, use simple interest on the accrual fraction. Required:
             the canonical Rust ``FixedLegSpec`` field has no default.
-        bdc : {"unadjusted", "following", "modified_following", "preceding", "modified_preceding"}, default "modified_following"
+        business_day_convention : {"unadjusted", "following", "modified_following", "preceding", "modified_preceding"}, default "modified_following"
             Business day convention for payment dates.
         calendar_id : str, optional
             Calendar used for business day adjustments.
-        stub : {"None", "ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
+        stub : {"none", "short_front", "short_back", "long_front", "long_back"}, default "short_front"
             Stub period handling rule.
         payment_lag_days : int, default 0
             Payment lag in business days after period end.
@@ -487,11 +487,11 @@ class FloatLegSpec:
         start: datetime.date,
         end: datetime.date,
         *,
-        bdc: Literal[
+        business_day_convention: Literal[
             "unadjusted", "following", "modified_following", "preceding", "modified_preceding"
         ] = "modified_following",
         calendar_id: str | None = None,
-        stub: Literal["None", "ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
+        stub: Literal["none", "short_front", "short_back", "long_front", "long_back"] = "short_front",
         reset_lag_days: int = -1,
         fixing_calendar_id: str | None = None,
         payment_lag_days: int = 0,
@@ -516,11 +516,11 @@ class FloatLegSpec:
             Start date of the floating leg.
         end : datetime.date
             End date of the floating leg.
-        bdc : {"unadjusted", "following", "modified_following", "preceding", "modified_preceding"}, default "modified_following"
+        business_day_convention : {"unadjusted", "following", "modified_following", "preceding", "modified_preceding"}, default "modified_following"
             Business day convention for payment dates.
         calendar_id : str, optional
             Calendar used for business day adjustments.
-        stub : {"None", "ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
+        stub : {"none", "short_front", "short_back", "long_front", "long_back"}, default "short_front"
             Stub period handling rule.
         reset_lag_days : int, default -1
             Reset lag in business days for the floating rate fixing.
@@ -581,8 +581,8 @@ class PremiumLegSpec:
         spread_bp: float,
         discount_curve_id: str,
         *,
-        stub: Literal["None", "ShortFront", "ShortBack", "LongFront", "LongBack"] = "ShortFront",
-        bdc: Literal[
+        stub: Literal["none", "short_front", "short_back", "long_front", "long_back"] = "short_front",
+        business_day_convention: Literal[
             "unadjusted", "following", "modified_following", "preceding", "modified_preceding"
         ] = "modified_following",
         calendar_id: str | None = None,
@@ -604,9 +604,9 @@ class PremiumLegSpec:
             Fixed running spread in basis points (e.g. 100.0 = 100bp = 1%).
         discount_curve_id : str
             Discount curve identifier for pricing this leg.
-        stub : {"None", "ShortFront", "ShortBack", "LongFront", "LongBack"}, default "ShortFront"
+        stub : {"none", "short_front", "short_back", "long_front", "long_back"}, default "short_front"
             Stub period handling rule.
-        bdc : {"unadjusted", "following", "modified_following", "preceding", "modified_preceding"}, default "modified_following"
+        business_day_convention : {"unadjusted", "following", "modified_following", "preceding", "modified_preceding"}, default "modified_following"
             Business day convention for payment dates.
         calendar_id : str, optional
             Calendar used for business day adjustments.
@@ -739,15 +739,14 @@ class InterestRateSwap:
     @classmethod
     def from_json(cls, json: str) -> InterestRateSwap:
         """
-        Deserialize a validated swap from bare tagged JSON or a versioned envelope.
+        Deserialize a validated swap from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"interest_rate_swap"``, or a
-            full ``finstack_quant.instrument/1`` envelope containing that
-            payload. Input is capped at 16 MiB and cross-type coercion is not
-            performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"interest_rate_swap"`` payload. The UTF-8 input must not exceed
+            16 MiB. Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -770,13 +769,13 @@ class InterestRateSwap:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "interest_rate_swap", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`InterestRateSwap.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`InterestRateSwap.from_json`.
         """
         ...
 
@@ -1044,14 +1043,14 @@ class Swaption:
     @classmethod
     def from_json(cls, json: str) -> Swaption:
         """
-        Deserialize a validated swaption from bare tagged JSON or a versioned envelope.
+        Deserialize a validated swaption from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"swaption"``, or a full
-            ``finstack_quant.instrument/1`` envelope containing that payload.
-            Input is capped at 16 MiB and cross-type coercion is not performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"swaption"`` payload. The UTF-8 input must not exceed 16 MiB.
+            Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -1074,13 +1073,13 @@ class Swaption:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "swaption", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`Swaption.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`Swaption.from_json`.
         """
         ...
 
@@ -1518,14 +1517,14 @@ class CapFloor:
     @classmethod
     def from_json(cls, json: str) -> CapFloor:
         """
-        Deserialize a validated cap/floor from bare tagged JSON or an envelope.
+        Deserialize a validated cap/floor from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"cap_floor"``, or a full
-            ``finstack_quant.instrument/1`` envelope containing that payload.
-            Input is capped at 16 MiB and cross-type coercion is not performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"cap_floor"`` payload. The UTF-8 input must not exceed 16 MiB.
+            Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -1548,13 +1547,13 @@ class CapFloor:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "cap_floor", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`CapFloor.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`CapFloor.from_json`.
         """
         ...
 
@@ -2089,15 +2088,14 @@ class CreditDefaultSwap:
     @classmethod
     def from_json(cls, json: str) -> CreditDefaultSwap:
         """
-        Deserialize a validated CDS from bare tagged JSON or a versioned envelope.
+        Deserialize a validated CDS from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"credit_default_swap"``, or a
-            full ``finstack_quant.instrument/1`` envelope containing that
-            payload. Input is capped at 16 MiB and cross-type coercion is not
-            performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"credit_default_swap"`` payload. The UTF-8 input must not exceed
+            16 MiB. Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -2120,13 +2118,13 @@ class CreditDefaultSwap:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "credit_default_swap", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`CreditDefaultSwap.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`CreditDefaultSwap.from_json`.
         """
         ...
 
@@ -2436,7 +2434,7 @@ class CDSIndex:
     ...     .convention("isda_na")
     ...     .premium(premium)
     ...     .protection(protection)
-    ...     .pricing("SingleCurve")
+    ...     .pricing("single_curve")
     ...     .num_constituents(125)
     ...     .build()
     ... )
@@ -2464,7 +2462,7 @@ class CDSIndex:
         The builder pre-seeds an empty ``constituents`` list (the Rust field
         has no default) so ``build()`` succeeds without calling
         :meth:`CDSIndexBuilder.constituents_json` when the index is priced in
-        ``"SingleCurve"`` mode.
+        ``"single_curve"`` mode.
 
         Returns
         -------
@@ -2482,14 +2480,14 @@ class CDSIndex:
     @classmethod
     def from_json(cls, json: str) -> CDSIndex:
         """
-        Deserialize a validated CDS index from bare tagged JSON or an envelope.
+        Deserialize a validated CDS index from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"cds_index"``, or a full
-            ``finstack_quant.instrument/1`` envelope containing that payload.
-            Input is capped at 16 MiB and cross-type coercion is not performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"cds_index"`` payload. The UTF-8 input must not exceed 16 MiB.
+            Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -2512,13 +2510,13 @@ class CDSIndex:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "cds_index", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`CDSIndex.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`CDSIndex.from_json`.
         """
         ...
 
@@ -2814,15 +2812,15 @@ class CDSIndexBuilder:
         """
         ...
 
-    def pricing(self, value: Literal["SingleCurve", "Constituents"]) -> CDSIndexBuilder:
+    def pricing(self, value: Literal["single_curve", "constituents"]) -> CDSIndexBuilder:
         """
         Set the pricing aggregation mode.
 
         Parameters
         ----------
-        value : {"SingleCurve", "Constituents"}
-            ``"SingleCurve"`` prices the index against a single index hazard
-            curve (synthetic CDS). ``"Constituents"`` prices each issuer
+        value : {"single_curve", "constituents"}
+            ``"single_curve"`` prices the index against a single index hazard
+            curve (synthetic CDS). ``"constituents"`` prices each issuer
             separately and aggregates by weight; requires
             :meth:`CDSIndexBuilder.constituents_json` to be set.
 
@@ -2998,14 +2996,14 @@ class CDSTranche:
     @classmethod
     def from_json(cls, json: str) -> CDSTranche:
         """
-        Deserialize a validated CDS tranche from bare tagged JSON or an envelope.
+        Deserialize a validated CDS tranche from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"cds_tranche"``, or a full
-            ``finstack_quant.instrument/1`` envelope containing that payload.
-            Input is capped at 16 MiB and cross-type coercion is not performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"cds_tranche"`` payload. The UTF-8 input must not exceed 16 MiB.
+            Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -3028,13 +3026,13 @@ class CDSTranche:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "cds_tranche", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`CDSTranche.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`CDSTranche.from_json`.
         """
         ...
 
@@ -3571,9 +3569,9 @@ class ConvertibleBond:
     >>> conversion = json.dumps({
     ...     "ratio": 20.0,
     ...     "price": None,
-    ...     "policy": "Voluntary",
-    ...     "anti_dilution": "FullRatchet",
-    ...     "dividend_adjustment": "None",
+    ...     "policy": "voluntary",
+    ...     "anti_dilution": "full_ratchet",
+    ...     "dividend_adjustment": "none",
     ...     "dilution_events": [],
     ... })
     >>> bond = (
@@ -3625,14 +3623,14 @@ class ConvertibleBond:
     @classmethod
     def from_json(cls, json: str) -> ConvertibleBond:
         """
-        Deserialize a validated convertible bond from bare tagged JSON or an envelope.
+        Deserialize a validated convertible bond from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"convertible_bond"``, or a full
-            ``finstack_quant.instrument/1`` envelope containing that payload.
-            Input is capped at 16 MiB and cross-type coercion is not performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"convertible_bond"`` payload. The UTF-8 input must not exceed
+            16 MiB. Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -3656,13 +3654,13 @@ class ConvertibleBond:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "convertible_bond", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`ConvertibleBond.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`ConvertibleBond.from_json`.
         """
         ...
 
@@ -3858,9 +3856,8 @@ class ConvertibleBondBuilder:
             JSON-encoded ``ConversionSpec`` object with fields ``ratio``,
             ``price``, ``policy``, ``anti_dilution``, ``dividend_adjustment``
             and ``dilution_events``. At least one of ``ratio`` / ``price``
-            must be set. The Rust enums have no ``rename_all`` attribute, so
-            variant values use their exact PascalCase Rust names, e.g.
-            ``"Voluntary"``, ``"FullRatchet"``, ``"None"``.
+            must be set. Enum values use canonical snake_case, including
+            ``"voluntary"``, ``"full_ratchet"``, and ``"none"``.
 
         Returns
         -------
@@ -4166,14 +4163,14 @@ class FxForward:
     @classmethod
     def from_json(cls, json: str) -> FxForward:
         """
-        Deserialize a validated FX forward from bare tagged JSON or an envelope.
+        Deserialize a validated FX forward from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"fx_forward"``, or a full
-            ``finstack_quant.instrument/1`` envelope containing that payload.
-            Input is capped at 16 MiB and cross-type coercion is not performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"fx_forward"`` payload. The UTF-8 input must not exceed 16 MiB.
+            Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -4196,13 +4193,13 @@ class FxForward:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "fx_forward", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`FxForward.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`FxForward.from_json`.
         """
         ...
 
@@ -4617,14 +4614,14 @@ class FxOption:
     @classmethod
     def from_json(cls, json: str) -> FxOption:
         """
-        Deserialize a validated FX option from bare tagged JSON or an envelope.
+        Deserialize a validated FX option from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"fx_option"``, or a full
-            ``finstack_quant.instrument/1`` envelope containing that payload.
-            Input is capped at 16 MiB and cross-type coercion is not performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"fx_option"`` payload. The UTF-8 input must not exceed 16 MiB.
+            Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -4647,13 +4644,13 @@ class FxOption:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "fx_option", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`FxOption.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`FxOption.from_json`.
         """
         ...
 
@@ -5064,14 +5061,14 @@ class EquityOption:
     @classmethod
     def from_json(cls, json: str) -> EquityOption:
         """
-        Deserialize a validated equity option from bare tagged JSON or an envelope.
+        Deserialize a validated equity option from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"equity_option"``, or a full
-            ``finstack_quant.instrument/1`` envelope containing that payload.
-            Input is capped at 16 MiB and cross-type coercion is not performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"equity_option"`` payload. The UTF-8 input must not exceed 16 MiB.
+            Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -5094,13 +5091,13 @@ class EquityOption:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "equity_option", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`EquityOption.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`EquityOption.from_json`.
         """
         ...
 
@@ -5539,7 +5536,7 @@ class RepLine:
         seasoning_months: int,
         day_count: DayCount,
         *,
-        spread_bps: float | None = None,
+        spread_bp: float | None = None,
         index_id: str | None = None,
         cpr: float | None = None,
         cdr: float | None = None,
@@ -5563,7 +5560,7 @@ class RepLine:
             Weighted average seasoning in months.
         day_count : DayCount
             Day count convention.
-        spread_bps : float, optional
+        spread_bp : float, optional
             Weighted average spread over the reference index, in basis
             points (e.g. ``150.0`` = 150bp), for floating-rate lines.
         index_id : str, optional
@@ -5620,7 +5617,7 @@ class AssetPool:
     --------
     >>> from finstack_quant.core.currency import Currency
     >>> from finstack_quant.valuations.instruments import AssetPool
-    >>> pool = AssetPool("POOL-1", "ABS", Currency("USD"))
+    >>> pool = AssetPool("POOL-1", "abs", Currency("USD"))
     >>> "POOL-1" in repr(pool)
     True
     """
@@ -5628,7 +5625,7 @@ class AssetPool:
     def __init__(
         self,
         id: str,
-        deal_type: Literal["CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"],
+        deal_type: Literal["clo", "cbo", "abs", "rmbs", "cmbs", "auto", "card"],
         base_currency: Currency,
     ) -> None:
         """
@@ -5638,7 +5635,7 @@ class AssetPool:
         ----------
         id : str
             Pool identifier.
-        deal_type : {"CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"}
+        deal_type : {"clo", "cbo", "abs", "rmbs", "cmbs", "auto", "card"}
             Deal classification for pool-level assumptions.
         base_currency : Currency
             Base currency for every asset and pool-level account.
@@ -5658,7 +5655,7 @@ class AssetPool:
         --------
         >>> from finstack_quant.core.currency import Currency
         >>> from finstack_quant.valuations.instruments import AssetPool
-        >>> pool = AssetPool("POOL-1", "ABS", Currency("USD"))
+        >>> pool = AssetPool("POOL-1", "abs", Currency("USD"))
         >>> "POOL-1" in repr(pool)
         True
         """
@@ -5691,7 +5688,7 @@ class AssetPool:
         >>> from finstack_quant.core.dates import DayCount
         >>> from finstack_quant.core.money import Money
         >>> from finstack_quant.valuations.instruments import AssetPool, RepLine
-        >>> pool = AssetPool("POOL-1", "ABS", Currency("USD")).with_rep_lines([
+        >>> pool = AssetPool("POOL-1", "abs", Currency("USD")).with_rep_lines([
         ...     RepLine(
         ...         "LINE-1",
         ...         Money(80_000_000.0, Currency("USD")),
@@ -5844,13 +5841,13 @@ class TrancheBuilder:
         """
         ...
 
-    def seniority(self, value: Literal["Senior", "Mezzanine", "Subordinated", "Equity"]) -> TrancheBuilder:
+    def seniority(self, value: Literal["senior", "mezzanine", "subordinated", "equity"]) -> TrancheBuilder:
         """
         Set the tranche seniority.
 
         Parameters
         ----------
-        value : {"Senior", "Mezzanine", "Subordinated", "Equity"}
+        value : {"senior", "mezzanine", "subordinated", "equity"}
             Structural seniority of the tranche.
 
         Returns
@@ -5925,7 +5922,7 @@ class TrancheBuilder:
         ----------
         value : str
             JSON-encoded, externally-tagged ``TrancheCoupon`` value, e.g.
-            ``{"Floating": {...FloatingRateSpec fields...}}``.
+            ``{"floating": {...FloatingRateSpec fields...}}``.
 
         Returns
         -------
@@ -6072,7 +6069,7 @@ class TrancheStructure:
         ...     .id("A")
         ...     .attachment_point(10.0)
         ...     .detachment_point(100.0)
-        ...     .seniority("Senior")
+        ...     .seniority("senior")
         ...     .original_balance(Money(72_000_000.0, Currency("USD")))
         ...     .coupon_fixed(0.05)
         ...     .maturity(datetime.date(2031, 1, 15))
@@ -6084,7 +6081,7 @@ class TrancheStructure:
         ...     .id("E")
         ...     .attachment_point(0.0)
         ...     .detachment_point(10.0)
-        ...     .seniority("Equity")
+        ...     .seniority("equity")
         ...     .original_balance(Money(8_000_000.0, Currency("USD")))
         ...     .coupon_fixed(0.0)
         ...     .maturity(datetime.date(2031, 1, 15))
@@ -6183,7 +6180,7 @@ class StructuredCredit:
         ...     Tranche,
         ...     TrancheStructure,
         ... )
-        >>> pool = AssetPool("POOL-1", "ABS", Currency("USD")).with_rep_lines([
+        >>> pool = AssetPool("POOL-1", "abs", Currency("USD")).with_rep_lines([
         ...     RepLine(
         ...         "LINE-1",
         ...         Money(80_000_000.0, Currency("USD")),
@@ -6199,7 +6196,7 @@ class StructuredCredit:
         ...     .id("A")
         ...     .attachment_point(10.0)
         ...     .detachment_point(100.0)
-        ...     .seniority("Senior")
+        ...     .seniority("senior")
         ...     .original_balance(Money(72_000_000.0, Currency("USD")))
         ...     .coupon_fixed(0.05)
         ...     .maturity(datetime.date(2031, 1, 15))
@@ -6211,7 +6208,7 @@ class StructuredCredit:
         ...     .id("E")
         ...     .attachment_point(0.0)
         ...     .detachment_point(10.0)
-        ...     .seniority("Equity")
+        ...     .seniority("equity")
         ...     .original_balance(Money(8_000_000.0, Currency("USD")))
         ...     .coupon_fixed(0.0)
         ...     .maturity(datetime.date(2031, 1, 15))
@@ -6377,15 +6374,14 @@ class StructuredCredit:
     @classmethod
     def from_json(cls, json: str) -> StructuredCredit:
         """
-        Deserialize a validated deal from bare tagged JSON or a versioned envelope.
+        Deserialize a validated deal from its canonical v1 envelope.
 
         Parameters
         ----------
         json : str
-            Bare tagged JSON with exact type ``"structured_credit"``, or a
-            full ``finstack_quant.instrument/1`` envelope containing that
-            payload. Input is capped at 16 MiB and cross-type coercion is not
-            performed.
+            A ``finstack_quant.instrument/1`` envelope containing an exact
+            ``"structured_credit"`` payload. The UTF-8 input must not exceed
+            16 MiB. Bare payloads and cross-type coercion are rejected.
 
         Returns
         -------
@@ -6409,13 +6405,13 @@ class StructuredCredit:
 
     def to_json(self) -> str:
         """
-        Serialize to tagged instrument JSON.
+        Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
 
         Returns
         -------
         str
-            ``{"type": "structured_credit", "spec": ...}`` JSON accepted by
-            :func:`price_instrument` and :meth:`StructuredCredit.from_json`.
+            Canonical instrument envelope accepted by :func:`price_instrument`
+            and :meth:`StructuredCredit.from_json`.
         """
         ...
 
@@ -6464,13 +6460,13 @@ class StructuredCreditBuilder:
         """
         ...
 
-    def deal_type(self, value: Literal["CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"]) -> StructuredCreditBuilder:
+    def deal_type(self, value: Literal["clo", "cbo", "abs", "rmbs", "cmbs", "auto", "card"]) -> StructuredCreditBuilder:
         """
         Set the deal-type classification.
 
         Parameters
         ----------
-        value : {"CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"}
+        value : {"clo", "cbo", "abs", "rmbs", "cmbs", "auto", "card"}
             Deal classification.
 
         Returns
@@ -6663,7 +6659,7 @@ class StructuredCreditBuilder:
         """
         ...
 
-    def payment_bdc(self, value: str) -> StructuredCreditBuilder:
+    def payment_business_day_convention(self, value: str) -> StructuredCreditBuilder:
         """
         Set the business day convention for tranche payments.
 
@@ -6841,7 +6837,7 @@ def bond_from_cashflows_json(
     Returns
     -------
     str
-        JSON-encoded tagged ``InstrumentJson::Bond``.
+        Canonical ``finstack_quant.instrument/1`` envelope containing the bond.
 
     Raises
     ------
@@ -6858,12 +6854,13 @@ def bond_from_cashflows_json(
 
 def validate_instrument_json(json: str) -> str:
     """
-    Validate tagged instrument JSON and return canonical JSON.
+    Validate a canonical instrument envelope and return canonical JSON.
 
     Parameters
     ----------
     json : str
-        JSON string for a tagged valuation instrument.
+        A ``finstack_quant.instrument/1`` envelope. Bare instrument payloads
+        are rejected.
 
     Returns
     -------
@@ -6909,7 +6906,7 @@ def price_instrument(
     Parameters
     ----------
     instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex or FxForward or FxOption or CDSTranche or ConvertibleBond or EquityOption or StructuredCredit
-        Tagged instrument JSON accepted by
+        Canonical ``finstack_quant.instrument/1`` envelope accepted by
         :func:`validate_instrument_json`, or a typed :class:`Bond` /
         :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
         :class:`CapFloor` / :class:`CreditDefaultSwap` /
@@ -6973,7 +6970,7 @@ def price_instrument_with_metrics(
     Parameters
     ----------
     instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex or FxForward or FxOption or CDSTranche or ConvertibleBond or EquityOption or StructuredCredit
-        Tagged instrument JSON, or a typed :class:`Bond` /
+        Canonical ``finstack_quant.instrument/1`` envelope, or a typed :class:`Bond` /
         :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
         :class:`CapFloor` / :class:`CreditDefaultSwap` /
         :class:`CDSIndex` / :class:`FxForward` / :class:`FxOption` /
@@ -7039,7 +7036,7 @@ def instrument_cashflows_json(
     Parameters
     ----------
     instrument_json : str or Bond or TermLoan or InterestRateSwap or Swaption or CapFloor or CreditDefaultSwap or CDSIndex or FxForward or FxOption or CDSTranche or ConvertibleBond or EquityOption or StructuredCredit
-        Tagged instrument JSON, or a typed :class:`Bond` /
+        Canonical ``finstack_quant.instrument/1`` envelope, or a typed :class:`Bond` /
         :class:`TermLoan` / :class:`InterestRateSwap` / :class:`Swaption` /
         :class:`CapFloor` / :class:`CreditDefaultSwap` /
         :class:`CDSIndex` / :class:`FxForward` / :class:`FxOption` /

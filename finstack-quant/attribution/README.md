@@ -66,7 +66,7 @@ attribution/
 ├── credit_cascade.rs       # Waterfall credit-factor cascade
 ├── credit_decomposition.rs # Generic / per-level / adder decomposition
 ├── execution.rs            # AttributionSpec::execute dispatcher
-├── target_ccy.rs           # translate_to_target_ccy (native → reporting currency)
+├── target_currency.rs           # translate_to_target_currency (native → reporting currency)
 └── spec.rs                 # JSON envelope, AttributionSpec, AttributionResult
 ```
 
@@ -201,7 +201,7 @@ the Python and WASM layers. Schemas live under `schemas/attribution/1/`.
 | `CarryDetail`, `RatesCurvesAttribution`, `CreditCurvesAttribution`, `CreditFactorAttribution`, `InflationCurvesAttribution`, `CorrelationsAttribution`, `FxAttribution`, `VolAttribution`, `ModelParamsAttribution`, `ScalarsAttribution`, `CrossFactorDetail`, `CreditCarryDecomposition`, `CreditCarryByLevel`, `LevelCarry`, `LevelPnl`, `SourceLine` | `types` | Per-factor detail structs                   |
 | `MarketSnapshot`, `MarketRestoreFlags`                                             | `factors`        | T₀/T₁ snapshot and per-factor restore primitives |
 | `compute_pnl`, `compute_pnl_with_fx`                                              | `helpers`        | Money/FX arithmetic for P&L computation     |
-| `translate_to_target_ccy`                                                         | `target_ccy`     | Post-hoc translation of a native-currency `PnlAttribution` into a reporting currency, adding `fx_translation_pnl` |
+| `translate_to_target_currency`                                                         | `target_currency`     | Post-hoc translation of a native-currency `PnlAttribution` into a reporting currency, adding `fx_translation_pnl` |
 | `extract_model_params`, `with_model_params`, `measure_prepayment_shift`, `measure_default_shift`, `measure_recovery_shift`, `measure_conversion_shift` | `model_params` | Model-parameter snapshotting and shift attribution; use `finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot` for the snapshot type |
 | `compute_credit_factor_attribution`, `CreditAttributionInput`, `CreditFactorDetailOptions`, `credit_factor_model_id` | `credit_factor` | Calibrated credit-factor decomposition of `credit_curves_pnl`; the model type is `finstack_quant_factor_model::credit::hierarchy::CreditFactorModel` |
 | `AttributionEnvelope`, `AttributionSpec`, `AttributionConfig`, `AttributionResult`, `AttributionResultEnvelope`, `ATTRIBUTION_SCHEMA_V1`, `default_attribution_metrics` | `spec` | JSON contract |

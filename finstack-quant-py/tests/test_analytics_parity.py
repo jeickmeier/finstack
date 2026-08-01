@@ -50,7 +50,7 @@ def _build_performance(fixture: dict[str, Any]) -> Performance:
         [target, benchmark],
         ["TARGET", "BENCH"],
         benchmark_ticker="BENCH",
-        freq="daily",
+        frequency="daily",
     )
 
 

@@ -30,13 +30,13 @@ impl AttributionSpec {
         let market_t1 = MarketContext::try_from(self.market_t1.clone())?;
 
         // Determine instrument currency for config (avoids hardcoding USD)
-        let instrument_ccy = instrument_arc
+        let instrument_currency = instrument_arc
             .value(&market_t0, self.as_of_t0)
             .ok()
             .map(|m| m.currency());
 
         // Build config (defaults unless overridden)
-        let config = self.build_finstack_config(instrument_ccy)?;
+        let config = self.build_finstack_config(instrument_currency)?;
 
         // Determine strict validation
         let strict_validation = self
@@ -237,10 +237,10 @@ impl AttributionSpec {
         // Item 2: optional target-currency translation. Runs as a final
         // post-processing step so direct callers of the per-method functions
         // keep their existing native-currency behavior; only the JSON-spec
-        // pipeline (used by the bindings) picks up `target_ccy`.
-        if let Some(target_ccy) = self.config.as_ref().and_then(|c| c.target_ccy) {
-            if let Some(instr_ccy) = instrument_ccy {
-                if target_ccy != instr_ccy {
+        // pipeline (used by the bindings) picks up `target_currency`.
+        if let Some(target_currency) = self.config.as_ref().and_then(|c| c.target_currency) {
+            if let Some(instr_currency) = instrument_currency {
+                if target_currency != instr_currency {
                     // Re-price T0 in native currency to obtain val_t0 for the
                     // translation formula. We can't reuse the per-method
                     // val_t0 because it's not surfaced; the extra reprice is
@@ -258,7 +258,7 @@ impl AttributionSpec {
                                 Ok(inst) => inst,
                                 Err(e) => {
                                     attribution.meta.notes.push(format!(
-                                        "target_ccy translation: T0 model-parameter application \
+                                        "target_currency translation: T0 model-parameter application \
                                          failed ({e}); using T1-parameter instrument for val_t0"
                                     ));
                                     std::sync::Arc::clone(&instrument_arc)
@@ -270,10 +270,10 @@ impl AttributionSpec {
                     match t0_instrument.value(&market_t0, self.as_of_t0) {
                         Ok(val_t0_native) => {
                             attribution.meta.num_repricings += 1;
-                            match crate::translate_to_target_ccy(
+                            match crate::translate_to_target_currency(
                                 &mut attribution,
                                 val_t0_native,
-                                target_ccy,
+                                target_currency,
                                 &market_t0,
                                 &market_t1,
                                 self.as_of_t0,
@@ -283,11 +283,11 @@ impl AttributionSpec {
                                 Err(e) => attribution
                                     .meta
                                     .notes
-                                    .push(format!("target_ccy translation failed: {e}")),
+                                    .push(format!("target_currency translation failed: {e}")),
                             }
                         }
                         Err(e) => attribution.meta.notes.push(format!(
-                            "target_ccy translation skipped: T0 reprice failed - {e}"
+                            "target_currency translation skipped: T0 reprice failed - {e}"
                         )),
                     }
                 }
@@ -297,7 +297,7 @@ impl AttributionSpec {
         // The currency-detection probe at the top of `execute` performed one
         // full valuation; account for it so `num_repricings` reflects true
         // pricing cost.
-        if instrument_ccy.is_some() {
+        if instrument_currency.is_some() {
             attribution.meta.num_repricings += 1;
         }
 

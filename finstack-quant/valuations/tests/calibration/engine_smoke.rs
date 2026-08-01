@@ -1,4 +1,4 @@
-//! Smoke tests for Calibration v2 -- exercises the v2 engine on simple USD setups.
+//! Smoke tests for Calibration canonical -- exercises the canonical engine on simple USD setups.
 //!
 //! Not a parity test against external references. See `tests/golden/calibration/`
 //! for external-reference goldens.
@@ -127,7 +127,7 @@ fn test_v2_simple_usd_calibration() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),

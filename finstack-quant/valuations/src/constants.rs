@@ -6,7 +6,7 @@
 //! # Rate Conversion: Type-Safe vs Raw Constants
 //!
 //! For rate/spread conversions, prefer the type-safe types from `finstack_quant_core::types`:
-//! - [`finstack_quant_core::types::Rate`] — `Rate::from_percent(5.0)`, `Rate::from_bps(500)`
+//! - [`finstack_quant_core::types::Rate`] — `Rate::from_percent(5.0)`, `Rate::from_bp(500)`
 //! - [`finstack_quant_core::types::Bps`] — `Bps::new(500).as_decimal()`
 //! - [`finstack_quant_core::types::Percentage`] — `Percentage::new(5.0).as_decimal()`
 //!
@@ -46,7 +46,7 @@ pub const ONE_BASIS_POINT: f64 = 0.0001;
 ///
 /// Use this to convert decimals to basis points in performance-sensitive code.
 ///
-/// **Prefer [`finstack_quant_core::types::Rate::as_bps()`]** or
+/// **Prefer [`finstack_quant_core::types::Rate::as_bp()`]** or
 /// [`finstack_quant_core::types::Bps`] for type-safe conversions outside hot paths.
 ///
 /// # Examples

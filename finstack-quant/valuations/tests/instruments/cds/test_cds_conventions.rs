@@ -201,18 +201,18 @@ fn test_cds_conventions_consistency() {
         CDSConvention::IsdaAs,
     ] {
         // All conventions should have quarterly payment frequency
-        let freq = convention.frequency();
+        let frequency = convention.frequency();
         assert_eq!(
-            freq.months(),
+            frequency.months(),
             Some(3),
             "{:?} should have quarterly (3M) payment frequency",
             convention
         );
 
         // All conventions should use Modified Following BDC
-        let bdc = convention.business_day_convention();
+        let business_day_convention = convention.business_day_convention();
         assert_eq!(
-            bdc,
+            business_day_convention,
             finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
             "{:?} should use Modified Following business day convention",
             convention

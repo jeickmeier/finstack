@@ -19,13 +19,60 @@
       "description": "Identifier for bond market conventions (e.g., \"USD-UST\", \"USD-CORP\").",
       "type": "string"
     },
+    "BrentSolver": {
+      "additionalProperties": false,
+      "description": "Brent's method solver (bracketing required).\n\nImplements Brent's root-finding algorithm, which combines bisection,\nsecant method, and inverse quadratic interpolation.\n\n# Algorithm\n\nBrent's method maintains a bracketing interval [a, b] where f(a) and f(b)\nhave opposite signs. At each iteration, it chooses between:\n1. **Inverse quadratic interpolation**: Fast when applicable\n2. **Secant method**: Reliable fallback\n3. **Bisection**: bracket-preserving progress\n\nThe algorithm selects the step type from the current bracket and convergence\ncriteria.\n\n# Convergence\n\n- **Rate**: Superlinear (order ≈ 1.618)\n- **Bracket condition**: Requires a finite sign-changing bracket\n- **Derivative-free**: Does not require smooth derivatives\n\n# Use Cases\n\nUse instead of Newton-Raphson when:\n- Function has discontinuous derivatives (e.g., piecewise functions)\n- Initial guess quality is uncertain\n- A sign-changing bracket is available\n- Function evaluation is cheap relative to derivative computation\n\nCommon applications:\n- Bond yield-to-maturity (when price/yield curve is complex)\n- Option implied volatility with exotic payoffs\n- Credit curve calibration\n\n# Examples\n\n```rust\nuse finstack_quant_core::math::solver::{BrentSolver, Solver};\n\nlet solver = BrentSolver::new();\n\n// Solve x^3 - 2x - 5 = 0\nlet f = |x: f64| x.powi(3) - 2.0 * x - 5.0;\nlet root = solver.solve(f, 2.0).expect(\"Root finding should succeed\");\n\nassert!((f(root)).abs() < 1e-10);\nassert!((root - 2.0946).abs() < 1e-4);\n```\n\n# References\n\n- Brent, R. P. (1973). *Algorithms for Minimization without Derivatives*.\n  Prentice-Hall. Chapter 4.\n- Press, W. H., et al. (2007). *Numerical Recipes: The Art of Scientific Computing*\n  (3rd ed.). Cambridge University Press. Section 9.3.\n- Forsythe, G. E., Malcolm, M. A., & Moler, C. B. (1977). *Computer Methods\n  for Mathematical Computations*. Prentice-Hall.",
+      "properties": {
+        "bracket_expansion": {
+          "default": 2.0,
+          "description": "Bracket expansion factor",
+          "format": "double",
+          "type": "number"
+        },
+        "bracket_max": {
+          "default": 1000000.0,
+          "description": "Maximum bound for bracket search (default: 1e6)",
+          "format": "double",
+          "type": "number"
+        },
+        "bracket_min": {
+          "default": -1000000.0,
+          "description": "Minimum bound for bracket search (default: -1e6)",
+          "format": "double",
+          "type": "number"
+        },
+        "initial_bracket_size": {
+          "default": null,
+          "description": "Initial bracket size (adaptive to initial guess if None)",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max_iterations": {
+          "default": 100,
+          "description": "Maximum iterations",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tolerance": {
+          "default": 1e-12,
+          "description": "Convergence tolerance.\n\nConvergence uses dual tolerances: the residual (`|f(x)| < tol`) and the\nbracket/step size. The default `1e-12` is stricter than the `1e-8`\ncommonly used by market-facing wrappers such as IRR/XIRR and is intended\nfor generic core numerical solving.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
     "CalibrationConfig": {
       "additionalProperties": false,
-      "description": "Global configuration for the calibration subsystem.\n\nThis struct consolidates all settings for solvers, validation, and market-regime\nspecific bounds. It is typically derived from a `FinstackConfig` extension section.\nPublic callers should treat it as the behavioral contract for calibration\nexecution policy: solver choice, convergence settings, validation thresholds,\nrate-bound policy, and curve-specific numerical guardrails.\n\n# Tolerance Semantics\n\nCalibration involves two distinct tolerance concepts:\n\n1. **Solver Tolerance** ([`solver.tolerance()`](SolverConfig::tolerance)):\n   Controls when the numerical solver (Brent/Newton) terminates. This is an\n   algorithmic convergence criterion in x-space (parameter space). The solver\n   stops when successive parameter estimates differ by less than this tolerance.\n\n2. **Validation Tolerance** (e.g., [`discount_curve.validation_tolerance`](DiscountCurveSolveConfig::validation_tolerance)):\n   Controls whether calibration is considered *successful*. After the solver\n   converges, the final residuals are compared against this tolerance. If any\n   residual exceeds `validation_tolerance`, the calibration is marked as failed\n   even if the solver converged.\n\n**Why two tolerances?**\n- Solver tolerance ensures numerical convergence but doesn't guarantee economic fit.\n- Validation tolerance ensures the calibrated curve actually prices instruments correctly.\n- For well-behaved problems, solver tolerance of `1e-12` with validation tolerance of\n  `1e-8` works well: the solver finds a precise root, and we verify it prices accurately.\n\n# Configuration Hierarchy\n\nSettings can be specified at multiple levels with the following precedence:\n\n1. **Step-level** (`CalibrationStep.params.method`): Per-instrument-type overrides\n2. **Plan-level** (`CalibrationPlan.settings`): Plan-wide defaults\n3. **Finstack config extensions** (`valuations.calibration.v2`): application defaults\n4. **Global defaults** (`CalibrationConfig::default()`): fallback values\n\nStep-level settings always take precedence over plan-level settings.\nIn other words, this struct provides default policy, but explicit plan steps\nremain authoritative when both are supplied.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::calibration::CalibrationConfig;\n\n// Create a default config\nlet config = CalibrationConfig::default();\n\n// Customize tolerance settings\nlet custom = CalibrationConfig::default()\n    .with_tolerance(1e-14)  // Solver convergence tolerance\n    .with_max_iterations(200);\n```\n\n# References\n\n- Multi-curve construction context: `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`\n- Curve interpolation context: `docs/REFERENCES.md#hagan-west-monotone-convex`",
+      "description": "Global configuration for the calibration subsystem.\n\nThis struct consolidates all settings for solvers, validation, and market-regime\nspecific bounds. It is typically derived from a `FinstackConfig` extension section.\nPublic callers should treat it as the behavioral contract for calibration\nexecution policy: solver choice, convergence settings, validation thresholds,\nrate-bound policy, and curve-specific numerical guardrails.\n\n# Tolerance Semantics\n\nCalibration involves two distinct tolerance concepts:\n\n1. **Solver Tolerance** ([`solver.tolerance()`](SolverConfig::tolerance)):\n   Controls when the numerical solver (Brent/Newton) terminates. This is an\n   algorithmic convergence criterion in x-space (parameter space). The solver\n   stops when successive parameter estimates differ by less than this tolerance.\n\n2. **Validation Tolerance** (e.g., [`discount_curve.validation_tolerance`](DiscountCurveSolveConfig::validation_tolerance)):\n   Controls whether calibration is considered *successful*. After the solver\n   converges, the final residuals are compared against this tolerance. If any\n   residual exceeds `validation_tolerance`, the calibration is marked as failed\n   even if the solver converged.\n\n**Why two tolerances?**\n- Solver tolerance ensures numerical convergence but doesn't guarantee economic fit.\n- Validation tolerance ensures the calibrated curve actually prices instruments correctly.\n- For well-behaved problems, solver tolerance of `1e-12` with validation tolerance of\n  `1e-8` works well: the solver finds a precise root, and we verify it prices accurately.\n\n# Configuration Hierarchy\n\nSettings can be specified at multiple levels with the following precedence:\n\n1. **Step-level** (`CalibrationStep.params.method`): Per-instrument-type overrides\n2. **Plan-level** (`CalibrationPlan.settings`): Plan-wide defaults\n3. **Finstack config extensions** (`valuations.calibration.canonical`): application defaults\n4. **Global defaults** (`CalibrationConfig::default()`): fallback values\n\nStep-level settings always take precedence over plan-level settings.\nIn other words, this struct provides default policy, but explicit plan steps\nremain authoritative when both are supplied.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::calibration::CalibrationConfig;\n\n// Create a default config\nlet config = CalibrationConfig::default();\n\n// Customize tolerance settings\nlet custom = CalibrationConfig::default()\n    .with_tolerance(1e-14)  // Solver convergence tolerance\n    .with_max_iterations(200);\n```\n\n# References\n\n- Multi-curve construction context: `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`\n- Curve interpolation context: `docs/REFERENCES.md#hagan-west-monotone-convex`",
       "properties": {
         "calibration_method": {
           "$ref": "#/$defs/CalibrationMethod",
-          "default": "Bootstrap",
+          "default": "bootstrap",
           "description": "High-level calibration method (bootstrap vs global solve).\n\n**Note**: When using the plan-driven API, this field is typically overwritten\nby the step-level `params.method` for each calibration step. The step-level\nmethod always takes precedence. This field serves as runtime state passed\nfrom calibration targets to the underlying solvers."
         },
         "compute_diagnostics": {
@@ -34,6 +81,7 @@
           "type": "boolean"
         },
         "discount_curve": {
+          "$ref": "#/$defs/DiscountCurveSolveConfig",
           "default": {
             "allow_non_monotonic_final": null,
             "bootstrap_seed_global_solve": true,
@@ -47,45 +95,57 @@
             "scan_grid_points": 48,
             "scan_grid_step": 0.0001,
             "validation_tolerance": 1e-8,
-            "weighting_scheme": "SqrtTime"
+            "weighting_scheme": "sqrt_time"
           },
           "description": "Discount-curve specific solver configuration."
         },
         "fail_on_bad_fit": {
           "default": true,
-          "description": "When `true`, a calibration step whose solver reports\n`report.success == false` is propagated as a\n`finstack_quant_core::Error::Calibration` and its output is **not**\ninstalled into the market context.\n\nDefaults to `true` — this is the safe production choice because\na non-converged solver would otherwise silently poison downstream\npricing. Legacy or exploratory workflows that want to inspect the\nreport without aborting can set this to `false`.",
+          "description": "When `true`, a calibration step whose solver reports\n`report.success == false` is propagated as a\n`finstack_quant_core::Error::Calibration` and its output is **not**\ninstalled into the market context.\n\nDefaults to `true` — this is the safe production choice because\na non-converged solver would otherwise silently poison downstream\npricing. Diagnostic workflows that want to inspect the\nreport without aborting can set this to `false`.",
           "type": "boolean"
         },
         "fx": {
+          "$ref": "#/$defs/FxConfig",
           "default": {
             "cache_capacity": 256,
             "enable_triangulation": true,
             "pivot_currency": "USD"
           },
-          "description": "FX matrix runtime config (pivot currency, triangulation, cache capacity).\nHoisted out of `initial_market.fx.config` in v3 envelopes."
+          "description": "FX matrix runtime config (pivot currency, triangulation, cache capacity)."
         },
         "hazard_curve": {
+          "$ref": "#/$defs/HazardCurveSolveConfig",
           "default": {
             "hazard_hard_max": 10.0,
             "hazard_hard_min": 0.0,
             "validation_tolerance": 1e-8,
-            "weighting_scheme": "SqrtTime"
+            "weighting_scheme": "sqrt_time"
           },
           "description": "Hazard-curve specific solver configuration."
         },
         "hierarchy": {
-          "description": "Optional market-data hierarchy snapshot.\nHoisted out of `initial_market.hierarchy` in v3 envelopes."
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MarketDataHierarchy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional market-data hierarchy snapshot."
         },
         "inflation_curve": {
+          "$ref": "#/$defs/InflationCurveSolveConfig",
           "default": {
             "cpi_hard_max": 10000.0,
             "cpi_hard_min": 1.0,
             "validation_tolerance": 1e-8,
-            "weighting_scheme": "SqrtTime"
+            "weighting_scheme": "sqrt_time"
           },
           "description": "Inflation-curve specific solver configuration."
         },
         "rate_bounds": {
+          "$ref": "#/$defs/RateBounds",
           "default": {
             "max_rate": 0.5,
             "min_rate": -0.02
@@ -93,10 +153,12 @@
           "description": "Rate bounds for forward/zero rate calibration (when policy is `Explicit`)."
         },
         "rate_bounds_policy": {
+          "$ref": "#/$defs/RateBoundsPolicy",
           "default": "auto_currency",
           "description": "Policy for selecting rate bounds (explicit vs currency-derived)."
         },
         "solver": {
+          "$ref": "#/$defs/SolverConfig",
           "default": {
             "bracket_expansion": 2.0,
             "bracket_max": 1000000.0,
@@ -113,6 +175,7 @@
           "type": "boolean"
         },
         "validation": {
+          "$ref": "#/$defs/ValidationConfig",
           "default": {
             "allow_negative_rates": false,
             "butterfly_lower_ratio": 0.9,
@@ -136,7 +199,8 @@
           "description": "Validation configuration with thresholds and quality checks."
         },
         "validation_mode": {
-          "default": "Error",
+          "$ref": "#/$defs/ValidationMode",
+          "default": "error",
           "description": "Runtime validation mode (warnings vs errors)."
         },
         "verbose": {
@@ -151,7 +215,7 @@
       "description": "Calibration method selection (bootstrap vs global solve).\n\nDefines the numerical approach used to solve for curve/surface parameters.\nBootstrap is the traditional sequential approach, while GlobalSolve\nsolves all parameters simultaneously.\n\n# Variants\n- `Bootstrap`: Traditional sequential bootstrap where each knot is solved\n  independently based on the previous knots.\n- `GlobalSolve`: Simultaneous optimization of all knots using Levenberg-Marquardt\n  or Newton-Raphson.\n\n# Examples\n```rust\nuse finstack_quant_valuations::calibration::CalibrationMethod;\n\nlet method = CalibrationMethod::GlobalSolve { use_analytical_jacobian: true };\n```",
       "oneOf": [
         {
-          "const": "Bootstrap",
+          "const": "bootstrap",
           "description": "Traditional sequential bootstrap (default).",
           "type": "string"
         },
@@ -159,19 +223,21 @@
           "additionalProperties": false,
           "description": "Global solve of all knots simultaneously (Newton/LM).",
           "properties": {
-            "GlobalSolve": {
+            "global_solve": {
               "properties": {
                 "use_analytical_jacobian": {
-                  "default": false,
                   "description": "Use analytical Jacobian if available (otherwise finite-difference).",
                   "type": "boolean"
                 }
               },
+              "required": [
+                "use_analytical_jacobian"
+              ],
               "type": "object"
             }
           },
           "required": [
-            "GlobalSolve"
+            "global_solve"
           ],
           "type": "object"
         }
@@ -207,7 +273,7 @@
         "settings": {
           "$ref": "#/$defs/CalibrationConfig",
           "default": {
-            "calibration_method": "Bootstrap",
+            "calibration_method": "bootstrap",
             "compute_diagnostics": false,
             "discount_curve": {
               "allow_non_monotonic_final": null,
@@ -222,7 +288,7 @@
               "scan_grid_points": 48,
               "scan_grid_step": 0.0001,
               "validation_tolerance": 1e-8,
-              "weighting_scheme": "SqrtTime"
+              "weighting_scheme": "sqrt_time"
             },
             "fail_on_bad_fit": true,
             "fx": {
@@ -234,13 +300,13 @@
               "hazard_hard_max": 10.0,
               "hazard_hard_min": 0.0,
               "validation_tolerance": 1e-8,
-              "weighting_scheme": "SqrtTime"
+              "weighting_scheme": "sqrt_time"
             },
             "inflation_curve": {
               "cpi_hard_max": 10000.0,
               "cpi_hard_min": 1.0,
               "validation_tolerance": 1e-8,
-              "weighting_scheme": "SqrtTime"
+              "weighting_scheme": "sqrt_time"
             },
             "rate_bounds": {
               "max_rate": 0.5,
@@ -276,7 +342,7 @@
               "recovery_rate_abs_tolerance": 1e-12,
               "tolerance": 1e-10
             },
-            "validation_mode": "Error",
+            "validation_mode": "error",
             "verbose": false
           },
           "description": "Global settings for the calibration process."
@@ -295,6 +361,16 @@
       ],
       "type": "object"
     },
+    "CalibrationSchema": {
+      "description": "Exact schema marker accepted by calibration envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.calibration/1",
+          "description": "The sole supported calibration contract.",
+          "type": "string"
+        }
+      ]
+    },
     "CalibrationStep": {
       "description": "A single step in the calibration process.\n\nEach step targets the construction or update of a specific market object\n(e.g., a yield curve) using a specified set of quotes.",
       "oneOf": [
@@ -302,9 +378,8 @@
           "description": "Discount curve calibration.",
           "properties": {
             "base_date": {
-              "description": "Base date for the curve.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the curve."
             },
             "conventions": {
               "$ref": "#/$defs/RatesStepConventions",
@@ -338,7 +413,7 @@
             },
             "method": {
               "$ref": "#/$defs/CalibrationMethod",
-              "default": "Bootstrap",
+              "default": "bootstrap",
               "description": "Calibration method to use."
             },
             "pricing_discount_id": {
@@ -378,9 +453,8 @@
           "description": "Forward curve calibration.",
           "properties": {
             "base_date": {
-              "description": "Base date for the curve.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the curve."
             },
             "conventions": {
               "$ref": "#/$defs/RatesStepConventions",
@@ -413,7 +487,7 @@
             },
             "method": {
               "$ref": "#/$defs/CalibrationMethod",
-              "default": "Bootstrap",
+              "default": "bootstrap",
               "description": "Calibration method to use.\n\nForward curves require [`CalibrationMethod::GlobalSolve`]. Sequential\nbootstrap is rejected because contractual off-grid reset intervals\ncouple adjacent rates through projection discount factors."
             },
             "tenor_years": {
@@ -436,9 +510,8 @@
           "description": "Hazard curve calibration.",
           "properties": {
             "base_date": {
-              "description": "Base date for the curve.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the curve."
             },
             "cds_valuation_convention": {
               "anyOf": [
@@ -485,7 +558,7 @@
             },
             "method": {
               "$ref": "#/$defs/CalibrationMethod",
-              "default": "Bootstrap",
+              "default": "bootstrap",
               "description": "Calibration method to use."
             },
             "notional": {
@@ -496,7 +569,7 @@
             },
             "par_interp": {
               "$ref": "#/$defs/ParInterp",
-              "default": "Linear",
+              "default": "linear",
               "description": "Interpolation method for par spreads reported by the calibrated curve.\n\nNote: this is used for *quoting/interpolation of stored par spreads* and does not affect\nsurvival no-arbitrage, which is enforced via non-negative hazards together with the\nsurvival interpolation selected by `interpolation` (log-linear by default)."
             },
             "recovery_rate": {
@@ -530,9 +603,8 @@
               "type": "number"
             },
             "base_date": {
-              "description": "Base date for the curve.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the curve."
             },
             "currency": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
@@ -561,7 +633,7 @@
             },
             "method": {
               "$ref": "#/$defs/CalibrationMethod",
-              "default": "Bootstrap",
+              "default": "bootstrap",
               "description": "Calibration method to use."
             },
             "notional": {
@@ -602,9 +674,8 @@
           "description": "Volatility surface calibration.",
           "properties": {
             "base_date": {
-              "description": "Base date for the surface.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the surface."
             },
             "beta": {
               "default": 0.5,
@@ -643,8 +714,8 @@
               "type": "string"
             },
             "model": {
-              "description": "Model type.\n\nNote: currently supports SABR-only; set to `\"SABR\"` (case-insensitive).",
-              "type": "string"
+              "$ref": "#/$defs/VolSurfaceModel",
+              "description": "Volatility model used for calibration."
             },
             "spot_override": {
               "default": null,
@@ -654,10 +725,6 @@
                 "number",
                 "null"
               ]
-            },
-            "surface_id": {
-              "description": "Identifier for the volatility surface being built.",
-              "type": "string"
             },
             "target_expiries": {
               "default": [],
@@ -680,11 +747,15 @@
             "underlying_ticker": {
               "description": "Identifier for the underlying instrument.",
               "type": "string"
+            },
+            "vol_surface_id": {
+              "description": "Identifier for the volatility surface being built.",
+              "type": "string"
             }
           },
           "required": [
             "kind",
-            "surface_id",
+            "vol_surface_id",
             "base_date",
             "underlying_ticker",
             "model"
@@ -705,9 +776,8 @@
               "description": "ATM strike convention for swaptions."
             },
             "base_date": {
-              "description": "Base date for the calibration.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the calibration."
             },
             "calendar_id": {
               "default": null,
@@ -774,10 +844,6 @@
                 "null"
               ]
             },
-            "surface_id": {
-              "description": "Identifier for the volatility surface.",
-              "type": "string"
-            },
             "swap_index": {
               "anyOf": [
                 {
@@ -813,9 +879,13 @@
               "default": "lognormal",
               "description": "Volatility quoting convention (normal or lognormal)."
             },
+            "vol_surface_id": {
+              "description": "Identifier for the volatility surface.",
+              "type": "string"
+            },
             "vol_tolerance": {
               "default": null,
-              "description": "Reporting tolerance used to determine calibration success.\n\nThis is distinct from `plan.settings.tolerance` (solver tolerance). For swaption-vol\ncalibration, success should reflect whether the fitted smile residuals are within a\nmarket-appropriate tolerance (e.g., 10–20 vol bps), not machine epsilon.",
+              "description": "Reporting tolerance used to determine calibration success.\n\nThis is distinct from `plan.settings.tolerance` (solver tolerance). For swaption-vol\ncalibration, success should reflect whether the fitted smile residuals are within a\nmarket-appropriate tolerance (e.g., 10–20 vol bp), not machine epsilon.",
               "format": "double",
               "type": [
                 "number",
@@ -825,7 +895,7 @@
           },
           "required": [
             "kind",
-            "surface_id",
+            "vol_surface_id",
             "base_date",
             "discount_curve_id",
             "currency"
@@ -836,11 +906,10 @@
           "description": "Base correlation calibration.",
           "properties": {
             "base_date": {
-              "description": "Base date for the calibration.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the calibration."
             },
-            "bdc": {
+            "business_day_convention": {
               "anyOf": [
                 {
                   "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json"
@@ -1015,9 +1084,8 @@
           "description": "Hull-White 1-factor model calibration.",
           "properties": {
             "base_date": {
-              "description": "Base date for the calibration.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the calibration."
             },
             "currency": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
@@ -1062,9 +1130,8 @@
           "description": "Hull-White 1-factor calibration to cap/floor volatility quotes.",
           "properties": {
             "base_date": {
-              "description": "Base date for the calibration.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the calibration."
             },
             "currency": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
@@ -1111,7 +1178,7 @@
             },
             "payment_frequency": {
               "$ref": "#/$defs/SwapFrequency",
-              "default": "SemiAnnual",
+              "default": "semi_annual",
               "description": "Payment frequency used to decompose quoted caps/floors into caplets."
             },
             "volatility_mode": {
@@ -1133,9 +1200,8 @@
           "description": "SVI volatility surface calibration.",
           "properties": {
             "base_date": {
-              "description": "Base date for the surface.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the surface."
             },
             "discount_curve_id": {
               "anyOf": [
@@ -1171,10 +1237,6 @@
                 "null"
               ]
             },
-            "surface_id": {
-              "description": "Identifier for the volatility surface being built.",
-              "type": "string"
-            },
             "target_expiries": {
               "default": [],
               "description": "Target expiries for calibration.",
@@ -1196,11 +1258,15 @@
             "underlying_ticker": {
               "description": "Underlying instrument ticker.",
               "type": "string"
+            },
+            "vol_surface_id": {
+              "description": "Identifier for the volatility surface being built.",
+              "type": "string"
             }
           },
           "required": [
             "kind",
-            "surface_id",
+            "vol_surface_id",
             "base_date",
             "underlying_ticker"
           ],
@@ -1210,9 +1276,8 @@
           "description": "Cross-currency basis curve calibration.",
           "properties": {
             "base_date": {
-              "description": "Base date for the curve.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the curve."
             },
             "basis_spread_curve_id": {
               "anyOf": [
@@ -1267,7 +1332,7 @@
             },
             "method": {
               "$ref": "#/$defs/CalibrationMethod",
-              "default": "Bootstrap",
+              "default": "bootstrap",
               "description": "Calibration method to use."
             }
           },
@@ -1285,9 +1350,8 @@
           "description": "Parametric (Nelson-Siegel / NSS) curve calibration.",
           "properties": {
             "base_date": {
-              "description": "Base date for the curve.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date for the curve."
             },
             "curve_id": {
               "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
@@ -1453,6 +1517,204 @@
         }
       ]
     },
+    "DiscountCurveSolveConfig": {
+      "additionalProperties": false,
+      "description": "Discount-curve specific numerical solver configuration.\n\nControls the search space and numerical stability of the discount curve\nbootstrapping or global solve process.\n\n# Invariants\n- `df_hard_min` > 0\n- `scan_grid_points` > 0\n\n# Examples\n```ignore\nuse finstack_quant_valuations::calibration::DiscountCurveSolveConfig;\n\nlet config = DiscountCurveSolveConfig {\n    scan_grid_points: 64,\n    df_hard_min: 1e-10,\n    ..Default::default()\n};\n```",
+      "properties": {
+        "allow_non_monotonic_final": {
+          "default": null,
+          "description": "Override final-curve monotonicity enforcement (None = policy-driven).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "bootstrap_seed_global_solve": {
+          "default": true,
+          "description": "Whether to use a sequential bootstrap to seed a global solve.",
+          "type": "boolean"
+        },
+        "df_hard_max": {
+          "default": 1000000.0,
+          "description": "Absolute maximum allowed discount factor (prevents divergence).",
+          "format": "double",
+          "type": "number"
+        },
+        "df_hard_min": {
+          "default": 1e-12,
+          "description": "Absolute minimum allowed discount factor (prevents singularity).",
+          "format": "double",
+          "type": "number"
+        },
+        "extrapolation_policy": {
+          "$ref": "#/$defs/ExtrapolationPolicy",
+          "default": "flat_zero",
+          "description": "Extrapolation policy for the constructed curve."
+        },
+        "interp_style": {
+          "$ref": "#/$defs/InterpStyle",
+          "default": "linear",
+          "description": "Interpolation style for the constructed curve."
+        },
+        "jacobian_step_size": {
+          "default": 0.0,
+          "description": "Step size (h) for finite-difference Jacobian calculation.",
+          "format": "double",
+          "type": "number"
+        },
+        "min_scan_grid_points": {
+          "default": 20,
+          "description": "Minimum required success points in scan before attempting polish.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_t_spot": {
+          "default": 1e-6,
+          "description": "Minimum time threshold for considering a knot at spot (t=0).",
+          "format": "double",
+          "type": "number"
+        },
+        "scan_grid_points": {
+          "default": 48,
+          "description": "Number of points in the initial geometric scan grid.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scan_grid_step": {
+          "default": 0.0001,
+          "description": "Initial step size for geometric scan grid.",
+          "format": "double",
+          "type": "number"
+        },
+        "validation_tolerance": {
+          "default": 1e-8,
+          "description": "Tolerance for determining calibration *success* (applied to residuals).\n\nAfter the solver converges, the final residuals are compared against this\ntolerance. If `max_residual > validation_tolerance`, the calibration report\nwill have `success = false` even if the solver converged.\n\nThis is distinct from `solver.tolerance()` which controls when the numerical\nsolver terminates. See [`CalibrationConfig`] for a full explanation.\n\nDefault: `1e-8` (suitable for per-unit-notional residuals).",
+          "format": "double",
+          "type": "number"
+        },
+        "weighting_scheme": {
+          "$ref": "#/$defs/ResidualWeightingScheme",
+          "default": "sqrt_time",
+          "description": "Weighting scheme for global solve residuals."
+        }
+      },
+      "type": "object"
+    },
+    "DividendEvent": {
+      "description": "A dated dividend event.",
+      "properties": {
+        "date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Ex-dividend date."
+        },
+        "kind": {
+          "$ref": "#/$defs/DividendKind",
+          "description": "Event kind."
+        }
+      },
+      "required": [
+        "date",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "DividendKind": {
+      "description": "Type of dividend event.\n\nDistinguishes between cash payments, stock distributions, and continuous\nyield approximations used in different pricing models.\n\n# Variants\n\n- **Cash**: Actual dividend payment (quarterly, semi-annual, etc.)\n- **Stock**: Share distribution (less common, complicates option pricing)\n- **Yield**: Continuous approximation for analytical models",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Cash dividend payment.\n\nMost common type. Ex-dividend date reduces stock price by dividend amount.",
+          "properties": {
+            "cash": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            }
+          },
+          "required": [
+            "cash"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Continuous dividend yield (annualized fraction).\n\nUsed in analytical models (Black-Scholes with dividends) that assume\ncontinuous payout rather than discrete payments.",
+          "properties": {
+            "yield": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "yield"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Stock dividend (share distribution).\n\nIncreases share count proportionally. For example, 5% stock dividend\nmeans each shareholder receives 0.05 additional shares per share held.",
+          "properties": {
+            "stock": {
+              "properties": {
+                "ratio": {
+                  "description": "Stock distribution ratio; 0.05 corresponds to a 5% stock dividend.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "ratio"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "stock"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "DividendSchedule": {
+      "additionalProperties": false,
+      "description": "Dividend schedule for an equity or ETF underlying.\n\nContains a time-ordered sequence of dividend events used for pricing equity\nderivatives and calculating total return. The schedule can be referenced by\nmultiple instruments via its [`CurveId`] in the market context.\n\n# Usage in Pricing\n\n- **Discrete dividends**: Subtract PV of future dividends from spot for option pricing\n- **Ex-dividend adjustments**: Reduce forward price by dividend amount\n- **Dividend futures**: Sum dividends in contract period\n- **Total return**: Include dividend reinvestment in performance\n\n# Examples\n\n```rust\nuse finstack_quant_core::market_data::dividends::DividendSchedule;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::Date;\nuse time::Month;\n\nlet mut schedule = DividendSchedule::new(\"AAPL-DIVS\")\n    .with_underlying(\"AAPL\")\n    .with_currency(Currency::USD)\n    .add_cash(\n        Date::from_calendar_date(2025, Month::March, 15).expect(\"Valid date\"),\n        Money::new(0.24, Currency::USD)\n    );\n\nassert_eq!(schedule.events.len(), 1);\n```",
+      "properties": {
+        "currency": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Quote currency for cash dividends (optional metadata)."
+        },
+        "events": {
+          "description": "Sorted events by date (ascending).",
+          "items": {
+            "$ref": "#/$defs/DividendEvent"
+          },
+          "type": "array"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique identifier of this schedule in the market context."
+        },
+        "underlying": {
+          "description": "Optional display symbol/ticker for convenience.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "events"
+      ],
+      "type": "object"
+    },
     "ExtrapolationPolicy": {
       "description": "Extrapolation policy for evaluation outside the knot range.\n\nAll [`InterpolationStrategy`](super::traits::InterpolationStrategy)\nimplementations honour this policy at both ends of the knot range.\nChoose based on what behaviour the downstream pricer expects:\n\n- `FlatZero` (default): hold the boundary value constant. Safe for\n  discount factors and survival probabilities.\n- `FlatForward`: extend the boundary slope. Useful for forward-rate\n  curves where extrapolated rates should track the local term-structure\n  slope.\n- `Nan`: refuse to extrapolate; return `NaN` and require the caller to\n  detect and handle out-of-range queries explicitly. Recommended for\n  production risk systems.\n\n`#[non_exhaustive]` so that future policies (e.g. linear-zero,\nasymptotic) can be added without breaking downstream code.",
       "oneOf": [
@@ -1477,7 +1739,7 @@
       "description": "Method for calculating floating leg coupon payments.\n\nDifferent reference rates require different compounding conventions:\n- **Term rates (SOFR 3M, EURIBOR, historical LIBOR)**: Simple interest\n- **Overnight rates (SOFR, SONIA, €STR, TONA)**: Compounded in arrears\n\n# Market Standards\n\n## Simple (LIBOR-style)\n- **Formula**: `Coupon = Notional × (Forward_Rate + Spread) × DCF`\n- **Use for**: USD LIBOR, EUR EURIBOR, GBP LIBOR (historical)\n- **Standard**: ISDA 2006 Definitions\n\n## Compounded In Arrears (RFR-style)\n- **Formula**: `Coupon = Notional × [∏(1 + r_i × dcf_i) - 1]`\n- **Use for**: USD SOFR, GBP SONIA, EUR €STR, JPY TONA\n- **Standard**: ISDA 2021 Definitions\n- **Lookback**: Typically 2-5 business days before period end\n- **Observation shift**: Optional shift for operational convenience\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;\n\n// LIBOR-style swap (simple compounding)\nlet simple = FloatingLegCompounding::Simple;\nassert_eq!(simple, FloatingLegCompounding::default());\n\n// SOFR OIS swap: plain compounded in arrears (no lookback)\nlet sofr = FloatingLegCompounding::CompoundedInArrears {\n    lookback_days: 0,\n    observation_shift: None,\n};\nassert_eq!(sofr, FloatingLegCompounding::sofr());\n\n// SONIA FRN-style leg with the BoE 5-day lookback (explicit, not the OIS preset)\nlet sonia_frn = FloatingLegCompounding::CompoundedInArrears {\n    lookback_days: 5,\n    observation_shift: None,\n};\nassert_ne!(sonia_frn, FloatingLegCompounding::sonia());\n```\n\n# References\n\n- **ISDA 2021 Definitions**: Compounded RFR conventions\n- **ARRC** (Alternative Reference Rates Committee): SOFR conventions\n- **BoE** (Bank of England): SONIA conventions\n- **ECB**: €STR conventions\n\nIn the IRS instrument implementation, the RFR-style variant\n(`CompoundedInArrears`) is also used to classify swaps as OIS for\ndiscount-only float-leg pricing; see `InterestRateSwap::is_single_curve_ois` for details.",
       "oneOf": [
         {
-          "const": "Simple",
+          "const": "simple",
           "description": "Simple interest compounding (term-rate style).\n\nCoupon = Notional × (Forward_Rate + Spread) × Day_Count_Fraction\n\nUse for:\n- Term SOFR / EURIBOR-style swaps with fixed-tenor indices\n- Legacy USD/EUR/GBP LIBOR swaps (for back-testing only)\n\nThis is the current default behavior for vanilla IRS and matches\nISDA 2006 term-rate conventions.",
           "type": "string"
         },
@@ -1485,7 +1747,7 @@
           "additionalProperties": false,
           "description": "Compounded in arrears (overnight RFR rates).\n\nCoupon = Notional × [∏(1 + r_i × dcf_i) - 1] where the product\nis taken over daily observations in the accrual period.\n\nUse for:\n- USD SOFR (Secured Overnight Financing Rate)\n- GBP SONIA (Sterling Overnight Index Average)\n- EUR €STR (Euro Short-Term Rate)\n- JPY TONA (Tokyo Overnight Average Rate)\n\n# Fields\n\n- `lookback_days`: Days to shift observation end date before period end (typically 2-5)\n- `observation_shift`: Optional additional shift for operational convenience\n\n# Market Conventions\n\n- **SOFR**: 2-day lookback (ARRC recommended)\n- **SONIA**: 5-day lookback (BoE recommended)\n- **€STR**: 2-day shift (ECB convention)\n- **TONA**: 2-day lag (JSCC convention)",
           "properties": {
-            "CompoundedInArrears": {
+            "compounded_in_arrears": {
               "properties": {
                 "lookback_days": {
                   "description": "Number of business days to shift observation dates back from the accrual\nperiod (lookback).  Typically 2–5 days depending on market convention.\n\nThe observation dates are shifted while the day-count-fraction (DCF)\nweights remain anchored to the **original** accrual period dates.\nThis is consistent with \"lookback without observation shift\" as\ndescribed in the ISDA 2021 Definitions and ARRC SOFR conventions.",
@@ -1512,7 +1774,7 @@
             }
           },
           "required": [
-            "CompoundedInArrears"
+            "compounded_in_arrears"
           ],
           "type": "object"
         },
@@ -1520,7 +1782,7 @@
           "additionalProperties": false,
           "description": "Compounded in arrears with true ISDA 2021 observation shift.\n\nUnlike `CompoundedInArrears` (lookback semantics), this variant shifts\n**both** the observation dates AND the day-count-fraction (DCF) weights.\nThis matches ISDA 2021 Definitions Section 4.5(c).\n\n```text\nLookback:           DCF(d, d+1)           × rate(d - shift, d+1 - shift)\nObservation Shift:  DCF(d - shift, d+1 - shift) × rate(d - shift, d+1 - shift)\n```",
           "properties": {
-            "CompoundedWithObservationShift": {
+            "compounded_with_observation_shift": {
               "properties": {
                 "shift_days": {
                   "description": "Number of business days to shift both observation dates and DCF weights.",
@@ -1537,7 +1799,7 @@
             }
           },
           "required": [
-            "CompoundedWithObservationShift"
+            "compounded_with_observation_shift"
           ],
           "type": "object"
         },
@@ -1545,7 +1807,7 @@
           "additionalProperties": false,
           "description": "Compounded in arrears with a rate cut-off near the period end.\n\nThis freezes the last observed overnight rate for the final `cutoff_days`\nbusiness days of the accrual period. Bloomberg SWPM labels this\nconvention as \"Rate Cut-Off Days\".",
           "properties": {
-            "CompoundedWithRateCutoff": {
+            "compounded_with_rate_cutoff": {
               "properties": {
                 "cutoff_days": {
                   "description": "Number of business days before period end to freeze the overnight rate.",
@@ -1562,11 +1824,35 @@
             }
           },
           "required": [
-            "CompoundedWithRateCutoff"
+            "compounded_with_rate_cutoff"
           ],
           "type": "object"
         }
       ]
+    },
+    "FxConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for [`FxMatrix`](crate::money::fx::FxMatrix) behaviour.\n\nControls triangulation and caching.",
+      "properties": {
+        "cache_capacity": {
+          "default": 256,
+          "description": "Maximum number of provider-observed quotes retained in the LRU cache.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enable_triangulation": {
+          "default": true,
+          "description": "Whether to enable automatic triangulation for missing rates.\n\nWhen enabled, the matrix will attempt `from -> pivot -> to` and will not\nsearch multi-hop paths or alternative pivots.",
+          "type": "boolean"
+        },
+        "pivot_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "default": "USD",
+          "description": "Pivot currency for triangulation fallback (typically USD).\n\nCurrent limitation: triangulation uses this single configured pivot only.\nIf a market convention requires a different routing currency for a given\npair, callers must seed that direct quote explicitly instead of relying on\nautomatic cross construction."
+        }
+      },
+      "type": "object"
     },
     "FxConventionId": {
       "description": "Identifier for FX pair market conventions (e.g., \"EUR/USD\", \"USD/CAD\").",
@@ -1575,6 +1861,61 @@
     "FxOptionConventionId": {
       "description": "Identifier for FX option market conventions (e.g., \"EUR/USD-VANILLA\").",
       "type": "string"
+    },
+    "HazardCurveSolveConfig": {
+      "additionalProperties": false,
+      "description": "Hazard-curve specific numerical solver configuration.\n\nControls the search space and numerical stability of hazard curve\nbootstrapping or global solve for credit curve calibration.\n\n# Invariants\n- `hazard_hard_min` >= 0 (hazard rates must be non-negative)\n- `hazard_hard_max` > `hazard_hard_min`\n\n# Examples\n```ignore\nuse finstack_quant_valuations::calibration::HazardCurveSolveConfig;\n\n// For distressed debt scenarios, increase the max hazard rate\nlet config = HazardCurveSolveConfig {\n    hazard_hard_max: 100.0,  // Allow up to ~100% default probability per year\n    ..Default::default()\n};\n```",
+      "properties": {
+        "hazard_hard_max": {
+          "default": 10.0,
+          "description": "Maximum allowed hazard rate.\n\nThe default of 10.0 corresponds to roughly 99.995% 1Y default probability.\nFor distressed/distressed sovereign scenarios, increase to 50.0 or 100.0.",
+          "format": "double",
+          "type": "number"
+        },
+        "hazard_hard_min": {
+          "default": 0.0,
+          "description": "Minimum allowed hazard rate (must be non-negative for survival monotonicity).",
+          "format": "double",
+          "type": "number"
+        },
+        "validation_tolerance": {
+          "default": 1e-8,
+          "description": "Tolerance for determining calibration *success* (applied to residuals).\n\nAfter the solver converges, the final residuals are compared against this\ntolerance. If `max_residual > validation_tolerance`, the calibration report\nwill have `success = false` even if the solver converged.\n\nThis is distinct from `solver.tolerance()` which controls when the numerical\nsolver terminates. See [`CalibrationConfig`] for a full explanation.\n\nDefault: `1e-8` (suitable for per-unit-notional residuals).",
+          "format": "double",
+          "type": "number"
+        },
+        "weighting_scheme": {
+          "$ref": "#/$defs/ResidualWeightingScheme",
+          "default": "sqrt_time",
+          "description": "Weighting scheme for global solve residuals."
+        }
+      },
+      "type": "object"
+    },
+    "HierarchyNode": {
+      "additionalProperties": false,
+      "description": "A single node in the market data hierarchy tree.\n\nNodes form a tree: each has a name, optional key-value tags for cross-cutting\nqueries, ordered children, and leaf `CurveId` references.",
+      "properties": {
+        "children": {
+          "additionalProperties": {
+            "$ref": "#/$defs/HierarchyNode"
+          },
+          "type": "object"
+        },
+        "curves": {
+          "items": {
+            "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+          },
+          "type": "array"
+        },
+        "tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
     },
     "HullWhiteVolatilityMode": {
       "description": "Parameters for Hull-White 1-factor calibration to cap/floor volatility quotes.",
@@ -1590,6 +1931,36 @@
           "type": "string"
         }
       ]
+    },
+    "InflationCurveSolveConfig": {
+      "additionalProperties": false,
+      "description": "Inflation-curve specific numerical solver configuration.\n\nControls the numerical stability and success criteria of inflation curve\nbootstrapping or global solve for CPI curve calibration.\n\n# Examples\n```ignore\nuse finstack_quant_valuations::calibration::InflationCurveSolveConfig;\n\nlet config = InflationCurveSolveConfig {\n    validation_tolerance: 1e-6,  // Relax for noisy inflation markets\n    ..Default::default()\n};\n```",
+      "properties": {
+        "cpi_hard_max": {
+          "default": 10000.0,
+          "description": "Maximum allowed CPI level during calibration.\n\nDefault: `10_000.0`. For hyperinflation currencies (TRY, ARS, VES),\nincrease this bound significantly (e.g. `1e9`).",
+          "format": "double",
+          "type": "number"
+        },
+        "cpi_hard_min": {
+          "default": 1.0,
+          "description": "Minimum allowed CPI level during calibration.\n\nDefault: `1.0`. For indices with different base conventions or rebased\nindices, adjust accordingly.",
+          "format": "double",
+          "type": "number"
+        },
+        "validation_tolerance": {
+          "default": 1e-8,
+          "description": "Tolerance for determining calibration *success* (applied to residuals).\n\nAfter the solver converges, the final residuals are compared against this\ntolerance. If `max_residual > validation_tolerance`, the calibration report\nwill have `success = false` even if the solver converged.\n\nThis is distinct from `solver.tolerance()` which controls when the numerical\nsolver terminates. See [`CalibrationConfig`] for a full explanation.\n\nDefault: `1e-8` (suitable for per-unit-notional residuals).",
+          "format": "double",
+          "type": "number"
+        },
+        "weighting_scheme": {
+          "$ref": "#/$defs/ResidualWeightingScheme",
+          "default": "sqrt_time",
+          "description": "Weighting scheme for global solve residuals."
+        }
+      },
+      "type": "object"
     },
     "InflationInterpolation": {
       "description": "Interpolation method for CPI/RPI values between monthly observations.\n\nDetermines how index values are computed for dates between published\nmonthly levels. Different markets use different conventions.\n\n# Market Conventions\n\n- **US TIPS**: Linear interpolation (daily pro-rata)\n- **UK Index-Linked Gilts**: Linear interpolation with 3-month lag\n- **Euro inflation bonds**: Varies by issuer (typically linear)\n\n# Examples\n\n```rust\nuse finstack_quant_core::market_data::scalars::InflationInterpolation;\n\nlet linear = InflationInterpolation::Linear; // TIPS standard\nlet step = InflationInterpolation::Step;     // Conservative approach\n```",
@@ -1685,6 +2056,21 @@
     "IrFutureContractId": {
       "description": "Stable identifier for an Interest Rate Future contract (e.g., \"CME:SR3\").\n\nUsed to look up [`IrFutureConventions`](crate::market::conventions::defs::IrFutureConventions)\nfrom the convention registry.",
       "type": "string"
+    },
+    "MarketDataHierarchy": {
+      "description": "The top-level market data hierarchy containing root nodes.\n\nEach root represents a major asset class or category (e.g., \"Rates\", \"Credit\",\n\"FX\", \"Equity\", \"Volatility\"). The hierarchy is fully serializable and can be\nloaded from JSON configuration files.",
+      "properties": {
+        "roots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/HierarchyNode"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "roots"
+      ],
+      "type": "object"
     },
     "MarketDatum": {
       "description": "A single id-addressable input to the calibrator.\n\nEach variant is tagged via serde as `{\"kind\": \"<snake_case_variant>\", ...}`\nso callers can author flat heterogeneous lists in JSON/YAML.",
@@ -1782,9 +2168,8 @@
                   ]
                 },
                 "expiry": {
-                  "description": "Expiry date of the future.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Expiry date of the future."
                 },
                 "id": {
                   "$ref": "#/$defs/QuoteId",
@@ -2016,12 +2401,11 @@
                   "type": "string"
                 },
                 "maturity": {
-                  "description": "Maturity date.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Maturity date."
                 },
                 "running_spread_bp": {
-                  "description": "Running spread (bps).",
+                  "description": "Running spread (bp).",
                   "format": "double",
                   "type": "number"
                 },
@@ -2145,9 +2529,8 @@
                   "description": "FX option convention identifier (e.g., `EUR/USD-VANILLA`)."
                 },
                 "expiry": {
-                  "description": "Option expiry date.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Option expiry date."
                 },
                 "id": {
                   "$ref": "#/$defs/QuoteId",
@@ -2216,9 +2599,8 @@
                       "type": "string"
                     },
                     "maturity": {
-                      "description": "Swap maturity",
-                      "format": "date",
-                      "type": "string"
+                      "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                      "description": "Swap maturity"
                     },
                     "rate": {
                       "description": "Fixed rate (decimal)",
@@ -2264,9 +2646,8 @@
                       "type": "string"
                     },
                     "maturity": {
-                      "description": "Swap maturity",
-                      "format": "date",
-                      "type": "string"
+                      "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                      "description": "Swap maturity"
                     },
                     "rate": {
                       "description": "Fixed rate (decimal)",
@@ -2316,9 +2697,8 @@
                       "description": "Per-instrument conventions"
                     },
                     "expiry": {
-                      "description": "Option expiry",
-                      "format": "date",
-                      "type": "string"
+                      "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                      "description": "Option expiry"
                     },
                     "id": {
                       "$ref": "#/$defs/QuoteId",
@@ -2371,22 +2751,20 @@
                       "description": "Option exercise conventions"
                     },
                     "expiry": {
-                      "description": "Option expiry",
-                      "format": "date",
-                      "type": "string"
+                      "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                      "description": "Option expiry"
                     },
                     "id": {
                       "$ref": "#/$defs/QuoteId",
                       "description": "Unique identifier for the quote."
                     },
                     "maturity": {
-                      "description": "Underlying swap maturity date",
-                      "format": "date",
-                      "type": "string"
+                      "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                      "description": "Underlying swap maturity date"
                     },
                     "quote_type": {
-                      "description": "Quote type label; see [`parse_vol_quote_type`].",
-                      "type": "string"
+                      "$ref": "#/$defs/VolQuoteType",
+                      "description": "Volatility quoting convention."
                     },
                     "strike": {
                       "description": "Strike rate",
@@ -2427,9 +2805,8 @@
                       "description": "Cap/floor market conventions."
                     },
                     "expiry": {
-                      "description": "Cap/floor maturity or caplet expiry.",
-                      "format": "date",
-                      "type": "string"
+                      "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                      "description": "Cap/floor maturity or caplet expiry."
                     },
                     "id": {
                       "$ref": "#/$defs/QuoteId",
@@ -2440,8 +2817,8 @@
                       "type": "boolean"
                     },
                     "quote_type": {
-                      "description": "Quote type label, e.g. `\"normal\"`; see [`parse_vol_quote_type`].",
-                      "type": "string"
+                      "$ref": "#/$defs/VolQuoteType",
+                      "description": "Volatility quoting convention."
                     },
                     "strike": {
                       "description": "Strike rate.",
@@ -2569,14 +2946,12 @@
                   "description": "Unique identifier for the quote."
                 },
                 "issue_date": {
-                  "description": "Bond issue date.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Bond issue date."
                 },
                 "maturity": {
-                  "description": "Bond maturity date.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Bond maturity date."
                 },
                 "type": {
                   "const": "fixed_rate_bullet_clean_price",
@@ -2616,14 +2991,12 @@
                   "description": "Unique identifier for the quote."
                 },
                 "issue_date": {
-                  "description": "Bond issue date.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Bond issue date."
                 },
                 "maturity": {
-                  "description": "Bond maturity date.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Bond maturity date."
                 },
                 "type": {
                   "const": "fixed_rate_bullet_z_spread",
@@ -2668,14 +3041,12 @@
                   "description": "Unique identifier for the quote."
                 },
                 "issue_date": {
-                  "description": "Bond issue date.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Bond issue date."
                 },
                 "maturity": {
-                  "description": "Bond maturity date.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Bond maturity date."
                 },
                 "oas": {
                   "description": "Option-adjusted spread in decimal form (e.g. 0.005 = 50bp).",
@@ -2720,14 +3091,12 @@
                   "description": "Unique identifier for the quote."
                 },
                 "issue_date": {
-                  "description": "Bond issue date.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Bond issue date."
                 },
                 "maturity": {
-                  "description": "Bond maturity date.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Bond maturity date."
                 },
                 "type": {
                   "const": "fixed_rate_bullet_ytm",
@@ -2811,6 +3180,7 @@
               "type": "string"
             },
             "scalar": {
+              "$ref": "#/$defs/MarketScalar",
               "description": "Scalar value (unitless or monetary)."
             }
           },
@@ -2830,6 +3200,7 @@
               "type": "string"
             },
             "schedule": {
+              "$ref": "#/$defs/DividendSchedule",
               "description": "The dividend schedule itself."
             }
           },
@@ -2840,15 +3211,56 @@
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Generic scalar time series (CPI, historical fixings, ...).",
           "properties": {
+            "currency": {
+              "anyOf": [
+                {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional currency"
+            },
+            "id": {
+              "description": "Series identifier",
+              "type": "string"
+            },
+            "interpolation": {
+              "$ref": "#/$defs/SeriesInterpolation",
+              "description": "Interpolation method"
+            },
             "kind": {
               "const": "fixing_series",
               "type": "string"
+            },
+            "observations": {
+              "description": "Observations as (date, value) pairs",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+                  },
+                  {
+                    "format": "double",
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "observations",
+            "interpolation"
           ],
           "type": "object"
         },
@@ -2883,7 +3295,7 @@
                 "minItems": 2,
                 "prefixItems": [
                   {
-                    "type": "string"
+                    "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
                   },
                   {
                     "format": "double",
@@ -2919,41 +3331,207 @@
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Credit-index reference state.",
           "properties": {
+            "base_correlation_curve_id": {
+              "description": "ID of the base correlation curve (must exist in context curves)",
+              "type": "string"
+            },
+            "id": {
+              "description": "Unique identifier for this credit index",
+              "type": "string"
+            },
+            "index_credit_curve_id": {
+              "description": "ID of the index hazard curve (must exist in context curves)",
+              "type": "string"
+            },
+            "issuer_credit_curve_ids": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Optional map of issuer ID → hazard curve ID",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "issuer_recovery_rates": {
+              "additionalProperties": {
+                "format": "double",
+                "type": "number"
+              },
+              "description": "Optional map of issuer ID → recovery rate",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "issuer_weights": {
+              "additionalProperties": {
+                "format": "double",
+                "type": "number"
+              },
+              "description": "Optional map of issuer ID → weight",
+              "type": [
+                "object",
+                "null"
+              ]
+            },
             "kind": {
               "const": "credit_index",
               "type": "string"
+            },
+            "num_constituents": {
+              "description": "Number of constituents",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "recovery_rate": {
+              "description": "Recovery rate",
+              "format": "double",
+              "type": "number"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "num_constituents",
+            "recovery_rate",
+            "index_credit_curve_id",
+            "base_correlation_curve_id"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "FX delta-vol surface.",
           "properties": {
+            "atm_vols": {
+              "description": "ATM delta-neutral straddle vols per expiry.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "bf_10d": {
+              "description": "Optional 10-delta butterfly per expiry.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "bf_25d": {
+              "description": "25-delta butterfly per expiry.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "expiries": {
+              "description": "Expiry times in years.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "id": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+              "description": "Surface identifier."
+            },
             "kind": {
               "const": "fx_vol_surface",
               "type": "string"
+            },
+            "rr_10d": {
+              "description": "Optional 10-delta risk reversal per expiry.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "rr_25d": {
+              "description": "25-delta risk reversal per expiry.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "expiries",
+            "atm_vols",
+            "rr_25d",
+            "bf_25d"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Generic vol cube.",
           "properties": {
+            "expiries": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "forwards": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "interpolation_mode": {
+              "$ref": "#/$defs/VolInterpolationMode"
+            },
             "kind": {
               "const": "vol_cube",
               "type": "string"
+            },
+            "params": {
+              "items": {
+                "$ref": "#/$defs/SabrParams"
+              },
+              "type": "array"
+            },
+            "tenors": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "expiries",
+            "tenors",
+            "params",
+            "forwards",
+            "interpolation_mode"
           ],
           "type": "object"
         },
@@ -2978,6 +3556,36 @@
             "kind",
             "id",
             "csa_currency"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MarketScalar": {
+      "description": "Single market observable that doesn't require a full curve.\n\nRepresents point-in-time market data like spot prices, spreads, or unitless\nparameters. Stored in [`MarketContext`](crate::market_data::context::MarketContext)\nalongside curves for simple lookups.\n\n# Use Cases\n\n- **Spot prices**: Equity spots, commodity prices, FX spots\n- **Recovery rates**: Credit recovery assumptions (unitless)\n- **Correlation parameters**: Equity-FX correlation, basis correlations\n- **Spreads**: Credit spreads, basis spreads (unitless or monetary)\n- **Multipliers**: Beta, vega notionals, adjustment factors\n\n# Examples\n\n```rust\nuse finstack_quant_core::market_data::scalars::MarketScalar;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::currency::Currency;\n\n// Equity beta (unitless)\nlet beta = MarketScalar::Unitless(1.2);\n\n// Spot price (with currency)\nlet spot = MarketScalar::Price(Money::new(152.75, Currency::USD));\n\nassert!(matches!(beta, MarketScalar::Unitless(_)));\nif let MarketScalar::Price(m) = spot {\n    assert_eq!(m.currency(), Currency::USD);\n}\n```",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "unitless": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "unitless"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "price": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            }
+          },
+          "required": [
+            "price"
           ],
           "type": "object"
         }
@@ -3112,12 +3720,12 @@
       "description": "Interpolation method for reporting par spreads stored on the curve.\n\nApplies only to *par-spread* readouts (the spreads quoted at calibration\npillars), not to the underlying hazard rates. Hazard interpolation always\nfollows piecewise-constant survival. Use `LogLinear` when spreads span\nmultiple decades (e.g. high-yield issuers) so interpolation stays in\nlog-space; otherwise the default `Linear` is fine.",
       "oneOf": [
         {
-          "const": "Linear",
+          "const": "linear",
           "description": "Linear interpolation in spread space",
           "type": "string"
         },
         {
-          "const": "LogLinear",
+          "const": "log_linear",
           "description": "Log-linear interpolation when spreads are strictly positive",
           "type": "string"
         }
@@ -3144,8 +3752,7 @@
           "description": "An absolute date.\n\nThe maturity is fixed to a specific date, regardless of the valuation date. This is\ntypically used for futures contracts or bespoke instruments with fixed maturities.",
           "properties": {
             "date": {
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
             }
           },
           "required": [
@@ -3156,135 +3763,721 @@
       ]
     },
     "PriorMarketObject": {
-      "description": "A pre-built calibrated market object.\n\nVariants are tagged via serde as `{\"kind\": \"<snake_case_variant>\", ...}` so\ncallers can author flat heterogeneous lists in JSON/YAML. None of the\nunderlying curve / surface types currently derive [`JsonSchema`] directly,\nso we apply the established `#[schemars(with = \"serde_json::Value\")]`\nworkaround (matching the pattern in `market_datum.rs`). The same applies\non the TypeScript side via `#[ts(type = \"unknown\")]`.",
+      "description": "A pre-built calibrated market object.\n\nVariants are tagged via serde as `{\"kind\": \"<snake_case_variant>\", ...}` so\ncallers can author flat heterogeneous lists in JSON/YAML. Each wrapped\ncurve or surface contributes its own derived JSON Schema.",
       "oneOf": [
         {
+          "additionalProperties": false,
           "description": "Pre-built discount-factor curve.",
           "properties": {
+            "allow_non_monotonic": {
+              "description": "Whether non-monotonic DFs are allowed (dangerous override)",
+              "type": "boolean"
+            },
+            "base": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date"
+            },
+            "calibration_ois_cutoff_days": {
+              "description": "OIS cut-off (business days) the curve was calibrated under, if any.",
+              "format": "int32",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "day_count": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+              "description": "Day count convention for discount time basis"
+            },
+            "extrapolation": {
+              "$ref": "#/$defs/ExtrapolationPolicy",
+              "description": "Extrapolation policy"
+            },
+            "fx_policy": {
+              "description": "Opaque FX policy stamp; see [`DiscountCurve::fx_policy`].",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "description": "Curve identifier",
+              "type": "string"
+            },
+            "interp_style": {
+              "$ref": "#/$defs/InterpStyle",
+              "description": "Interpolation style"
+            },
             "kind": {
               "const": "discount_curve",
               "type": "string"
+            },
+            "knot_points": {
+              "description": "Time/value pairs used to construct the curve",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  {
+                    "format": "double",
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "min_forward_rate": {
+              "description": "Minimum forward rate floor (if set)",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "min_forward_tenor": {
+              "description": "Minimum tenor for forward rate calculations",
+              "format": "double",
+              "type": "number"
+            },
+            "rate_calibration": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RateCalibrationRecipe"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exact typed calibration replay recipe."
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "base",
+            "day_count",
+            "knot_points",
+            "interp_style",
+            "extrapolation",
+            "allow_non_monotonic",
+            "min_forward_tenor"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Pre-built forward-rate curve.",
           "properties": {
+            "base": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date"
+            },
+            "day_count": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+              "description": "Day count convention"
+            },
+            "extrapolation": {
+              "$ref": "#/$defs/ExtrapolationPolicy",
+              "description": "Extrapolation policy"
+            },
+            "fx_policy": {
+              "description": "Opaque FX policy stamp; see [`super::DiscountCurve::fx_policy`].",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "description": "Curve identifier",
+              "type": "string"
+            },
+            "interp_style": {
+              "$ref": "#/$defs/InterpStyle",
+              "description": "Interpolation style"
+            },
             "kind": {
               "const": "forward_curve",
               "type": "string"
+            },
+            "knot_points": {
+              "description": "Time/value pairs used to construct the curve",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  {
+                    "format": "double",
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "projection_grid": {
+              "description": "Optional contractual reset/end-date boundaries.\n\n`None` selects fixed numeric-tenor discount-factor stepping.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "rate_calibration": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RateCalibrationRecipe"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exact typed calibration replay recipe."
+            },
+            "reset_lag": {
+              "description": "Reset lag in business days",
+              "format": "int32",
+              "type": "integer"
+            },
+            "tenor": {
+              "description": "Index tenor in years",
+              "format": "double",
+              "type": "number"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "base",
+            "reset_lag",
+            "day_count",
+            "tenor",
+            "knot_points",
+            "interp_style",
+            "extrapolation"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Pre-built default hazard-rate curve.",
           "properties": {
+            "base": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date"
+            },
+            "currency": {
+              "anyOf": [
+                {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Currency"
+            },
+            "day_count": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+              "description": "Day count convention"
+            },
+            "fx_policy": {
+              "default": null,
+              "description": "Opaque FX policy stamp; see [`super::DiscountCurve::fx_policy`].",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "description": "Curve identifier",
+              "type": "string"
+            },
+            "issuer": {
+              "description": "Optional issuer",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "kind": {
               "const": "hazard_curve",
               "type": "string"
+            },
+            "knot_points": {
+              "description": "Time/value pairs used to construct the curve",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  {
+                    "format": "double",
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "par_interp": {
+              "$ref": "#/$defs/ParInterp",
+              "default": "linear",
+              "description": "Par interpolation method"
+            },
+            "par_points": {
+              "description": "Par spread points for reporting",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  {
+                    "format": "double",
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "recovery_rate": {
+              "description": "Recovery rate",
+              "format": "double",
+              "type": "number"
+            },
+            "seniority": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Seniority"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Seniority"
+            },
+            "survival_interp": {
+              "$ref": "#/$defs/InterpStyle",
+              "default": "log_linear",
+              "description": "Survival-probability interpolation style between pillars"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "base",
+            "knot_points",
+            "recovery_rate",
+            "day_count",
+            "par_points"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Pre-built inflation (breakeven / index) curve.",
           "properties": {
+            "base_cpi": {
+              "description": "Base CPI level at t=0",
+              "format": "double",
+              "type": "number"
+            },
+            "base_date": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date"
+            },
+            "day_count": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+              "default": "act_365f",
+              "description": "Day count convention"
+            },
+            "extrapolation": {
+              "$ref": "#/$defs/ExtrapolationPolicy",
+              "description": "Extrapolation policy"
+            },
+            "id": {
+              "description": "Curve identifier",
+              "type": "string"
+            },
+            "indexation_lag_months": {
+              "default": 3,
+              "description": "Indexation lag in months",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "interp_style": {
+              "$ref": "#/$defs/InterpStyle",
+              "description": "Interpolation style"
+            },
             "kind": {
               "const": "inflation_curve",
               "type": "string"
+            },
+            "knot_points": {
+              "description": "Time/value pairs used to construct the curve",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  {
+                    "format": "double",
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "base_cpi",
+            "base_date",
+            "knot_points",
+            "interp_style",
+            "extrapolation"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Pre-built CDS-index base-correlation curve.",
           "properties": {
+            "correlations": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "detachment_points": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "id": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
             "kind": {
               "const": "base_correlation_curve",
               "type": "string"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "detachment_points",
+            "correlations"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Pre-built tenor-basis spread curve.",
           "properties": {
+            "base": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date."
+            },
+            "day_count": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+              "description": "Day count convention."
+            },
+            "extrapolation": {
+              "$ref": "#/$defs/ExtrapolationPolicy",
+              "description": "Extrapolation policy."
+            },
+            "id": {
+              "description": "Curve identifier.",
+              "type": "string"
+            },
+            "interp_style": {
+              "$ref": "#/$defs/InterpStyle",
+              "description": "Interpolation style."
+            },
             "kind": {
               "const": "basis_spread_curve",
               "type": "string"
+            },
+            "knot_points": {
+              "description": "Time/value pairs used to construct the curve.",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  {
+                    "format": "double",
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "base",
+            "day_count",
+            "knot_points",
+            "interp_style",
+            "extrapolation"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Pre-built parametric (e.g. Nelson-Siegel) curve.",
           "properties": {
+            "base_date": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date."
+            },
+            "day_count": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+              "description": "Day count convention."
+            },
+            "id": {
+              "description": "Curve identifier.",
+              "type": "string"
+            },
             "kind": {
               "const": "parametric_curve",
               "type": "string"
+            },
+            "model": {
+              "$ref": "#/$defs/NelsonSiegelModel",
+              "description": "Nelson-Siegel model parameters."
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "base_date",
+            "day_count",
+            "model"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Pre-built spot / forward price curve.",
           "properties": {
+            "base": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date"
+            },
+            "day_count": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+              "description": "Day count convention"
+            },
+            "extrapolation": {
+              "$ref": "#/$defs/ExtrapolationPolicy",
+              "description": "Extrapolation policy"
+            },
+            "id": {
+              "description": "Curve identifier",
+              "type": "string"
+            },
+            "interp_style": {
+              "$ref": "#/$defs/InterpStyle",
+              "description": "Interpolation style"
+            },
             "kind": {
               "const": "price_curve",
               "type": "string"
+            },
+            "knot_points": {
+              "description": "Time/value pairs used to construct the curve",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  {
+                    "format": "double",
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "spot_price": {
+              "description": "Spot price",
+              "format": "double",
+              "type": "number"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "base",
+            "day_count",
+            "spot_price",
+            "knot_points",
+            "interp_style",
+            "extrapolation"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Pre-built volatility-index forward curve.",
           "properties": {
+            "base": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Base date"
+            },
+            "day_count": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+              "description": "Day count convention"
+            },
+            "extrapolation": {
+              "$ref": "#/$defs/ExtrapolationPolicy",
+              "description": "Extrapolation policy"
+            },
+            "id": {
+              "description": "Curve identifier",
+              "type": "string"
+            },
+            "interp_style": {
+              "$ref": "#/$defs/InterpStyle",
+              "description": "Interpolation style"
+            },
             "kind": {
               "const": "volatility_index_curve",
               "type": "string"
+            },
+            "knot_points": {
+              "description": "Time/value pairs used to construct the curve",
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  {
+                    "format": "double",
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "spot_level": {
+              "description": "Spot index level",
+              "format": "double",
+              "type": "number"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "base",
+            "day_count",
+            "spot_level",
+            "knot_points",
+            "interp_style",
+            "extrapolation"
           ],
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Pre-built volatility surface (expiry x strike).",
           "properties": {
+            "expiries": {
+              "description": "Expiry times in years",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "id": {
+              "description": "Surface identifier",
+              "type": "string"
+            },
+            "interpolation_mode": {
+              "$ref": "#/$defs/VolInterpolationMode",
+              "description": "Interpolation contract."
+            },
             "kind": {
               "const": "vol_surface",
               "type": "string"
+            },
+            "quote_type": {
+              "$ref": "#/$defs/VolQuoteType",
+              "description": "Quote convention."
+            },
+            "secondary_axis": {
+              "$ref": "#/$defs/VolSurfaceAxis",
+              "description": "Semantic meaning of the secondary axis."
+            },
+            "strikes": {
+              "description": "Strike prices",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "vols_row_major": {
+              "description": "Volatility values in row-major order",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": "array"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "id",
+            "expiries",
+            "strikes",
+            "secondary_axis",
+            "quote_type",
+            "interpolation_mode",
+            "vols_row_major"
           ],
           "type": "object"
         }
@@ -3293,6 +4486,495 @@
     "QuoteId": {
       "description": "A stable identifier for a market quote (e.g., \"USD-OIS-SWAP-5Y\").\n\nThis ID is used for human readability, logging, and potentially matching against external\ndata sources. Quote IDs should be unique within a calibration set and follow a consistent\nnaming convention (e.g., \"{currency}-{index}-{type}-{pillar}\").\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::market::quotes::ids::QuoteId;\n\nlet id = QuoteId::new(\"USD-SOFR-DEP-1M\");\nassert_eq!(id.as_str(), \"USD-SOFR-DEP-1M\");\n```",
       "type": "string"
+    },
+    "RateBounds": {
+      "additionalProperties": false,
+      "description": "Configurable bounds for forward/zero rates during calibration.\n\nDifferent market regimes require different rate bounds:\n- Developed markets (USD, EUR, GBP): typically [-2%, 50%]\n- Negative rate environments (EUR, JPY, CHF): [-5%, 20%]\n- Emerging markets (TRY, ARS, BRL): [-5%, 200%]\n\n# Examples\n\n```\nuse finstack_quant_valuations::calibration::RateBounds;\nuse finstack_quant_core::currency::Currency;\n\n// Use currency-specific defaults\nlet usd_bounds = RateBounds::for_currency(Currency::USD);\nassert!(usd_bounds.min_rate < 0.0);\n\n// Or customize for specific scenarios\nlet em_bounds = RateBounds::emerging_markets();\nassert!(em_bounds.max_rate > 1.0);\n```",
+      "properties": {
+        "max_rate": {
+          "description": "Maximum allowed rate (decimal, e.g., 0.50 for 50%)",
+          "format": "double",
+          "type": "number"
+        },
+        "min_rate": {
+          "description": "Minimum allowed rate (decimal, e.g., -0.02 for -2%)",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min_rate",
+        "max_rate"
+      ],
+      "type": "object"
+    },
+    "RateBoundsPolicy": {
+      "description": "How `CalibrationConfig` obtains rate bounds.\n\nMarket-standard bounds depend on currency/market regime. `AutoCurrency` makes this choice\nexplicit and avoids relying on `RateBounds::default()` as an implicit assumption.",
+      "oneOf": [
+        {
+          "const": "auto_currency",
+          "description": "Pick currency-specific bounds via `RateBounds::for_currency(currency)`.",
+          "type": "string"
+        },
+        {
+          "const": "explicit",
+          "description": "Use the explicit `CalibrationConfig.rate_bounds` values.",
+          "type": "string"
+        }
+      ]
+    },
+    "RateCalibrationCurveRole": {
+      "description": "Role of a curve and its linked rate-curve identifier during calibration.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Discount curve, linked to the projection curve used to price its instruments.",
+          "properties": {
+            "discount": {
+              "properties": {
+                "projection_curve_id": {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+                  "description": "Projection curve identifier used by the calibration instruments."
+                }
+              },
+              "required": [
+                "projection_curve_id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "discount"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Projection curve, linked to the discount curve used to price its instruments.",
+          "properties": {
+            "projection": {
+              "properties": {
+                "discount_curve_id": {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+                  "description": "Discount curve identifier used by the calibration instruments."
+                }
+              },
+              "required": [
+                "discount_curve_id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "projection"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RateCalibrationFutureContractId": {
+      "description": "Serialized identifier for an interest-rate futures convention.",
+      "type": "string"
+    },
+    "RateCalibrationMethod": {
+      "description": "Numerical method used to calibrate a rate curve.",
+      "oneOf": [
+        {
+          "const": "bootstrap",
+          "description": "Sequential bootstrap.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Simultaneous solve of all curve parameters.",
+          "properties": {
+            "global_solve": {
+              "properties": {
+                "use_analytical_jacobian": {
+                  "description": "Whether the original solve requested its specialized Jacobian.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "use_analytical_jacobian"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "global_solve"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RateCalibrationOisCompounding": {
+      "description": "OIS floating-leg compounding convention used during calibration.",
+      "oneOf": [
+        {
+          "const": "simple",
+          "description": "Simple term-rate accrual.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Daily compounding in arrears, optionally with a lookback or observation shift.",
+          "properties": {
+            "compounded_in_arrears": {
+              "properties": {
+                "lookback_days": {
+                  "description": "Business-day lookback applied to rate observations.",
+                  "format": "int32",
+                  "type": "integer"
+                },
+                "observation_shift": {
+                  "description": "Optional business-day observation shift.",
+                  "format": "int32",
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "lookback_days"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "compounded_in_arrears"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Daily compounding with an ISDA observation shift.",
+          "properties": {
+            "compounded_with_observation_shift": {
+              "properties": {
+                "shift_days": {
+                  "description": "Business days by which observations and accrual weights are shifted.",
+                  "format": "int32",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "shift_days"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "compounded_with_observation_shift"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Daily compounding with the final observed rate held through a cutoff window.",
+          "properties": {
+            "compounded_with_rate_cutoff": {
+              "properties": {
+                "cutoff_days": {
+                  "description": "Number of business days in the rate-cutoff window.",
+                  "format": "int32",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "cutoff_days"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "compounded_with_rate_cutoff"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RateCalibrationPillar": {
+      "description": "Typed maturity specification retained from an original market quote.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Relative tenor resolved from the calibration base date.",
+          "properties": {
+            "tenor": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json"
+            }
+          },
+          "required": [
+            "tenor"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Absolute calendar date.",
+          "properties": {
+            "date": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            }
+          },
+          "required": [
+            "date"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RateCalibrationQuote": {
+      "description": "Lossless rate quote representation used by calibration replay.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Money-market deposit quote.",
+          "properties": {
+            "deposit": {
+              "properties": {
+                "index_id": {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+                  "description": "Referenced rate index."
+                },
+                "pillar": {
+                  "$ref": "#/$defs/RateCalibrationPillar",
+                  "description": "Relative-tenor or absolute-date pillar."
+                },
+                "rate": {
+                  "description": "Quoted deposit rate.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "index_id",
+                "pillar",
+                "rate"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "deposit"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Forward-rate agreement quote.",
+          "properties": {
+            "fra": {
+              "properties": {
+                "end": {
+                  "$ref": "#/$defs/RateCalibrationPillar",
+                  "description": "FRA end pillar."
+                },
+                "index_id": {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+                  "description": "Referenced rate index."
+                },
+                "rate": {
+                  "description": "Quoted FRA rate.",
+                  "format": "double",
+                  "type": "number"
+                },
+                "start": {
+                  "$ref": "#/$defs/RateCalibrationPillar",
+                  "description": "FRA start pillar."
+                }
+              },
+              "required": [
+                "index_id",
+                "start",
+                "end",
+                "rate"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "fra"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Interest-rate futures quote.",
+          "properties": {
+            "futures": {
+              "properties": {
+                "contract": {
+                  "$ref": "#/$defs/RateCalibrationFutureContractId",
+                  "description": "Convention-registry identifier for the futures contract."
+                },
+                "convexity_adjustment": {
+                  "description": "Optional pre-computed convexity adjustment.",
+                  "format": "double",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "expiry": {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Futures expiry date."
+                },
+                "price": {
+                  "description": "Quoted futures price.",
+                  "format": "double",
+                  "type": "number"
+                },
+                "vol_surface_id": {
+                  "anyOf": [
+                    {
+                      "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Optional volatility surface used for the adjustment."
+                }
+              },
+              "required": [
+                "contract",
+                "expiry",
+                "price"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "futures"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Interest-rate swap quote.",
+          "properties": {
+            "swap": {
+              "properties": {
+                "index_id": {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+                  "description": "Referenced floating-rate index."
+                },
+                "pillar": {
+                  "$ref": "#/$defs/RateCalibrationPillar",
+                  "description": "Relative-tenor or absolute-date maturity pillar."
+                },
+                "rate": {
+                  "description": "Quoted fixed rate.",
+                  "format": "double",
+                  "type": "number"
+                },
+                "spread_decimal": {
+                  "description": "Optional floating-leg spread.",
+                  "format": "double",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "index_id",
+                "pillar",
+                "rate"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "swap"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Tenor-basis spread quote versus the linked discount curve.",
+          "properties": {
+            "basis": {
+              "properties": {
+                "index_id": {
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+                  "description": "Referenced projection-rate index."
+                },
+                "pillar": {
+                  "$ref": "#/$defs/RateCalibrationPillar",
+                  "description": "Relative-tenor or absolute-date maturity pillar."
+                },
+                "spread_decimal": {
+                  "description": "Quoted basis spread in decimal form.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "index_id",
+                "pillar",
+                "spread_decimal"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "basis"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RateCalibrationRecipe": {
+      "additionalProperties": false,
+      "description": "Typed conventions required to replay a rate-curve calibration.",
+      "properties": {
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Currency of the calibrated curve."
+        },
+        "curve_day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count used for the curve's time axis."
+        },
+        "method": {
+          "$ref": "#/$defs/RateCalibrationMethod",
+          "description": "Numerical calibration method."
+        },
+        "ois_compounding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RateCalibrationOisCompounding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional OIS floating-leg compounding override."
+        },
+        "quotes": {
+          "description": "Complete typed quote set required for exact replay.",
+          "items": {
+            "$ref": "#/$defs/RateCalibrationQuote"
+          },
+          "type": "array"
+        },
+        "role": {
+          "$ref": "#/$defs/RateCalibrationCurveRole",
+          "description": "Discount/projection role and linked curve identifier."
+        }
+      },
+      "required": [
+        "currency",
+        "method",
+        "curve_day_count",
+        "role",
+        "quotes"
+      ],
+      "type": "object"
     },
     "RatesStepConventions": {
       "additionalProperties": false,
@@ -3325,6 +5007,31 @@
       },
       "type": "object"
     },
+    "ResidualWeightingScheme": {
+      "description": "Policy for weighting residuals in global solve calibration.\n\nDetermines how the objective function weights individual instrument fitting\nerrors (residuals) during optimization.\n\n# Variants\n- `Equal`: Every instrument contributes equally to the objective.\n- `LinearTime`: Weights increase linearly with time to maturity.\n- `SqrtTime`: Weights increase with the square root of time (market-standard).\n- `InverseDuration`: Weights based on inverse DV01 approximation.",
+      "oneOf": [
+        {
+          "const": "equal",
+          "description": "Equal weighting (1.0 for all quotes).",
+          "type": "string"
+        },
+        {
+          "const": "linear_time",
+          "description": "Weight by time to maturity (t).",
+          "type": "string"
+        },
+        {
+          "const": "sqrt_time",
+          "description": "Weight by square root of time (sqrt(t)).",
+          "type": "string"
+        },
+        {
+          "const": "inverse_duration",
+          "description": "Weight by inverse duration (1/DV01 approximation).",
+          "type": "string"
+        }
+      ]
+    },
     "SabrInterpolationMethod": {
       "description": "Interpolation method for SABR parameters across the expiry–tenor grid.",
       "oneOf": [
@@ -3334,6 +5041,48 @@
           "type": "string"
         }
       ]
+    },
+    "SabrParams": {
+      "additionalProperties": false,
+      "description": "SABR model parameters for a single expiry.\n\n# Examples\n\n```rust\nuse finstack_quant_core::math::volatility::sabr::SabrParams;\n\n// Typical USD swaption SABR parameters\nlet params = SabrParams::new(0.035, 0.5, -0.2, 0.4).unwrap();\nlet fwd = 0.05;\nlet strike = 0.05;\nlet expiry = 1.0;\nlet vol = params.implied_vol_lognormal(fwd, strike, expiry).expect(\"valid checked inputs\");\nassert!(vol > 0.0);\n```",
+      "properties": {
+        "alpha": {
+          "description": "Initial volatility level.",
+          "format": "double",
+          "type": "number"
+        },
+        "beta": {
+          "description": "CEV exponent.",
+          "format": "double",
+          "type": "number"
+        },
+        "nu": {
+          "description": "Vol-of-vol.",
+          "format": "double",
+          "type": "number"
+        },
+        "rho": {
+          "description": "Forward-vol correlation.",
+          "format": "double",
+          "type": "number"
+        },
+        "shift": {
+          "default": null,
+          "description": "Optional shift for negative rate support.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "alpha",
+        "beta",
+        "rho",
+        "nu"
+      ],
+      "type": "object"
     },
     "SeasonalFactors": {
       "additionalProperties": false,
@@ -3380,6 +5129,25 @@
         }
       ]
     },
+    "SeriesInterpolation": {
+      "description": "Interpolation strategy for [`ScalarTimeSeries`].\n\n# Examples\n```rust\nuse finstack_quant_core::market_data::scalars::{ScalarTimeSeries, SeriesInterpolation};\nuse finstack_quant_core::dates::Date;\nuse time::Month;\n\nlet series = ScalarTimeSeries::new(\n    \"TS\",\n    vec![\n        (Date::from_calendar_date(2024, Month::January, 1).expect(\"Valid date\"), 100.0),\n        (Date::from_calendar_date(2024, Month::February, 1).expect(\"Valid date\"), 105.0),\n    ],\n    None,\n)\n.expect(\"Series creation should succeed\");\nlet stepped = series.clone().with_interpolation(SeriesInterpolation::Step);\nlet mid_date = Date::from_calendar_date(2024, Month::January, 15).expect(\"Valid date\");\nassert_eq!(stepped.value_on(mid_date).expect(\"Value lookup should succeed\"), 100.0);\n```",
+      "oneOf": [
+        {
+          "const": "step",
+          "description": "Last observation carried forward",
+          "type": "string"
+        },
+        {
+          "const": "linear",
+          "description": "Linear interpolation between observed points",
+          "type": "string"
+        }
+      ]
+    },
+    "SolverConfig": {
+      "$ref": "#/$defs/BrentSolver",
+      "description": "Serializable solver configuration for calibration.\n\nWraps the Brent 1D solver used by the bootstrap path. Serializes transparently\nas the underlying [`BrentSolver`] fields.\n\n# Examples\n\n```ignore\nuse finstack_quant_valuations::calibration::SolverConfig;\n\n# fn main() -> Result<(), Box<dyn std::error::Error>> {\nlet config = SolverConfig::brent_default().with_tolerance(1e-12).with_max_iterations(200);\nlet json = serde_json::to_string(&config)?;\n# let _ = json;\n# Ok(())\n# }\n```"
+    },
     "SurfaceExtrapolationPolicy": {
       "description": "Extrapolation policy for volatility surface construction.",
       "oneOf": [
@@ -3399,17 +5167,17 @@
       "description": "Number of coupon payments per year for the underlying swap in HW1F calibration.\n\nUSD swaps are semi-annual (2), EUR swaps are annual (1).",
       "oneOf": [
         {
-          "const": "Annual",
+          "const": "annual",
           "description": "1 payment per year (EUR, GBP standard).",
           "type": "string"
         },
         {
-          "const": "SemiAnnual",
+          "const": "semi_annual",
           "description": "2 payments per year (USD standard).",
           "type": "string"
         },
         {
-          "const": "Quarterly",
+          "const": "quarterly",
           "description": "4 payments per year.",
           "type": "string"
         }
@@ -3457,15 +5225,197 @@
         }
       ]
     },
+    "ValidationConfig": {
+      "additionalProperties": false,
+      "description": "Validation configuration for curve and surface sanity checks.\n\nThis structure defines the limits for various financial metrics\n(forward rates, hazard rates, inflation growth) and toggles\nfor specific arbitrage and monotonicity checks.",
+      "properties": {
+        "allow_negative_rates": {
+          "default": false,
+          "description": "Allow negative rate environments (DF > 1.0 at short end)",
+          "type": "boolean"
+        },
+        "butterfly_lower_ratio": {
+          "default": 0.9,
+          "description": "Butterfly spread convexity tolerance ratio (lower bound).\nActual variance must be >= interpolated * this ratio to pass.\nDefault 0.90 (10% tolerance); use values closer to 1.0 for stricter checking.",
+          "format": "double",
+          "type": "number"
+        },
+        "butterfly_upper_ratio": {
+          "default": 1.1,
+          "description": "Butterfly spread convexity tolerance ratio (upper bound).\nActual variance must be <= interpolated * this ratio to pass.\nDefault 1.10 (10% tolerance); use values closer to 1.0 for stricter checking.",
+          "format": "double",
+          "type": "number"
+        },
+        "check_arbitrage": {
+          "description": "Enable arbitrage checks",
+          "type": "boolean"
+        },
+        "check_forward_positivity": {
+          "description": "Enable forward rate positivity check",
+          "type": "boolean"
+        },
+        "check_monotonicity": {
+          "description": "Enable monotonicity checks",
+          "type": "boolean"
+        },
+        "lenient_arbitrage": {
+          "default": false,
+          "description": "When true, arbitrage violations (calendar/butterfly) produce warnings instead of errors.\nDefault is false - arbitrage violations fail validation.\nSet to true only for exploratory analysis or when arbitrage-free fitting is not required.",
+          "type": "boolean"
+        },
+        "max_cpi_growth": {
+          "description": "Maximum allowed annual CPI growth (default 0.50 = 50%)",
+          "format": "double",
+          "type": "number"
+        },
+        "max_forward_rate": {
+          "description": "Maximum allowed forward rate",
+          "format": "double",
+          "type": "number"
+        },
+        "max_fwd_inflation": {
+          "description": "Maximum allowed forward inflation (default 0.50 = 50%)",
+          "format": "double",
+          "type": "number"
+        },
+        "max_hazard_rate": {
+          "description": "Maximum allowed hazard rate (default 0.5 = 50%)",
+          "format": "double",
+          "type": "number"
+        },
+        "max_volatility": {
+          "description": "Maximum allowed volatility (default 5.0 = 500%)",
+          "format": "double",
+          "type": "number"
+        },
+        "min_cpi_growth": {
+          "description": "Minimum allowed annual CPI growth (default -0.10 = -10%)",
+          "format": "double",
+          "type": "number"
+        },
+        "min_forward_rate": {
+          "description": "Minimum allowed forward rate (can be slightly negative)",
+          "format": "double",
+          "type": "number"
+        },
+        "min_fwd_inflation": {
+          "description": "Minimum allowed forward inflation (default -0.20 = -20%)",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_lgd_for_hazard_guess": {
+          "default": 1e-6,
+          "description": "Minimum LGD denominator used for hazard-rate initial guesses.",
+          "format": "double",
+          "type": "number"
+        },
+        "recovery_rate_abs_tolerance": {
+          "default": 1e-12,
+          "description": "Absolute tolerance for comparing configured and quoted recovery rates.",
+          "format": "double",
+          "type": "number"
+        },
+        "tolerance": {
+          "description": "Numerical tolerance for comparisons",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "check_forward_positivity",
+        "min_forward_rate",
+        "max_forward_rate",
+        "check_monotonicity",
+        "check_arbitrage",
+        "tolerance",
+        "max_hazard_rate",
+        "min_cpi_growth",
+        "max_cpi_growth",
+        "min_fwd_inflation",
+        "max_fwd_inflation",
+        "max_volatility"
+      ],
+      "type": "object"
+    },
+    "ValidationMode": {
+      "description": "Runtime validation behavior for arbitrage/consistency checks.",
+      "oneOf": [
+        {
+          "const": "warn",
+          "description": "Emit warnings (non-fatal) when validations fail.\nUseful for exploratory analysis or legacy data.",
+          "type": "string"
+        },
+        {
+          "const": "error",
+          "description": "Treat validation failures as hard errors.\nRecommended for production and strict pricing.",
+          "type": "string"
+        }
+      ]
+    },
+    "VolInterpolationMode": {
+      "description": "Interpolation contract for vol surfaces.",
+      "oneOf": [
+        {
+          "const": "vol",
+          "description": "Interpolate implied volatility directly (the default).\n\nThis is the most literal choice when market quotes are already given as\nimplied volatilities on the stored grid and you want local interpolation\nin quote space.\n\n# ⚠️ Not calendar-arbitrage-safe across expiry\n\nLinear-in-vol interpolation along the **expiry** axis does not preserve\nmonotonicity of total variance `σ²·t`, so an off-grid vol read between\ntwo expiry pillars can imply *decreasing* total variance with time —\ni.e. calendar arbitrage — even when the pillar grid is itself\narbitrage-free. For arbitrage-sensitive workflows (Dupire local vol,\nno-arb checks, term-structure interpolation) select\n[`TotalVariance`](Self::TotalVariance) via\n[`VolSurface::with_interpolation_mode`]. Use this default when\nquote-space fidelity at the pillars is the governing convention.",
+          "type": "string"
+        },
+        {
+          "const": "total_variance",
+          "description": "Interpolate total variance `sigma^2 * t`, then convert back to implied vol.\n\nPreferred when blending across expiries: total variance behaves more\nlinearly in time and preserves the no-arbitrage intuition for variance\naccumulation, avoiding the calendar-arbitrage trap of linear-in-vol\ninterpolation (see [`Vol`](Self::Vol)).",
+          "type": "string"
+        }
+      ]
+    },
+    "VolQuoteType": {
+      "description": "Quoting convention of the volatilities stored on a [`VolSurface`].\n\nThe same `vol_surface_id` channel is read by consumers with very different\nexpectations: rates calibrations typically read normal (Bachelier, absolute)\nvols on an `expiry × tenor` ATM matrix, while equity/FX/swaption smile\nconsumers read Black (lognormal, relative) vols on `expiry × strike`. The\nstored numbers are an order of magnitude apart (e.g. 0.008 normal vs 0.20\nBlack), so misreading one as the other silently mis-prices. Tagging the\nquote type lets consumers enforce their convention via\n[`VolSurface::require_quote_type`].",
+      "oneOf": [
+        {
+          "const": "black_lognormal",
+          "description": "Black (lognormal) implied volatility, relative units (the default).",
+          "type": "string"
+        },
+        {
+          "const": "normal",
+          "description": "Normal (Bachelier) implied volatility, absolute rate units.",
+          "type": "string"
+        }
+      ]
+    },
+    "VolSurfaceAxis": {
+      "description": "Semantic meaning of the secondary axis on a [`VolSurface`].\n\nMost option surfaces are defined on `expiry × strike`, but some calibration\nworkflows materialize ATM matrices on `expiry × tenor`. Keeping the axis type\nexplicit prevents consumers from accidentally interpreting tenor buckets as\nstrikes.",
+      "oneOf": [
+        {
+          "const": "strike",
+          "description": "The secondary axis is strike/moneyness.",
+          "type": "string"
+        },
+        {
+          "const": "tenor",
+          "description": "The secondary axis is swap tenor or another maturity-style bucket.",
+          "type": "string"
+        }
+      ]
+    },
+    "VolSurfaceModel": {
+      "description": "Parameters for volatility surface calibration step.",
+      "oneOf": [
+        {
+          "const": "sabr",
+          "description": "Stochastic alpha-beta-rho model.",
+          "type": "string"
+        }
+      ]
+    },
     "XccyConventionId": {
       "description": "Identifier for cross-currency swap market conventions (e.g., \"EUR/USD-XCCY\").",
       "type": "string"
     }
   },
-  "$id": "https://finstack_quant.dev/schemas/calibration/3/calibration.schema.json",
+  "$id": "https://finstack_quant.dev/schemas/calibration/1/calibration.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Calibration specification",
+  "description": "Canonical typed calibration request and result envelope.",
   "properties": {
     "$schema": {
       "description": "Optional `$schema` URL/path for editor-side JSON Schema discovery.\nIgnored at runtime; serialized when present.",
@@ -3493,12 +5443,8 @@
       "type": "array"
     },
     "schema": {
-      "description": "Schema marker; current writers emit [`CALIBRATION_SCHEMA`].",
-      "enum": [
-        "finstack_quant.calibration/3",
-        "finstack_quant.calibration"
-      ],
-      "type": "string"
+      "$ref": "#/$defs/CalibrationSchema",
+      "description": "Schema marker; current writers emit [`CALIBRATION_SCHEMA`]."
     }
   },
   "required": [

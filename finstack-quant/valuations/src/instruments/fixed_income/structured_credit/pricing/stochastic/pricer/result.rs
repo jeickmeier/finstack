@@ -2,6 +2,9 @@
 
 use finstack_quant_core::money::Money;
 
+use super::config::PricingMode;
+use crate::instruments::fixed_income::structured_credit::types::TrancheSeniority;
+
 /// Stochastic pricing result for a structured credit deal.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct StochasticPricingResult {
@@ -47,8 +50,8 @@ pub struct StochasticPricingResult {
     /// Number of scenario paths
     pub num_paths: usize,
 
-    /// Pricing mode used
-    pub pricing_mode: String,
+    /// Pricing mode used.
+    pub pricing_mode: PricingMode,
 
     /// Tranche-level results
     pub tranche_results: Vec<TranchePricingResult>,
@@ -56,7 +59,19 @@ pub struct StochasticPricingResult {
 
 impl StochasticPricingResult {
     /// Create a new pricing result.
-    pub fn new(npv: Money, expected_loss: Money, num_paths: usize) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `npv` - Deal net present value and result currency.
+    /// * `expected_loss` - Probability-weighted expected loss in the result currency.
+    /// * `num_paths` - Number of simulated or enumerated scenario paths.
+    /// * `pricing_mode` - Exact typed mode and mode parameters used for pricing.
+    pub fn new(
+        npv: Money,
+        expected_loss: Money,
+        num_paths: usize,
+        pricing_mode: PricingMode,
+    ) -> Self {
         let currency = npv.currency();
         Self {
             npv,
@@ -69,7 +84,7 @@ impl StochasticPricingResult {
             pv_std_error: 0.0,
             pv_confidence_interval: (0.0, 0.0),
             num_paths,
-            pricing_mode: "Tree".to_string(),
+            pricing_mode,
             tranche_results: Vec::new(),
         }
     }
@@ -110,8 +125,8 @@ pub struct TranchePricingResult {
     /// Tranche identifier
     pub tranche_id: String,
 
-    /// Tranche seniority level
-    pub seniority: String,
+    /// Tranche seniority level.
+    pub seniority: TrancheSeniority,
 
     /// Net present value
     pub npv: Money,
@@ -143,7 +158,13 @@ pub struct TranchePricingResult {
 
 impl TranchePricingResult {
     /// Create a new tranche pricing result.
-    pub fn new(tranche_id: String, seniority: String, npv: Money) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `tranche_id` - Stable identifier of the priced tranche.
+    /// * `seniority` - Canonical typed seniority serialized in snake_case.
+    /// * `npv` - Tranche net present value and result currency.
+    pub fn new(tranche_id: String, seniority: TrancheSeniority, npv: Money) -> Self {
         let currency = npv.currency();
         Self {
             tranche_id,
@@ -219,7 +240,7 @@ mod tests {
         let npv = Money::new(1_000_000.0, currency);
         let el = Money::new(50_000.0, currency);
 
-        let result = StochasticPricingResult::new(npv, el, 1000);
+        let result = StochasticPricingResult::new(npv, el, 1000, PricingMode::Tree);
 
         assert_eq!(result.num_paths, 1000);
         assert!(result.expected_loss.amount() > 0.0);
@@ -230,10 +251,14 @@ mod tests {
         let currency = Currency::USD;
         let npv = Money::new(100_000.0, currency);
 
-        let tranche = TranchePricingResult::new("A".to_string(), "Senior".to_string(), npv)
+        let tranche = TranchePricingResult::new("A".to_string(), TrancheSeniority::Senior, npv)
             .with_subordination(0.20, 1.00);
 
         assert!((tranche.thickness() - 0.80).abs() < 1e-10);
+        assert_eq!(
+            serde_json::to_value(&tranche).expect("serialize")["seniority"],
+            "senior"
+        );
     }
 
     #[test]
@@ -244,7 +269,7 @@ mod tests {
         let ul = Money::new(75_000.0, currency);
         let es = Money::new(100_000.0, currency);
 
-        let result = StochasticPricingResult::new(npv, el, 1000)
+        let result = StochasticPricingResult::new(npv, el, 1000, PricingMode::Tree)
             .with_unexpected_loss(ul)
             .with_expected_shortfall(es, 0.99);
 

@@ -141,7 +141,7 @@ const SENSITIVITY_CONFIG_JSON = JSON.stringify({
 
 const PORTFOLIO_SPEC_JSON = JSON.stringify({
   id: 'bench-portfolio',
-  base_ccy: 'USD',
+  base_currency: 'USD',
   as_of: '2024-01-01',
   entities: {},
   positions: [],
@@ -151,7 +151,7 @@ const PORTFOLIO_RESULT_JSON = JSON.stringify({
   valuation: {
     as_of: '2024-01-01',
     position_values: {},
-    total_base_ccy: { amount: 1000000.0, currency: 'USD' },
+    total_base_currency: { amount: 1000000.0, currency: 'USD' },
     by_entity: {},
   },
   metrics: {
@@ -162,8 +162,8 @@ const PORTFOLIO_RESULT_JSON = JSON.stringify({
     numeric_mode: 'F64',
     rounding: {
       mode: 'Bankers',
-      ingest_scale_by_ccy: {},
-      output_scale_by_ccy: {},
+      ingest_scale_by_currency: {},
+      output_scale_by_currency: {},
       tolerances: {
         rate_epsilon: 1e-12,
         generic_epsilon: 1e-10,
@@ -183,11 +183,11 @@ const INSTRUMENT_JSON = JSON.stringify({
     notional: { amount: 100000.0, currency: 'USD' },
     start_date: '2024-01-01',
     maturity: '2024-07-01',
-    day_count: 'Act360',
+    day_count: 'act_360',
     quote_rate: 0.045,
     discount_curve_id: 'USD-OIS',
     attributes: {},
-    bdc: 'modified_following',
+    business_day_convention: 'modified_following',
   },
 });
 
@@ -204,7 +204,7 @@ const MARKET_CONTEXT_JSON = JSON.stringify({
       type: 'discount',
       id: 'USD-OIS',
       base: '2024-01-01',
-      day_count: 'Act360',
+      day_count: 'act_360',
       knot_points: [
         [0.0, 1.0],
         [1.0, 0.98],
@@ -563,7 +563,7 @@ async function main() {
   const usd = new w.Currency('USD');
   const moneyA = new w.Money(100.0, usd);
   const moneyB = new w.Money(25.5, usd);
-  const dc = w.DayCount.act360();
+  const day_count = w.DayCount.act360();
   const t0d = w.createDate(2024, 1, 2);
   const t1d = w.createDate(2025, 1, 2);
   const curve = new w.DiscountCurve('USD-OIS', '2024-01-02', [0.0, 1.0, 1.0, 0.98, 5.0, 0.88]);
@@ -591,7 +591,7 @@ async function main() {
   });
 
   bench('core', 'DayCount.yearFraction', 10000, () => {
-    dc.yearFraction(t0d, t1d);
+    day_count.yearFraction(t0d, t1d);
   });
 
   bench('core', 'DiscountCurve.df', 15000, () => {
@@ -722,7 +722,7 @@ async function main() {
 
   bench('core', 'Rate / Bps / Percentage conversions', 12000, () => {
     const r = new w.Rate(0.05);
-    const _sum = r.asDecimal + r.asPercent + r.asBps;
+    const _sum = r.asDecimal + r.asPercent + r.asBp;
     void _sum;
     new w.Bps(50).asDecimal();
     new w.Percentage(5).asDecimal();

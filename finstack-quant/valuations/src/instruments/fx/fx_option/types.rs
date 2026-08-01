@@ -67,7 +67,9 @@ fn default_fx_underlying(base_currency: Currency, quote_currency: Currency) -> F
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = FxOption::validate)]
 #[serde(deny_unknown_fields)]
@@ -92,7 +94,7 @@ pub struct FxOption {
     #[builder(default)]
     pub exercise_style: ExerciseStyle,
     /// Option expiry date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Day count convention
     #[serde(default = "crate::serde_defaults::day_count_act365f")]
@@ -111,17 +113,26 @@ pub struct FxOption {
     /// FX volatility surface ID
     pub vol_surface_id: CurveId,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping
     pub attributes: Attributes,
@@ -279,7 +290,7 @@ impl FxOption {
         base_calendar_id: Option<String>,
         quote_calendar_id: Option<String>,
         spot_lag_days: u32,
-        bdc: finstack_quant_core::dates::BusinessDayConvention,
+        business_day_convention: finstack_quant_core::dates::BusinessDayConvention,
         option_type: OptionType,
     ) -> finstack_quant_core::Result<Self> {
         use crate::instruments::common_impl::fx_dates::{
@@ -298,7 +309,7 @@ impl FxOption {
         )?;
         let expiry = adjust_joint_calendar(
             spot_settle + time::Duration::days(expiry_tenor_days),
-            bdc,
+            business_day_convention,
             base_calendar_id.as_deref(),
             quote_calendar_id.as_deref(),
         )?;

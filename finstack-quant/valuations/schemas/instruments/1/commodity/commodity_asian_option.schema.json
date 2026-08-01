@@ -15,6 +15,140 @@
         }
       ]
     },
+    "CommodityAsianOption": {
+      "description": "Commodity Asian option: option on the arithmetic or geometric average of\ncommodity prices.\n\nThis is the dominant option type in commodity markets. The average is\ntypically computed over commodity forward/futures prices for specific\ndelivery periods.\n\n# Pricing Models\n\n| Averaging | Model | Accuracy |\n|-----------|-------|----------|\n| Geometric | Kemna-Vorst (1990) with forwards | Exact closed-form |\n| Arithmetic | Turnbull-Wakeman (1991) with forwards | ~1% vs Monte Carlo |\n\n# Forward-Based Averaging\n\nFor each future fixing date `t_i`, the forward price `F(t_i)` is read from\nthe price curve. The average forward is:\n```text\nF_avg = (Σ_realized + Σ F(t_i)) / n\n```\nwhere the sum includes both realized fixings and projected forwards.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for scenario selection and grouping.\nAttributes for scenario selection and tagging"
+        },
+        "averaging_method": {
+          "$ref": "#/$defs/AveragingMethod",
+          "description": "Averaging method (arithmetic or geometric)."
+        },
+        "commodity_type": {
+          "description": "Commodity type (e.g., \"Energy\", \"Metal\", \"Agricultural\")",
+          "type": "string"
+        },
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency for pricing"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "default": "act_365f",
+          "description": "Day count convention."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID for present value calculations."
+        },
+        "expiry": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Option expiry/settlement date for the payoff."
+        },
+        "fixing_dates": {
+          "description": "Dates on which the commodity price is observed for averaging.\n\n**Note**: These dates should be pre-adjusted for business day conventions.",
+          "items": {
+            "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+          },
+          "type": "array"
+        },
+        "forward_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Forward/futures price curve ID."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "option_type": {
+          "$ref": "#/$defs/OptionType",
+          "description": "Option type (call or put)."
+        },
+        "quantity": {
+          "description": "Contract quantity in commodity units.",
+          "format": "double",
+          "type": "number"
+        },
+        "realized_fixings": {
+          "default": [],
+          "description": "Already observed fixings for seasoned options (ex-date, price pairs).",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+              },
+              {
+                "format": "double",
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only valuation adjustments."
+        },
+        "strike": {
+          "description": "Strike price per unit.",
+          "format": "double",
+          "type": "number"
+        },
+        "ticker": {
+          "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
+          "type": "string"
+        },
+        "unit": {
+          "description": "Unit of measurement (e.g., \"BBL\", \"OZ\", \"MT\", \"MMBTU\")",
+          "type": "string"
+        },
+        "vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Volatility surface ID for implied vol."
+        }
+      },
+      "required": [
+        "id",
+        "commodity_type",
+        "ticker",
+        "unit",
+        "currency",
+        "strike",
+        "option_type",
+        "averaging_method",
+        "fixing_dates",
+        "quantity",
+        "expiry",
+        "forward_curve_id",
+        "discount_curve_id",
+        "vol_surface_id"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "OptionType": {
       "description": "Option type for pricing",
       "oneOf": [
@@ -29,12 +163,33 @@
           "type": "string"
         }
       ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/CommodityAsianOption"
+            },
+            "type": {
+              "const": "commodity_asian_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_asian_option.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Asian option on a commodity underlying with arithmetic or geometric averaging",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -43,7 +198,7 @@
           "averaging_method": "arithmetic",
           "commodity_type": "Energy",
           "currency": "USD",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "discount_curve_id": "USD-OIS",
           "expiry": "2025-07-02",
           "fixing_dates": [
@@ -57,27 +212,6 @@
           "forward_curve_id": "CL-FORWARD",
           "id": "WTI-ASIAN-6M",
           "option_type": "call",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quantity": 1000.0,
           "realized_fixings": [],
           "strike": 75.0,
@@ -92,167 +226,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Commodity Asian Option instrument definition",
-      "properties": {
-        "spec": {
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "default": {},
-              "description": "Attributes for scenario selection and grouping.\nAttributes for scenario selection and tagging"
-            },
-            "averaging_method": {
-              "$ref": "#/$defs/AveragingMethod",
-              "description": "Averaging method (arithmetic or geometric)."
-            },
-            "commodity_type": {
-              "description": "Commodity type (e.g., \"Energy\", \"Metal\", \"Agricultural\")",
-              "type": "string"
-            },
-            "currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency for pricing"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "default": "Act365F",
-              "description": "Day count convention."
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID for present value calculations."
-            },
-            "expiry": {
-              "description": "Option expiry/settlement date for the payoff.",
-              "format": "date",
-              "type": "string"
-            },
-            "fixing_dates": {
-              "description": "Dates on which the commodity price is observed for averaging.\n\n**Note**: These dates should be pre-adjusted for business day conventions.",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "forward_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Forward/futures price curve ID."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "option_type": {
-              "$ref": "#/$defs/OptionType",
-              "description": "Option type (call or put)."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Instrument-owned pricing inputs."
-            },
-            "quantity": {
-              "description": "Contract quantity in commodity units.",
-              "format": "double",
-              "type": "number"
-            },
-            "realized_fixings": {
-              "default": [],
-              "description": "Already observed fixings for seasoned options (ex-date, price pairs).",
-              "items": {
-                "maxItems": 2,
-                "minItems": 2,
-                "prefixItems": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "format": "double",
-                    "type": "number"
-                  }
-                ],
-                "type": "array"
-              },
-              "type": "array"
-            },
-            "strike": {
-              "description": "Strike price per unit.",
-              "format": "double",
-              "type": "number"
-            },
-            "ticker": {
-              "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
-              "type": "string"
-            },
-            "unit": {
-              "description": "Unit of measurement (e.g., \"BBL\", \"OZ\", \"MT\", \"MMBTU\")",
-              "type": "string"
-            },
-            "vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Volatility surface ID for implied vol."
-            }
-          },
-          "required": [
-            "id",
-            "commodity_type",
-            "ticker",
-            "unit",
-            "currency",
-            "strike",
-            "option_type",
-            "averaging_method",
-            "fixing_dates",
-            "quantity",
-            "expiry",
-            "forward_curve_id",
-            "discount_curve_id",
-            "vol_surface_id"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "commodity_asian_option",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Commodity Asian Option",
+  "title": "commodity_asian_option",
   "type": "object"
 }

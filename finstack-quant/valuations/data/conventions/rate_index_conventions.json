@@ -12,7 +12,7 @@
         "currency": "USD",
         "kind": "term",
         "tenor": "1M",
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "1M",
         "default_payment_lag_days": 0,
         "default_reset_lag_days": 2,
@@ -20,7 +20,7 @@
         "market_calendar_id": "usny",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Thirty360",
+        "default_fixed_leg_day_count": "30_360",
         "default_fixed_leg_frequency": "6M"
       }
     },
@@ -33,7 +33,7 @@
         "currency": "USD",
         "kind": "term",
         "tenor": "3M",
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "3M",
         "default_payment_lag_days": 0,
         "default_reset_lag_days": 2,
@@ -41,7 +41,7 @@
         "market_calendar_id": "usny",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Thirty360",
+        "default_fixed_leg_day_count": "30_360",
         "default_fixed_leg_frequency": "6M"
       }
     },
@@ -55,7 +55,7 @@
         "currency": "USD",
         "kind": "term",
         "tenor": "6M",
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "6M",
         "default_payment_lag_days": 0,
         "default_reset_lag_days": 2,
@@ -63,7 +63,7 @@
         "market_calendar_id": "usny",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Thirty360",
+        "default_fixed_leg_day_count": "30_360",
         "default_fixed_leg_frequency": "6M"
       }
     },
@@ -76,7 +76,7 @@
         "currency": "USD",
         "kind": "term",
         "tenor": "3M",
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "3M",
         "default_payment_lag_days": 0,
         "default_reset_lag_days": 2,
@@ -84,7 +84,7 @@
         "market_calendar_id": "usny",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Thirty360",
+        "default_fixed_leg_day_count": "30_360",
         "default_fixed_leg_frequency": "6M"
       }
     },
@@ -97,7 +97,7 @@
         "currency": "USD",
         "kind": "overnight_rfr",
         "tenor": null,
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "1Y",
         "default_payment_lag_days": 2,
         "default_reset_lag_days": 0,
@@ -105,7 +105,7 @@
         "market_calendar_id": "usny",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Act360",
+        "default_fixed_leg_day_count": "act_360",
         "default_fixed_leg_frequency": "1Y"
       }
     },
@@ -118,7 +118,7 @@
         "currency": "USD",
         "kind": "overnight_rfr",
         "tenor": null,
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "1Y",
         "default_payment_lag_days": 2,
         "default_reset_lag_days": 0,
@@ -126,7 +126,7 @@
         "market_calendar_id": "usny",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Act360",
+        "default_fixed_leg_day_count": "act_360",
         "default_fixed_leg_frequency": "1Y"
       }
     },
@@ -138,7 +138,7 @@
         "currency": "USD",
         "kind": "overnight_rfr",
         "tenor": null,
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "1Y",
         "default_payment_lag_days": 2,
         "default_reset_lag_days": 0,
@@ -146,7 +146,7 @@
         "market_calendar_id": "usny",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Act360",
+        "default_fixed_leg_day_count": "act_360",
         "default_fixed_leg_frequency": "1Y"
       }
     },
@@ -162,7 +162,7 @@
         "currency": "USD",
         "kind": "overnight_rfr",
         "tenor": null,
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "1Y",
         "default_payment_lag_days": 2,
         "default_reset_lag_days": 0,
@@ -170,7 +170,7 @@
         "market_calendar_id": "usny",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Act360",
+        "default_fixed_leg_day_count": "act_360",
         "default_fixed_leg_frequency": "1Y"
       }
     },
@@ -184,7 +184,7 @@
         "currency": "GBP",
         "kind": "overnight_rfr",
         "tenor": null,
-        "day_count": "Act365F",
+        "day_count": "act_365f",
         "default_payment_frequency": "1Y",
         "default_payment_lag_days": 0,
         "default_reset_lag_days": 0,
@@ -192,7 +192,7 @@
         "market_calendar_id": "gblo",
         "market_settlement_days": 0,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Act365F",
+        "default_fixed_leg_day_count": "act_365f",
         "default_fixed_leg_frequency": "1Y"
       }
     },
@@ -209,7 +209,7 @@
         "currency": "EUR",
         "kind": "overnight_rfr",
         "tenor": null,
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "1Y",
         "default_payment_lag_days": 2,
         "default_reset_lag_days": 0,
@@ -217,7 +217,7 @@
         "market_calendar_id": "target2",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Act360",
+        "default_fixed_leg_day_count": "act_360",
         "default_fixed_leg_frequency": "1Y"
       }
     },
@@ -234,7 +234,7 @@
         "currency": "JPY",
         "kind": "overnight_rfr",
         "tenor": null,
-        "day_count": "Act365F",
+        "day_count": "act_365f",
         "default_payment_frequency": "1Y",
         "default_payment_lag_days": 2,
         "default_reset_lag_days": 0,
@@ -242,7 +242,7 @@
         "market_calendar_id": "jpto",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Act365F",
+        "default_fixed_leg_day_count": "act_365f",
         "default_fixed_leg_frequency": "1Y"
       }
     },
@@ -256,7 +256,7 @@
         "currency": "CHF",
         "kind": "overnight_rfr",
         "tenor": null,
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "1Y",
         "default_payment_lag_days": 2,
         "default_reset_lag_days": 0,
@@ -264,7 +264,7 @@
         "market_calendar_id": "chzh",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Act360",
+        "default_fixed_leg_day_count": "act_360",
         "default_fixed_leg_frequency": "1Y"
       }
     },
@@ -276,7 +276,7 @@
         "currency": "EUR",
         "kind": "term",
         "tenor": "3M",
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "3M",
         "default_payment_lag_days": 0,
         "default_reset_lag_days": 2,
@@ -284,7 +284,7 @@
         "market_calendar_id": "target2",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Thirty360",
+        "default_fixed_leg_day_count": "30_360",
         "default_fixed_leg_frequency": "1Y"
       }
     },
@@ -296,7 +296,7 @@
         "currency": "EUR",
         "kind": "term",
         "tenor": "6M",
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "6M",
         "default_payment_lag_days": 0,
         "default_reset_lag_days": 2,
@@ -304,7 +304,7 @@
         "market_calendar_id": "target2",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Thirty360",
+        "default_fixed_leg_day_count": "30_360",
         "default_fixed_leg_frequency": "1Y"
       }
     },
@@ -317,7 +317,7 @@
         "currency": "USD",
         "kind": "term",
         "tenor": "1D",
-        "day_count": "Act360",
+        "day_count": "act_360",
         "default_payment_frequency": "1D",
         "default_payment_lag_days": 0,
         "default_reset_lag_days": 0,
@@ -325,7 +325,7 @@
         "market_calendar_id": "usny",
         "market_settlement_days": 2,
         "market_business_day_convention": "modified_following",
-        "default_fixed_leg_day_count": "Act360",
+        "default_fixed_leg_day_count": "act_360",
         "default_fixed_leg_frequency": "1Y"
       }
     }

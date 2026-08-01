@@ -323,12 +323,12 @@ impl PyLeaseGrowthConvention {
     /// Parse from a string identifier (``"per_period"`` or ``"annual_escalator"``).
     #[staticmethod]
     fn from_str(value: &str) -> PyResult<Self> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "per_period" | "perperiod" => Ok(PyLeaseGrowthConvention::PerPeriod),
-            "annual_escalator" | "annualescalator" => Ok(PyLeaseGrowthConvention::AnnualEscalator),
-            other => Err(crate::errors::value_error(format!(
+        match value {
+            "per_period" => Ok(PyLeaseGrowthConvention::PerPeriod),
+            "annual_escalator" => Ok(PyLeaseGrowthConvention::AnnualEscalator),
+            _ => Err(crate::errors::value_error(format!(
                 "unknown lease growth convention '{}' (expected per_period / annual_escalator)",
-                other
+                value
             ))),
         }
     }
@@ -584,12 +584,12 @@ pub enum PyManagementFeeBase {
 impl PyManagementFeeBase {
     #[staticmethod]
     fn from_str(value: &str) -> PyResult<Self> {
-        match value.trim().to_ascii_lowercase().as_str() {
+        match value {
             "egi" => Ok(PyManagementFeeBase::Egi),
-            "effective_rent" | "effectiverent" => Ok(PyManagementFeeBase::EffectiveRent),
-            other => Err(crate::errors::value_error(format!(
+            "effective_rent" => Ok(PyManagementFeeBase::EffectiveRent),
+            _ => Err(crate::errors::value_error(format!(
                 "unknown management fee base '{}' (expected egi / effective_rent)",
-                other
+                value
             ))),
         }
     }

@@ -297,7 +297,7 @@ fn factor_stress_portfolio(n_positions: usize, as_of: Date) -> Portfolio {
         .into_iter()
         .fold(
             Portfolio::builder("FACTOR_STRESS")
-                .base_ccy(Currency::USD)
+                .base_currency(Currency::USD)
                 .as_of(as_of),
             |builder, instrument| {
                 let position_id = instrument.id.clone();

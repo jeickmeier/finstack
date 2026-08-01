@@ -17,7 +17,9 @@ use finstack_quant_core::types::{CurveId, InstrumentId, PriceId};
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = QuantoOption::validate)]
 #[serde(deny_unknown_fields, try_from = "QuantoOptionUnchecked")]
@@ -31,7 +33,7 @@ pub struct QuantoOption {
     /// Option type (call or put)
     pub option_type: OptionType,
     /// Option expiry date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Strike-equivalent domestic reference notional.
     ///
@@ -88,17 +90,26 @@ pub struct QuantoOption {
     /// contradicts this direction.
     pub fx_vol_id: Option<CurveId>,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping
     pub attributes: Attributes,
@@ -116,7 +127,7 @@ struct QuantoOptionUnchecked {
     /// Option type (call or put).
     option_type: OptionType,
     /// Option expiry date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     expiry: Date,
     /// Strike-equivalent domestic reference notional.
     notional: Money,
@@ -652,7 +663,7 @@ impl crate::instruments::common_impl::traits::Instrument for QuantoOption {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.domestic_discount_curve_id.clone());
         deps.add_discount_curve(self.foreign_discount_curve_id.clone());
-        deps.add_spot_id(self.spot_id.as_str());
+        deps.add_market_scalar_id(self.spot_id.as_str());
         deps.add_volatility_dependency(
             crate::instruments::common_impl::dependencies::VolatilityDependency::new(
                 self.vol_surface_id.clone(),
@@ -661,10 +672,10 @@ impl crate::instruments::common_impl::traits::Instrument for QuantoOption {
             ),
         );
         if let Some(dividend_yield) = &self.div_yield_id {
-            deps.add_spot_id(dividend_yield.as_str());
+            deps.add_market_scalar_id(dividend_yield.as_str());
         }
         let fx_underlying_id = self.fx_rate_id.as_deref().map(|id| {
-            deps.add_spot_id(id);
+            deps.add_market_scalar_id(id);
             finstack_quant_core::types::PriceId::new(id)
         });
         if let Some(fx_volatility) = &self.fx_vol_id {
@@ -779,7 +790,7 @@ mod tests {
         let mut expected_spots = vec![option.spot_id.as_str().to_string()];
         expected_spots.extend(option.div_yield_id.iter().map(|id| id.as_str().to_string()));
         expected_spots.push(option.fx_rate_id.clone().expect("FX rate id"));
-        assert_eq!(deps.spot_ids, expected_spots);
+        assert_eq!(deps.market_scalar_ids, expected_spots);
         assert!(deps.series_ids.is_empty());
         assert_eq!(deps.volatility_dependencies.len(), 2);
         assert_eq!(
@@ -805,7 +816,7 @@ mod tests {
     fn test_quanto_option_serde_rejects_inconsistent_notional() {
         let option = QuantoOption::example();
         let mut json = serde_json::to_value(&option).expect("serialize");
-        json["notional"]["amount"] = serde_json::json!(2_000_000.0);
+        json["notional"]["amount"] = serde_json::json!("2000000");
 
         let err = serde_json::from_value::<QuantoOption>(json)
             .expect_err("inconsistent notional should fail during deserialization");

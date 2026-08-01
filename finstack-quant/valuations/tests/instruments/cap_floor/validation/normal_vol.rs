@@ -88,7 +88,7 @@ fn make_caplet(
         frequency: Tenor::quarterly(),
         day_count: DayCount::Act360,
         stub: StubKind::None,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: None,
         exercise_style: ExerciseStyle::European,
         settlement: finstack_quant_valuations::instruments::SettlementType::Cash,

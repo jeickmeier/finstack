@@ -113,7 +113,7 @@ fn test_asw_par_with_config_uses_fixed_leg_conventions() {
     let config = AssetSwapConfig {
         fixed_leg_day_count: Some(DayCount::ThirtyE360),
         fixed_leg_frequency: Some(Tenor::annual()),
-        fixed_leg_bdc: None,
+        fixed_leg_business_day_convention: None,
         fixed_leg_calendar_id: None,
         fixed_leg_stub: None,
     };
@@ -169,12 +169,12 @@ fn test_asw_par_tracks_coupon_minus_par_rate() {
         finstack_quant_cashflows::builder::periods::BuildPeriodsParams {
             start: bond.issue_date,
             end: bond.maturity,
-            frequency: spec.schedule.freq,
+            frequency: spec.schedule.frequency,
             stub: spec.schedule.stub,
-            bdc: spec.schedule.bdc,
+            business_day_convention: spec.schedule.business_day_convention,
             calendar_id: &spec.schedule.calendar_id,
             end_of_month: spec.schedule.end_of_month,
-            day_count: spec.schedule.dc,
+            day_count: spec.schedule.day_count,
             payment_lag_days: spec.schedule.payment_lag_days,
             reset_lag_days: None,
             adjust_accrual_dates: false,
@@ -324,19 +324,19 @@ fn test_asw_market_fallback_amortizes_upfront_over_float_annuity() {
     };
     let mut builder = ScheduleBuilder::new(as_of, bond.maturity)
         .expect("schedule builder")
-        .frequency(spec.schedule.freq)
+        .frequency(spec.schedule.frequency)
         .stub_rule(spec.schedule.stub);
     if let Some(cal) =
         finstack_quant_core::dates::calendar::calendar_by_id(&spec.schedule.calendar_id)
     {
-        builder = builder.adjust_with(spec.schedule.bdc, cal);
+        builder = builder.adjust_with(spec.schedule.business_day_convention, cal);
     }
     let sched: Vec<time::Date> = builder.build().expect("schedule").into_iter().collect();
 
     let (par_rate, fixed_ann) = par_rate_and_annuity_from_discount(
         &disc,
-        spec.schedule.dc,
-        Some(spec.schedule.freq),
+        spec.schedule.day_count,
+        Some(spec.schedule.frequency),
         &sched,
     )
     .expect("par rate and fixed annuity");
@@ -518,7 +518,7 @@ fn test_asw_market_with_forward_requires_dirty_price() {
 
     let msg = format!("{err}");
     assert!(
-        msg.contains("dirty_price_ccy"),
+        msg.contains("dirty_price_currency"),
         "expected missing dirty price error, got {msg}"
     );
 }

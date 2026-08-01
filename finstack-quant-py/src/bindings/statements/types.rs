@@ -362,7 +362,7 @@ impl PyFinancialModelSpec {
     /// Schema version.
     #[getter]
     fn schema_version(&self) -> u32 {
-        self.inner.schema_version
+        self.inner.schema_version.into()
     }
 
     fn __repr__(&self) -> String {

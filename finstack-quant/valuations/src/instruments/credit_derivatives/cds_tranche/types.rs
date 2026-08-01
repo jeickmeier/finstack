@@ -38,11 +38,10 @@ impl std::str::FromStr for TrancheSide {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "buy_protection" | "buy" => Ok(TrancheSide::BuyProtection),
-            "sell_protection" | "sell" => Ok(TrancheSide::SellProtection),
-            other => Err(format!("Unknown tranche side: {}", other)),
+        match s {
+            "buy_protection" => Ok(TrancheSide::BuyProtection),
+            "sell_protection" => Ok(TrancheSide::SellProtection),
+            _ => Err(format!("Unknown tranche side: {s}")),
         }
     }
 }
@@ -53,7 +52,9 @@ impl std::str::FromStr for TrancheSide {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct CDSTranche {
@@ -70,7 +71,7 @@ pub struct CDSTranche {
     /// Notional amount of the tranche
     pub notional: Money,
     /// Maturity date of the tranche
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Running coupon in basis points (e.g., 100 = 1.00%)
     pub running_coupon_bp: f64,
@@ -81,7 +82,7 @@ pub struct CDSTranche {
     /// Business day convention
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional holiday calendar id
     pub calendar_id: Option<String>,
     /// Discount curve identifier (by quote currency)
@@ -91,7 +92,7 @@ pub struct CDSTranche {
     /// Tranche side (buy/sell protection)
     pub side: TrancheSide,
     /// Optional effective date for schedule anchoring (if None, uses as_of date)
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub effective_date: Option<Date>,
     /// Accumulated realized loss as fraction of original portfolio notional
     pub accumulated_loss: f64,
@@ -99,16 +100,28 @@ pub struct CDSTranche {
     pub standard_imm_dates: bool,
     /// Optional upfront payment (date, amount). Positive means paid by protection buyer.
     #[serde(default)]
-    #[schemars(with = "Option<(String, Money)>")]
+    #[schemars(with = "Option<(finstack_quant_core::wire::DateWire, Money)>")]
     pub upfront: Option<(Date, Money)>,
     /// Instrument-owned pricing overrides.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -225,9 +238,9 @@ impl CDSTranche {
             100.0,
         );
         let sched = ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::ShortFront,
             end_of_month: false,
@@ -302,9 +315,9 @@ impl CDSTranche {
             notional: tranche_params.notional,
             maturity: tranche_params.maturity,
             running_coupon_bp: tranche_params.running_coupon_bp,
-            frequency: schedule_params.freq,
-            day_count: schedule_params.dc,
-            bdc: schedule_params.bdc,
+            frequency: schedule_params.frequency,
+            day_count: schedule_params.day_count,
+            business_day_convention: schedule_params.business_day_convention,
             calendar_id: Some(schedule_params.calendar_id.clone()),
             discount_curve_id: discount_curve_id.into(),
             credit_index_id: credit_index_id.into(),
@@ -331,9 +344,9 @@ impl CDSTranche {
     ) -> finstack_quant_core::Result<Self> {
         use crate::cashflow::builder::ScheduleParams;
         let sched = ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::ShortFront,
             end_of_month: false,
@@ -462,7 +475,7 @@ impl CDSTranche {
 // Attributable is provided via blanket impl for all Instrument types
 
 impl Instrument for CDSTranche {
-    impl_instrument_base!(crate::pricer::InstrumentType::CDSTranche);
+    impl_instrument_base!(crate::pricer::InstrumentType::CdsTranche);
 
     fn market_dependencies(
         &self,

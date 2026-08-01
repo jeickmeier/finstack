@@ -58,6 +58,7 @@ impl core::fmt::Display for NonFiniteKind {
 /// assert_eq!(err.to_string(), "Times (knots) must be strictly increasing");
 /// ```
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum InputError {
     // ─────────────────────────────────────────────────────────────────────────

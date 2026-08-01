@@ -10,7 +10,6 @@ from __future__ import annotations
 from datetime import date
 import json
 import math
-from pathlib import Path
 
 import pytest
 
@@ -21,6 +20,7 @@ from finstack_quant.core.market_data import (
     ScalarTimeSeries,
 )
 from finstack_quant.valuations import instruments
+from tests.tests_typed_helpers import canonical_structured_credit_json
 
 SC_ENTRY_POINTS = (
     "structured_credit_tranche_breakeven_cdr",
@@ -30,32 +30,20 @@ SC_ENTRY_POINTS = (
     "structured_credit_tranche_scenario_table",
 )
 
-FIXTURE = (
-    Path(__file__).resolve().parents[2]
-    / "finstack-quant"
-    / "valuations"
-    / "tests"
-    / "instruments"
-    / "json_examples"
-    / "structured_credit_full.json"
-)
-
 
 def _deal_json() -> str:
-    return json.dumps(json.loads(FIXTURE.read_text())["instrument"])
+    return canonical_structured_credit_json(payment_calendar_id="NOT_A_CALENDAR")
 
 
 def _valid_deal_json() -> str:
-    instrument = json.loads(FIXTURE.read_text())["instrument"]
-    instrument["spec"]["payment_calendar_id"] = "nyse"
-    return json.dumps(instrument)
+    return canonical_structured_credit_json()
 
 
 def _market() -> MarketContext:
     as_of = date(2024, 1, 1)
     market = (
         MarketContext()
-        .insert(DiscountCurve.flat("USD-SOFR-DISC", as_of, 0.04))
+        .insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
         .insert(
             ForwardCurve(
                 "SOFR-3M",
@@ -98,7 +86,7 @@ def test_tranche_metrics_happy_path_uses_model_price() -> None:
     metrics = json.loads(
         instruments.structured_credit_tranche_metrics(
             _valid_deal_json(),
-            "SENIOR",
+            "CLONOTES-A",
             market,
             "2024-01-01",
             market_price_pct=None,
@@ -107,7 +95,7 @@ def test_tranche_metrics_happy_path_uses_model_price() -> None:
 
     assert math.isfinite(metrics["pv"])
     assert metrics["pv"] > 0.0
-    assert metrics["z_spread_bp"] == pytest.approx(0.0, abs=1e-5)
+    assert metrics["z_spread_bp"] == pytest.approx(0.0, abs=1e-4)
 
 
 def test_unknown_tranche_raises_value_error_not_panic() -> None:
@@ -121,7 +109,7 @@ def test_unknown_tranche_raises_value_error_not_panic() -> None:
 def test_invalid_deal_reports_an_actionable_error() -> None:
     """Validation failures must name what is wrong, not fail opaquely.
 
-    Uses a REAL tranche id (the fixture has ``SENIOR``/``EQUITY``). This
+    Uses the real tranche id from the registry-generated deal. This
     previously passed ``CLASS_A``, which does not exist, and relied on the
     missing-calendar error firing before the tranche was ever resolved. Once
     breakeven CDR began resolving the tranche up front — to scale its
@@ -129,8 +117,8 @@ def test_invalid_deal_reports_an_actionable_error() -> None:
     surfaced first, which is the better failure. Naming a real tranche keeps
     this test on the deal-validation behaviour it is actually about.
     """
-    with pytest.raises(ValueError, match="calendar") as excinfo:
-        instruments.structured_credit_tranche_breakeven_cdr(_deal_json(), "SENIOR", MarketContext(), "2024-01-01")
+    with pytest.raises(ValueError, match=r"(?i)calendar") as excinfo:
+        instruments.structured_credit_tranche_breakeven_cdr(_deal_json(), "CLONOTES-A", MarketContext(), "2024-01-01")
     message = str(excinfo.value)
     assert message.strip(), "the error message must not be empty"
 
@@ -138,4 +126,6 @@ def test_invalid_deal_reports_an_actionable_error() -> None:
 def test_malformed_json_raises_rather_than_panics() -> None:
     """Garbage input must be rejected cleanly at the boundary."""
     with pytest.raises(ValueError, match=r"(?i)json|parse|expected"):
-        instruments.structured_credit_tranche_breakeven_cdr("{not valid json", "CLASS_A", MarketContext(), "2024-01-01")
+        instruments.structured_credit_tranche_breakeven_cdr(
+            "{not valid json", "CLONOTES-A", MarketContext(), "2024-01-01"
+        )

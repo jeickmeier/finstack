@@ -91,7 +91,7 @@ fn test_recovery_spec_all_variants_serialize() {
 #[test]
 fn test_clo_json_roundtrip() {
     // Arrange
-    let pool = AssetPool::new("TEST_POOL", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("TEST_POOL", DealType::Clo, Currency::USD);
 
     let tranche = Tranche::new(
         "AAA",
@@ -135,7 +135,7 @@ fn test_clo_json_roundtrip() {
 #[test]
 fn test_rmbs_with_overrides_serialization() {
     // Arrange
-    let pool = AssetPool::new("TEST_POOL", DealType::RMBS, Currency::USD);
+    let pool = AssetPool::new("TEST_POOL", DealType::Rmbs, Currency::USD);
 
     let tranche = Tranche::new(
         "AAA",
@@ -234,7 +234,7 @@ fn build_full_feature_structured_credit() -> StructuredCredit {
     let reinvestment_end = Date::from_calendar_date(2026, Month::January, 1).unwrap();
     let legal = Date::from_calendar_date(2034, Month::January, 1).unwrap();
 
-    let mut pool = AssetPool::new("POOL-FULL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL-FULL", DealType::Clo, Currency::USD);
 
     let mut loan = PoolAsset::floating_rate_loan(
         "LOAN1",
@@ -330,7 +330,7 @@ fn build_full_feature_structured_credit() -> StructuredCredit {
         all_in_cap_bp: Some(rust_decimal::Decimal::try_from(1200.0).expect("valid")),
         index_cap_bp: None,
         overnight_index_constraints: Default::default(),
-        reset_freq: Tenor::quarterly(),
+        reset_frequency: Tenor::quarterly(),
         index_tenor: None,
         reset_lag_days: 2,
         fixing_calendar_id: Some("usny".to_string()),
@@ -582,7 +582,7 @@ fn test_structured_credit_full_feature_json_roundtrip() {
 fn test_structured_credit_instrument_envelope_roundtrip() {
     let instrument = build_full_feature_structured_credit();
     let envelope = InstrumentEnvelope {
-        schema: "finstack_quant.instrument/1".to_string(),
+        schema: finstack_quant_valuations::instruments::json_loader::InstrumentSchema::CURRENT,
         instrument: InstrumentJson::StructuredCredit(Box::new(instrument.clone())),
     };
 
@@ -607,40 +607,8 @@ fn test_structured_credit_instrument_envelope_roundtrip() {
     }
 }
 
-#[test]
-fn test_structured_credit_full_example_json_file_roundtrip() {
-    let json = include_str!("../../json_examples/structured_credit_full.json");
-    let envelope: InstrumentEnvelope = serde_json::from_str(json).expect("deserialize example");
-
-    match &envelope.instrument {
-        InstrumentJson::StructuredCredit(sc) => {
-            assert_eq!(sc.id.as_str(), "FULL-CLO");
-            assert_eq!(sc.tranches.tranches.len(), 2);
-            assert_eq!(sc.pool.assets.len(), 2);
-            assert!(sc.pool.reinvestment_period.is_some());
-            assert!(sc.pool.rep_lines.is_some());
-            assert!(sc.behavior_overrides.cpr_annual.is_some());
-            assert!(sc.default_assumptions.abs_speed_monthly.is_some());
-            assert!(sc.credit_model.stochastic_prepay_spec.is_some());
-            assert!(sc.credit_model.stochastic_default_spec.is_some());
-            assert!(sc.credit_model.correlation_structure.is_some());
-            assert_eq!(sc.hedge_swaps.len(), 1);
-        }
-        other => panic!("Unexpected instrument variant: {:?}", other),
-    }
-
-    // Ensure re-serialization maintains the shape
-    let serialized = serde_json::to_string(&envelope).expect("serialize");
-    let parsed: InstrumentEnvelope = serde_json::from_str(&serialized).expect("second deserialize");
-
-    match parsed.instrument {
-        InstrumentJson::StructuredCredit(sc) => assert_eq!(sc.id.as_str(), "FULL-CLO"),
-        other => panic!("Unexpected instrument variant: {:?}", other),
-    }
-}
-
 /// Binding-parity: a deal configured with the new `waterfall_rules` round-trips
-/// through the tagged instrument JSON the Python/WASM bindings wrap, and prices
+/// through the canonical instrument envelope the Python/WASM bindings use, and prices
 /// through the same `price_instrument_json` entry point. Proves the structural
 /// features are reachable from the JSON bindings without any binding code change
 /// (validation and deserialization are serde-based on the Rust type).
@@ -656,7 +624,7 @@ fn waterfall_rules_round_trip_and_price_through_json() {
 
     let closing = Date::from_calendar_date(2024, Month::January, 1).unwrap();
     let mat = Date::from_calendar_date(2027, Month::January, 1).unwrap();
-    let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "A1",
         Money::new(1_000_000.0, Currency::USD),
@@ -692,7 +660,7 @@ fn waterfall_rules_round_trip_and_price_through_json() {
     sc.waterfall_rules = Some(WaterfallRules {
         afc: Some(AfcSpec {
             capped_tranches: vec!["SR".to_string()],
-            net_wac_fee_bps: None,
+            net_wac_fee_bp: None,
         }),
         excess_spread: None,
         step_down: None,
@@ -701,14 +669,16 @@ fn waterfall_rules_round_trip_and_price_through_json() {
         controlled_accumulation: None,
     });
 
-    // Round-trip through the tagged JSON the bindings serialize.
-    let json =
-        serde_json::to_string(&InstrumentJson::StructuredCredit(Box::new(sc))).expect("serialize");
+    // Round-trip through the canonical envelope the bindings serialize.
+    let json = serde_json::to_string(&InstrumentEnvelope::new(InstrumentJson::StructuredCredit(
+        Box::new(sc),
+    )))
+    .expect("serialize");
     assert!(
         json.contains("waterfall_rules") && json.contains("capped_tranches"),
         "the AFC rule must appear in the wire format"
     );
-    let parsed: InstrumentJson = serde_json::from_str(&json).expect("deserialize");
+    let parsed: InstrumentEnvelope = serde_json::from_str(&json).expect("deserialize");
     let json2 = serde_json::to_string(&parsed).expect("re-serialize");
     assert_eq!(json, json2, "waterfall_rules wire format must be stable");
 
@@ -727,10 +697,15 @@ fn waterfall_rules_round_trip_and_price_through_json() {
 // Nested serde strictness: `deny_unknown_fields` does not propagate to nested
 // types. Inject a typo at each nesting depth and assert rejection.
 
-/// Parse the canonical full fixture as mutable JSON.
+/// Serialize the canonical Rust provider as mutable JSON.
 fn full_example_value() -> serde_json::Value {
-    let json = include_str!("../../json_examples/structured_credit_full.json");
-    serde_json::from_str(json).expect("fixture must be valid JSON")
+    serde_json::to_value(InstrumentEnvelope {
+        schema: finstack_quant_valuations::instruments::json_loader::InstrumentSchema::CURRENT,
+        instrument: InstrumentJson::StructuredCredit(Box::new(
+            build_full_feature_structured_credit(),
+        )),
+    })
+    .expect("provider must serialize")
 }
 
 /// Assert that a mutated fixture is REJECTED by the deserializer, and that the

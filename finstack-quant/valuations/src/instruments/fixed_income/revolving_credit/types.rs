@@ -26,7 +26,9 @@ use rust_decimal::prelude::ToPrimitive;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct RevolvingCredit {
@@ -40,11 +42,11 @@ pub struct RevolvingCredit {
     pub drawn_amount: Money,
 
     /// Date when the facility becomes available.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub commitment_date: Date,
 
     /// Date when the facility expires.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
 
     /// Base rate specification (fixed or floating).
@@ -96,17 +98,26 @@ pub struct RevolvingCredit {
     pub stub: StubKind,
 
     /// Attributes for scenario selection and tagging.
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -130,10 +141,10 @@ fn validate_fee_tier_ordering(tiers: &[FeeTier], context: &str) -> finstack_quan
                 tier.threshold
             )));
         }
-        if tier.bps < Decimal::ZERO {
+        if tier.bp < Decimal::ZERO {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "RevolvingCredit {context}[{index}].bps must be non-negative, got {}",
-                tier.bps
+                "RevolvingCredit {context}[{index}].bp must be non-negative, got {}",
+                tier.bp
             )));
         }
     }
@@ -173,7 +184,7 @@ impl RevolvingCredit {
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,
@@ -220,6 +231,7 @@ impl RevolvingCredit {
 /// tied to a market index plus margin.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[allow(clippy::large_enum_variant)]
+#[serde(rename_all = "snake_case")]
 pub enum BaseRateSpec {
     /// Fixed rate (annualized).
     Fixed {
@@ -306,11 +318,11 @@ impl RevolvingCreditFees {
             facility_fee_bp.is_finite(),
             "RevolvingCreditFees::flat: facility_fee_bp is not finite ({facility_fee_bp})"
         );
-        let make_tier = |bps: f64| -> Vec<FeeTier> {
-            if bps > 0.0 {
+        let make_tier = |bp: f64| -> Vec<FeeTier> {
+            if bp > 0.0 {
                 vec![FeeTier {
                     threshold: Decimal::ZERO,
-                    bps: Decimal::try_from(bps).unwrap_or(Decimal::ZERO),
+                    bp: Decimal::try_from(bp).unwrap_or(Decimal::ZERO),
                 }]
             } else {
                 Vec::new()
@@ -325,13 +337,13 @@ impl RevolvingCreditFees {
         }
     }
 
-    /// Create fees with flat (non-tiered) commitment and usage fees using typed bps.
-    pub fn flat_bps(commitment_fee_bp: Bps, usage_fee_bp: Bps, facility_fee_bp: Bps) -> Self {
-        let make_tier = |bps: Bps| -> Vec<FeeTier> {
-            if !bps.is_zero() {
+    /// Create fees with flat (non-tiered) commitment and usage fees using typed bp.
+    pub fn flat_bp(commitment_fee_bp: Bps, usage_fee_bp: Bps, facility_fee_bp: Bps) -> Self {
+        let make_tier = |bp: Bps| -> Vec<FeeTier> {
+            if !bp.is_zero() {
                 vec![FeeTier {
                     threshold: Decimal::ZERO,
-                    bps: Decimal::from(bps.as_bps()),
+                    bp: Decimal::from(bp.as_bp()),
                 }]
             } else {
                 Vec::new()
@@ -342,11 +354,11 @@ impl RevolvingCreditFees {
             upfront_fee: None,
             commitment_fee_tiers: make_tier(commitment_fee_bp),
             usage_fee_tiers: make_tier(usage_fee_bp),
-            facility_fee_bp: facility_fee_bp.as_bps() as f64,
+            facility_fee_bp: facility_fee_bp.as_bp() as f64,
         }
     }
 
-    /// Get commitment fee bps for given utilization (evaluates tiers).
+    /// Get commitment fee bp for given utilization (evaluates tiers).
     ///
     /// Returns the fee rate from the highest tier where utilization >= threshold.
     /// Tiers should be sorted by threshold ascending.
@@ -355,19 +367,19 @@ impl RevolvingCreditFees {
     /// # Panics (debug builds only)
     ///
     /// Asserts that `utilization` is finite.
-    pub fn commitment_fee_bps(&self, utilization: f64) -> f64 {
+    pub fn commitment_fee_bp(&self, utilization: f64) -> f64 {
         debug_assert!(
             utilization.is_finite(),
-            "commitment_fee_bps: utilization is not finite ({utilization})"
+            "commitment_fee_bp: utilization is not finite ({utilization})"
         );
         let util = Decimal::try_from(utilization).unwrap_or(Decimal::ZERO);
         evaluate_fee_tiers(&self.commitment_fee_tiers, util)
             .ok()
-            .and_then(|bps| bps.to_f64())
+            .and_then(|bp| bp.to_f64())
             .unwrap_or(0.0)
     }
 
-    /// Get usage fee bps for given utilization (evaluates tiers).
+    /// Get usage fee bp for given utilization (evaluates tiers).
     ///
     /// Returns the fee rate from the highest tier where utilization >= threshold.
     /// Tiers should be sorted by threshold ascending.
@@ -376,15 +388,15 @@ impl RevolvingCreditFees {
     /// # Panics (debug builds only)
     ///
     /// Asserts that `utilization` is finite.
-    pub fn usage_fee_bps(&self, utilization: f64) -> f64 {
+    pub fn usage_fee_bp(&self, utilization: f64) -> f64 {
         debug_assert!(
             utilization.is_finite(),
-            "usage_fee_bps: utilization is not finite ({utilization})"
+            "usage_fee_bp: utilization is not finite ({utilization})"
         );
         let util = Decimal::try_from(utilization).unwrap_or(Decimal::ZERO);
         evaluate_fee_tiers(&self.usage_fee_tiers, util)
             .ok()
-            .and_then(|bps| bps.to_f64())
+            .and_then(|bp| bp.to_f64())
             .unwrap_or(0.0)
     }
 }
@@ -394,6 +406,7 @@ impl RevolvingCreditFees {
 /// Determines whether the facility uses a known (deterministic) schedule
 /// or stochastic utilization for Monte Carlo pricing.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum DrawRepaySpec {
     /// Deterministic schedule of draws and repayments.
     Deterministic(Vec<DrawRepayEvent>),
@@ -406,7 +419,7 @@ pub enum DrawRepaySpec {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct DrawRepayEvent {
     /// Date of the draw or repayment.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
 
     /// Amount being drawn or repaid (absolute value).
@@ -578,6 +591,7 @@ impl McConfig {
 
 /// Credit spread process specification.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum CreditSpreadProcessSpec {
     /// CIR process for stochastic credit spread/hazard rate.
     ///
@@ -602,8 +616,8 @@ pub enum CreditSpreadProcessSpec {
     /// level is anchored to conditional survival over the remaining tenor.
     /// Volatility is scaled from the CDS index option implied volatility.
     MarketAnchored {
-        /// Hazard curve identifier in `MarketContext` used to anchor spreads.
-        hazard_curve_id: CurveId,
+        /// Credit curve identifier in `MarketContext` used to anchor spreads.
+        credit_curve_id: CurveId,
         /// Mean reversion speed (κ) of the CIR process.
         kappa: f64,
         /// Annualized CDS (index) option implied volatility for spreads.
@@ -616,6 +630,7 @@ pub enum CreditSpreadProcessSpec {
 
 /// Interest rate process specification (for floating rates).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum InterestRateProcessSpec {
     /// Hull-White 1-factor model for short rate.
     ///
@@ -642,6 +657,7 @@ pub enum InterestRateProcessSpec {
 /// This can be extended in the future to support other processes (jump-diffusion,
 /// regime-switching, etc.).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum UtilizationProcess {
     /// Mean-reverting utilization rate process.
     ///

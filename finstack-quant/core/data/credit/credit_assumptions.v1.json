@@ -1,8 +1,8 @@
 {
-  "schema_version": "finstack_quant.credit_assumptions/1",
+  "schema": "finstack_quant.credit_assumptions/1",
   "default_rating_factor_table_id": "moodys_standard",
   "default_seniority_calibration_id": "moodys_recovery_1982_2023",
-  "default_pd_master_scale_id": "sp_assumptions_v1",
+  "default_pd_master_scale_id": "sp_assumptions",
   "default_downturn_lgd_id": "basel_secured",
   "default_workout_lgd_id": "standard_workout",
   "default_market_recovery_rate": 0.40,
@@ -17,24 +17,24 @@
       "default_factor": 3650.0,
       "factors": [
         { "rating": "AAA", "factor": 1.0 },
-        { "rating": "AAPlus", "factor": 10.0 },
+        { "rating": "AA+", "factor": 10.0 },
         { "rating": "AA", "factor": 20.0 },
-        { "rating": "AAMinus", "factor": 40.0 },
-        { "rating": "APlus", "factor": 70.0 },
+        { "rating": "AA-", "factor": 40.0 },
+        { "rating": "A+", "factor": 70.0 },
         { "rating": "A", "factor": 120.0 },
-        { "rating": "AMinus", "factor": 180.0 },
-        { "rating": "BBBPlus", "factor": 260.0 },
+        { "rating": "A-", "factor": 180.0 },
+        { "rating": "BBB+", "factor": 260.0 },
         { "rating": "BBB", "factor": 360.0 },
-        { "rating": "BBBMinus", "factor": 610.0 },
-        { "rating": "BBPlus", "factor": 940.0 },
+        { "rating": "BBB-", "factor": 610.0 },
+        { "rating": "BB+", "factor": 940.0 },
         { "rating": "BB", "factor": 1350.0 },
-        { "rating": "BBMinus", "factor": 1766.0 },
-        { "rating": "BPlus", "factor": 2220.0 },
+        { "rating": "BB-", "factor": 1766.0 },
+        { "rating": "B+", "factor": 2220.0 },
         { "rating": "B", "factor": 2720.0 },
-        { "rating": "BMinus", "factor": 3490.0 },
-        { "rating": "CCCPlus", "factor": 4770.0 },
+        { "rating": "B-", "factor": 3490.0 },
+        { "rating": "CCC+", "factor": 4770.0 },
         { "rating": "CCC", "factor": 6500.0 },
-        { "rating": "CCCMinus", "factor": 8070.0 },
+        { "rating": "CCC-", "factor": 8070.0 },
         { "rating": "CC", "factor": 10000.0 },
         { "rating": "C", "factor": 10000.0 },
         { "rating": "D", "factor": 10000.0 },
@@ -50,27 +50,26 @@
       "classes": [
         { "seniority": "1st_lien_secured", "mean": 0.70, "std_dev": 0.20 },
         { "seniority": "2nd_lien_secured", "mean": 0.40, "std_dev": 0.15 },
-        { "seniority": "SeniorSecured", "mean": 0.52, "std_dev": 0.25 },
-        { "seniority": "SeniorUnsecured", "mean": 0.37, "std_dev": 0.24 },
-        { "seniority": "Subordinated", "mean": 0.28, "std_dev": 0.2 },
-        { "seniority": "JuniorSubordinated", "mean": 0.17, "std_dev": 0.15 }
+        { "seniority": "senior_secured", "mean": 0.52, "std_dev": 0.25 },
+        { "seniority": "senior_unsecured", "mean": 0.37, "std_dev": 0.24 },
+        { "seniority": "subordinated", "mean": 0.28, "std_dev": 0.2 },
+        { "seniority": "junior_subordinated", "mean": 0.17, "std_dev": 0.15 }
       ]
     },
     {
       "ids": ["sp_recovery_historical", "sp", "s_p", "standard_and_poors", "standardandpoors"],
       "source": "S&P Historical (approximate)",
       "classes": [
-        { "seniority": "SeniorSecured", "mean": 0.53, "std_dev": 0.24 },
-        { "seniority": "SeniorUnsecured", "mean": 0.36, "std_dev": 0.23 },
-        { "seniority": "Subordinated", "mean": 0.27, "std_dev": 0.2 },
-        { "seniority": "JuniorSubordinated", "mean": 0.15, "std_dev": 0.13 }
+        { "seniority": "senior_secured", "mean": 0.53, "std_dev": 0.24 },
+        { "seniority": "senior_unsecured", "mean": 0.36, "std_dev": 0.23 },
+        { "seniority": "subordinated", "mean": 0.27, "std_dev": 0.2 },
+        { "seniority": "junior_subordinated", "mean": 0.15, "std_dev": 0.13 }
       ]
     }
   ],
   "pd_master_scales": [
     {
-      "ids": ["sp_assumptions_v1"],
-      "deprecated_ids": ["sp_empirical", "sp_corporate_default_1981_2023"],
+      "ids": ["sp_assumptions"],
       "source": "Finstack Quant library PD-band assumptions v1; agency-style labels only, not sourced empirical agency default rates",
       "grades": [
         { "label": "AAA", "upper_pd": 0.0001, "central_pd": 0.00004 },
@@ -84,8 +83,7 @@
       ]
     },
     {
-      "ids": ["moodys_assumptions_v1"],
-      "deprecated_ids": ["moodys_empirical", "moodys_default_1983_2023"],
+      "ids": ["moodys_assumptions"],
       "source": "Finstack Quant library PD-band assumptions v1; agency-style labels only, not sourced empirical agency default rates",
       "grades": [
         { "label": "Aaa", "upper_pd": 0.0001, "central_pd": 0.00003 },

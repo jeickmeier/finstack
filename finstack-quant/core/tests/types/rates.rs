@@ -6,15 +6,15 @@ use std::panic::catch_unwind;
 
 #[test]
 fn rate_conversions_roundtrip() {
-    // Test decimal -> bps -> decimal
+    // Test decimal -> bp -> decimal
     let rate = Rate::from_decimal(0.0525);
-    assert_eq!(rate.as_bps(), 525);
-    let rate2 = Rate::from_bps(525);
+    assert_eq!(rate.as_bp(), 525);
+    let rate2 = Rate::from_bp(525);
     assert!((rate.as_decimal() - rate2.as_decimal()).abs() < 1e-10);
 
-    // Test percent -> bps -> percent
+    // Test percent -> bp -> percent
     let rate = Rate::from_percent(5.25);
-    assert_eq!(rate.as_bps(), 525);
+    assert_eq!(rate.as_bp(), 525);
     assert!((rate.as_percent() - 5.25).abs() < 1e-10);
 }
 
@@ -77,7 +77,7 @@ fn rate_display_formatting() {
     let rate = Rate::from_percent(2.5);
     assert_eq!(format!("{}", rate), "2.5000%");
 
-    let rate = Rate::from_bps(150);
+    let rate = Rate::from_bp(150);
     assert_eq!(format!("{}", rate), "1.5000%");
 }
 
@@ -91,19 +91,19 @@ fn rate_from_f64_conversion() {
 }
 
 #[test]
-fn bps_conversions_comprehensive() {
-    let bps = Bps::new(250);
+fn bp_conversions_comprehensive() {
+    let bp = Bps::new(250);
 
-    assert_eq!(bps.as_bps(), 250);
-    assert!((bps.as_decimal() - 0.025).abs() < 1e-10);
-    assert!((bps.as_percent() - 2.5).abs() < 1e-10);
+    assert_eq!(bp.as_bp(), 250);
+    assert!((bp.as_decimal() - 0.025).abs() < 1e-10);
+    assert!((bp.as_percent() - 2.5).abs() < 1e-10);
 
-    let rate = bps.as_rate();
-    assert_eq!(rate.as_bps(), 250);
+    let rate = bp.as_rate();
+    assert_eq!(rate.as_bp(), 250);
 }
 
 #[test]
-fn bps_arithmetic_operations() {
+fn bp_arithmetic_operations() {
     let b1 = Bps::new(100);
     let b2 = Bps::new(50);
 
@@ -115,7 +115,7 @@ fn bps_arithmetic_operations() {
 }
 
 #[test]
-fn bps_predicates() {
+fn bp_predicates() {
     assert!(Bps::ZERO.is_zero());
     assert!(!Bps::ZERO.is_positive());
     assert!(!Bps::ZERO.is_negative());
@@ -130,7 +130,7 @@ fn bps_predicates() {
 }
 
 #[test]
-fn bps_abs() {
+fn bp_abs() {
     let negative = Bps::new(-150);
     assert_eq!(negative.abs(), Bps::new(150));
 
@@ -139,15 +139,15 @@ fn bps_abs() {
 }
 
 #[test]
-fn bps_display_formatting() {
+fn bp_display_formatting() {
     assert_eq!(format!("{}", Bps::new(250)), "250bp");
     assert_eq!(format!("{}", Bps::new(-50)), "-50bp");
 }
 
 #[test]
-fn bps_from_conversions() {
+fn bp_from_conversions() {
     let b: Bps = 250.into();
-    assert_eq!(b.as_bps(), 250);
+    assert_eq!(b.as_bp(), 250);
 
     let i: i32 = b.into();
     assert_eq!(i, 250);
@@ -166,7 +166,7 @@ fn percentage_conversions() {
 
     assert_eq!(pct.as_percent(), 12.5);
     assert!((pct.as_decimal() - 0.125).abs() < 1e-10);
-    assert_eq!(pct.as_bps(), 1250);
+    assert_eq!(pct.as_bp(), 1250);
 
     let rate = pct.as_rate();
     assert!((rate.as_percent() - 12.5).abs() < 1e-10);
@@ -230,10 +230,10 @@ fn percentage_from_conversions() {
 fn cross_type_conversions() {
     // Rate <-> Bps
     let rate = Rate::from_percent(2.5);
-    let bps: Bps = rate.into();
-    assert_eq!(bps.as_bps(), 250);
-    let rate_back: Rate = bps.into();
-    assert_eq!(rate.as_bps(), rate_back.as_bps());
+    let bp: Bps = rate.into();
+    assert_eq!(bp.as_bp(), 250);
+    let rate_back: Rate = bp.into();
+    assert_eq!(rate.as_bp(), rate_back.as_bp());
 
     // Rate <-> Percentage
     let rate = Rate::from_percent(3.5);
@@ -243,11 +243,11 @@ fn cross_type_conversions() {
     assert!((rate.as_decimal() - rate_back.as_decimal()).abs() < 1e-10);
 
     // Bps <-> Percentage
-    let bps = Bps::new(350);
-    let pct: Percentage = bps.into();
+    let bp = Bps::new(350);
+    let pct: Percentage = bp.into();
     assert_eq!(pct.as_percent(), 3.5);
-    let bps_back: Bps = pct.into();
-    assert_eq!(bps.as_bps(), bps_back.as_bps());
+    let bp_back: Bps = pct.into();
+    assert_eq!(bp.as_bp(), bp_back.as_bp());
 }
 
 #[test]
@@ -323,23 +323,23 @@ fn checked_percentage_arithmetic_rejects_non_finite_results() {
 #[test]
 fn rate_edge_cases() {
     // Very small rates
-    let tiny = Rate::from_bps(1);
-    assert_eq!(tiny.as_bps(), 1);
+    let tiny = Rate::from_bp(1);
+    assert_eq!(tiny.as_bp(), 1);
     assert!((tiny.as_decimal() - 0.0001).abs() < 1e-10);
 
     // Large rates
     let large = Rate::from_percent(100.0);
-    assert_eq!(large.as_bps(), 10000);
+    assert_eq!(large.as_bp(), 10000);
     assert!((large.as_decimal() - 1.0).abs() < 1e-10);
 
     // Negative rates
-    let negative = Rate::from_bps(-50);
-    assert_eq!(negative.as_bps(), -50);
+    let negative = Rate::from_bp(-50);
+    assert_eq!(negative.as_bp(), -50);
     assert!(negative.is_negative());
 }
 
 #[test]
-fn bps_ordering() {
+fn bp_ordering() {
     let b1 = Bps::new(100);
     let b2 = Bps::new(200);
     let b3 = Bps::new(100);
@@ -403,15 +403,15 @@ proptest! {
     }
 
     #[test]
-    fn bps_checked_arithmetic_round_trips_without_overflow(
-        bps in -1_000_000_i32..1_000_000,
+    fn bp_checked_arithmetic_round_trips_without_overflow(
+        bp in -1_000_000_i32..1_000_000,
         multiplier in -1_000_i32..1_000,
         divisor in prop_oneof![-1_000_i32..-1, 1_i32..1_000],
     ) {
-        let value = Bps::new(bps);
+        let value = Bps::new(bp);
         let scaled = value.checked_mul(multiplier).unwrap();
         let divided = scaled.checked_div(divisor).unwrap();
 
-        prop_assert_eq!(divided.as_bps(), bps * multiplier / divisor);
+        prop_assert_eq!(divided.as_bp(), bp * multiplier / divisor);
     }
 }

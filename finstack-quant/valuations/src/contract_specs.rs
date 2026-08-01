@@ -18,7 +18,7 @@ static EMBEDDED_REGISTRY: OnceLock<Result<ContractSpecRegistry>> = OnceLock::new
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ContractSpecRegistry {
-    schema_version: String,
+    schema: String,
     bond_futures: Vec<BondFutureSpecRecord>,
     equity_index_futures: Vec<EquityFutureSpecRecord>,
     vol_index_futures: Vec<VolIndexFutureSpecRecord>,
@@ -95,10 +95,10 @@ impl ContractSpecRegistry {
     }
 
     fn validate(&self) -> Result<()> {
-        if self.schema_version != "finstack_quant.contract_specs/1" {
+        if self.schema != "finstack_quant.contract_specs/1" {
             return Err(Error::Validation(format!(
                 "unsupported contract-spec registry schema version '{}'",
-                self.schema_version
+                self.schema
             )));
         }
         validate_ids(

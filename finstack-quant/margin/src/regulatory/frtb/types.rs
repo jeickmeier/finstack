@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum FrtbRiskClass {
     /// General Interest Rate Risk
@@ -75,6 +76,7 @@ impl std::fmt::Display for FrtbRiskClass {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CorrelationScenario {
     /// `rho_low = max(2 * rho_medium - 1, 0.75 * rho_medium)`
     Low,
@@ -135,6 +137,7 @@ mod correlation_scenario_tests {
 
 /// DRC sector classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum DrcSector {
     /// Sovereign entities.
@@ -153,6 +156,7 @@ pub enum DrcSector {
 
 /// DRC seniority for LGD assignment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum DrcSeniority {
     /// Senior unsecured debt.
@@ -167,6 +171,7 @@ pub enum DrcSeniority {
 
 /// DRC asset type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum DrcAssetType {
     /// Corporate bonds and loans.

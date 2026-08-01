@@ -7,11 +7,13 @@ use pyo3::types::PyType;
 use crate::bindings::core::currency::PyCurrency;
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
-use crate::errors::{core_to_py, serde_json_to_py, value_error};
+use crate::errors::{core_to_py, value_error};
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
-use super::instruments::{enum_from_str, parse_typed_instrument_json};
+use super::instruments::{
+    enum_from_str, parse_typed_instrument_json, serialize_typed_instrument_json,
+};
 
 type FxForwardBuilderInner =
     finstack_quant_valuations::instruments::fx::fx_forward::FxForwardBuilder;
@@ -35,10 +37,9 @@ pub struct PyFxForward {
 }
 
 impl PyFxForward {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::FxForward(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize FxForward"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(InstrumentJson::FxForward(self.inner.clone()), "FxForward")
     }
 }
 
@@ -64,15 +65,14 @@ impl PyFxForward {
         }
     }
 
-    /// Deserialize a validated FX forward from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated FX forward from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"fx_forward"``, or a full
-    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
-    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
-    ///     performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"fx_forward"`` payload. The UTF-8 input must not exceed 16 MiB.
+    ///     Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -104,16 +104,16 @@ impl PyFxForward {
         }
     }
 
-    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``FxForward.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.
@@ -420,10 +420,9 @@ pub struct PyFxOption {
 }
 
 impl PyFxOption {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::FxOption(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize FxOption"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(InstrumentJson::FxOption(self.inner.clone()), "FxOption")
     }
 }
 
@@ -449,15 +448,14 @@ impl PyFxOption {
         }
     }
 
-    /// Deserialize a validated FX option from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated FX option from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"fx_option"``, or a full
-    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
-    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
-    ///     performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"fx_option"`` payload. The UTF-8 input must not exceed 16 MiB.
+    ///     Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -489,16 +487,16 @@ impl PyFxOption {
         }
     }
 
-    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``FxOption.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.

@@ -46,7 +46,7 @@ fn performance_facade_exercises_broad_api_surface() {
     .expect("perf");
 
     assert_eq!(perf.benchmark_idx(), 1);
-    assert_eq!(perf.freq(), PeriodKind::Daily);
+    assert_eq!(perf.frequency(), PeriodKind::Daily);
 
     let _ = perf.cagr().expect("valid performance CAGR");
     let _ = perf.mean_return(true);

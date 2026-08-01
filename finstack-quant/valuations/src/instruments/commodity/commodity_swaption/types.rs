@@ -74,7 +74,9 @@ use finstack_quant_core::Result;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = CommoditySwaption::validate)]
 pub struct CommoditySwaption {
@@ -86,13 +88,13 @@ pub struct CommoditySwaption {
     /// Option type (call = right to enter pay-fixed swap, put = right to enter receive-fixed swap).
     pub option_type: OptionType,
     /// Option expiry date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Underlying swap start date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub swap_start: Date,
     /// Underlying swap end date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub swap_end: Date,
     /// Underlying swap payment frequency.
     pub swap_frequency: Tenor,
@@ -113,19 +115,31 @@ pub struct CommoditySwaption {
     /// Business day convention for date adjustments.
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Day count convention for time to expiry.
     #[serde(default = "crate::serde_defaults::day_count_act365f")]
     #[builder(default = DayCount::Act365F)]
     pub day_count: DayCount,
     /// Instrument-owned pricing inputs.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging.
     #[builder(default)]
@@ -216,7 +230,7 @@ impl CommoditySwaption {
                     self.id
                 ))
             })?;
-            builder = builder.adjust_with(self.bdc, cal);
+            builder = builder.adjust_with(self.business_day_convention, cal);
         }
 
         let schedule = builder.build()?;
@@ -869,7 +883,7 @@ mod tests {
     }
 
     #[test]
-    fn focused_overrides_preserve_legacy_wire_shape() {
+    fn focused_overrides_use_canonical_wire_shape() {
         let mut swaption = CommoditySwaption::example();
         swaption
             .instrument_pricing_overrides
@@ -879,26 +893,22 @@ mod tests {
         swaption.scenario_pricing_overrides.scenario_price_shock_pct = Some(-0.05);
 
         let value = serde_json::to_value(&swaption).expect("serialize focused overrides");
-        let wire = value
-            .get("pricing_overrides")
-            .and_then(serde_json::Value::as_object)
-            .expect("legacy pricing_overrides object");
         assert_eq!(
-            wire.get("implied_volatility"),
+            value.pointer("/instrument_pricing_overrides/market_quotes/implied_volatility"),
             Some(&serde_json::json!(0.31))
         );
         assert_eq!(
-            wire.get("mc_seed_scenario"),
+            value.pointer("/metric_pricing_overrides/mc_seed_scenario"),
             Some(&serde_json::json!("vega_up"))
         );
         assert_eq!(
-            wire.get("scenario_price_shock_pct"),
+            value.pointer("/scenario_pricing_overrides/scenario_price_shock_pct"),
             Some(&serde_json::json!(-0.05))
         );
-        assert!(value.get("instrument_pricing_overrides").is_none());
+        assert!(value.get("pricing_overrides").is_none());
 
         let roundtrip: CommoditySwaption =
-            serde_json::from_value(value).expect("deserialize legacy wire");
+            serde_json::from_value(value).expect("deserialize canonical wire");
         assert_eq!(
             roundtrip
                 .instrument_pricing_overrides
@@ -992,7 +1002,7 @@ mod tests {
         // midpoint-weighted average independently.
         let schedule = swaption.swap_payment_schedule().expect("schedule");
         let pc = market.get_price_curve("NG-FORWARD").expect("price curve");
-        let dc = market.get_discount("USD-OIS").expect("discount");
+        let day_count = market.get_discount("USD-OIS").expect("discount");
 
         let is_weekday = |d: Date| -> bool {
             let wd = d.weekday();
@@ -1007,7 +1017,7 @@ mod tests {
         for &pay in &schedule {
             // Annuity weight is DF only (B3): the underlying swap pays
             // quantity × price per period with no year-fraction accrual.
-            let weight = dc.df_between_dates(as_of, pay).expect("df");
+            let weight = day_count.df_between_dates(as_of, pay).expect("df");
             let fwd_pay = pc.price_on_date(pay).expect("fwd at payment date");
 
             // Independent business-day average over the half-open window
@@ -1408,11 +1418,11 @@ mod tests {
         // Independent reference: per-period payoff quantity × (F − K),
         // discounted to each payment date — exactly what the underlying
         // CommoditySwap would pay if exercised.
-        let dc = market.get_discount("USD-OIS").expect("discount");
+        let day_count = market.get_discount("USD-OIS").expect("discount");
         let schedule = swaption.swap_payment_schedule().expect("schedule");
         let sum_df: f64 = schedule
             .iter()
-            .map(|&d| dc.df_between_dates(as_of, d).expect("df"))
+            .map(|&d| day_count.df_between_dates(as_of, d).expect("df"))
             .sum();
         let expected = swaption.notional * (fwd - strike) * sum_df;
 

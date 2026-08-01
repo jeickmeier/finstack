@@ -1,32 +1,32 @@
 {
   "bond_amort": {
     "spec": {
-      "accrual_method": "Linear",
+      "accrual_method": "linear",
       "attributes": {
         "meta": {},
         "tags": []
       },
       "call_put": null,
       "cashflow_spec": {
-        "Amortizing": {
+        "amortizing": {
           "base": {
-            "Fixed": {
-              "bdc": "following",
+            "fixed": {
+              "business_day_convention": "following",
               "calendar_id": "weekends_only",
-              "coupon_type": "Cash",
-              "dc": "Thirty360",
+              "coupon_type": "cash",
+              "day_count": "30_360",
               "end_of_month": false,
-              "freq": {
+              "frequency": {
                 "count": 6,
                 "unit": "months"
               },
               "payment_lag_days": 0,
               "rate": "0.04",
-              "stub": "ShortFront"
+              "stub": "short_front"
             }
           },
           "schedule": {
-            "LinearTo": {
+            "linear_to": {
               "final_notional": {
                 "amount": "200000",
                 "currency": "USD"
@@ -45,7 +45,6 @@
         "amount": "1000000",
         "currency": "USD"
       },
-      "pricing_overrides": {},
       "settlement_days": 2
     },
     "type": "bond"

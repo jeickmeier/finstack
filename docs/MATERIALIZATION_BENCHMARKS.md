@@ -4,9 +4,8 @@ This procedure is the acceptance record for the portable portfolio
 materialization path. It measures JSON validation and construction of a reusable
 portfolio handle; it excludes database and network I/O, runtime startup,
 market-context construction, pricing, pandas conversion, and fixture generation.
-See [`CONTRACTS.md`](CONTRACTS.md#materialization-apis-and-performance) for the
-persisted envelope, migration path, generated schema, and Rust/Python/WASM API
-map.
+See [`CONTRACTS.md`](CONTRACTS.md#root-contract-matrix) for the persisted
+envelope, generated schema, and Rust/Python/WASM API map.
 
 ## Deterministic fixtures
 
@@ -215,4 +214,4 @@ overhead uncertainty, phase counters, commands, timing boundaries,
 hardware/tool versions, revisions, gate calculations, and Criterion
 baseline/current/change point and confidence-range estimates with benchmark
 paths. It is `docs/materialization-benchmark-results.json`. Its
-SHA-256 is `9a1e427e489b367a6f73aa2e74ebd328da4ccc45ac49cb47f51850e825e2ec9a`.
+SHA-256 is `0633f9590abbdaf40ad90e79a4b418a21037a905f15c2fabbf0ec817523f1ef7`.

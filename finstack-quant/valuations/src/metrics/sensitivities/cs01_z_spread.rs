@@ -114,13 +114,13 @@ fn cache_flows(
     inputs: &ZSpreadCs01Inputs,
     disc: &finstack_quant_core::market_data::term_structures::DiscountCurve,
 ) -> finstack_quant_core::Result<Vec<CachedFlow>> {
-    let dc = disc.day_count();
+    let day_count = disc.day_count();
     inputs
         .flows
         .iter()
         .filter(|(d, _)| *d > inputs.settlement)
         .map(|(d, amt)| -> finstack_quant_core::Result<CachedFlow> {
-            let t = dc.year_fraction(inputs.settlement, *d, DayCountContext::default())?;
+            let t = day_count.year_fraction(inputs.settlement, *d, DayCountContext::default())?;
             let df = disc.df_between_dates(inputs.settlement, *d)?;
             Ok((t, df, amt.amount()))
         })

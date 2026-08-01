@@ -18,10 +18,7 @@ use super::definitions::{
     BermudanSchedule, BermudanType, CashSettlementMethod, SwaptionExercise, SwaptionSettlement,
     VolatilityModel,
 };
-use super::swaption::{
-    normalize_underlier, underlier_wire_schema, vanilla_underlier, LegacySwaptionUnderlier,
-    Swaption, VanillaSwaptionUnderlier,
-};
+use super::swaption::{vanilla_underlier, Swaption, VanillaSwaptionUnderlier};
 
 // ============================================================================
 // Bermudan Swaption Instrument
@@ -53,7 +50,8 @@ use super::swaption::{
 /// // Create a 10NC2 (10-year swap, callable after 2 years)
 /// let swaption = BermudanSwaption::example();
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct BermudanSwaption {
     /// Unique instrument identifier
     pub id: InstrumentId,
@@ -74,400 +72,25 @@ pub struct BermudanSwaption {
     /// Complete floating leg of the underlying swap.
     pub underlying_float_leg: FloatLegSpec,
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
-}
-
-#[derive(Clone, Debug, finstack_quant_valuations_macros::FocusedPricingOverrides)]
-#[serde(deny_unknown_fields)]
-struct BermudanSwaptionWire {
-    id: InstrumentId,
-    option_type: OptionType,
-    notional: Money,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    strike: Option<Decimal>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
-    swap_start: Option<Date>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
-    swap_end: Option<Date>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    fixed_freq: Option<Tenor>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    float_freq: Option<Tenor>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    day_count: Option<DayCount>,
-    settlement: SwaptionSettlement,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    discount_curve_id: Option<CurveId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    forward_curve_id: Option<CurveId>,
-    vol_surface_id: CurveId,
-    bermudan_schedule: BermudanSchedule,
-    bermudan_type: BermudanType,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    calendar_id: Option<CalendarId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    underlying_fixed_leg: Option<FixedLegSpec>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    underlying_float_leg: Option<FloatLegSpec>,
-    instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
-    metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
-    scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
-    #[serde(default)]
-    attributes: Attributes,
-}
-
-impl TryFrom<BermudanSwaptionWire> for BermudanSwaption {
-    type Error = Error;
-
-    fn try_from(wire: BermudanSwaptionWire) -> Result<Self> {
-        let (underlying_fixed_leg, underlying_float_leg) = normalize_underlier(
-            wire.underlying_fixed_leg,
-            wire.underlying_float_leg,
-            LegacySwaptionUnderlier {
-                strike: wire.strike,
-                swap_start: wire.swap_start,
-                swap_end: wire.swap_end,
-                fixed_freq: wire.fixed_freq,
-                float_freq: wire.float_freq,
-                day_count: wire.day_count,
-                discount_curve_id: wire.discount_curve_id,
-                forward_curve_id: wire.forward_curve_id,
-                calendar_id: wire.calendar_id,
-            },
-        )?;
-        let swaption = Self {
-            id: wire.id,
-            option_type: wire.option_type,
-            notional: wire.notional,
-            settlement: wire.settlement,
-            vol_surface_id: wire.vol_surface_id,
-            bermudan_schedule: wire.bermudan_schedule,
-            bermudan_type: wire.bermudan_type,
-            underlying_fixed_leg,
-            underlying_float_leg,
-            instrument_pricing_overrides: wire.instrument_pricing_overrides,
-            metric_pricing_overrides: wire.metric_pricing_overrides,
-            scenario_pricing_overrides: wire.scenario_pricing_overrides,
-            attributes: wire.attributes,
-        };
-        swaption.validate()?;
-        Ok(swaption)
-    }
-}
-
-impl From<&BermudanSwaption> for BermudanSwaptionWire {
-    fn from(value: &BermudanSwaption) -> Self {
-        Self {
-            id: value.id.clone(),
-            option_type: value.option_type,
-            notional: value.notional,
-            strike: None,
-            swap_start: None,
-            swap_end: None,
-            fixed_freq: None,
-            float_freq: None,
-            day_count: None,
-            settlement: value.settlement,
-            discount_curve_id: None,
-            forward_curve_id: None,
-            vol_surface_id: value.vol_surface_id.clone(),
-            bermudan_schedule: value.bermudan_schedule.clone(),
-            bermudan_type: value.bermudan_type,
-            calendar_id: None,
-            underlying_fixed_leg: Some(value.underlying_fixed_leg.clone()),
-            underlying_float_leg: Some(value.underlying_float_leg.clone()),
-            instrument_pricing_overrides: value.instrument_pricing_overrides.clone(),
-            metric_pricing_overrides: value.metric_pricing_overrides.clone(),
-            scenario_pricing_overrides: value.scenario_pricing_overrides.clone(),
-            attributes: value.attributes.clone(),
-        }
-    }
-}
-
-impl serde::Serialize for BermudanSwaption {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serde::Serialize::serialize(&BermudanSwaptionWire::from(self), serializer)
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for BermudanSwaption {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let wire = <BermudanSwaptionWire as serde::Deserialize>::deserialize(deserializer)?;
-        Self::try_from(wire).map_err(serde::de::Error::custom)
-    }
-}
-
-impl schemars::JsonSchema for BermudanSwaption {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("BermudanSwaption")
-    }
-
-    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        underlier_wire_schema(<BermudanSwaptionWire as schemars::JsonSchema>::json_schema(
-            generator,
-        ))
-    }
-}
-
-#[cfg(test)]
-mod wire_tests {
-    use super::*;
-    use crate::instruments::rates::irs::FloatingLegCompounding;
-    use finstack_quant_core::dates::{BusinessDayConvention, StubKind};
-    use serde_json::Value;
-
-    fn add_matching_legacy_underlier(value: &mut Value) {
-        let fixed = value["underlying_fixed_leg"].clone();
-        let float = value["underlying_float_leg"].clone();
-        let object = value.as_object_mut().expect("Bermudan JSON object");
-        object.insert("strike".to_string(), fixed["rate"].clone());
-        object.insert("swap_start".to_string(), fixed["start"].clone());
-        object.insert("swap_end".to_string(), fixed["end"].clone());
-        object.insert("fixed_freq".to_string(), fixed["frequency"].clone());
-        object.insert("float_freq".to_string(), float["frequency"].clone());
-        object.insert("day_count".to_string(), fixed["day_count"].clone());
-        object.insert(
-            "discount_curve_id".to_string(),
-            fixed["discount_curve_id"].clone(),
-        );
-        object.insert(
-            "forward_curve_id".to_string(),
-            float["forward_curve_id"].clone(),
-        );
-    }
-
-    #[test]
-    fn legacy_bermudan_input_serializes_as_canonical_legs() {
-        let canonical =
-            serde_json::to_value(BermudanSwaption::example()).expect("canonical Bermudan JSON");
-        let mut legacy = canonical.clone();
-        add_matching_legacy_underlier(&mut legacy);
-        let object = legacy.as_object_mut().expect("legacy Bermudan JSON object");
-        object.remove("underlying_fixed_leg");
-        object.remove("underlying_float_leg");
-
-        let normalized: BermudanSwaption =
-            serde_json::from_value(legacy).expect("legacy Bermudan input");
-        assert_eq!(
-            serde_json::to_value(normalized).expect("canonical Bermudan output"),
-            canonical
-        );
-    }
-
-    #[test]
-    fn mixed_bermudan_input_requires_complete_matching_representations() {
-        let canonical =
-            serde_json::to_value(BermudanSwaption::example()).expect("canonical Bermudan JSON");
-
-        let mut mixed = canonical.clone();
-        add_matching_legacy_underlier(&mut mixed);
-        let normalized: BermudanSwaption =
-            serde_json::from_value(mixed.clone()).expect("complete matching mixed input");
-        assert_eq!(
-            serde_json::to_value(normalized).expect("canonical Bermudan output"),
-            canonical
-        );
-
-        let mut incomplete_legacy = mixed.clone();
-        incomplete_legacy
-            .as_object_mut()
-            .expect("mixed object")
-            .remove("float_freq");
-        let incomplete_legacy_error = serde_json::from_value::<BermudanSwaption>(incomplete_legacy)
-            .expect_err("mixed input requires every legacy scalar field")
-            .to_string();
-        assert!(incomplete_legacy_error.contains("requires `float_freq`"));
-
-        let mut incomplete_legs = mixed.clone();
-        incomplete_legs
-            .as_object_mut()
-            .expect("mixed object")
-            .remove("underlying_float_leg");
-        let incomplete_legs_error = serde_json::from_value::<BermudanSwaption>(incomplete_legs)
-            .expect_err("mixed input requires both canonical legs")
-            .to_string();
-        assert!(incomplete_legs_error.contains("must provide both fixed and floating"));
-
-        let mut conflicting = mixed;
-        conflicting.as_object_mut().expect("mixed object").insert(
-            "fixed_freq".to_string(),
-            serde_json::to_value(Tenor::quarterly()).expect("quarterly tenor JSON"),
-        );
-        let conflict_error = serde_json::from_value::<BermudanSwaption>(conflicting)
-            .expect_err("mixed input requires matching representations")
-            .to_string();
-        assert!(conflict_error.contains("fixed_freq conflicts"));
-    }
-
-    #[test]
-    fn bermudan_schedule_uses_complete_fixed_leg_conventions() {
-        let mut bermudan = BermudanSwaption::example();
-        bermudan.underlying_fixed_leg.frequency = Tenor::annual();
-        bermudan.underlying_fixed_leg.day_count = DayCount::Act365F;
-        bermudan.underlying_fixed_leg.bdc = BusinessDayConvention::Preceding;
-        bermudan.underlying_fixed_leg.calendar_id =
-            Some(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID.to_string());
-        bermudan.underlying_fixed_leg.stub = StubKind::ShortBack;
-        bermudan.underlying_fixed_leg.payment_lag_days = 2;
-        bermudan.underlying_fixed_leg.end_of_month = true;
-        let fixed = bermudan.underlying_fixed_leg.clone();
-
-        let actual = bermudan
-            .fixed_schedule_periods()
-            .expect("canonical fixed-leg schedule");
-        let expected = crate::cashflow::builder::periods::build_periods(
-            crate::cashflow::builder::periods::BuildPeriodsParams {
-                start: fixed.start,
-                end: fixed.end,
-                frequency: fixed.frequency,
-                stub: fixed.stub,
-                bdc: fixed.bdc,
-                calendar_id: fixed.calendar_id.as_deref().expect("calendar"),
-                end_of_month: fixed.end_of_month,
-                day_count: fixed.day_count,
-                payment_lag_days: fixed.payment_lag_days,
-                reset_lag_days: None,
-                adjust_accrual_dates: false,
-                roll_rule: crate::cashflow::builder::specs::RollRule::None,
-            },
-        )
-        .expect("direct fixed-leg schedule");
-
-        let actual_dates = actual
-            .iter()
-            .map(|period| {
-                (
-                    period.accrual_start,
-                    period.accrual_end,
-                    period.payment_date,
-                    period.accrual_year_fraction,
-                )
-            })
-            .collect::<Vec<_>>();
-        let expected_dates = expected
-            .iter()
-            .map(|period| {
-                (
-                    period.accrual_start,
-                    period.accrual_end,
-                    period.payment_date,
-                    period.accrual_year_fraction,
-                )
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(actual_dates, expected_dates);
-
-        let (payment_dates, accruals) = bermudan
-            .build_swap_schedule(fixed.start)
-            .expect("public fixed-leg schedule");
-        assert_eq!(
-            payment_dates,
-            expected
-                .iter()
-                .map(|period| period.payment_date)
-                .collect::<Vec<_>>()
-        );
-        assert_eq!(
-            accruals,
-            expected
-                .iter()
-                .map(|period| period.accrual_year_fraction)
-                .collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn exercise_underlier_preserves_both_leg_conventions() {
-        let mut bermudan = BermudanSwaption::example();
-        bermudan.underlying_fixed_leg.frequency = Tenor::annual();
-        bermudan.underlying_fixed_leg.day_count = DayCount::Act365F;
-        bermudan.underlying_fixed_leg.bdc = BusinessDayConvention::Preceding;
-        bermudan.underlying_fixed_leg.stub = StubKind::LongBack;
-        bermudan.underlying_fixed_leg.payment_lag_days = 2;
-        bermudan.underlying_fixed_leg.end_of_month = true;
-        bermudan.underlying_float_leg.frequency = Tenor::semi_annual();
-        bermudan.underlying_float_leg.day_count = DayCount::Act360;
-        bermudan.underlying_float_leg.bdc = BusinessDayConvention::Following;
-        bermudan.underlying_float_leg.stub = StubKind::ShortBack;
-        bermudan.underlying_float_leg.reset_lag_days = 3;
-        bermudan.underlying_float_leg.payment_lag_days = 4;
-        bermudan.underlying_float_leg.end_of_month = true;
-        bermudan.underlying_float_leg.compounding = FloatingLegCompounding::sofr();
-
-        let exercise = bermudan.first_exercise().expect("first exercise");
-        let underlier = bermudan
-            .underlying_irs_at(exercise)
-            .expect("canonical exercise underlier");
-        let mut expected_fixed = bermudan.underlying_fixed_leg.clone();
-        expected_fixed.start = exercise;
-        expected_fixed.rate = Decimal::ZERO;
-        let mut expected_float = bermudan.underlying_float_leg;
-        expected_float.start = exercise;
-
-        assert_eq!(
-            serde_json::to_value(underlier.fixed).expect("fixed JSON"),
-            serde_json::to_value(expected_fixed).expect("expected fixed JSON")
-        );
-        assert_eq!(
-            serde_json::to_value(underlier.float).expect("float JSON"),
-            serde_json::to_value(expected_float).expect("expected float JSON")
-        );
-    }
-
-    #[test]
-    fn to_european_preserves_complete_leg_conventions() {
-        let mut bermudan = BermudanSwaption::example();
-        bermudan.underlying_fixed_leg.frequency = Tenor::annual();
-        bermudan.underlying_fixed_leg.day_count = DayCount::Act365F;
-        bermudan.underlying_fixed_leg.bdc = BusinessDayConvention::Preceding;
-        bermudan.underlying_fixed_leg.calendar_id = Some("nyse".to_string());
-        bermudan.underlying_fixed_leg.stub = StubKind::ShortFront;
-        bermudan.underlying_fixed_leg.compounding_simple = false;
-        bermudan.underlying_fixed_leg.payment_lag_days = 2;
-        bermudan.underlying_fixed_leg.end_of_month = true;
-
-        bermudan.underlying_float_leg.frequency = Tenor::semi_annual();
-        bermudan.underlying_float_leg.day_count = DayCount::Act360;
-        bermudan.underlying_float_leg.bdc = BusinessDayConvention::Following;
-        bermudan.underlying_float_leg.calendar_id = Some("target".to_string());
-        bermudan.underlying_float_leg.fixing_calendar_id = Some("nyse".to_string());
-        bermudan.underlying_float_leg.stub = StubKind::LongBack;
-        bermudan.underlying_float_leg.reset_lag_days = 2;
-        bermudan.underlying_float_leg.compounding = FloatingLegCompounding::sofr();
-        bermudan.underlying_float_leg.payment_lag_days = 3;
-        bermudan.underlying_float_leg.end_of_month = true;
-
-        let first_exercise = bermudan.first_exercise().expect("first exercise");
-        let mut expected_fixed = bermudan.underlying_fixed_leg.clone();
-        expected_fixed.start = first_exercise;
-        let mut expected_float = bermudan.underlying_float_leg.clone();
-        expected_float.start = first_exercise;
-
-        let european = bermudan.to_european().expect("European conversion");
-        assert_eq!(european.expiry, first_exercise);
-        assert_eq!(
-            serde_json::to_value(european.underlying_fixed_leg).expect("fixed leg JSON"),
-            serde_json::to_value(expected_fixed).expect("expected fixed leg JSON")
-        );
-        assert_eq!(
-            serde_json::to_value(european.underlying_float_leg).expect("float leg JSON"),
-            serde_json::to_value(expected_float).expect("expected float leg JSON")
-        );
-    }
 }
 
 impl BermudanSwaption {
@@ -559,8 +182,8 @@ impl BermudanSwaption {
                 strike,
                 swap_start,
                 swap_end,
-                fixed_freq: Tenor::semi_annual(),
-                float_freq: Tenor::quarterly(),
+                fixed_frequency: Tenor::semi_annual(),
+                float_frequency: Tenor::quarterly(),
                 day_count: DayCount::Thirty360,
                 discount_curve_id: CurveId::new("USD-OIS"),
                 forward_curve_id: CurveId::new("USD-OIS"),
@@ -610,8 +233,8 @@ impl BermudanSwaption {
                 strike,
                 swap_start,
                 swap_end,
-                fixed_freq: Tenor::semi_annual(),
-                float_freq: Tenor::quarterly(),
+                fixed_frequency: Tenor::semi_annual(),
+                float_frequency: Tenor::quarterly(),
                 day_count: DayCount::Thirty360,
                 discount_curve_id: discount_curve_id.into(),
                 forward_curve_id: forward_curve_id.into(),
@@ -657,8 +280,8 @@ impl BermudanSwaption {
                 strike,
                 swap_start,
                 swap_end,
-                fixed_freq: Tenor::semi_annual(),
-                float_freq: Tenor::quarterly(),
+                fixed_frequency: Tenor::semi_annual(),
+                float_frequency: Tenor::quarterly(),
                 day_count: DayCount::Thirty360,
                 discount_curve_id: discount_curve_id.into(),
                 forward_curve_id: forward_curve_id.into(),
@@ -699,12 +322,12 @@ impl BermudanSwaption {
     }
 
     /// Fixed-leg payment frequency.
-    pub fn get_fixed_freq(&self) -> Tenor {
+    pub fn get_fixed_frequency(&self) -> Tenor {
         self.underlying_fixed_leg.frequency
     }
 
     /// Floating-leg payment frequency.
-    pub fn get_float_freq(&self) -> Tenor {
+    pub fn get_float_frequency(&self) -> Tenor {
         self.underlying_float_leg.frequency
     }
 
@@ -729,21 +352,21 @@ impl BermudanSwaption {
     }
 
     /// Set fixed leg frequency.
-    pub fn with_fixed_freq(mut self, freq: Tenor) -> Self {
-        self.underlying_fixed_leg.frequency = freq;
+    pub fn with_fixed_frequency(mut self, frequency: Tenor) -> Self {
+        self.underlying_fixed_leg.frequency = frequency;
         self
     }
 
     /// Set floating leg frequency.
-    pub fn with_float_freq(mut self, freq: Tenor) -> Self {
-        self.underlying_float_leg.frequency = freq;
+    pub fn with_float_frequency(mut self, frequency: Tenor) -> Self {
+        self.underlying_float_leg.frequency = frequency;
         self
     }
 
     /// Set day count convention.
-    pub fn with_day_count(mut self, dc: DayCount) -> Self {
-        self.underlying_fixed_leg.day_count = dc;
-        self.underlying_float_leg.day_count = dc;
+    pub fn with_day_count(mut self, day_count: DayCount) -> Self {
+        self.underlying_fixed_leg.day_count = day_count;
+        self.underlying_float_leg.day_count = day_count;
         self
     }
 
@@ -855,7 +478,7 @@ impl BermudanSwaption {
                 end: fixed.end,
                 frequency: fixed.frequency,
                 stub: fixed.stub,
-                bdc: fixed.bdc,
+                business_day_convention: fixed.business_day_convention,
                 calendar_id: fixed
                     .calendar_id
                     .as_deref()

@@ -4,47 +4,47 @@
       "description": "Factor types for P&L attribution.\n\nMaps cleanly to `MarketContext` structure:\n- **RatesCurves**: discount_curves + forward_curves\n- **CreditCurves**: hazard_curves\n- **InflationCurves**: inflation_curves\n- **Correlations**: base_correlation_curves\n- **Fx**: FxMatrix\n- **Volatility**: surfaces (VolSurface)\n- **MarketScalars**: prices, series, inflation_indices, dividends",
       "oneOf": [
         {
-          "const": "Carry",
+          "const": "carry",
           "description": "Time decay and accruals (Theta).",
           "type": "string"
         },
         {
-          "const": "RatesCurves",
+          "const": "rates_curves",
           "description": "Interest rate curves (discount & forward).",
           "type": "string"
         },
         {
-          "const": "CreditCurves",
+          "const": "credit_curves",
           "description": "Credit hazard curves (spread risk).",
           "type": "string"
         },
         {
-          "const": "InflationCurves",
+          "const": "inflation_curves",
           "description": "Inflation curves.",
           "type": "string"
         },
         {
-          "const": "Correlations",
+          "const": "correlations",
           "description": "Base correlation curves (structured credit).",
           "type": "string"
         },
         {
-          "const": "Fx",
+          "const": "fx",
           "description": "FX rate changes.",
           "type": "string"
         },
         {
-          "const": "Volatility",
+          "const": "volatility",
           "description": "Implied volatility changes.",
           "type": "string"
         },
         {
-          "const": "MarketScalars",
+          "const": "market_scalars",
           "description": "Market scalars (dividends, equity/commodity prices, inflation indices).",
           "type": "string"
         },
         {
-          "const": "ModelParameters",
+          "const": "model_parameters",
           "description": "Model-specific parameters (prepayment, default, recovery, conversion).",
           "type": "string"
         }
@@ -62,7 +62,7 @@
               "type": "null"
             }
           ],
-          "description": "Execution policy the attribution ran under (workspace\npolicy-visibility invariant: results stamp the parallel flag).\n`None` for methods without a policy knob (metrics-based) and for\npayloads predating this field."
+          "description": "Execution policy the attribution ran under (workspace\npolicy-visibility invariant: results stamp the parallel flag).\n`None` for methods without a policy knob (metrics-based)."
         },
         "fx_policy": {
           "anyOf": [
@@ -84,7 +84,6 @@
           "description": "Attribution method used."
         },
         "notes": {
-          "default": [],
           "description": "Diagnostic notes and warnings.",
           "items": {
             "type": "string"
@@ -107,12 +106,12 @@
           "description": "Rounding context used for calculations."
         },
         "t0": {
-          "description": "Start date (T₀).",
-          "type": "string"
+          "$ref": "#/$defs/DateWire",
+          "description": "Start date (T₀)."
         },
         "t1": {
-          "description": "End date (T₁).",
-          "type": "string"
+          "$ref": "#/$defs/DateWire",
+          "description": "End date (T₁)."
         },
         "tolerance_abs": {
           "description": "Absolute tolerance for residual validation.",
@@ -134,7 +133,8 @@
         "tolerance_abs",
         "tolerance_pct",
         "residual_pct",
-        "rounding"
+        "rounding",
+        "notes"
       ],
       "type": "object"
     },
@@ -142,7 +142,7 @@
       "description": "Attribution methodology for decomposing P&L.\n\nFour methodologies are supported:\n- **Parallel**: Independent factor isolation (may not sum due to cross-effects)\n- **Waterfall**: Sequential application (guarantees sum = total, order matters)\n- **MetricsBased**: Linear approximation using existing metrics (fast but approximate)\n- **Taylor**: Sensitivity-based Taylor expansion (first/second order via bump-and-reprice)",
       "oneOf": [
         {
-          "const": "Parallel",
+          "const": "parallel",
           "description": "Independent factor isolation (may not sum due to cross-effects).\n\nEach factor is isolated independently by restoring T₀ values for that\nfactor while keeping T₁ values for all others. Residual captures\ncross-effects and non-linearities.",
           "type": "string"
         },
@@ -150,7 +150,7 @@
           "additionalProperties": false,
           "description": "Sequential waterfall attribution (guarantees sum = total, order matters).\n\nFactors are applied one-by-one in the specified order. Each factor's\nP&L is computed with all previous factors at T₁ and remaining at T₀.\nResidual is minimal by construction.",
           "properties": {
-            "Waterfall": {
+            "waterfall": {
               "items": {
                 "$ref": "#/$defs/AttributionFactor"
               },
@@ -158,12 +158,12 @@
             }
           },
           "required": [
-            "Waterfall"
+            "waterfall"
           ],
           "type": "object"
         },
         {
-          "const": "MetricsBased",
+          "const": "metrics_based",
           "description": "Use existing metrics (Theta, DV01, CS01) for approximation.\n\nLinear approximation using pre-computed sensitivities. Fast but less\naccurate for large market moves due to convexity effects.",
           "type": "string"
         },
@@ -171,12 +171,12 @@
           "additionalProperties": false,
           "description": "Sensitivity-based Taylor expansion (first/second order).\n\nComputes sensitivities at T₀ via bump-and-reprice, then multiplies by\nobserved market moves to decompose P&L. Optionally includes second-order\ngamma/convexity terms.",
           "properties": {
-            "Taylor": {
+            "taylor": {
               "$ref": "#/$defs/TaylorAttributionConfig"
             }
           },
           "required": [
-            "Taylor"
+            "taylor"
           ],
           "type": "object"
         }
@@ -200,6 +200,16 @@
         "results_meta"
       ],
       "type": "object"
+    },
+    "AttributionSchema": {
+      "description": "Exact schema marker accepted by attribution envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.attribution/1",
+          "description": "The sole supported attribution contract.",
+          "type": "string"
+        }
+      ]
     },
     "CarryDetail": {
       "description": "Detailed carry decomposition.\n\nWhen available, breaks carry into sub-components:\n- **coupon_income**: Net cashflows (coupons, interest) received during the period\n- **pull_to_par**: PV convergence toward par (time effect at flat yield)\n- **roll_down**: Curve shape benefit from aging along a sloped curve\n- **funding_cost**: Cost of financing the position\n\nThe populated detail lines partition `total`:\n`coupon_income + pull_to_par + roll_down − funding_cost = total`.\n\nIn metrics-based attribution, these fields are populated from pre-computed\ncarry decomposition metrics when available. In repricing-based attribution\nmethods, only a partial breakdown may be available.\n\n`coupon_income` and `roll_down` are typed as [`SourceLine`] so that\ncallers with a `CreditFactorModel` may further split them into rates and\ncredit components (PR-8b §7.1).\n\n# Reference\n\nBloomberg PORT decomposes carry into Carry (coupon/funding), Curve Roll-Down,\nand Shift as distinct P&L components.",
@@ -392,11 +402,7 @@
         },
         "curve_shape_pnl": {
           "$ref": "#/$defs/Money",
-          "default": {
-            "amount": "0",
-            "currency": "USD"
-          },
-          "description": "P&L attributed to the **non-parallel** part of the hazard-curve move\n(steepening / twist / term-structure roll) — the curve-shape residual.\n\nOn the linear (MetricsBased / Taylor) wire the parallel steps are\nsingle-CS01 × Δbp products, so this closing residual also absorbs\n**spread convexity** of large parallel moves — read it as\n\"non-parallel + higher-order\", not pure curve shape, on that path.\nThe reprice-based parallel/waterfall cascades distribute convexity\ninto the steps via cumulative bumps.\n\nAudit item #1: previously this residual was absorbed into\n`adder_pnl_total`, which mislabeled curve-shape risk as\nissuer-idiosyncratic. It is now a distinct component. The reconciliation\ninvariant is correspondingly:\n`generic + Σ levels + adder + curve_shape ≡ credit_curves_pnl`.\n\n`#[serde(default)]` keeps backward compatibility: older serialized\nattributions (no `curve_shape_pnl`) deserialize with a zero value."
+          "description": "P&L attributed to the **non-parallel** part of the hazard-curve move\n(steepening / twist / term-structure roll) — the curve-shape residual.\n\nOn the linear (MetricsBased / Taylor) wire the parallel steps are\nsingle-CS01 × Δbp products, so this closing residual also absorbs\n**spread convexity** of large parallel moves — read it as\n\"non-parallel + higher-order\", not pure curve shape, on that path.\nThe reprice-based parallel/waterfall cascades distribute convexity\ninto the steps via cumulative bumps.\n\nThe reconciliation invariant is:\n`generic + Σ levels + adder + curve_shape ≡ credit_curves_pnl`."
         },
         "generic_pnl": {
           "$ref": "#/$defs/Money",
@@ -418,7 +424,8 @@
         "model_id",
         "generic_pnl",
         "levels",
-        "adder_pnl_total"
+        "adder_pnl_total",
+        "curve_shape_pnl"
       ],
       "type": "object"
     },
@@ -1243,6 +1250,16 @@
         }
       ]
     },
+    "DateWire": {
+      "description": "ISO 8601 calendar date encoded as a `YYYY-MM-DD` JSON string.",
+      "format": "date",
+      "type": "string"
+    },
+    "DecimalWire": {
+      "description": "Exact decimal encoded only as a JSON string.",
+      "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
+      "type": "string"
+    },
     "ExecutionPolicy": {
       "description": "Controls where attribution repricing work spends parallelism.\n\n`Parallel` preserves the standalone attribution behavior: independent\nfactor repricings may use Rayon internally. `Serial` keeps those inner\nrepricings sequential so an outer portfolio or batch loop can own Rayon.",
       "oneOf": [
@@ -1309,7 +1326,7 @@
           "$ref": "#/$defs/FxConversionPolicy",
           "description": "Strategy the provider actually applied or was instructed to apply."
         },
-        "target_ccy": {
+        "target_currency": {
           "anyOf": [
             {
               "$ref": "#/$defs/Currency"
@@ -1467,11 +1484,7 @@
       "description": "Currency-tagged monetary amount with safe arithmetic.\n\nValues are stored using a fixed-point representation derived from ISO 4217\ndecimal places.\n\nWhen you need configurable rounding during ingestion, use\n[`Money::new_with_config`].\n\n# Examples\n```rust\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::currency::Currency;\n\nlet notional = Money::new(1_000_000.0, Currency::EUR);\nassert_eq!(notional.currency(), Currency::EUR);\nassert_eq!(notional.amount(), 1_000_000.0);\n```",
       "properties": {
         "amount": {
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "$ref": "#/$defs/DecimalWire"
         },
         "currency": {
           "$ref": "#/$defs/Currency"
@@ -1487,7 +1500,7 @@
       "description": "Numeric engine mode compiled into the crate.\n\nCurrently single-variant (F64); exists as `#[non_exhaustive]` for forward-compatible extension.\n\n# What the stamp asserts (and what it does not)\n\n`F64` asserts that **curve, rate, and analytics arithmetic** (discounting,\ninterpolation, risk metrics, scenario math, FX rates as scalars) runs on\n64-bit IEEE 754 floating point. It does **not** describe the [`Money`]\nlayer: monetary amounts are stored and combined on a Decimal-backed\nrepresentation (`rust_decimal::Decimal`) regardless of this stamp, with\nf64 appearing only at ingest/accessor boundaries. Auditors reading\n`numeric_mode: F64` in [`ResultsMeta`] should therefore interpret it as\n\"non-monetary numerics are f64\", not \"monetary amounts were accumulated\nin floating point\". (Clarified .)\n\n[`Money`]: crate::money::Money",
       "oneOf": [
         {
-          "const": "F64",
+          "const": "f64",
           "description": "Floating-point f64 engine for curve/rate/analytics arithmetic.\nMonetary amounts remain Decimal-backed independent of this variant.",
           "type": "string"
         }
@@ -1535,7 +1548,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional credit-factor-hierarchy decomposition of carry (PR-8b §7.2).\n\nPopulated only when an `AttributionSpec.credit_factor_model` was\nsupplied. Additive: when absent, behavior is unchanged."
+          "description": "Optional credit-factor-hierarchy decomposition of carry (PR-8b §7.2).\n\nPopulated only when an `AttributionSpec.credit_factor_model` was\nsupplied."
         },
         "credit_curves_pnl": {
           "$ref": "#/$defs/Money",
@@ -1561,7 +1574,7 @@
               "type": "null"
             }
           ],
-          "description": "Optional credit-factor-hierarchy decomposition of `credit_curves_pnl`.\n\nPopulated only when an `AttributionSpec.credit_factor_model` was supplied\nto the attribution call. When present, this is purely additive detail —\n`credit_curves_pnl` itself is unchanged. Old JSON without this field\ndeserializes with `None` (additive serde extension)."
+          "description": "Optional credit-factor-hierarchy decomposition of `credit_curves_pnl`.\n\nPopulated only when an `AttributionSpec.credit_factor_model` was supplied\nto the attribution call. When present, this is purely additive detail —\n`credit_curves_pnl` itself is unchanged."
         },
         "cross_factor_detail": {
           "anyOf": [
@@ -1595,11 +1608,7 @@
         },
         "fx_translation_pnl": {
           "$ref": "#/$defs/Money",
-          "default": {
-            "amount": "0",
-            "currency": "USD"
-          },
-          "description": "FX translation P&L — the **reporting-currency** component of FX moves.\n\nPopulated only when the attribution call passed an explicit\n`target_ccy` that differs from the instrument's native pricing currency\n(`val_t1.currency()`). In that case the native-currency P&L is\ntranslated into `target_ccy` using `market_t0`'s FX at T₀ and\n`market_t1`'s FX at T₁; the difference between those two translated\ntotals lands here.\n\nFor attribution calls that report in native currency (the default —\n`target_ccy = None`), this is always zero in the `total_pnl` currency.\n\nAdditive serde extension: pre-existing JSON without this field\ndeserializes with `Money::new(0.0, Currency::USD)`. Downstream consumers\nthat need to compare against `total_pnl.currency()` should fall back to\nzero when the currencies do not match (which they will not for any\nattribution produced after this field was added — the field is always\nconstructed in the same currency as `total_pnl`)."
+          "description": "FX translation P&L — the **reporting-currency** component of FX moves.\n\nPopulated only when the attribution call passed an explicit\n`target_currency` that differs from the instrument's native pricing currency\n(`val_t1.currency()`). In that case the native-currency P&L is\ntranslated into `target_currency` using `market_t0`'s FX at T₀ and\n`market_t1`'s FX at T₁; the difference between those two translated\ntotals lands here.\n\nFor attribution calls that report in native currency (the default —\n`target_currency = None`), this is always zero in the `total_pnl` currency.\n\nThe field is always constructed in the same currency as `total_pnl`."
         },
         "inflation_curves_pnl": {
           "$ref": "#/$defs/Money",
@@ -1625,7 +1634,7 @@
               "type": "null"
             }
           ],
-          "description": "Pure mark-to-market change: `val_t1 − val_t0` with **no** intra-period\ncashflow adjustment.\n\nAdded in audit rec #2 to separate the raw user-input price change from\nthe total-return view stamped on `total_pnl`. When the attribution path\nadded coupon_income to `total_pnl` (the standard total-return convention\nin parallel / waterfall / taylor attribution), this field still reports\nthe raw `val_t1 − val_t0` so a downstream consumer that computed their\nown total from the underlying valuations can reconcile cleanly.\n\nAdditive serde extension: pre-existing JSON without this field\ndeserializes with `None`. New attribution runs populate it."
+          "description": "Pure mark-to-market change: `val_t1 − val_t0` with **no** intra-period\ncashflow adjustment.\n\nAdded in audit rec #2 to separate the raw user-input price change from\nthe total-return view stamped on `total_pnl`. When the attribution path\nadded coupon_income to `total_pnl` (the standard total-return convention\nin parallel / waterfall / taylor attribution), this field still reports\nthe raw `val_t1 − val_t0` so a downstream consumer that computed their\nown total from the underlying valuations can reconcile cleanly.\n\nAttribution paths that cannot provide the raw mark-to-market change use\n`None`."
         },
         "market_scalars_pnl": {
           "$ref": "#/$defs/Money",
@@ -1670,8 +1679,7 @@
           "description": "Residual P&L (total - sum of attributed factors)."
         },
         "result_invalid": {
-          "default": false,
-          "description": "True if residual computation encountered non-finite (NaN/Inf) inputs,\nor if any factor P&L value is non-finite. When `true`, `residual` and\n`meta.residual_pct` are not meaningful and downstream callers should\ntreat the attribution as invalid. Defaults to `false`.",
+          "description": "True if residual computation encountered non-finite (NaN/Inf) inputs,\nor if any factor P&L value is non-finite. When `true`, `residual` and\n`meta.residual_pct` are not meaningful and downstream callers should\ntreat the attribution as invalid.",
           "type": "boolean"
         },
         "scalars_detail": {
@@ -1713,12 +1721,14 @@
         "inflation_curves_pnl",
         "correlations_pnl",
         "fx_pnl",
+        "fx_translation_pnl",
         "vol_pnl",
         "cross_factor_pnl",
         "model_params_pnl",
         "market_scalars_pnl",
         "residual",
-        "meta"
+        "meta",
+        "result_invalid"
       ],
       "type": "object"
     },
@@ -1799,7 +1809,7 @@
     "RoundingContext": {
       "description": "Snapshot of active rounding settings used for result stamping.\n\nInstances are typically produced via [`rounding_context_from`] and persisted\nalongside valuation results.",
       "properties": {
-        "ingest_scale_by_ccy": {
+        "ingest_scale_by_currency": {
           "additionalProperties": {
             "format": "uint32",
             "minimum": 0,
@@ -1812,7 +1822,7 @@
           "$ref": "#/$defs/RoundingMode",
           "description": "Active rounding mode."
         },
-        "output_scale_by_ccy": {
+        "output_scale_by_currency": {
           "additionalProperties": {
             "format": "uint32",
             "minimum": 0,
@@ -1838,8 +1848,8 @@
       },
       "required": [
         "mode",
-        "ingest_scale_by_ccy",
-        "output_scale_by_ccy",
+        "ingest_scale_by_currency",
+        "output_scale_by_currency",
         "version"
       ],
       "type": "object"
@@ -1848,27 +1858,27 @@
       "description": "Rounding modes supported by the library.\n\nThe variants mirror the most common conventions found in pricing engines.\n\n# Examples\n```rust\nuse finstack_quant_core::config::{FinstackConfig, RoundingMode};\n\nlet mut cfg = FinstackConfig::default();\ncfg.rounding.mode = RoundingMode::TowardZero;\nassert!(matches!(cfg.rounding.mode, RoundingMode::TowardZero));\n```",
       "oneOf": [
         {
-          "const": "Bankers",
+          "const": "bankers",
           "description": "Banker's rounding (ties to even).",
           "type": "string"
         },
         {
-          "const": "AwayFromZero",
+          "const": "away_from_zero",
           "description": "Round halves away from zero.",
           "type": "string"
         },
         {
-          "const": "TowardZero",
+          "const": "toward_zero",
           "description": "Round toward zero (truncate).",
           "type": "string"
         },
         {
-          "const": "Floor",
+          "const": "floor",
           "description": "Round toward negative infinity.",
           "type": "string"
         },
         {
-          "const": "Ceil",
+          "const": "ceil",
           "description": "Round toward positive infinity.",
           "type": "string"
         }
@@ -1913,43 +1923,40 @@
       "type": "object"
     },
     "SourceLine": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "credit_part": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/Money"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "rates_part": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/Money"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "total": {
+      "additionalProperties": false,
+      "description": "One source-line of carry, optionally split into rates / credit components.\n\nUsed for `CarryDetail.coupon_income` and `CarryDetail.roll_down`. When no\n`CreditFactorModel` is supplied to attribution, `rates_part` and\n`credit_part` are both `None` and `total` carries the canonical scalar\nvalue. When a model is supplied, the two parts sum to `total` at\n1e-8 absolute tolerance (PR-8b §7.1, §7.4 invariants 1 & 2).",
+      "properties": {
+        "credit_part": {
+          "anyOf": [
+            {
               "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
             }
-          },
-          "required": [
-            "total"
           ],
-          "type": "object"
+          "description": "Credit-only contribution (populated only when a credit factor model\ndrove the split)."
         },
-        {
-          "$ref": "#/$defs/Money"
+        "rates_part": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Rates-only contribution (populated only when a credit factor model\ndrove the split)."
+        },
+        "total": {
+          "$ref": "#/$defs/Money",
+          "description": "Total signed amount for this line (always populated)."
         }
-      ]
+      },
+      "required": [
+        "total"
+      ],
+      "type": "object"
     },
     "TaylorAttributionConfig": {
       "description": "Configuration for Taylor-based P&L attribution.",
@@ -2025,9 +2032,8 @@
       "description": "The attribution result"
     },
     "schema": {
-      "const": "finstack_quant.attribution/1",
-      "description": "Schema version identifier.\n\nDeserialization rejects unknown versions instead of silently\nre-interpreting them as the current result contract.",
-      "type": "string"
+      "$ref": "#/$defs/AttributionSchema",
+      "description": "Schema version identifier.\n\nDeserialization rejects unknown versions instead of silently\nre-interpreting them as the current result contract."
     }
   },
   "required": [

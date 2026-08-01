@@ -1,9 +1,9 @@
 //! JSON round-trip helpers for portfolio specs and results.
 //!
-//! These entry points retain the historical JSON-only API for compatibility;
-//! prefer the typed :class:`Portfolio`, :class:`PortfolioValuation`, and
-//! :class:`PortfolioResult` classes (see ``types.rs``) and the pipeline
-//! functions, which skip the JSON round-trip entirely.
+//! These entry points complement the typed :class:`Portfolio`,
+//! :class:`PortfolioValuation`, and :class:`PortfolioResult` classes (see
+//! ``types.rs``). Pipeline functions use the typed objects directly and skip
+//! JSON round-trips.
 
 use crate::bindings::extract::{
     extract_market_ref, extract_portfolio_result_ref, extract_valuation_ref,
@@ -71,7 +71,7 @@ pub fn portfolio_result_get_metric(
 /// ----------
 /// valuation : PortfolioValuation | str
 ///     A :class:`PortfolioValuation` object (fast path) or JSON string.
-/// base_ccy : str
+/// base_currency : str
 ///     Base currency code.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or a JSON string.
@@ -81,12 +81,13 @@ pub fn portfolio_result_get_metric(
 pub fn aggregate_metrics(
     py: Python<'_>,
     valuation: &Bound<'_, PyAny>,
-    base_ccy: &str,
+    base_currency: &str,
     market: &Bound<'_, PyAny>,
     as_of: &str,
 ) -> PyResult<String> {
     let valuation = extract_valuation_ref(py, valuation)?;
-    let ccy: finstack_quant_core::currency::Currency = base_ccy.parse().map_err(display_to_py)?;
+    let ccy: finstack_quant_core::currency::Currency =
+        base_currency.parse().map_err(display_to_py)?;
     let market = extract_market_ref(py, market)?;
     let date = super::parse_date(as_of)?;
     let valuation_ref: &finstack_quant_portfolio::valuation::PortfolioValuation = &valuation;

@@ -172,7 +172,7 @@ fn test_high_rate_environment() {
 fn test_instrument_trait_key() {
     use finstack_quant_valuations::pricer::InstrumentType;
     let fra = create_standard_fra();
-    assert_eq!(fra.key(), InstrumentType::FRA);
+    assert_eq!(fra.key(), InstrumentType::Fra);
 }
 
 #[test]

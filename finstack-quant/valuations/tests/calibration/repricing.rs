@@ -1,6 +1,6 @@
-//! Calibration repricing tests (v2) with market-standard tolerance requirements.
+//! Calibration repricing tests (canonical) with market-standard tolerance requirements.
 //!
-//! The goal is to ensure that curves produced by v2 calibration steps can reprice
+//! The goal is to ensure that curves produced by canonical calibration steps can reprice
 //! instruments constructed *outside* the solver to reasonable tolerances.
 
 use finstack_quant_core::currency::Currency;
@@ -66,8 +66,8 @@ fn forward_only_envelope(
         .knots([(0.0, 1.0), (5.0, 0.78)])
         .build()
         .expect("discount curve");
-    let initial_market = MarketContext::new().insert(discount);
-    let (prior_market, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let source_market = MarketContext::new().insert(discount);
+    let (prior_market, mut market_data) = cal_utils::split_market_context(&source_market);
     let quotes = vec![MarketQuote::Rates(quote)];
     cal_utils::extend_market_data(&mut market_data, &quotes);
     let mut quote_sets = HashMap::default();
@@ -75,7 +75,7 @@ fn forward_only_envelope(
 
     CalibrationEnvelope {
         schema_url: None,
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan: CalibrationPlan {
             id: "forward-global-reprice".to_string(),
             description: None,
@@ -173,7 +173,7 @@ fn discount_curve_deposit_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -291,7 +291,7 @@ fn discount_curve_swap_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -438,7 +438,7 @@ fn forward_curve_fra_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -765,7 +765,7 @@ fn hazard_curve_cds_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -888,7 +888,7 @@ fn hazard_curve_step_report_matches_market_built_cds_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -1046,7 +1046,7 @@ fn hazard_curve_standard_upfront_cds_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -1176,7 +1176,7 @@ fn inflation_curve_swap_repricing() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -1210,7 +1210,7 @@ fn inflation_curve_swap_repricing() {
             .side(PayReceive::Pay)
             .lag_override_opt(Some(lag))
             .base_cpi_opt(Some(base_cpi))
-            .bdc(conventions.business_day_convention)
+            .business_day_convention(conventions.business_day_convention)
             .calendar_id_opt(Some(conventions.calendar_id.clone().into()))
             .build()
             .expect("inflation swap build");

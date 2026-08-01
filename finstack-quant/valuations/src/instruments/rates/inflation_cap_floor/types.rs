@@ -87,12 +87,12 @@ impl std::str::FromStr for InflationCapFloorType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
+        match s {
             "cap" => Ok(InflationCapFloorType::Cap),
             "floor" => Ok(InflationCapFloorType::Floor),
             "caplet" => Ok(InflationCapFloorType::Caplet),
             "floorlet" => Ok(InflationCapFloorType::Floorlet),
-            other => Err(format!("Unknown inflation option type: {}", other)),
+            _ => Err(format!("Unknown inflation option type: {s}")),
         }
     }
 }
@@ -103,7 +103,9 @@ impl std::str::FromStr for InflationCapFloorType {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct InflationCapFloor {
@@ -114,12 +116,13 @@ pub struct InflationCapFloor {
     /// Notional amount in quote currency.
     pub notional: Money,
     /// Strike (annualized, decimal).
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub strike: Decimal,
     /// Start date of the first inflation period.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// End date of the final inflation period.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Payment frequency (ignored for caplet/floorlet).
     pub frequency: Tenor,
@@ -132,7 +135,7 @@ pub struct InflationCapFloor {
     /// Business day convention for schedule and payments.
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional holiday calendar identifier.
     #[builder(optional)]
     pub calendar_id: Option<String>,
@@ -143,17 +146,26 @@ pub struct InflationCapFloor {
     /// Volatility surface identifier.
     pub vol_surface_id: CurveId,
     /// Pricing overrides (implied volatility, surface extrapolation).
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Optional contract-level lag override.
     #[builder(optional)]
@@ -210,7 +222,7 @@ impl InflationCapFloor {
             .frequency(Tenor::annual())
             .day_count(DayCount::Act365F)
             .stub(StubKind::ShortFront)
-            .bdc(BusinessDayConvention::ModifiedFollowing)
+            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
             .inflation_index_id(CurveId::new("US-CPI"))
             .discount_curve_id(CurveId::new("USD-OIS"))
             .vol_surface_id(CurveId::new("USD-INFL-VOL"))
@@ -323,7 +335,7 @@ impl InflationCapFloor {
         ) {
             let pay = crate::cashflow::builder::calendar::adjust_date(
                 self.maturity,
-                self.bdc,
+                self.business_day_convention,
                 self.calendar_id
                     .as_deref()
                     .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),
@@ -337,7 +349,7 @@ impl InflationCapFloor {
                 end: self.maturity,
                 frequency: self.frequency,
                 stub: self.stub,
-                bdc: self.bdc,
+                business_day_convention: self.business_day_convention,
                 calendar_id: self
                     .calendar_id
                     .as_deref()

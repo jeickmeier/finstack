@@ -741,14 +741,14 @@ mod tests {
     }
 
     fn synthetic_result(
-        initial_ccy: Currency,
+        initial_currency: Currency,
         initial_amount: f64,
-        pnl_ccy: Currency,
+        pnl_currency: Currency,
         pnl_amount: f64,
         days: i64,
     ) -> HorizonResult {
         let attribution = PnlAttribution::new(
-            Money::new(pnl_amount, pnl_ccy),
+            Money::new(pnl_amount, pnl_currency),
             "TEST",
             date!(2025 - 01 - 15),
             date!(2025 - 01 - 15) + time::Duration::days(days),
@@ -756,8 +756,8 @@ mod tests {
         );
         HorizonResult {
             attribution,
-            initial_value: Money::new(initial_amount, initial_ccy),
-            terminal_value: Money::new(initial_amount + pnl_amount, initial_ccy),
+            initial_value: Money::new(initial_amount, initial_currency),
+            terminal_value: Money::new(initial_amount + pnl_amount, initial_currency),
             horizon_days: Some(days),
             scenario_report: empty_report(),
         }

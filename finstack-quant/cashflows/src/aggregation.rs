@@ -161,20 +161,20 @@ fn aggregate_by_period_sorted(
     periods: &[Period],
 ) -> finstack_quant_core::Result<IndexMap<PeriodId, IndexMap<Currency, Money>>> {
     let mut out: IndexMap<PeriodId, IndexMap<Currency, Money>> = IndexMap::new();
-    let mut per_ccy: IndexMap<Currency, NeumaierAccumulator> = IndexMap::new();
+    let mut per_currency: IndexMap<Currency, NeumaierAccumulator> = IndexMap::new();
 
     for (p, flows_in_period) in iter_by_period(sorted, periods) {
         if flows_in_period.is_empty() {
             continue;
         }
 
-        per_ccy.clear();
+        per_currency.clear();
         for &(_d, m) in flows_in_period {
             let ccy = m.currency();
-            per_ccy.entry(ccy).or_default().add(m.amount());
+            per_currency.entry(ccy).or_default().add(m.amount());
         }
-        let mut result: IndexMap<Currency, Money> = IndexMap::with_capacity(per_ccy.len());
-        for (&ccy, acc) in &per_ccy {
+        let mut result: IndexMap<Currency, Money> = IndexMap::with_capacity(per_currency.len());
+        for (&ccy, acc) in &per_currency {
             // try_new errors loudly on non-finite or Decimal-overflow totals
             // instead of panicking inside Money::new (same policy as PV paths).
             result.insert(ccy, Money::try_new(acc.total(), ccy)?);
@@ -348,7 +348,7 @@ where
     let mut out: IndexMap<PeriodId, IndexMap<Currency, Money>> =
         IndexMap::with_capacity(periods.len());
     // Reusable buffer for per-currency accumulation across periods.
-    let mut per_ccy: IndexMap<Currency, NeumaierAccumulator> = IndexMap::with_capacity(4);
+    let mut per_currency: IndexMap<Currency, NeumaierAccumulator> = IndexMap::with_capacity(4);
     // Reusable buffer for building the inner result map.
     let mut result_buf: IndexMap<Currency, Money> = IndexMap::with_capacity(4);
 
@@ -357,21 +357,21 @@ where
             continue;
         }
 
-        per_ccy.clear();
+        per_currency.clear();
         for flow in flows_in_period {
             let (_t, df, sp) = time_discount_survival(flow.flow_date(), disc, hazard, date_ctx)?;
             let (ccy, pv) = value_fn(flow, df, sp);
-            per_ccy.entry(ccy).or_default().add(pv);
+            per_currency.entry(ccy).or_default().add(pv);
         }
 
         // Skip periods with no value (all flows filtered to zero)
-        if per_ccy.is_empty() {
+        if per_currency.is_empty() {
             continue;
         }
 
         // Build result from accumulated per-currency values, reusing the buffer.
         result_buf.clear();
-        for (&ccy, acc) in &per_ccy {
+        for (&ccy, acc) in &per_currency {
             result_buf.insert(ccy, Money::try_new(acc.total(), ccy)?);
         }
         out.insert(p.id, result_buf.clone());
@@ -391,7 +391,7 @@ fn pv_by_period_precomputed(
     let mut out: IndexMap<PeriodId, IndexMap<Currency, Money>> =
         IndexMap::with_capacity(periods.len());
     // Reusable buffers for per-currency accumulation and result building.
-    let mut per_ccy: IndexMap<Currency, NeumaierAccumulator> = IndexMap::with_capacity(4);
+    let mut per_currency: IndexMap<Currency, NeumaierAccumulator> = IndexMap::with_capacity(4);
     let mut result_buf: IndexMap<Currency, Money> = IndexMap::with_capacity(4);
     let mut flow_idx = 0usize;
     let n = sorted.len();
@@ -401,16 +401,16 @@ fn pv_by_period_precomputed(
             flow_idx += 1;
         }
 
-        per_ccy.clear();
+        per_currency.clear();
         while flow_idx < n && sorted[flow_idx].date < p.end {
             let (ccy, pv) = pv_per_flow[flow_idx];
-            per_ccy.entry(ccy).or_default().add(pv);
+            per_currency.entry(ccy).or_default().add(pv);
             flow_idx += 1;
         }
 
-        if !per_ccy.is_empty() {
+        if !per_currency.is_empty() {
             result_buf.clear();
-            for (&ccy, acc) in &per_ccy {
+            for (&ccy, acc) in &per_currency {
                 result_buf.insert(ccy, Money::try_new(acc.total(), ccy)?);
             }
             out.insert(p.id, result_buf.clone());
@@ -433,11 +433,11 @@ pub(crate) fn pv_by_period_cashflows_sorted_checked(
     periods: &[Period],
     disc: &dyn Discounting,
     base: Date,
-    dc: DayCount,
-    dc_ctx: DayCountContext<'_>,
+    day_count: DayCount,
+    day_count_context: DayCountContext<'_>,
     hazard: Option<&dyn Survival>,
 ) -> finstack_quant_core::Result<IndexMap<PeriodId, IndexMap<Currency, Money>>> {
-    let date_ctx = DateContext::new(base, dc, dc_ctx);
+    let date_ctx = DateContext::new(base, day_count, day_count_context);
     pv_by_period_generic(sorted, periods, disc, hazard, &date_ctx, |cf, df, sp| {
         let ccy = cf.amount.currency();
         // Historical flows (date <= base) carry zero PV by convention.
@@ -458,9 +458,9 @@ pub struct DateContext<'a> {
     /// Base date for time calculations.
     pub base: Date,
     /// Day-count convention to use.
-    pub dc: DayCount,
+    pub day_count: DayCount,
     /// Day-count context for calendar and holiday handling.
-    pub dc_ctx: DayCountContext<'a>,
+    pub day_count_context: DayCountContext<'a>,
 }
 
 impl<'a> DateContext<'a> {
@@ -469,8 +469,8 @@ impl<'a> DateContext<'a> {
     /// # Arguments
     ///
     /// * `base` - Valuation or anchor date used for year-fraction calculations.
-    /// * `dc` - Day-count convention used to map dates into year fractions.
-    /// * `dc_ctx` - Supplemental day-count context such as frequency or calendar.
+    /// * `day_count` - Day-count convention used to map dates into year fractions.
+    /// * `day_count_context` - Supplemental day-count context such as frequency or calendar.
     ///
     /// # Returns
     ///
@@ -489,10 +489,14 @@ impl<'a> DateContext<'a> {
     ///     DayCountContext::default(),
     /// );
     ///
-    /// assert_eq!(ctx.dc, DayCount::Act365F);
+    /// assert_eq!(ctx.day_count, DayCount::Act365F);
     /// ```
-    pub fn new(base: Date, dc: DayCount, dc_ctx: DayCountContext<'a>) -> Self {
-        Self { base, dc, dc_ctx }
+    pub fn new(base: Date, day_count: DayCount, day_count_context: DayCountContext<'a>) -> Self {
+        Self {
+            base,
+            day_count,
+            day_count_context,
+        }
     }
 }
 
@@ -668,9 +672,10 @@ fn time_discount_survival(
 
     let sp = if let Some(h) = hazard {
         if let Some(h_base) = h.base_date() {
-            let h_dc = h.day_count();
-            let t_d = h_dc.signed_year_fraction(h_base, d, DayCountContext::default())?;
-            let t_asof = h_dc.signed_year_fraction(h_base, ctx.base, DayCountContext::default())?;
+            let h_day_count = h.day_count();
+            let t_d = h_day_count.signed_year_fraction(h_base, d, DayCountContext::default())?;
+            let t_asof =
+                h_day_count.signed_year_fraction(h_base, ctx.base, DayCountContext::default())?;
             let sp_d = h.sp(t_d);
             let sp_asof = h.sp(t_asof);
             if !sp_asof.is_finite() || sp_asof <= 0.0 {
@@ -681,9 +686,9 @@ fn time_discount_survival(
             }
             sp_d / sp_asof
         } else {
-            let t_h = ctx
-                .dc
-                .signed_year_fraction(ctx.base, d, DayCountContext::default())?;
+            let t_h =
+                ctx.day_count
+                    .signed_year_fraction(ctx.base, d, DayCountContext::default())?;
             h.sp(t_h)
         }
     } else {
@@ -952,7 +957,7 @@ fn precompute_integrated_pv(
                 let t_asof = disc.day_count().signed_year_fraction(
                     disc.base_date(),
                     date_ctx.base,
-                    date_ctx.dc_ctx,
+                    date_ctx.day_count_context,
                 )?;
                 let df_mid = disc.df_between_times(t_asof, t_mid)?;
                 if !df_mid.is_finite() {
@@ -1363,7 +1368,7 @@ mod credit_pv_tests {
         let hazard = FlatSurvival;
         let flows = vec![
             flow(d(2025, 6, 1), 50_000.0, CFKind::Fixed),
-            flow(d(2025, 6, 1), 40_000.0, CFKind::PIK),
+            flow(d(2025, 6, 1), 40_000.0, CFKind::Pik),
         ];
 
         let out = pv_by_period_credit_adjusted_detailed_with_timing(

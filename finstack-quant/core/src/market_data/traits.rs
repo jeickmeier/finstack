@@ -121,10 +121,10 @@ pub trait Discounting: TermStructure + Send + Sync {
             return Ok(1.0);
         }
 
-        let dc = self.day_count();
+        let day_count = self.day_count();
         let base = self.base_date();
 
-        let t_from = dc.signed_year_fraction(base, from, DayCountContext::default())?;
+        let t_from = day_count.signed_year_fraction(base, from, DayCountContext::default())?;
         let df_from = self.df(t_from);
         if !df_from.is_finite() || df_from <= 0.0 {
             return Err(crate::Error::Validation(format!(
@@ -132,7 +132,7 @@ pub trait Discounting: TermStructure + Send + Sync {
             )));
         }
 
-        let t_to = dc.signed_year_fraction(base, to, DayCountContext::default())?;
+        let t_to = day_count.signed_year_fraction(base, to, DayCountContext::default())?;
         let df_to = self.df(t_to);
         if !df_to.is_finite() || df_to <= 0.0 {
             return Err(crate::Error::Validation(format!(
@@ -201,10 +201,10 @@ pub trait Discounting: TermStructure + Send + Sync {
             )));
         }
 
-        let dc = self.day_count();
+        let day_count = self.day_count();
         let base = self.base_date();
-        let from_t = dc.year_fraction(base, from, DayCountContext::default())?;
-        let to_t = dc.year_fraction(base, to, DayCountContext::default())?;
+        let from_t = day_count.year_fraction(base, from, DayCountContext::default())?;
+        let to_t = day_count.year_fraction(base, to, DayCountContext::default())?;
         self.forward_rate_between_times(from_t, to_t)
     }
 

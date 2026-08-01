@@ -46,11 +46,11 @@ mod npv_tests {
             (d(2025, 1, 1), Money::new(110_000.0, Currency::USD)),
         ];
         let rate: f64 = 0.05;
-        let dc = DayCount::Act365F;
+        let day_count = DayCount::Act365F;
 
         // Convert annual rate to continuous rate
         let continuous_rate = (1.0 + rate).ln();
-        let curve = FlatCurve::new(continuous_rate, base, dc, "TEST");
+        let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
         // Investment-NPV view: the day-0 outlay is intentional, so opt back in
         // (the default now excludes flows on/before the valuation date — see
         // ).
@@ -82,9 +82,9 @@ mod npv_tests {
         ];
 
         for rate in [0.0_f64, 0.01, 0.05, 0.10, 0.25] {
-            let dc = DayCount::Act365F;
+            let day_count = DayCount::Act365F;
             let continuous_rate = (1.0 + rate).ln();
-            let curve = FlatCurve::new(continuous_rate, base, dc, "TEST");
+            let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
             // Investment-NPV view: include the day-0 outlay explicitly (the
             // default excludes flows on/before the valuation date).
             let pv = npv_with_options(
@@ -118,11 +118,11 @@ mod npv_tests {
         let rate: f64 = 0.05;
 
         let mut results = Vec::new();
-        for dc in [DayCount::Act365F, DayCount::Act360, DayCount::Thirty360] {
+        for day_count in [DayCount::Act365F, DayCount::Act360, DayCount::Thirty360] {
             let continuous_rate = (1.0 + rate).ln();
-            let curve = FlatCurve::new(continuous_rate, base, dc, "TEST");
+            let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
             let pv = npv(&curve, base, &flows).unwrap();
-            results.push((dc, pv.amount()));
+            results.push((day_count, pv.amount()));
         }
 
         // Different day counts should produce different results

@@ -261,7 +261,7 @@ impl PyFactorPnlProfile {
 /// ----------
 /// positions_json : str
 ///     JSON array of position objects, each with ``id`` (str),
-///     ``instrument`` (tagged instrument JSON), and ``weight`` (float).
+///     ``instrument`` (canonical v1 instrument envelope), and ``weight`` (float).
 /// factors_json : str
 ///     JSON array of ``FactorDefinition`` objects.
 /// market_json : str

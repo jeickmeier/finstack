@@ -16,9 +16,9 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
 
 // Z-spread bounds in decimal (not basis points)
-// -500 bps to allow for premium bonds at tight spreads
+// -500 bp to allow for premium bonds at tight spreads
 const Z_SPREAD_MIN: f64 = -0.05;
-// 5000 bps (50%) for distressed credits
+// 5000 bp (50%) for distressed credits
 const Z_SPREAD_MAX: f64 = 0.50;
 const RELATIVE_BASE_PV_EPSILON: f64 = 1e-12;
 
@@ -73,10 +73,10 @@ fn quoted_target_value(context: &MetricContext) -> Result<(f64, f64)> {
 ///
 /// # Market Conventions
 ///
-/// - **CLO (fixed)**: 150-300 bps typical for AAA
-/// - **ABS (fixed)**: 50-150 bps typical for AAA
-/// - **RMBS (fixed)**: 100-250 bps typical
-/// - **CMBS (fixed)**: 75-200 bps typical
+/// - **CLO (fixed)**: 150-300 bp typical for AAA
+/// - **ABS (fixed)**: 50-150 bp typical for AAA
+/// - **RMBS (fixed)**: 100-250 bp typical
+/// - **CMBS (fixed)**: 75-200 bp typical
 ///
 pub struct ZSpreadCalculator;
 
@@ -137,13 +137,13 @@ impl MetricCalculator for ZSpreadCalculator {
         // Solve for z-spread using Brent's method with adaptive bracketing
         //
         // Credit spread characteristics:
-        // - Investment grade: 50-300 bps (0.005-0.03)
-        // - High yield: 300-1000 bps (0.03-0.10)
-        // - Distressed: 1000+ bps (0.10+)
+        // - Investment grade: 50-300 bp (0.005-0.03)
+        // - High yield: 300-1000 bp (0.03-0.10)
+        // - Distressed: 1000+ bp (0.10+)
         // - Premium bonds may have negative Z-spread
         //
         // We start with a moderate bracket and allow expansion for edge cases.
-        // Tolerance: 1e-6 = 0.01 bps precision (market standard)
+        // Tolerance: 1e-6 = 0.01 bp precision (market standard)
         let solver = BrentSolver::new()
             .tolerance(Z_SPREAD_SOLVER_TOLERANCE)
             .initial_bracket_size(Some(Z_SPREAD_INITIAL_BRACKET));
@@ -174,7 +174,7 @@ impl MetricCalculator for ZSpreadCalculator {
                 // Final fallback: wider bracket with explicit bounds
                 let wide_solver = BrentSolver::new()
                     .tolerance(Z_SPREAD_SOLVER_TOLERANCE)
-                    .initial_bracket_size(Some(0.20)); // ±2000 bps
+                    .initial_bracket_size(Some(0.20)); // ±2000 bp
 
                 // Wide-bracket fallback must still respect `valid_range`.
                 let z = wide_solver.solve(objective, 0.05)?;
@@ -422,7 +422,7 @@ pub fn calculate_tranche_z_spread(
         pv.total() - target_pv.amount()
     };
 
-    // Tolerance: 1e-6 = 0.01 bps precision (market standard)
+    // Tolerance: 1e-6 = 0.01 bp precision (market standard)
     let solver = BrentSolver::new()
         .tolerance(Z_SPREAD_SOLVER_TOLERANCE)
         .initial_bracket_size(Some(Z_SPREAD_INITIAL_BRACKET));

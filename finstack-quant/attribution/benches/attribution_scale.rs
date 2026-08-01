@@ -277,9 +277,7 @@ fn bench_attribution_scale(c: &mut Criterion) {
 // ---------------------------------------------------------------------------
 
 use finstack_quant_attribution::{AttributionEnvelope, AttributionSpec, CreditFactorDetailOptions};
-use finstack_quant_core::market_data::context::{
-    CurveState, MarketContextState, MARKET_CONTEXT_STATE_VERSION,
-};
+use finstack_quant_core::market_data::context::{CurveState, MarketContextState};
 use finstack_quant_valuations::instruments::json_loader::InstrumentJson;
 
 /// Build a minimal `CreditFactorModel` that covers `n` synthetic issuers.
@@ -323,7 +321,7 @@ fn build_credit_model_for_n(n: usize) -> CreditFactorModel {
     };
 
     CreditFactorModel {
-        schema_version: CreditFactorModel::SCHEMA_VERSION.to_owned(),
+        schema: finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
         as_of,
         calibration_window,
         policy: IssuerBetaPolicy::GloballyOff,
@@ -379,7 +377,7 @@ fn sample_bond_with_issuer(idx: usize) -> Bond {
 
 fn build_market_state(as_of: Date, rate: f64) -> MarketContextState {
     MarketContextState {
-        version: MARKET_CONTEXT_STATE_VERSION,
+        schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
         curves: vec![CurveState::Discount(build_flat_curve(as_of, rate))],
         fx: None,
         surfaces: vec![],

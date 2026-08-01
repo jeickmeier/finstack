@@ -108,7 +108,7 @@ impl XccyBasisTarget {
             ));
         }
 
-        let curve_dc = schema_params
+        let curve_day_count = schema_params
             .conventions
             .curve_day_count
             .unwrap_or(finstack_quant_core::dates::DayCount::Act365F);
@@ -150,7 +150,7 @@ impl XccyBasisTarget {
                 let prepared = crate::market::build::prepared::prepare_xccy_quote(
                     q,
                     &xccy_build_ctx,
-                    curve_dc,
+                    curve_day_count,
                     schema_params.base_date,
                 )?;
                 prepared_quotes.push(CalibrationQuote::XccyBasis(prepared));

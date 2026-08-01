@@ -36,6 +36,7 @@ use super::types::{Exposure, PdTermStructure};
 
 /// How the PD curve reverts from forecast to historical after the R&S period.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ReversionMethod {
     /// Immediate: PD jumps to historical at the R&S boundary.
     Immediate,
@@ -55,6 +56,7 @@ pub enum ReversionMethod {
 /// was removed before it was ever implemented — no cohort data model exists
 /// to support it honestly.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CeclMethodology {
     /// PD-LGD-EAD approach (same formula as IFRS 9, always lifetime).
     PdLgdEad,

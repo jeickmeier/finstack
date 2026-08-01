@@ -97,7 +97,7 @@ fn test_itraxx_europe_standard_conventions() {
 
 #[test]
 fn test_cdx_ig_standard_coupon() {
-    // Market Standard: CDX IG standard coupon is 100 bps
+    // Market Standard: CDX IG standard coupon is 100 bp
     let params = CDSIndexParams::cdx_na_ig(42, 1, 100.0);
 
     assert_eq!(params.fixed_coupon_bp, 100.0);
@@ -105,7 +105,7 @@ fn test_cdx_ig_standard_coupon() {
 
 #[test]
 fn test_cdx_hy_standard_coupon() {
-    // Market Standard: CDX HY standard coupon is 500 bps
+    // Market Standard: CDX HY standard coupon is 500 bp
     let params = CDSIndexParams::cdx_na_hy(39, 1, 500.0);
 
     assert_eq!(params.fixed_coupon_bp, 500.0);
@@ -113,7 +113,7 @@ fn test_cdx_hy_standard_coupon() {
 
 #[test]
 fn test_itraxx_standard_coupon() {
-    // Market Standard: iTraxx standard coupon is typically 25 bps
+    // Market Standard: iTraxx standard coupon is typically 25 bp
     let params = CDSIndexParams::itraxx_europe(41, 1, 25.0);
 
     assert_eq!(params.fixed_coupon_bp, 25.0);
@@ -373,7 +373,7 @@ fn test_fixed_coupon_in_premium_leg() {
     let start = date!(2025 - 01 - 01);
     let end = date!(2030 - 01 - 01);
 
-    let fixed_coupon = 100.0; // 100 bps
+    let fixed_coupon = 100.0; // 100 bp
 
     let idx = CDSIndex::from_preset(
         &CDSIndexParams::cdx_na_ig(42, 1, fixed_coupon),

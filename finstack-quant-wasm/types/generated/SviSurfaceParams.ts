@@ -10,7 +10,7 @@ export type SviSurfaceParams = {
 /**
  * Identifier for the volatility surface being built.
  */
-surface_id: string,
+vol_surface_id: string,
 /**
  * Base date for the surface.
  */

@@ -39,6 +39,7 @@ pub enum ExecutionPolicy {
 /// - **MetricsBased**: Linear approximation using existing metrics (fast but approximate)
 /// - **Taylor**: Sensitivity-based Taylor expansion (first/second order via bump-and-reprice)
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum AttributionMethod {
     /// Independent factor isolation (may not sum due to cross-effects).
     ///
@@ -80,6 +81,7 @@ pub enum AttributionMethod {
 /// - **Volatility**: surfaces (VolSurface)
 /// - **MarketScalars**: prices, series, inflation_indices, dividends
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum AttributionFactor {
     /// Time decay and accruals (Theta).
     Carry,
@@ -107,6 +109,24 @@ pub enum AttributionFactor {
 
     /// Model-specific parameters (prepayment, default, recovery, conversion).
     ModelParameters,
+}
+
+impl AttributionFactor {
+    /// Return the canonical snake-case serde value for this factor.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Carry => "carry",
+            Self::RatesCurves => "rates_curves",
+            Self::CreditCurves => "credit_curves",
+            Self::InflationCurves => "inflation_curves",
+            Self::Correlations => "correlations",
+            Self::Fx => "fx",
+            Self::Volatility => "volatility",
+            Self::MarketScalars => "market_scalars",
+            Self::ModelParameters => "model_parameters",
+        }
+    }
 }
 
 /// Complete P&L attribution result for a single instrument.
@@ -192,9 +212,9 @@ pub struct PnlAttribution {
     /// the raw `val_t1 − val_t0` so a downstream consumer that computed their
     /// own total from the underlying valuations can reconcile cleanly.
     ///
-    /// Additive serde extension: pre-existing JSON without this field
-    /// deserializes with `None`. New attribution runs populate it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Attribution paths that cannot provide the raw mark-to-market change use
+    /// `None`.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub mark_to_market_pnl: Option<Money>,
 
     /// Carry P&L (theta + accruals).
@@ -220,22 +240,16 @@ pub struct PnlAttribution {
     /// FX translation P&L — the **reporting-currency** component of FX moves.
     ///
     /// Populated only when the attribution call passed an explicit
-    /// `target_ccy` that differs from the instrument's native pricing currency
+    /// `target_currency` that differs from the instrument's native pricing currency
     /// (`val_t1.currency()`). In that case the native-currency P&L is
-    /// translated into `target_ccy` using `market_t0`'s FX at T₀ and
+    /// translated into `target_currency` using `market_t0`'s FX at T₀ and
     /// `market_t1`'s FX at T₁; the difference between those two translated
     /// totals lands here.
     ///
     /// For attribution calls that report in native currency (the default —
-    /// `target_ccy = None`), this is always zero in the `total_pnl` currency.
+    /// `target_currency = None`), this is always zero in the `total_pnl` currency.
     ///
-    /// Additive serde extension: pre-existing JSON without this field
-    /// deserializes with `Money::new(0.0, Currency::USD)`. Downstream consumers
-    /// that need to compare against `total_pnl.currency()` should fall back to
-    /// zero when the currencies do not match (which they will not for any
-    /// attribution produced after this field was added — the field is always
-    /// constructed in the same currency as `total_pnl`).
-    #[serde(default = "super::zero_money_usd")]
+    /// The field is always constructed in the same currency as `total_pnl`.
     pub fx_translation_pnl: Money,
 
     /// Implied volatility changes P&L.
@@ -296,16 +310,15 @@ pub struct PnlAttribution {
     ///
     /// Populated only when an `AttributionSpec.credit_factor_model` was supplied
     /// to the attribution call. When present, this is purely additive detail —
-    /// `credit_curves_pnl` itself is unchanged. Old JSON without this field
-    /// deserializes with `None` (additive serde extension).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// `credit_curves_pnl` itself is unchanged.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub credit_factor_detail: Option<CreditFactorAttribution>,
 
     /// Optional credit-factor-hierarchy decomposition of carry (PR-8b §7.2).
     ///
     /// Populated only when an `AttributionSpec.credit_factor_model` was
-    /// supplied. Additive: when absent, behavior is unchanged.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// supplied.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub credit_carry_decomposition: Option<CreditCarryDecomposition>,
 
     /// Attribution metadata.
@@ -314,8 +327,7 @@ pub struct PnlAttribution {
     /// True if residual computation encountered non-finite (NaN/Inf) inputs,
     /// or if any factor P&L value is non-finite. When `true`, `residual` and
     /// `meta.residual_pct` are not meaningful and downstream callers should
-    /// treat the attribution as invalid. Defaults to `false`.
-    #[serde(default)]
+    /// treat the attribution as invalid.
     pub result_invalid: bool,
 }
 
@@ -328,11 +340,11 @@ pub struct AttributionMeta {
     pub method: AttributionMethod,
 
     /// Start date (T₀).
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub t0: Date,
 
     /// End date (T₁).
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub t1: Date,
 
     /// Instrument identifier.
@@ -359,13 +371,11 @@ pub struct AttributionMeta {
 
     /// Execution policy the attribution ran under (workspace
     /// policy-visibility invariant: results stamp the parallel flag).
-    /// `None` for methods without a policy knob (metrics-based) and for
-    /// payloads predating this field.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// `None` for methods without a policy knob (metrics-based).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub execution_policy: Option<ExecutionPolicy>,
 
     /// Diagnostic notes and warnings.
-    #[serde(default)]
     pub notes: Vec<String>,
 }
 
@@ -410,7 +420,7 @@ impl PnlAttribution {
             model_params_pnl: zero,
             market_scalars_pnl: zero,
             // `fx_translation_pnl` is constructed in the same currency as
-            // `total_pnl`; it stays zero unless a `target_ccy` translation is
+            // `total_pnl`; it stays zero unless a `target_currency` translation is
             // explicitly applied by the per-method attribution code.
             fx_translation_pnl: zero,
             residual: total_pnl, // Initially all P&L is residual
@@ -650,28 +660,8 @@ impl PnlAttribution {
     /// Returns the currency-validation or monetary-addition error. Before a
     /// currency error is returned, the method marks the result invalid, resets
     /// the residual to zero in the report currency, and records a diagnostic
-    /// note; zero-valued legacy USD defaults are recurrencyed first.
+    /// note.
     pub fn compute_residual(&mut self) -> Result<()> {
-        // payloads predating `fx_translation_pnl` /
-        // `curve_shape_pnl` deserialize those fields with the `zero_money_usd`
-        // serde default. A zero-valued USD default on a non-USD attribution
-        // must not hard-fail currency validation for an otherwise valid
-        // legacy result — re-currency the zero defaults to the report ccy.
-        // (`abs() <= 0.0` is an exact bit-zero test without a float equality.)
-        let report_ccy = self.total_pnl.currency();
-        if self.fx_translation_pnl.currency() != report_ccy
-            && self.fx_translation_pnl.amount().abs() <= 0.0
-        {
-            self.fx_translation_pnl = Money::new(0.0, report_ccy);
-        }
-        if let Some(detail) = self.credit_factor_detail.as_mut() {
-            if detail.curve_shape_pnl.currency() != report_ccy
-                && detail.curve_shape_pnl.amount().abs() <= 0.0
-            {
-                detail.curve_shape_pnl = Money::new(0.0, report_ccy);
-            }
-        }
-
         // Validate currencies first
         if let Err(e) = self.validate_currencies() {
             let note = format!(
@@ -994,6 +984,17 @@ impl PnlAttribution {
 }
 
 impl AttributionMethod {
+    /// Return the canonical snake-case serde variant name for this method.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Parallel => "parallel",
+            Self::Waterfall(_) => "waterfall",
+            Self::MetricsBased => "metrics_based",
+            Self::Taylor(_) => "taylor",
+        }
+    }
+
     /// Returns the risk metrics required for this attribution method.
     ///
     /// For `MetricsBased`, returns first-order sensitivities (Theta, DV01, CS01,

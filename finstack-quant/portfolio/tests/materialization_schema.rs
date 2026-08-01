@@ -79,7 +79,7 @@ fn materialization_fixture(instrument_envelope: Value) -> Value {
         "schema": "finstack_quant.portfolio_materialization/1",
         "portfolio": {
             "id": "schema-test",
-            "base_ccy": "USD",
+            "base_currency": "USD",
             "as_of": "2025-01-01",
             "entities": {}
         },
@@ -104,7 +104,7 @@ fn validation_errors(instance: &Value) -> Vec<String> {
 }
 
 #[test]
-fn raw_value_runtime_still_accepts_schema_invalid_instrument_content() {
+fn typed_runtime_rejects_schema_invalid_instrument_content() {
     let malformed = materialization_fixture(json!({
         "schema": "finstack_quant.instrument/1",
         "instrument": {
@@ -113,8 +113,7 @@ fn raw_value_runtime_still_accepts_schema_invalid_instrument_content() {
         }
     }));
 
-    serde_json::from_value::<PortfolioMaterializationEnvelope>(malformed)
-        .expect("outer parse must preserve deferred RawValue instrument decoding");
+    assert!(serde_json::from_value::<PortfolioMaterializationEnvelope>(malformed).is_err());
 }
 
 #[test]

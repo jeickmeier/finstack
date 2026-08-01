@@ -25,6 +25,7 @@
 //!   so that "points" semantics never collide with "basis points" semantics on
 //!   rate curves.
 
+use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::market_data::hierarchy::ResolutionMode;
 use finstack_quant_core::types::CurveId;
 use indexmap::IndexMap;
@@ -383,7 +384,7 @@ pub enum OperationSpec {
     ///
     /// let op = OperationSpec::BaseCorrBucketPts {
     ///     surface_id: "CDX_IG".into(),
-    ///     detachment_bps: Some(vec![300, 700]), // 3% and 7% detachment
+    ///     detachment_bp: Some(vec![300, 700]), // 3% and 7% detachment
     ///     maturities: None, // required today: base correlation is detachment-only
     ///     points: 0.03,
     /// };
@@ -392,7 +393,7 @@ pub enum OperationSpec {
         /// Surface identifier.
         surface_id: CurveId,
         /// Optional detachment points in basis points (e.g., 300 for 3%).
-        detachment_bps: Option<Vec<i32>>,
+        detachment_bp: Option<Vec<i32>>,
         /// Reserved maturity filters for future term-structured base correlation.
         ///
         /// Use `None` or an empty vector today. Non-empty maturity filters are
@@ -413,15 +414,15 @@ pub enum OperationSpec {
     ///
     /// let op = OperationSpec::VolSurfaceParallelPct {
     ///     surface_kind: VolSurfaceKind::Equity,
-    ///     surface_id: "SPX".into(),
+    ///     vol_surface_id: "SPX".into(),
     ///     pct: 10.0, // +10% volatility increase
     /// };
     /// ```
     VolSurfaceParallelPct {
         /// Type of volatility surface (Equity, FX, IR, etc.).
         surface_kind: VolSurfaceKind,
-        /// Surface identifier.
-        surface_id: CurveId,
+        /// Volatility-surface identifier.
+        vol_surface_id: CurveId,
         /// Percentage change in volatility.
         pct: f64,
     },
@@ -434,7 +435,7 @@ pub enum OperationSpec {
     ///
     /// let op = OperationSpec::VolSurfaceBucketPct {
     ///     surface_kind: VolSurfaceKind::Equity,
-    ///     surface_id: "SPX".into(),
+    ///     vol_surface_id: "SPX".into(),
     ///     tenors: Some(vec!["1M".into(), "3M".into()]),
     ///     strikes: Some(vec![90.0, 95.0, 100.0]),
     ///     pct: 15.0,
@@ -443,8 +444,8 @@ pub enum OperationSpec {
     VolSurfaceBucketPct {
         /// Type of volatility surface (Equity, FX, IR, etc.).
         surface_kind: VolSurfaceKind,
-        /// Surface identifier.
-        surface_id: CurveId,
+        /// Volatility-surface identifier.
+        vol_surface_id: CurveId,
         /// Optional tenor strings (e.g., "1M", "3M").
         tenors: Option<Vec<String>>,
         /// Optional strike levels.
@@ -578,7 +579,7 @@ pub enum OperationSpec {
     /// use finstack_quant_scenarios::{OperationSpec, InstrumentType};
     ///
     /// let op = OperationSpec::InstrumentSpreadBpByType {
-    ///     instrument_types: vec![InstrumentType::CDS],
+    ///     instrument_types: vec![InstrumentType::Cds],
     ///     bp: 100.0,
     /// };
     /// ```
@@ -809,7 +810,7 @@ pub enum CurveKind {
 /// Labels which category of volatility surface an operation represents.
 ///
 /// The current market context stores volatility surfaces in a single collection,
-/// so scenario adapters look up surfaces by `surface_id`; `VolSurfaceKind` is
+/// so scenario adapters look up surfaces by `vol_surface_id`; `VolSurfaceKind` is
 /// retained as explicit metadata for serde contracts, template discovery, and
 /// future validation.
 ///
@@ -954,13 +955,13 @@ pub struct RateBindingSpec {
     #[serde(default)]
     pub compounding: Compounding,
 
-    /// Day count convention override. If None, uses curve's convention.
+    /// Day-count convention override. If `None`, uses the curve's convention.
     #[serde(default)]
-    pub day_count: Option<String>,
+    pub day_count: Option<DayCount>,
 }
 
 impl RateBindingSpec {
-    /// Validate identifiers and eagerly parse persisted rate conventions.
+    /// Validate identifiers and eagerly parse the tenor.
     ///
     /// This standalone check is also used by [`OperationSpec::validate`] so
     /// callers validating a binding before embedding it receive identical
@@ -970,8 +971,8 @@ impl RateBindingSpec {
     ///
     /// Returns [`crate::error::Error::Validation`] when `node_id` or
     /// `curve_id` is blank, `tenor` is not accepted by
-    /// [`finstack_quant_core::dates::Tenor::parse`], or `day_count` contains an
-    /// unsupported override alias.
+    /// [`finstack_quant_core::dates::Tenor::parse`]. Invalid persisted
+    /// `day_count` values are rejected directly by serde.
     pub fn validate(&self) -> crate::error::Result<()> {
         check_id(self.node_id.as_str(), "node_id")?;
         check_id(self.curve_id.as_str(), "curve_id")?;
@@ -982,9 +983,6 @@ impl RateBindingSpec {
         }
         finstack_quant_core::dates::Tenor::parse(self.tenor.trim())
             .map_err(|error| crate::error::Error::InvalidTenor(error.to_string()))?;
-        if let Some(day_count) = &self.day_count {
-            crate::utils::parse_day_count_override(day_count)?;
-        }
         Ok(())
     }
 }
@@ -1151,12 +1149,16 @@ impl OperationSpec {
                 check_corr_delta(*points, "points")?;
             }
             OperationSpec::VolSurfaceParallelPct {
-                surface_id, pct, ..
+                vol_surface_id,
+                pct,
+                ..
             }
             | OperationSpec::VolSurfaceBucketPct {
-                surface_id, pct, ..
+                vol_surface_id,
+                pct,
+                ..
             } => {
-                check_id(surface_id.as_str(), "surface_id")?;
+                check_id(vol_surface_id.as_str(), "vol_surface_id")?;
                 check_finite(*pct, "pct")?;
             }
             OperationSpec::StmtForecastPercent { node_id, pct } => {

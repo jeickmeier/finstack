@@ -225,7 +225,7 @@ impl SabrParams {
     ///
     /// The shift is used to handle negative rate environments: when evaluating
     /// implied vol the model internally uses `F+shift` and `K+shift`, keeping
-    /// both arguments positive. A typical value for EUR/JPY is `0.03` (300 bps).
+    /// both arguments positive. A typical value for EUR/JPY is `0.03` (300 bp).
     ///
     /// # Arguments
     ///

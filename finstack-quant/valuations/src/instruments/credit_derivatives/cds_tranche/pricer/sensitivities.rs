@@ -119,8 +119,8 @@ impl CDSTranchePricer {
 
     /// Calculate years from the credit curve base date.
     pub(super) fn years_from_base(&self, index_data: &CreditIndexData, date: Date) -> Result<f64> {
-        let dc = index_data.index_credit_curve.day_count();
-        dc.year_fraction(
+        let day_count = index_data.index_credit_curve.day_count();
+        day_count.year_fraction(
             index_data.index_credit_curve.base_date(),
             date,
             finstack_quant_core::dates::DayCountContext::default(),
@@ -320,7 +320,7 @@ impl CDSTranchePricer {
                 .and_then(finstack_quant_core::dates::calendar::calendar_by_id);
             let adjust_date = |d: Date| -> Result<Date> {
                 if let Some(cal) = calendar {
-                    finstack_quant_core::dates::adjust(d, tranche.bdc, cal)
+                    finstack_quant_core::dates::adjust(d, tranche.business_day_convention, cal)
                 } else {
                     Ok(d)
                 }
@@ -344,7 +344,7 @@ impl CDSTranchePricer {
                     end: tranche.maturity,
                     frequency: tranche.frequency,
                     stub: self.params.schedule_stub,
-                    bdc: tranche.bdc,
+                    business_day_convention: tranche.business_day_convention,
                     calendar_id: tranche
                         .calendar_id
                         .as_deref()

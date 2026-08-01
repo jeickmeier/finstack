@@ -201,7 +201,7 @@ fn eval_ast(
             }
         }
 
-        StmtExpr::CSRef { .. } => Err(EvalError::Unsupported(
+        StmtExpr::CsRef { .. } => Err(EvalError::Unsupported(
             "capital structure references in formula checks".into(),
         )),
     }

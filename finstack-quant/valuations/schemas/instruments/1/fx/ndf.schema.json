@@ -1,55 +1,208 @@
 {
   "$defs": {
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "Ndf": {
+      "additionalProperties": false,
+      "description": "Non-Deliverable Forward (NDF) instrument.\n\nRepresents a cash-settled forward contract on a restricted currency pair.\nThe position is long base currency (restricted) and short settlement currency.\n\n# Quote Convention\n\nNDFs support two quote conventions via the `quote_convention` field:\n\n- **BasePerSettlement** (default): Rate quoted as base per settlement (e.g., 7.25 CNY/USD)\n- **SettlementPerBase**: Rate quoted as settlement per base (e.g., 0.138 USD/CNY)\n\nSee [`NdfQuoteConvention`] for details on the settlement formulas.\n\n# Pricing\n\n## Pre-Fixing (fixing_rate = None)\nForward rate is estimated via covered interest rate parity or fallback.\n\n## Post-Fixing (fixing_rate = Some)\nUses the observed fixing rate for settlement calculation.\n\nThe settlement formula depends on `quote_convention`:\n\n**BasePerSettlement:**\n```text\nSettlement = Notional_base × (1/F_contract - 1/F_fixing)\nPV = Settlement × DF_settlement(T)\n```\n\n**SettlementPerBase:**\n```text\nSettlement = Notional_base × (F_fixing - F_contract)\nPV = Settlement × DF_settlement(T)\n```\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::fx::ndf::{Ndf, NdfQuoteConvention};\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::Date;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\nlet ndf = Ndf::builder()\n    .id(InstrumentId::new(\"USDCNY-NDF-3M\"))\n    .base_currency(Currency::CNY)\n    .settlement_currency(Currency::USD)\n    .fixing_date(Date::from_calendar_date(2025, Month::March, 13).unwrap())\n    .maturity(Date::from_calendar_date(2025, Month::March, 15).unwrap())\n    .notional(Money::new(10_000_000.0, Currency::CNY))\n    .contract_rate(7.25)\n    .domestic_discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .quote_convention(NdfQuoteConvention::BasePerSettlement)\n    .build()\n    .expect(\"Valid NDF\");\n```",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging."
+        },
+        "base_calendar_id": {
+          "default": null,
+          "description": "Optional base currency calendar.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "base_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency (restricted/non-deliverable currency, numerator)."
+        },
+        "contract_rate": {
+          "description": "Contract forward rate. Interpretation depends on `quote_convention`.",
+          "format": "double",
+          "type": "number"
+        },
+        "domestic_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Settlement currency discount curve ID."
+        },
+        "fixing_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Fixing date (rate observation date, typically T-2 before maturity)."
+        },
+        "fixing_rate": {
+          "default": null,
+          "description": "Observed fixing rate. Interpretation depends on `quote_convention`.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fixing_source_enum": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NdfFixingSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Official fixing source/benchmark enum for type-safe specification."
+        },
+        "foreign_discount_curve_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional foreign (base) currency discount curve ID."
+        },
+        "forward_rate_override": {
+          "default": null,
+          "description": "Explicit pre-fixing forward rate in `quote_convention` units.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "default": {},
+          "description": "Per-instrument pricing/sensitivity override knobs."
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Maturity/settlement date."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "default": {
+            "mc_seed_scenario": null,
+            "theta_period": null
+          }
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount in base currency."
+        },
+        "quote_calendar_id": {
+          "default": null,
+          "description": "Optional settlement currency calendar.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quote_convention": {
+          "$ref": "#/$defs/NdfQuoteConvention",
+          "description": "Quote convention for contract_rate and fixing_rate."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "default": {}
+        },
+        "settlement_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Settlement currency (freely convertible, typically USD, denominator and PV currency)."
+        },
+        "spot_rate_override": {
+          "default": null,
+          "description": "Optional spot rate override for forward rate calculation.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "base_currency",
+        "settlement_currency",
+        "fixing_date",
+        "maturity",
+        "notional",
+        "contract_rate",
+        "domestic_discount_curve_id",
+        "quote_convention",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "NdfFixingSource": {
       "description": "Official NDF fixing source/benchmark.\n\nNDF settlements reference official fixing rates published by central banks\nor designated fixing bodies. Using the correct fixing source is critical\nfor proper settlement calculations.\n\n# Market Standards\n\n| Currency | Fixing Source | Publisher | Settlement |\n|----------|---------------|-----------|------------|\n| CNY | PBOC | People's Bank of China | USD T+2 |\n| CNH | CNHFIX | Treasury Markets Association (HK) | USD T+2 |\n| INR | RBI | Reserve Bank of India | USD T+2 |\n| KRW | KFTC | Korea Financial Telecommunications | USD T+1 |\n| BRL | PTAX | Banco Central do Brasil | USD T+2 |\n| TWD | TAIFX | Taipei Forex Inc. | USD T+2 |\n| PHP | PHP BVAL | Bankers Association of the Philippines | USD T+1 |\n| IDR | JISDOR | Bank Indonesia | USD T+2 |\n| MYR | BNM | Bank Negara Malaysia | USD T+2 |\n\n# Example\n\n```rust\nuse finstack_quant_valuations::instruments::fx::ndf::{Ndf, NdfFixingSource, NdfQuoteConvention};\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::Date;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\nlet ndf = Ndf::builder()\n    .id(InstrumentId::new(\"USDCNY-NDF\"))\n    .base_currency(Currency::CNY)\n    .settlement_currency(Currency::USD)\n    .fixing_date(Date::from_calendar_date(2025, Month::March, 13).unwrap())\n    .maturity(Date::from_calendar_date(2025, Month::March, 15).unwrap())\n    .notional(Money::new(10_000_000.0, Currency::CNY))\n    .contract_rate(7.25)\n    .domestic_discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .quote_convention(NdfQuoteConvention::BasePerSettlement)\n    .fixing_source_enum_opt(Some(NdfFixingSource::Pboc))\n    .build()\n    .expect(\"Valid NDF\");\n```",
       "oneOf": [
         {
-          "const": "pboc",
+          "const": "PBOC",
           "description": "PBOC - People's Bank of China CNY/USD fixing.\nPublished daily at 9:15 AM Beijing time.",
           "type": "string"
         },
         {
-          "const": "cnhfix",
+          "const": "CNHFIX",
           "description": "CNHFIX - Treasury Markets Association CNH/USD fixing (offshore CNY).\nPublished daily at 11:15 AM Hong Kong time.",
           "type": "string"
         },
         {
-          "const": "rbi",
+          "const": "RBI",
           "description": "RBI - Reserve Bank of India INR/USD reference rate.\nPublished daily around 1:30 PM Mumbai time.",
           "type": "string"
         },
         {
-          "const": "kftc",
+          "const": "KFTC",
           "description": "KFTC - Korea Financial Telecommunications and Clearings Institute.\nKRW/USD fixing published at 3:30 PM Seoul time.",
           "type": "string"
         },
         {
-          "const": "ptax",
+          "const": "PTAX",
           "description": "PTAX - Banco Central do Brasil BRL/USD reference rate.\nPublished daily, settlement uses PTAX 800 (closing rate).",
           "type": "string"
         },
         {
-          "const": "taifx",
+          "const": "TAIFX",
           "description": "TAIFX - Taipei Forex Inc. TWD/USD fixing.\nPublished daily at 11:00 AM Taipei time.",
           "type": "string"
         },
         {
-          "const": "php_bval",
+          "const": "PHP_BVAL",
           "description": "BVAL - Bankers Association of the Philippines PHP/USD reference rate.\nAlso known as PHP BVAL or PDEx.",
           "type": "string"
         },
         {
-          "const": "jisdor",
+          "const": "JISDOR",
           "description": "JISDOR - Jakarta Interbank Spot Dollar Rate (Bank Indonesia).\nIDR/USD fixing published daily at 10:00 AM Jakarta time.",
           "type": "string"
         },
         {
-          "const": "bnm",
+          "const": "BNM",
           "description": "BNM - Bank Negara Malaysia MYR/USD fixing.\nPublished daily at 3:30 PM Kuala Lumpur time.",
           "type": "string"
         },
         {
-          "const": "other",
+          "const": "OTHER",
           "description": "Custom or other fixing source not covered by the enum.",
           "type": "string"
         }
@@ -69,12 +222,33 @@
           "type": "string"
         }
       ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/Ndf"
+            },
+            "type": {
+              "const": "ndf",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/ndf.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Non-Deliverable Forward (NDF) for cash-settled forward contracts on restricted currencies",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -91,33 +265,13 @@
           "contract_rate": 7.25,
           "domestic_discount_curve_id": "USD-OIS",
           "fixing_date": "2025-03-13",
-          "fixing_source_enum": "pboc",
+          "fixing_source_enum": "PBOC",
+          "forward_rate_override": 7.25,
           "id": "USDCNY-NDF-3M",
           "maturity": "2025-03-15",
           "notional": {
             "amount": "10000000",
             "currency": "CNY"
-          },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
           },
           "quote_convention": "base_per_settlement",
           "settlement_currency": "USD"
@@ -129,176 +283,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Ndf instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "base_calendar_id": {
-              "description": "Optional base currency calendar.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "base_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency (restricted/non-deliverable currency, numerator)."
-            },
-            "contract_rate": {
-              "description": "Contract forward rate. Interpretation depends on `quote_convention`:\n- BasePerSettlement: base per settlement (e.g., 7.25 CNY per USD)\n- SettlementPerBase: settlement per base (e.g., 0.138 USD per CNY)",
-              "format": "double",
-              "type": "number"
-            },
-            "domestic_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Settlement currency discount curve ID."
-            },
-            "fixing_date": {
-              "description": "Fixing date (rate observation date, typically T-2 before maturity).",
-              "format": "date",
-              "type": "string"
-            },
-            "fixing_rate": {
-              "description": "Observed fixing rate. Interpretation depends on `quote_convention`.\nIf Some, NDF is post-fixing.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "fixing_source_enum": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/NdfFixingSource"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Official fixing source/benchmark enum for type-safe specification.\n\nUse this field for validated fixing sources.\nSee [`NdfFixingSource`] for supported benchmarks and their typical currencies."
-            },
-            "foreign_discount_curve_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional foreign (base) currency discount curve ID.\nRequired for pre-fixing forward estimation unless `forward_rate_override`\nis supplied."
-            },
-            "forward_rate_override": {
-              "description": "Explicit pre-fixing forward rate in `quote_convention` units.\n\nUse this for NDF market quotes or basis-adjusted forwards when a base\ncurrency discount curve is unavailable.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "maturity": {
-              "description": "Maturity/settlement date.",
-              "format": "date",
-              "type": "string"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount in base currency."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for tagging and selection.\nInstrument-owned pricing inputs."
-            },
-            "quote_calendar_id": {
-              "description": "Optional settlement currency calendar.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "quote_convention": {
-              "$ref": "#/$defs/NdfQuoteConvention",
-              "description": "Quote convention for contract_rate and fixing_rate."
-            },
-            "settlement_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Settlement currency (freely convertible, typically USD, denominator and PV currency)."
-            },
-            "spot_rate_override": {
-              "description": "Optional spot rate override for forward rate calculation.\nInterpretation depends on `quote_convention`.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "id",
-            "base_currency",
-            "settlement_currency",
-            "fixing_date",
-            "maturity",
-            "notional",
-            "contract_rate",
-            "domestic_discount_curve_id",
-            "quote_convention",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "ndf",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "NDF",
+  "title": "ndf",
   "type": "object"
 }

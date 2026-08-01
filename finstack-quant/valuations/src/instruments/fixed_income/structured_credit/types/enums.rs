@@ -16,17 +16,18 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum DealType {
     /// Collateralized Loan Obligation
-    CLO,
+    Clo,
     /// Collateralized Bond Obligation
-    CBO,
+    Cbo,
     /// Generic Asset-Backed Security
-    ABS,
+    Abs,
     /// Residential Mortgage-Backed Security
-    RMBS,
+    Rmbs,
     /// Commercial Mortgage-Backed Security
-    CMBS,
+    Cmbs,
     /// Auto Loan ABS
     Auto,
     /// Credit Card ABS
@@ -36,11 +37,11 @@ pub enum DealType {
 impl core::fmt::Display for DealType {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            DealType::CLO => write!(f, "CLO"),
-            DealType::CBO => write!(f, "CBO"),
-            DealType::ABS => write!(f, "ABS"),
-            DealType::RMBS => write!(f, "RMBS"),
-            DealType::CMBS => write!(f, "CMBS"),
+            DealType::Clo => write!(f, "CLO"),
+            DealType::Cbo => write!(f, "CBO"),
+            DealType::Abs => write!(f, "ABS"),
+            DealType::Rmbs => write!(f, "RMBS"),
+            DealType::Cmbs => write!(f, "CMBS"),
             DealType::Auto => write!(f, "Auto ABS"),
             DealType::Card => write!(f, "Credit Card ABS"),
         }
@@ -63,6 +64,7 @@ impl core::fmt::Display for DealType {
 )]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum TrancheSeniority {
     /// Most senior debt tranche
     Senior = 0,
@@ -77,10 +79,10 @@ pub enum TrancheSeniority {
 impl core::fmt::Display for TrancheSeniority {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            TrancheSeniority::Senior => write!(f, "Senior"),
-            TrancheSeniority::Mezzanine => write!(f, "Mezzanine"),
-            TrancheSeniority::Subordinated => write!(f, "Subordinated"),
-            TrancheSeniority::Equity => write!(f, "Equity"),
+            TrancheSeniority::Senior => write!(f, "senior"),
+            TrancheSeniority::Mezzanine => write!(f, "mezzanine"),
+            TrancheSeniority::Subordinated => write!(f, "subordinated"),
+            TrancheSeniority::Equity => write!(f, "equity"),
         }
     }
 }
@@ -94,6 +96,7 @@ impl core::fmt::Display for TrancheSeniority {
 #[serde(tag = "type")]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum AssetType {
     // ========== LOAN TYPES ==========
     /// First lien corporate loan
@@ -226,7 +229,7 @@ pub enum AssetType {
     /// Private student loan
     PrivateStudentLoan,
     /// FFELP student loan
-    FFELPStudentLoan,
+    FfelpStudentLoan,
     /// Consolidation student loan
     ConsolidationStudentLoan,
 
@@ -251,9 +254,8 @@ pub enum AssetType {
 
 /// Payment distribution modes
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(tag = "mode")]
+#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
-#[serde(deny_unknown_fields)]
 pub enum PaymentMode {
     /// Normal pro-rata payments to all tranches
     ProRata,
@@ -262,7 +264,7 @@ pub enum PaymentMode {
         /// Triggered by.
         triggered_by: String,
         /// Trigger date.
-        #[schemars(with = "String")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         trigger_date: Date,
     },
     /// Hybrid mode with custom rules
@@ -294,7 +296,7 @@ impl AssetType {
                 | AssetType::FleetAutoLoan { .. }
                 | AssetType::FederalStudentLoan
                 | AssetType::PrivateStudentLoan
-                | AssetType::FFELPStudentLoan
+                | AssetType::FfelpStudentLoan
                 | AssetType::ConsolidationStudentLoan
                 | AssetType::Equipment { .. }
         )
@@ -305,6 +307,7 @@ impl AssetType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum TriggerConsequence {
     /// Divert Cash Flow variant.
     DivertCashFlow,

@@ -189,7 +189,7 @@ fn validate_discount_step(quotes: &[MarketQuote]) -> Result<()> {
             finstack_quant_core::InputError::TooFewPoints,
         ));
     }
-    let _curve_dc = curve_day_count_from_quotes(&rates_quotes)?;
+    let _curve_day_count = curve_day_count_from_quotes(&rates_quotes)?;
     Ok(())
 }
 
@@ -208,7 +208,7 @@ fn validate_forward_step(
             finstack_quant_core::InputError::TooFewPoints,
         ));
     }
-    let _curve_dc = curve_day_count_from_quotes(&rates_quotes)?;
+    let _curve_day_count = curve_day_count_from_quotes(&rates_quotes)?;
     Ok(())
 }
 
@@ -425,13 +425,6 @@ fn validate_vol_surface_step(
     p: &crate::calibration::api::schema::VolSurfaceParams,
     context: &MarketContext,
 ) -> Result<()> {
-    let model = p.model.trim().to_ascii_lowercase();
-    if model != "sabr" {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "VolSurface model '{}' is not supported (currently supported: 'sabr')",
-            p.model
-        )));
-    }
     let discount_id = p.discount_curve_id.as_deref().ok_or_else(|| {
         finstack_quant_core::Error::Validation(
             "VolSurface step requires discount_curve_id".to_string(),
@@ -742,7 +735,7 @@ mod tests {
             id: "svi".to_string(),
             quote_set: "vols".to_string(),
             params: StepParams::SviSurface(SviSurfaceParams {
-                surface_id: "SPX-SVI".to_string(),
+                vol_surface_id: "SPX-SVI".to_string(),
                 base_date,
                 underlying_ticker: "SPX".to_string(),
                 discount_curve_id: Some("USD-OIS".into()),
@@ -770,7 +763,7 @@ mod tests {
     fn preflight_rejects_svi_surface_non_positive_spot_override() {
         let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
         let params = SviSurfaceParams {
-            surface_id: "SPX-SVI".to_string(),
+            vol_surface_id: "SPX-SVI".to_string(),
             base_date,
             underlying_ticker: "SPX".to_string(),
             discount_curve_id: None,
@@ -789,7 +782,7 @@ mod tests {
     fn preflight_rejects_svi_surface_non_positive_target_strike() {
         let base_date = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
         let params = SviSurfaceParams {
-            surface_id: "SPX-SVI".to_string(),
+            vol_surface_id: "SPX-SVI".to_string(),
             base_date,
             underlying_ticker: "SPX".to_string(),
             discount_curve_id: None,

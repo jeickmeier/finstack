@@ -37,7 +37,7 @@
 //! different ergonomic and performance trade-offs (adaptive is robust for
 //! one-off pricing, composite is faster for repeated strike sweeps). A
 //! cross-validation test in `closed_form::heston::tests::test_cross_validation_with_volatility_heston`
-//! pins them within 10 bps to catch silent drift between the two.
+//! pins them within 10 bp to catch silent drift between the two.
 
 use finstack_quant_core::math::integration::gauss_legendre_integrate_adaptive;
 pub use finstack_quant_core::math::volatility::heston::HestonParams as HestonParameters;

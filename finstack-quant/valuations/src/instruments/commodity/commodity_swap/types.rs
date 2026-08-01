@@ -62,7 +62,9 @@ use rust_decimal::Decimal;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 pub struct CommoditySwap {
     /// Unique instrument identifier.
@@ -73,6 +75,7 @@ pub struct CommoditySwap {
     /// Notional quantity per period.
     pub quantity: f64,
     /// Fixed price per unit.
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub fixed_price: Decimal,
     /// Floating index ID for price lookups.
     pub floating_index_id: CurveId,
@@ -81,10 +84,10 @@ pub struct CommoditySwap {
     #[serde(default = "default_pay_receive")]
     pub side: PayReceive,
     /// Start date of the swap.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// End date of the swap.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Payment frequency as a Tenor.
     pub frequency: Tenor,
@@ -99,7 +102,7 @@ pub struct CommoditySwap {
     /// unadjusted.
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Discount curve ID.
     pub discount_curve_id: CurveId,
     /// Optional index lag in **calendar days**: the floating-leg averaging
@@ -116,16 +119,28 @@ pub struct CommoditySwap {
     /// after the valuation date project from the price curve.
     #[builder(default)]
     #[serde(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub realized_fixings: Vec<(Date, f64)>,
     /// Instrument-owned pricing inputs.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     #[serde(default)]
@@ -201,7 +216,7 @@ impl CommoditySwap {
                     .expect("Valid example date"),
             )
             .frequency(Tenor::new(1, finstack_quant_core::dates::TenorUnit::Months))
-            .bdc(BusinessDayConvention::ModifiedFollowing)
+            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .attributes(
                 Attributes::new()
@@ -394,15 +409,15 @@ impl CommoditySwap {
         use crate::cashflow::builder::periods::{build_periods, BuildPeriodsParams};
 
         self.validate()?;
-        let bdc = if self.calendar_id.is_some() {
-            self.bdc
+        let business_day_convention = if self.calendar_id.is_some() {
+            self.business_day_convention
         } else {
             BusinessDayConvention::Unadjusted
         };
         let schedule = crate::cashflow::builder::ScheduleParams {
-            freq: self.frequency,
-            dc: finstack_quant_core::dates::DayCount::Act365F,
-            bdc,
+            frequency: self.frequency,
+            day_count: finstack_quant_core::dates::DayCount::Act365F,
+            business_day_convention,
             calendar_id: self
                 .calendar_id
                 .as_ref()

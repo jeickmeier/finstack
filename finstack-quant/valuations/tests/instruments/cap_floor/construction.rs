@@ -143,7 +143,7 @@ fn test_caplet_creation() {
         frequency: Tenor::quarterly(),
         day_count: DayCount::Act360,
         stub: StubKind::None,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: None,
         exercise_style: ExerciseStyle::European,
         settlement: SettlementType::Cash,
@@ -180,7 +180,7 @@ fn test_floorlet_creation() {
         frequency: Tenor::semi_annual(),
         day_count: DayCount::Act360,
         stub: StubKind::None,
-        bdc: BusinessDayConvention::Following,
+        business_day_convention: BusinessDayConvention::Following,
         calendar_id: None,
         exercise_style: ExerciseStyle::European,
         settlement: SettlementType::Cash,
@@ -237,7 +237,7 @@ fn test_different_day_counts() {
         DayCount::ActActIsma,
     ];
 
-    for dc in day_counts {
+    for day_count in day_counts {
         let cap = CapFloor::new_cap(
             "CAP_DC_TEST",
             notional,
@@ -245,14 +245,14 @@ fn test_different_day_counts() {
             start,
             end,
             Tenor::quarterly(),
-            dc,
+            day_count,
             "USD-OIS",
             "USD-LIBOR-3M",
             "USD-CAP-VOL",
         )
         .expect("valid strike");
 
-        assert_eq!(cap.day_count, dc);
+        assert_eq!(cap.day_count, day_count);
     }
 }
 
@@ -269,14 +269,14 @@ fn test_different_frequencies() {
         Tenor::annual(),
     ];
 
-    for freq in frequencies {
+    for frequency in frequencies {
         let cap = CapFloor::new_cap(
             "CAP_FREQ_TEST",
             notional,
             0.03,
             start,
             end,
-            freq,
+            frequency,
             DayCount::Act360,
             "USD-OIS",
             "USD-LIBOR-3M",
@@ -284,7 +284,7 @@ fn test_different_frequencies() {
         )
         .expect("valid strike");
 
-        assert_eq!(cap.frequency, freq);
+        assert_eq!(cap.frequency, frequency);
     }
 }
 

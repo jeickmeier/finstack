@@ -182,7 +182,7 @@ fn attribution_schemas_keep_meaningful_nested_payloads() {
         "optional credit-factor model must retain its typed schema"
     );
     assert!(
-        spec.pointer("/$defs/CreditFactorModel/properties/schema_version/const")
+        spec.pointer("/$defs/CreditFactorModelSchema/oneOf/0/const")
             .is_some(),
         "credit-factor model schema must retain its exact version marker"
     );
@@ -205,11 +205,11 @@ fn attribution_schemas_apply_canonical_decimal_and_date_normalization() {
     let schema = read_schema(&schema_root().join("attribution.schema.json"));
 
     assert_eq!(
-        schema.pointer("/$defs/Money/properties/amount/pattern"),
+        schema.pointer("/$defs/DecimalWire/pattern"),
         Some(&json!(CANONICAL_DECIMAL_PATTERN))
     );
     assert_eq!(
-        schema.pointer("/$defs/AttributionSpec/properties/as_of_t0/format"),
+        schema.pointer("/$defs/DateWire/format"),
         Some(&json!("date"))
     );
 }
@@ -236,7 +236,7 @@ fn attribution_schema_validates_non_empty_market_data() {
     market["curves"] = json!([{
         "allow_non_monotonic": false,
         "base": "2025-01-15",
-        "day_count": "Act365F",
+        "day_count": "act_365f",
         "extrapolation": "flat_forward",
         "id": "USD-OIS",
         "interp_style": "log_linear",
@@ -290,7 +290,7 @@ fn attribution_schema_rejects_malformed_discount_curve_internals() {
     fixture["attribution"]["market_t0"]["curves"] = json!([{
         "allow_non_monotonic": false,
         "base": "2025-01-15",
-        "day_count": "Act365F",
+        "day_count": "act_365f",
         "extrapolation": "flat_forward",
         "id": "USD-OIS",
         "interp_style": "log_linear",

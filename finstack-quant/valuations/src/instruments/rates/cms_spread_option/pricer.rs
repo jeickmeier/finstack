@@ -204,9 +204,9 @@ impl CmsSpreadOptionPricer {
             as_of,
             start: inst.expiry_date,
             end: swap_end,
-            fixed_freq: inst.resolved_swap_fixed_freq(),
+            fixed_frequency: inst.resolved_swap_fixed_frequency(),
             fixed_day_count: inst.resolved_swap_day_count(),
-            float_freq: inst.resolved_swap_float_freq(),
+            float_frequency: inst.resolved_swap_float_frequency(),
             float_day_count: inst.resolved_swap_float_day_count(),
             calendar_id: &calendar_id,
             business_day_convention: convention.business_day_convention(),
@@ -231,7 +231,7 @@ impl CmsSpreadOptionPricer {
                 time_to_expiry,
                 tenor_years,
                 forward_rate,
-                1.0 / inst.resolved_swap_fixed_freq().to_years_simple(),
+                1.0 / inst.resolved_swap_fixed_frequency().to_years_simple(),
             )
         } else {
             0.0

@@ -44,11 +44,11 @@ impl PyFixedLegSpec {
     ///     Start date of the fixed leg.
     /// end : datetime.date
     ///     End date of the fixed leg.
-    /// bdc : str, default "modified_following"
+    /// business_day_convention : str, default "modified_following"
     ///     Business day convention for payment dates.
     /// calendar_id : str, optional
     ///     Calendar used for business day adjustments.
-    /// stub : str, default "ShortFront"
+    /// stub : str, default "short_front"
     ///     Stub period handling rule.
     /// compounding_simple : bool
     ///     If true, use simple interest on the accrual fraction. Required:
@@ -83,11 +83,11 @@ impl PyFixedLegSpec {
     /// True
     #[new]
     #[pyo3(signature = (discount_curve_id, rate, frequency, day_count, start, end, *,
-                        compounding_simple, bdc = "modified_following", calendar_id = None,
-                        stub = "ShortFront", payment_lag_days = 0, end_of_month = false))]
+                        compounding_simple, business_day_convention = "modified_following", calendar_id = None,
+                        stub = "short_front", payment_lag_days = 0, end_of_month = false))]
     #[pyo3(
         text_signature = "(discount_curve_id, rate, frequency, day_count, start, end, *, \
-compounding_simple, bdc='modified_following', calendar_id=None, stub='ShortFront', \
+compounding_simple, business_day_convention='modified_following', calendar_id=None, stub='short_front', \
 payment_lag_days=0, end_of_month=False)"
     )]
     #[allow(clippy::too_many_arguments)]
@@ -99,7 +99,7 @@ payment_lag_days=0, end_of_month=False)"
         start: &Bound<'_, PyAny>,
         end: &Bound<'_, PyAny>,
         compounding_simple: bool,
-        bdc: &str,
+        business_day_convention: &str,
         calendar_id: Option<String>,
         stub: &str,
         payment_lag_days: i32,
@@ -112,7 +112,10 @@ payment_lag_days=0, end_of_month=False)"
             rate: decimal_from_f64(rate, "rate")?,
             frequency: frequency.inner,
             day_count: day_count.inner,
-            bdc: enum_from_str(bdc, "bdc")?,
+            business_day_convention: enum_from_str(
+                business_day_convention,
+                "business_day_convention",
+            )?,
             calendar_id,
             stub: enum_from_str(stub, "stub")?,
             start: py_to_date(start)?,
@@ -168,11 +171,11 @@ impl PyFloatLegSpec {
     ///     Start date of the floating leg.
     /// end : datetime.date
     ///     End date of the floating leg.
-    /// bdc : str, default "modified_following"
+    /// business_day_convention : str, default "modified_following"
     ///     Business day convention for payment dates.
     /// calendar_id : str, optional
     ///     Calendar used for business day adjustments.
-    /// stub : str, default "ShortFront"
+    /// stub : str, default "short_front"
     ///     Stub period handling rule.
     /// reset_lag_days : int, default -1
     ///     Reset lag in business days for the floating rate fixing.
@@ -208,12 +211,12 @@ impl PyFloatLegSpec {
     /// True
     #[new]
     #[pyo3(signature = (discount_curve_id, forward_curve_id, spread_bp, frequency, day_count,
-                        start, end, *, bdc = "modified_following", calendar_id = None,
-                        stub = "ShortFront", reset_lag_days = -1, fixing_calendar_id = None,
+                        start, end, *, business_day_convention = "modified_following", calendar_id = None,
+                        stub = "short_front", reset_lag_days = -1, fixing_calendar_id = None,
                         payment_lag_days = 0, end_of_month = false))]
     #[pyo3(
         text_signature = "(discount_curve_id, forward_curve_id, spread_bp, frequency, \
-day_count, start, end, *, bdc='modified_following', calendar_id=None, stub='ShortFront', \
+day_count, start, end, *, business_day_convention='modified_following', calendar_id=None, stub='short_front', \
 reset_lag_days=-1, fixing_calendar_id=None, payment_lag_days=0, end_of_month=False)"
     )]
     #[allow(clippy::too_many_arguments)]
@@ -225,7 +228,7 @@ reset_lag_days=-1, fixing_calendar_id=None, payment_lag_days=0, end_of_month=Fal
         day_count: PyRef<'_, PyDayCount>,
         start: &Bound<'_, PyAny>,
         end: &Bound<'_, PyAny>,
-        bdc: &str,
+        business_day_convention: &str,
         calendar_id: Option<String>,
         stub: &str,
         reset_lag_days: i32,
@@ -243,7 +246,10 @@ reset_lag_days=-1, fixing_calendar_id=None, payment_lag_days=0, end_of_month=Fal
             spread_bp: decimal_from_f64(spread_bp, "spread_bp")?,
             frequency: frequency.inner,
             day_count: day_count.inner,
-            bdc: enum_from_str(bdc, "bdc")?,
+            business_day_convention: enum_from_str(
+                business_day_convention,
+                "business_day_convention",
+            )?,
             calendar_id,
             stub: enum_from_str(stub, "stub")?,
             reset_lag_days,
@@ -298,9 +304,9 @@ impl PyPremiumLegSpec {
     ///     Fixed running spread in basis points (e.g. 100.0 = 100bp = 1%).
     /// discount_curve_id : str
     ///     Discount curve identifier for pricing this leg.
-    /// stub : str, default "ShortFront"
+    /// stub : str, default "short_front"
     ///     Stub period handling rule.
-    /// bdc : str, default "modified_following"
+    /// business_day_convention : str, default "modified_following"
     ///     Business day convention for payment dates.
     /// calendar_id : str, optional
     ///     Calendar used for business day adjustments.
@@ -332,10 +338,10 @@ impl PyPremiumLegSpec {
     /// True
     #[new]
     #[pyo3(signature = (start, end, frequency, day_count, spread_bp, discount_curve_id, *,
-                        stub = "ShortFront", bdc = "modified_following", calendar_id = None))]
+                        stub = "short_front", business_day_convention = "modified_following", calendar_id = None))]
     #[pyo3(
         text_signature = "(start, end, frequency, day_count, spread_bp, discount_curve_id, *, \
-stub='ShortFront', bdc='modified_following', calendar_id=None)"
+stub='short_front', business_day_convention='modified_following', calendar_id=None)"
     )]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -346,7 +352,7 @@ stub='ShortFront', bdc='modified_following', calendar_id=None)"
         spread_bp: f64,
         discount_curve_id: &str,
         stub: &str,
-        bdc: &str,
+        business_day_convention: &str,
         calendar_id: Option<String>,
     ) -> PyResult<Self> {
         let inner = finstack_quant_valuations::instruments::PremiumLegSpec {
@@ -354,7 +360,10 @@ stub='ShortFront', bdc='modified_following', calendar_id=None)"
             end: py_to_date(end)?,
             frequency: frequency.inner,
             stub: enum_from_str(stub, "stub")?,
-            bdc: enum_from_str(bdc, "bdc")?,
+            business_day_convention: enum_from_str(
+                business_day_convention,
+                "business_day_convention",
+            )?,
             calendar_id,
             day_count: day_count.inner,
             spread_bp: decimal_from_f64(spread_bp, "spread_bp")?,

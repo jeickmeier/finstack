@@ -1,5 +1,5 @@
 //! Post-hoc translation of a native-currency `PnlAttribution` into a
-//! reporting currency (`target_ccy`).
+//! reporting currency (`target_currency`).
 //!
 //! By default every per-instrument attribution method reports in the
 //! instrument's own pricing currency (`val_t1.currency()`). When a portfolio
@@ -40,7 +40,7 @@ use finstack_quant_core::Result;
 use crate::types::{CarryDetail, PnlAttribution, SourceLine};
 
 /// Translate a populated `PnlAttribution` from its native pricing currency
-/// into `target_ccy`.
+/// into `target_currency`.
 ///
 /// # Arguments
 ///
@@ -48,7 +48,7 @@ use crate::types::{CarryDetail, PnlAttribution, SourceLine};
 ///   aggregate P&L fields are translated in place.
 /// * `val_t0` - Opening native-currency value used to compute the
 ///   translation adjustment).
-/// * `target_ccy` - Reporting currency into which aggregate P&L is translated.
+/// * `target_currency` - Reporting currency into which aggregate P&L is translated.
 /// * `market_t0` - Opening market state carrying the FX matrix for the T₀
 ///   conversion.
 /// * `market_t1` - Closing market state carrying the FX matrix for T₁ factor
@@ -58,7 +58,7 @@ use crate::types::{CarryDetail, PnlAttribution, SourceLine};
 ///
 /// # Behavior
 ///
-/// - If `target_ccy == attribution.total_pnl.currency()`, this is a no-op
+/// - If `target_currency == attribution.total_pnl.currency()`, this is a no-op
 ///   (no field is mutated).
 /// - Otherwise every factor P&L is converted via `market_t1.convert_money`
 ///   at `as_of_t1`; `fx_translation_pnl` is set to
@@ -66,37 +66,37 @@ use crate::types::{CarryDetail, PnlAttribution, SourceLine};
 ///   `val_t1_target − val_t0_target`. Detail breakdowns (rates_detail,
 ///   credit_detail, fx_detail, ...) are NOT translated by this helper —
 ///   their key amounts remain in native currency. The aggregate fields are
-///   the supported reporting surface in target_ccy.
-/// - The `meta.fx_policy` is stamped with `target_ccy` and a note describing
+///   the supported reporting surface in target_currency.
+/// - The `meta.fx_policy` is stamped with `target_currency` and a note describing
 ///   the translation.
 ///
 /// # Errors
 ///
 /// Returns an error if any FX conversion fails (typically because the FX
 /// matrix lacks the native→target rate).
-pub fn translate_to_target_ccy(
+pub fn translate_to_target_currency(
     attribution: &mut PnlAttribution,
     val_t0: Money,
-    target_ccy: Currency,
+    target_currency: Currency,
     market_t0: &MarketContext,
     market_t1: &MarketContext,
     as_of_t0: Date,
     as_of_t1: Date,
 ) -> Result<()> {
-    let native_ccy = attribution.total_pnl.currency();
-    if native_ccy == target_ccy {
+    let native_currency = attribution.total_pnl.currency();
+    if native_currency == target_currency {
         return Ok(()); // No-op: report stays in native currency.
     }
 
     // Convert val_t0 with BOTH the T0 and T1 FX matrices so we can extract the
     // FX move applied to the opening position.
-    let val_t0_at_t0 = market_t0.convert_money(val_t0, target_ccy, as_of_t0)?;
-    let val_t0_at_t1 = market_t1.convert_money(val_t0, target_ccy, as_of_t1)?;
+    let val_t0_at_t0 = market_t0.convert_money(val_t0, target_currency, as_of_t0)?;
+    let val_t0_at_t1 = market_t1.convert_money(val_t0, target_currency, as_of_t1)?;
     let fx_translation = val_t0_at_t1.checked_sub(val_t0_at_t0)?;
 
-    // Translate every per-factor amount to target_ccy at T1 FX.
+    // Translate every per-factor amount to target_currency at T1 FX.
     let translate =
-        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_ccy, as_of_t1) };
+        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
 
     attribution.carry = translate(attribution.carry)?;
     attribution.rates_curves_pnl = translate(attribution.rates_curves_pnl)?;
@@ -110,7 +110,7 @@ pub fn translate_to_target_ccy(
     attribution.market_scalars_pnl = translate(attribution.market_scalars_pnl)?;
     attribution.fx_translation_pnl = fx_translation;
 
-    // Total in target_ccy = MTM translation + the total-return add-back.
+    // Total in target_currency = MTM translation + the total-return add-back.
     //
     // Native `total_pnl` follows the total-return convention: the methods add
     // intra-period coupon income on top of the raw MTM (`mark_to_market_pnl`)
@@ -125,25 +125,25 @@ pub fn translate_to_target_ccy(
     let coupon_addback_native = native_total_pnl.checked_sub(native_mtm)?;
 
     let val_t1_native = val_t0.checked_add(native_mtm)?;
-    let val_t1_at_t1 = market_t1.convert_money(val_t1_native, target_ccy, as_of_t1)?;
+    let val_t1_at_t1 = market_t1.convert_money(val_t1_native, target_currency, as_of_t1)?;
     let translated_mtm = val_t1_at_t1.checked_sub(val_t0_at_t0)?;
     attribution.total_pnl = translated_mtm.checked_add(translate(coupon_addback_native)?)?;
 
-    // mark_to_market_pnl in target_ccy retains the raw price change interpretation.
+    // mark_to_market_pnl in target_currency retains the raw price change interpretation.
     if let Some(_mtm) = attribution.mark_to_market_pnl {
         attribution.mark_to_market_pnl = Some(translated_mtm);
     }
 
     // Residual is recomputed against the translated sum.
-    attribution.residual = Money::new(0.0, target_ccy);
+    attribution.residual = Money::new(0.0, target_currency);
 
     // Stamp the FX policy so downstream consumers know the report currency is
     // a translation, not native.
     attribution.meta.fx_policy = Some(FxPolicyMeta {
         strategy: FxConversionPolicy::CashflowDate,
-        target_ccy: Some(target_ccy),
+        target_currency: Some(target_currency),
         notes: format!(
-            "translated from {native_ccy} to {target_ccy} (factors at T1 FX; \
+            "translated from {native_currency} to {target_currency} (factors at T1 FX; \
              fx_translation_pnl = val_t0 × (T1_fx − T0_fx))"
         ),
     });
@@ -153,7 +153,7 @@ pub fn translate_to_target_ccy(
     // maps (rates_detail.by_curve, fx_detail.by_pair, ...) remain in native
     // currency — see the doc on this function.
     if let Some(d) = attribution.carry_detail.as_mut() {
-        translate_carry_detail(d, target_ccy, market_t1, as_of_t1)?;
+        translate_carry_detail(d, target_currency, market_t1, as_of_t1)?;
     }
 
     attribution.compute_residual()?;
@@ -162,20 +162,21 @@ pub fn translate_to_target_ccy(
 
 fn translate_carry_detail(
     detail: &mut CarryDetail,
-    target_ccy: Currency,
+    target_currency: Currency,
     market_t1: &MarketContext,
     as_of_t1: Date,
 ) -> Result<()> {
-    let convert = |m: Money| -> Result<Money> { market_t1.convert_money(m, target_ccy, as_of_t1) };
+    let convert =
+        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
     detail.total = convert(detail.total)?;
     if let Some(line) = detail.coupon_income.as_mut() {
-        translate_source_line(line, target_ccy, market_t1, as_of_t1)?;
+        translate_source_line(line, target_currency, market_t1, as_of_t1)?;
     }
     if let Some(m) = detail.pull_to_par.as_mut() {
         *m = convert(*m)?;
     }
     if let Some(line) = detail.roll_down.as_mut() {
-        translate_source_line(line, target_ccy, market_t1, as_of_t1)?;
+        translate_source_line(line, target_currency, market_t1, as_of_t1)?;
     }
     if let Some(m) = detail.funding_cost.as_mut() {
         *m = convert(*m)?;
@@ -185,11 +186,12 @@ fn translate_carry_detail(
 
 fn translate_source_line(
     line: &mut SourceLine,
-    target_ccy: Currency,
+    target_currency: Currency,
     market_t1: &MarketContext,
     as_of_t1: Date,
 ) -> Result<()> {
-    let convert = |m: Money| -> Result<Money> { market_t1.convert_money(m, target_ccy, as_of_t1) };
+    let convert =
+        |m: Money| -> Result<Money> { market_t1.convert_money(m, target_currency, as_of_t1) };
     line.total = convert(line.total)?;
     if let Some(m) = line.rates_part.as_mut() {
         *m = convert(*m)?;
@@ -249,7 +251,7 @@ mod tests {
         attr.rates_curves_pnl = Money::new(60.0, Currency::USD);
         let snapshot = attr.clone();
 
-        translate_to_target_ccy(
+        translate_to_target_currency(
             &mut attr,
             Money::new(1000.0, Currency::USD),
             Currency::USD,
@@ -325,7 +327,7 @@ mod tests {
             "native attribution must start reconciled"
         );
 
-        translate_to_target_ccy(
+        translate_to_target_currency(
             &mut attr,
             val_t0_native,
             Currency::USD,
@@ -357,7 +359,7 @@ mod tests {
     }
 
     fn translate_and_assert_eur_to_usd(mut attr: PnlAttribution, val_t0_native: Money) {
-        translate_to_target_ccy(
+        translate_to_target_currency(
             &mut attr,
             val_t0_native,
             Currency::USD,
@@ -393,7 +395,7 @@ mod tests {
 
         // FX policy stamp records the translation.
         let policy = attr.meta.fx_policy.as_ref().expect("fx policy stamped");
-        assert_eq!(policy.target_ccy, Some(Currency::USD));
+        assert_eq!(policy.target_currency, Some(Currency::USD));
         assert!(policy.notes.contains("translated"));
     }
 
@@ -411,7 +413,7 @@ mod tests {
         attr.compute_residual().expect("native residual");
         assert!(attr.residual.amount().abs() < 1e-9);
 
-        translate_to_target_ccy(
+        translate_to_target_currency(
             &mut attr,
             Money::new(500.0, Currency::EUR),
             Currency::USD,

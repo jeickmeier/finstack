@@ -4,7 +4,7 @@
 //! break-even CDR and the scenario table — take a tranche id and metric-specific
 //! configuration that the generic metric registry does not carry, so they are
 //! exposed here as dedicated JSON entry points the Python and WASM bindings
-//! wrap. Each parses tagged instrument JSON, recovers the [`StructuredCredit`]
+//! wrap. Each parses a canonical instrument envelope, recovers the [`StructuredCredit`]
 //! deal, parses the as-of date, and dispatches to the corresponding metric.
 //!
 //! # Examples
@@ -31,7 +31,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::{Error, Result};
 
-/// Recover a [`StructuredCredit`] deal from tagged instrument JSON.
+/// Recover a [`StructuredCredit`] deal from a canonical instrument envelope.
 ///
 /// # Errors
 ///
@@ -139,7 +139,7 @@ pub fn structured_credit_tranche_breakeven_cdr_json(
     calculate_tranche_breakeven_cdr(&deal, tranche_id, market, as_of)
 }
 
-/// Option-adjusted spread for a tranche from tagged instrument JSON.
+/// Option-adjusted spread for a tranche from a canonical instrument envelope.
 ///
 /// `market_price_pct` is the quoted price as a percentage of original balance.
 /// `config_json`, when present, is a serialized [`OasConfig`]; otherwise the
@@ -193,7 +193,7 @@ pub fn structured_credit_tranche_oas_json(
 }
 
 /// Per-tranche risk/spread metrics ([`TrancheMetrics`]) for a tranche from
-/// tagged instrument JSON — PV, price, WAL, z-spread, CS01, spread/modified
+/// a canonical instrument envelope — PV, price, WAL, z-spread, CS01, spread/modified
 /// duration and convexity, all computed from that tranche's own cashflows.
 ///
 /// `market_price_pct`, when present, is the quoted price (% of original balance)
@@ -262,7 +262,7 @@ fn ensure_finite(fields: &[(&str, f64)], metric: &str) -> Result<()> {
 }
 
 /// Scenario (CPR × CDR × severity) price/WAL/writedown table for a tranche from
-/// tagged instrument JSON. `grid_json` is a serialized [`ScenarioGrid`].
+/// a canonical instrument envelope. `grid_json` is a serialized [`ScenarioGrid`].
 ///
 /// # Errors
 ///
@@ -319,6 +319,33 @@ fn ensure_scenario_cell_finite(cell: &ScenarioCell, index: usize) -> Result<()> 
 mod tests {
     use super::*;
     use finstack_quant_core::currency::Currency;
+
+    #[test]
+    fn canonical_envelope_parser_preserves_structured_credit_tranches() {
+        let deal = StructuredCredit::example();
+        let expected_ids: Vec<String> = deal
+            .tranches
+            .tranches
+            .iter()
+            .map(|tranche| tranche.id.to_string())
+            .collect();
+        let json = serde_json::to_string(&crate::instruments::InstrumentEnvelope::new(
+            crate::instruments::InstrumentJson::StructuredCredit(Box::new(deal)),
+        ))
+        .expect("serialize canonical structured-credit envelope");
+
+        let parsed = structured_credit_from_json(&json)
+            .expect("parse structured credit from canonical envelope");
+        let actual_ids: Vec<String> = parsed
+            .tranches
+            .tranches
+            .iter()
+            .map(|tranche| tranche.id.to_string())
+            .collect();
+
+        assert_eq!(actual_ids, expected_ids);
+        assert!(!actual_ids.is_empty());
+    }
 
     /// Non-finite metrics are errors rather than JSON `null`.
     #[test]
@@ -457,8 +484,8 @@ mod tests {
     fn invalid_structured_credit_json() -> String {
         let mut deal = StructuredCredit::example();
         deal.cleanup_call_pct = Some(-0.5);
-        serde_json::to_string(&crate::instruments::InstrumentJson::StructuredCredit(
-            Box::new(deal),
+        serde_json::to_string(&crate::instruments::InstrumentEnvelope::new(
+            crate::instruments::InstrumentJson::StructuredCredit(Box::new(deal)),
         ))
         .expect("serialize invalid structured credit")
     }

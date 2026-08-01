@@ -29,11 +29,11 @@ fn bridge_builder_schedule_builds() {
         coupon_type: CouponType::Cash,
         rate: rust_decimal_macros::dec!(0.05),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -65,9 +65,9 @@ fn bridge_period_generation_works() {
     let issue = Date::from_calendar_date(2025, Month::January, 15).expect("valid date");
     let maturity = Date::from_calendar_date(2026, Month::January, 15).expect("valid date");
     let params = ScheduleParams {
-        freq: Tenor::quarterly(),
-        dc: DayCount::Act360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        frequency: Tenor::quarterly(),
+        day_count: DayCount::Act360,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: "usny".to_string(),
         stub: StubKind::ShortFront,
         end_of_month: false,
@@ -80,12 +80,12 @@ fn bridge_period_generation_works() {
         finstack_quant_cashflows::builder::periods::BuildPeriodsParams {
             start: issue,
             end: maturity,
-            frequency: params.freq,
+            frequency: params.frequency,
             stub: params.stub,
-            bdc: params.bdc,
+            business_day_convention: params.business_day_convention,
             calendar_id: &params.calendar_id,
             end_of_month: params.end_of_month,
-            day_count: params.dc,
+            day_count: params.day_count,
             payment_lag_days: params.payment_lag_days,
             reset_lag_days: None,
             adjust_accrual_dates: params.adjust_accrual_dates,
@@ -105,7 +105,7 @@ fn bridge_schema_serde_smoke() {
         serde_json::from_str(&json).expect("deserialize schedule params");
 
     assert_eq!(roundtrip.calendar_id, params.calendar_id);
-    assert_eq!(roundtrip.dc, params.dc);
+    assert_eq!(roundtrip.day_count, params.day_count);
 }
 
 #[test]

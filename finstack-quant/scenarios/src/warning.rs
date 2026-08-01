@@ -10,6 +10,8 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use finstack_quant_valuations::pricer::InstrumentType;
+
 /// A single warning emitted by an adapter, the engine, or a downstream helper.
 ///
 /// New variants will be added over time; pattern matches on `Warning` should
@@ -118,8 +120,8 @@ pub enum Warning {
     InstrumentShockFallback {
         /// Whether the shock is a price (`"price"`) or spread (`"spread"`).
         shock_kind: String,
-        /// Instrument type printed for diagnostic purposes.
-        inst_type: String,
+        /// Canonical instrument type that could not apply the shock directly.
+        inst_type: InstrumentType,
         /// Instrument label (id / name / unidentified).
         label: String,
     },
@@ -186,16 +188,16 @@ pub enum Warning {
 
     /// Vol-surface arbitrage warning detected post-shock.
     VolSurfaceArbitrage {
-        /// Surface identifier.
-        surface_id: String,
+        /// Volatility-surface identifier.
+        vol_surface_id: String,
         /// Free-text from `ArbitrageViolation` Display.
         detail: String,
     },
 
     /// Vol-surface negative bucket shock that may produce non-positive vols.
     VolSurfaceLargeNegativeShock {
-        /// Surface identifier.
-        surface_id: String,
+        /// Volatility-surface identifier.
+        vol_surface_id: String,
         /// Percent shock value.
         pct: f64,
         /// Whether this was a parallel (`false`) or bucket (`true`) shock.
@@ -313,17 +315,20 @@ impl fmt::Display for Warning {
             Warning::BaseCorrBucketNoMatch { surface_id } => {
                 write!(f, "BaseCorrBucketPts on {surface_id} matched no detachment buckets")
             }
-            Warning::VolSurfaceArbitrage { surface_id, detail } => write!(
+            Warning::VolSurfaceArbitrage {
+                vol_surface_id,
+                detail,
+            } => write!(
                 f,
-                "Vol surface '{surface_id}' post-shock arbitrage warning: {detail}"
+                "Vol surface '{vol_surface_id}' post-shock arbitrage warning: {detail}"
             ),
             Warning::VolSurfaceLargeNegativeShock {
-                surface_id,
+                vol_surface_id,
                 pct,
                 bucket,
             } => write!(
                 f,
-                "Vol surface '{surface_id}': Large negative {kind}shock ({pct:.1}%) may produce \
+                "Vol surface '{vol_surface_id}': Large negative {kind}shock ({pct:.1}%) may produce \
                  non-positive vols or calendar spread arbitrage. Consider using check_arbitrage() \
                  to validate post-shock surface.",
                 kind = if *bucket { "bucket " } else { "" },
@@ -351,5 +356,23 @@ impl fmt::Display for Warning {
                  it was excluded from the roll-forward carry aggregation."
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn instrument_fallback_serializes_canonical_instrument_type() {
+        let warning = Warning::InstrumentShockFallback {
+            shock_kind: "price".to_string(),
+            inst_type: InstrumentType::Bond,
+            label: "BOND-1".to_string(),
+        };
+
+        let json = serde_json::to_value(warning).expect("warning should serialize");
+        assert_eq!(json["kind"], "instrument_shock_fallback");
+        assert_eq!(json["inst_type"], "bond");
     }
 }

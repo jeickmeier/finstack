@@ -17,7 +17,7 @@ import pyarrow as pa
 from finstack_quant import statements
 from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.core.table import ArrowTable
-from finstack_quant.portfolio import Portfolio, value_portfolio_typed
+from finstack_quant.portfolio import Portfolio, value_portfolio
 
 AS_OF = "2025-01-15"
 
@@ -34,7 +34,7 @@ def _portfolio_valuation() -> object:
     portfolio_json = json.dumps({
         "id": "ARROW-TEST",
         "as_of": AS_OF,
-        "base_ccy": "USD",
+        "base_currency": "USD",
         "entities": {"FUND": {"id": "FUND"}},
         "positions": [
             {
@@ -45,11 +45,11 @@ def _portfolio_valuation() -> object:
                     "type": "deposit",
                     "spec": {
                         "id": "USD-DEP",
-                        "notional": {"amount": 1_000_000.0, "currency": "USD"},
+                        "notional": {"amount": "1000000", "currency": "USD"},
                         "start_date": AS_OF,
                         "maturity": "2025-07-15",
-                        "day_count": "Act360",
-                        "quote_rate": 0.04,
+                        "day_count": "act_360",
+                        "quote_rate": "0.04",
                         "discount_curve_id": "USD-OIS",
                         "attributes": {},
                     },
@@ -68,7 +68,7 @@ def _portfolio_valuation() -> object:
             day_count="act_365f",
         )
     )
-    return value_portfolio_typed(Portfolio.from_spec(portfolio_json), market)
+    return value_portfolio(Portfolio.from_spec(portfolio_json), market)
 
 
 def test_to_arrow_long_returns_arrow_table_with_stream_protocol() -> None:

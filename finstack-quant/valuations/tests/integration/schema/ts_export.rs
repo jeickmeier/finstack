@@ -6,11 +6,12 @@ use finstack_quant_valuations::calibration::api::market_datum::{
 use finstack_quant_valuations::calibration::api::prior_market::PriorMarketObject;
 use finstack_quant_valuations::calibration::api::schema::{
     AtmStrikeConvention, BaseCorrelationParams, CalibrationEnvelope, CalibrationPlan,
-    CalibrationResult, CalibrationResultEnvelope, CalibrationStep, CapFloorHullWhiteStepParams,
-    DiscountCurveParams, ForwardCurveParams, HazardCurveParams, HullWhiteStepParams,
-    HullWhiteVolatilityMode, InflationCurveParams, ParametricCurveParams, SabrInterpolationMethod,
-    SeasonalFactors, StepParams, StudentTParams, SurfaceExtrapolationPolicy, SviSurfaceParams,
-    SwaptionVolConvention, SwaptionVolParams, VolSurfaceParams, XccyBasisParams,
+    CalibrationResult, CalibrationResultEnvelope, CalibrationSchema, CalibrationStep,
+    CapFloorHullWhiteStepParams, DiscountCurveParams, ForwardCurveParams, HazardCurveParams,
+    HullWhiteStepParams, HullWhiteVolatilityMode, InflationCurveParams, ParametricCurveParams,
+    SabrInterpolationMethod, SeasonalFactors, StepParams, StudentTParams,
+    SurfaceExtrapolationPolicy, SviSurfaceParams, SwaptionVolConvention, SwaptionVolParams,
+    VolSurfaceModel, VolSurfaceParams, XccyBasisParams,
 };
 use finstack_quant_valuations::calibration::{
     CalibrationConfig, CalibrationDiagnostics, CalibrationMethod, CalibrationReport,
@@ -29,25 +30,35 @@ use finstack_quant_valuations::market::quotes::rates::RateQuote as RatesQuote;
 use finstack_quant_valuations::market::quotes::vol::VolQuote;
 use finstack_quant_valuations::market::quotes::xccy::XccyQuote;
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use ts_rs::TS;
 
-const OUT_DIR: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../finstack-quant-wasm/types/generated"
-);
-
 static CONFIG: OnceLock<ts_rs::Config> = OnceLock::new();
+static OUTPUT_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+fn output_dir() -> &'static Path {
+    OUTPUT_DIR
+        .get_or_init(|| {
+            std::env::var_os("FINSTACK_TS_OUTPUT_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../finstack-quant-wasm/types/generated")
+                })
+        })
+        .as_path()
+}
 
 fn config() -> &'static ts_rs::Config {
     CONFIG.get_or_init(|| {
-        std::fs::create_dir_all(OUT_DIR).expect("create generated types dir");
-        ts_rs::Config::new().with_out_dir(OUT_DIR)
+        std::fs::create_dir_all(output_dir()).expect("create generated types dir");
+        ts_rs::Config::new().with_out_dir(output_dir())
     })
 }
 
 fn normalize_generated_types() {
-    for entry in fs::read_dir(OUT_DIR).expect("read generated types dir") {
+    for entry in fs::read_dir(output_dir()).expect("read generated types dir") {
         let path = entry.expect("read generated type entry").path();
         if path.extension().and_then(|ext| ext.to_str()) != Some("ts") {
             continue;
@@ -101,10 +112,11 @@ fn export_calibration_envelope_types() {
 
     // Envelope and plan types
     CalibrationEnvelope::export(cfg).expect("export CalibrationEnvelope");
+    CalibrationSchema::export(cfg).expect("export CalibrationSchema");
     CalibrationPlan::export(cfg).expect("export CalibrationPlan");
     CalibrationStep::export(cfg).expect("export CalibrationStep");
 
-    // v3 envelope payload types (market_data / prior_market lists).
+    // Envelope payload types (market_data / prior_market lists).
     MarketDatum::export(cfg).expect("export MarketDatum");
     FxSpotDatum::export(cfg).expect("export FxSpotDatum");
     PriceDatum::export(cfg).expect("export PriceDatum");
@@ -132,6 +144,7 @@ fn export_calibration_envelope_types() {
 
     // Supporting enums
     SurfaceExtrapolationPolicy::export(cfg).expect("export SurfaceExtrapolationPolicy");
+    VolSurfaceModel::export(cfg).expect("export VolSurfaceModel");
     SwaptionVolConvention::export(cfg).expect("export SwaptionVolConvention");
     AtmStrikeConvention::export(cfg).expect("export AtmStrikeConvention");
     SabrInterpolationMethod::export(cfg).expect("export SabrInterpolationMethod");

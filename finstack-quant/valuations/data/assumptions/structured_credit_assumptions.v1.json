@@ -1,5 +1,5 @@
 {
-  "schema_version": "finstack_quant.structured_credit_assumptions/1",
+  "schema": "finstack_quant.structured_credit_assumptions/1",
   "market_conditions": {
     "refi_rate": 0.04,
     "seasonal_factor": 1.0
@@ -158,14 +158,14 @@
   "deal_profiles": [
     {
       "ids": ["clo_standard", "clo"],
-      "deal_type": "CLO",
+      "deal_type": "clo",
       "fees": {
         "trustee_fee_annual": 50000.0,
-        "senior_mgmt_fee_bps": 40.0,
-        "subordinated_mgmt_fee_bps": 20.0,
-        "servicing_fee_bps": 0.0,
-        "master_servicer_fee_bps": null,
-        "special_servicer_fee_bps": null
+        "senior_mgmt_fee_bp": 40.0,
+        "subordinated_mgmt_fee_bp": 20.0,
+        "servicing_fee_bp": 0.0,
+        "master_servicer_fee_bp": null,
+        "special_servicer_fee_bp": null
       },
       "assumptions": {
         "base_cdr_annual": 0.02,
@@ -187,14 +187,14 @@
     },
     {
       "ids": ["rmbs_standard", "rmbs"],
-      "deal_type": "RMBS",
+      "deal_type": "rmbs",
       "fees": {
         "trustee_fee_annual": 30000.0,
-        "senior_mgmt_fee_bps": 0.0,
-        "subordinated_mgmt_fee_bps": 0.0,
-        "servicing_fee_bps": 25.0,
-        "master_servicer_fee_bps": null,
-        "special_servicer_fee_bps": null
+        "senior_mgmt_fee_bp": 0.0,
+        "subordinated_mgmt_fee_bp": 0.0,
+        "servicing_fee_bp": 25.0,
+        "master_servicer_fee_bp": null,
+        "special_servicer_fee_bp": null
       },
       "assumptions": {
         "base_cdr_annual": 0.006,
@@ -216,14 +216,14 @@
     },
     {
       "ids": ["abs_auto_standard", "abs_standard", "abs_auto", "abs", "auto"],
-      "deal_type": "ABS",
+      "deal_type": "abs",
       "fees": {
         "trustee_fee_annual": 25000.0,
-        "senior_mgmt_fee_bps": 0.0,
-        "subordinated_mgmt_fee_bps": 0.0,
-        "servicing_fee_bps": 50.0,
-        "master_servicer_fee_bps": null,
-        "special_servicer_fee_bps": null
+        "senior_mgmt_fee_bp": 0.0,
+        "subordinated_mgmt_fee_bp": 0.0,
+        "servicing_fee_bp": 50.0,
+        "master_servicer_fee_bp": null,
+        "special_servicer_fee_bp": null
       },
       "assumptions": {
         "base_cdr_annual": 0.02,
@@ -245,14 +245,14 @@
     },
     {
       "ids": ["cmbs_standard", "cmbs"],
-      "deal_type": "CMBS",
+      "deal_type": "cmbs",
       "fees": {
         "trustee_fee_annual": 75000.0,
-        "senior_mgmt_fee_bps": 0.0,
-        "subordinated_mgmt_fee_bps": 0.0,
-        "servicing_fee_bps": 0.0,
-        "master_servicer_fee_bps": 25.0,
-        "special_servicer_fee_bps": 25.0
+        "senior_mgmt_fee_bp": 0.0,
+        "subordinated_mgmt_fee_bp": 0.0,
+        "servicing_fee_bp": 0.0,
+        "master_servicer_fee_bp": 25.0,
+        "special_servicer_fee_bp": 25.0
       },
       "assumptions": {
         "base_cdr_annual": 0.005,

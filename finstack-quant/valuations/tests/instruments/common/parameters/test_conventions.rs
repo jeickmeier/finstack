@@ -7,7 +7,7 @@ use std::str::FromStr;
 #[test]
 fn test_bond_convention_us_treasury() {
     // Arrange
-    let conv = BondConvention::USTreasury;
+    let conv = BondConvention::UsTreasury;
 
     // Assert
     assert_eq!(conv.day_count(), DayCount::ActActIsma);
@@ -34,11 +34,7 @@ fn test_bond_convention_from_str() {
     // Arrange & Act & Assert
     assert_eq!(
         BondConvention::from_str("us_treasury").unwrap(),
-        BondConvention::USTreasury
-    );
-    assert_eq!(
-        BondConvention::from_str("UST").unwrap(),
-        BondConvention::USTreasury
+        BondConvention::UsTreasury
     );
     assert_eq!(
         BondConvention::from_str("german_bund").unwrap(),
@@ -48,12 +44,13 @@ fn test_bond_convention_from_str() {
         BondConvention::from_str("corporate").unwrap(),
         BondConvention::Corporate
     );
+    assert!(BondConvention::from_str("UST").is_err());
 }
 
 #[test]
 fn test_irs_convention_usd() {
     // Arrange
-    let conv = IRSConvention::USDStandard;
+    let conv = IRSConvention::UsdSofr;
 
     // Assert - USD SOFR OIS is the post-LIBOR standard
     assert_eq!(conv.fixed_day_count(), DayCount::Thirty360);
@@ -65,7 +62,7 @@ fn test_irs_convention_usd() {
 #[test]
 fn test_irs_convention_eur() {
     // Arrange - EUR Standard is ESTR OIS (annual float with daily compounding)
-    let conv = IRSConvention::EURStandard;
+    let conv = IRSConvention::EurEstr;
 
     // Assert - ESTR OIS uses annual payment frequency (not semi-annual like EURIBOR)
     assert_eq!(conv.fixed_frequency(), Tenor::annual());
@@ -75,7 +72,7 @@ fn test_irs_convention_eur() {
 #[test]
 fn test_irs_convention_eur_euribor() {
     // Arrange - EUR EURIBOR is the legacy IBOR convention with semi-annual float
-    let conv = IRSConvention::EURIborStandard;
+    let conv = IRSConvention::EurEuribor;
 
     // Assert - EURIBOR 6M uses semi-annual payment frequency
     assert_eq!(conv.fixed_frequency(), Tenor::annual());

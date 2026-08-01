@@ -67,7 +67,7 @@ pub struct Performance {
     benchmark_idx: usize,
     drawdowns: Vec<Vec<f64>>,
     active_window_drawdowns: Option<Vec<Vec<f64>>>,
-    freq: PeriodKind,
+    frequency: PeriodKind,
     start_idx: usize,
     end_idx: usize,
 }
@@ -402,7 +402,7 @@ impl Performance {
     /// * `ticker_names` - Names corresponding to each column of `prices`.
     /// * `benchmark_ticker` - Name of the benchmark ticker. Uses column 0 if
     ///   `None`; returns an error if a non-`None` ticker name is not found.
-    /// * `freq` - Observation frequency, used to derive the annualization factor.
+    /// * `frequency` - Observation frequency, used to derive the annualization factor.
     /// # Returns
     ///
     /// A fully initialized [`Performance`] instance, or an error if
@@ -422,7 +422,7 @@ impl Performance {
     /// # Tracing
     ///
     /// Emits a `debug`-level `tracing` span named `Performance::new` with
-    /// `n_tickers`, `n_dates`, and `freq` fields.
+    /// `n_tickers`, `n_dates`, and `frequency` fields.
     ///
     /// # Examples
     ///
@@ -443,13 +443,13 @@ impl Performance {
     /// ).unwrap();
     /// assert_eq!(perf.ticker_names(), &["SPY"]);
     /// ```
-    #[tracing::instrument(level = "debug", skip(dates, prices, ticker_names, benchmark_ticker), fields(n_tickers = prices.len(), n_dates = dates.len(), freq = ?freq))]
+    #[tracing::instrument(level = "debug", skip(dates, prices, ticker_names, benchmark_ticker), fields(n_tickers = prices.len(), n_dates = dates.len(), frequency = ?frequency))]
     pub fn new(
         dates: Vec<Date>,
         prices: Vec<Vec<f64>>,
         ticker_names: Vec<String>,
         benchmark_ticker: Option<&str>,
-        freq: PeriodKind,
+        frequency: PeriodKind,
     ) -> crate::Result<Self> {
         if prices.is_empty() || dates.is_empty() {
             return Err(invalid_return_series("<panel>", 0, "prices or dates is empty").into());
@@ -487,7 +487,7 @@ impl Performance {
             return_spans,
             ticker_names,
             benchmark_ticker,
-            freq,
+            frequency,
         )
     }
 
@@ -514,7 +514,7 @@ impl Performance {
     /// * `ticker_names` - Names corresponding to each column of `returns`.
     /// * `benchmark_ticker` - Name of the benchmark ticker. Uses column 0 if
     ///   `None`; returns an error if a non-`None` ticker name is not found.
-    /// * `freq` - Observation frequency, used to derive the annualization factor.
+    /// * `frequency` - Observation frequency, used to derive the annualization factor.
     ///
     /// # Errors
     ///
@@ -527,7 +527,7 @@ impl Performance {
         returns: Vec<Vec<f64>>,
         ticker_names: Vec<String>,
         benchmark_ticker: Option<&str>,
-        freq: PeriodKind,
+        frequency: PeriodKind,
     ) -> crate::Result<Self> {
         if returns.is_empty() || dates.is_empty() {
             return Err(invalid_return_series("<panel>", 0, "returns or dates is empty").into());
@@ -561,7 +561,7 @@ impl Performance {
             return_spans,
             ticker_names,
             benchmark_ticker,
-            freq,
+            frequency,
         )
     }
 
@@ -576,7 +576,7 @@ impl Performance {
         return_spans: Vec<TickerSpan>,
         ticker_names: Vec<String>,
         benchmark_ticker: Option<&str>,
-        freq: PeriodKind,
+        frequency: PeriodKind,
     ) -> crate::Result<Self> {
         if ticker_names.len() != returns.len() {
             return Err(invalid_return_series(
@@ -632,7 +632,7 @@ impl Performance {
             benchmark_idx,
             drawdowns: all_drawdowns,
             active_window_drawdowns: None,
-            freq,
+            frequency,
             start_idx: 0,
             end_idx,
         })
@@ -833,7 +833,7 @@ impl Performance {
     }
 
     fn ann(&self) -> f64 {
-        self.freq.annualization_factor()
+        self.frequency.annualization_factor()
     }
 
     /// Map a per-ticker closure over all tickers in column order.
@@ -879,8 +879,8 @@ impl Performance {
     /// # Returns
     ///
     /// The frequency used to annualize facade-level metrics.
-    pub fn freq(&self) -> PeriodKind {
-        self.freq
+    pub fn frequency(&self) -> PeriodKind {
+        self.frequency
     }
 }
 

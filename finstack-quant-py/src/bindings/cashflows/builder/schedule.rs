@@ -212,7 +212,7 @@ impl PyCashFlowSchedule {
     ///     Discount curve identifier.
     /// base : datetime.date
     ///     Valuation date for discount times.
-    /// dc : DayCount, optional
+    /// day_count : DayCount, optional
     ///     Day-count for discount times (default Act/365F).
     /// hazard_curve_id : str, optional
     ///     Hazard curve identifier for credit-adjusted PV.
@@ -223,8 +223,8 @@ impl PyCashFlowSchedule {
     ///     ``{period_id_label: {currency_code: pv}}``; empty periods omitted.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(
-        signature = (periods, market, disc_curve_id, base, dc=None, hazard_curve_id=None),
-        text_signature = "(self, periods, market, disc_curve_id, base, dc=None, hazard_curve_id=None)"
+        signature = (periods, market, disc_curve_id, base, day_count=None, hazard_curve_id=None),
+        text_signature = "(self, periods, market, disc_curve_id, base, day_count=None, hazard_curve_id=None)"
     )]
     fn pv_by_period<'py>(
         &self,
@@ -233,14 +233,14 @@ impl PyCashFlowSchedule {
         market: &Bound<'_, PyAny>,
         disc_curve_id: &str,
         base: &Bound<'_, PyAny>,
-        dc: Option<PyRef<'_, PyDayCount>>,
+        day_count: Option<PyRef<'_, PyDayCount>>,
         hazard_curve_id: Option<&str>,
     ) -> PyResult<Bound<'py, PyDict>> {
         let periods: Vec<finstack_quant_core::dates::Period> =
             periods.iter().map(|p| p.inner.clone()).collect();
         let market = crate::bindings::extract::extract_market(py, market)?;
         let base = py_to_date(base)?;
-        let dc = dc.map_or(DayCount::Act365F, |d| d.inner);
+        let day_count = day_count.map_or(DayCount::Act365F, |d| d.inner);
         let disc_id = CurveId::from(disc_curve_id);
         let hazard_id = hazard_curve_id.map(CurveId::from);
         let schedule = self.inner.clone();
@@ -252,15 +252,15 @@ impl PyCashFlowSchedule {
                     &disc_id,
                     hazard_id.as_ref(),
                     base,
-                    dc,
+                    day_count,
                     &schedule,
                 )
             })
             .map_err(core_to_py)?;
         let out = PyDict::new(py);
-        for (pid, per_ccy) in result {
+        for (pid, per_currency) in result {
             let inner = PyDict::new(py);
-            for (ccy, m) in per_ccy {
+            for (ccy, m) in per_currency {
                 inner.set_item(ccy.to_string(), PyMoney::from_inner(m))?;
             }
             out.set_item(pid.to_string(), inner)?;
@@ -322,7 +322,7 @@ fn self_pv(
     disc_id: &CurveId,
     hazard_id: Option<&CurveId>,
     base: finstack_quant_core::dates::Date,
-    dc: DayCount,
+    day_count: DayCount,
     schedule: &CashFlowSchedule,
 ) -> finstack_quant_core::Result<
     IndexMap<
@@ -337,7 +337,7 @@ fn self_pv(
             disc_curve_id: disc_id,
             hazard_curve_id: hazard_id,
         },
-        DateContext::new(base, dc, DayCountContext::default()),
+        DateContext::new(base, day_count, DayCountContext::default()),
     )
 }
 

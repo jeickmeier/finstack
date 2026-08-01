@@ -28,7 +28,7 @@ const EMPTY_BUNDLE = {
   schema: 'finstack_quant.portfolio_materialization/1',
   portfolio: {
     id: 'materialized-empty',
-    base_ccy: 'USD',
+    base_currency: 'USD',
     as_of: '2025-01-01',
     entities: {},
   },
@@ -56,7 +56,7 @@ const DEPOSIT_BUNDLE = {
   schema: 'finstack_quant.portfolio_materialization/1',
   portfolio: {
     id: 'materialized-deposit',
-    base_ccy: 'USD',
+    base_currency: 'USD',
     as_of: '2025-01-01',
     entities: { entity: { id: 'entity', name: null } },
   },
@@ -72,7 +72,7 @@ const DEPOSIT_BUNDLE = {
             notional: { amount: '1000000', currency: 'USD' },
             start_date: '2025-01-01',
             maturity: '2025-02-01',
-            day_count: 'Act360',
+            day_count: 'act_360',
             discount_curve_id: 'USD-OIS',
             attributes: {},
           },

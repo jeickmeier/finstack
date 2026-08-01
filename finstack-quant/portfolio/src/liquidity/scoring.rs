@@ -51,7 +51,7 @@ pub struct PositionLiquidityScore {
     pub pct_of_adv: f64,
 
     /// Estimated one-way liquidation cost in basis points.
-    pub liquidation_cost_bps: f64,
+    pub liquidation_cost_bp: f64,
 }
 
 /// Complete portfolio liquidity analysis.
@@ -119,7 +119,7 @@ pub fn score_portfolio_liquidity(
     profiles: &HashMap<String, LiquidityProfile>,
     config: &LiquidityConfig,
 ) -> PortfolioLiquidityReport {
-    let portfolio_nav = valuation.total_base_ccy.amount();
+    let portfolio_nav = valuation.total_base_currency.amount();
     let nav_abs = portfolio_nav.abs();
 
     let mut position_scores = Vec::new();
@@ -156,7 +156,7 @@ pub fn score_portfolio_liquidity(
         };
 
         // Liquidation cost: half-spread as basis points
-        let liquidation_cost_bps = profile.relative_spread() * 0.5 * 10_000.0;
+        let liquidation_cost_bp = profile.relative_spread() * 0.5 * 10_000.0;
 
         PositionLiquidityOutcome::Scored(PositionLiquidityScore {
             position_id: pos.position_id.clone(),
@@ -165,7 +165,7 @@ pub fn score_portfolio_liquidity(
             days_to_liquidate: dtl,
             tier,
             pct_of_adv: pct_adv,
-            liquidation_cost_bps,
+            liquidation_cost_bp,
         })
     };
 
@@ -300,7 +300,7 @@ mod tests {
             days_to_liquidate: 2.5,
             tier: LiquidityTier::Tier2,
             pct_of_adv: 5.0,
-            liquidation_cost_bps: 3.5,
+            liquidation_cost_bp: 3.5,
         };
         let json = serde_json::to_string(&score)?;
         let score2: PositionLiquidityScore = serde_json::from_str(&json)?;
@@ -363,7 +363,7 @@ mod tests {
         let liquid = test_position("LIQUID", "LIQ");
         let stuck = test_position("STUCK", "STUCK");
         let portfolio = Portfolio::builder("P")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("E"))
             .position(liquid)
@@ -384,7 +384,7 @@ mod tests {
             ]
             .into_iter()
             .collect(),
-            total_base_ccy: Money::new(200.0, Currency::USD),
+            total_base_currency: Money::new(200.0, Currency::USD),
             by_entity: IndexMap::new(),
             degraded_positions: Vec::new(),
             fx_collapse_policy: FxConversionPolicy::CashflowDate,
@@ -426,7 +426,7 @@ mod tests {
         valued.quantity = 1_000.0;
         let missing = test_position("MISSING", "MISSING_INST");
         let portfolio = Portfolio::builder("P")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("E"))
             .position(valued)
@@ -441,7 +441,7 @@ mod tests {
             )]
             .into_iter()
             .collect(),
-            total_base_ccy: Money::new(120_000.0, Currency::USD),
+            total_base_currency: Money::new(120_000.0, Currency::USD),
             by_entity: IndexMap::new(),
             degraded_positions: Vec::new(),
             fx_collapse_policy: FxConversionPolicy::CashflowDate,

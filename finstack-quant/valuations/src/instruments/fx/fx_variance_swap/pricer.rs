@@ -87,8 +87,8 @@ pub(crate) fn observation_dates(inst: &FxVarianceSwap) -> Result<Vec<Date>> {
     crate::instruments::common_impl::pricing::variance_observations::variance_observation_dates(
         inst.start_date,
         inst.maturity,
-        inst.observation_freq,
-        inst.observation_bdc,
+        inst.observation_frequency,
+        inst.observation_business_day_convention,
         inst.observation_end_of_month,
         crate::instruments::common_impl::pricing::variance_observations::VarianceCalendar::Joint {
             base: &inst.base_calendar_id,
@@ -99,14 +99,14 @@ pub(crate) fn observation_dates(inst: &FxVarianceSwap) -> Result<Vec<Date>> {
 
 pub(crate) fn annualization_factor(inst: &FxVarianceSwap) -> f64 {
     use finstack_quant_core::dates::TenorUnit;
-    if let Some(months) = inst.observation_freq.months() {
+    if let Some(months) = inst.observation_frequency.months() {
         return 12.0 / months as f64;
     }
-    if inst.observation_freq.unit() == TenorUnit::Weeks {
-        return 52.0 / f64::from(inst.observation_freq.count());
+    if inst.observation_frequency.unit() == TenorUnit::Weeks {
+        return 52.0 / f64::from(inst.observation_frequency.count());
     }
-    if inst.observation_freq.unit() == TenorUnit::Days {
-        return 252.0 / f64::from(inst.observation_freq.count());
+    if inst.observation_frequency.unit() == TenorUnit::Days {
+        return 252.0 / f64::from(inst.observation_frequency.count());
     }
     252.0
 }
@@ -504,7 +504,7 @@ mod tests {
         let mut swap = FxVarianceSwap::example();
         swap.start_date = date!(2025 - 01 - 03); // Friday
         swap.maturity = date!(2025 - 01 - 15);
-        swap.observation_freq = Tenor::new(2, TenorUnit::Days);
+        swap.observation_frequency = Tenor::new(2, TenorUnit::Days);
 
         let dates = observation_dates(&swap).expect("observation schedule");
         assert_eq!(annualization_factor(&swap), 126.0);
@@ -514,7 +514,7 @@ mod tests {
             .iter()
             .all(|d| !matches!(d.weekday(), time::Weekday::Saturday | time::Weekday::Sunday)));
 
-        swap.observation_freq = Tenor::new(2, TenorUnit::Weeks);
+        swap.observation_frequency = Tenor::new(2, TenorUnit::Weeks);
         assert_eq!(annualization_factor(&swap), 26.0);
     }
 
@@ -544,7 +544,7 @@ mod tests {
             .strike_variance(0.04)
             .start_date(start)
             .maturity(maturity)
-            .observation_freq(Tenor::daily())
+            .observation_frequency(Tenor::daily())
             .base_calendar_id("TARGET2".to_string())
             .quote_calendar_id("USNY".to_string())
             .realized_var_method(RealizedVarMethod::CloseToClose)
@@ -727,7 +727,7 @@ mod tests {
             .strike_variance(0.04)
             .start_date(start)
             .maturity(maturity)
-            .observation_freq(Tenor::daily())
+            .observation_frequency(Tenor::daily())
             .base_calendar_id("TARGET2".to_string())
             .quote_calendar_id("USNY".to_string())
             .realized_var_method(RealizedVarMethod::CloseToClose)
@@ -883,7 +883,7 @@ mod tests {
             .strike_variance(0.04)
             .start_date(start)
             .maturity(maturity)
-            .observation_freq(Tenor::daily())
+            .observation_frequency(Tenor::daily())
             .base_calendar_id("TARGET2".to_string())
             .quote_calendar_id("USNY".to_string())
             .realized_var_method(RealizedVarMethod::CloseToClose)

@@ -211,9 +211,9 @@ fn test_custom_cashflows_from_schedule() {
     // Build custom step-up schedule
     let step1 = date!(2026 - 01 - 01);
     let params = ScheduleParams {
-        freq: Tenor::semi_annual(),
-        dc: DayCount::Act365F,
-        bdc: BusinessDayConvention::Following,
+        frequency: Tenor::semi_annual(),
+        day_count: DayCount::Act365F,
+        business_day_convention: BusinessDayConvention::Following,
         calendar_id: "weekends_only".to_string(),
         stub: StubKind::None,
         end_of_month: false,
@@ -251,14 +251,14 @@ fn test_pik_cashflows() {
     let custom_schedule = CashFlowSchedule::builder()
         .principal(Money::new(1000.0, Currency::USD), issue, maturity)
         .fixed_cf(FixedCouponSpec {
-            coupon_type: CouponType::PIK,
+            coupon_type: CouponType::Pik,
             rate: rust_decimal::Decimal::try_from(0.08).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -284,7 +284,7 @@ fn test_pik_cashflows() {
         schedule
             .get_flows()
             .iter()
-            .all(|cf| cf.kind != finstack_quant_cashflows::primitives::CFKind::PIK),
+            .all(|cf| cf.kind != finstack_quant_cashflows::primitives::CFKind::Pik),
         "holder-view cashflow_schedule should exclude PIK accretion"
     );
     assert!(!schedule.get_flows().is_empty());
@@ -335,11 +335,11 @@ fn test_cashflows_with_short_front_stub() {
             coupon_type: CouponType::Cash,
             rate: rust_decimal::Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -495,14 +495,15 @@ fn test_cashflows_day_count_conventions() {
         DayCount::ActAct,
     ];
 
-    for dc in day_counts {
+    for day_count in day_counts {
         let bond = Bond::builder()
-            .id(format!("DC_{:?}", dc).into())
+            .id(format!("DC_{:?}", day_count).into())
             .notional(Money::new(1000.0, Currency::USD))
             .issue_date(as_of)
             .maturity(maturity)
             .cashflow_spec(
-                CashflowSpec::fixed(0.05, Tenor::semi_annual(), dc).expect("finite test coupon"),
+                CashflowSpec::fixed(0.05, Tenor::semi_annual(), day_count)
+                    .expect("finite test coupon"),
             )
             .discount_curve_id("USD-OIS".into())
             .build()
@@ -563,10 +564,10 @@ fn test_actact_isma_daycount_context() {
             rate: rust_decimal::Decimal::try_from(0.06).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
                 // 6% coupon
-                freq: Tenor::semi_annual(),
-                dc: DayCount::ActActIsma,
+                frequency: Tenor::semi_annual(),
+                day_count: DayCount::ActActIsma,
                 // ISMA convention requires frequency context
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,
@@ -651,10 +652,10 @@ fn test_bus252_daycount_with_calendar() {
             rate: rust_decimal::Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
                 // 5% coupon
-                freq: Tenor::quarterly(),
-                dc: DayCount::Bus252,
+                frequency: Tenor::quarterly(),
+                day_count: DayCount::Bus252,
                 // Requires calendar context
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "USNY".to_string(),
                 // New York calendar
                 stub: StubKind::None,

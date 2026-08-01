@@ -5,7 +5,7 @@ use crate::instruments::Bond;
 use crate::metrics::{MetricCalculator, MetricContext, MetricId};
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext, StubKind, Tenor};
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve, DiscountCurveRateQuoteType,
+    DiscountCurve, RateCalibrationPillar, RateCalibrationQuote,
 };
 
 /// Configuration for I-Spread fixed-leg conventions.
@@ -158,8 +158,8 @@ impl MetricCalculator for ISpreadCalculator {
             if let crate::instruments::fixed_income::bond::CashflowSpec::Fixed(spec) =
                 &bond.cashflow_spec
             {
-                fixed_leg_day_count = spec.schedule.dc;
-                fixed_leg_frequency = spec.schedule.freq;
+                fixed_leg_day_count = spec.schedule.day_count;
+                fixed_leg_frequency = spec.schedule.frequency;
             }
         }
         let dates: Vec<Date> = finstack_quant_core::dates::ScheduleBuilder::new(
@@ -206,13 +206,21 @@ pub(crate) fn interpolated_swap_quote_rate(
     let mut swap_quotes = calibration
         .quotes
         .iter()
-        .filter(|quote| matches!(quote.quote_type, DiscountCurveRateQuoteType::Swap))
         .filter_map(|quote| {
-            Tenor::parse(&quote.tenor)
-                .ok()
-                .map(|tenor| (tenor.to_years_simple(), quote.rate))
+            let RateCalibrationQuote::Swap { pillar, rate, .. } = quote else {
+                return None;
+            };
+            let time = match pillar {
+                RateCalibrationPillar::Tenor(tenor) => Ok(tenor.to_years_simple()),
+                RateCalibrationPillar::Date(date) => disc.day_count().year_fraction(
+                    disc.base_date(),
+                    *date,
+                    DayCountContext::default(),
+                ),
+            };
+            Some(time.map(|time| (time, *rate)))
         })
-        .collect::<Vec<_>>();
+        .collect::<finstack_quant_core::Result<Vec<_>>>()?;
     if swap_quotes.len() < 2 {
         return Ok(None);
     }

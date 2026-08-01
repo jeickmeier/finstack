@@ -1,5 +1,5 @@
 {
-  "schema": "finstack_quant.python_materialization_baseline/2",
+  "schema": "finstack_quant.python_materialization_baseline/1",
   "baseline_name": "python-materialization-v1",
   "tree_revision": "b43fd9b0f41a455187293838f835ca0dcc1de3d2-tree-c2072419990f49a74544405c636d723a278f130e3523db87fba74a39d351695b",
   "fixture_sha256": "378abf6307873a97e65599e4e7f9add41a41c4ad1f8a524ed28e555b1d09aa63",

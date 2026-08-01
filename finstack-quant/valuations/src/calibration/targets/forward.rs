@@ -22,9 +22,9 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{
-    ForwardCurve, ForwardCurveRateCalibration, ForwardCurveRateQuote, RateCalibrationCurveRole,
-    RateCalibrationFutureContractId, RateCalibrationMethod, RateCalibrationOisCompounding,
-    RateCalibrationPillar, RateCalibrationQuote, RateCalibrationRecipe,
+    ForwardCurve, RateCalibrationCurveRole, RateCalibrationFutureContractId, RateCalibrationMethod,
+    RateCalibrationOisCompounding, RateCalibrationPillar, RateCalibrationQuote,
+    RateCalibrationRecipe,
 };
 use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::types::CurveId;
@@ -120,9 +120,8 @@ impl ForwardCurveTarget {
             params.conventions.ois_compounding.clone(),
         )?;
         let prepared_quotes = prepared.quotes;
-        let curve_dc = prepared.curve_day_count;
-        let rate_calibration_sidecar = Self::build_rate_calibration_from_quotes(quotes, params);
-        let rate_calibration_recipe = Self::rate_calibration_recipe(quotes, params, curve_dc);
+        let curve_day_count = prepared.curve_day_count;
+        let rate_calibration = Self::rate_calibration(quotes, params, curve_day_count);
 
         let mut config = global_config.clone();
         config.calibration_method = params.method.clone();
@@ -134,7 +133,7 @@ impl ForwardCurveTarget {
             tenor_years: params.tenor_years,
             solve_interp: params.interpolation,
             config: config.clone(),
-            time_day_count: curve_dc,
+            time_day_count: curve_day_count,
             base_context: context.clone(),
         });
 
@@ -155,13 +154,10 @@ impl ForwardCurveTarget {
         // simultaneously against a dense grid of actual contractual intervals.
         let (curve, mut report) =
             GlobalFitOptimizer::optimize(&target, &prepared_quotes, &config, success_tolerance)?;
-        let mut builder = curve
+        let curve = curve
             .to_builder_with_id(curve.id().clone())
-            .rate_calibration_recipe(rate_calibration_recipe);
-        if let Some(calibration) = rate_calibration_sidecar {
-            builder = builder.rate_calibration(calibration);
-        }
-        let curve = builder.build()?;
+            .rate_calibration(rate_calibration)
+            .build()?;
         report.metadata.insert(
             "forward_parameterization".to_string(),
             "contractual_reset_grid".to_string(),
@@ -173,71 +169,14 @@ impl ForwardCurveTarget {
         Ok((new_context, report))
     }
 
-    fn build_rate_calibration_from_quotes(
-        quotes: &[MarketQuote],
-        params: &ForwardCurveParams,
-    ) -> Option<ForwardCurveRateCalibration> {
-        let rate_quotes: Vec<RateQuote> = quotes.extract_quotes();
-        let index_id = rate_quotes
-            .iter()
-            .find_map(|quote| match quote {
-                RateQuote::Deposit { index, .. }
-                | RateQuote::Fra { index, .. }
-                | RateQuote::Swap { index, .. } => Some(index.to_string()),
-                RateQuote::Futures { .. } => None,
-            })
-            .unwrap_or_else(|| params.curve_id.to_string());
-        let calibration_quotes = rate_quotes
-            .iter()
-            .map(|quote| match quote {
-                RateQuote::Deposit {
-                    pillar: crate::market::quotes::ids::Pillar::Tenor(tenor),
-                    rate,
-                    ..
-                } => Some(ForwardCurveRateQuote::Deposit {
-                    tenor: tenor.to_string(),
-                    rate: *rate,
-                }),
-                RateQuote::Fra {
-                    start: crate::market::quotes::ids::Pillar::Date(start),
-                    end: crate::market::quotes::ids::Pillar::Date(end),
-                    rate,
-                    ..
-                } => Some(ForwardCurveRateQuote::Fra {
-                    start: *start,
-                    end: *end,
-                    rate: *rate,
-                }),
-                RateQuote::Swap {
-                    pillar: crate::market::quotes::ids::Pillar::Tenor(tenor),
-                    rate,
-                    spread_decimal,
-                    ..
-                } => Some(ForwardCurveRateQuote::Swap {
-                    tenor: tenor.to_string(),
-                    rate: *rate,
-                    spread_decimal: *spread_decimal,
-                }),
-                _ => None,
-            })
-            .collect::<Option<Vec<_>>>()?;
-
-        Some(ForwardCurveRateCalibration {
-            index_id,
-            currency: params.currency,
-            discount_curve_id: params.discount_curve_id.clone(),
-            quotes: calibration_quotes,
-        })
-    }
-
-    fn rate_calibration_recipe(
+    fn rate_calibration(
         quotes: &[MarketQuote],
         params: &ForwardCurveParams,
         curve_day_count: DayCount,
     ) -> RateCalibrationRecipe {
         let rate_quotes: Vec<RateQuote> = quotes.extract_quotes();
         RateCalibrationRecipe {
-            currency: Some(params.currency),
+            currency: params.currency,
             method: match &params.method {
                 CalibrationMethod::Bootstrap => RateCalibrationMethod::Bootstrap,
                 CalibrationMethod::GlobalSolve {
@@ -487,7 +426,7 @@ impl ForwardCurveTarget {
                         end: swap.float.end,
                         frequency: swap.float.frequency,
                         stub: swap.float.stub,
-                        bdc: swap.float.bdc,
+                        business_day_convention: swap.float.business_day_convention,
                         calendar_id: swap
                             .float
                             .calendar_id
@@ -1015,7 +954,7 @@ mod tests {
                         scenario_pricing_overrides: Default::default(),
                         attributes: Default::default(),
                         spot_lag_days: Some(0),
-                        bdc: BusinessDayConvention::Following,
+                        business_day_convention: BusinessDayConvention::Following,
                         calendar_id: None,
                         start_date,
                         maturity,
@@ -1103,7 +1042,7 @@ mod tests {
                         scenario_pricing_overrides: Default::default(),
                         attributes: Default::default(),
                         spot_lag_days: Some(0),
-                        bdc: BusinessDayConvention::Following,
+                        business_day_convention: BusinessDayConvention::Following,
                         calendar_id: None,
                         start_date: base_date,
                         maturity,
@@ -1149,7 +1088,7 @@ mod tests {
             tenor_years: 0.25,
             solve_interp: InterpStyle::Linear,
             config: config.clone(),
-            // Curve time axis deliberately different from the Act/360 index dc.
+            // Curve time axis deliberately different from the Act/360 index day_count.
             time_day_count: DayCount::Act365F,
             base_context: MarketContext::new(),
         });
@@ -1175,7 +1114,7 @@ mod tests {
                         scenario_pricing_overrides: Default::default(),
                         attributes: Default::default(),
                         spot_lag_days: Some(0),
-                        bdc: BusinessDayConvention::Following,
+                        business_day_convention: BusinessDayConvention::Following,
                         calendar_id: None,
                         start_date: base_date,
                         maturity,
@@ -1338,7 +1277,7 @@ mod tests {
         assert_eq!(act365f.day_count(), DayCount::Act365F);
         assert_eq!(act360.day_count(), DayCount::Act360);
         let recipe = act365f
-            .rate_calibration_recipe()
+            .rate_calibration()
             .expect("forward target must stamp replay recipe");
         assert_eq!(recipe.curve_day_count, DayCount::Act365F);
         assert!(matches!(

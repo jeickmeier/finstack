@@ -228,7 +228,7 @@ fn test_weekend_settlement_adjustment() {
     // Settlement on Saturday should adjust to Monday (with Following convention)
     let fx = eurusd_with_notional(1_000_000.0, 1.20)
         .with_settlement(d(2025, 1, 18)) // Saturday
-        .with_bdc(BusinessDayConvention::Following)
+        .with_business_day_convention(BusinessDayConvention::Following)
         .with_base_calendar_id("target2")
         .with_quote_calendar_id("usny");
 

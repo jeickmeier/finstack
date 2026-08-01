@@ -202,7 +202,7 @@ impl SwaptionHullWhitePricer {
                 end: fixed_leg.end,
                 frequency: fixed_leg.frequency,
                 stub: fixed_leg.stub,
-                bdc: fixed_leg.bdc,
+                business_day_convention: fixed_leg.business_day_convention,
                 calendar_id,
                 end_of_month: fixed_leg.end_of_month,
                 day_count: fixed_leg.day_count,

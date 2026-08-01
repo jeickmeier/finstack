@@ -31,7 +31,7 @@ fn getters_and_tag_filters() {
         .with_text_attribute("sector", "Tech");
 
     let portfolio = PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E"))
         .position(p)
@@ -66,7 +66,7 @@ fn validate_unknown_entity_fails() {
     let p = Position::new("P", "UNKNOWN", "D", Arc::new(dep), 1.0, PositionUnit::Units).unwrap();
 
     let err = Portfolio::builder("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .position(p)
         .build()
@@ -105,7 +105,7 @@ fn explicit_position_mutators_keep_lookup_index_in_sync() {
     let pos2 = Position::new("P2", "E", "D2", Arc::new(dep2), 1.0, PositionUnit::Units).unwrap();
 
     let mut portfolio = Portfolio::builder("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E"))
         .build()
@@ -139,7 +139,7 @@ fn set_positions_rejects_duplicate_position_ids() {
     let pos = Position::new("P1", "E", "D", Arc::new(dep), 1.0, PositionUnit::Units).unwrap();
 
     let mut portfolio = Portfolio::builder("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E"))
         .build()
@@ -177,17 +177,17 @@ fn builder_required_fields_and_dummy_auto_create() {
     )
     .unwrap();
 
-    // Missing base_ccy
+    // Missing base_currency
     assert!(PortfolioBuilder::new("P").as_of(as_of).build().is_err());
     // Missing as_of
     assert!(PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .build()
         .is_err());
 
     // Dummy should be auto-created because position references it
     let portfolio = PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .position(p)
         .build()

@@ -36,13 +36,15 @@ fn compute_dated_npv(flows: &[(Date, f64)], rate: f64) -> f64 {
         return 0.0;
     }
     let first_date = flows[0].0;
-    let dc = DayCount::Act365F;
+    let day_count = DayCount::Act365F;
     let ctx = DayCountContext::default();
 
     flows
         .iter()
         .map(|&(date, amount)| {
-            let years = dc.year_fraction(first_date, date, ctx).unwrap_or(0.0);
+            let years = day_count
+                .year_fraction(first_date, date, ctx)
+                .unwrap_or(0.0);
             amount / (1.0 + rate).powf(years)
         })
         .sum()

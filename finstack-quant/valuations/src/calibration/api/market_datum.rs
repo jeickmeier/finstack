@@ -1,6 +1,6 @@
-//! Flat-list market-data inputs for `CalibrationEnvelope` v3.
+//! Flat-list market-data inputs for `CalibrationEnvelope` canonical.
 //!
-//! `MarketDatum` is the single id-addressable datum type consumed by the v3
+//! `MarketDatum` is the single id-addressable datum type consumed by the canonical
 //! calibration envelope. Each variant wraps an existing market-data primitive
 //! (quote, scalar, surface, etc.) and is serialized with a `kind` tag so the
 //! envelope can carry a heterogeneous list in JSON/YAML.
@@ -58,34 +58,18 @@ pub enum MarketDatum {
     /// Dividend schedule for an underlier.
     DividendSchedule(DividendScheduleDatum),
     /// Generic scalar time series (CPI, historical fixings, ...).
-    FixingSeries(
-        #[schemars(with = "serde_json::Value")] //
-        #[cfg_attr(feature = "ts_export", ts(type = "unknown"))]
-        ScalarTimeSeries,
-    ),
+    FixingSeries(#[cfg_attr(feature = "ts_export", ts(type = "unknown"))] ScalarTimeSeries),
     /// Inflation index fixings.
     InflationFixings(
         #[cfg_attr(feature = "ts_export", ts(type = "unknown"))] //
         InflationIndex,
     ),
     /// Credit-index reference state.
-    CreditIndex(
-        #[schemars(with = "serde_json::Value")] //
-        #[cfg_attr(feature = "ts_export", ts(type = "unknown"))]
-        CreditIndexState,
-    ),
+    CreditIndex(#[cfg_attr(feature = "ts_export", ts(type = "unknown"))] CreditIndexState),
     /// FX delta-vol surface.
-    FxVolSurface(
-        #[schemars(with = "serde_json::Value")] //
-        #[cfg_attr(feature = "ts_export", ts(type = "unknown"))]
-        FxDeltaVolSurface,
-    ),
+    FxVolSurface(#[cfg_attr(feature = "ts_export", ts(type = "unknown"))] FxDeltaVolSurface),
     /// Generic vol cube.
-    VolCube(
-        #[schemars(with = "serde_json::Value")] //
-        #[cfg_attr(feature = "ts_export", ts(type = "unknown"))]
-        VolCube,
-    ),
+    VolCube(#[cfg_attr(feature = "ts_export", ts(type = "unknown"))] VolCube),
     /// Collateral / CSA mapping entry.
     Collateral(CollateralEntry),
 }
@@ -117,7 +101,6 @@ pub struct PriceDatum {
     /// Stable identifier (e.g., asset ticker).
     pub id: String,
     /// Scalar value (unitless or monetary).
-    #[schemars(with = "serde_json::Value")]
     #[cfg_attr(feature = "ts_export", ts(type = "unknown"))]
     pub scalar: MarketScalar,
 }
@@ -129,7 +112,6 @@ pub struct PriceDatum {
 #[serde(deny_unknown_fields)]
 pub struct DividendScheduleDatum {
     /// The dividend schedule itself.
-    #[schemars(with = "serde_json::Value")]
     #[cfg_attr(feature = "ts_export", ts(type = "unknown"))]
     pub schedule: DividendSchedule,
 }

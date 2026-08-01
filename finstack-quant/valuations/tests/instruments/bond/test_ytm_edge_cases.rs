@@ -156,9 +156,9 @@ fn test_odd_first_coupon_ytm() {
             coupon_type: CouponType::Cash,
             rate: rust_decimal::Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
-                dc: DayCount::Thirty360,
-                bdc: BusinessDayConvention::Following,
+                frequency: Tenor::semi_annual(),
+                day_count: DayCount::Thirty360,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::ShortFront,
                 // Short stub at front
@@ -274,9 +274,9 @@ fn test_long_first_coupon_ytm() {
             coupon_type: CouponType::Cash,
             rate: rust_decimal::Decimal::try_from(0.06).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
-                dc: DayCount::Act365F,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                frequency: Tenor::semi_annual(),
+                day_count: DayCount::Act365F,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::LongFront,
                 // Long stub at front

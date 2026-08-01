@@ -7,7 +7,7 @@ from typing import Any
 import QuantLib as ql  # type: ignore[import-not-found]  # noqa: N813
 
 from .common import (
-    SCHEMA_VERSION,
+    SCHEMA,
     VALUATION_DATE,
     constant_vol_surface,
     flat_discount_curve,
@@ -39,7 +39,7 @@ def _fx_market(
     spot: float,
     domestic_rate: float,
     foreign_rate: float,
-    surface_id: str,
+    vol_surface_id: str,
     volatility: float,
     strikes: list[float],
 ) -> dict[str, Any]:
@@ -57,7 +57,7 @@ def _fx_market(
             "quotes": [["EUR", "USD", spot]],
             "pinned_quotes": [],
         },
-        surfaces=[constant_vol_surface(surface_id, volatility, strikes=strikes)],
+        surfaces=[constant_vol_surface(vol_surface_id, volatility, strikes=strikes)],
     )
 
 
@@ -92,7 +92,7 @@ def build_fx_digital_option() -> dict[str, Any]:
         "use the same Garman-Kohlhagen digital closed form."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="eurusd_cash_digital_call_3m_quantlib",
             domain="fx.fx_digital_option",
@@ -105,7 +105,7 @@ def build_fx_digital_option() -> dict[str, Any]:
             spot=spot,
             domestic_rate=domestic_rate,
             foreign_rate=foreign_rate,
-            surface_id="EURUSD-DIGITAL-VOL-QL",
+            vol_surface_id="EURUSD-DIGITAL-VOL-QL",
             volatility=volatility,
             strikes=[0.8, strike, 1.4],
         ),
@@ -120,7 +120,7 @@ def build_fx_digital_option() -> dict[str, Any]:
                 "payout_type": "cash_or_nothing",
                 "payout_amount": {"amount": str(payout), "currency": "USD"},
                 "expiry": "2026-07-30",
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "notional": {"amount": "1000000", "currency": "EUR"},
                 "domestic_discount_curve_id": "USD-OIS",
                 "foreign_discount_curve_id": "EUR-OIS",
@@ -168,7 +168,7 @@ def build_fx_barrier_option() -> dict[str, Any]:
         "Reiner-Rubinstein Garman-Kohlhagen closed form with zero rebate."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="eurusd_up_out_call_3m_quantlib",
             domain="fx.fx_barrier_option",
@@ -181,7 +181,7 @@ def build_fx_barrier_option() -> dict[str, Any]:
             spot=spot,
             domestic_rate=domestic_rate,
             foreign_rate=foreign_rate,
-            surface_id="EURUSD-BARRIER-VOL-QL",
+            vol_surface_id="EURUSD-BARRIER-VOL-QL",
             volatility=volatility,
             strikes=[0.8, strike, 1.4],
         ),
@@ -198,7 +198,7 @@ def build_fx_barrier_option() -> dict[str, Any]:
                 "notional": {"amount": str(int(notional)), "currency": "EUR"},
                 "base_currency": "EUR",
                 "quote_currency": "USD",
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "use_gobet_miri": False,
                 "domestic_discount_curve_id": "USD-OIS",
                 "foreign_discount_curve_id": "EUR-OIS",
@@ -270,7 +270,7 @@ def build_quanto_option() -> dict[str, Any]:
         "Black-Scholes quanto drift adjustment under matched FX direction and correlation."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="nky_usd_quanto_call_1y_quantlib",
             domain="fx.quanto_option",
@@ -325,7 +325,7 @@ def build_quanto_option() -> dict[str, Any]:
                 "base_currency": "JPY",
                 "quote_currency": "USD",
                 "correlation": correlation,
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "domestic_discount_curve_id": "USD-OIS",
                 "foreign_discount_curve_id": "JPY-OIS",
                 "spot_id": "NKY-SPOT",

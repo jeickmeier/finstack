@@ -4,7 +4,7 @@
 
 use crate::bindings::attribution::PyPnlAttribution;
 use crate::bindings::extract::extract_market;
-use crate::errors::display_to_py;
+use crate::errors::{core_to_py, display_to_py};
 use pyo3::prelude::*;
 
 /// Compute horizon total return under a scenario.
@@ -16,7 +16,7 @@ use pyo3::prelude::*;
 /// Parameters
 /// ----------
 /// instrument_json : str
-///     JSON-serialized instrument (tagged: ``{"type": "bond", "spec": {...}}``).
+///     Canonical v1 instrument envelope.
 /// market : MarketContext | str
 ///     A ``MarketContext`` object or JSON string.
 /// as_of : str
@@ -63,12 +63,11 @@ pub(crate) fn compute_horizon_return<'py>(
     calendar_id: Option<&str>,
 ) -> PyResult<PyHorizonResult> {
     use finstack_quant_attribution::AttributionMethod;
-    use finstack_quant_valuations::instruments::InstrumentJson;
+    use finstack_quant_valuations::instruments::InstrumentEnvelope;
     use std::sync::Arc;
 
     // Parse instrument
-    let inst: InstrumentJson = serde_json::from_str(instrument_json).map_err(display_to_py)?;
-    let boxed = inst.into_boxed().map_err(display_to_py)?;
+    let boxed = InstrumentEnvelope::from_str(instrument_json).map_err(core_to_py)?;
     let instrument: Arc<dyn finstack_quant_valuations::instruments::Instrument> = Arc::from(boxed);
 
     // Parse market (owned copy so the compute can run without the GIL).

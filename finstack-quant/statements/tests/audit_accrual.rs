@@ -99,7 +99,6 @@ fn test_accrued_interest_semi_annual_bond() -> Result<(), Box<dyn std::error::Er
     // 4. Run Aggregation
     let spec = CapitalStructureSpec {
         debt_instruments: vec![],
-        equity_instruments: vec![],
         meta: IndexMap::new(),
         reporting_currency: None,
         fx_policy: None,

@@ -234,6 +234,7 @@ fn test_load_from_json_str() {
 fn test_namespace_listing() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "metric1",
@@ -259,6 +260,7 @@ fn test_namespace_listing() {
 fn test_duplicate_metric_error() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "gross_margin",
@@ -280,6 +282,7 @@ fn test_duplicate_metric_error() {
 fn test_invalid_formula_error() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "invalid",
@@ -298,6 +301,7 @@ fn test_invalid_formula_error() {
 fn test_compile_time_formula_error() {
     let json = r#"{
         "namespace": "test",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "invalid",
@@ -316,6 +320,7 @@ fn test_compile_time_formula_error() {
 fn test_multiple_namespaces() {
     let json1 = r#"{
         "namespace": "test1",
+        "schema_version": 1,
         "metrics": [
             {"id": "m1", "name": "M1", "formula": "a + b"}
         ]
@@ -323,6 +328,7 @@ fn test_multiple_namespaces() {
 
     let json2 = r#"{
         "namespace": "test2",
+        "schema_version": 1,
         "metrics": [
             {"id": "m2", "name": "M2", "formula": "c - d"}
         ]
@@ -518,7 +524,7 @@ fn test_metric_registry_serialization() {
 
     let registry: MetricRegistry = serde_json::from_str(json).unwrap();
     assert_eq!(registry.namespace, "test");
-    assert_eq!(registry.schema_version, 1);
+    assert_eq!(registry.schema_version.0, 1);
     assert_eq!(registry.metrics.len(), 1);
 
     let metric = &registry.metrics[0];
@@ -636,6 +642,7 @@ fn test_inter_metric_dependencies_in_model() {
     // Test that metrics can reference other metrics
     let json = r#"{
         "namespace": "custom",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "gross_profit",
@@ -734,6 +741,7 @@ fn test_deep_dependency_chain() {
     // Test a deep chain of metric dependencies
     let json = r#"{
         "namespace": "chain",
+        "schema_version": 1,
         "metrics": [
             {
                 "id": "level1",

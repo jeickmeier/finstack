@@ -22,13 +22,13 @@ from finstack_quant.valuations.instruments import (
 
 def _market_json() -> str:
     return json.dumps({
-        "version": 2,
+        "schema_version": 1,
         "curves": [
             {
                 "type": "discount",
                 "id": "USD-OIS",
                 "base": "2024-01-01",
-                "day_count": "Act360",
+                "day_count": "act_360",
                 "knot_points": [[0.0, 1.0], [5.0, 0.90], [10.0, 0.80]],
                 "interp_style": "monotone_convex",
                 "extrapolation": "flat_forward",
@@ -47,6 +47,7 @@ def _market_json() -> str:
         "fx_delta_vol_surfaces": [],
         "vol_cubes": [],
         "collateral": {},
+        "hierarchy": None,
     })
 
 
@@ -78,10 +79,11 @@ class TestBondTyped:
         assert bond.id == "BOND-1"
         assert "BOND-1" in repr(bond)
 
-    def test_to_json_is_tagged(self) -> None:
+    def test_to_json_is_canonical_envelope(self) -> None:
         payload = json.loads(_fixed_bond().to_json())
-        assert payload["type"] == "bond"
-        assert payload["spec"]["id"] == "BOND-1"
+        assert payload["schema"] == "finstack_quant.instrument/1"
+        assert payload["instrument"]["type"] == "bond"
+        assert payload["instrument"]["spec"]["id"] == "BOND-1"
 
     def test_from_json_round_trip_preserves_fields(self) -> None:
         original = _fixed_bond().to_json()
@@ -101,11 +103,11 @@ class TestBondTyped:
             "USD-OIS",
         )
         payload = json.loads(frn.to_json())
-        assert payload["type"] == "bond"
+        assert payload["instrument"]["type"] == "bond"
         assert frn.id == "FRN-1"
 
     def test_invalid_json_raises_value_error(self) -> None:
-        with pytest.raises(ValueError, match="invalid instrument JSON"):
+        with pytest.raises(ValueError, match="invalid instrument envelope JSON"):
             Bond.from_json("{not valid json")
 
     def test_wrong_instrument_type_raises_value_error(self) -> None:
@@ -151,10 +153,11 @@ class TestTermLoanTyped:
         assert loan.id == "TERM-LOAN-USD-5Y"
         assert "TERM-LOAN-USD-5Y" in repr(loan)
 
-    def test_to_json_is_tagged(self) -> None:
+    def test_to_json_is_canonical_envelope(self) -> None:
         payload = json.loads(TermLoan.example().to_json())
-        assert payload["type"] == "term_loan"
-        assert payload["spec"]["id"] == "TERM-LOAN-USD-5Y"
+        assert payload["schema"] == "finstack_quant.instrument/1"
+        assert payload["instrument"]["type"] == "term_loan"
+        assert payload["instrument"]["spec"]["id"] == "TERM-LOAN-USD-5Y"
 
     def test_from_json_round_trip_preserves_fields(self) -> None:
         original = TermLoan.example().to_json()
@@ -162,7 +165,7 @@ class TestTermLoanTyped:
         assert json.loads(round_tripped) == json.loads(original)
 
     def test_invalid_json_raises_value_error(self) -> None:
-        with pytest.raises(ValueError, match="invalid instrument JSON"):
+        with pytest.raises(ValueError, match="invalid instrument envelope JSON"):
             TermLoan.from_json("[1, 2")
 
     def test_wrong_instrument_type_raises_value_error(self) -> None:

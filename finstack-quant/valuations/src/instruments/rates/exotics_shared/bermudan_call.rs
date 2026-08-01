@@ -19,7 +19,7 @@ use finstack_quant_core::dates::Date;
 #[serde(deny_unknown_fields)]
 pub struct BermudanCallProvision {
     /// Dates on which the issuer can call (must be sorted ascending).
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub call_dates: Vec<Date>,
     /// Call price (fraction of notional, typically 1.0 = par).
     pub call_price: f64,

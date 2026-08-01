@@ -150,7 +150,7 @@ struct RawInflationCurve {
     /// Base CPI level at t=0
     pub base_cpi: f64,
     /// Base date
-    #[schemars(with = "String")]
+    #[schemars(with = "crate::wire::DateWire")]
     pub base_date: Date,
     /// Day count convention
     #[serde(default = "default_day_count")]
@@ -656,8 +656,8 @@ impl InflationCurveBuilder {
     }
 
     /// Choose the day-count basis for time calculations.
-    pub fn day_count(mut self, dc: DayCount) -> Self {
-        self.day_count = dc;
+    pub fn day_count(mut self, day_count: DayCount) -> Self {
+        self.day_count = day_count;
         self
     }
 

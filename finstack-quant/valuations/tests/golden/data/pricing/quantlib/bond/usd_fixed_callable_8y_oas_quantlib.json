@@ -24,38 +24,44 @@
           "puts": []
         },
         "cashflow_spec": {
-          "Fixed": {
+          "fixed": {
             "adjust_accrual_dates": true,
-            "bdc": "following",
+            "business_day_convention": "following",
             "calendar_id": "weekends_only",
-            "coupon_type": "Cash",
-            "dc": "Thirty360",
-            "freq": {
+            "coupon_type": "cash",
+            "day_count": "30_360",
+            "frequency": {
               "count": 6,
               "unit": "months"
             },
             "rate": "0.055",
-            "stub": "ShortFront"
+            "stub": "short_front"
           }
         },
         "credit_curve_id": null,
         "discount_curve_id": "USD-OIS",
         "ex_coupon_days": 0,
         "id": "USD-FIXED-CALLABLE-8Y-OAS-QUANTLIB",
+        "instrument_pricing_overrides": {
+          "market_quotes": {
+            "implied_volatility": 0.01,
+            "quoted_clean_price": 98.72972501905866
+          },
+          "model_config": {
+            "mean_reversion": 0.03,
+            "oas_quote_compounding": "continuous",
+            "tree_discount_curve_id": "USD-OIS",
+            "tree_steps": 200
+          }
+        },
         "issue_date": "2026-04-30",
         "maturity": "2034-04-30",
+        "metric_pricing_overrides": {
+          "bond_risk_basis": "callable_oas"
+        },
         "notional": {
           "amount": "100",
           "currency": "USD"
-        },
-        "pricing_overrides": {
-          "bond_risk_basis": "callable_oas",
-          "implied_volatility": 0.01,
-          "mean_reversion": 0.03,
-          "oas_quote_compounding": "continuous",
-          "quoted_clean_price": 98.72972501905866,
-          "tree_discount_curve_id": "USD-OIS",
-          "tree_steps": 200
         },
         "settlement_days": 2
       },
@@ -72,7 +78,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Thirty360",
+          "day_count": "30_360",
           "extrapolation": "flat_forward",
           "id": "USD-OIS",
           "interp_style": "log_linear",
@@ -95,11 +101,12 @@
       "dividends": [],
       "fx": null,
       "fx_delta_vol_surfaces": [],
+      "hierarchy": null,
       "inflation_indices": [],
       "prices": {},
+      "schema_version": 1,
       "series": [],
       "surfaces": [],
-      "version": 2,
       "vol_cubes": []
     },
     "kind": "snapshot"
@@ -116,11 +123,11 @@
     "review_interval_months": 6,
     "screenshots": [],
     "source": "quantlib",
-    "source_detail": "QuantLib 1.42.1; deterministic flat-curve native instrument benchmark.",
+    "source_detail": "QuantLib 1.43; deterministic flat-curve native instrument benchmark.",
     "valuation_date": "2026-04-30"
   },
   "model": "discounting",
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "tolerances": {
     "dv01": {
       "rel": 0.05,

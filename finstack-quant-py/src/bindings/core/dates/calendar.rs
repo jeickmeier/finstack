@@ -100,9 +100,11 @@ impl PyBusinessDayConvention {
 }
 
 /// Extract a [`BusinessDayConvention`] from a Python object (wrapper or string).
-pub(crate) fn extract_bdc(obj: &Bound<'_, PyAny>) -> PyResult<BusinessDayConvention> {
-    if let Ok(bdc) = obj.extract::<PyRef<'_, PyBusinessDayConvention>>() {
-        return Ok(bdc.inner);
+pub(crate) fn extract_business_day_convention(
+    obj: &Bound<'_, PyAny>,
+) -> PyResult<BusinessDayConvention> {
+    if let Ok(business_day_convention) = obj.extract::<PyRef<'_, PyBusinessDayConvention>>() {
+        return Ok(business_day_convention.inner);
     }
     if let Ok(s) = obj.extract::<String>() {
         return s
@@ -268,7 +270,7 @@ fn py_adjust<'py>(
     calendar: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyAny>> {
     let d = py_to_date(date)?;
-    let bdc = extract_bdc(convention)?;
+    let business_day_convention = extract_business_day_convention(convention)?;
 
     let cal_ref: &dyn HolidayCalendar =
         if let Ok(cal) = calendar.extract::<PyRef<'_, PyHolidayCalendar>>() {
@@ -283,7 +285,7 @@ fn py_adjust<'py>(
             ));
         };
 
-    let adjusted = adjust(d, bdc, cal_ref).map_err(core_to_py)?;
+    let adjusted = adjust(d, business_day_convention, cal_ref).map_err(core_to_py)?;
     date_to_py(py, adjusted)
 }
 

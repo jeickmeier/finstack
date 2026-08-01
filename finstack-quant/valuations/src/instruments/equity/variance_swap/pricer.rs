@@ -176,8 +176,8 @@ pub(crate) fn observation_dates(inst: &VarianceSwap) -> Result<Vec<Date>> {
     crate::instruments::common_impl::pricing::variance_observations::variance_observation_dates(
         inst.start_date,
         inst.maturity,
-        inst.observation_freq,
-        inst.observation_bdc,
+        inst.observation_frequency,
+        inst.observation_business_day_convention,
         inst.observation_end_of_month,
         crate::instruments::common_impl::pricing::variance_observations::VarianceCalendar::Single(
             &inst.observation_calendar_id,
@@ -189,12 +189,12 @@ pub(crate) fn annualization_factor(inst: &VarianceSwap) -> f64 {
     use finstack_quant_core::dates::TenorUnit;
     const TRADING_DAYS_PER_YEAR: f64 = 252.0;
 
-    if let Some(months) = inst.observation_freq.months() {
+    if let Some(months) = inst.observation_frequency.months() {
         12.0 / months as f64
-    } else if inst.observation_freq.unit() == TenorUnit::Weeks {
-        52.0 / f64::from(inst.observation_freq.count())
-    } else if inst.observation_freq.unit() == TenorUnit::Days {
-        TRADING_DAYS_PER_YEAR / f64::from(inst.observation_freq.count())
+    } else if inst.observation_frequency.unit() == TenorUnit::Weeks {
+        52.0 / f64::from(inst.observation_frequency.count())
+    } else if inst.observation_frequency.unit() == TenorUnit::Days {
+        TRADING_DAYS_PER_YEAR / f64::from(inst.observation_frequency.count())
     } else {
         TRADING_DAYS_PER_YEAR
     }
@@ -224,14 +224,14 @@ pub(crate) fn annualization_factor_with_policy(
         })
         .unwrap_or(252.0);
 
-    if let Some(months) = inst.observation_freq.months() {
+    if let Some(months) = inst.observation_frequency.months() {
         return 12.0 / months as f64;
     }
-    if inst.observation_freq.unit() == finstack_quant_core::dates::TenorUnit::Weeks {
-        return 52.0 / f64::from(inst.observation_freq.count());
+    if inst.observation_frequency.unit() == finstack_quant_core::dates::TenorUnit::Weeks {
+        return 52.0 / f64::from(inst.observation_frequency.count());
     }
-    if inst.observation_freq.unit() == finstack_quant_core::dates::TenorUnit::Days {
-        return tdy_override / f64::from(inst.observation_freq.count());
+    if inst.observation_frequency.unit() == finstack_quant_core::dates::TenorUnit::Days {
+        return tdy_override / f64::from(inst.observation_frequency.count());
     }
     tdy_override
 }
@@ -597,7 +597,7 @@ fn spot_variance_to_date(
                 let vol_atm = surface.value_clamped(t.max(1e-8), fwd);
                 tracing::warn!(
                     instrument_id = %inst.id,
-                surface_id = %sid,
+                vol_surface_id = %sid,
                     vol_atm = vol_atm,
                     fallback_variance = fallback_variance,
                     "VarianceSwap forward variance: Carr-Madan replication failed; \
@@ -700,7 +700,7 @@ mod tests {
             .strike_variance(0.04)
             .start_date(as_of)
             .maturity(maturity)
-            .observation_freq(Tenor::daily())
+            .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(finstack_quant_core::math::stats::RealizedVarMethod::CloseToClose)
             .side(PayReceive::Receive)
@@ -769,7 +769,7 @@ mod tests {
             .strike_variance(0.04)
             .start_date(start)
             .maturity(maturity)
-            .observation_freq(Tenor::daily())
+            .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(finstack_quant_core::math::stats::RealizedVarMethod::CloseToClose)
             .side(PayReceive::Receive)
@@ -910,7 +910,7 @@ mod tests {
             .strike_variance(0.04)
             .start_date(start)
             .maturity(maturity)
-            .observation_freq(Tenor::daily())
+            .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(finstack_quant_core::math::stats::RealizedVarMethod::CloseToClose)
             .side(PayReceive::Receive)
@@ -1015,7 +1015,7 @@ mod tests {
             .strike_variance(0.04)
             .start_date(start)
             .maturity(maturity)
-            .observation_freq(Tenor::daily())
+            .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(finstack_quant_core::math::stats::RealizedVarMethod::CloseToClose)
             .side(PayReceive::Receive)
@@ -1091,26 +1091,26 @@ mod tests {
 
         let mut swap = VarianceSwap::example().expect("example swap");
 
-        swap.observation_freq = Tenor::new(1, TenorUnit::Weeks);
+        swap.observation_frequency = Tenor::new(1, TenorUnit::Weeks);
         assert_eq!(annualization_factor(&swap), 52.0);
 
-        swap.observation_freq = Tenor::new(2, TenorUnit::Weeks);
+        swap.observation_frequency = Tenor::new(2, TenorUnit::Weeks);
         assert_eq!(annualization_factor(&swap), 26.0);
 
-        swap.observation_freq = Tenor::new(1, TenorUnit::Days);
+        swap.observation_frequency = Tenor::new(1, TenorUnit::Days);
         assert_eq!(annualization_factor(&swap), 252.0);
 
         // The policy-aware variant must agree (no TRADING_DAYS_PER_YEAR
         // override in this market context).
         let market = MarketContext::new();
-        swap.observation_freq = Tenor::new(7, TenorUnit::Days);
+        swap.observation_frequency = Tenor::new(7, TenorUnit::Days);
         assert_eq!(annualization_factor_with_policy(&swap, &market), 36.0);
-        swap.observation_freq = Tenor::new(14, TenorUnit::Days);
+        swap.observation_frequency = Tenor::new(14, TenorUnit::Days);
         assert_eq!(annualization_factor_with_policy(&swap, &market), 18.0);
 
         swap.start_date = date!(2025 - 01 - 03); // Friday
         swap.maturity = date!(2025 - 01 - 15);
-        swap.observation_freq = Tenor::new(2, TenorUnit::Days);
+        swap.observation_frequency = Tenor::new(2, TenorUnit::Days);
         let dates = observation_dates(&swap).expect("observation schedule");
         assert_eq!(dates[0], date!(2025 - 01 - 03));
         assert_eq!(dates[1], date!(2025 - 01 - 07));

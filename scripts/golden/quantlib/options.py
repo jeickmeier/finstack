@@ -8,7 +8,7 @@ from typing import Any
 import QuantLib as ql  # type: ignore[import-not-found]  # noqa: N813
 
 from .common import (
-    SCHEMA_VERSION,
+    SCHEMA,
     VALUATION_DATE,
     constant_vol_surface,
     flat_discount_curve,
@@ -64,7 +64,7 @@ def build_european_equity_option() -> dict[str, Any]:
         "closed form; tolerance permits only floating-point and date-clock residuals."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="spx_atm_call_1y_quantlib",
             domain="equity.equity_option",
@@ -157,7 +157,7 @@ def build_european_fx_option() -> dict[str, Any]:
         "and date-clock residuals."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="eurusd_atm_call_3m_quantlib",
             domain="fx.fx_option",
@@ -235,7 +235,7 @@ def build_barrier_option() -> dict[str, Any]:
         "Reiner-Rubinstein closed form with zero rebate."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="spx_down_out_call_1y_quantlib",
             domain="exotics.barrier_option",
@@ -270,7 +270,7 @@ def build_barrier_option() -> dict[str, Any]:
                 "barrier_type": "down_and_out",
                 "expiry": "2027-04-30",
                 "notional": {"amount": "1", "currency": "USD"},
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "use_gobet_miri": False,
                 "discount_curve_id": "USD-OIS",
                 "spot_id": "SPX-SPOT",
@@ -320,7 +320,7 @@ def build_geometric_asian_option() -> dict[str, Any]:
         "use the exact discrete geometric-average closed form on identical fixing dates."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="spx_geometric_asian_call_1y_quantlib",
             domain="exotics.asian_option",
@@ -359,7 +359,7 @@ def build_geometric_asian_option() -> dict[str, Any]:
                     "2027-04-30",
                 ],
                 "notional": {"amount": "1", "currency": "USD"},
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "discount_curve_id": "USD-OIS",
                 "spot_id": "SPX-SPOT",
                 "vol_surface_id": "SPX-ASIAN-VOL-QL",
@@ -409,7 +409,7 @@ def build_arithmetic_asian_option() -> dict[str, Any]:
         "Turnbull-Wakeman moment-matching approximation on identical fixing dates."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="spx_arithmetic_asian_call_1y_quantlib",
             domain="exotics.asian_option",
@@ -448,7 +448,7 @@ def build_arithmetic_asian_option() -> dict[str, Any]:
                     "2027-04-30",
                 ],
                 "notional": {"amount": "1", "currency": "USD"},
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "discount_curve_id": "USD-OIS",
                 "spot_id": "SPX-SPOT",
                 "vol_surface_id": "SPX-ASIAN-VOL-QL",
@@ -493,7 +493,7 @@ def build_fixed_lookback_option() -> dict[str, Any]:
         "observed maximum."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="spx_fixed_lookback_call_1y_quantlib",
             domain="exotics.lookback_option",
@@ -526,7 +526,7 @@ def build_fixed_lookback_option() -> dict[str, Any]:
                 "lookback_type": "fixed_strike",
                 "expiry": "2027-04-30",
                 "notional": {"amount": "1", "currency": "USD"},
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "discount_curve_id": "USD-OIS",
                 "spot_id": "SPX-SPOT",
                 "vol_surface_id": "SPX-LOOKBACK-VOL-QL",
@@ -572,7 +572,7 @@ def build_floating_lookback_option() -> dict[str, Any]:
         "observed minimum."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="spx_floating_lookback_call_1y_quantlib",
             domain="exotics.lookback_option",
@@ -605,7 +605,7 @@ def build_floating_lookback_option() -> dict[str, Any]:
                 "lookback_type": "floating_strike",
                 "expiry": "2027-04-30",
                 "notional": {"amount": "1", "currency": "USD"},
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "discount_curve_id": "USD-OIS",
                 "spot_id": "SPX-SPOT",
                 "vol_surface_id": "SPX-LOOKBACK-VOL-QL",

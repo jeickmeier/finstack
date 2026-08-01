@@ -126,7 +126,7 @@ impl FloatingRateParams {
     /// ```rust
     /// use finstack_quant_cashflows::builder::rate_helpers::FloatingRateParams;
     ///
-    /// let params = FloatingRateParams::with_spread(200.0); // 200 bps spread
+    /// let params = FloatingRateParams::with_spread(200.0); // 200 bp spread
     /// assert_eq!(params.spread_bp, 200.0);
     /// assert_eq!(params.gearing, 1.0);
     /// ```
@@ -306,7 +306,7 @@ impl TryFrom<&crate::builder::specs::FloatingRateSpec> for ResolvedFloatingRateS
 /// ```rust
 /// use finstack_quant_cashflows::builder::rate_helpers::{calculate_floating_rate, FloatingRateParams};
 ///
-/// let params = FloatingRateParams::with_spread(200.0); // 200 bps spread
+/// let params = FloatingRateParams::with_spread(200.0); // 200 bp spread
 /// let rate = calculate_floating_rate(0.03, &params); // 3% index + 2% spread = 5%
 /// assert!((rate - 0.05).abs() < 0.0001);
 /// ```
@@ -419,7 +419,7 @@ pub(crate) fn project_fallback_rate(params: &FloatingRateParams) -> f64 {
 ///     .build()
 ///     .expect("curve");
 ///
-/// let params = FloatingRateParams::with_spread(200.0); // SOFR + 200 bps
+/// let params = FloatingRateParams::with_spread(200.0); // SOFR + 200 bp
 /// let rate = project_floating_rate(reset, period_end, &fwd, &params)?;
 /// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
@@ -436,7 +436,7 @@ pub fn project_floating_rate(
 
 /// Project the raw term-index rate at a reset date before coupon adjustments.
 pub(crate) fn project_index_rate(reset_date: Date, fwd: &ForwardCurve) -> Result<f64> {
-    let fwd_dc = fwd.day_count();
+    let fwd_day_count = fwd.day_count();
     let fwd_base = fwd.base_date();
 
     // Compute the reset time on the forward curve's day-count basis.
@@ -464,7 +464,7 @@ pub(crate) fn project_index_rate(reset_date: Date, fwd: &ForwardCurve) -> Result
     let t0 = if reset_date == fwd_base {
         0.0
     } else {
-        fwd_dc.year_fraction(fwd_base, reset_date, DayCountContext::default())?
+        fwd_day_count.year_fraction(fwd_base, reset_date, DayCountContext::default())?
     };
     // A term-index coupon fixes the curve's quoted tenor at the actual reset
     // date. It is not an average of the curve over the coupon accrual window.
@@ -707,7 +707,7 @@ mod tests {
         let period_end = Date::from_calendar_date(2025, Month::April, 15).expect("Valid test date");
         let market = create_test_market(reset);
 
-        let params = FloatingRateParams::with_spread(200.0); // 200 bps
+        let params = FloatingRateParams::with_spread(200.0); // 200 bp
         let rate =
             project_floating_rate_from_market(reset, period_end, "USD-SOFR-3M", &params, &market)
                 .expect("Rate projection should succeed in test");
@@ -734,7 +734,7 @@ mod tests {
             spread_bp: 100.0,
             index_floor_bp: Some(100.0),
             ..Default::default()
-        }; // 100 bps spread, 1% floor
+        }; // 100 bp spread, 1% floor
         let rate =
             project_floating_rate_from_market(reset, period_end, "USD-LIBOR-3M", &params, &market)
                 .expect("Rate projection should succeed in test");
@@ -765,7 +765,7 @@ mod tests {
             spread_bp: 200.0,
             all_in_cap_bp: Some(500.0),
             ..Default::default()
-        }; // 200 bps spread, 5% cap
+        }; // 200 bp spread, 5% cap
         let rate =
             project_floating_rate_from_market(reset, period_end, "USD-LIBOR-3M", &params, &market)
                 .expect("Rate projection should succeed in test");
@@ -796,7 +796,7 @@ mod tests {
             spread_bp: 100.0,
             index_floor_bp: Some(100.0),
             ..Default::default()
-        }; // 100 bps spread, 1% floor
+        }; // 100 bp spread, 1% floor
         let rate =
             project_floating_rate_from_market(reset, period_end, "TEST-INDEX", &params, &market)
                 .expect("Rate projection should succeed in test");
@@ -827,7 +827,7 @@ mod tests {
             gearing: 2.0,
             all_in_cap_bp: Some(600.0),
             ..Default::default()
-        }; // 100 bps spread, 2x gearing, 6% cap
+        }; // 100 bp spread, 2x gearing, 6% cap
         let rate =
             project_floating_rate_from_market(reset, period_end, "TEST-INDEX", &params, &market)
                 .expect("Rate projection should succeed in test");
@@ -857,7 +857,7 @@ mod tests {
             spread_bp: 100.0,
             gearing: 1.5,
             ..Default::default()
-        }; // 100 bps spread, 1.5x gearing
+        }; // 100 bp spread, 1.5x gearing
         let rate =
             project_floating_rate_from_market(reset, period_end, "TEST-INDEX", &params, &market)
                 .expect("Rate projection should succeed in test");
@@ -882,7 +882,7 @@ mod tests {
             .build()
             .expect("ForwardCurve builder should succeed with valid test data");
 
-        let params = FloatingRateParams::with_spread(150.0); // 150 bps
+        let params = FloatingRateParams::with_spread(150.0); // 150 bp
         let rate = project_floating_rate(reset, period_end, &fwd_curve, &params)
             .expect("Rate projection should succeed in test");
 
@@ -981,7 +981,7 @@ mod tests {
     #[test]
     fn test_standard_vs_affine_difference() {
         // The difference between standard and affine is: Spread * (Gearing - 1)
-        // With 100 bps spread and 2x gearing: 100 * (2 - 1) = 100 bps = 1%
+        // With 100 bp spread and 2x gearing: 100 * (2 - 1) = 100 bp = 1%
         let standard = FloatingRateParams {
             spread_bp: 100.0,
             gearing: 2.0,
@@ -1278,7 +1278,7 @@ mod tests {
             all_in_cap_bp: Some(dec!(1500.0)),
             index_cap_bp: Some(dec!(1200.0)),
             overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,
@@ -1316,7 +1316,7 @@ mod tests {
             all_in_cap_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,
@@ -1350,7 +1350,7 @@ mod tests {
             all_in_cap_bp: Some(dec!(500.0)),
             index_cap_bp: Some(dec!(100.0)),
             overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,

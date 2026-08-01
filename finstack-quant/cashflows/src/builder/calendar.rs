@@ -64,13 +64,13 @@ pub fn resolve_calendar_strict(
 ///
 /// * `date` - Unadjusted contractual date to roll under the selected
 ///   business-day convention.
-/// * `bdc` - Business-day convention to apply when `date` is not a business
+/// * `business_day_convention` - Business-day convention to apply when `date` is not a business
 ///   day in the resolved calendar.
 /// * `calendar_id` - Calendar identifier used for holiday lookup.
 ///
 /// # Returns
 ///
-/// Adjusted business date according to `bdc` and `calendar_id`.
+/// Adjusted business date according to `business_day_convention` and `calendar_id`.
 ///
 /// # Errors
 ///
@@ -96,9 +96,9 @@ pub fn resolve_calendar_strict(
 /// ```
 pub fn adjust_date(
     date: Date,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     calendar_id: &str,
 ) -> finstack_quant_core::Result<Date> {
     let cal = resolve_calendar_strict(calendar_id)?;
-    adjust(date, bdc, cal)
+    adjust(date, business_day_convention, cal)
 }

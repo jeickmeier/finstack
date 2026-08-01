@@ -698,8 +698,8 @@ impl NewtonSolver {
 ///   (3rd ed.). Cambridge University Press. Section 9.3.
 /// - Forsythe, G. E., Malcolm, M. A., & Moler, C. B. (1977). *Computer Methods
 ///   for Mathematical Computations*. Prentice-Hall.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(default)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(default, deny_unknown_fields)]
 pub struct BrentSolver {
     /// Convergence tolerance.
     ///

@@ -26,7 +26,7 @@ pub(crate) fn register_fra_metrics(registry: &mut MetricRegistry) {
     // Standard metrics using macro
     crate::register_metrics! {
         registry: registry,
-        instrument: InstrumentType::FRA,
+        instrument: InstrumentType::Fra,
         metrics: [
             (Dv01, FraRateCurveDv01Calculator),
             (Pv01, crate::metrics::UnifiedDv01Calculator::<

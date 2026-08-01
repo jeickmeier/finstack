@@ -129,7 +129,7 @@ fn build_bond_portfolio(as_of: Date) -> finstack_quant_portfolio::Portfolio {
 
     PortfolioBuilder::new("BOND_FUND")
         .name("Credit Portfolio – Optimization Example")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("FUND_A").with_name("Example Fund"))
         .position(pos_aaa)
@@ -214,8 +214,12 @@ fn main() -> finstack_quant_portfolio::Result<()> {
         &config,
         &Default::default(),
     )?;
-    let metrics: finstack_quant_portfolio::metrics::PortfolioMetrics =
-        aggregate_metrics(&valuation, rebalanced.base_ccy, &market, rebalanced.as_of)?;
+    let metrics: finstack_quant_portfolio::metrics::PortfolioMetrics = aggregate_metrics(
+        &valuation,
+        rebalanced.base_currency,
+        &market,
+        rebalanced.as_of,
+    )?;
 
     println!("\nAggregated metrics at optimum (first few):");
     for (metric_id, metric) in metrics.aggregated.iter().take(5) {

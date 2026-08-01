@@ -1,12 +1,11 @@
-//! PR-7: opt-in credit factor hierarchy detail for metrics-based / Taylor attribution.
+//! Credit factor hierarchy detail for metrics-based and Taylor attribution.
 //!
-//! Six named tests:
+//! Five focused tests:
 //!  1. `metrics_based_no_model_matches_existing_credit_total`
 //!  2. `metrics_based_credit_detail_reconciles_to_credit_curves_pnl`
 //!  3. `taylor_credit_detail_reconciles_to_credit_curves_pnl`
 //!  4. `per_issuer_adder_is_omitted_by_default`
 //!  5. `per_bucket_breakdown_can_be_disabled`
-//!  6. `old_attribution_json_deserializes_with_no_credit_detail`
 
 use finstack_quant_attribution::{
     compute_credit_factor_attribution, AttributionEnvelope, AttributionMethod, AttributionSpec,
@@ -14,9 +13,7 @@ use finstack_quant_attribution::{
 };
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{create_date, DayCount};
-use finstack_quant_core::market_data::context::{
-    CurveState, MarketContextState, MARKET_CONTEXT_STATE_VERSION,
-};
+use finstack_quant_core::market_data::context::{CurveState, MarketContextState};
 use finstack_quant_core::market_data::scalars::MarketScalar;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
 use finstack_quant_core::money::Money;
@@ -73,7 +70,7 @@ fn issuer_row(id: &str, rating: &str, region: &str, pc: f64, lv: Vec<f64>) -> Is
 
 fn make_model() -> CreditFactorModel {
     CreditFactorModel {
-        schema_version: CreditFactorModel::SCHEMA_VERSION.into(),
+        schema: finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
         as_of: create_date(2024, Month::March, 29).unwrap(),
         calibration_window: DateRange {
             start: create_date(2022, Month::March, 29).unwrap(),
@@ -183,33 +180,20 @@ fn synthetic_credit_pnl(positions: &[CreditAttributionInput], ds: &BTreeMap<Issu
 
 // ─────────────────────────── Tests ───────────────────────────
 
-// Build a PnlAttribution, serialize it, strip the new `credit_factor_detail`
-// key out of the JSON to simulate a "legacy" payload, and return the result.
-fn legacy_attribution_json() -> String {
-    let mut attr = PnlAttribution::new(
+/// When no credit factor model is supplied, the canonical optional detail is
+/// absent and the aggregate credit P&L survives a wire round trip unchanged.
+#[test]
+fn metrics_based_no_model_matches_existing_credit_total() {
+    let mut attribution = PnlAttribution::new(
         Money::new(1_000.0, Currency::USD),
-        "LEGACY",
+        "NO-MODEL",
         create_date(2025, Month::January, 15).unwrap(),
         create_date(2025, Month::January, 16).unwrap(),
         AttributionMethod::MetricsBased,
     );
-    attr.credit_curves_pnl = Money::new(-250.5, Currency::USD);
-    let mut value = serde_json::to_value(&attr).expect("serialize");
-    if let Some(obj) = value.as_object_mut() {
-        obj.remove("credit_factor_detail");
-    }
-    serde_json::to_string(&value).expect("re-serialize")
-}
-
-/// PR-7 named test 1: when no `credit_factor_model` is supplied (i.e. PR-7 is
-/// opt-in), the existing credit total is unchanged. We verify by deserializing
-/// an existing PnlAttribution JSON without `credit_factor_detail` and checking
-/// that the field defaults to `None` and `credit_curves_pnl` is preserved
-/// byte-identically.
-#[test]
-fn metrics_based_no_model_matches_existing_credit_total() {
-    let json = legacy_attribution_json();
-    let parsed: PnlAttribution = serde_json::from_str(&json).expect("legacy JSON should parse");
+    attribution.credit_curves_pnl = Money::new(-250.5, Currency::USD);
+    let json = serde_json::to_string(&attribution).expect("serialize attribution");
+    let parsed: PnlAttribution = serde_json::from_str(&json).expect("deserialize attribution");
     assert!(parsed.credit_factor_detail.is_none());
     assert!((parsed.credit_curves_pnl.amount() - (-250.5)).abs() < 1e-12);
 }
@@ -303,7 +287,7 @@ fn taylor_credit_detail_reconciles_to_credit_curves_pnl() {
     let make_market_state =
         |disc: DiscountCurve, haz: HazardCurve, prices: BTreeMap<String, MarketScalar>| {
             MarketContextState {
-                version: MARKET_CONTEXT_STATE_VERSION,
+                schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
                 curves: vec![CurveState::Discount(disc), CurveState::Hazard(haz)],
                 fx: None,
                 surfaces: vec![],
@@ -480,7 +464,7 @@ fn twisted_hazard_curve_does_not_omit_or_explode_credit_detail() {
     let make_market_state =
         |disc: DiscountCurve, haz: HazardCurve, prices: BTreeMap<String, MarketScalar>| {
             MarketContextState {
-                version: MARKET_CONTEXT_STATE_VERSION,
+                schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
                 curves: vec![CurveState::Discount(disc), CurveState::Hazard(haz)],
                 fx: None,
                 surfaces: vec![],
@@ -585,13 +569,4 @@ fn per_bucket_breakdown_can_be_disabled() {
             level.level_name
         );
     }
-}
-
-/// PR-7 named test 6: legacy attribution JSON without `credit_factor_detail`
-/// deserializes successfully and the new field defaults to `None`.
-#[test]
-fn old_attribution_json_deserializes_with_no_credit_detail() {
-    let json = legacy_attribution_json();
-    let parsed: PnlAttribution = serde_json::from_str(&json).expect("legacy JSON should parse");
-    assert!(parsed.credit_factor_detail.is_none());
 }

@@ -1,7 +1,6 @@
-//! Build the initial `MarketContext` for a v3 `CalibrationEnvelope`.
+//! Build the initial `MarketContext` for a canonical `CalibrationEnvelope`.
 //!
-//! Replaces the legacy `MarketContext::try_from(MarketContextState)` path used
-//! by the v2 envelope. The v3 envelope splits market inputs into:
+//! The canonical envelope splits market inputs into:
 //!
 //! - `prior_market`: pre-built calibrated curves and surfaces — applied first
 //!   so credit-index reconstruction (which resolves hazard / base-correlation
@@ -16,7 +15,7 @@
 //! Ordering rationale: curves go in first, then market-data buckets are applied
 //! in an order where credit indices come *last* so their `get_hazard` /
 //! `get_base_correlation` lookups always resolve against the fully populated
-//! context (matching the legacy `try_from` semantics).
+//! context.
 
 use crate::calibration::api::market_datum::MarketDatum;
 use crate::calibration::api::prior_market::PriorMarketObject;
@@ -29,7 +28,7 @@ use finstack_quant_core::types::CurveId;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-/// Materialize a [`MarketContext`] from the v3 envelope inputs.
+/// Materialize a [`MarketContext`] from the canonical envelope inputs.
 ///
 /// Mirrors the semantics of `MarketContext::try_from(MarketContextState)` but
 /// operates on the flat `(prior, data, settings)` shape used by
@@ -45,7 +44,7 @@ use std::sync::Arc;
 ///
 /// * `prior` - Previously calibrated market objects inserted before new input
 ///   data so later records can reference established curves and surfaces.
-/// * `data` - Flat v3 market-data records used to construct or replace context
+/// * `data` - Flat canonical market-data records used to construct or replace context
 ///   objects after `prior` has been loaded.
 /// * `settings` - Calibration configuration controlling construction policy,
 ///   including FX matrix and credit-index reconstruction behavior.
@@ -161,7 +160,7 @@ pub fn build_initial_context(
     if !fx_quotes.is_empty() {
         tracing::info!(
             explicit_quote_count = fx_quotes.len(),
-            "building MarketContext FX as quote-only snapshot (v3 envelope)"
+            "building MarketContext FX as quote-only snapshot (canonical envelope)"
         );
         let matrix = build_snapshot_fx_matrix(settings.fx, fx_quotes)?;
         ctx.insert_fx_mut(matrix);

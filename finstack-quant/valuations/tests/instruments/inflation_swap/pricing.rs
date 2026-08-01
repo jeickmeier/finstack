@@ -423,8 +423,8 @@ fn test_day_count_impact_on_fixed_leg() {
 
     let ctx = standard_market(as_of, 0.02, 0.04);
 
-    let mut pvs = finstack_quant_core::HashMap::default();
-    for dc in &[DayCount::Act360, DayCount::Act365F, DayCount::Thirty360] {
+    let mut pvs = Vec::new();
+    for day_count in &[DayCount::Act360, DayCount::Act365F, DayCount::Thirty360] {
         let swap = InflationSwapBuilder::new()
             .id("ZCINF-DC".into())
             .notional(standard_notional())
@@ -433,20 +433,25 @@ fn test_day_count_impact_on_fixed_leg() {
             .fixed_rate(Decimal::try_from(0.02).expect("valid decimal"))
             .inflation_index_id("US-CPI-U".into())
             .discount_curve_id("USD-OIS".into())
-            .day_count(*dc)
+            .day_count(*day_count)
             .side(PayReceive::Pay)
             .attributes(Attributes::new())
             .build()
             .unwrap();
 
         let pv_fixed = swap.pv_fixed_leg(&ctx, as_of).unwrap().amount();
-        pvs.insert(format!("{:?}", dc), pv_fixed);
+        pvs.push((*day_count, pv_fixed));
     }
 
     // Different day count conventions should yield different PVs
-    let pv_360 = pvs.get("Act360").unwrap();
-    let pv_365 = pvs.get("Act365F").unwrap();
-    let pv_30360 = pvs.get("Thirty360").unwrap();
+    let get = |target| {
+        pvs.iter()
+            .find_map(|(day_count, pv)| (*day_count == target).then_some(pv))
+            .expect("tested day count should have a PV")
+    };
+    let pv_360 = get(DayCount::Act360);
+    let pv_365 = get(DayCount::Act365F);
+    let pv_30360 = get(DayCount::Thirty360);
 
     assert_ne!(pv_360, pv_365, "Act360 and Act365F should differ");
     assert_ne!(pv_365, pv_30360, "Act365F and 30/360 should differ");

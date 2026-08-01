@@ -103,9 +103,9 @@ fn commodity_option_volga_is_per_vol_point_squared() -> finstack_quant_core::Res
         .expect("volga");
 
     let bump = 0.01;
-    let surface_id = CurveId::new("CL-VOL");
+    let vol_surface_id = CurveId::new("CL-VOL");
     let make_bump = |value| MarketBump::Curve {
-        id: surface_id.clone(),
+        id: vol_surface_id.clone(),
         spec: BumpSpec {
             bump_type: BumpType::Parallel,
             mode: BumpMode::Additive,

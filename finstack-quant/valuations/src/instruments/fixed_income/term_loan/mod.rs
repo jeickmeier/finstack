@@ -48,7 +48,7 @@
 //!     rate: RateSpec::Fixed { rate_bp: 600 },  // 6% fixed
 //!     frequency: Tenor::quarterly(),
 //!     day_count: DayCount::Act360,
-//!     bdc: BusinessDayConvention::ModifiedFollowing,
+//!     business_day_convention: BusinessDayConvention::ModifiedFollowing,
 //!     calendar_id: None,
 //!     stub: StubKind::None,
 //!     amortization: AmortizationSpec::None,  // Bullet

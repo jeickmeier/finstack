@@ -13,7 +13,7 @@ use finstack_quant_core::types::Percentage;
 /// For production callable bond OAS, prefer `HullWhite` with calibrated parameters
 /// or `HullWhiteCalibratedToSwaptions` for automatic calibration.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(tag = "type")]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 #[derive(Default)]
 pub enum TreeModelChoice {
     /// Ho-Lee / BDT model (current default) with exogenous volatility.
@@ -59,7 +59,7 @@ pub enum TreeModelChoice {
 ///
 /// | Model | Vol Type | Parameter | Typical Range |
 /// |-------|----------|-----------|---------------|
-/// | Ho-Lee (default) | Normal/Absolute | σ (rate units) | 50-150 bps (0.005-0.015) |
+/// | Ho-Lee (default) | Normal/Absolute | σ (rate units) | 50-150 bp (0.005-0.015) |
 /// | BDT | Lognormal/Relative | σ (proportion) | 15-30% (0.15-0.30) |
 ///
 /// The default configuration uses Ho-Lee with **normal volatility**.
@@ -70,10 +70,10 @@ pub enum TreeModelChoice {
 ///
 /// | Rate Environment | Typical Vol Range | Example |
 /// |------------------|-------------------|---------|
-/// | Low rates (< 2%) | 50-80 bps | 0.005-0.008 |
-/// | Normal rates (2-5%) | 80-120 bps | 0.008-0.012 |
-/// | High rates (> 5%) | 100-150 bps | 0.010-0.015 |
-/// | Crisis/stress | 150-300 bps | 0.015-0.030 |
+/// | Low rates (< 2%) | 50-80 bp | 0.005-0.008 |
+/// | Normal rates (2-5%) | 80-120 bp | 0.008-0.012 |
+/// | High rates (> 5%) | 100-150 bp | 0.010-0.015 |
+/// | Crisis/stress | 150-300 bp | 0.015-0.030 |
 ///
 /// ### Black-Derman-Toy (Lognormal Volatility)
 ///
@@ -98,7 +98,7 @@ pub enum TreeModelChoice {
 /// ```ignore
 /// use finstack_quant_core::math::volatility::{convert_atm_volatility, VolatilityConvention};
 ///
-/// // Normal vol (100 bps) at 5% rate → lognormal vol (20%)
+/// // Normal vol (100 bp) at 5% rate → lognormal vol (20%)
 /// let lognormal = convert_atm_volatility(
 ///     0.01,
 ///     VolatilityConvention::Normal,
@@ -107,7 +107,7 @@ pub enum TreeModelChoice {
 ///     1.0,
 /// )?;
 ///
-/// // Lognormal vol (20%) at 5% rate → normal vol (100 bps)
+/// // Lognormal vol (20%) at 5% rate → normal vol (100 bp)
 /// let normal = convert_atm_volatility(
 ///     0.20,
 ///     VolatilityConvention::Lognormal,
@@ -134,11 +134,11 @@ pub enum TreeModelChoice {
 /// ```rust
 /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreePricerConfig;
 ///
-/// // Default configuration using Ho-Lee with 100 bps normal vol
+/// // Default configuration using Ho-Lee with 100 bp normal vol
 /// let default = TreePricerConfig::default();
 ///
 /// // Production configuration with calibrated normal volatility
-/// let production = TreePricerConfig::production_ho_lee(0.01); // 100 bps
+/// let production = TreePricerConfig::production_ho_lee(0.01); // 100 bp
 ///
 /// // BDT model with lognormal volatility
 /// let bdt = TreePricerConfig::production_bdt(0.20); // 20% lognormal
@@ -160,10 +160,10 @@ pub struct TreePricerConfig {
     /// Short rate volatility (annualized).
     ///
     /// ⚠️ **Interpretation depends on model type**:
-    /// - **Ho-Lee (default)**: Normal volatility in rate units (0.01 = 100 bps)
+    /// - **Ho-Lee (default)**: Normal volatility in rate units (0.01 = 100 bp)
     /// - **BDT**: Lognormal volatility as proportion (0.20 = 20%)
     ///
-    /// The default value of 100 bps (0.01) is appropriate for Ho-Lee model
+    /// The default value of 100 bp (0.01) is appropriate for Ho-Lee model
     /// in normal rate environments. For BDT, use 15-25% (0.15-0.25).
     ///
     /// See struct-level documentation for calibration guidance and typical ranges.
@@ -217,7 +217,7 @@ pub struct TreePricerConfig {
 }
 
 impl Default for TreePricerConfig {
-    /// Default configuration using Ho-Lee model with 100 bps normal volatility.
+    /// Default configuration using Ho-Lee model with 100 bp normal volatility.
     ///
     /// This is appropriate for normal rate environments (2-5% rates).
     /// For low/negative rate environments, consider lower volatility.
@@ -225,7 +225,7 @@ impl Default for TreePricerConfig {
     fn default() -> Self {
         Self {
             tree_steps: 200,
-            volatility: 0.01, // 100 bps normal vol - appropriate for Ho-Lee
+            volatility: 0.01, // 100 bp normal vol - appropriate for Ho-Lee
             tolerance: 1e-6,
             max_iterations: 50,
             initial_bracket_size_bp: Some(1000.0),
@@ -371,20 +371,20 @@ impl TreePricerConfig {
     /// # Arguments
     ///
     /// * `normal_vol` - Normal (absolute) volatility in rate units
-    ///   (e.g., 0.01 = 100 bps/yr)
+    ///   (e.g., 0.01 = 100 bp/yr)
     ///
     /// # Typical Values
     ///
-    /// - Low rates (<2%): 50-80 bps (0.005-0.008)
-    /// - Normal rates (2-5%): 80-120 bps (0.008-0.012)
-    /// - High rates (>5%): 100-150 bps (0.010-0.015)
+    /// - Low rates (<2%): 50-80 bp (0.005-0.008)
+    /// - Normal rates (2-5%): 80-120 bp (0.008-0.012)
+    /// - High rates (>5%): 100-150 bp (0.010-0.015)
     ///
     /// # Examples
     ///
     /// ```rust
     /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreePricerConfig;
     ///
-    /// // Use 100 bps normal vol calibrated from swaption market
+    /// // Use 100 bp normal vol calibrated from swaption market
     /// let config = TreePricerConfig::production_ho_lee(0.01);
     /// ```
     pub fn production_ho_lee(normal_vol: f64) -> Self {
@@ -442,7 +442,7 @@ impl TreePricerConfig {
     /// ```rust
     /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine::tree::TreePricerConfig;
     ///
-    /// // Use 20% lognormal vol (equivalent to ~100 bps at 5% rates)
+    /// // Use 20% lognormal vol (equivalent to ~100 bp at 5% rates)
     /// let config = TreePricerConfig::production_bdt(0.20);
     /// ```
     pub fn production_bdt(lognormal_vol: f64) -> Self {

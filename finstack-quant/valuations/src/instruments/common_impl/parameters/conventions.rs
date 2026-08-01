@@ -29,21 +29,21 @@ use serde::{Deserialize, Serialize};
 #[non_exhaustive]
 pub enum BondConvention {
     /// US Treasury: Semi-annual, ACT/ACT ICMA, T+1 settlement
-    USTreasury,
+    UsTreasury,
     /// US Agency (FNMA, FHLMC, FHLB): Semi-annual, 30/360, T+1 settlement
-    USAgency,
+    UsAgency,
     /// German Bund: Annual, ACT/ACT ICMA, T+2 settlement
     GermanBund,
     /// UK Gilt: Semi-annual, ACT/ACT ICMA, T+1 settlement, 7-day ex-coupon
-    UKGilt,
+    UkGilt,
     /// French OAT: Annual, ACT/ACT ICMA, T+2 settlement
-    FrenchOAT,
+    FrenchOat,
     /// Japanese Government Bond (cross-border): Semi-annual, ACT/365F, T+2.
     ///
     /// Domestic JGB settlement moved to T+1 in May 2018 (JSCC). Cross-border
     /// transactions settle T+2 (BOJ). This variant uses T+2 as the safer
     /// default for international participants.
-    JGB,
+    Jgb,
     /// Standard US corporate: Semi-annual, 30/360, T+2 settlement
     Corporate,
 }
@@ -58,12 +58,12 @@ impl BondConvention {
     /// - **ACT/365F**: JGB
     pub fn day_count(&self) -> DayCount {
         match self {
-            BondConvention::USTreasury
+            BondConvention::UsTreasury
             | BondConvention::GermanBund
-            | BondConvention::UKGilt
-            | BondConvention::FrenchOAT => DayCount::ActActIsma,
-            BondConvention::USAgency | BondConvention::Corporate => DayCount::Thirty360,
-            BondConvention::JGB => DayCount::Act365F,
+            | BondConvention::UkGilt
+            | BondConvention::FrenchOat => DayCount::ActActIsma,
+            BondConvention::UsAgency | BondConvention::Corporate => DayCount::Thirty360,
+            BondConvention::Jgb => DayCount::Act365F,
         }
     }
 
@@ -75,12 +75,12 @@ impl BondConvention {
     /// - **Annual**: German Bund, French OAT
     pub fn frequency(&self) -> Tenor {
         match self {
-            BondConvention::USTreasury
-            | BondConvention::USAgency
-            | BondConvention::UKGilt
+            BondConvention::UsTreasury
+            | BondConvention::UsAgency
+            | BondConvention::UkGilt
             | BondConvention::Corporate
-            | BondConvention::JGB => Tenor::semi_annual(),
-            BondConvention::GermanBund | BondConvention::FrenchOAT => Tenor::annual(),
+            | BondConvention::Jgb => Tenor::semi_annual(),
+            BondConvention::GermanBund | BondConvention::FrenchOat => Tenor::annual(),
         }
     }
 
@@ -93,13 +93,13 @@ impl BondConvention {
     pub fn business_day_convention(&self) -> BusinessDayConvention {
         match self {
             // Government bonds use Following
-            BondConvention::USTreasury
+            BondConvention::UsTreasury
             | BondConvention::GermanBund
-            | BondConvention::UKGilt
-            | BondConvention::FrenchOAT
-            | BondConvention::JGB => BusinessDayConvention::Following,
+            | BondConvention::UkGilt
+            | BondConvention::FrenchOat
+            | BondConvention::Jgb => BusinessDayConvention::Following,
             // Corporate and Agency use Modified Following
-            BondConvention::USAgency | BondConvention::Corporate => {
+            BondConvention::UsAgency | BondConvention::Corporate => {
                 BusinessDayConvention::ModifiedFollowing
             }
         }
@@ -127,11 +127,11 @@ impl BondConvention {
     /// | JGB | T+2 | JSCC (cross-border; domestic is T+1 since May 2018) |
     pub fn settlement_days(&self) -> u32 {
         match self {
-            BondConvention::USTreasury | BondConvention::USAgency | BondConvention::UKGilt => 1,
+            BondConvention::UsTreasury | BondConvention::UsAgency | BondConvention::UkGilt => 1,
             BondConvention::Corporate
             | BondConvention::GermanBund
-            | BondConvention::FrenchOAT
-            | BondConvention::JGB => 2,
+            | BondConvention::FrenchOat
+            | BondConvention::Jgb => 2,
         }
     }
 
@@ -145,7 +145,7 @@ impl BondConvention {
     /// - **Other markets**: No ex-coupon convention (ex-date = record date)
     pub fn ex_coupon_days(&self) -> Option<u32> {
         match self {
-            BondConvention::UKGilt => Some(7),
+            BondConvention::UkGilt => Some(7),
             _ => None,
         }
     }
@@ -153,11 +153,11 @@ impl BondConvention {
     /// Default discount curve ID for this market.
     pub fn default_disc_curve(&self) -> &'static str {
         match self {
-            BondConvention::USTreasury => "USD-TREASURY",
-            BondConvention::USAgency | BondConvention::Corporate => "USD-OIS",
-            BondConvention::GermanBund | BondConvention::FrenchOAT => "EUR-BUND",
-            BondConvention::UKGilt => "GBP-GILT",
-            BondConvention::JGB => "JPY-JGB",
+            BondConvention::UsTreasury => "USD-TREASURY",
+            BondConvention::UsAgency | BondConvention::Corporate => "USD-OIS",
+            BondConvention::GermanBund | BondConvention::FrenchOat => "EUR-BUND",
+            BondConvention::UkGilt => "GBP-GILT",
+            BondConvention::Jgb => "JPY-JGB",
         }
     }
 
@@ -168,12 +168,12 @@ impl BondConvention {
         match self {
             // UST and Agency use the SIFMA bond-market calendar, which includes
             // early closes and holidays specific to the US fixed-income market.
-            BondConvention::USTreasury | BondConvention::USAgency => Some("sifma"),
+            BondConvention::UsTreasury | BondConvention::UsAgency => Some("sifma"),
             // Corporate bonds use the standard NYC business-day calendar.
             BondConvention::Corporate => Some("usny"),
-            BondConvention::GermanBund | BondConvention::FrenchOAT => Some("target2"),
-            BondConvention::UKGilt => Some("gblo"),
-            BondConvention::JGB => Some("jpto"),
+            BondConvention::GermanBund | BondConvention::FrenchOat => Some("target2"),
+            BondConvention::UkGilt => Some("gblo"),
+            BondConvention::Jgb => Some("jpto"),
         }
     }
 }
@@ -181,12 +181,12 @@ impl BondConvention {
 impl std::fmt::Display for BondConvention {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BondConvention::USTreasury => write!(f, "us_treasury"),
-            BondConvention::USAgency => write!(f, "us_agency"),
+            BondConvention::UsTreasury => write!(f, "us_treasury"),
+            BondConvention::UsAgency => write!(f, "us_agency"),
             BondConvention::GermanBund => write!(f, "german_bund"),
-            BondConvention::UKGilt => write!(f, "uk_gilt"),
-            BondConvention::FrenchOAT => write!(f, "french_oat"),
-            BondConvention::JGB => write!(f, "jgb"),
+            BondConvention::UkGilt => write!(f, "uk_gilt"),
+            BondConvention::FrenchOat => write!(f, "french_oat"),
+            BondConvention::Jgb => write!(f, "jgb"),
             BondConvention::Corporate => write!(f, "corporate"),
         }
     }
@@ -196,16 +196,15 @@ impl std::str::FromStr for BondConvention {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "us_treasury" | "ust" | "treasury" => Ok(BondConvention::USTreasury),
-            "us_agency" | "agency" | "fnma" | "fhlmc" | "fhlb" => Ok(BondConvention::USAgency),
-            "german_bund" | "bund" => Ok(BondConvention::GermanBund),
-            "uk_gilt" | "gilt" => Ok(BondConvention::UKGilt),
-            "french_oat" | "oat" => Ok(BondConvention::FrenchOAT),
-            "jgb" | "japanese" | "japan" => Ok(BondConvention::JGB),
-            "corporate" | "corp" => Ok(BondConvention::Corporate),
-            other => Err(format!("Unknown bond convention: {}", other)),
+        match s {
+            "us_treasury" => Ok(BondConvention::UsTreasury),
+            "us_agency" => Ok(BondConvention::UsAgency),
+            "german_bund" => Ok(BondConvention::GermanBund),
+            "uk_gilt" => Ok(BondConvention::UkGilt),
+            "french_oat" => Ok(BondConvention::FrenchOat),
+            "jgb" => Ok(BondConvention::Jgb),
+            "corporate" => Ok(BondConvention::Corporate),
+            _ => Err(format!("Unknown bond convention: {s}")),
         }
     }
 }
@@ -241,25 +240,25 @@ pub enum IRSConvention {
     /// USD SOFR OIS: Semi-annual fixed, annual float, ACT/360
     ///
     /// Standard post-LIBOR USD swap convention using SOFR compounded in arrears.
-    USDStandard,
+    UsdSofr,
     /// EUR ESTR OIS: Annual fixed, annual float, ACT/360
     ///
     /// Standard EUR OIS convention using ESTR compounded in arrears.
-    /// For legacy EURIBOR swaps, use [`EURIborStandard`](Self::EURIborStandard).
-    EURStandard,
+    /// For EURIBOR swaps, use [`EurEuribor`](Self::EurEuribor).
+    EurEstr,
     /// EUR EURIBOR: Annual fixed, semi-annual float, ACT/360
     ///
     /// Legacy EUR swap convention using EURIBOR 6M as the floating index.
     /// This is a term rate (not compounded daily).
-    EURIborStandard,
+    EurEuribor,
     /// GBP SONIA OIS: Annual fixed, annual float, ACT/365F
     ///
     /// Standard GBP swap convention using SONIA compounded in arrears.
-    GBPStandard,
+    GbpSonia,
     /// JPY TONAR OIS: Semi-annual fixed, annual float, ACT/365F
     ///
     /// Standard JPY swap convention using TONAR compounded in arrears.
-    JPYStandard,
+    JpyTonar,
 }
 
 impl IRSConvention {
@@ -271,10 +270,10 @@ impl IRSConvention {
     /// - **ACT/365F**: GBP, JPY
     pub fn fixed_day_count(&self) -> DayCount {
         match self {
-            IRSConvention::USDStandard
-            | IRSConvention::EURStandard
-            | IRSConvention::EURIborStandard => DayCount::Thirty360,
-            IRSConvention::GBPStandard | IRSConvention::JPYStandard => DayCount::Act365F,
+            IRSConvention::UsdSofr | IRSConvention::EurEstr | IRSConvention::EurEuribor => {
+                DayCount::Thirty360
+            }
+            IRSConvention::GbpSonia | IRSConvention::JpyTonar => DayCount::Act365F,
         }
     }
 
@@ -286,10 +285,10 @@ impl IRSConvention {
     /// - **ACT/365F**: GBP SONIA, JPY TONAR
     pub fn float_day_count(&self) -> DayCount {
         match self {
-            IRSConvention::USDStandard
-            | IRSConvention::EURStandard
-            | IRSConvention::EURIborStandard => DayCount::Act360,
-            IRSConvention::GBPStandard | IRSConvention::JPYStandard => DayCount::Act365F,
+            IRSConvention::UsdSofr | IRSConvention::EurEstr | IRSConvention::EurEuribor => {
+                DayCount::Act360
+            }
+            IRSConvention::GbpSonia | IRSConvention::JpyTonar => DayCount::Act365F,
         }
     }
 
@@ -301,10 +300,10 @@ impl IRSConvention {
     /// - **Annual**: EUR, GBP
     pub fn fixed_frequency(&self) -> Tenor {
         match self {
-            IRSConvention::USDStandard | IRSConvention::JPYStandard => Tenor::semi_annual(),
-            IRSConvention::EURStandard
-            | IRSConvention::EURIborStandard
-            | IRSConvention::GBPStandard => Tenor::annual(),
+            IRSConvention::UsdSofr | IRSConvention::JpyTonar => Tenor::semi_annual(),
+            IRSConvention::EurEstr | IRSConvention::EurEuribor | IRSConvention::GbpSonia => {
+                Tenor::annual()
+            }
         }
     }
 
@@ -323,12 +322,12 @@ impl IRSConvention {
     pub fn float_frequency(&self) -> Tenor {
         match self {
             // OIS swaps: annual payment with daily compounding
-            IRSConvention::USDStandard
-            | IRSConvention::EURStandard
-            | IRSConvention::GBPStandard
-            | IRSConvention::JPYStandard => Tenor::annual(),
+            IRSConvention::UsdSofr
+            | IRSConvention::EurEstr
+            | IRSConvention::GbpSonia
+            | IRSConvention::JpyTonar => Tenor::annual(),
             // IBOR swaps: frequency matches index tenor
-            IRSConvention::EURIborStandard => Tenor::semi_annual(), // EURIBOR 6M
+            IRSConvention::EurEuribor => Tenor::semi_annual(), // EURIBOR 6M
         }
     }
 
@@ -346,11 +345,11 @@ impl IRSConvention {
     /// `false` if it uses simple term rates (IBOR).
     pub fn uses_daily_compounding(&self) -> bool {
         match self {
-            IRSConvention::USDStandard
-            | IRSConvention::EURStandard
-            | IRSConvention::GBPStandard
-            | IRSConvention::JPYStandard => true, // OIS
-            IRSConvention::EURIborStandard => false, // Term rate
+            IRSConvention::UsdSofr
+            | IRSConvention::EurEstr
+            | IRSConvention::GbpSonia
+            | IRSConvention::JpyTonar => true, // OIS
+            IRSConvention::EurEuribor => false, // Term rate
         }
     }
 
@@ -370,10 +369,8 @@ impl IRSConvention {
     /// Number of business days for observation shift, or 0 for non-OIS swaps.
     pub fn observation_shift_days(&self) -> i32 {
         match self {
-            IRSConvention::USDStandard
-            | IRSConvention::EURStandard
-            | IRSConvention::JPYStandard => 2,
-            IRSConvention::GBPStandard | IRSConvention::EURIborStandard => 0, // Uses payment delay instead or is not applicable
+            IRSConvention::UsdSofr | IRSConvention::EurEstr | IRSConvention::JpyTonar => 2,
+            IRSConvention::GbpSonia | IRSConvention::EurEuribor => 0, // Uses payment delay instead or is not applicable
         }
     }
 
@@ -386,11 +383,11 @@ impl IRSConvention {
     /// - **2 days**: EUR EURIBOR
     pub fn payment_lag_days(&self) -> i32 {
         match self {
-            IRSConvention::USDStandard
-            | IRSConvention::EURStandard
-            | IRSConvention::EURIborStandard
-            | IRSConvention::JPYStandard => 2,
-            IRSConvention::GBPStandard => 0,
+            IRSConvention::UsdSofr
+            | IRSConvention::EurEstr
+            | IRSConvention::EurEuribor
+            | IRSConvention::JpyTonar => 2,
+            IRSConvention::GbpSonia => 0,
         }
     }
 
@@ -404,12 +401,10 @@ impl IRSConvention {
     /// Calendar identifier for this convention.
     pub fn calendar_id(&self) -> Option<String> {
         match self {
-            IRSConvention::USDStandard => Some("usny".to_string()),
-            IRSConvention::EURStandard | IRSConvention::EURIborStandard => {
-                Some("target2".to_string())
-            }
-            IRSConvention::GBPStandard => Some("gblo".to_string()),
-            IRSConvention::JPYStandard => Some("jpto".to_string()),
+            IRSConvention::UsdSofr => Some("usny".to_string()),
+            IRSConvention::EurEstr | IRSConvention::EurEuribor => Some("target2".to_string()),
+            IRSConvention::GbpSonia => Some("gblo".to_string()),
+            IRSConvention::JpyTonar => Some("jpto".to_string()),
         }
     }
 
@@ -418,10 +413,10 @@ impl IRSConvention {
     /// Returns the OIS curve for discounting (post-crisis standard).
     pub fn disc_curve_id(&self) -> &'static str {
         match self {
-            IRSConvention::USDStandard => "USD-SOFR",
-            IRSConvention::EURStandard | IRSConvention::EURIborStandard => "EUR-ESTR",
-            IRSConvention::GBPStandard => "GBP-SONIA",
-            IRSConvention::JPYStandard => "JPY-TONAR",
+            IRSConvention::UsdSofr => "USD-SOFR",
+            IRSConvention::EurEstr | IRSConvention::EurEuribor => "EUR-ESTR",
+            IRSConvention::GbpSonia => "GBP-SONIA",
+            IRSConvention::JpyTonar => "JPY-TONAR",
         }
     }
 
@@ -431,11 +426,11 @@ impl IRSConvention {
     /// For IBOR swaps, this is the IBOR curve.
     pub fn forward_curve_id(&self) -> &'static str {
         match self {
-            IRSConvention::USDStandard => "USD-SOFR",
-            IRSConvention::EURStandard => "EUR-ESTR",
-            IRSConvention::EURIborStandard => "EUR-EURIBOR-6M",
-            IRSConvention::GBPStandard => "GBP-SONIA",
-            IRSConvention::JPYStandard => "JPY-TONAR",
+            IRSConvention::UsdSofr => "USD-SOFR",
+            IRSConvention::EurEstr => "EUR-ESTR",
+            IRSConvention::EurEuribor => "EUR-EURIBOR-6M",
+            IRSConvention::GbpSonia => "GBP-SONIA",
+            IRSConvention::JpyTonar => "JPY-TONAR",
         }
     }
 
@@ -450,11 +445,11 @@ impl IRSConvention {
     /// - **0 days (T-0)**: GBP SONIA
     pub fn reset_lag_days(&self) -> i32 {
         match self {
-            IRSConvention::USDStandard
-            | IRSConvention::EURStandard
-            | IRSConvention::EURIborStandard
-            | IRSConvention::JPYStandard => 2,
-            IRSConvention::GBPStandard => 0, // Same-day fixing
+            IRSConvention::UsdSofr
+            | IRSConvention::EurEstr
+            | IRSConvention::EurEuribor
+            | IRSConvention::JpyTonar => 2,
+            IRSConvention::GbpSonia => 0, // Same-day fixing
         }
     }
 }
@@ -462,11 +457,11 @@ impl IRSConvention {
 impl std::fmt::Display for IRSConvention {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IRSConvention::USDStandard => write!(f, "usd_sofr"),
-            IRSConvention::EURStandard => write!(f, "eur_estr"),
-            IRSConvention::EURIborStandard => write!(f, "eur_euribor"),
-            IRSConvention::GBPStandard => write!(f, "gbp_sonia"),
-            IRSConvention::JPYStandard => write!(f, "jpy_tonar"),
+            IRSConvention::UsdSofr => write!(f, "usd_sofr"),
+            IRSConvention::EurEstr => write!(f, "eur_estr"),
+            IRSConvention::EurEuribor => write!(f, "eur_euribor"),
+            IRSConvention::GbpSonia => write!(f, "gbp_sonia"),
+            IRSConvention::JpyTonar => write!(f, "jpy_tonar"),
         }
     }
 }
@@ -475,21 +470,13 @@ impl std::str::FromStr for IRSConvention {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            // USD SOFR
-            "usd_standard" | "usd_sofr" | "usd" | "sofr" => Ok(IRSConvention::USDStandard),
-            // EUR ESTR (OIS)
-            "eur_standard" | "eur_estr" | "eur_ois" | "estr" => Ok(IRSConvention::EURStandard),
-            // EUR EURIBOR (IBOR)
-            "eur_ibor_standard" | "eur_euribor" | "euribor" => Ok(IRSConvention::EURIborStandard),
-            // GBP SONIA
-            "gbp_standard" | "gbp_sonia" | "gbp" | "sonia" => Ok(IRSConvention::GBPStandard),
-            // JPY TONAR
-            "jpy_standard" | "jpy_tonar" | "jpy" | "tonar" | "tona" => {
-                Ok(IRSConvention::JPYStandard)
-            }
-            other => Err(format!("Unknown IRS convention: {}", other)),
+        match s {
+            "usd_sofr" => Ok(IRSConvention::UsdSofr),
+            "eur_estr" => Ok(IRSConvention::EurEstr),
+            "eur_euribor" => Ok(IRSConvention::EurEuribor),
+            "gbp_sonia" => Ok(IRSConvention::GbpSonia),
+            "jpy_tonar" => Ok(IRSConvention::JpyTonar),
+            _ => Err(format!("Unknown IRS convention: {s}")),
         }
     }
 }
@@ -523,7 +510,7 @@ impl std::str::FromStr for IRSConvention {
 #[non_exhaustive]
 pub enum CommodityConvention {
     /// WTI Crude Oil: T+2, Following, NYMEX calendar
-    WTICrude,
+    WtiCrude,
     /// Brent Crude Oil: T+2, Following, ICE calendar
     BrentCrude,
     /// Henry Hub Natural Gas: T+2, Following, NYMEX calendar
@@ -555,7 +542,7 @@ impl CommodityConvention {
     pub fn settlement_days(&self) -> u32 {
         match self {
             CommodityConvention::Power => 1,
-            CommodityConvention::WTICrude
+            CommodityConvention::WtiCrude
             | CommodityConvention::BrentCrude
             | CommodityConvention::NaturalGas
             | CommodityConvention::Gold
@@ -576,7 +563,7 @@ impl CommodityConvention {
             CommodityConvention::Gold
             | CommodityConvention::Silver
             | CommodityConvention::Power => BusinessDayConvention::ModifiedFollowing,
-            CommodityConvention::WTICrude
+            CommodityConvention::WtiCrude
             | CommodityConvention::BrentCrude
             | CommodityConvention::NaturalGas
             | CommodityConvention::Copper
@@ -589,7 +576,7 @@ impl CommodityConvention {
     /// Returns the standard exchange calendar for business day adjustments.
     pub fn calendar_id(&self) -> &'static str {
         match self {
-            CommodityConvention::WTICrude | CommodityConvention::NaturalGas => "nymex",
+            CommodityConvention::WtiCrude | CommodityConvention::NaturalGas => "nymex",
             CommodityConvention::BrentCrude => "ice",
             CommodityConvention::Gold | CommodityConvention::Silver => "comex",
             CommodityConvention::Copper => "lme",
@@ -602,7 +589,7 @@ impl CommodityConvention {
     pub fn currency(&self) -> finstack_quant_core::currency::Currency {
         use finstack_quant_core::currency::Currency;
         match self {
-            CommodityConvention::WTICrude
+            CommodityConvention::WtiCrude
             | CommodityConvention::NaturalGas
             | CommodityConvention::Gold
             | CommodityConvention::Silver
@@ -617,7 +604,7 @@ impl CommodityConvention {
 impl std::fmt::Display for CommodityConvention {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CommodityConvention::WTICrude => write!(f, "wti_crude"),
+            CommodityConvention::WtiCrude => write!(f, "wti_crude"),
             CommodityConvention::BrentCrude => write!(f, "brent_crude"),
             CommodityConvention::NaturalGas => write!(f, "natural_gas"),
             CommodityConvention::Gold => write!(f, "gold"),
@@ -633,19 +620,16 @@ impl std::str::FromStr for CommodityConvention {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "wti_crude" | "wti" | "cl" | "crude" => Ok(CommodityConvention::WTICrude),
-            "brent_crude" | "brent" | "co" | "ice_brent" => Ok(CommodityConvention::BrentCrude),
-            "natural_gas" | "ng" | "henry_hub" | "nat_gas" => Ok(CommodityConvention::NaturalGas),
-            "gold" | "gc" | "xau" => Ok(CommodityConvention::Gold),
-            "silver" | "si" | "xag" => Ok(CommodityConvention::Silver),
-            "copper" | "hg" | "lme_copper" => Ok(CommodityConvention::Copper),
-            "agricultural" | "agri" | "corn" | "wheat" | "soybeans" => {
-                Ok(CommodityConvention::Agricultural)
-            }
-            "power" | "electricity" | "elec" => Ok(CommodityConvention::Power),
-            other => Err(format!("Unknown commodity convention: {}", other)),
+        match s {
+            "wti_crude" => Ok(CommodityConvention::WtiCrude),
+            "brent_crude" => Ok(CommodityConvention::BrentCrude),
+            "natural_gas" => Ok(CommodityConvention::NaturalGas),
+            "gold" => Ok(CommodityConvention::Gold),
+            "silver" => Ok(CommodityConvention::Silver),
+            "copper" => Ok(CommodityConvention::Copper),
+            "agricultural" => Ok(CommodityConvention::Agricultural),
+            "power" => Ok(CommodityConvention::Power),
+            _ => Err(format!("Unknown commodity convention: {s}")),
         }
     }
 }
@@ -662,29 +646,17 @@ mod tests {
     #[test]
     fn irs_ois_float_frequency_annual() {
         // OIS swaps pay annually with daily compounding
-        assert_eq!(
-            IRSConvention::USDStandard.float_frequency(),
-            Tenor::annual()
-        );
-        assert_eq!(
-            IRSConvention::EURStandard.float_frequency(),
-            Tenor::annual()
-        );
-        assert_eq!(
-            IRSConvention::GBPStandard.float_frequency(),
-            Tenor::annual()
-        );
-        assert_eq!(
-            IRSConvention::JPYStandard.float_frequency(),
-            Tenor::annual()
-        );
+        assert_eq!(IRSConvention::UsdSofr.float_frequency(), Tenor::annual());
+        assert_eq!(IRSConvention::EurEstr.float_frequency(), Tenor::annual());
+        assert_eq!(IRSConvention::GbpSonia.float_frequency(), Tenor::annual());
+        assert_eq!(IRSConvention::JpyTonar.float_frequency(), Tenor::annual());
     }
 
     #[test]
     fn irs_ibor_float_frequency_matches_index() {
         // EURIBOR 6M swaps pay semi-annually
         assert_eq!(
-            IRSConvention::EURIborStandard.float_frequency(),
+            IRSConvention::EurEuribor.float_frequency(),
             Tenor::semi_annual()
         );
     }
@@ -692,43 +664,43 @@ mod tests {
     #[test]
     fn irs_compounding_method() {
         // OIS swaps use daily compounding
-        assert!(IRSConvention::USDStandard.uses_daily_compounding());
-        assert!(IRSConvention::EURStandard.uses_daily_compounding());
-        assert!(IRSConvention::GBPStandard.uses_daily_compounding());
-        assert!(IRSConvention::JPYStandard.uses_daily_compounding());
+        assert!(IRSConvention::UsdSofr.uses_daily_compounding());
+        assert!(IRSConvention::EurEstr.uses_daily_compounding());
+        assert!(IRSConvention::GbpSonia.uses_daily_compounding());
+        assert!(IRSConvention::JpyTonar.uses_daily_compounding());
 
         // IBOR swaps use simple rates
-        assert!(!IRSConvention::EURIborStandard.uses_daily_compounding());
+        assert!(!IRSConvention::EurEuribor.uses_daily_compounding());
     }
 
     #[test]
     fn irs_observation_shift() {
         // Standard 2-day lookback for most OIS
-        assert_eq!(IRSConvention::USDStandard.observation_shift_days(), 2);
-        assert_eq!(IRSConvention::EURStandard.observation_shift_days(), 2);
-        assert_eq!(IRSConvention::JPYStandard.observation_shift_days(), 2);
+        assert_eq!(IRSConvention::UsdSofr.observation_shift_days(), 2);
+        assert_eq!(IRSConvention::EurEstr.observation_shift_days(), 2);
+        assert_eq!(IRSConvention::JpyTonar.observation_shift_days(), 2);
 
         // SONIA uses 0-day shift with payment delay
-        assert_eq!(IRSConvention::GBPStandard.observation_shift_days(), 0);
+        assert_eq!(IRSConvention::GbpSonia.observation_shift_days(), 0);
 
         // IBOR has no observation shift
-        assert_eq!(IRSConvention::EURIborStandard.observation_shift_days(), 0);
+        assert_eq!(IRSConvention::EurEuribor.observation_shift_days(), 0);
     }
 
     #[test]
     fn irs_forward_curve_id() {
         // OIS swaps: forward = discount
-        assert_eq!(IRSConvention::USDStandard.forward_curve_id(), "USD-SOFR");
-        assert_eq!(IRSConvention::EURStandard.forward_curve_id(), "EUR-ESTR");
-        assert_eq!(IRSConvention::GBPStandard.forward_curve_id(), "GBP-SONIA");
-        assert_eq!(IRSConvention::JPYStandard.forward_curve_id(), "JPY-TONAR");
+        assert_eq!(IRSConvention::UsdSofr.forward_curve_id(), "USD-SOFR");
+        assert_eq!(IRSConvention::EurEstr.forward_curve_id(), "EUR-ESTR");
+        assert_eq!(IRSConvention::GbpSonia.forward_curve_id(), "GBP-SONIA");
+        assert_eq!(IRSConvention::JpyTonar.forward_curve_id(), "JPY-TONAR");
 
         // IBOR swaps: forward != discount
         assert_eq!(
-            IRSConvention::EURIborStandard.forward_curve_id(),
+            IRSConvention::EurEuribor.forward_curve_id(),
             "EUR-EURIBOR-6M"
         );
-        assert_eq!(IRSConvention::EURIborStandard.disc_curve_id(), "EUR-ESTR");
+        assert_eq!(IRSConvention::EurEuribor.disc_curve_id(), "EUR-ESTR");
     }
 
     #[test]
@@ -736,55 +708,37 @@ mod tests {
         // Standard names
         assert_eq!(
             "usd_sofr".parse::<IRSConvention>().unwrap(),
-            IRSConvention::USDStandard
+            IRSConvention::UsdSofr
         );
         assert_eq!(
             "eur_estr".parse::<IRSConvention>().unwrap(),
-            IRSConvention::EURStandard
+            IRSConvention::EurEstr
         );
         assert_eq!(
             "eur_euribor".parse::<IRSConvention>().unwrap(),
-            IRSConvention::EURIborStandard
+            IRSConvention::EurEuribor
         );
         assert_eq!(
             "gbp_sonia".parse::<IRSConvention>().unwrap(),
-            IRSConvention::GBPStandard
+            IRSConvention::GbpSonia
         );
         assert_eq!(
             "jpy_tonar".parse::<IRSConvention>().unwrap(),
-            IRSConvention::JPYStandard
+            IRSConvention::JpyTonar
         );
 
-        // Aliases
-        assert_eq!(
-            "sofr".parse::<IRSConvention>().unwrap(),
-            IRSConvention::USDStandard
-        );
-        assert_eq!(
-            "estr".parse::<IRSConvention>().unwrap(),
-            IRSConvention::EURStandard
-        );
-        assert_eq!(
-            "euribor".parse::<IRSConvention>().unwrap(),
-            IRSConvention::EURIborStandard
-        );
-        assert_eq!(
-            "sonia".parse::<IRSConvention>().unwrap(),
-            IRSConvention::GBPStandard
-        );
-        assert_eq!(
-            "tona".parse::<IRSConvention>().unwrap(),
-            IRSConvention::JPYStandard
-        );
+        for retired in ["sofr", "estr", "euribor", "sonia", "tona", "USD_SOFR"] {
+            assert!(retired.parse::<IRSConvention>().is_err());
+        }
     }
 
     #[test]
     fn irs_display() {
-        assert_eq!(format!("{}", IRSConvention::USDStandard), "usd_sofr");
-        assert_eq!(format!("{}", IRSConvention::EURStandard), "eur_estr");
-        assert_eq!(format!("{}", IRSConvention::EURIborStandard), "eur_euribor");
-        assert_eq!(format!("{}", IRSConvention::GBPStandard), "gbp_sonia");
-        assert_eq!(format!("{}", IRSConvention::JPYStandard), "jpy_tonar");
+        assert_eq!(format!("{}", IRSConvention::UsdSofr), "usd_sofr");
+        assert_eq!(format!("{}", IRSConvention::EurEstr), "eur_estr");
+        assert_eq!(format!("{}", IRSConvention::EurEuribor), "eur_euribor");
+        assert_eq!(format!("{}", IRSConvention::GbpSonia), "gbp_sonia");
+        assert_eq!(format!("{}", IRSConvention::JpyTonar), "jpy_tonar");
     }
 
     // =======================================================================
@@ -795,72 +749,72 @@ mod tests {
     #[test]
     fn bond_convention_day_counts() {
         // ACT/ACT ICMA for government bonds
-        assert_eq!(BondConvention::USTreasury.day_count(), DayCount::ActActIsma);
+        assert_eq!(BondConvention::UsTreasury.day_count(), DayCount::ActActIsma);
         assert_eq!(BondConvention::GermanBund.day_count(), DayCount::ActActIsma);
-        assert_eq!(BondConvention::UKGilt.day_count(), DayCount::ActActIsma);
-        assert_eq!(BondConvention::FrenchOAT.day_count(), DayCount::ActActIsma);
+        assert_eq!(BondConvention::UkGilt.day_count(), DayCount::ActActIsma);
+        assert_eq!(BondConvention::FrenchOat.day_count(), DayCount::ActActIsma);
 
         // 30/360 for US agency and corporate
-        assert_eq!(BondConvention::USAgency.day_count(), DayCount::Thirty360);
+        assert_eq!(BondConvention::UsAgency.day_count(), DayCount::Thirty360);
         assert_eq!(BondConvention::Corporate.day_count(), DayCount::Thirty360);
 
         // ACT/365F for JGB
-        assert_eq!(BondConvention::JGB.day_count(), DayCount::Act365F);
+        assert_eq!(BondConvention::Jgb.day_count(), DayCount::Act365F);
     }
 
     #[test]
     fn bond_convention_frequencies() {
         // Semi-annual
-        assert_eq!(BondConvention::USTreasury.frequency(), Tenor::semi_annual());
-        assert_eq!(BondConvention::USAgency.frequency(), Tenor::semi_annual());
-        assert_eq!(BondConvention::UKGilt.frequency(), Tenor::semi_annual());
+        assert_eq!(BondConvention::UsTreasury.frequency(), Tenor::semi_annual());
+        assert_eq!(BondConvention::UsAgency.frequency(), Tenor::semi_annual());
+        assert_eq!(BondConvention::UkGilt.frequency(), Tenor::semi_annual());
         assert_eq!(BondConvention::Corporate.frequency(), Tenor::semi_annual());
-        assert_eq!(BondConvention::JGB.frequency(), Tenor::semi_annual());
+        assert_eq!(BondConvention::Jgb.frequency(), Tenor::semi_annual());
 
         // Annual
         assert_eq!(BondConvention::GermanBund.frequency(), Tenor::annual());
-        assert_eq!(BondConvention::FrenchOAT.frequency(), Tenor::annual());
+        assert_eq!(BondConvention::FrenchOat.frequency(), Tenor::annual());
     }
 
     #[test]
     fn bond_convention_settlement_days() {
         // T+1 markets
-        assert_eq!(BondConvention::USTreasury.settlement_days(), 1);
-        assert_eq!(BondConvention::USAgency.settlement_days(), 1);
-        assert_eq!(BondConvention::UKGilt.settlement_days(), 1);
+        assert_eq!(BondConvention::UsTreasury.settlement_days(), 1);
+        assert_eq!(BondConvention::UsAgency.settlement_days(), 1);
+        assert_eq!(BondConvention::UkGilt.settlement_days(), 1);
 
         // T+2 markets
         assert_eq!(BondConvention::Corporate.settlement_days(), 2);
         assert_eq!(BondConvention::GermanBund.settlement_days(), 2);
-        assert_eq!(BondConvention::FrenchOAT.settlement_days(), 2);
+        assert_eq!(BondConvention::FrenchOat.settlement_days(), 2);
 
         // T+2 markets (JGB cross-border since May 2018)
-        assert_eq!(BondConvention::JGB.settlement_days(), 2);
+        assert_eq!(BondConvention::Jgb.settlement_days(), 2);
     }
 
     #[test]
     fn bond_convention_ex_coupon() {
         // UK Gilt has 7-day ex-coupon
-        assert_eq!(BondConvention::UKGilt.ex_coupon_days(), Some(7));
+        assert_eq!(BondConvention::UkGilt.ex_coupon_days(), Some(7));
 
         // Others have no ex-coupon convention
-        assert_eq!(BondConvention::USTreasury.ex_coupon_days(), None);
-        assert_eq!(BondConvention::USAgency.ex_coupon_days(), None);
+        assert_eq!(BondConvention::UsTreasury.ex_coupon_days(), None);
+        assert_eq!(BondConvention::UsAgency.ex_coupon_days(), None);
         assert_eq!(BondConvention::Corporate.ex_coupon_days(), None);
         assert_eq!(BondConvention::GermanBund.ex_coupon_days(), None);
-        assert_eq!(BondConvention::FrenchOAT.ex_coupon_days(), None);
-        assert_eq!(BondConvention::JGB.ex_coupon_days(), None);
+        assert_eq!(BondConvention::FrenchOat.ex_coupon_days(), None);
+        assert_eq!(BondConvention::Jgb.ex_coupon_days(), None);
     }
 
     #[test]
     fn bond_convention_calendar_ids() {
-        assert_eq!(BondConvention::USTreasury.calendar_id(), Some("sifma"));
-        assert_eq!(BondConvention::USAgency.calendar_id(), Some("sifma"));
+        assert_eq!(BondConvention::UsTreasury.calendar_id(), Some("sifma"));
+        assert_eq!(BondConvention::UsAgency.calendar_id(), Some("sifma"));
         assert_eq!(BondConvention::Corporate.calendar_id(), Some("usny"));
         assert_eq!(BondConvention::GermanBund.calendar_id(), Some("target2"));
-        assert_eq!(BondConvention::FrenchOAT.calendar_id(), Some("target2"));
-        assert_eq!(BondConvention::UKGilt.calendar_id(), Some("gblo"));
-        assert_eq!(BondConvention::JGB.calendar_id(), Some("jpto"));
+        assert_eq!(BondConvention::FrenchOat.calendar_id(), Some("target2"));
+        assert_eq!(BondConvention::UkGilt.calendar_id(), Some("gblo"));
+        assert_eq!(BondConvention::Jgb.calendar_id(), Some("jpto"));
     }
 
     #[test]
@@ -868,52 +822,30 @@ mod tests {
         // Standard names
         assert_eq!(
             "us_treasury".parse::<BondConvention>().unwrap(),
-            BondConvention::USTreasury
+            BondConvention::UsTreasury
         );
         assert_eq!(
             "us_agency".parse::<BondConvention>().unwrap(),
-            BondConvention::USAgency
+            BondConvention::UsAgency
         );
         assert_eq!(
             "jgb".parse::<BondConvention>().unwrap(),
-            BondConvention::JGB
+            BondConvention::Jgb
         );
 
-        // Aliases
-        assert_eq!(
-            "ust".parse::<BondConvention>().unwrap(),
-            BondConvention::USTreasury
-        );
-        assert_eq!(
-            "agency".parse::<BondConvention>().unwrap(),
-            BondConvention::USAgency
-        );
-        assert_eq!(
-            "fnma".parse::<BondConvention>().unwrap(),
-            BondConvention::USAgency
-        );
-        assert_eq!(
-            "japanese".parse::<BondConvention>().unwrap(),
-            BondConvention::JGB
-        );
-        assert_eq!(
-            "bund".parse::<BondConvention>().unwrap(),
-            BondConvention::GermanBund
-        );
-        assert_eq!(
-            "gilt".parse::<BondConvention>().unwrap(),
-            BondConvention::UKGilt
-        );
+        for retired in ["ust", "agency", "fnma", "japanese", "bund", "gilt"] {
+            assert!(retired.parse::<BondConvention>().is_err());
+        }
     }
 
     #[test]
     fn bond_convention_display() {
-        assert_eq!(format!("{}", BondConvention::USTreasury), "us_treasury");
-        assert_eq!(format!("{}", BondConvention::USAgency), "us_agency");
-        assert_eq!(format!("{}", BondConvention::JGB), "jgb");
+        assert_eq!(format!("{}", BondConvention::UsTreasury), "us_treasury");
+        assert_eq!(format!("{}", BondConvention::UsAgency), "us_agency");
+        assert_eq!(format!("{}", BondConvention::Jgb), "jgb");
         assert_eq!(format!("{}", BondConvention::GermanBund), "german_bund");
-        assert_eq!(format!("{}", BondConvention::UKGilt), "uk_gilt");
-        assert_eq!(format!("{}", BondConvention::FrenchOAT), "french_oat");
+        assert_eq!(format!("{}", BondConvention::UkGilt), "uk_gilt");
+        assert_eq!(format!("{}", BondConvention::FrenchOat), "french_oat");
         assert_eq!(format!("{}", BondConvention::Corporate), "corporate");
     }
 
@@ -924,7 +856,7 @@ mod tests {
     #[test]
     fn commodity_convention_settlement_days() {
         // Most commodities: T+2
-        assert_eq!(CommodityConvention::WTICrude.settlement_days(), 2);
+        assert_eq!(CommodityConvention::WtiCrude.settlement_days(), 2);
         assert_eq!(CommodityConvention::BrentCrude.settlement_days(), 2);
         assert_eq!(CommodityConvention::NaturalGas.settlement_days(), 2);
         assert_eq!(CommodityConvention::Gold.settlement_days(), 2);
@@ -942,7 +874,7 @@ mod tests {
 
         // Energy and base metals: Following
         assert_eq!(
-            CommodityConvention::WTICrude.business_day_convention(),
+            CommodityConvention::WtiCrude.business_day_convention(),
             BusinessDayConvention::Following
         );
         assert_eq!(
@@ -979,7 +911,7 @@ mod tests {
 
     #[test]
     fn commodity_convention_calendar_ids() {
-        assert_eq!(CommodityConvention::WTICrude.calendar_id(), "nymex");
+        assert_eq!(CommodityConvention::WtiCrude.calendar_id(), "nymex");
         assert_eq!(CommodityConvention::NaturalGas.calendar_id(), "nymex");
         assert_eq!(CommodityConvention::BrentCrude.calendar_id(), "ice");
         assert_eq!(CommodityConvention::Gold.calendar_id(), "comex");
@@ -994,7 +926,7 @@ mod tests {
         // Standard names
         assert_eq!(
             "wti_crude".parse::<CommodityConvention>().unwrap(),
-            CommodityConvention::WTICrude
+            CommodityConvention::WtiCrude
         );
         assert_eq!(
             "natural_gas".parse::<CommodityConvention>().unwrap(),
@@ -1005,40 +937,14 @@ mod tests {
             CommodityConvention::Gold
         );
 
-        // Ticker aliases
-        assert_eq!(
-            "wti".parse::<CommodityConvention>().unwrap(),
-            CommodityConvention::WTICrude
-        );
-        assert_eq!(
-            "cl".parse::<CommodityConvention>().unwrap(),
-            CommodityConvention::WTICrude
-        );
-        assert_eq!(
-            "ng".parse::<CommodityConvention>().unwrap(),
-            CommodityConvention::NaturalGas
-        );
-        assert_eq!(
-            "gc".parse::<CommodityConvention>().unwrap(),
-            CommodityConvention::Gold
-        );
-        assert_eq!(
-            "xau".parse::<CommodityConvention>().unwrap(),
-            CommodityConvention::Gold
-        );
-        assert_eq!(
-            "hg".parse::<CommodityConvention>().unwrap(),
-            CommodityConvention::Copper
-        );
-        assert_eq!(
-            "corn".parse::<CommodityConvention>().unwrap(),
-            CommodityConvention::Agricultural
-        );
+        for retired in ["wti", "cl", "ng", "gc", "xau", "hg", "corn"] {
+            assert!(retired.parse::<CommodityConvention>().is_err());
+        }
     }
 
     #[test]
     fn commodity_convention_display() {
-        assert_eq!(format!("{}", CommodityConvention::WTICrude), "wti_crude");
+        assert_eq!(format!("{}", CommodityConvention::WtiCrude), "wti_crude");
         assert_eq!(
             format!("{}", CommodityConvention::BrentCrude),
             "brent_crude"

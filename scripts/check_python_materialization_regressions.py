@@ -13,7 +13,7 @@ from typing import Any
 from prepare_materialization_criterion_run import combined_fixture_digest, tree_revision
 
 EXPECTED_CASES = ("cold_a_5000_unique", "cold_b_5000_50", "warm_b_5000_50")
-SCHEMA = "finstack_quant.python_materialization_baseline/2"
+SCHEMA = "finstack_quant.python_materialization_baseline/1"
 
 
 def guard_establishment(output: Path, replace: bool) -> None:

@@ -16,7 +16,7 @@ fn bond_instrument_json() -> String {
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::money::Money;
     use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
-    use finstack_quant_valuations::instruments::InstrumentJson;
+    use finstack_quant_valuations::instruments::{InstrumentEnvelope, InstrumentJson};
 
     let bond = Bond::fixed(
         "TEST-BOND",
@@ -27,15 +27,15 @@ fn bond_instrument_json() -> String {
         "USD-OIS",
     )
     .unwrap();
-    serde_json::to_string(&InstrumentJson::Bond(bond)).unwrap()
+    serde_json::to_string(&InstrumentEnvelope::new(InstrumentJson::Bond(bond))).unwrap()
 }
 
 fn term_loan_instrument_json() -> String {
     use finstack_quant_valuations::instruments::fixed_income::term_loan::TermLoan;
-    use finstack_quant_valuations::instruments::InstrumentJson;
+    use finstack_quant_valuations::instruments::{InstrumentEnvelope, InstrumentJson};
 
     let loan = TermLoan::example().expect("term loan example");
-    serde_json::to_string(&InstrumentJson::TermLoan(loan)).unwrap()
+    serde_json::to_string(&InstrumentEnvelope::new(InstrumentJson::TermLoan(loan))).unwrap()
 }
 
 fn market_context_json() -> String {
@@ -62,12 +62,14 @@ fn structured_credit_instrument_json() -> String {
         AssetPool, DealType, PoolAsset, StochasticDefaultSpec, StochasticPrepaySpec,
         StructuredCredit, Tranche, TrancheCoupon, TrancheSeniority, TrancheStructure,
     };
-    use finstack_quant_valuations::instruments::{InstrumentJson, InstrumentPricingOverrides};
+    use finstack_quant_valuations::instruments::{
+        InstrumentEnvelope, InstrumentJson, InstrumentPricingOverrides,
+    };
     use time::Month;
 
     let closing = Date::from_calendar_date(2024, Month::January, 1).unwrap();
     let maturity = Date::from_calendar_date(2026, Month::January, 1).unwrap();
-    let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "A1",
         Money::new(1_000_000.0, Currency::USD),
@@ -112,22 +114,25 @@ fn structured_credit_instrument_json() -> String {
     ));
     sc.instrument_pricing_overrides = InstrumentPricingOverrides::default().with_mc_paths(1);
 
-    serde_json::to_string(&InstrumentJson::StructuredCredit(Box::new(sc))).unwrap()
+    serde_json::to_string(&InstrumentEnvelope::new(InstrumentJson::StructuredCredit(
+        Box::new(sc),
+    )))
+    .unwrap()
 }
 
 fn invalid_structured_credit_instrument_json() -> String {
     let mut value: serde_json::Value =
         serde_json::from_str(&structured_credit_instrument_json()).unwrap();
-    value["spec"]["cleanup_call_pct"] = serde_json::json!(-0.5);
+    value["instrument"]["spec"]["cleanup_call_pct"] = serde_json::json!(-0.5);
     serde_json::to_string(&value).unwrap()
 }
 
 fn fx_option_instrument_json() -> String {
     use finstack_quant_valuations::instruments::fx::FxOption;
-    use finstack_quant_valuations::instruments::InstrumentJson;
+    use finstack_quant_valuations::instruments::{InstrumentEnvelope, InstrumentJson};
 
     let option = FxOption::example().expect("fx option example");
-    serde_json::to_string(&InstrumentJson::FxOption(option)).unwrap()
+    serde_json::to_string(&InstrumentEnvelope::new(InstrumentJson::FxOption(option))).unwrap()
 }
 
 fn error_message(error: JsValue) -> String {
@@ -293,7 +298,7 @@ fn fx_price_with_metrics_validates_merged_overrides_before_market() {
             "not-a-date",
             metrics,
             Some("not-a-model".to_string()),
-            Some(r#"{"vol_bump_pct":-0.20}"#.to_string()),
+            Some(r#"{"bump_config":{"vol_bump_pct":-0.20}}"#.to_string()),
             None,
         )
         .unwrap_err();
@@ -332,7 +337,8 @@ fn price_instrument_structured_credit_waterfall_rules() {
     // price_instrument entry point with no binding code change.
     let mut value: serde_json::Value =
         serde_json::from_str(&structured_credit_instrument_json()).unwrap();
-    value["spec"]["waterfall_rules"] = serde_json::json!({ "afc": { "capped_tranches": ["SR"] } });
+    value["instrument"]["spec"]["waterfall_rules"] =
+        serde_json::json!({ "afc": { "capped_tranches": ["SR"] } });
     let inst = serde_json::to_string(&value).unwrap();
     let mkt = market_context_json();
     let result = price_instrument(

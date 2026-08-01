@@ -14,7 +14,7 @@ use rust_decimal::Decimal;
 
 use crate::bindings::core::currency::extract_currency;
 use crate::bindings::core::currency::PyCurrency;
-use crate::bindings::core::dates::calendar::extract_bdc;
+use crate::bindings::core::dates::calendar::extract_business_day_convention;
 use crate::bindings::core::dates::daycount::PyDayCount;
 use crate::bindings::core::dates::schedule::PyStubKind;
 use crate::bindings::core::dates::tenor::{extract_tenor, PyTenor};
@@ -125,7 +125,7 @@ impl PyCouponType {
     /// 100% capitalized into principal.
     #[classattr]
     const PIK: PyCouponType = PyCouponType {
-        inner: CouponType::PIK,
+        inner: CouponType::Pik,
     };
 
     /// Split settlement: explicit cash and PIK fractions in ``[0, 1]``.
@@ -393,13 +393,13 @@ impl PyScheduleParams {
     ///
     /// Parameters
     /// ----------
-    /// freq : Tenor or str
+    /// frequency : Tenor or str
     ///     Accrual and payment frequency (e.g. ``"3M"``).
-    /// dc : DayCount
+    /// day_count : DayCount
     ///     Day-count convention for accrual year fractions.
     /// calendar_id : str
     ///     Holiday calendar id (``"weekends_only"`` for weekend-only rolling).
-    /// bdc : BusinessDayConvention or str, optional
+    /// business_day_convention : BusinessDayConvention or str, optional
     ///     Payment-date rolling convention (default Modified Following).
     /// stub : StubKind, optional
     ///     Stub rule (default short-front).
@@ -408,34 +408,34 @@ impl PyScheduleParams {
     /// payment_lag_days : int, default 0
     ///     Payment lag in business days.
     /// adjust_accrual_dates : bool, default False
-    ///     Roll accrual boundaries with ``bdc`` (swap/ISDA convention).
+    ///     Roll accrual boundaries with ``business_day_convention`` (swap/ISDA convention).
     /// roll_rule : RollRule, optional
     ///     IMM/CDS-IMM anchor grid (default none).
     #[new]
     #[pyo3(
-        signature = (freq, dc, calendar_id, bdc=None, stub=None, end_of_month=false, payment_lag_days=0, adjust_accrual_dates=false, roll_rule=None),
-        text_signature = "(freq, dc, calendar_id, bdc=None, stub=None, end_of_month=False, payment_lag_days=0, adjust_accrual_dates=False, roll_rule=None)"
+        signature = (frequency, day_count, calendar_id, business_day_convention=None, stub=None, end_of_month=false, payment_lag_days=0, adjust_accrual_dates=false, roll_rule=None),
+        text_signature = "(frequency, day_count, calendar_id, business_day_convention=None, stub=None, end_of_month=False, payment_lag_days=0, adjust_accrual_dates=False, roll_rule=None)"
     )]
     #[allow(clippy::too_many_arguments)]
     fn new(
-        freq: &Bound<'_, PyAny>,
-        dc: PyRef<'_, PyDayCount>,
+        frequency: &Bound<'_, PyAny>,
+        day_count: PyRef<'_, PyDayCount>,
         calendar_id: &str,
-        bdc: Option<&Bound<'_, PyAny>>,
+        business_day_convention: Option<&Bound<'_, PyAny>>,
         stub: Option<PyRef<'_, PyStubKind>>,
         end_of_month: bool,
         payment_lag_days: i32,
         adjust_accrual_dates: bool,
         roll_rule: Option<PyRef<'_, PyRollRule>>,
     ) -> PyResult<Self> {
-        let bdc = match bdc {
-            Some(obj) => extract_bdc(obj)?,
+        let business_day_convention = match business_day_convention {
+            Some(obj) => extract_business_day_convention(obj)?,
             None => BusinessDayConvention::ModifiedFollowing,
         };
         Ok(Self::from_inner(ScheduleParams {
-            freq: extract_tenor(freq)?,
-            dc: dc.inner,
-            bdc,
+            frequency: extract_tenor(frequency)?,
+            day_count: day_count.inner,
+            business_day_convention,
             calendar_id: calendar_id.to_string(),
             stub: stub.map_or(StubKind::ShortFront, |s| s.inner),
             end_of_month,
@@ -447,14 +447,14 @@ impl PyScheduleParams {
 
     /// Accrual and payment frequency.
     #[getter]
-    fn freq(&self) -> PyTenor {
-        PyTenor::from_inner(self.inner.freq)
+    fn frequency(&self) -> PyTenor {
+        PyTenor::from_inner(self.inner.frequency)
     }
 
     /// Day-count convention.
     #[getter]
-    fn dc(&self) -> PyDayCount {
-        PyDayCount::from_inner(self.inner.dc)
+    fn day_count(&self) -> PyDayCount {
+        PyDayCount::from_inner(self.inner.day_count)
     }
 
     /// Holiday calendar identifier.
@@ -574,14 +574,14 @@ impl PyFloatingRateSpec {
     /// basis points and accept ``decimal.Decimal`` (lossless) or ``float``.
     #[new]
     #[pyo3(
-        signature = (index_id, spread_bp, reset_freq, gearing=None, gearing_includes_spread=true, index_floor_bp=None, all_in_floor_bp=None, all_in_cap_bp=None, index_cap_bp=None, overnight_index_constraints=None, index_tenor=None, reset_lag_days=2, fixing_calendar_id=None, overnight_compounding=None, overnight_basis=None, fallback=None),
-        text_signature = "(index_id, spread_bp, reset_freq, gearing=None, gearing_includes_spread=True, index_floor_bp=None, all_in_floor_bp=None, all_in_cap_bp=None, index_cap_bp=None, overnight_index_constraints=None, index_tenor=None, reset_lag_days=2, fixing_calendar_id=None, overnight_compounding=None, overnight_basis=None, fallback=None)"
+        signature = (index_id, spread_bp, reset_frequency, gearing=None, gearing_includes_spread=true, index_floor_bp=None, all_in_floor_bp=None, all_in_cap_bp=None, index_cap_bp=None, overnight_index_constraints=None, index_tenor=None, reset_lag_days=2, fixing_calendar_id=None, overnight_compounding=None, overnight_basis=None, fallback=None),
+        text_signature = "(index_id, spread_bp, reset_frequency, gearing=None, gearing_includes_spread=True, index_floor_bp=None, all_in_floor_bp=None, all_in_cap_bp=None, index_cap_bp=None, overnight_index_constraints=None, index_tenor=None, reset_lag_days=2, fixing_calendar_id=None, overnight_compounding=None, overnight_basis=None, fallback=None)"
     )]
     #[allow(clippy::too_many_arguments)]
     fn new(
         index_id: &str,
         spread_bp: &Bound<'_, PyAny>,
-        reset_freq: &Bound<'_, PyAny>,
+        reset_frequency: &Bound<'_, PyAny>,
         gearing: Option<&Bound<'_, PyAny>>,
         gearing_includes_spread: bool,
         index_floor_bp: Option<&Bound<'_, PyAny>>,
@@ -608,7 +608,7 @@ impl PyFloatingRateSpec {
                 index_cap_bp: index_cap_bp.map(decimal_from_any).transpose()?,
                 overnight_index_constraints: overnight_index_constraints
                     .map_or(OvernightIndexConstraintApplication::Daily, |c| c.inner),
-                reset_freq: extract_tenor(reset_freq)?,
+                reset_frequency: extract_tenor(reset_frequency)?,
                 index_tenor: index_tenor.map(extract_tenor).transpose()?,
                 reset_lag_days,
                 fixing_calendar_id,
@@ -1050,27 +1050,27 @@ impl PyFeeSpec {
     /// Periodic fee quoted in basis points per annum, accrued over generated periods.
     #[staticmethod]
     #[pyo3(
-        signature = (base, bps, freq, dc, bdc, calendar_id, stub=None, accrual_basis=None),
-        text_signature = "(base, bps, freq, dc, bdc, calendar_id, stub=None, accrual_basis=None)"
+        signature = (base, bp, frequency, day_count, business_day_convention, calendar_id, stub=None, accrual_basis=None),
+        text_signature = "(base, bp, frequency, day_count, business_day_convention, calendar_id, stub=None, accrual_basis=None)"
     )]
     #[allow(clippy::too_many_arguments)]
-    fn periodic_bps(
+    fn periodic_bp(
         base: PyRef<'_, PyFeeBase>,
-        bps: &Bound<'_, PyAny>,
-        freq: &Bound<'_, PyAny>,
-        dc: PyRef<'_, PyDayCount>,
-        bdc: &Bound<'_, PyAny>,
+        bp: &Bound<'_, PyAny>,
+        frequency: &Bound<'_, PyAny>,
+        day_count: PyRef<'_, PyDayCount>,
+        business_day_convention: &Bound<'_, PyAny>,
         calendar_id: &str,
         stub: Option<PyRef<'_, PyStubKind>>,
         accrual_basis: Option<PyRef<'_, PyFeeAccrualBasis>>,
     ) -> PyResult<Self> {
         Ok(Self {
-            inner: FeeSpec::PeriodicBps {
+            inner: FeeSpec::PeriodicBp {
                 base: base.inner.clone(),
-                bps: decimal_from_any(bps)?,
-                freq: extract_tenor(freq)?,
-                dc: dc.inner,
-                bdc: extract_bdc(bdc)?,
+                bp: decimal_from_any(bp)?,
+                frequency: extract_tenor(frequency)?,
+                day_count: day_count.inner,
+                business_day_convention: extract_business_day_convention(business_day_convention)?,
                 calendar_id: calendar_id.to_string(),
                 stub: stub.map_or(StubKind::ShortFront, |s| s.inner),
                 accrual_basis: accrual_basis

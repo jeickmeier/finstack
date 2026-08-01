@@ -5,7 +5,7 @@ use finstack_quant_attribution::{
 };
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{create_date, Date};
-use finstack_quant_core::market_data::context::{MarketContextState, MARKET_CONTEXT_STATE_VERSION};
+use finstack_quant_core::market_data::context::MarketContextState;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::json_loader::InstrumentJson;
 use finstack_quant_valuations::instruments::Bond;
@@ -14,7 +14,7 @@ use time::Month;
 
 fn empty_market_state() -> MarketContextState {
     MarketContextState {
-        version: MARKET_CONTEXT_STATE_VERSION,
+        schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
         curves: vec![],
         fx: None,
         surfaces: vec![],
@@ -68,7 +68,7 @@ fn spec_rejects_unknown_metrics() {
             strict_validation: None,
             rounding_scale: None,
             rate_bump_bp: None,
-            target_ccy: None,
+            target_currency: None,
             execution_policy: None,
         }),
         full_cross_attribution: false,

@@ -212,7 +212,7 @@ pub(crate) fn bootstrap_forward_gbm(
         } else {
             tracing::warn!(
                 context = %context_label,
-                surface_id = %vol_surface_id,
+                vol_surface_id = %vol_surface_id,
                 t_prev = prev_t,
                 t_curr = curr_t,
                 total_var_prev = prev_var,

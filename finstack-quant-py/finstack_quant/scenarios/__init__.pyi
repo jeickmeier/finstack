@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from finstack_quant.attribution import PnlAttribution
+from finstack_quant.core.dates import DayCount
 
 __all__ = [
     "parse_scenario_spec",
@@ -584,7 +585,7 @@ def compute_horizon_return(
     Parameters
     ----------
     instrument_json : str
-        JSON-serialized instrument (tagged ``{"type": ..., "spec": {...}}``).
+        Canonical v1 instrument envelope.
     market : Any
         ``MarketContext`` object or JSON string.
     as_of : str
@@ -1166,7 +1167,7 @@ class RateBindingSpec:
         curve_id: str,
         tenor: str,
         compounding: Compounding | None = None,
-        day_count: str | None = None,
+        day_count: DayCount | None = None,
     ) -> None:
         """
         Create a rate binding specification.
@@ -1181,8 +1182,8 @@ class RateBindingSpec:
             Tenor string (e.g. ``"5Y"``).
         compounding : Compounding, optional
             Compounding convention. Defaults to ``None`` (use curve default).
-        day_count : str, optional
-            Day-count convention string. Defaults to ``None`` (use curve default).
+        day_count : DayCount, optional
+            Typed day-count convention. Defaults to ``None`` (use curve default).
 
         Raises
         ------
@@ -1241,14 +1242,14 @@ class RateBindingSpec:
         ...
 
     @property
-    def day_count(self) -> str | None:
+    def day_count(self) -> DayCount | None:
         """
         Day-count convention.
 
         Returns
         -------
-        str or None
-            Day-count string, or ``None`` when not specified.
+        DayCount or None
+            Typed day-count convention, or ``None`` when not specified.
         """
         ...
 
@@ -1586,7 +1587,7 @@ class OperationSpec:
         cls,
         surface_id: str,
         points: float,
-        detachment_bps: list[int] | None = None,
+        detachment_bp: list[int] | None = None,
         maturities: list[str] | None = None,
     ) -> OperationSpec:
         """
@@ -1598,8 +1599,8 @@ class OperationSpec:
             Base-correlation surface identifier.
         points : float
             Absolute correlation-point shift.
-        detachment_bps : list[int], optional
-            Detachment points (in bps) to target. ``None`` targets all.
+        detachment_bp : list[int], optional
+            Detachment points (in bp) to target. ``None`` targets all.
         maturities : list[str], optional
             Maturity tenors to target. ``None`` targets all. Currently
             reserved for future use.
@@ -1623,7 +1624,7 @@ class OperationSpec:
         ...
 
     @classmethod
-    def vol_surface_parallel_pct(cls, surface_kind: VolSurfaceKind, surface_id: str, pct: float) -> OperationSpec:
+    def vol_surface_parallel_pct(cls, surface_kind: VolSurfaceKind, vol_surface_id: str, pct: float) -> OperationSpec:
         """
         Parallel percent shift to a volatility surface.
 
@@ -1631,8 +1632,8 @@ class OperationSpec:
         ----------
         surface_kind : VolSurfaceKind
             Category of volatility surface.
-        surface_id : str
-            Surface identifier.
+        vol_surface_id : str
+            Volatility-surface identifier.
         pct : float
             Percent shift applied to every vol quote.
 
@@ -1658,7 +1659,7 @@ class OperationSpec:
     def vol_surface_bucket_pct(
         cls,
         surface_kind: VolSurfaceKind,
-        surface_id: str,
+        vol_surface_id: str,
         pct: float,
         tenors: list[str] | None = None,
         strikes: list[float] | None = None,
@@ -1670,8 +1671,8 @@ class OperationSpec:
         ----------
         surface_kind : VolSurfaceKind
             Category of volatility surface.
-        surface_id : str
-            Surface identifier.
+        vol_surface_id : str
+            Volatility-surface identifier.
         pct : float
             Percent shift applied to matched vol quotes.
         tenors : list[str], optional

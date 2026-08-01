@@ -74,13 +74,12 @@ impl std::str::FromStr for LookbackType {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
-            "fixed_strike" | "fixedstrike" | "fixed" => Ok(Self::FixedStrike),
-            "floating_strike" | "floatingstrike" | "floating" => Ok(Self::FloatingStrike),
-            other => Err(format!(
+        match s {
+            "fixed_strike" => Ok(Self::FixedStrike),
+            "floating_strike" => Ok(Self::FloatingStrike),
+            _ => Err(format!(
                 "Unknown lookback type: '{}'. Valid: fixed_strike, floating_strike",
-                other
+                s
             )),
         }
     }
@@ -108,7 +107,9 @@ impl std::str::FromStr for LookbackType {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct LookbackOption {
@@ -123,7 +124,7 @@ pub struct LookbackOption {
     /// Lookback type (fixed or floating strike)
     pub lookback_type: LookbackType,
     /// Option expiry date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Terminal underlying fixing observed at expiry.
     ///
@@ -156,14 +157,25 @@ pub struct LookbackOption {
     #[serde(default)]
     pub use_gobet_miri: bool,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Observed minimum spot price since inception (required for Floating Call / Fixed Put)
     pub observed_min: Option<Money>,
@@ -245,7 +257,7 @@ impl crate::instruments::common_impl::traits::Instrument for LookbackOption {
     > {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
-        deps.add_spot_id(self.spot_id.as_str());
+        deps.add_market_scalar_id(self.spot_id.as_str());
         deps.add_volatility_dependency(
             crate::instruments::common_impl::dependencies::VolatilityDependency::new(
                 self.vol_surface_id.clone(),
@@ -254,7 +266,7 @@ impl crate::instruments::common_impl::traits::Instrument for LookbackOption {
             ),
         );
         if let Some(dividend_yield) = &self.div_yield_id {
-            deps.add_spot_id(dividend_yield.as_str());
+            deps.add_market_scalar_id(dividend_yield.as_str());
         }
         Ok(deps)
     }
@@ -311,26 +323,23 @@ mod tests {
         let deps =
             crate::instruments::Instrument::market_dependencies(&option).expect("dependencies");
 
-        assert!(deps.spot_ids.contains(&dividend_id.as_str().to_string()));
+        assert!(deps
+            .market_scalar_ids
+            .contains(&dividend_id.as_str().to_string()));
         assert!(deps.series_ids.is_empty());
     }
 
     #[test]
     fn lookback_type_fromstr_display_roundtrip() {
-        fn assert_lookback_type(label: &str, expected: LookbackType) {
-            assert!(matches!(LookbackType::from_str(label), Ok(value) if value == expected));
-        }
-
         let variants = [LookbackType::FixedStrike, LookbackType::FloatingStrike];
         for v in variants {
             let s = v.to_string();
             let parsed = LookbackType::from_str(&s).expect("roundtrip parse should succeed");
             assert_eq!(v, parsed, "roundtrip failed for {s}");
         }
-        // Test aliases
-        assert_lookback_type("fixedstrike", LookbackType::FixedStrike);
-        assert_lookback_type("floatingstrike", LookbackType::FloatingStrike);
-        assert_lookback_type("fixed", LookbackType::FixedStrike);
+        for retired in ["fixedstrike", "floatingstrike", "fixed"] {
+            assert!(LookbackType::from_str(retired).is_err());
+        }
         assert!(LookbackType::from_str("invalid").is_err());
     }
 }

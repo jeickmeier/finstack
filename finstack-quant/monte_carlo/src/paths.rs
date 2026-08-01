@@ -37,6 +37,7 @@ pub(crate) mod state_indices {
 /// These tags are diagnostic metadata only. They do not change pricing logic by
 /// themselves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CashflowType {
     /// Principal deployment (draws) or repayment
     Principal,
@@ -336,6 +337,7 @@ impl SimulatedPath {
 
 /// Records how a captured dataset was selected from the full simulation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum PathSamplingMethod {
     /// Every path in the run was captured.
     All,

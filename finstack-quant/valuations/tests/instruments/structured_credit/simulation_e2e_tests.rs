@@ -61,7 +61,7 @@ fn flat_market() -> MarketContext {
 
 /// Create a single-asset pool (bullet loan, no amortization).
 fn single_asset_pool(balance: f64, rate: f64, maturity: Date) -> AssetPool {
-    let mut pool = AssetPool::new("E2E_POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("E2E_POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset {
         day_count: finstack_quant_core::dates::DayCount::Act360,
         id: InstrumentId::new("LOAN_1"),
@@ -70,7 +70,7 @@ fn single_asset_pool(balance: f64, rate: f64, maturity: Date) -> AssetPool {
         },
         balance: Money::new(balance, Currency::USD),
         rate,
-        spread_bps: None,
+        spread_bp: None,
         index_id: None,
         maturity,
         credit_quality: Some(CreditRating::BB),
@@ -929,7 +929,7 @@ fn e2e_multi_asset_pool_aggregates_correctly() {
     // interest ≈ sum of individual asset interests.
     let market = flat_market();
 
-    let mut pool = AssetPool::new("MULTI_POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("MULTI_POOL", DealType::Clo, Currency::USD);
     let rates = [0.06, 0.07, 0.08, 0.09, 0.10];
 
     for (i, rate) in rates.iter().enumerate() {
@@ -941,7 +941,7 @@ fn e2e_multi_asset_pool_aggregates_correctly() {
             },
             balance: Money::new(20_000_000.0, Currency::USD),
             rate: *rate,
-            spread_bps: None,
+            spread_bp: None,
             index_id: None,
             maturity: maturity_5y(),
             credit_quality: Some(CreditRating::BB),

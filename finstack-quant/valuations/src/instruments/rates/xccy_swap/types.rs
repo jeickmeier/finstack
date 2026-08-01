@@ -55,14 +55,10 @@ impl std::str::FromStr for LegSide {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
-            "pay" | "payer" => Ok(Self::Pay),
-            "receive" | "rec" | "receiver" => Ok(Self::Receive),
-            other => Err(format!(
-                "Unknown leg side: '{}'. Valid: pay, receive, rec",
-                other
-            )),
+        match s {
+            "pay" => Ok(Self::Pay),
+            "receive" => Ok(Self::Receive),
+            _ => Err(format!("Unknown leg side: '{}'. Valid: pay, receive", s)),
         }
     }
 }
@@ -163,29 +159,6 @@ impl std::fmt::Display for NotionalExchange {
     }
 }
 
-impl std::str::FromStr for NotionalExchange {
-    type Err = String;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
-            "none" => Ok(Self::None),
-            "final" | "final_only" => Ok(Self::Final),
-            "initial_and_final" | "initialandfinal" | "both" => Ok(Self::InitialAndFinal),
-            other => {
-                if let Some(side_str) = other.strip_prefix("mtm_resetting:") {
-                    let resetting_side = side_str.parse::<ResettingSide>()?;
-                    Ok(Self::MtmResetting { resetting_side })
-                } else {
-                    Err(format!(
-                        "Unknown notional exchange: '{s}'. Valid: none, final, initial_and_final, both, mtm_resetting:leg1, mtm_resetting:leg2"
-                    ))
-                }
-            }
-        }
-    }
-}
-
 /// Identifies which leg of an XCCY swap has its notional reset under
 /// MtM-resetting. `Leg1` and `Leg2` refer to `XccySwap::leg1` and `XccySwap::leg2`
 /// respectively.
@@ -216,13 +189,10 @@ impl std::str::FromStr for ResettingSide {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
-            "leg1" | "leg_1" => Ok(Self::Leg1),
-            "leg2" | "leg_2" => Ok(Self::Leg2),
-            other => Err(format!(
-                "Unknown resetting side: '{other}'. Valid: leg1, leg2"
-            )),
+        match s {
+            "leg1" => Ok(Self::Leg1),
+            "leg2" => Ok(Self::Leg2),
+            _ => Err(format!("Unknown resetting side: '{s}'. Valid: leg1, leg2")),
         }
     }
 }
@@ -245,10 +215,10 @@ pub struct XccySwapLeg {
     /// Discount curve for PV in leg currency.
     pub discount_curve_id: CurveId,
     /// Start date of the leg.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date of the leg.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Coupon frequency.
     pub frequency: Tenor,
@@ -256,12 +226,13 @@ pub struct XccySwapLeg {
     pub day_count: DayCount,
     /// Business day convention for schedule dates.
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Stub period handling rule.
     #[serde(default = "crate::serde_defaults::stub_short_front")]
     pub stub: StubKind,
     /// Spread in basis points (e.g. `Decimal::from(5)` = 5bp).
     #[serde(default)]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
     /// Payment lag in business days after period end (default: 0).
     #[serde(default)]
@@ -349,7 +320,7 @@ impl XccySwap {
             end,
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
@@ -368,7 +339,7 @@ impl XccySwap {
             end,
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             stub: StubKind::ShortFront,
             spread_bp: Decimal::from(10),
             payment_lag_days: 0,
@@ -552,7 +523,7 @@ impl XccySwap {
     }
 
     /// Build one leg's accrual periods. Single source for both the pricing
-    /// path (`pv_leg_in_reporting_ccy`) and the reporting path
+    /// path (`pv_leg_in_reporting_currency`) and the reporting path
     /// (`leg_coupon_schedule`), so period boundaries, payment dates, and
     /// reset dates can never drift between priced and reported cashflows.
     fn leg_build_periods(
@@ -566,7 +537,7 @@ impl XccySwap {
                 end: leg.end,
                 frequency: leg.frequency,
                 stub: leg.stub,
-                bdc: leg.bdc,
+                business_day_convention: leg.business_day_convention,
                 calendar_id,
                 end_of_month: false,
                 day_count: leg.day_count,
@@ -725,7 +696,7 @@ impl XccySwap {
     /// # Returns
     ///
     /// Present value in the **reporting currency**, not the leg currency.
-    fn pv_leg_in_reporting_ccy(
+    fn pv_leg_in_reporting_currency(
         &self,
         leg: &XccySwapLeg,
         context: &MarketContext,
@@ -802,8 +773,8 @@ impl XccySwap {
         ) && leg.start >= as_of
         {
             let df = robust_relative_df(disc.as_ref(), as_of, leg.start)?;
-            let cf_leg_ccy = leg.side.initial_principal_sign() * leg.notional.amount() * df;
-            let cf_rep = convert_pv(cf_leg_ccy)?;
+            let cf_leg_currency = leg.side.initial_principal_sign() * leg.notional.amount() * df;
+            let cf_rep = convert_pv(cf_leg_currency)?;
             pv.add(cf_rep);
         }
 
@@ -816,8 +787,8 @@ impl XccySwap {
         ) && leg.end >= as_of
         {
             let df = robust_relative_df(disc.as_ref(), as_of, leg.end)?;
-            let cf_leg_ccy = leg.side.final_principal_sign() * leg.notional.amount() * df;
-            let cf_rep = convert_pv(cf_leg_ccy)?;
+            let cf_leg_currency = leg.side.final_principal_sign() * leg.notional.amount() * df;
+            let cf_rep = convert_pv(cf_leg_currency)?;
             pv.add(cf_rep);
         }
 
@@ -851,9 +822,9 @@ impl XccySwap {
 
             // Use robust_relative_df for numerical stability
             let df = robust_relative_df(disc.as_ref(), as_of, period.payment_date)?;
-            let cf_leg_ccy = coupon * df;
+            let cf_leg_currency = coupon * df;
 
-            let cf_rep = convert_pv(cf_leg_ccy)?;
+            let cf_rep = convert_pv(cf_leg_currency)?;
             pv.add(cf_rep);
         }
 
@@ -936,9 +907,9 @@ impl crate::instruments::common_impl::traits::Instrument for XccySwap {
             );
         }
 
-        // pv_leg_in_reporting_ccy builds its own period schedule; no need to pre-build here.
-        let pv1_rep = self.pv_leg_in_reporting_ccy(&self.leg1, market, as_of)?;
-        let pv2_rep = self.pv_leg_in_reporting_ccy(&self.leg2, market, as_of)?;
+        // pv_leg_in_reporting_currency builds its own period schedule; no need to pre-build here.
+        let pv1_rep = self.pv_leg_in_reporting_currency(&self.leg1, market, as_of)?;
+        let pv2_rep = self.pv_leg_in_reporting_currency(&self.leg2, market, as_of)?;
 
         pv1_rep.checked_add(pv2_rep)
     }
@@ -1054,7 +1025,7 @@ mod tests {
                 end,
                 frequency: Tenor::quarterly(),
                 day_count: DayCount::Act360,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 stub: StubKind::ShortFront,
                 spread_bp: Decimal::ZERO,
                 payment_lag_days: 0,
@@ -1072,7 +1043,7 @@ mod tests {
                 end,
                 frequency: Tenor::quarterly(),
                 day_count: DayCount::Act360,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 stub: StubKind::ShortFront,
                 spread_bp: Decimal::ZERO,
                 payment_lag_days: 0,
@@ -1151,7 +1122,7 @@ mod tests {
                 end,
                 frequency: Tenor::quarterly(),
                 day_count: DayCount::Act360,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 stub: StubKind::ShortFront,
                 spread_bp: Decimal::ZERO,
                 payment_lag_days: 0,
@@ -1169,7 +1140,7 @@ mod tests {
                 end,
                 frequency: Tenor::quarterly(),
                 day_count: DayCount::Act360,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 stub: StubKind::ShortFront,
                 spread_bp: Decimal::ZERO,
                 payment_lag_days: 0,
@@ -1198,40 +1169,16 @@ mod tests {
     fn leg_side_fromstr_display_roundtrip() {
         use std::str::FromStr;
 
-        fn assert_leg_side(label: &str, expected: LegSide) {
-            assert!(matches!(LegSide::from_str(label), Ok(value) if value == expected));
-        }
-
         let variants = [LegSide::Pay, LegSide::Receive];
         for v in variants {
             let s = v.to_string();
             let parsed = LegSide::from_str(&s).expect("roundtrip parse should succeed");
             assert_eq!(v, parsed, "roundtrip failed for {s}");
         }
-        assert_leg_side("rec", LegSide::Receive);
+        for noncanonical in ["rec", "payer", "Receive", " receive"] {
+            assert!(LegSide::from_str(noncanonical).is_err());
+        }
         assert!(LegSide::from_str("invalid").is_err());
-    }
-
-    #[test]
-    fn notional_exchange_fromstr_display_roundtrip() {
-        use std::str::FromStr;
-
-        fn assert_notional_exchange(label: &str, expected: NotionalExchange) {
-            assert!(matches!(NotionalExchange::from_str(label), Ok(value) if value == expected));
-        }
-
-        let variants = [
-            NotionalExchange::None,
-            NotionalExchange::Final,
-            NotionalExchange::InitialAndFinal,
-        ];
-        for v in variants {
-            let s = v.to_string();
-            let parsed = NotionalExchange::from_str(&s).expect("roundtrip parse should succeed");
-            assert_eq!(v, parsed, "roundtrip failed for {s}");
-        }
-        assert_notional_exchange("both", NotionalExchange::InitialAndFinal);
-        assert!(NotionalExchange::from_str("invalid").is_err());
     }
 
     #[test]
@@ -1242,40 +1189,10 @@ mod tests {
             let parsed = ResettingSide::from_str(&s).expect("roundtrip parse");
             assert_eq!(side, parsed, "roundtrip failed for {s}");
         }
-        // Underscore alias path
-        assert_eq!(
-            ResettingSide::from_str("leg_1").expect("leg_1 alias"),
-            ResettingSide::Leg1,
-            "roundtrip failed for leg_1"
-        );
-        assert_eq!(
-            ResettingSide::from_str("leg_2").expect("leg_2 alias"),
-            ResettingSide::Leg2,
-            "roundtrip failed for leg_2"
-        );
-        assert!(ResettingSide::from_str("garbage").is_err());
-    }
-
-    #[test]
-    fn notional_exchange_mtm_resetting_display_and_parse_roundtrip() {
-        use std::str::FromStr;
-        let variants = [
-            NotionalExchange::MtmResetting {
-                resetting_side: ResettingSide::Leg1,
-            },
-            NotionalExchange::MtmResetting {
-                resetting_side: ResettingSide::Leg2,
-            },
-        ];
-        for v in variants {
-            let s = v.to_string();
-            let parsed = NotionalExchange::from_str(&s).expect("roundtrip parse");
-            assert_eq!(v, parsed, "roundtrip failed for '{s}'");
+        for noncanonical in ["leg_1", "Leg1", " leg1"] {
+            assert!(ResettingSide::from_str(noncanonical).is_err());
         }
-        // Negative cases: malformed mtm_resetting inputs must be rejected
-        assert!(NotionalExchange::from_str("mtm_resetting").is_err());
-        assert!(NotionalExchange::from_str("mtm_resetting:").is_err());
-        assert!(NotionalExchange::from_str("mtm_resetting:garbage").is_err());
+        assert!(ResettingSide::from_str("garbage").is_err());
     }
 
     #[test]
@@ -1358,7 +1275,7 @@ mod tests {
             end,
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
@@ -1406,7 +1323,7 @@ mod tests {
             end,
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,

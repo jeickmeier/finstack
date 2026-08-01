@@ -22,6 +22,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// This enum preserves the first validation failure detected when checking a
 /// row-major flattened correlation matrix.
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Error {
     /// Matrix size does not match expected n×n.

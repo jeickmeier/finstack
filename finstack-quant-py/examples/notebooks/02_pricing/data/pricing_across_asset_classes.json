@@ -12,7 +12,6 @@
       "maturity": "2025-03-15",
       "multiplier": 1.0,
       "position": "long",
-      "pricing_overrides": {},
       "quantity": 1000.0,
       "settlement": "cash",
       "ticker": "CL",

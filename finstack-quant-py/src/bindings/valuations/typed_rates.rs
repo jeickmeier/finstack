@@ -8,12 +8,13 @@ use crate::bindings::core::dates::daycount::PyDayCount;
 use crate::bindings::core::dates::tenor::PyTenor;
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::bindings::core::money::PyMoney;
-use crate::errors::{core_to_py, serde_json_to_py, value_error};
+use crate::errors::{core_to_py, value_error};
 use finstack_quant_core::types::{CalendarId, CurveId, InstrumentId};
 use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
 
 use super::instruments::{
     decimal_from_f64, enum_from_str, json_field, parse_typed_instrument_json,
+    serialize_typed_instrument_json,
 };
 use super::typed_legs::{PyFixedLegSpec, PyFloatLegSpec};
 
@@ -37,10 +38,12 @@ pub struct PyInterestRateSwap {
 }
 
 impl PyInterestRateSwap {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::InterestRateSwap(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize InterestRateSwap"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(
+            InstrumentJson::InterestRateSwap(self.inner.clone()),
+            "InterestRateSwap",
+        )
     }
 }
 
@@ -66,15 +69,14 @@ impl PyInterestRateSwap {
         }
     }
 
-    /// Deserialize a validated swap from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated swap from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"interest_rate_swap"``, or a
-    ///     full ``finstack_quant.instrument/1`` envelope containing that
-    ///     payload. The UTF-8 input must not exceed 16 MiB; cross-type
-    ///     coercion is not performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"interest_rate_swap"`` payload. The UTF-8 input must not exceed
+    ///     16 MiB. Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -106,16 +108,16 @@ impl PyInterestRateSwap {
         }
     }
 
-    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``InterestRateSwap.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.
@@ -296,10 +298,9 @@ pub struct PySwaption {
 }
 
 impl PySwaption {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::Swaption(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize Swaption"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(InstrumentJson::Swaption(self.inner.clone()), "Swaption")
     }
 }
 
@@ -325,15 +326,14 @@ impl PySwaption {
         }
     }
 
-    /// Deserialize a validated swaption from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated swaption from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"swaption"``, or a full
-    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
-    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
-    ///     performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"swaption"`` payload. The UTF-8 input must not exceed 16 MiB.
+    ///     Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -365,16 +365,16 @@ impl PySwaption {
         }
     }
 
-    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``Swaption.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.
@@ -731,10 +731,9 @@ pub struct PyCapFloor {
 }
 
 impl PyCapFloor {
-    /// Serialize as the tagged instrument JSON accepted by the JSON loader.
-    pub(crate) fn tagged_json(&self) -> PyResult<String> {
-        serde_json::to_string(&InstrumentJson::CapFloor(self.inner.clone()))
-            .map_err(|err| serde_json_to_py(err, "failed to serialize CapFloor"))
+    /// Serialize as the canonical instrument envelope accepted by the JSON loader.
+    pub(crate) fn envelope_json(&self) -> PyResult<String> {
+        serialize_typed_instrument_json(InstrumentJson::CapFloor(self.inner.clone()), "CapFloor")
     }
 }
 
@@ -760,15 +759,14 @@ impl PyCapFloor {
         }
     }
 
-    /// Deserialize a validated cap/floor from bare tagged JSON or a versioned envelope.
+    /// Deserialize a validated cap/floor from its canonical v1 envelope.
     ///
     /// Parameters
     /// ----------
     /// json : str
-    ///     Bare tagged JSON with exact type ``"cap_floor"``, or a full
-    ///     ``finstack_quant.instrument/1`` envelope containing that payload.
-    ///     The UTF-8 input must not exceed 16 MiB; cross-type coercion is not
-    ///     performed.
+    ///     A ``finstack_quant.instrument/1`` envelope containing an exact
+    ///     ``"cap_floor"`` payload. The UTF-8 input must not exceed 16 MiB.
+    ///     Bare payloads and cross-type coercion are rejected.
     ///
     /// Returns
     /// -------
@@ -800,16 +798,16 @@ impl PyCapFloor {
         }
     }
 
-    /// Serialize to tagged instrument JSON accepted by ``price_instrument``.
+    /// Serialize to a canonical ``finstack_quant.instrument/1`` envelope.
     ///
     /// Returns
     /// -------
     /// str
-    ///     Tagged instrument JSON accepted by ``price_instrument`` and
+    ///     Canonical instrument envelope accepted by ``price_instrument`` and
     ///     ``CapFloor.from_json``.
     #[pyo3(text_signature = "($self)")]
     fn to_json(&self) -> PyResult<String> {
-        self.tagged_json()
+        self.envelope_json()
     }
 
     /// Instrument identifier.

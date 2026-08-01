@@ -13,10 +13,10 @@ use crate::instruments::rates::fra::ForwardRateAgreement;
 use crate::metrics::sensitivities::config as sens_config;
 use crate::metrics::sensitivities::cs01::sensitivity_central_diff;
 use crate::metrics::{MetricCalculator, MetricContext};
-use finstack_quant_core::dates::{DayCountContext, Tenor};
+use finstack_quant_core::dates::DayCountContext;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{
-    ForwardCurve, ForwardCurveRateCalibration, ForwardCurveRateQuote,
+    ForwardCurve, RateCalibrationPillar, RateCalibrationQuote, RateCalibrationRecipe,
 };
 use finstack_quant_core::Result;
 
@@ -34,11 +34,11 @@ impl MetricCalculator for FraRateCurveDv01Calculator {
         let forward = market.get_forward(fra.forward_curve_id.as_str())?;
 
         let discount_cal = discount.rate_calibration();
-        if discount_cal.is_none() && discount.rate_calibration_recipe().is_none() {
+        if discount_cal.is_none() {
             return generic_fallback(context);
         }
         let forward_cal = forward.rate_calibration();
-        if forward_cal.is_none() && forward.rate_calibration_recipe().is_none() {
+        if forward_cal.is_none() {
             return generic_fallback(context);
         }
 
@@ -93,11 +93,11 @@ fn generic_fallback(context: &mut MetricContext) -> Result<f64> {
     .calculate(context)
 }
 
-fn uses_basis_quotes(calibration: &ForwardCurveRateCalibration) -> bool {
+fn uses_basis_quotes(calibration: &RateCalibrationRecipe) -> bool {
     calibration
         .quotes
         .iter()
-        .any(|quote| matches!(quote, ForwardCurveRateQuote::Basis { .. }))
+        .any(|quote| matches!(quote, RateCalibrationQuote::Basis { .. }))
 }
 
 /// Rebuild a basis-calibrated forward curve under a parallel quote shock.
@@ -115,23 +115,24 @@ fn uses_basis_quotes(calibration: &ForwardCurveRateCalibration) -> bool {
 ///   period start.
 fn rebuild_forward_curve_from_basis_quotes(
     base_curve: &ForwardCurve,
-    calibration: &ForwardCurveRateCalibration,
+    calibration: &RateCalibrationRecipe,
     discount_curve: &finstack_quant_core::market_data::term_structures::DiscountCurve,
     bump_bp: f64,
 ) -> Result<ForwardCurve> {
     let mut points = Vec::with_capacity(calibration.quotes.len().max(2));
     for quote in &calibration.quotes {
         match quote {
-            ForwardCurveRateQuote::Deposit { tenor, rate } => {
-                let t = tenor_time(base_curve, tenor)?;
+            RateCalibrationQuote::Deposit { pillar, rate, .. } => {
+                let t = pillar_time(base_curve, pillar)?;
                 points.push((0.0, rate + bump_bp / 10_000.0));
                 points.push((t, rate + bump_bp / 10_000.0));
             }
-            ForwardCurveRateQuote::Basis {
-                tenor,
+            RateCalibrationQuote::Basis {
+                pillar,
                 spread_decimal,
+                ..
             } => {
-                let maturity_t = tenor_time(base_curve, tenor)?;
+                let maturity_t = pillar_time(base_curve, pillar)?;
                 let start_t = (maturity_t - base_curve.tenor()).max(0.0);
                 let end_t = maturity_t.max(start_t + 1e-8);
                 let tau = end_t - start_t;
@@ -150,19 +151,33 @@ fn rebuild_forward_curve_from_basis_quotes(
                 };
                 let reference_rate =
                     period_rate.mul_add(1.0 - maturity_weight, maturity_rate * maturity_weight);
-                points.push((start_t, reference_rate + *spread_decimal));
+                points.push((
+                    start_t,
+                    reference_rate + *spread_decimal + bump_bp / 10_000.0,
+                ));
             }
-            ForwardCurveRateQuote::Fra { start, rate, .. } => {
-                let start_t = base_curve.day_count().year_fraction(
-                    base_curve.base_date(),
-                    *start,
-                    DayCountContext::default(),
-                )?;
+            RateCalibrationQuote::Fra { start, rate, .. } => {
+                let start_t = pillar_time(base_curve, start)?;
                 points.push((start_t, rate + bump_bp / 10_000.0));
             }
-            ForwardCurveRateQuote::Swap { tenor, rate, .. } => {
-                let t = tenor_time(base_curve, tenor)?;
+            RateCalibrationQuote::Swap { pillar, rate, .. } => {
+                let t = pillar_time(base_curve, pillar)?;
                 points.push((t, rate + bump_bp / 10_000.0));
+            }
+            RateCalibrationQuote::Futures {
+                expiry,
+                price,
+                convexity_adjustment,
+                ..
+            } => {
+                let t = base_curve.day_count().year_fraction(
+                    base_curve.base_date(),
+                    *expiry,
+                    DayCountContext::default(),
+                )?;
+                let rate = (100.0 - price) / 100.0 - convexity_adjustment.unwrap_or(0.0)
+                    + bump_bp / 10_000.0;
+                points.push((t, rate));
             }
         }
     }
@@ -184,15 +199,15 @@ fn rebuild_forward_curve_from_basis_quotes(
         .build()
 }
 
-fn tenor_time(base_curve: &ForwardCurve, tenor: &str) -> Result<f64> {
-    let parsed: Tenor = tenor.parse().map_err(|err| {
-        finstack_quant_core::Error::Validation(format!("invalid rate quote tenor {tenor:?}: {err}"))
-    })?;
-    let maturity = parsed.add_to_date(
-        base_curve.base_date(),
-        None,
-        finstack_quant_core::dates::BusinessDayConvention::Following,
-    )?;
+fn pillar_time(base_curve: &ForwardCurve, pillar: &RateCalibrationPillar) -> Result<f64> {
+    let maturity = match pillar {
+        RateCalibrationPillar::Tenor(tenor) => tenor.add_to_date(
+            base_curve.base_date(),
+            None,
+            finstack_quant_core::dates::BusinessDayConvention::Following,
+        )?,
+        RateCalibrationPillar::Date(date) => *date,
+    };
     base_curve.day_count().year_fraction(
         base_curve.base_date(),
         maturity,

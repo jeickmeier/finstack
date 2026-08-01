@@ -19,7 +19,7 @@ pub const ECL_POLICY_EXTENSION_KEY: &str = "statements_analytics.ecl_policy.v1";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct EclPolicyRegistry {
-    schema_version: String,
+    schema: String,
     default_ifrs9_policy_id: String,
     default_cecl_policy_id: String,
     ifrs9_policies: Vec<Ifrs9PolicyRecord>,
@@ -51,10 +51,10 @@ impl EclPolicyRegistry {
     }
 
     fn validate(&self) -> Result<()> {
-        if self.schema_version != "finstack_quant.ecl_policy/1" {
+        if self.schema != "finstack_quant.ecl_policy/1" {
             return Err(Error::Validation(format!(
                 "unsupported ECL policy schema version '{}'",
-                self.schema_version
+                self.schema
             )));
         }
         validate_ids(
@@ -558,9 +558,32 @@ mod tests {
         assert!(binding_default_classify_stage_dpd_90_trigger());
         assert_eq!(binding_default_cure_periods_stage2_to_1(), 3);
         // Aligned with the core IFRS 9 staging default (EBA GL 12-month
-        // probation); was previously 6 and diverged from
-        // `ifrs9_policies[0].staging.cure_periods_stage3_to_2`.
+        // probation).
         assert_eq!(binding_default_cure_periods_stage3_to_2(), 12);
         assert_eq!(binding_default_compute_ecl_bucket_width_years(), 0.25);
+    }
+
+    #[test]
+    fn persisted_ecl_enum_values_are_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&LgdType::PointInTime).expect("serialize LGD type"),
+            "\"point_in_time\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ReversionMethod::Immediate).expect("serialize reversion method"),
+            "\"immediate\""
+        );
+        assert_eq!(
+            serde_json::to_string(&CeclMethodology::PdLgdEad).expect("serialize CECL methodology"),
+            "\"pd_lgd_ead\""
+        );
+    }
+
+    #[test]
+    fn retired_ecl_enum_values_are_rejected() {
+        // schema-rejection-test: old persisted enum spellings must stay invalid.
+        assert!(serde_json::from_str::<LgdType>("\"PointInTime\"").is_err());
+        assert!(serde_json::from_str::<ReversionMethod>("\"Immediate\"").is_err());
+        assert!(serde_json::from_str::<CeclMethodology>("\"PdLgdEad\"").is_err());
     }
 }

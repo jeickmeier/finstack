@@ -45,7 +45,6 @@ def test_parser_handles_multiline_qualified_and_manual_traits() -> None:
     assert by_name["MultilineSpec"].capabilities == frozenset({"Serialize", "Deserialize", "JsonSchema"})
     assert by_name["QualifiedEnvelope"].capabilities == frozenset({"Serialize", "Deserialize", "JsonSchema"})
     assert by_name["ManualResult"].capabilities == frozenset({"Serialize", "Deserialize", "JsonSchema"})
-    assert by_name["MacroProvidedSpec"].capabilities == frozenset({"Serialize", "Deserialize", "JsonSchema"})
 
 
 def test_crate_scan_resolves_modules_reexports_aliases_and_cross_file_impls() -> None:
@@ -144,8 +143,8 @@ pub mod second {
     assert report.reviewed_exceptions == (exception,)
 
 
-def test_default_build_cfg_and_macro_directionality() -> None:
-    """Only default-build capabilities count, including macro directionality."""
+def test_default_build_cfg_directionality() -> None:
+    """Only capabilities enabled in the effective default build count."""
     declarations = _MODULE.scan_crate(
         _FIXTURES / "module_graph",
         crate="sample",
@@ -159,7 +158,6 @@ def test_default_build_cfg_and_macro_directionality() -> None:
     assert by_name["NestedPredicateResult"].capabilities == frozenset({"Serialize"})
     assert by_name["CfgManualResult"].capabilities == frozenset()
     assert by_name["CfgExternalImplResult"].capabilities == frozenset()
-    assert by_name["SkipDeserializeSpec"].capabilities == frozenset({"Serialize", "JsonSchema"})
 
 
 def test_split_top_level_tracks_all_rust_delimiters() -> None:
@@ -182,18 +180,16 @@ def test_target_predicates_follow_current_host_policy() -> None:
     assert not _MODULE._cfg_condition_enabled('target_os = "definitely_other"')
 
 
-def test_portfolio_margin_manual_impls_resolve_across_files() -> None:
-    """The production cross-file wire impls are effective capabilities."""
+def test_portfolio_margin_manual_impl_resolves_across_files() -> None:
+    """The production cross-file wire impls provide effective capabilities."""
     declarations = _MODULE.scan_crate(
         _REPOSITORY_ROOT / "finstack-quant" / "portfolio",
         crate="portfolio",
         source_root=_REPOSITORY_ROOT,
     )
     declaration = next(item for item in declarations if item.name == "PortfolioMarginResult")
-    dependency_alias = next(item for item in declarations if item.name == "MarketDependenciesSpec")
 
     assert declaration.capabilities == frozenset({"Serialize", "Deserialize"})
-    assert dependency_alias.kind == "alias"
 
 
 def test_production_recursive_glob_discovers_cashflow_envelope() -> None:

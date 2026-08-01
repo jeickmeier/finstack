@@ -16,7 +16,7 @@ import json
 from finstack_quant import statements
 from finstack_quant.core.market_data import DiscountCurve, MarketContext
 from finstack_quant.core.table import ArrowTable
-from finstack_quant.portfolio import Portfolio, value_portfolio_typed
+from finstack_quant.portfolio import Portfolio, value_portfolio
 
 AS_OF = date(2025, 1, 15)
 
@@ -60,7 +60,7 @@ def _portfolio_spec_json() -> str:
     return json.dumps({
         "id": "arrow-test",
         "as_of": AS_OF.isoformat(),
-        "base_ccy": "USD",
+        "base_currency": "USD",
         "entities": {"FUND": {"id": "FUND"}},
         "positions": [
             {
@@ -71,11 +71,11 @@ def _portfolio_spec_json() -> str:
                     "type": "deposit",
                     "spec": {
                         "id": "DEP-0",
-                        "notional": {"amount": 1_000_000.0, "currency": "USD"},
+                        "notional": {"amount": "1000000", "currency": "USD"},
                         "start_date": AS_OF.isoformat(),
                         "maturity": "2025-07-15",
-                        "day_count": "Act360",
-                        "quote_rate": 0.04,
+                        "day_count": "act_360",
+                        "quote_rate": "0.04",
                         "discount_curve_id": "USD-OIS",
                         "attributes": {},
                     },
@@ -94,7 +94,7 @@ def _market() -> MarketContext:
 
 def test_to_arrow_positions_matches_positions_to_table_columns() -> None:
     portfolio = Portfolio.from_spec(_portfolio_spec_json())
-    valuation = value_portfolio_typed(portfolio, _market())
+    valuation = value_portfolio(portfolio, _market())
 
     at = valuation.to_arrow_positions()
 

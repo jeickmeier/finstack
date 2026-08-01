@@ -1,16 +1,9 @@
 //! Contract test for the checked-in instrument JSON examples.
 //!
-//! Every file under `tests/instruments/json_examples/` is a hand-maintained
-//! reference payload that developers copy when authoring instrument JSON. None
-//! of them (apart from `structured_credit_full.json`) was previously loaded by
-//! any test, so they were free to rot silently as the wire format evolved — and
-//! two of them had: `credit_default_swap.json` and `cds_index.json` still used
-//! the pre-`rename_all` PascalCase `"IsdaNa"` for `CDSConvention` and predated
-//! the `FocusedPricingOverrides` derive that flattens the three pricing-override
-//! structs into a single `pricing_overrides` object.
-//!
-//! This test walks the directory and asserts every example deserializes under
-//! the current schema, so drift fails loudly instead of misleading a reader.
+//! Every canonical fixture under `tests/instruments/json_examples/` is emitted
+//! from the instrument registry and its real serde type. This test also loads
+//! each artifact through the runtime envelope so generator or registry drift
+//! fails at the same boundary used by consumers.
 
 use std::path::{Path, PathBuf};
 

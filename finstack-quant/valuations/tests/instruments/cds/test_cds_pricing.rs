@@ -310,7 +310,7 @@ fn test_par_spread_positive() {
     assert!(par_spread > 0.0, "Par spread should be positive");
     assert!(
         par_spread < 1000.0,
-        "Par spread should be reasonable (<1000 bps)"
+        "Par spread should be reasonable (<1000 bp)"
     );
 }
 

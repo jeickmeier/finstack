@@ -517,7 +517,7 @@ pub fn measure_inflation_source_shift(
 ///
 /// # Arguments
 ///
-/// * `surface_id` - Volatility surface identifier
+/// * `vol_surface_id` - Volatility surface identifier
 /// * `market_t0` - Market context at T₀
 /// * `market_t1` - Market context at T₁
 /// * `reference_expiry` - Optional expiry to measure (defaults to 1Y ATM)
@@ -550,14 +550,14 @@ pub fn measure_inflation_source_shift(
 /// # }
 /// ```
 pub fn measure_vol_surface_shift(
-    surface_id: impl AsRef<str>,
+    vol_surface_id: impl AsRef<str>,
     market_t0: &MarketContext,
     market_t1: &MarketContext,
     reference_expiry: Option<f64>,
     reference_strike: Option<f64>,
 ) -> Result<f64> {
-    let surface_t0 = market_t0.get_surface(&surface_id)?;
-    let surface_t1 = market_t1.get_surface(&surface_id)?;
+    let surface_t0 = market_t0.get_surface(&vol_surface_id)?;
+    let surface_t1 = market_t1.get_surface(&vol_surface_id)?;
 
     // If specific point requested, measure there
     if let (Some(expiry), Some(strike)) = (reference_expiry, reference_strike) {
@@ -614,9 +614,9 @@ pub fn measure_vol_surface_shift(
 ///
 /// # Arguments
 ///
-/// * `base_ccy` - Base currency of the FX quote; the measured rate is units
-///   of `quote_ccy` received for one unit of this currency.
-/// * `quote_ccy` - Quote currency of the FX quote whose change is measured.
+/// * `base_currency` - Base currency of the FX quote; the measured rate is units
+///   of `quote_currency` received for one unit of this currency.
+/// * `quote_currency` - Quote currency of the FX quote whose change is measured.
 /// * `market_t0` - Baseline market context supplying the earlier FX matrix.
 /// * `market_t1` - Comparison market context supplying the later FX matrix.
 /// * `as_of_t0` - Valuation date used to query the baseline FX matrix.
@@ -654,8 +654,8 @@ pub fn measure_vol_surface_shift(
 /// # }
 /// ```
 pub fn measure_fx_shift(
-    base_ccy: Currency,
-    quote_ccy: Currency,
+    base_currency: Currency,
+    quote_currency: Currency,
     market_t0: &MarketContext,
     market_t1: &MarketContext,
     as_of_t0: Date,
@@ -668,8 +668,8 @@ pub fn measure_fx_shift(
     let fx_t1 = market_t1.fx_required()?;
 
     // Get rates using FxQuery with the provided valuation dates
-    let query_t0 = FxQuery::new(base_ccy, quote_ccy, as_of_t0);
-    let query_t1 = FxQuery::new(base_ccy, quote_ccy, as_of_t1);
+    let query_t0 = FxQuery::new(base_currency, quote_currency, as_of_t0);
+    let query_t1 = FxQuery::new(base_currency, quote_currency, as_of_t1);
     let rate_t0 = fx_t0.rate(query_t0)?.rate;
     let rate_t1 = fx_t1.rate(query_t1)?.rate;
 
@@ -677,7 +677,7 @@ pub fn measure_fx_shift(
     if rate_t0 == 0.0 {
         return Err(crate::Error::Validation(format!(
             "Cannot compute FX shift: rate_t0 is zero for {}/{}",
-            base_ccy, quote_ccy
+            base_currency, quote_currency
         )));
     }
 

@@ -106,7 +106,7 @@ fn test_different_day_counts() {
 
     let day_counts = vec![DayCount::Act360, DayCount::Act365F, DayCount::Thirty360];
 
-    for dc in day_counts {
+    for day_count in day_counts {
         let future = InterestRateFuture {
             id: "IRF_DC_TEST".into(),
             notional: Money::new(1_000_000.0, Currency::USD),
@@ -115,7 +115,7 @@ fn test_different_day_counts() {
             period_start: Some(start),
             period_end: Some(end),
             quoted_price: 97.50,
-            day_count: dc,
+            day_count,
             position: Position::Long,
             contract_specs: FutureContractSpecs::default(),
             discount_curve_id: "USD_OIS".into(),
@@ -127,7 +127,7 @@ fn test_different_day_counts() {
             attributes: Default::default(),
         };
 
-        assert_eq!(future.day_count, dc);
+        assert_eq!(future.day_count, day_count);
     }
 }
 

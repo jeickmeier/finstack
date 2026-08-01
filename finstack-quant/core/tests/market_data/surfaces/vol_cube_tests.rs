@@ -149,19 +149,16 @@ fn vol_cube_clamped_queries_propagate_non_finite_coordinates() {
 }
 
 #[test]
-fn test_vol_cube_serde_defaults_legacy_missing_interpolation_mode_to_vol() {
+fn test_vol_cube_serde_requires_interpolation_mode() {
     let json = r#"{
-        "id": "LEGACY-CUBE",
+        "id": "MISSING-MODE-CUBE",
         "expiries": [1.0],
         "tenors": [5.0],
         "params": [{"alpha": 0.035, "beta": 0.5, "rho": -0.2, "nu": 0.4}],
         "forwards": [0.03]
     }"#;
 
-    let cube: VolCube = serde_json::from_str(json).unwrap();
-    let serialized = serde_json::to_value(cube).unwrap();
-
-    assert_eq!(serialized["interpolation_mode"], "vol");
+    assert!(serde_json::from_str::<VolCube>(json).is_err());
 }
 
 #[test]

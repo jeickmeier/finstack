@@ -41,7 +41,9 @@ use rust_decimal::Decimal;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct InflationSwap {
@@ -50,12 +52,13 @@ pub struct InflationSwap {
     /// Notional in quote currency
     pub notional: Money,
     /// Start date of indexation
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Maturity date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Fixed real rate (as decimal)
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub fixed_rate: Decimal,
     /// Inflation index identifier (e.g., US-CPI-U)
     pub inflation_index_id: CurveId,
@@ -76,23 +79,32 @@ pub struct InflationSwap {
     /// Defaults to `Following` if not specified.
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Holiday calendar identifier for payment date adjustment.
     /// If not specified, payment dates are used unadjusted.
     #[builder(optional)]
     pub calendar_id: Option<CalendarId>,
     /// Attributes for scenario selection and tagging
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -121,7 +133,7 @@ impl InflationSwap {
             .day_count(DayCount::Act365F)
             .side(PayReceive::Pay)
             .lag_override(InflationLag::Months(3))
-            .bdc(BusinessDayConvention::Following)
+            .business_day_convention(BusinessDayConvention::Following)
             .attributes(Attributes::new())
             .build()
             .expect("Example InflationSwap construction should not fail")
@@ -288,7 +300,7 @@ impl InflationSwap {
     ///
     /// If no calendar is specified, returns the unadjusted date.
     fn adjusted_payment_date(&self, date: Date) -> finstack_quant_core::Result<Date> {
-        let bdc = self.bdc;
+        let business_day_convention = self.business_day_convention;
         if let Some(ref cal_id) = self.calendar_id {
             use finstack_quant_core::dates::calendar_by_id;
             let cal = calendar_by_id(cal_id).ok_or_else(|| {
@@ -297,7 +309,7 @@ impl InflationSwap {
                     self.id, cal_id
                 ))
             })?;
-            return finstack_quant_core::dates::adjust(date, bdc, cal);
+            return finstack_quant_core::dates::adjust(date, business_day_convention, cal);
         }
         // No calendar specified - return unadjusted (common for inflation swaps)
         Ok(date)
@@ -617,7 +629,9 @@ impl finstack_quant_cashflows::CashflowScheduleSource for InflationSwap {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct YoYInflationSwap {
@@ -626,12 +640,13 @@ pub struct YoYInflationSwap {
     /// Notional in quote currency
     pub notional: Money,
     /// Start date of the first accrual period
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Maturity date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Fixed rate (decimal)
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub fixed_rate: Decimal,
     /// Payment frequency
     pub frequency: Tenor,
@@ -649,22 +664,31 @@ pub struct YoYInflationSwap {
     /// Business day convention for payment date adjustment.
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Holiday calendar identifier for payment date adjustment.
     #[builder(optional)]
     pub calendar_id: Option<CalendarId>,
     /// Attributes for scenario selection and tagging
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -696,7 +720,7 @@ impl YoYInflationSwap {
             .day_count(DayCount::Act365F)
             .side(PayReceive::Pay)
             .lag_override(InflationLag::Months(3))
-            .bdc(BusinessDayConvention::ModifiedFollowing)
+            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
             .attributes(Attributes::new())
             .build()
             .expect("Example YoYInflationSwap construction should not fail")
@@ -759,14 +783,14 @@ impl YoYInflationSwap {
     }
 
     fn schedule(&self) -> finstack_quant_core::Result<Vec<(Date, Date, Date)>> {
-        let bdc = self.bdc;
+        let business_day_convention = self.business_day_convention;
         let periods = crate::cashflow::builder::periods::build_periods(
             crate::cashflow::builder::periods::BuildPeriodsParams {
                 start: self.start_date,
                 end: self.maturity,
                 frequency: self.frequency,
                 stub: StubKind::None,
-                bdc,
+                business_day_convention,
                 calendar_id: self
                     .calendar_id
                     .as_deref()
@@ -1178,7 +1202,7 @@ mod tests {
         let maturity = d(2025, Month::January, 18);
         let as_of = d(2025, Month::January, 19);
         let mut swap = sample_swap(start, maturity);
-        swap.bdc = BusinessDayConvention::Following;
+        swap.business_day_convention = BusinessDayConvention::Following;
         swap.calendar_id = Some("nyse".into());
 
         let market = MarketContext::new()

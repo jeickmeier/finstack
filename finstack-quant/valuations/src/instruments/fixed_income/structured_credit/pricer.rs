@@ -39,8 +39,8 @@ impl StructuredCredit {
         context: &MarketContext,
         as_of: Date,
     ) -> finstack_quant_core::Result<Money> {
-        let base_ccy = self.pool.base_currency();
-        let mut total_hedge_npv = Money::new(0.0, base_ccy);
+        let base_currency = self.pool.base_currency();
+        let mut total_hedge_npv = Money::new(0.0, base_currency);
 
         for swap in &self.hedge_swaps {
             let swap_npv = swap.value(context, as_of)?;

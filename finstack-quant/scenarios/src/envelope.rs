@@ -11,14 +11,19 @@ use crate::ScenarioSpec;
 
 /// Persistence contract for [`ScenarioEnvelope`].
 pub const SCENARIO_CONTRACT: ContractDescriptor =
-    ContractDescriptor::new("finstack_quant.scenario", 1);
+    ContractDescriptor::new("finstack_quant.scenario");
 
-fn scenario_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    let marker = SCENARIO_CONTRACT.schema_string();
-    schemars::json_schema!({
-        "type": "string",
-        "const": marker,
-    })
+/// Exact schema marker accepted by [`ScenarioEnvelope`].
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub enum ScenarioSchema {
+    /// The sole supported scenario contract.
+    #[serde(rename = "finstack_quant.scenario/1")]
+    Scenario,
+}
+
+impl ScenarioSchema {
+    /// The exact marker required by every persisted scenario envelope.
+    pub const CURRENT: Self = Self::Scenario;
 }
 
 /// Versioned wrapper used when persisting a scenario specification.
@@ -26,8 +31,7 @@ fn scenario_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema
 #[serde(deny_unknown_fields)]
 pub struct ScenarioEnvelope {
     /// Exact scenario contract marker.
-    #[schemars(schema_with = "scenario_schema_marker")]
-    pub schema: String,
+    pub schema: ScenarioSchema,
     /// Bare scenario specification used by in-process APIs.
     pub scenario: ScenarioSpec,
 }
@@ -41,7 +45,7 @@ impl ScenarioEnvelope {
     #[must_use]
     pub fn new(scenario: ScenarioSpec) -> Self {
         Self {
-            schema: SCENARIO_CONTRACT.schema_string(),
+            schema: ScenarioSchema::CURRENT,
             scenario,
         }
     }

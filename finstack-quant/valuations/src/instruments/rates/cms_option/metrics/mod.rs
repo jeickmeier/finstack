@@ -223,7 +223,7 @@ impl MetricCalculator for VannaCalculator {
                 time_to_fixing,
                 inst.cms_tenor,
                 forward_swap_rate,
-                1.0 / inst.resolved_swap_fixed_freq().to_years_simple(),
+                1.0 / inst.resolved_swap_fixed_frequency().to_years_simple(),
             );
             let d_conv_d_vol = if vol.abs() > 1e-10 {
                 2.0 * conv_adj / vol

@@ -19,7 +19,7 @@ use finstack_quant_core::Result;
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // public API result struct
 pub(crate) struct StaticSpreadResult {
-    /// Static Z-spread in decimal (e.g., 0.01 for 100 bps)
+    /// Static Z-spread in decimal (e.g., 0.01 for 100 bp)
     pub spread: f64,
     /// Model price at the solved static Z-spread
     pub model_price: f64,
@@ -60,7 +60,7 @@ pub(crate) fn calculate_static_zspread(
     let market_price = market_price_pct / 100.0 * mbs.current_face.amount();
 
     // Use core's BrentSolver instead of a hand-rolled implementation.
-    // Bracket bounds: -500 bps to +2000 bps covers virtually all OAS scenarios.
+    // Bracket bounds: -500 bp to +2000 bp covers virtually all OAS scenarios.
     let solver = BrentSolver::new()
         .tolerance(1e-8)
         .max_iterations(100)
@@ -179,7 +179,7 @@ mod tests {
         let result = calculate_static_zspread(&mbs, market_price_pct, &market, as_of).expect("oas");
 
         assert!(result.converged);
-        assert!(result.spread.abs() < 0.001); // Within 10 bps of zero
+        assert!(result.spread.abs() < 0.001); // Within 10 bp of zero
     }
 
     #[test]

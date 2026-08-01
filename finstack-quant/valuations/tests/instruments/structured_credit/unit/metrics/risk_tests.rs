@@ -102,11 +102,11 @@ fn test_z_spread_zero_for_curve_pv() {
         pv += amount.amount() * df;
     }
 
-    let z_spread_bps =
+    let z_spread_bp =
         calculate_tranche_z_spread(&flows, &curve, Money::new(pv, Currency::USD), as_of).unwrap();
 
     assert!(
-        z_spread_bps.abs() < 0.1,
+        z_spread_bp.abs() < 0.1,
         "Z-spread should be near 0 for curve-implied PV"
     );
 }
@@ -222,7 +222,7 @@ mod discount_margin_tests {
             all_in_cap_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,
@@ -233,7 +233,7 @@ mod discount_margin_tests {
     }
 
     fn deal(floating_senior: bool) -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),
@@ -353,7 +353,9 @@ mod discount_margin_tests {
     fn discount_margin_reachable_through_json() {
         // The discount-margin metric is reachable from the JSON binding surface
         // and returns the same value as the direct call.
-        use finstack_quant_valuations::instruments::json_loader::InstrumentJson;
+        use finstack_quant_valuations::instruments::json_loader::{
+            InstrumentEnvelope, InstrumentJson,
+        };
         use finstack_quant_valuations::pricer::structured_credit_tranche_discount_margin_json;
 
         let sc = deal(true);
@@ -361,7 +363,10 @@ mod discount_margin_tests {
         let pv = sc.value_tranche("SR", &mkt, closing()).unwrap();
         let direct = calculate_tranche_discount_margin(&sc, "SR", &mkt, closing(), pv).unwrap();
 
-        let json = serde_json::to_string(&InstrumentJson::StructuredCredit(Box::new(sc))).unwrap();
+        let json = serde_json::to_string(&InstrumentEnvelope::new(
+            InstrumentJson::StructuredCredit(Box::new(sc)),
+        ))
+        .unwrap();
         let from_json = structured_credit_tranche_discount_margin_json(
             &json,
             "SR",
@@ -410,7 +415,7 @@ mod breakeven_cdr_tests {
     /// 80% senior / 20% equity ABS, no prepayment, 40% recovery: the senior is
     /// loss-remote until cumulative collateral loss exceeds the 20% subordination.
     fn deal() -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),
@@ -511,7 +516,7 @@ mod scenario_table_tests {
     }
 
     fn deal() -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),
@@ -668,7 +673,7 @@ mod oas_tests {
     }
 
     fn deal() -> StructuredCredit {
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),
@@ -723,7 +728,7 @@ mod oas_tests {
 
         let cf = sc.get_tranche_cashflows("SR", &mkt, as_of).unwrap();
         let disc = mkt.get_discount(&sc.discount_curve_id).unwrap();
-        let z_bps =
+        let z_bp =
             calculate_tranche_z_spread(&cf.cashflows, disc.as_ref(), target_pv, as_of).unwrap();
 
         let config = OasConfig {
@@ -734,10 +739,10 @@ mod oas_tests {
         let oas = calculate_tranche_oas(&sc, "SR", market_price, &mkt, as_of, &config).unwrap();
 
         assert!(
-            (oas.oas - z_bps / 10_000.0).abs() < 1e-4,
+            (oas.oas - z_bp / 10_000.0).abs() < 1e-4,
             "deterministic OAS {} should equal z-spread {} (decimal)",
             oas.oas,
-            z_bps / 10_000.0
+            z_bp / 10_000.0
         );
     }
 
@@ -758,7 +763,7 @@ mod oas_tests {
 
         let cf = sc.get_tranche_cashflows("SR", &mkt, as_of).unwrap();
         let disc = mkt.get_discount(&sc.discount_curve_id).unwrap();
-        let z_bps =
+        let z_bp =
             calculate_tranche_z_spread(&cf.cashflows, disc.as_ref(), target_pv, as_of).unwrap();
 
         let config = OasConfig {
@@ -771,11 +776,11 @@ mod oas_tests {
         };
         let oas = calculate_tranche_oas(&sc, "SR", market_price, &mkt, as_of, &config).unwrap();
         assert!(
-            (oas.oas - z_bps / 10_000.0).abs() < 1e-4,
+            (oas.oas - z_bp / 10_000.0).abs() < 1e-4,
             "zero-vol stochastic-rate OAS {} should equal the z-spread {} (decimal) \
              when discounting is curve-consistent",
             oas.oas,
-            z_bps / 10_000.0
+            z_bp / 10_000.0
         );
     }
 
@@ -809,7 +814,9 @@ mod oas_tests {
         use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
             calculate_tranche_breakeven_cdr, scenario_table, ScenarioGrid,
         };
-        use finstack_quant_valuations::instruments::json_loader::InstrumentJson;
+        use finstack_quant_valuations::instruments::json_loader::{
+            InstrumentEnvelope, InstrumentJson,
+        };
         use finstack_quant_valuations::pricer::{
             structured_credit_tranche_breakeven_cdr_json, structured_credit_tranche_oas_json,
             structured_credit_tranche_scenario_table_json,
@@ -818,8 +825,10 @@ mod oas_tests {
         let sc = deal();
         let mkt = market();
         let as_of = closing();
-        let json =
-            serde_json::to_string(&InstrumentJson::StructuredCredit(Box::new(sc.clone()))).unwrap();
+        let json = serde_json::to_string(&InstrumentEnvelope::new(
+            InstrumentJson::StructuredCredit(Box::new(sc.clone())),
+        ))
+        .unwrap();
 
         // OAS (deterministic config so the comparison is exact).
         let config = OasConfig {

@@ -18,6 +18,7 @@ use finstack_quant_core::types::CreditRating;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum TrancheBehaviorType {
     /// Standard debt tranche that receives interest and principal payments.
     Standard,
@@ -36,7 +37,7 @@ pub struct CoverageTrigger {
     /// Optional higher coverage ratio required to cure a breach.
     pub cure_level: Option<f64>,
     /// Date on which the breach was recorded, if one has occurred.
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub breach_date: Option<Date>,
     /// Consequence applied while the trigger is breached.
     pub consequence: TriggerConsequence,
@@ -110,7 +111,7 @@ impl Default for CreditEnhancement {
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum TrancheCoupon {
     /// Fixed rate coupon (rate as decimal, e.g., 0.05 for 5%)
     Fixed {
@@ -313,10 +314,10 @@ pub struct Tranche {
     /// Whether reinvestment of principal is permitted
     pub can_reinvest: bool,
     /// Legal final maturity date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Expected maturity date (may be earlier than legal maturity for CLOs)
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub expected_maturity: Option<Date>,
 
     /// Payment priority (1 = most senior, paid first).
@@ -581,15 +582,15 @@ impl TrancheBuilder {
 
     /// Set payment frequency
     #[must_use]
-    pub fn frequency(mut self, freq: Tenor) -> Self {
-        self.frequency = freq;
+    pub fn frequency(mut self, frequency: Tenor) -> Self {
+        self.frequency = frequency;
         self
     }
 
     /// Set day count convention
     #[must_use]
-    pub fn day_count(mut self, dc: DayCount) -> Self {
-        self.day_count = dc;
+    pub fn day_count(mut self, day_count: DayCount) -> Self {
+        self.day_count = day_count;
         self
     }
 
@@ -959,7 +960,7 @@ mod tests {
                     all_in_floor_bp: None,
                     index_cap_bp: None,
                     overnight_index_constraints: Default::default(),
-                    reset_freq: finstack_quant_core::dates::Tenor::quarterly(),
+                    reset_frequency: finstack_quant_core::dates::Tenor::quarterly(),
                     index_tenor: None,
                     reset_lag_days: 2,
                     fixing_calendar_id: None,

@@ -1,7 +1,7 @@
 //! Regression tests for covenant engine identity and evaluation conventions.
 //!
 //! Covers:
-//! - B3: `project_finance` MinDSCR identity collision — a distribution-lockup
+//! - B3: `project_finance` MinDscr identity collision — a distribution-lockup
 //!   breach must trigger `BlockDistributions` only, never the primary
 //!   covenant's Event of Default.
 //! - Duplicate instance keys are rejected at evaluation time.
@@ -79,7 +79,7 @@ fn project_finance_lockup_breach_blocks_distributions_without_default() {
         .evaluate_and_track(&mut metrics, test_date)
         .expect("evaluation should succeed");
 
-    // Both MinDSCR covenants are present under distinct keys.
+    // Both MinDscr covenants are present under distinct keys.
     assert!(
         reports.contains_key("min_dscr_default"),
         "primary DSCR covenant missing from reports: {:?}",
@@ -108,7 +108,7 @@ fn project_finance_lockup_breach_blocks_distributions_without_default() {
         .expect("consequence application should succeed");
 
     assert_eq!(applications.len(), 1);
-    assert_eq!(applications[0].consequence_type, "Block Distributions");
+    assert_eq!(applications[0].consequence_type, "block_distributions");
     assert!(instrument.distributions_blocked);
     assert!(
         !instrument.in_default,
@@ -122,14 +122,14 @@ fn duplicate_instance_keys_are_rejected_at_evaluation() {
     // Two same-type covenants without labels collide on "min_dscr".
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MinDSCR { threshold: 1.05 },
+            CovenantType::MinDscr { threshold: 1.05 },
             Tenor::quarterly(),
         ),
         CovenantMetricId::from("dscr"),
     ));
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MinDSCR { threshold: 1.25 },
+            CovenantType::MinDscr { threshold: 1.25 },
             Tenor::quarterly(),
         ),
         CovenantMetricId::from("dscr"),
@@ -150,7 +150,7 @@ fn negative_ebitda_leverage_breaches_max_ratio_covenant() {
     let mut engine = CovenantEngine::new();
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
         ),
         CovenantMetricId::from("debt_to_ebitda"),
@@ -242,7 +242,7 @@ fn persistent_breach_is_one_episode_with_one_consequence_application() {
     let mut engine = CovenantEngine::new();
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
         )
         .with_cure_period(Some(30))
@@ -293,7 +293,7 @@ fn recovery_before_cure_deadline_marks_breach_cured() {
     let mut engine = CovenantEngine::new();
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
         )
         .with_cure_period(Some(30))
@@ -334,7 +334,7 @@ fn validation_rejects_negative_cure_duplicate_schedule_and_overlapping_windows()
     let mut negative_cure = CovenantEngine::new();
     negative_cure.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
         )
         .with_cure_period(Some(-1)),
@@ -349,7 +349,7 @@ fn validation_rejects_negative_cure_duplicate_schedule_and_overlapping_windows()
     let mut overlapping = CovenantEngine::new();
     let spec = CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
         ),
         CovenantMetricId::from("debt_to_ebitda"),
@@ -372,7 +372,7 @@ fn window_fallback_to_base_specs_is_explicit() {
     let mut engine = CovenantEngine::new();
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
         ),
         CovenantMetricId::from("debt_to_ebitda"),

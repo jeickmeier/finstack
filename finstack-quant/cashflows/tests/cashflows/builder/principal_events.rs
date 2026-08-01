@@ -727,11 +727,11 @@ fn weekend_maturity_redemption_matches_final_coupon_date() {
         coupon_type: CouponType::Cash,
         rate: Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act360,
+            day_count: DayCount::Act360,
 
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -842,9 +842,9 @@ fn order_independence_fixed_spec() -> FixedCouponSpec {
         coupon_type: CouponType::Cash,
         rate: dec!(0.05),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,
@@ -867,7 +867,7 @@ fn order_independence_float_spec() -> FloatingCouponSpec {
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,
@@ -877,9 +877,9 @@ fn order_independence_float_spec() -> FloatingCouponSpec {
         },
         coupon_type: CouponType::Cash,
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,
@@ -956,11 +956,11 @@ fn full_horizon_coupon_programs_are_order_independent() {
         initial_rate: dec!(0.04),
         step_schedule: vec![(switch, dec!(0.05))],
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
+            frequency: Tenor::quarterly(),
 
-            dc: DayCount::Act360,
+            day_count: DayCount::Act360,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -988,7 +988,7 @@ fn full_horizon_coupon_programs_are_order_independent() {
     assert_program_order_independent(principal, issue, maturity, |builder| {
         let _ = builder
             .fixed_cf(order_independence_fixed_spec())
-            .payment_split_program(&[(switch, CouponType::PIK)]);
+            .payment_split_program(&[(switch, CouponType::Pik)]);
     });
 
     let fixed_window = || FixedWindow {

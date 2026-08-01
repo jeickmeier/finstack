@@ -504,27 +504,27 @@ impl PyModelBuilder {
         Ok(())
     }
 
-    /// Add a generic debt instrument via an opaque JSON specification.
+    /// Add a debt instrument from its canonical v1 instrument envelope.
     ///
     /// Use this for term loans, RCFs, or any instrument not covered by the
-    /// convenience constructors. The ``spec`` is passed straight through to
-    /// the capital-structure engine and must match the Rust deserialization
-    /// contract for the intended instrument type.
+    /// convenience constructors. The payload is parsed into the canonical
+    /// Rust instrument enum before it is added to the model.
     ///
     /// Parameters
     /// ----------
     /// id : str
     ///     Unique instrument identifier.
     /// spec_json : str
-    ///     JSON string matching the target instrument's serde shape.
+    ///     A ``finstack_quant.instrument/1`` envelope containing the target
+    ///     instrument. Bare instrument payloads are rejected.
     #[pyo3(text_signature = "($self, id, spec_json)")]
-    fn add_custom_debt(&mut self, id: &str, spec_json: &str) -> PyResult<()> {
-        let spec: serde_json::Value = serde_json::from_str(spec_json)
-            .map_err(|e| serde_json_to_py(e, "invalid debt instrument spec JSON"))?;
+    fn add_debt(&mut self, id: &str, spec_json: &str) -> PyResult<()> {
+        let spec = finstack_quant_valuations::pricer::json::parse_instrument_json(spec_json)
+            .map_err(core_to_py)?;
         let state = self.take_any()?;
         let next = match state {
-            BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(b.add_custom_debt(id, spec)),
-            BuilderState::Ready(b) => BuilderState::Ready(b.add_custom_debt(id, spec)),
+            BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(b.add_debt(id, spec)),
+            BuilderState::Ready(b) => BuilderState::Ready(b.add_debt(id, spec)),
         };
         self.inner = Some(next);
         Ok(())

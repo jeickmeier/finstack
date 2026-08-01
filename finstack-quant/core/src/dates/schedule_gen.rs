@@ -190,7 +190,7 @@ mod tests {
 pub(super) struct BuilderInternal {
     pub start: Date,
     pub end: Date,
-    pub freq: Tenor,
+    pub frequency: Tenor,
     pub stub: StubKind,
     pub eom: bool,
 }
@@ -222,7 +222,7 @@ impl BuilderInternal {
     /// Aug **31** again, not Aug 28. Chaining `prev + tenor` (the previous
     /// implementation) drifted the roll day by 1–3 days per short month.
     fn nth_tenor(self, anchor: Date, n: i32) -> crate::Result<Date> {
-        let tenor = self.freq;
+        let tenor = self.frequency;
         if n == 0 {
             return Ok(anchor);
         }

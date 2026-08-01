@@ -56,17 +56,17 @@ impl FxProvider for TestFxProvider {
 struct FxLinkedInstrument {
     id: String,
     notional: f64,
-    base_ccy: Currency,
-    reporting_ccy: Currency,
+    base_currency: Currency,
+    reporting_currency: Currency,
 }
 
 impl FxLinkedInstrument {
-    fn new(id: &str, notional: f64, base_ccy: Currency, reporting_ccy: Currency) -> Self {
+    fn new(id: &str, notional: f64, base_currency: Currency, reporting_currency: Currency) -> Self {
         Self {
             id: id.to_string(),
             notional,
-            base_ccy,
-            reporting_ccy,
+            base_currency,
+            reporting_currency,
         }
     }
 }
@@ -109,8 +109,8 @@ impl Instrument for FxLinkedInstrument {
     }
 
     fn base_value(&self, market: &MarketContext, as_of: Date) -> Result<Money> {
-        if self.base_ccy == self.reporting_ccy {
-            return Ok(Money::new(self.notional, self.reporting_ccy));
+        if self.base_currency == self.reporting_currency {
+            return Ok(Money::new(self.notional, self.reporting_currency));
         }
 
         let fx_matrix = market.fx().ok_or_else(|| {
@@ -118,10 +118,13 @@ impl Instrument for FxLinkedInstrument {
                 "FX matrix missing for FxLinkedInstrument".to_string(),
             )
         })?;
-        let query = FxQuery::new(self.base_ccy, self.reporting_ccy, as_of);
+        let query = FxQuery::new(self.base_currency, self.reporting_currency, as_of);
         let rate = fx_matrix.rate(query)?;
 
-        Ok(Money::new(self.notional * rate.rate, self.reporting_ccy))
+        Ok(Money::new(
+            self.notional * rate.rate,
+            self.reporting_currency,
+        ))
     }
 
     fn price_with_metrics(

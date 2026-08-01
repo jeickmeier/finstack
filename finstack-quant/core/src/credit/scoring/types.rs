@@ -33,6 +33,7 @@ pub struct ScoringResult {
 /// - `Grey`: ambiguous / requires further analysis.
 /// - `Distress`: high bankruptcy probability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ScoringZone {
     /// Safe zone (low bankruptcy probability).
     Safe,
@@ -44,6 +45,7 @@ pub enum ScoringZone {
 
 /// Errors from credit scoring model computation.
 #[derive(Debug, Clone, PartialEq, Error, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CreditScoringError {
     /// An input ratio is NaN or infinite.

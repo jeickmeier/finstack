@@ -15,7 +15,7 @@ use finstack_quant_core::Result;
 
 pub use crate::instruments::common_impl::parameters::PayReceive;
 
-fn default_observation_bdc() -> BusinessDayConvention {
+fn default_observation_business_day_convention() -> BusinessDayConvention {
     BusinessDayConvention::Following
 }
 
@@ -27,7 +27,9 @@ fn default_observation_bdc() -> BusinessDayConvention {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct FxVarianceSwap {
@@ -45,26 +47,26 @@ pub struct FxVarianceSwap {
     /// Strike variance (annualized)
     pub strike_variance: f64,
     /// Start date of observation period
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Contractual end of the observation period.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Optional cash-settlement date. Defaults to the adjusted final observation date.
     #[serde(default)]
     #[builder(optional)]
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub settlement_date: Option<Date>,
     /// Observation frequency
-    pub observation_freq: Tenor,
+    pub observation_frequency: Tenor,
     /// Base-currency calendar used in the joint observation calendar.
     pub base_calendar_id: String,
     /// Quote-currency calendar used in the joint observation calendar.
     pub quote_calendar_id: String,
     /// Business-day convention applied to observation dates.
-    #[serde(default = "default_observation_bdc")]
+    #[serde(default = "default_observation_business_day_convention")]
     #[builder(default = BusinessDayConvention::Following)]
-    pub observation_bdc: BusinessDayConvention,
+    pub observation_business_day_convention: BusinessDayConvention,
     /// Preserve month-end rolls for month/year observation frequencies.
     #[serde(default)]
     #[builder(default)]
@@ -103,17 +105,26 @@ pub struct FxVarianceSwap {
     /// Day count convention for time calculations
     pub day_count: DayCount,
     /// Attributes for scenario selection
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -147,7 +158,7 @@ impl FxVarianceSwap {
                 "FxVarianceSwap start_date must precede maturity".to_string(),
             ));
         }
-        if self.observation_freq.count() == 0 {
+        if self.observation_frequency.count() == 0 {
             return Err(finstack_quant_core::Error::Validation(
                 "FxVarianceSwap observation frequency must be positive".to_string(),
             ));
@@ -172,10 +183,10 @@ impl FxVarianceSwap {
             .maturity(
                 Date::from_calendar_date(2025, Month::January, 2).expect("Valid example date"),
             )
-            .observation_freq(Tenor::daily())
+            .observation_frequency(Tenor::daily())
             .base_calendar_id("TARGET2".to_string())
             .quote_calendar_id("USNY".to_string())
-            .observation_bdc(BusinessDayConvention::Following)
+            .observation_business_day_convention(BusinessDayConvention::Following)
             .observation_end_of_month(false)
             .realized_var_method(RealizedVarMethod::CloseToClose)
             .side(PayReceive::Receive)
@@ -356,7 +367,7 @@ impl InstrumentTrait for FxVarianceSwap {
             .as_deref()
             .map(finstack_quant_core::types::PriceId::new);
         if let Some(spot_id) = self.spot_id.as_deref() {
-            deps.add_spot_id(spot_id);
+            deps.add_market_scalar_id(spot_id);
         }
         if self.realized_var_method.requires_ohlc() {
             for series_id in [
@@ -466,7 +477,7 @@ mod tests {
             .strike_variance(0.01)
             .start_date(date(2025, Month::January, 6)) // Monday
             .maturity(date(2025, Month::January, 10)) // Friday
-            .observation_freq(Tenor::new(1, TenorUnit::Days))
+            .observation_frequency(Tenor::new(1, TenorUnit::Days))
             .base_calendar_id("TARGET2".to_string())
             .quote_calendar_id("USNY".to_string())
             .realized_var_method(RealizedVarMethod::CloseToClose)
@@ -510,7 +521,7 @@ mod tests {
             .strike_variance(0.01)
             .start_date(date(2025, Month::January, 2))
             .maturity(date(2025, Month::December, 31))
-            .observation_freq(Tenor::new(1, TenorUnit::Days))
+            .observation_frequency(Tenor::new(1, TenorUnit::Days))
             .base_calendar_id("TARGET2".to_string())
             .quote_calendar_id("USNY".to_string())
             .realized_var_method(RealizedVarMethod::CloseToClose)
@@ -549,7 +560,7 @@ mod tests {
             .strike_variance(0.01)
             .start_date(date(2025, Month::January, 4)) // Saturday
             .maturity(date(2025, Month::January, 25)) // Saturday
-            .observation_freq(Tenor::new(1, TenorUnit::Weeks))
+            .observation_frequency(Tenor::new(1, TenorUnit::Weeks))
             .base_calendar_id("TARGET2".to_string())
             .quote_calendar_id("USNY".to_string())
             .realized_var_method(RealizedVarMethod::CloseToClose)

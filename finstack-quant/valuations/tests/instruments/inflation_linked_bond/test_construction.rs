@@ -35,7 +35,7 @@ fn test_tips_creation_via_helper() {
 
     // Assert
     assert_eq!(tips.id.as_str(), "US_TIPS_2030");
-    assert_eq!(tips.indexation_method, IndexationMethod::TIPS);
+    assert_eq!(tips.indexation_method, IndexationMethod::Tips);
     assert_eq!(
         tips.real_coupon,
         Decimal::try_from(0.0125).expect("valid decimal")
@@ -73,7 +73,7 @@ fn test_uk_linker_creation_via_helper() {
 
     // Assert
     assert_eq!(uk_gilt.id.as_str(), "UK_GILT_2040");
-    assert_eq!(uk_gilt.indexation_method, IndexationMethod::UK);
+    assert_eq!(uk_gilt.indexation_method, IndexationMethod::Uk);
     assert_eq!(
         uk_gilt.real_coupon,
         Decimal::try_from(0.00625).expect("valid decimal")
@@ -99,14 +99,14 @@ fn test_builder_pattern_full_customization() {
     assert_eq!(bond.issue_date, d(2020, 1, 15));
     assert_eq!(bond.maturity, d(2030, 1, 15));
     assert_eq!(bond.base_index, 250.0);
-    assert_eq!(bond.indexation_method, IndexationMethod::TIPS);
+    assert_eq!(bond.indexation_method, IndexationMethod::Tips);
 }
 
 #[test]
 fn test_indexation_method_display() {
     // Arrange & Act & Assert
-    assert_eq!(IndexationMethod::TIPS.to_string(), "tips");
-    assert_eq!(IndexationMethod::UK.to_string(), "uk");
+    assert_eq!(IndexationMethod::Tips.to_string(), "tips");
+    assert_eq!(IndexationMethod::Uk.to_string(), "uk");
     assert_eq!(IndexationMethod::Canadian.to_string(), "canadian");
     assert_eq!(IndexationMethod::French.to_string(), "french");
     assert_eq!(IndexationMethod::Japanese.to_string(), "japanese");
@@ -119,15 +119,11 @@ fn test_indexation_method_from_str() {
 
     assert_eq!(
         IndexationMethod::from_str("tips").unwrap(),
-        IndexationMethod::TIPS
+        IndexationMethod::Tips
     );
     assert_eq!(
-        IndexationMethod::from_str("us").unwrap(),
-        IndexationMethod::TIPS
-    );
-    assert_eq!(
-        IndexationMethod::from_str("UK").unwrap(),
-        IndexationMethod::UK
+        IndexationMethod::from_str("uk").unwrap(),
+        IndexationMethod::Uk
     );
     assert_eq!(
         IndexationMethod::from_str("canadian").unwrap(),
@@ -141,12 +137,9 @@ fn test_indexation_method_from_str() {
         IndexationMethod::from_str("japanese").unwrap(),
         IndexationMethod::Japanese
     );
-    assert_eq!(
-        IndexationMethod::from_str("jgb").unwrap(),
-        IndexationMethod::Japanese
-    );
-
-    assert!(IndexationMethod::from_str("invalid").is_err());
+    for retired in ["us", "UK", "jgb", "invalid"] {
+        assert!(IndexationMethod::from_str(retired).is_err());
+    }
 }
 
 #[test]
@@ -156,14 +149,14 @@ fn test_indexation_method_standard_lags() {
 
     // Assert
     assert_eq!(
-        IndexationMethod::TIPS.standard_lag(),
+        IndexationMethod::Tips.standard_lag(),
         InflationLag::Months(3)
     );
     assert_eq!(
         IndexationMethod::Canadian.standard_lag(),
         InflationLag::Months(3)
     );
-    assert_eq!(IndexationMethod::UK.standard_lag(), InflationLag::Months(8));
+    assert_eq!(IndexationMethod::Uk.standard_lag(), InflationLag::Months(8));
     assert_eq!(
         IndexationMethod::French.standard_lag(),
         InflationLag::Months(3)
@@ -177,10 +170,10 @@ fn test_indexation_method_standard_lags() {
 #[test]
 fn test_indexation_method_interpolation_flags() {
     // Arrange & Act & Assert
-    assert!(IndexationMethod::TIPS.uses_daily_interpolation());
+    assert!(IndexationMethod::Tips.uses_daily_interpolation());
     assert!(IndexationMethod::Canadian.uses_daily_interpolation());
     // Legacy UK gilts (pre-Sep 2005) are the only step-interpolated convention.
-    assert!(!IndexationMethod::UK.uses_daily_interpolation());
+    assert!(!IndexationMethod::Uk.uses_daily_interpolation());
     assert!(IndexationMethod::French.uses_daily_interpolation());
     // Post-2004 JGBi use daily-interpolated reference CPI (same as TIPS).
     assert!(IndexationMethod::Japanese.uses_daily_interpolation());
@@ -211,24 +204,12 @@ fn test_deflation_protection_from_str() {
         DeflationProtection::MaturityOnly
     );
     assert_eq!(
-        DeflationProtection::from_str("maturity").unwrap(),
-        DeflationProtection::MaturityOnly
-    );
-    assert_eq!(
         DeflationProtection::from_str("all_payments").unwrap(),
         DeflationProtection::AllPayments
     );
-    assert_eq!(
-        DeflationProtection::from_str("all").unwrap(),
-        DeflationProtection::AllPayments
-    );
-    // Test case insensitivity and dash/underscore normalization
-    assert_eq!(
-        DeflationProtection::from_str("MATURITY-ONLY").unwrap(),
-        DeflationProtection::MaturityOnly
-    );
-
-    assert!(DeflationProtection::from_str("invalid").is_err());
+    for retired in ["maturity", "all", "MATURITY-ONLY", "invalid"] {
+        assert!(DeflationProtection::from_str(retired).is_err());
+    }
 }
 
 #[test]
@@ -324,21 +305,21 @@ fn test_various_frequencies() {
     let maturity = d(2030, 1, 1);
 
     // Act & Assert - Test various payment frequencies
-    for freq in [Tenor::annual(), Tenor::semi_annual(), Tenor::quarterly()] {
+    for frequency in [Tenor::annual(), Tenor::semi_annual(), Tenor::quarterly()] {
         let params = InflationLinkedBondParams::new(
             notional,
             0.01,
             issue,
             maturity,
             250.0,
-            freq,
+            frequency,
             DayCount::ActAct,
         )
         .expect("valid literal coupon");
 
         let bond = InflationLinkedBond::new_tips("ILB-TEST", &params, "USD-OIS", "US-CPI-U");
 
-        assert_eq!(bond.frequency, freq);
+        assert_eq!(bond.frequency, frequency);
     }
 }
 
@@ -350,7 +331,7 @@ fn test_various_day_count_conventions() {
     let maturity = d(2030, 1, 1);
 
     // Act & Assert - Test various day count conventions
-    for dc in [DayCount::ActAct, DayCount::Act360, DayCount::Thirty360] {
+    for day_count in [DayCount::ActAct, DayCount::Act360, DayCount::Thirty360] {
         let params = InflationLinkedBondParams::new(
             notional,
             0.01,
@@ -358,13 +339,13 @@ fn test_various_day_count_conventions() {
             maturity,
             250.0,
             Tenor::semi_annual(),
-            dc,
+            day_count,
         )
         .expect("valid literal coupon");
 
         let bond = InflationLinkedBond::new_tips("ILB-TEST", &params, "USD-OIS", "US-CPI-U");
 
-        assert_eq!(bond.day_count, dc);
+        assert_eq!(bond.day_count, day_count);
     }
 }
 

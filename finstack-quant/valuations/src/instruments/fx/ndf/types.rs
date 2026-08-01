@@ -80,14 +80,10 @@ impl std::str::FromStr for NdfQuoteConvention {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "base_per_settlement" | "basepersettlement" | "bps" => {
-                Ok(NdfQuoteConvention::BasePerSettlement)
-            }
-            "settlement_per_base" | "settlementperbase" | "spb" => {
-                Ok(NdfQuoteConvention::SettlementPerBase)
-            }
-            other => Err(format!("Unknown NDF quote convention: {}", other)),
+        match s {
+            "base_per_settlement" => Ok(NdfQuoteConvention::BasePerSettlement),
+            "settlement_per_base" => Ok(NdfQuoteConvention::SettlementPerBase),
+            _ => Err(format!("Unknown NDF quote convention: {s}")),
         }
     }
 }
@@ -147,37 +143,46 @@ impl std::str::FromStr for NdfQuoteConvention {
     serde::Deserialize,
     schemars::JsonSchema,
 )]
-#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum NdfFixingSource {
     /// PBOC - People's Bank of China CNY/USD fixing.
     /// Published daily at 9:15 AM Beijing time.
+    #[serde(rename = "PBOC")]
     Pboc,
     /// CNHFIX - Treasury Markets Association CNH/USD fixing (offshore CNY).
     /// Published daily at 11:15 AM Hong Kong time.
+    #[serde(rename = "CNHFIX")]
     Cnhfix,
     /// RBI - Reserve Bank of India INR/USD reference rate.
     /// Published daily around 1:30 PM Mumbai time.
+    #[serde(rename = "RBI")]
     Rbi,
     /// KFTC - Korea Financial Telecommunications and Clearings Institute.
     /// KRW/USD fixing published at 3:30 PM Seoul time.
+    #[serde(rename = "KFTC")]
     Kftc,
     /// PTAX - Banco Central do Brasil BRL/USD reference rate.
     /// Published daily, settlement uses PTAX 800 (closing rate).
+    #[serde(rename = "PTAX")]
     Ptax,
     /// TAIFX - Taipei Forex Inc. TWD/USD fixing.
     /// Published daily at 11:00 AM Taipei time.
+    #[serde(rename = "TAIFX")]
     Taifx,
     /// BVAL - Bankers Association of the Philippines PHP/USD reference rate.
     /// Also known as PHP BVAL or PDEx.
+    #[serde(rename = "PHP_BVAL")]
     PhpBval,
     /// JISDOR - Jakarta Interbank Spot Dollar Rate (Bank Indonesia).
     /// IDR/USD fixing published daily at 10:00 AM Jakarta time.
+    #[serde(rename = "JISDOR")]
     Jisdor,
     /// BNM - Bank Negara Malaysia MYR/USD fixing.
     /// Published daily at 3:30 PM Kuala Lumpur time.
+    #[serde(rename = "BNM")]
     Bnm,
     /// Custom or other fixing source not covered by the enum.
+    #[serde(rename = "OTHER")]
     Other,
 }
 
@@ -232,18 +237,18 @@ impl std::str::FromStr for NdfFixingSource {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_ascii_uppercase().as_str() {
+        match s {
             "PBOC" => Ok(NdfFixingSource::Pboc),
-            "CNHFIX" | "CNH_FIX" => Ok(NdfFixingSource::Cnhfix),
+            "CNHFIX" => Ok(NdfFixingSource::Cnhfix),
             "RBI" => Ok(NdfFixingSource::Rbi),
             "KFTC" => Ok(NdfFixingSource::Kftc),
             "PTAX" => Ok(NdfFixingSource::Ptax),
             "TAIFX" => Ok(NdfFixingSource::Taifx),
-            "PHP_BVAL" | "PHPBVAL" | "BVAL" | "PDEX" => Ok(NdfFixingSource::PhpBval),
+            "PHP_BVAL" => Ok(NdfFixingSource::PhpBval),
             "JISDOR" => Ok(NdfFixingSource::Jisdor),
             "BNM" => Ok(NdfFixingSource::Bnm),
             "OTHER" => Ok(NdfFixingSource::Other),
-            other => Err(format!("Unknown NDF fixing source: {}", other)),
+            _ => Err(format!("Unknown NDF fixing source: {s}")),
         }
     }
 }
@@ -312,7 +317,9 @@ impl std::str::FromStr for NdfFixingSource {
     Debug,
     PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = Ndf::validate)]
 #[serde(deny_unknown_fields, try_from = "NdfUnchecked")]
@@ -324,10 +331,10 @@ pub struct Ndf {
     /// Settlement currency (freely convertible, typically USD, denominator and PV currency).
     pub settlement_currency: Currency,
     /// Fixing date (rate observation date, typically T-2 before maturity).
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub fixing_date: Date,
     /// Maturity/settlement date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Notional amount in base currency.
     pub notional: Money,
@@ -379,17 +386,26 @@ pub struct Ndf {
     pub quote_calendar_id: Option<String>,
     /// Attributes for tagging and selection.
     #[builder(default)]
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -405,10 +421,10 @@ struct NdfUnchecked {
     /// Settlement currency (freely convertible, typically USD, denominator and PV currency).
     settlement_currency: Currency,
     /// Fixing date (rate observation date, typically T-2 before maturity).
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     fixing_date: Date,
     /// Maturity/settlement date.
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     maturity: Date,
     /// Notional amount in base currency.
     notional: Money,
@@ -547,12 +563,12 @@ impl Ndf {
     /// ```
     pub fn validate_fixing_source(&self) -> Result<()> {
         if let Some(fixing_source) = &self.fixing_source_enum {
-            if let Some(expected_ccy) = fixing_source.typical_currency() {
-                if expected_ccy != self.base_currency {
+            if let Some(expected_currency) = fixing_source.typical_currency() {
+                if expected_currency != self.base_currency {
                     return Err(finstack_quant_core::Error::Validation(format!(
                         "Fixing source {} is typically used for {} but NDF base currency is {}. \
                          Consider using the appropriate fixing source for this currency.",
-                        fixing_source, expected_ccy, self.base_currency
+                        fixing_source, expected_currency, self.base_currency
                     )));
                 }
             }
@@ -630,7 +646,7 @@ impl Ndf {
     /// * `quote_calendar_id` - Optional quote/settlement currency calendar
     /// * `spot_lag_days` - Spot lag (typically 2)
     /// * `fixing_offset_days` - Days before maturity for fixing (typically 2)
-    /// * `bdc` - Business day convention
+    /// * `business_day_convention` - Business day convention
     #[allow(clippy::too_many_arguments)]
     pub fn from_trade_date(
         id: impl Into<InstrumentId>,
@@ -645,7 +661,7 @@ impl Ndf {
         quote_calendar_id: Option<String>,
         spot_lag_days: u32,
         fixing_offset_days: i64,
-        bdc: finstack_quant_core::dates::BusinessDayConvention,
+        business_day_convention: finstack_quant_core::dates::BusinessDayConvention,
     ) -> finstack_quant_core::Result<Self> {
         use crate::instruments::common_impl::fx_dates::{
             adjust_joint_calendar, fx_spot_date_for_pair, ResolvedCalendarPair,
@@ -666,7 +682,7 @@ impl Ndf {
         let maturity_unadjusted = spot_date + time::Duration::days(tenor_days);
         let maturity = adjust_joint_calendar(
             maturity_unadjusted,
-            bdc,
+            business_day_convention,
             base_calendar_id.as_deref(),
             quote_calendar_id.as_deref(),
         )?;
@@ -754,7 +770,7 @@ impl Ndf {
         // `amount_in_from * r = amount_in_to`, i.e. `rate(from, to)` is quoted
         // as units of `to` per unit of `from`. To obtain "base per settlement"
         // we must therefore query `(from = settlement, to = base)`.
-        let (from_ccy, to_ccy) = match self.quote_convention {
+        let (from_currency, to_currency) = match self.quote_convention {
             NdfQuoteConvention::BasePerSettlement => {
                 // Want base per settlement -> query settlement->base.
                 (self.settlement_currency, self.base_currency)
@@ -769,11 +785,11 @@ impl Ndf {
         let spot = if let Some(rate) = self.spot_rate_override {
             rate
         } else if let Some(fx) = market.fx() {
-            match (**fx).rate(FxQuery::new(from_ccy, to_ccy, as_of)) {
+            match (**fx).rate(FxQuery::new(from_currency, to_currency, as_of)) {
                 Ok(fx_rate) => fx_rate.rate,
                 Err(_) => {
                     // Try inverse and flip
-                    let inverse = (**fx).rate(FxQuery::new(to_ccy, from_ccy, as_of))?;
+                    let inverse = (**fx).rate(FxQuery::new(to_currency, from_currency, as_of))?;
                     1.0 / inverse.rate
                 }
             }
@@ -1048,10 +1064,10 @@ mod tests {
 
     #[test]
     fn test_ndf_quote_convention_display_and_parse() {
-        let bps = NdfQuoteConvention::BasePerSettlement;
+        let bp = NdfQuoteConvention::BasePerSettlement;
         let spb = NdfQuoteConvention::SettlementPerBase;
 
-        assert_eq!(bps.to_string(), "base_per_settlement");
+        assert_eq!(bp.to_string(), "base_per_settlement");
         assert_eq!(spb.to_string(), "settlement_per_base");
 
         assert_eq!(
@@ -1066,18 +1082,8 @@ mod tests {
                 .expect("valid convention"),
             NdfQuoteConvention::SettlementPerBase
         );
-        assert_eq!(
-            "bps"
-                .parse::<NdfQuoteConvention>()
-                .expect("valid convention"),
-            NdfQuoteConvention::BasePerSettlement
-        );
-        assert_eq!(
-            "spb"
-                .parse::<NdfQuoteConvention>()
-                .expect("valid convention"),
-            NdfQuoteConvention::SettlementPerBase
-        );
+        assert!("bp".parse::<NdfQuoteConvention>().is_err());
+        assert!("spb".parse::<NdfQuoteConvention>().is_err());
     }
 
     #[test]
@@ -1191,10 +1197,9 @@ mod tests {
             "CNHFIX".parse::<NdfFixingSource>().expect("valid source"),
             NdfFixingSource::Cnhfix
         );
-        assert_eq!(
-            "cnh_fix".parse::<NdfFixingSource>().expect("valid source"),
-            NdfFixingSource::Cnhfix
-        );
+        for retired in ["cnh_fix", "CNH_FIX", "PHPBVAL", "BVAL", "PDEX", "pboc"] {
+            assert!(retired.parse::<NdfFixingSource>().is_err());
+        }
         assert_eq!(
             "RBI".parse::<NdfFixingSource>().expect("valid source"),
             NdfFixingSource::Rbi

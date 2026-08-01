@@ -40,7 +40,7 @@
 //! [`ModelTimeSeries`](finstack_quant_covenants::ModelTimeSeries);
 //! plugging the output of [`AdjustedNetDebtSpec::compute_series`] into a
 //! covenant with the
-//! [`CovenantType::MaxDebtToEBITDA`](finstack_quant_covenants::CovenantType::MaxDebtToEBITDA)
+//! [`CovenantType::MaxDebtToEbitda`](finstack_quant_covenants::CovenantType::MaxDebtToEbitda)
 //! variant produces a fully-adjusted
 //! leverage forecast without changing the covenant engine itself.
 //!

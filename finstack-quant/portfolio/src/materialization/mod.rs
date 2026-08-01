@@ -2,14 +2,16 @@
 //!
 //! [`crate::portfolio::PortfolioSpec`] remains the portable embedded
 //! interchange format. This module is the native bulk-loading path for
-//! normalized stores: the outer document is parsed once, unique instrument
-//! envelopes remain [`serde_json::value::RawValue`] until validation, and
-//! positions share cached [`std::sync::Arc`] instrument instances.
+//! normalized stores: an allocation-free preflight enforces collection limits,
+//! then the outer document is parsed once into its canonical serde type. Unique
+//! instrument envelopes are validated before cache lookup, and positions share
+//! cached [`std::sync::Arc`] instrument instances.
 
 mod cache;
 mod envelope;
 mod report;
 
+use std::fmt;
 use std::sync::Arc;
 
 use crate::dependencies::DependencyIndex;
@@ -24,29 +26,29 @@ use finstack_quant_core::contract::{
     Severity, ValidationReport,
 };
 use finstack_quant_core::{HashMap, HashSet};
-use finstack_quant_valuations::instruments::{InstrumentEnvelope, INSTRUMENT_CONTRACT};
-use serde::Deserialize;
-use serde_json::value::RawValue;
+use finstack_quant_valuations::instruments::{InstrumentEnvelope, MarketDependencies};
+use serde::de::{IgnoredAny, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer};
 
 pub use cache::InstrumentArtifactCache;
 pub use envelope::{
-    InstrumentArtifact, MarketDependenciesSpec, MaterializedPosition, MaterializerInfo,
-    PortfolioHeader, PortfolioMaterializationEnvelope,
+    InstrumentArtifact, MaterializedPosition, MaterializerInfo, PortfolioHeader,
+    PortfolioMaterializationEnvelope, PortfolioMaterializationSchema,
 };
 pub use report::{MaterializationPhases, MaterializationReport};
 
 /// Persistence contract for [`PortfolioMaterializationEnvelope`].
 pub const PORTFOLIO_MATERIALIZATION_CONTRACT: ContractDescriptor =
-    ContractDescriptor::new("finstack_quant.portfolio_materialization", 1);
+    ContractDescriptor::new("finstack_quant.portfolio_materialization");
 
 struct PreparedArtifact {
     input_index: usize,
     artifact_id: String,
     content_hash: String,
     instrument_version: u32,
-    envelope: serde_json::Value,
+    envelope: InstrumentEnvelope,
     encoded_bytes: usize,
-    claimed_dependencies: Option<MarketDependenciesSpec>,
+    claimed_dependencies: Option<MarketDependencies>,
 }
 
 struct ValidatedInput {
@@ -60,38 +62,64 @@ struct ValidatedInput {
     dependency_count: usize,
 }
 
+type MaterializationInput = PortfolioMaterializationEnvelope;
+
+/// Allocation-free preflight counts for the two resource-bounded arrays.
+///
+/// All other fields are ignored here and validated by the canonical typed
+/// deserialization immediately afterward. A malformed document is likewise
+/// left to that canonical pass so its structured diagnostic remains unchanged.
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct MaterializationInput {
-    schema: String,
-    portfolio: PortfolioHeader,
-    instruments: Vec<ArtifactInput>,
-    positions: Vec<MaterializedPosition>,
-    #[serde(default, rename = "materializer")]
-    _materializer: Option<MaterializerInfo>,
+struct MaterializationCollectionCounts {
+    #[serde(default)]
+    instruments: SequenceCount,
+    #[serde(default)]
+    positions: SequenceCount,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ArtifactInput {
-    artifact_id: String,
-    #[serde(default)]
-    content_hash: Option<String>,
-    envelope: Box<RawValue>,
-    #[serde(default)]
-    dependencies: Option<Box<RawValue>>,
+#[derive(Default)]
+struct SequenceCount(usize);
+
+impl<'de> Deserialize<'de> for SequenceCount {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SequenceCountVisitor;
+
+        impl<'de> Visitor<'de> for SequenceCountVisitor {
+            type Value = SequenceCount;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a JSON array")
+            }
+
+            fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut count = 0usize;
+                while sequence.next_element::<IgnoredAny>()?.is_some() {
+                    count = count.saturating_add(1);
+                }
+                Ok(SequenceCount(count))
+            }
+        }
+
+        deserializer.deserialize_seq(SequenceCountVisitor)
+    }
 }
 
 impl Portfolio {
     /// Materialize a portfolio from one strict, versioned bulk bundle.
     ///
-    /// The outer bundle is checked by an allocation-free lexical depth scan and
-    /// then parsed directly into its typed form once. Embedded instrument
-    /// envelopes remain raw JSON until validation. Count and byte limits,
-    /// contract versions, references, duplicate IDs, and claimed content hashes
-    /// are checked before any runtime instrument is decoded. Each cache miss is
-    /// decoded sequentially once, and all positions referencing it share the
-    /// same [`Arc`].
+    /// The outer bundle is checked by allocation-free lexical depth and
+    /// collection-count scans, then parsed directly into its typed form once.
+    /// Embedded instrument envelopes are serde-validated before cache lookup.
+    /// Count and byte limits, references, duplicate IDs, and claimed content
+    /// hashes are checked before any runtime instrument is decoded. Each cache
+    /// miss is decoded sequentially once, and all positions referencing it
+    /// share the same [`Arc`].
     ///
     /// Use [`Self::from_spec`] for portable embedded interchange where each
     /// position carries its own optional instrument definition.
@@ -201,7 +229,7 @@ impl Portfolio {
         let mut portfolio = Portfolio {
             id: bundle.portfolio.id,
             name: bundle.portfolio.name,
-            base_ccy: bundle.portfolio.base_ccy,
+            base_currency: bundle.portfolio.base_currency,
             as_of: bundle.portfolio.as_of,
             entities: bundle.portfolio.entities,
             positions,
@@ -375,16 +403,10 @@ impl Portfolio {
                     .instrument
                     .market_dependencies()
                     .map_err(Error::Core)?;
-                let raw = serde_json::value::to_raw_value(&envelope).map_err(|error| {
-                    Error::invalid_input(format!(
-                        "failed to encode strict instrument envelope '{}': {error}",
-                        position.instrument_id
-                    ))
-                })?;
                 instruments.push(InstrumentArtifact {
                     artifact_id: artifact_id.clone(),
                     content_hash: Some(content_hash.clone()),
-                    envelope: raw,
+                    envelope,
                     dependencies: Some(dependencies),
                 });
                 artifact_id_by_hash.insert(content_hash, artifact_id.clone());
@@ -414,11 +436,11 @@ impl Portfolio {
         }
 
         Ok(PortfolioMaterializationEnvelope {
-            schema: PORTFOLIO_MATERIALIZATION_CONTRACT.schema_string(),
+            schema: PortfolioMaterializationSchema::Materialization,
             portfolio: PortfolioHeader {
                 id: self.id.clone(),
                 name: self.name.clone(),
-                base_ccy: self.base_ccy,
+                base_currency: self.base_currency,
                 as_of: self.as_of,
                 entities: self.entities.clone(),
                 books,
@@ -439,6 +461,7 @@ fn validate_and_decode(
 ) -> crate::Result<ValidatedInput> {
     let parse_started = report::start_timer();
     check_json_limits(bytes, limits).map_err(materialization_contract_error)?;
+    enforce_materialization_collection_limits(bytes, limits)?;
     let bundle: MaterializationInput = serde_json::from_slice(bytes).map_err(|error| {
         let mut report = ValidationReport::default();
         let diagnostic = match error.classify() {
@@ -458,16 +481,7 @@ fn validate_and_decode(
     let parse_nanos = report::elapsed_nanos(parse_started);
 
     let validation_started = report::start_timer();
-    enforce_count_limit("artifacts", bundle.instruments.len(), limits.max_artifacts)?;
-    enforce_count_limit("positions", bundle.positions.len(), limits.max_positions)?;
     let mut diagnostics = ValidationReport::default();
-    if let Err(error) = PORTFOLIO_MATERIALIZATION_CONTRACT.parse_schema_strict(
-        Some(&bundle.schema),
-        "/schema",
-        limits,
-    ) {
-        append_contract_error(error, &mut diagnostics, limits);
-    }
     validate_references(&bundle, limits, &mut diagnostics);
     let prepared = prepare_artifacts(&bundle, limits, &mut diagnostics)?;
     if diagnostics.has_errors() {
@@ -491,12 +505,6 @@ fn validate_and_decode(
         } = artifact;
         let key = CacheKey::new(content_hash.clone(), instrument_version, CANONICAL_VERSION);
         let decode_result = cache.get_or_decode(key, encoded_bytes, || {
-            let envelope: InstrumentEnvelope =
-                serde_json::from_value(envelope).map_err(|error| {
-                    Error::invalid_input(format!(
-                        "invalid strict instrument envelope for artifact '{artifact_id}': {error}"
-                    ))
-                })?;
             let instrument: Arc<dyn finstack_quant_valuations::instruments::Instrument> =
                 Arc::from(envelope.instrument.into_boxed().map_err(Error::Core)?);
             let dependencies = instrument.market_dependencies().map_err(Error::Core)?;
@@ -562,6 +570,17 @@ fn validate_and_decode(
         cache_hits,
         dependency_count,
     })
+}
+
+fn enforce_materialization_collection_limits(
+    bytes: &[u8],
+    limits: &LoadLimits,
+) -> crate::Result<()> {
+    let Ok(counts) = serde_json::from_slice::<MaterializationCollectionCounts>(bytes) else {
+        return Ok(());
+    };
+    enforce_count_limit("artifacts", counts.instruments.0, limits.max_artifacts)?;
+    enforce_count_limit("positions", counts.positions.0, limits.max_positions)
 }
 
 fn validate_position_semantics(
@@ -908,153 +927,7 @@ fn prepare_artifacts(
     let mut hashes: HashMap<String, (usize, String)> = HashMap::default();
 
     for (index, artifact) in bundle.instruments.iter().enumerate() {
-        let pointer = format!("/instruments/{index}/envelope");
-        let claimed_dependencies = match &artifact.dependencies {
-            Some(raw) => match envelope::deserialize_dependencies(raw) {
-                Ok(dependencies) => Some(dependencies),
-                Err(error) => {
-                    report.push_bounded(
-                        limits,
-                        Diagnostic::new(
-                            "portfolio/dependencies-invalid",
-                            LoadPhase::Structure,
-                            Severity::Error,
-                            format!(
-                                "artifact '{}' dependency claim is invalid: {error}",
-                                artifact.artifact_id
-                            ),
-                        )
-                        .with_pointer(format!("/instruments/{index}/dependencies"))
-                        .with_revision_id(artifact.artifact_id.clone()),
-                    );
-                    None
-                }
-            },
-            None => None,
-        };
-        let value: serde_json::Value = match serde_json::from_str(artifact.envelope.get()) {
-            Ok(value) => value,
-            Err(error) => {
-                report.push_bounded(
-                    limits,
-                    Diagnostic::from_parse_error(&error, Some(pointer))
-                        .with_revision_id(artifact.artifact_id.clone()),
-                );
-                continue;
-            }
-        };
-
-        let mut structure_valid = true;
-        let instrument_version = if let Some(object) = value.as_object() {
-            if let Some(key) = object
-                .keys()
-                .find(|key| key.as_str() != "schema" && key.as_str() != "instrument")
-            {
-                report.push_bounded(
-                    limits,
-                    Diagnostic::new(
-                        "portfolio/instrument-envelope-invalid",
-                        LoadPhase::Structure,
-                        Severity::Error,
-                        format!(
-                            "artifact '{}' instrument envelope contains unknown field '{key}'",
-                            artifact.artifact_id
-                        ),
-                    )
-                    .with_pointer(format!("{pointer}/{key}"))
-                    .with_revision_id(artifact.artifact_id.clone()),
-                );
-                structure_valid = false;
-            }
-
-            if !object.contains_key("instrument") {
-                report.push_bounded(
-                    limits,
-                    Diagnostic::new(
-                        "portfolio/instrument-envelope-required",
-                        LoadPhase::Structure,
-                        Severity::Error,
-                        format!(
-                            "artifact '{}' instrument envelope is missing 'instrument'",
-                            artifact.artifact_id
-                        ),
-                    )
-                    .with_pointer(format!("{pointer}/instrument"))
-                    .with_revision_id(artifact.artifact_id.clone()),
-                );
-                structure_valid = false;
-            }
-
-            match object.get("schema") {
-                Some(serde_json::Value::String(schema)) => {
-                    match INSTRUMENT_CONTRACT.parse_schema_strict(
-                        Some(schema),
-                        &format!("{pointer}/schema"),
-                        limits,
-                    ) {
-                        Ok(version) => Some(version),
-                        Err(error) => {
-                            append_contract_error(error, report, limits);
-                            None
-                        }
-                    }
-                }
-                Some(_) => {
-                    report.push_bounded(
-                        limits,
-                        Diagnostic::new(
-                            "portfolio/instrument-envelope-required",
-                            LoadPhase::Version,
-                            Severity::Error,
-                            format!(
-                                "artifact '{}' requires a string instrument schema marker",
-                                artifact.artifact_id
-                            ),
-                        )
-                        .with_pointer(format!("{pointer}/schema"))
-                        .with_revision_id(artifact.artifact_id.clone()),
-                    );
-                    None
-                }
-                None => {
-                    report.push_bounded(
-                        limits,
-                        Diagnostic::new(
-                            "portfolio/instrument-envelope-required",
-                            LoadPhase::Version,
-                            Severity::Error,
-                            format!(
-                                "artifact '{}' requires a strict instrument envelope with a schema marker",
-                                artifact.artifact_id
-                            ),
-                        )
-                        .with_pointer(format!("{pointer}/schema"))
-                        .with_revision_id(artifact.artifact_id.clone()),
-                    );
-                    None
-                }
-            }
-        } else {
-            report.push_bounded(
-                limits,
-                Diagnostic::new(
-                    "portfolio/instrument-envelope-required",
-                    LoadPhase::Version,
-                    Severity::Error,
-                    format!(
-                        "artifact '{}' must contain a strict instrument envelope object",
-                        artifact.artifact_id
-                    ),
-                )
-                .with_pointer(pointer)
-                .with_revision_id(artifact.artifact_id.clone()),
-            );
-            structure_valid = false;
-            None
-        };
-
-        let content_hash =
-            finstack_quant_core::canonical::content_hash(&value).map_err(Error::Core)?;
+        let content_hash = artifact.envelope.content_hash().map_err(Error::Core)?;
         let hash_valid = artifact.content_hash.as_ref().is_none_or(|claimed| {
             if claimed == &content_hash {
                 return true;
@@ -1097,44 +970,23 @@ fn prepare_artifacts(
             );
         }
 
-        if let Some(instrument_version) = instrument_version {
-            if structure_valid && hash_valid {
-                prepared.push(PreparedArtifact {
-                    input_index: index,
-                    artifact_id: artifact.artifact_id.clone(),
-                    content_hash,
-                    instrument_version,
-                    envelope: value,
-                    encoded_bytes: artifact.envelope.get().len(),
-                    claimed_dependencies,
-                });
-            }
+        if hash_valid {
+            let encoded_bytes = serde_json::to_vec(&artifact.envelope)
+                .map_err(|error| Error::invalid_input(error.to_string()))?
+                .len();
+            prepared.push(PreparedArtifact {
+                input_index: index,
+                artifact_id: artifact.artifact_id.clone(),
+                content_hash,
+                instrument_version: ContractDescriptor::VERSION,
+                envelope: artifact.envelope.clone(),
+                encoded_bytes,
+                claimed_dependencies: artifact.dependencies.clone(),
+            });
         }
     }
 
     Ok(prepared)
-}
-
-fn append_contract_error(error: ContractError, report: &mut ValidationReport, limits: &LoadLimits) {
-    match error {
-        ContractError::Report(source) => {
-            for diagnostic in source.diagnostics {
-                report.push_bounded(limits, diagnostic);
-            }
-            if source.truncated {
-                report.truncated = true;
-            }
-        }
-        other => report.push_bounded(
-            limits,
-            Diagnostic::new(
-                "portfolio/instrument-contract-invalid",
-                LoadPhase::Version,
-                Severity::Error,
-                other.to_string(),
-            ),
-        ),
-    }
 }
 
 fn position_book_index(

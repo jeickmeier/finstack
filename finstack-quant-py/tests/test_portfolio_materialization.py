@@ -25,7 +25,7 @@ def _empty_bundle() -> dict[str, object]:
         "schema": "finstack_quant.portfolio_materialization/1",
         "portfolio": {
             "id": "materialized-empty",
-            "base_ccy": "USD",
+            "base_currency": "USD",
             "as_of": "2025-01-01",
             "entities": {},
         },
@@ -39,7 +39,7 @@ def _deposit_bundle() -> dict[str, object]:
         "schema": "finstack_quant.portfolio_materialization/1",
         "portfolio": {
             "id": "materialized-deposit",
-            "base_ccy": "USD",
+            "base_currency": "USD",
             "as_of": "2025-01-01",
             "entities": {"entity": {"id": "entity", "name": None}},
         },
@@ -55,7 +55,7 @@ def _deposit_bundle() -> dict[str, object]:
                             "notional": {"amount": "1000000", "currency": "USD"},
                             "start_date": "2025-01-01",
                             "maturity": "2025-02-01",
-                            "day_count": "Act360",
+                            "day_count": "act_360",
                             "discount_curve_id": "USD-OIS",
                             "attributes": {},
                         },
@@ -166,7 +166,7 @@ def test_materialized_handle_can_be_valued_twice_without_reparse() -> None:
     first = value_portfolio(portfolio, market)
     second = value_portfolio(portfolio, market)
 
-    assert first == second
+    assert first.to_json() == second.to_json()
 
 
 def test_from_materialization_releases_gil_for_parse_and_build() -> None:

@@ -59,12 +59,6 @@ pub struct NestedPredicateResult {
     pub value: String,
 }
 
-#[derive(finstack_quant_valuations_macros::FocusedPricingOverrides)]
-#[pricing_overrides(skip_deserialize)]
-pub struct SkipDeserializeSpec {
-    pub value: String,
-}
-
 pub struct ManualMarker {
     pub schema_version: String,
 }

@@ -17,6 +17,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// assertions in tests. Infrastructure errors that wrap opaque driver types
 /// may opt out of `Serialize` and `PartialEq`.
 #[derive(Debug, Clone, PartialEq, Error, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Error {
     /// Model building error (e.g., invalid period range, missing periods)

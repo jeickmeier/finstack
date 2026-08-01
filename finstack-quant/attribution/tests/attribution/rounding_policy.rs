@@ -49,12 +49,12 @@ fn parallel_stamps_configured_rounding_context() {
 
     let rounding = attribution.meta.rounding;
     assert_eq!(
-        rounding.output_scale_by_ccy.get(&Currency::USD),
+        rounding.output_scale_by_currency.get(&Currency::USD),
         Some(&4),
         "Output scale for USD should reflect configured rounding"
     );
     assert_eq!(
-        rounding.ingest_scale_by_ccy.get(&Currency::USD),
+        rounding.ingest_scale_by_currency.get(&Currency::USD),
         Some(&4),
         "Ingest scale for USD should reflect configured rounding"
     );
@@ -123,12 +123,18 @@ fn all_methods_stamp_configured_rounding_context() {
 
     let assert_stamp = |attr: &PnlAttribution, method: &str| {
         assert_eq!(
-            attr.meta.rounding.output_scale_by_ccy.get(&Currency::USD),
+            attr.meta
+                .rounding
+                .output_scale_by_currency
+                .get(&Currency::USD),
             Some(&4),
             "{method}: output scale must reflect the configured rounding"
         );
         assert_eq!(
-            attr.meta.rounding.ingest_scale_by_ccy.get(&Currency::USD),
+            attr.meta
+                .rounding
+                .ingest_scale_by_currency
+                .get(&Currency::USD),
             Some(&4),
             "{method}: ingest scale must reflect the configured rounding"
         );
@@ -164,7 +170,7 @@ fn all_methods_stamp_configured_rounding_context() {
     let default_rounding =
         finstack_quant_core::config::rounding_context_from(&FinstackConfig::default());
     assert_eq!(
-        taylor.meta.rounding.output_scale_by_ccy, default_rounding.output_scale_by_ccy,
+        taylor.meta.rounding.output_scale_by_currency, default_rounding.output_scale_by_currency,
         "taylor must stamp the default rounding context"
     );
 
@@ -185,7 +191,8 @@ fn all_methods_stamp_configured_rounding_context() {
     )
     .expect("metrics-based attribution should succeed");
     assert_eq!(
-        metrics_based.meta.rounding.output_scale_by_ccy, default_rounding.output_scale_by_ccy,
+        metrics_based.meta.rounding.output_scale_by_currency,
+        default_rounding.output_scale_by_currency,
         "metrics-based must stamp the default rounding context"
     );
 }

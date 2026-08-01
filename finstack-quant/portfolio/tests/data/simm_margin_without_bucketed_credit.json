@@ -18,7 +18,7 @@
     "currency": "USD"
   },
   "position_count": 1,
-  "im_methodology": "Simm",
+  "im_methodology": "simm",
   "sensitivities": {
     "base_currency": "USD",
     "ir_delta": [

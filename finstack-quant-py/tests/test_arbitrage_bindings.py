@@ -8,7 +8,7 @@ def test_surface_report_keys_match_stub_contract() -> None:
         strikes=[90.0, 100.0, 110.0],
         expiries=[0.5, 1.0],
         vols=[[0.20, 0.19, 0.20], [0.21, 0.20, 0.21]],
-        forward=100.0,
+        forward_prices=[100.0],
     )
 
     assert set(report) == {

@@ -115,7 +115,7 @@ impl PyPnlAttribution {
     /// FX translation P&L amount.
     ///
     /// Reporting-currency FX P&L when the attribution was translated into a
-    /// non-native ``target_ccy`` via ``AttributionConfig.target_ccy``. Equal
+    /// non-native ``target_currency`` via ``AttributionConfig.target_currency``. Equal
     /// to ``val_t0_native × (T1_fx − T0_fx)`` — the FX move applied to the
     /// opening position. Zero when the attribution stayed in its native
     /// currency (the default).
@@ -168,10 +168,10 @@ impl PyPnlAttribution {
         &self.inner.meta.instrument_id
     }
 
-    /// Attribution method name.
+    /// Canonical snake-case attribution method name.
     #[getter]
     fn method(&self) -> String {
-        self.inner.meta.method.to_string()
+        self.inner.meta.method.as_str().to_owned()
     }
 
     /// Start date (T₀) as ISO string.
@@ -295,7 +295,7 @@ impl PyPnlAttribution {
         // (documented caveat above) — present values give `float64`.
         let row = serde_json::json!({
             "instrument_id": self.inner.meta.instrument_id,
-            "method": self.inner.meta.method.to_string(),
+            "method": self.inner.meta.method.as_str(),
             "t0": self.inner.meta.t0.to_string(),
             "t1": self.inner.meta.t1.to_string(),
             "currency": self.inner.total_pnl.currency().to_string(),
@@ -339,7 +339,7 @@ impl PyPnlAttribution {
     /// ``"cross_factor"``, ``"scalars"``, ``"credit_factor"``, ``"carry"``,
     /// ``"inflation"``, ``"correlations"``, ``"model_params"``).
     ///
-    /// ``key_a`` is the primary identifier (curve_id, pair label, surface_id,
+    /// ``key_a`` is the primary identifier (curve_id, pair label, vol_surface_id,
     /// equity_id, level_name, sub-component name). ``key_b`` is the secondary
     /// key when present (tenor for per-tenor rows, ``to`` currency for FX
     /// pairs, bucket path for credit-factor per-bucket rows); ``None`` when

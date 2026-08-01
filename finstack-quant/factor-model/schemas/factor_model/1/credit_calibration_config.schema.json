@@ -16,6 +16,7 @@
               "properties": {
                 "alpha": {
                   "description": "Shrinkage weight in `[0, 1]`.",
+                  "format": "double",
                   "maximum": 1.0,
                   "minimum": 0.0,
                   "type": "number"
@@ -69,6 +70,7 @@
               "properties": {
                 "alpha": {
                   "description": "Ridge regularisation parameter; must be `>= 0`.",
+                  "format": "double",
                   "minimum": 0.0,
                   "type": "number"
                 }
@@ -241,6 +243,7 @@
                   "description": "Smoothing parameter λ ∈ (0, 1) (RiskMetrics daily default 0.94).",
                   "exclusiveMaximum": 1.0,
                   "exclusiveMinimum": 0.0,
+                  "format": "double",
                   "type": "number"
                 }
               },
@@ -266,6 +269,7 @@
     "annualization_factor": {
       "description": "Annualization factor for sample variance (default 12.0 ≈ monthly data).",
       "exclusiveMinimum": 0.0,
+      "format": "double",
       "type": "number"
     },
     "beta_shrinkage": {

@@ -308,7 +308,7 @@ pub(crate) fn collect_expression_values_sorted(
 /// safe to evaluate period-by-period without full history.
 fn has_aggregate(expr: &Expr) -> bool {
     match &expr.node {
-        ExprNode::Column(_) | ExprNode::CSRef { .. } | ExprNode::Literal(_) => false,
+        ExprNode::Column(_) | ExprNode::CsRef { .. } | ExprNode::Literal(_) => false,
         ExprNode::Call(func, args) => {
             matches!(
                 func,
@@ -419,7 +419,7 @@ pub(crate) fn evaluate_expr(
 
     match &expr.node {
         ExprNode::Literal(val) => Ok(*val),
-        ExprNode::CSRef {
+        ExprNode::CsRef {
             component,
             instrument_or_total,
         } => map_err_with_node(

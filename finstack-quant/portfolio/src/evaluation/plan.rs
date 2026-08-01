@@ -54,7 +54,7 @@ pub(crate) struct EvaluationProfile {
 pub(crate) struct EvaluationProvenance {
     pub(crate) profile: EvaluationProfile,
     pub(crate) portfolio_state_id: u64,
-    pub(crate) base_ccy: Currency,
+    pub(crate) base_currency: Currency,
 }
 
 impl EvaluationProfile {
@@ -275,7 +275,7 @@ impl<'a> PortfolioEvaluationPlan<'a> {
                 if valuation.as_of == market_state.as_of
                     && valuation.provenance.as_ref().is_some_and(|provenance| {
                         provenance.profile == profile
-                            && provenance.base_ccy == portfolio_state.portfolio.base_ccy
+                            && provenance.base_currency == portfolio_state.portfolio.base_currency
                             && (provenance.portfolio_state_id
                                 == portfolio_state.portfolio.evaluation_state_id
                                 || invalidation.authoritative_portfolio_change)
@@ -463,7 +463,7 @@ fn prior_matches_portfolio(
     reprice_indices: &[usize],
 ) -> bool {
     if prior.position_values.len() != portfolio.positions.len()
-        || prior.total_base_ccy.currency() != portfolio.base_ccy
+        || prior.total_base_currency.currency() != portfolio.base_currency
     {
         return false;
     }
@@ -494,7 +494,7 @@ fn prior_matches_portfolio(
 
         if value.entity_id != position.entity_id
             || value.metric_scale.to_bits() != position.scale_factor().to_bits()
-            || value.value_base.currency() != portfolio.base_ccy
+            || value.value_base.currency() != portfolio.base_currency
             || value
                 .valuation_result
                 .as_ref()
@@ -619,7 +619,7 @@ mod tests {
             metrics_fail,
         });
         let mut builder = PortfolioBuilder::new(id)
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01));
         for index in 0..positions {
             builder = builder.position(
@@ -643,7 +643,7 @@ mod tests {
 
     fn empty_portfolio() -> Portfolio {
         PortfolioBuilder::new("EVALUATION_TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .build()
             .expect("empty portfolio")
@@ -853,7 +853,7 @@ mod tests {
             .expect("parallel result");
 
         assert_eq!(serial.as_of, parallel.as_of);
-        assert_eq!(serial.total_base_ccy, parallel.total_base_ccy);
+        assert_eq!(serial.total_base_currency, parallel.total_base_currency);
         assert_eq!(
             serial.position_values.keys().collect::<Vec<_>>(),
             parallel.position_values.keys().collect::<Vec<_>>()

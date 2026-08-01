@@ -193,12 +193,9 @@ fn check_local_vol_density_grid<'py>(
 ///     Monotonically increasing expiry grid (years).
 /// vols : list[list[float]]
 ///     Implied vols shaped ``[n_expiries][n_strikes]``.
-/// forward : float, optional
-///     Scalar forward used by local-vol density. Also broadcast to the other
-///     checks when ``forward_prices`` is omitted.
-/// forward_prices : list[float], optional
-///     Forward prices for butterfly and calendar-spread checks. Pass either
-///     one value to broadcast, or one value per expiry.
+/// forward_prices : list[float]
+///     Forward prices for every check. Pass either one value to broadcast or
+///     one value per expiry.
 /// tolerance : float, optional
 ///     Shared tolerance for all checks. Default ``1e-6``.
 ///
@@ -209,25 +206,18 @@ fn check_local_vol_density_grid<'py>(
 ///     ``by_severity`` (dict ``severity -> count``), ``by_type``
 ///     (dict ``type -> count``), and ``violations`` (list[dict]).
 #[pyfunction]
-#[pyo3(signature = (strikes, expiries, vols, forward = None, forward_prices = None, tolerance = 1e-6))]
+#[pyo3(signature = (strikes, expiries, vols, forward_prices, tolerance = 1e-6))]
 fn check_surface_grid<'py>(
     py: Python<'py>,
     strikes: Vec<f64>,
     expiries: Vec<f64>,
     vols: Vec<Vec<f64>>,
-    forward: Option<f64>,
-    forward_prices: Option<Vec<f64>>,
+    forward_prices: Vec<f64>,
     tolerance: f64,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let report = core_arbitrage::check_surface_grid(
-        &strikes,
-        &expiries,
-        &vols,
-        forward,
-        forward_prices,
-        tolerance,
-    )
-    .map_err(core_to_py)?;
+    let report =
+        core_arbitrage::check_surface_grid(&strikes, &expiries, &vols, forward_prices, tolerance)
+            .map_err(core_to_py)?;
 
     let out = PyDict::new(py);
     out.set_item("total_violations", report.violations.len())?;

@@ -18,7 +18,7 @@ use finstack_quant_core::market_data::context::MarketContext;
 ///
 /// 1. `overrides.implied_volatility` — when set, interpreted as a flat σ across
 ///    tenor and strike (standard revaluation convention).
-/// 2. Surface lookup via `curves.get_surface(surface_id).value_clamped(t, strike)`.
+/// 2. Surface lookup via `curves.get_surface(vol_surface_id).value_clamped(t, strike)`.
 ///
 /// Use this in every pricer that previously wrote the inline
 /// `if let Some(iv) = overrides.implied_volatility { iv } else { surface.value_clamped(t, K) }`
@@ -27,14 +27,14 @@ use finstack_quant_core::market_data::context::MarketContext;
 pub(crate) fn resolve_sigma_at(
     overrides: &MarketQuoteOverrides,
     curves: &MarketContext,
-    surface_id: &str,
+    vol_surface_id: &str,
     t: f64,
     strike: f64,
 ) -> finstack_quant_core::Result<f64> {
     if let Some(iv) = overrides.implied_volatility {
         return Ok(iv);
     }
-    Ok(curves.get_surface(surface_id)?.value_clamped(t, strike))
+    Ok(curves.get_surface(vol_surface_id)?.value_clamped(t, strike))
 }
 
 #[cfg(test)]

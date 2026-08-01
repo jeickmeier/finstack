@@ -129,7 +129,7 @@ pub trait RecoveryModel: Send + Sync + std::fmt::Debug {
 ///
 /// Allows recovery model selection without constructing the full model.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum RecoverySpec {
     /// Constant recovery rate (current default behavior).
@@ -357,6 +357,7 @@ mod tests {
 
     #[test]
     fn test_recovery_spec_rejects_beta_variant() {
+        // schema-rejection-test
         let err =
             serde_json::from_str::<RecoverySpec>(r#"{"type":"Beta","mean":0.4,"std_dev":0.15}"#)
                 .expect_err("Beta recovery should not deserialize");
@@ -366,6 +367,7 @@ mod tests {
 
     #[test]
     fn test_recovery_spec_rejects_frye_variant() {
+        // schema-rejection-test
         let err = serde_json::from_str::<RecoverySpec>(
             r#"{"type":"Frye","base_lgd":0.6,"lgd_sensitivity":1.5}"#,
         )

@@ -16,7 +16,7 @@ margin, factor-risk, and optimization workflows on top of `finstack-quant-core` 
 
 ## Conventions
 
-- `Portfolio::base_ccy` is the reporting currency for totals and portfolio-level analytics.
+- `Portfolio::base_currency` is the reporting currency for totals and portfolio-level analytics.
 - `Position::quantity` is interpreted by `PositionUnit`; it is not always a share count.
 - Summable risk metrics are FX-converted to base currency before aggregation.
 - Selective repricing (`revalue_affected`) uses each instrument's declared market
@@ -63,14 +63,14 @@ let position = Position::new(
 .with_text_attribute("asset_class", "cash");
 
 let portfolio = PortfolioBuilder::new("MY_FUND")
-    .base_ccy(Currency::USD)
+    .base_currency(Currency::USD)
     .as_of(as_of)
     .entity(Entity::new("ACME_FUND"))
     .position(position)
     .build()?;
 
 let valuation = value_portfolio(&portfolio, &market, &config, &Default::default())?;
-println!("Portfolio total: {}", valuation.total_base_ccy);
+println!("Portfolio total: {}", valuation.total_base_currency);
 # Ok(())
 # }
 ```

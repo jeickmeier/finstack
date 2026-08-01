@@ -24,7 +24,7 @@ static EMBEDDED_REGISTRY: OnceLock<Result<StructuredCreditAssumptionRegistry>> =
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct StructuredCreditAssumptionRegistry {
-    schema_version: String,
+    schema: String,
     market_conditions: MarketConditionsRecord,
     credit_model_defaults: CreditModelDefaultsRecord,
     cmo_collateral_defaults: CmoCollateralDefaultsRecord,
@@ -207,11 +207,11 @@ impl StructuredCreditAssumptionRegistry {
         let fees = &self.deal_profile(id)?.fees;
         Ok(DealFees {
             trustee_fee_annual: Money::new(fees.trustee_fee_annual, base_currency),
-            senior_mgmt_fee_bps: fees.senior_mgmt_fee_bps,
-            subordinated_mgmt_fee_bps: fees.subordinated_mgmt_fee_bps,
-            servicing_fee_bps: fees.servicing_fee_bps,
-            master_servicer_fee_bps: fees.master_servicer_fee_bps,
-            special_servicer_fee_bps: fees.special_servicer_fee_bps,
+            senior_mgmt_fee_bp: fees.senior_mgmt_fee_bp,
+            subordinated_mgmt_fee_bp: fees.subordinated_mgmt_fee_bp,
+            servicing_fee_bp: fees.servicing_fee_bp,
+            master_servicer_fee_bp: fees.master_servicer_fee_bp,
+            special_servicer_fee_bp: fees.special_servicer_fee_bp,
         })
     }
 
@@ -253,9 +253,9 @@ impl StructuredCreditAssumptionRegistry {
 
     pub(crate) fn profile_id_for_deal_type(&self, deal_type: DealType) -> &'static str {
         match deal_type {
-            DealType::CLO => "clo_standard",
-            DealType::RMBS => "rmbs_standard",
-            DealType::CMBS => "cmbs_standard",
+            DealType::Clo => "clo_standard",
+            DealType::Rmbs => "rmbs_standard",
+            DealType::Cmbs => "cmbs_standard",
             _ => "abs_auto_standard",
         }
     }
@@ -268,10 +268,10 @@ impl StructuredCreditAssumptionRegistry {
     }
 
     fn validate(&self) -> Result<()> {
-        if self.schema_version != "finstack_quant.structured_credit_assumptions/1" {
+        if self.schema != "finstack_quant.structured_credit_assumptions/1" {
             return Err(Error::Validation(format!(
                 "unsupported structured-credit assumptions schema version '{}'",
-                self.schema_version
+                self.schema
             )));
         }
         validate_unit_interval(self.market_conditions.refi_rate, "refi rate")?;
@@ -699,11 +699,11 @@ struct DealProfileRecord {
 #[serde(deny_unknown_fields)]
 struct FeeRecord {
     trustee_fee_annual: f64,
-    senior_mgmt_fee_bps: f64,
-    subordinated_mgmt_fee_bps: f64,
-    servicing_fee_bps: f64,
-    master_servicer_fee_bps: Option<f64>,
-    special_servicer_fee_bps: Option<f64>,
+    senior_mgmt_fee_bp: f64,
+    subordinated_mgmt_fee_bp: f64,
+    servicing_fee_bp: f64,
+    master_servicer_fee_bp: Option<f64>,
+    special_servicer_fee_bp: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -941,17 +941,17 @@ fn validate_concentration_limits(record: &ConcentrationLimitsRecord) -> Result<(
 
 fn validate_fee_record(record: &FeeRecord) -> Result<()> {
     validate_nonnegative_finite(record.trustee_fee_annual, "trustee annual fee")?;
-    validate_nonnegative_finite(record.senior_mgmt_fee_bps, "senior management fee bps")?;
+    validate_nonnegative_finite(record.senior_mgmt_fee_bp, "senior management fee bp")?;
     validate_nonnegative_finite(
-        record.subordinated_mgmt_fee_bps,
-        "subordinated management fee bps",
+        record.subordinated_mgmt_fee_bp,
+        "subordinated management fee bp",
     )?;
-    validate_nonnegative_finite(record.servicing_fee_bps, "servicing fee bps")?;
-    if let Some(fee) = record.master_servicer_fee_bps {
-        validate_nonnegative_finite(fee, "master servicer fee bps")?;
+    validate_nonnegative_finite(record.servicing_fee_bp, "servicing fee bp")?;
+    if let Some(fee) = record.master_servicer_fee_bp {
+        validate_nonnegative_finite(fee, "master servicer fee bp")?;
     }
-    if let Some(fee) = record.special_servicer_fee_bps {
-        validate_nonnegative_finite(fee, "special servicer fee bps")?;
+    if let Some(fee) = record.special_servicer_fee_bp {
+        validate_nonnegative_finite(fee, "special servicer fee bp")?;
     }
     Ok(())
 }

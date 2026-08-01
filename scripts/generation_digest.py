@@ -18,6 +18,10 @@ DEFAULT_PATHS = (
     Path("finstack-quant/portfolio/schemas"),
     Path("finstack-quant-wasm/types/generated"),
 )
+DEFAULT_MANIFEST_PATHS = (
+    Path("finstack-quant/valuations/tests/instruments/json_examples"),
+    Path("finstack-quant-wasm/types/generated"),
+)
 DEFAULT_MANIFEST = Path("scripts/generated-artifacts.txt")
 
 
@@ -89,11 +93,12 @@ def main() -> int:
 
     root = args.root.resolve()
     paths = args.paths or list(DEFAULT_PATHS)
+    manifest_paths = args.paths or list(DEFAULT_MANIFEST_PATHS)
     if args.write_manifest:
-        write_manifest(root, paths, args.manifest)
+        write_manifest(root, manifest_paths, args.manifest)
     elif args.check_manifest:
         try:
-            check_manifest(root, paths, args.manifest)
+            check_manifest(root, manifest_paths, args.manifest)
         except (OSError, ValueError) as error:
             parser.error(str(error))
     digest, file_count = generation_digest(root, paths)

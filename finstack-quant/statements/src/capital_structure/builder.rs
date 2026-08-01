@@ -4,22 +4,15 @@
 //! instruments to a financial model.
 
 use crate::builder::ModelBuilder;
-#[cfg(feature = "valuation-integration")]
 use crate::error::Result;
 use crate::types::{CapitalStructureSpec, DebtInstrumentSpec};
-#[cfg(feature = "valuation-integration")]
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
-#[cfg(feature = "valuation-integration")]
 use finstack_quant_core::money::Money;
-#[cfg(feature = "valuation-integration")]
 use finstack_quant_core::types::{CurveId, InstrumentId};
-#[cfg(feature = "valuation-integration")]
 use finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;
-#[cfg(feature = "valuation-integration")]
 use finstack_quant_valuations::instruments::{
     Bond, FixedLegSpec, FloatLegSpec, InstrumentJson, InterestRateSwap,
 };
-#[cfg(feature = "valuation-integration")]
 use rust_decimal::Decimal;
 
 /// Helper to ensure capital structure exists and return mutable reference.
@@ -31,7 +24,6 @@ use rust_decimal::Decimal;
 fn ensure_capital_structure(cs: &mut Option<CapitalStructureSpec>) -> &mut CapitalStructureSpec {
     cs.get_or_insert_with(|| CapitalStructureSpec {
         debt_instruments: vec![],
-        equity_instruments: vec![],
         meta: indexmap::IndexMap::new(),
         reporting_currency: None,
         fx_policy: None,
@@ -39,31 +31,26 @@ fn ensure_capital_structure(cs: &mut Option<CapitalStructureSpec>) -> &mut Capit
     })
 }
 
-/// Serialize a bond as a tagged instrument payload and push it to the capital structure.
-#[cfg(feature = "valuation-integration")]
+/// Add a typed bond payload to the capital structure.
 fn push_bond(
     cs: &mut Option<CapitalStructureSpec>,
     id_str: String,
     bond: Bond,
 ) -> crate::error::Result<()> {
-    let spec = serde_json::to_value(InstrumentJson::Bond(bond)).map_err(|e| {
-        crate::error::Error::build(format!("Failed to serialize bond '{id_str}': {e}"))
-    })?;
+    let spec = InstrumentJson::Bond(bond);
     ensure_capital_structure(cs)
         .debt_instruments
         .push(DebtInstrumentSpec { id: id_str, spec });
     Ok(())
 }
 
-/// Serialize a swap as a tagged instrument payload and push it to the capital structure.
-#[cfg(feature = "valuation-integration")]
+/// Add a typed swap payload to the capital structure.
 fn push_swap(
     cs: &mut Option<CapitalStructureSpec>,
     id_str: String,
     swap: finstack_quant_valuations::instruments::InterestRateSwap,
 ) -> crate::error::Result<()> {
-    let spec = serde_json::to_value(InstrumentJson::InterestRateSwap(swap))
-        .map_err(|e| crate::error::Error::build(format!("Failed to serialize swap: {e}")))?;
+    let spec = InstrumentJson::InterestRateSwap(swap);
     ensure_capital_structure(cs)
         .debt_instruments
         .push(DebtInstrumentSpec { id: id_str, spec });
@@ -75,7 +62,6 @@ fn push_swap(
 /// Maps the major currencies to their standard market calendars so a swap's
 /// coupon dates roll on the right holiday set (e.g. EUR → TARGET2, not NYSE).
 /// Unmapped currencies fall back to the US calendar.
-#[cfg(feature = "valuation-integration")]
 fn default_calendar_for(currency: finstack_quant_core::currency::Currency) -> &'static str {
     use finstack_quant_core::currency::Currency;
     match currency {
@@ -87,7 +73,6 @@ fn default_calendar_for(currency: finstack_quant_core::currency::Currency) -> &'
 }
 
 /// Build an `InterestRateSwap` from leg parameters.
-#[cfg(feature = "valuation-integration")]
 #[allow(clippy::too_many_arguments)]
 fn build_swap_internal(
     id_str: &str,
@@ -97,11 +82,11 @@ fn build_swap_internal(
     maturity_date: Date,
     discount_curve_id: String,
     forward_curve_id: String,
-    fixed_freq: Tenor,
-    fixed_dc: DayCount,
-    float_freq: Tenor,
-    float_dc: DayCount,
-    bdc: BusinessDayConvention,
+    fixed_frequency: Tenor,
+    fixed_day_count: DayCount,
+    float_frequency: Tenor,
+    float_day_count: DayCount,
+    business_day_convention: BusinessDayConvention,
 ) -> crate::error::Result<InterestRateSwap> {
     use finstack_quant_valuations::instruments::PayReceive;
 
@@ -123,9 +108,9 @@ fn build_swap_internal(
     let fixed = FixedLegSpec {
         discount_curve_id: discount_curve_id.clone(),
         rate: rate_decimal,
-        frequency: fixed_freq,
-        day_count: fixed_dc,
-        bdc,
+        frequency: fixed_frequency,
+        day_count: fixed_day_count,
+        business_day_convention,
         calendar_id: Some(calendar_id.clone()),
         stub: StubKind::None,
         start: start_date,
@@ -140,9 +125,9 @@ fn build_swap_internal(
         discount_curve_id,
         forward_curve_id,
         spread_bp: Decimal::ZERO,
-        frequency: float_freq,
-        day_count: float_dc,
-        bdc,
+        frequency: float_frequency,
+        day_count: float_day_count,
+        business_day_convention,
         calendar_id: Some(calendar_id),
         stub: StubKind::None,
         reset_lag_days: 0,
@@ -168,7 +153,7 @@ impl<State> ModelBuilder<State> {
     ///
     /// Uses `Bond::fixed()` with default conventions (semi-annual, 30/360).
     /// For non-standard conventions (e.g., EUR bonds with ACT/ACT), use
-    /// [`add_custom_debt`](Self::add_custom_debt) with a pre-built `Bond`.
+    /// [`add_debt`](Self::add_debt) with a pre-built `Bond` payload.
     ///
     /// # Arguments
     /// * `id` - Unique instrument identifier
@@ -215,7 +200,6 @@ impl<State> ModelBuilder<State> {
     /// Returns a build error if the fixed-bond constructor rejects the dates,
     /// rate, notional, or curve configuration, or if the tagged instrument
     /// cannot be serialized into the model specification.
-    #[cfg(feature = "valuation-integration")]
     pub fn add_bond(
         mut self,
         id: impl Into<String>,
@@ -295,7 +279,6 @@ impl<State> ModelBuilder<State> {
     /// the rate, dates, notional, or curve configuration, or if the resulting
     /// tagged instrument cannot be serialized.
     #[allow(clippy::too_many_arguments)]
-    #[cfg(feature = "valuation-integration")]
     pub fn add_bond_with_convention(
         mut self,
         id: impl Into<String>,
@@ -378,7 +361,6 @@ impl<State> ModelBuilder<State> {
     /// stored. It does not check that the curve identifiers exist in market
     /// data; that happens at evaluation time.
     #[allow(clippy::too_many_arguments)]
-    #[cfg(feature = "valuation-integration")]
     pub fn add_swap(
         mut self,
         id: impl Into<String>,
@@ -432,11 +414,11 @@ impl<State> ModelBuilder<State> {
     /// * `maturity_date` - Final maturity date of the swap schedule
     /// * `discount_curve_id` - Market-context ID of the discount curve used at evaluation
     /// * `forward_curve_id` - Market-context ID of the floating-leg forward curve
-    /// * `fixed_freq` - Payment frequency of the fixed leg
-    /// * `fixed_dc` - Day-count convention applied to the fixed leg
-    /// * `float_freq` - Payment / fixing frequency of the floating leg
-    /// * `float_dc` - Day-count convention applied to the floating leg
-    /// * `bdc` - Business-day convention used when adjusting schedule dates
+    /// * `fixed_frequency` - Payment frequency of the fixed leg
+    /// * `fixed_day_count` - Day-count convention applied to the fixed leg
+    /// * `float_frequency` - Payment / fixing frequency of the floating leg
+    /// * `float_day_count` - Day-count convention applied to the floating leg
+    /// * `business_day_convention` - Business-day convention used when adjusting schedule dates
     ///
     /// # Errors
     ///
@@ -446,7 +428,6 @@ impl<State> ModelBuilder<State> {
     /// Curve availability and pricing consistency are validated later by
     /// market-aware evaluation.
     #[allow(clippy::too_many_arguments)]
-    #[cfg(feature = "valuation-integration")]
     pub fn add_swap_with_conventions(
         mut self,
         id: impl Into<String>,
@@ -456,11 +437,11 @@ impl<State> ModelBuilder<State> {
         maturity_date: Date,
         discount_curve_id: impl Into<String>,
         forward_curve_id: impl Into<String>,
-        fixed_freq: Tenor,
-        fixed_dc: DayCount,
-        float_freq: Tenor,
-        float_dc: DayCount,
-        bdc: BusinessDayConvention,
+        fixed_frequency: Tenor,
+        fixed_day_count: DayCount,
+        float_frequency: Tenor,
+        float_day_count: DayCount,
+        business_day_convention: BusinessDayConvention,
     ) -> Result<Self> {
         let id_str: String = id.into();
         let swap = build_swap_internal(
@@ -471,43 +452,36 @@ impl<State> ModelBuilder<State> {
             maturity_date,
             discount_curve_id.into(),
             forward_curve_id.into(),
-            fixed_freq,
-            fixed_dc,
-            float_freq,
-            float_dc,
-            bdc,
+            fixed_frequency,
+            fixed_day_count,
+            float_frequency,
+            float_day_count,
+            business_day_convention,
         )?;
         push_swap(&mut self.capital_structure, id_str, swap)?;
         Ok(self)
     }
 
-    /// Add a debt instrument from a canonical tagged JSON payload.
+    /// Add a typed debt instrument.
     ///
-    /// This is the path for any instrument type not covered by the typed
-    /// convenience methods (`add_bond`, `add_swap`). The `spec` argument must be
-    /// the registry's tagged form — `{"type": "<tag>", "spec": {...}}` — where
-    /// `<tag>` is a type registered in the valuations instrument registry.
+    /// This is the path for any instrument type not covered by the convenience
+    /// methods (`add_bond`, `add_swap`).
     ///
     /// # Example
     /// ```ignore
     /// use finstack_quant_statements::builder::ModelBuilder;
-    /// use serde_json::json;
+    /// use finstack_quant_valuations::instruments::InstrumentJson;
     ///
-    /// let builder = ModelBuilder::new("cs-model").add_custom_debt(
-    ///     "RCF-A",
-    ///     json!({
-    ///         "type": "revolving_credit",
-    ///         "spec": { /* instrument fields for the selected registry tag */ }
-    ///     }),
-    /// );
+    /// # fn instrument() -> InstrumentJson { unimplemented!() }
+    /// let builder = ModelBuilder::new("cs-model").add_debt("RCF-A", instrument());
     /// # let _ = builder;
     /// ```
     ///
     /// # Arguments
     ///
     /// * `id` - Unique instrument identifier stored on the capital-structure debt entry
-    /// * `spec` - Tagged JSON payload `{"type": "<tag>", "spec": {...}}` for a registered instrument
-    pub fn add_custom_debt(mut self, id: impl Into<String>, spec: serde_json::Value) -> Self {
+    /// * `spec` - Typed instrument payload from the canonical valuations registry
+    pub fn add_debt(mut self, id: impl Into<String>, spec: InstrumentJson) -> Self {
         ensure_capital_structure(&mut self.capital_structure)
             .debt_instruments
             .push(DebtInstrumentSpec {

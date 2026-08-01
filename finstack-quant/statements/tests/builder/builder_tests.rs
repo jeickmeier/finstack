@@ -266,7 +266,7 @@ fn test_schema_version() {
         .build()
         .unwrap();
 
-    assert_eq!(model.schema_version, 2);
+    assert_eq!(model.schema_version.0, 1);
 }
 
 // ============================================================================

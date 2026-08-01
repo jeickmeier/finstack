@@ -211,7 +211,7 @@ impl SABRSmile {
 
         let mut result = ArbitrageValidationResult::default();
 
-        // Tolerance for numerical noise (0.1 bps of notional)
+        // Tolerance for numerical noise (0.1 bp of notional)
         let tol = 1e-6;
 
         // Check monotonicity: C(K₁) > C(K₂) for K₁ < K₂

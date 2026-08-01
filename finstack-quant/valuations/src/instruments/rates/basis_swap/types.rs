@@ -69,7 +69,7 @@ pub use crate::instruments::common_impl::parameters::legs::BasisSwapLeg;
 ///     end,
 ///     frequency: Tenor::quarterly(),
 ///     day_count: DayCount::Act360,
-///     bdc: BusinessDayConvention::ModifiedFollowing,
+///     business_day_convention: BusinessDayConvention::ModifiedFollowing,
 ///     calendar_id: None,
 ///     stub: StubKind::ShortFront,
 ///     spread_bp: rust_decimal::Decimal::from(5),
@@ -84,7 +84,7 @@ pub use crate::instruments::common_impl::parameters::legs::BasisSwapLeg;
 ///     end,
 ///     frequency: Tenor::semi_annual(),
 ///     day_count: DayCount::Act360,
-///     bdc: BusinessDayConvention::ModifiedFollowing,
+///     business_day_convention: BusinessDayConvention::ModifiedFollowing,
 ///     calendar_id: None,
 ///     stub: StubKind::ShortFront,
 ///     spread_bp: rust_decimal::Decimal::ZERO,
@@ -103,7 +103,9 @@ pub use crate::instruments::common_impl::parameters::legs::BasisSwapLeg;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct BasisSwap {
@@ -133,19 +135,25 @@ pub struct BasisSwap {
     pub allow_same_curve: bool,
     /// Pricing overrides for scenario analysis and model configuration.
     #[builder(default)]
+    /// Instrument-owned pricing inputs.
     #[serde(
         default,
-        deserialize_with = "crate::instruments::common_impl::parameters::deserialize_null_default"
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
     )]
-    /// Instrument-owned pricing inputs.
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for instrument selection and tagging.
     pub attributes: crate::instruments::common_impl::traits::Attributes,
@@ -342,8 +350,8 @@ impl BasisSwap {
             end,
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
-            calendar_id: None,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
+            calendar_id: Some("weekends_only".to_string()),
             stub: StubKind::ShortFront,
             spread_bp: Decimal::from(5),
             payment_lag_days: 0,
@@ -357,8 +365,8 @@ impl BasisSwap {
             end,
             frequency: Tenor::monthly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
-            calendar_id: None,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
+            calendar_id: Some("weekends_only".to_string()),
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
             payment_lag_days: 0,
@@ -454,7 +462,7 @@ impl BasisSwap {
                 end: leg.end,
                 frequency: leg.frequency,
                 stub: leg.stub,
-                bdc: leg.bdc,
+                business_day_convention: leg.business_day_convention,
                 calendar_id: self.resolve_leg_calendar("priced", leg)?,
                 end_of_month: false,
                 day_count: leg.day_count,
@@ -532,7 +540,7 @@ impl BasisSwap {
                 end: leg.end,
                 frequency: leg.frequency,
                 stub: leg.stub,
-                bdc: leg.bdc,
+                business_day_convention: leg.business_day_convention,
                 calendar_id: self.resolve_leg_calendar("cashflow", leg)?,
                 end_of_month: false,
                 day_count: leg.day_count,
@@ -592,7 +600,7 @@ impl BasisSwap {
                     all_in_floor_bp: None,
                     index_cap_bp: None,
                     overnight_index_constraints: Default::default(),
-                    reset_freq: leg.frequency,
+                    reset_frequency: leg.frequency,
                     index_tenor: None,
                     reset_lag_days: leg.reset_lag_days,
                     fixing_calendar_id: None,
@@ -602,9 +610,9 @@ impl BasisSwap {
                 },
                 coupon_type: CouponType::Cash,
                 schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                    freq: leg.frequency,
-                    dc: leg.day_count,
-                    bdc: leg.bdc,
+                    frequency: leg.frequency,
+                    day_count: leg.day_count,
+                    business_day_convention: leg.business_day_convention,
                     calendar_id: self.resolve_leg_calendar("cashflow", leg)?.to_string(),
                     stub: leg.stub,
                     end_of_month: false,
@@ -753,7 +761,7 @@ mod tests {
             end: maturity,
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: Some("usny".to_string()),
             stub: StubKind::ShortFront,
             spread_bp: Decimal::from(5), // 5bp
@@ -768,7 +776,7 @@ mod tests {
             end: maturity,
             frequency: Tenor::semi_annual(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: Some("usny".to_string()),
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
@@ -833,7 +841,7 @@ mod tests {
             end: maturity,
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
@@ -847,7 +855,7 @@ mod tests {
             end: maturity,
             frequency: Tenor::semi_annual(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
@@ -907,7 +915,7 @@ mod tests {
             end: maturity,
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: Some("usny".to_string()),
             stub: StubKind::ShortFront,
             spread_bp: Decimal::from(10),
@@ -926,7 +934,7 @@ mod tests {
             end: maturity,
             frequency: Tenor::semi_annual(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: Some("usny".to_string()),
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
@@ -974,7 +982,7 @@ mod tests {
             end: date(2025, 1, 3),
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
@@ -1036,7 +1044,7 @@ mod tests {
             end: date(2025, 1, 3),
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::ShortFront,
             spread_bp: Decimal::from(5),
@@ -1085,7 +1093,7 @@ mod tests {
             end: date(2025, 1, 3),
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: Some("usny".to_string()),
             stub: StubKind::ShortFront,
             spread_bp: Decimal::from(10), // 10bp spread
@@ -1158,7 +1166,7 @@ mod tests {
             end: maturity,
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: Some("usny".to_string()),
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO, // Start at zero spread
@@ -1173,7 +1181,7 @@ mod tests {
             end: maturity,
             frequency: Tenor::semi_annual(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: Some("usny".to_string()),
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
@@ -1241,7 +1249,7 @@ mod tests {
             end: date(2025, 1, 3),
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
@@ -1358,7 +1366,7 @@ mod tests {
             end: maturity,
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,

@@ -4,7 +4,7 @@
       "description": "Clearing status for OTC derivatives.\n\nDetermines whether a trade is cleared through a CCP or remains bilateral\nunder a CSA agreement.",
       "oneOf": [
         {
-          "const": "Bilateral",
+          "const": "bilateral",
           "description": "Bilateral (uncleared) trade governed by CSA\n\nSubject to BCBS-IOSCO margin requirements for non-centrally cleared derivatives.\nRequires both VM and IM (above thresholds).",
           "type": "string"
         },
@@ -12,7 +12,7 @@
           "additionalProperties": false,
           "description": "Trade cleared through a central counterparty (CCP)\n\nMargin requirements set by the CCP. IM is typically VaR-based.\nVM is exchanged daily with no threshold.",
           "properties": {
-            "Cleared": {
+            "cleared": {
               "properties": {
                 "ccp": {
                   "description": "CCP identifier (e.g., \"LCH\", \"CME\", \"ICE\", \"JSCC\")",
@@ -26,20 +26,56 @@
             }
           },
           "required": [
-            "Cleared"
+            "cleared"
           ],
           "type": "object"
         }
       ]
     },
     "CollateralAssetClass": {
-      "description": "Collateral asset class identifier. Canonical values are cash, government_bonds, agency_bonds, covered_bonds, corporate_bonds, equity, gold, and mutual_funds. Custom values are also accepted and normalized to lowercase snake_case during deserialization.",
-      "examples": [
-        "cash",
-        "government_bonds",
-        "custom_collateral"
-      ],
-      "type": "string"
+      "description": "Collateral asset classes per BCBS-IOSCO standards.\n\nAsset classes determine baseline haircuts and eligibility criteria.\nThe BCBS-IOSCO framework specifies minimum haircuts by asset class.\n\n# Reference\n\nBCBS-IOSCO \"Margin requirements for non-centrally cleared derivatives\" (2020)\nAnnex A: Standardized haircut schedule",
+      "oneOf": [
+        {
+          "const": "cash",
+          "description": "Cash in eligible currency",
+          "type": "string"
+        },
+        {
+          "const": "government_bonds",
+          "description": "Sovereign government bonds accepted as collateral.",
+          "type": "string"
+        },
+        {
+          "const": "agency_bonds",
+          "description": "Debt issued or guaranteed by eligible agencies.",
+          "type": "string"
+        },
+        {
+          "const": "covered_bonds",
+          "description": "Covered bonds meeting the applicable eligibility criteria.",
+          "type": "string"
+        },
+        {
+          "const": "corporate_bonds",
+          "description": "Investment-grade corporate bonds accepted under the CSA.",
+          "type": "string"
+        },
+        {
+          "const": "equity",
+          "description": "Eligible listed equity collateral.",
+          "type": "string"
+        },
+        {
+          "const": "gold",
+          "description": "Eligible gold collateral.",
+          "type": "string"
+        },
+        {
+          "const": "mutual_funds",
+          "description": "Eligible mutual funds or exchange-traded funds.",
+          "type": "string"
+        }
+      ]
     },
     "CollateralEligibility": {
       "additionalProperties": false,
@@ -954,6 +990,11 @@
         }
       ]
     },
+    "DecimalWire": {
+      "description": "Exact decimal encoded only as a JSON string.",
+      "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
+      "type": "string"
+    },
     "EligibleCollateralSchedule": {
       "additionalProperties": false,
       "description": "Eligible collateral schedule with haircuts.\n\nDefines the complete set of collateral types accepted under a CSA\nor margin agreement, along with associated haircuts and constraints.\n\n# Example\n\n```ignore\nuse finstack_quant_margin::{CollateralEligibility, EligibleCollateralSchedule};\n\n// Start from a standard schedule (BCBS-IOSCO compliant)\nlet schedule = EligibleCollateralSchedule::bcbs_standard()?;\n# let _ = schedule;\n# Ok::<(), finstack_quant_core::Error>(())\n```",
@@ -994,27 +1035,27 @@
       "description": "Initial margin calculation methodology.\n\nDifferent methodologies are used depending on regulatory requirements,\nproduct type, and whether trades are cleared or bilateral.\n\n# BCBS-IOSCO Standards\n\nFor bilateral (uncleared) OTC derivatives, either SIMM or the regulatory\nschedule approach may be used. SIMM is the industry standard for large\ndealers due to its risk-sensitivity.",
       "oneOf": [
         {
-          "const": "Haircut",
+          "const": "haircut",
           "description": "Haircut-based IM calculation (standard for repos and securities financing)\n\nIM = Collateral_Value × Haircut\n\nHaircuts are determined by asset class, rating, maturity, and FX mismatch.",
           "type": "string"
         },
         {
-          "const": "Simm",
+          "const": "simm",
           "description": "ISDA Standard Initial Margin Model (SIMM)\n\nSensitivities-based model calculating IM from delta, vega, and curvature\nrisk across interest rate, credit, equity, commodity, and FX risk classes.\n\nReference: ISDA SIMM Methodology v2.6 (2023)",
           "type": "string"
         },
         {
-          "const": "Schedule",
+          "const": "schedule",
           "description": "BCBS-IOSCO regulatory schedule approach\n\nGrid-based IM calculation using notional × rate based on asset class and maturity.\nSimpler but typically more conservative than SIMM.\n\nExample rates:\n- Interest Rate: 0-2yr: 1%, 2-5yr: 2%, 5+yr: 4%\n- Credit: 2-5yr: 5%, 5+yr: 10%\n- Equity: 15%\n- FX: 6%",
           "type": "string"
         },
         {
-          "const": "InternalModel",
+          "const": "internal_model",
           "description": "Internal model approved by regulator\n\nBank's proprietary VaR or ES-based model approved by supervisor.\nMust meet regulatory backtesting and validation requirements.",
           "type": "string"
         },
         {
-          "const": "ClearingHouse",
+          "const": "clearing_house",
           "description": "Clearing house methodology\n\nCCP-specific IM calculation (typically VaR or SPAN-based).\nExamples: LCH SwapClear, CME, ICE Clear Credit",
           "type": "string"
         }
@@ -1158,28 +1199,38 @@
       "description": "Type of margin call.\n\nClassifies the nature of a margin call for proper processing\nand accounting treatment.",
       "oneOf": [
         {
-          "const": "InitialMargin",
+          "const": "initial_margin",
           "description": "Initial margin posting requirement\n\nCollateral to be posted to cover potential future exposure.",
           "type": "string"
         },
         {
-          "const": "VariationMarginDelivery",
+          "const": "variation_margin_delivery",
           "description": "Variation margin delivery (margin to be posted)\n\nMark-to-market payment when exposure has increased.",
           "type": "string"
         },
         {
-          "const": "VariationMarginReturn",
+          "const": "variation_margin_return",
           "description": "Variation margin return (margin to be received back)\n\nReturn of excess collateral when exposure has decreased.",
           "type": "string"
         },
         {
-          "const": "TopUp",
+          "const": "top_up",
           "description": "Top-up margin call\n\nAdditional IM required due to increased exposure or threshold breach.",
           "type": "string"
         },
         {
-          "const": "Substitution",
+          "const": "substitution",
           "description": "Collateral substitution request\n\nRequest to substitute one form of eligible collateral for another.",
+          "type": "string"
+        }
+      ]
+    },
+    "MarginSchema": {
+      "description": "Typed value of the required margin schema marker.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.margin/1",
+          "description": "The sole pre-release margin contract.",
           "type": "string"
         }
       ]
@@ -1188,22 +1239,22 @@
       "description": "Margin call frequency.\n\nDetermines how often margin calls are made and collateral is exchanged.\nIndustry standard for OTC derivatives is daily under BCBS-IOSCO rules.",
       "oneOf": [
         {
-          "const": "Daily",
+          "const": "daily",
           "description": "Daily margin calls (standard for OTC derivatives post-2016)",
           "type": "string"
         },
         {
-          "const": "Weekly",
+          "const": "weekly",
           "description": "Weekly margin calls (pre-regulatory period)",
           "type": "string"
         },
         {
-          "const": "Monthly",
+          "const": "monthly",
           "description": "Monthly margin calls (pre-regulatory period)",
           "type": "string"
         },
         {
-          "const": "OnDemand",
+          "const": "on_demand",
           "description": "On-demand margin calls (used for repos and some bilateral agreements)",
           "type": "string"
         }
@@ -1241,11 +1292,7 @@
       "description": "Currency-tagged monetary amount with safe arithmetic.\n\nValues are stored using a fixed-point representation derived from ISO 4217\ndecimal places.\n\nWhen you need configurable rounding during ingestion, use\n[`Money::new_with_config`].\n\n# Examples\n```rust\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::currency::Currency;\n\nlet notional = Money::new(1_000_000.0, Currency::EUR);\nassert_eq!(notional.currency(), Currency::EUR);\nassert_eq!(notional.amount(), 1_000_000.0);\n```",
       "properties": {
         "amount": {
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "$ref": "#/$defs/DecimalWire"
         },
         "currency": {
           "$ref": "#/$defs/Currency"
@@ -1337,18 +1384,18 @@
   },
   "$id": "https://finstack_quant.dev/schemas/margin/1/margin.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "OTC derivative margin specifications including CSA terms, thresholds, and collateral eligibility. Covers ISDA CSA, BCBS-IOSCO regulatory margin, and CCP clearing requirements.",
-  "oneOf": [
+  "anyOf": [
     {
       "additionalProperties": false,
+      "description": "An OTC margin specification.",
       "properties": {
         "otc_margin_spec": {
-          "$ref": "#/$defs/OtcMarginSpec"
+          "$ref": "#/$defs/OtcMarginSpec",
+          "description": "OTC margin specification payload."
         },
         "schema": {
-          "const": "finstack_quant.margin/1",
-          "description": "Schema version identifier",
-          "type": "string"
+          "$ref": "#/$defs/MarginSchema",
+          "description": "Required contract marker."
         }
       },
       "required": [
@@ -1359,14 +1406,15 @@
     },
     {
       "additionalProperties": false,
+      "description": "A standalone CSA specification.",
       "properties": {
         "csa_spec": {
-          "$ref": "#/$defs/CsaSpec"
+          "$ref": "#/$defs/CsaSpec",
+          "description": "CSA specification payload."
         },
         "schema": {
-          "const": "finstack_quant.margin/1",
-          "description": "Schema version identifier",
-          "type": "string"
+          "$ref": "#/$defs/MarginSchema",
+          "description": "Required contract marker."
         }
       },
       "required": [
@@ -1377,14 +1425,15 @@
     },
     {
       "additionalProperties": false,
+      "description": "A concrete margin call.",
       "properties": {
         "margin_call": {
-          "$ref": "#/$defs/MarginCall"
+          "$ref": "#/$defs/MarginCall",
+          "description": "Margin call payload."
         },
         "schema": {
-          "const": "finstack_quant.margin/1",
-          "description": "Schema version identifier",
-          "type": "string"
+          "$ref": "#/$defs/MarginSchema",
+          "description": "Required contract marker."
         }
       },
       "required": [
@@ -1394,5 +1443,6 @@
       "type": "object"
     }
   ],
+  "description": "OTC derivative margin specifications including CSA terms, thresholds, and collateral eligibility. Covers ISDA CSA, BCBS-IOSCO regulatory margin, and CCP clearing requirements.",
   "title": "Finstack Quant Margin Specification"
 }

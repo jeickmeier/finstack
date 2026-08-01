@@ -10,7 +10,7 @@
 //!
 //! | Model | Vol Type | Parameter | Formula | Typical Range |
 //! |-------|----------|-----------|---------|---------------|
-//! | Ho-Lee | Normal/Absolute | σ (bps/yr) | dr = θdt + σdW | 50-150 bps (0.005-0.015) |
+//! | Ho-Lee | Normal/Absolute | σ (bp/yr) | dr = θdt + σdW | 50-150 bp (0.005-0.015) |
 //! | BDT | Lognormal/Relative | σ (%) | dr/r = θdt + σdW | 15-30% (0.15-0.30) |
 //!
 //! ## Converting Between Conventions
@@ -45,7 +45,7 @@
 //!
 //! ## Calibration Sources
 //!
-//! - **Swaption market**: ATM swaption vols are typically quoted in normal (bps)
+//! - **Swaption market**: ATM swaption vols are typically quoted in normal (bp)
 //! - **Cap/floor market**: Often quoted in lognormal (Black vol)
 //! - **Historical**: Calculate from rate time series
 
@@ -65,12 +65,12 @@ use super::tree_framework::{
 ///
 /// 100 basis points per year, typical for developed market government bonds
 /// in a normal rate environment (2-5% rates).
-pub const DEFAULT_NORMAL_VOL: f64 = 0.01; // 100 bps/yr
+pub const DEFAULT_NORMAL_VOL: f64 = 0.01; // 100 bp/yr
 
 /// Default lognormal (relative) volatility for Black-Derman-Toy model.
 ///
 /// 20% annualized, typical for developed market government bonds.
-/// This corresponds to ~100 bps normal vol at a 5% rate level.
+/// This corresponds to ~100 bp normal vol at a 5% rate level.
 pub const DEFAULT_LOGNORMAL_VOL: f64 = 0.20; // 20%
 
 // ============================================================================
@@ -199,7 +199,7 @@ pub enum ShortRateModel {
     /// ```
     /// where:
     /// - `θ(t)` is calibrated to match the discount curve
-    /// - `σ` is the **normal volatility** (absolute, in rate units like 0.01 = 100 bps)
+    /// - `σ` is the **normal volatility** (absolute, in rate units like 0.01 = 100 bp)
     ///
     /// ## Properties
     /// - ✅ Handles negative rates naturally
@@ -207,10 +207,10 @@ pub enum ShortRateModel {
     /// - Analytically tractable
     ///
     /// ## Typical Volatility Range
-    /// - Low rates (<2%): 50-80 bps (0.005-0.008)
-    /// - Normal rates (2-5%): 80-120 bps (0.008-0.012)
-    /// - High rates (>5%): 100-150 bps (0.010-0.015)
-    /// - Crisis: 150-300 bps (0.015-0.030)
+    /// - Low rates (<2%): 50-80 bp (0.005-0.008)
+    /// - Normal rates (2-5%): 80-120 bp (0.008-0.012)
+    /// - High rates (>5%): 100-150 bp (0.010-0.015)
+    /// - Crisis: 150-300 bp (0.015-0.030)
     HoLee,
 
     /// Black-Derman-Toy / Black-Karasinski model: Lognormal short rates.
@@ -252,7 +252,7 @@ pub enum ShortRateModel {
 ///
 /// | Model | Volatility Type | Example |
 /// |-------|-----------------|---------|
-/// | [`ShortRateModel::HoLee`] | Normal (absolute) | 0.01 = 100 bps/yr |
+/// | [`ShortRateModel::HoLee`] | Normal (absolute) | 0.01 = 100 bp/yr |
 /// | [`ShortRateModel::BlackDermanToy`] | Lognormal (relative) | 0.20 = 20%/yr |
 ///
 /// Use the helper constructors ([`ShortRateTreeConfig::ho_lee`], [`ShortRateTreeConfig::bdt`])
@@ -265,7 +265,7 @@ pub enum ShortRateModel {
 ///     ShortRateTreeConfig, ShortRateModel, DEFAULT_NORMAL_VOL, DEFAULT_LOGNORMAL_VOL,
 /// };
 ///
-/// // Ho-Lee with 100 bps normal vol (recommended for negative rate environments)
+/// // Ho-Lee with 100 bp normal vol (recommended for negative rate environments)
 /// let ho_lee = ShortRateTreeConfig::ho_lee(100, 0.01);
 /// assert_eq!(ho_lee.model, ShortRateModel::HoLee);
 ///
@@ -294,7 +294,7 @@ pub struct ShortRateTreeConfig {
     /// Interest rate volatility (annualized).
     ///
     /// ⚠️ **Interpretation depends on model**:
-    /// - **Ho-Lee**: Normal volatility in rate units (0.01 = 100 bps/yr)
+    /// - **Ho-Lee**: Normal volatility in rate units (0.01 = 100 bp/yr)
     /// - **BDT**: Lognormal volatility as proportion (0.20 = 20%/yr)
     ///
     /// See [`ShortRateModel`] for typical ranges per model type.
@@ -324,7 +324,7 @@ pub struct ShortRateTreeConfig {
     ///
     /// Controls whether calibration and pricing use continuous `exp(-r*dt)` or
     /// simple `1/(1+r*dt)` compounding. Bloomberg's lognormal OAS model uses
-    /// simple compounding; the default is continuous for backward compatibility.
+    /// simple compounding; the default is continuous compounding.
     pub compounding: TreeCompounding,
 }
 
@@ -346,14 +346,14 @@ impl ShortRateTreeConfig {
     /// # Arguments
     ///
     /// * `steps` - Number of tree steps (50-200 typical)
-    /// * `normal_vol` - Normal volatility in rate units (e.g., 0.01 = 100 bps/yr)
+    /// * `normal_vol` - Normal volatility in rate units (e.g., 0.01 = 100 bp/yr)
     ///
     /// # Examples
     ///
     /// ```ignore
     /// use finstack_quant_valuations::models::trees::short_rate_tree::ShortRateTreeConfig;
     ///
-    /// // 100 steps, 80 bps normal vol
+    /// // 100 steps, 80 bp normal vol
     /// let config = ShortRateTreeConfig::ho_lee(100, 0.008);
     /// ```
     pub fn ho_lee(steps: usize, normal_vol: f64) -> Self {
@@ -405,7 +405,7 @@ impl ShortRateTreeConfig {
         self
     }
 
-    /// Create Ho-Lee configuration with default normal volatility (100 bps).
+    /// Create Ho-Lee configuration with default normal volatility (100 bp).
     ///
     /// Suitable for developed market government bonds in normal rate environments.
     pub fn default_ho_lee(steps: usize) -> Self {
@@ -446,7 +446,7 @@ impl ShortRateTreeConfig {
     /// # Arguments
     ///
     /// * `steps` - Number of tree steps
-    /// * `normal_vol` - Normal volatility in rate units (e.g., 0.01 = 100 bps)
+    /// * `normal_vol` - Normal volatility in rate units (e.g., 0.01 = 100 bp)
     /// * `rate_level` - Current/reference rate level for model selection
     ///
     /// # Model Selection
@@ -499,7 +499,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Default)]
 pub struct CalibrationResult {
     /// Maximum calibration error in basis points.
-    pub max_error_bps: f64,
+    pub max_error_bp: f64,
     /// Step at which maximum error occurred.
     pub max_error_step: usize,
     /// Number of steps where the solver failed and fallback was used.
@@ -512,13 +512,13 @@ impl CalibrationResult {
     /// Returns true if calibration quality is acceptable (max error < 1bp, no fallbacks).
     #[must_use]
     pub fn is_acceptable(&self) -> bool {
-        self.converged && self.max_error_bps < 1.0 && self.fallback_count == 0
+        self.converged && self.max_error_bp < 1.0 && self.fallback_count == 0
     }
 
     /// Returns true if calibration quality is good (max error < 0.1bp).
     #[must_use]
     pub fn is_good(&self) -> bool {
-        self.converged && self.max_error_bps < 0.1 && self.fallback_count == 0
+        self.converged && self.max_error_bp < 0.1 && self.fallback_count == 0
     }
 }
 
@@ -586,14 +586,14 @@ impl ShortRateTree {
     /// # Arguments
     ///
     /// * `steps` - Number of tree steps (50-200 typical)
-    /// * `normal_vol` - Normal volatility in rate units (e.g., 0.01 = 100 bps/yr)
+    /// * `normal_vol` - Normal volatility in rate units (e.g., 0.01 = 100 bp/yr)
     ///
     /// # Examples
     ///
     /// ```ignore
     /// use finstack_quant_valuations::models::trees::short_rate_tree::ShortRateTree;
     ///
-    /// // Ho-Lee with 100 bps annual volatility
+    /// // Ho-Lee with 100 bp annual volatility
     /// let tree = ShortRateTree::ho_lee(100, 0.01);
     /// ```
     pub fn ho_lee(steps: usize, normal_vol: f64) -> Self {
@@ -621,7 +621,7 @@ impl ShortRateTree {
     /// # Warning
     ///
     /// ⚠️ The volatility parameter is **lognormal** (relative), not normal (absolute).
-    /// A value of 0.20 means 20% annual rate volatility, not 20 bps.
+    /// A value of 0.20 means 20% annual rate volatility, not 20 bp.
     /// Use `finstack_quant_core::math::volatility::convert_atm_volatility` to convert from normal if needed.
     pub fn black_derman_toy(steps: usize, lognormal_vol: f64, mean_reversion: f64) -> Self {
         Self::new(ShortRateTreeConfig::bdt(
@@ -631,7 +631,7 @@ impl ShortRateTree {
         ))
     }
 
-    /// Create a Ho-Lee tree with default normal volatility (100 bps).
+    /// Create a Ho-Lee tree with default normal volatility (100 bp).
     pub fn default_ho_lee(steps: usize) -> Self {
         Self::new(ShortRateTreeConfig::default_ho_lee(steps))
     }
@@ -844,7 +844,7 @@ impl ShortRateTree {
         }
 
         // Measure actual calibration error (floating-point accumulation)
-        let mut max_error_bps = 0.0_f64;
+        let mut max_error_bp = 0.0_f64;
         let mut max_error_step = 0_usize;
         {
             let max_nodes = self.config.steps + 2;
@@ -868,8 +868,8 @@ impl ShortRateTree {
                 let target_df = discount_curve.df(t_next);
                 if target_df > 0.0 {
                     let err = ((model_df - target_df) / target_df).abs() * 10_000.0;
-                    if err > max_error_bps {
-                        max_error_bps = err;
+                    if err > max_error_bp {
+                        max_error_bp = err;
                         max_error_step = step;
                     }
                 }
@@ -901,7 +901,7 @@ impl ShortRateTree {
                     (MIN_NODE_DISCOUNT_FACTOR..=MAX_NODE_DISCOUNT_FACTOR).contains(&node_df);
                 if !df_in_range {
                     self.calibration_quality = Some(CalibrationResult {
-                        max_error_bps,
+                        max_error_bp,
                         max_error_step,
                         fallback_count: 0,
                         converged: false,
@@ -918,7 +918,7 @@ impl ShortRateTree {
         }
 
         self.calibration_quality = Some(CalibrationResult {
-            max_error_bps,
+            max_error_bp,
             max_error_step,
             fallback_count: 0,
             converged: true,
@@ -974,7 +974,7 @@ impl ShortRateTree {
         // fraction means the Brent objective no longer responds to `alpha` at
         // that node, so the tree can no longer reprice the curve. When that
         // happens the calibration is unsound and is failed below rather than
-        // silently returning a mispriced lattice (`max_error_bps` alone only
+        // silently returning a mispriced lattice (`max_error_bp` alone only
         // *reports* the damage — it does not prevent the tree from escaping).
         let clamp_rel_tol = 1.0e-6;
         let materially_clamped = |raw: f64| -> bool {
@@ -1003,7 +1003,7 @@ impl ShortRateTree {
         }
 
         // Track calibration quality for diagnostics
-        let mut max_error_bps = 0.0_f64;
+        let mut max_error_bp = 0.0_f64;
         let mut max_error_step = 0_usize;
         let mut fallback_count = 0_usize;
 
@@ -1081,19 +1081,19 @@ impl ShortRateTree {
                 }
                 model_price
             };
-            let error_bps = ((model_df - target_df) / target_df).abs() * 10000.0;
+            let error_bp = ((model_df - target_df) / target_df).abs() * 10000.0;
 
-            if error_bps > max_error_bps {
-                max_error_bps = error_bps;
+            if error_bp > max_error_bp {
+                max_error_bp = error_bp;
                 max_error_step = step;
             }
 
             // Log warning if calibration error is significant (>1bp) or fallback was used
-            if error_bps > 1.0 || used_fallback {
+            if error_bp > 1.0 || used_fallback {
                 tracing::warn!(
                     "BDT calibration step {}: error={:.2}bp, target_df={:.6}, model_df={:.6}{}",
                     step,
-                    error_bps,
+                    error_bp,
                     target_df,
                     model_df,
                     if used_fallback {
@@ -1148,17 +1148,17 @@ impl ShortRateTree {
         }
 
         // Log calibration summary
-        if max_error_bps > 1.0 || fallback_count > 0 {
+        if max_error_bp > 1.0 || fallback_count > 0 {
             tracing::warn!(
                 "BDT calibration completed: max error={:.2}bp at step {}, fallbacks={} (target: <1bp, 0 fallbacks)",
-                max_error_bps,
+                max_error_bp,
                 max_error_step,
                 fallback_count
             );
         } else {
             tracing::debug!(
                 "BDT calibration completed: max error={:.4}bp at step {}",
-                max_error_bps,
+                max_error_bp,
                 max_error_step
             );
         }
@@ -1172,7 +1172,7 @@ impl ShortRateTree {
         // a wide tree either reprices fine (clamp engages only on vanishing-
         // weight tail nodes) or breaks catastrophically (thousands of bp), so
         // 25 bp cleanly separates the two. Unlike the diagnostic
-        // `max_error_bps` field — which only *reports* — this gate *enforces*
+        // `max_error_bp` field — which only *reports* — this gate *enforces*
         // the contract so a silently-mispriced tree can never be returned as
         // `converged`. The milder 1-25 bp band is still surfaced via the
         // `tracing::warn!` above and the `is_acceptable` / `is_good` flags.
@@ -1186,16 +1186,16 @@ impl ShortRateTree {
         // on the wrong drift, and the lattice silently stops repricing the
         // curve — exactly the failure this gate catches. (Clamp engagement on
         // a deep, vanishing-weight tail node is harmless: it leaves
-        // `max_error_bps` at ~0 and is intentionally *not* failed here.)
+        // `max_error_bp` at ~0 and is intentionally *not* failed here.)
         //
-        // `max_error_bps` is re-derived above by an independent forward pass
+        // `max_error_bp` is re-derived above by an independent forward pass
         // over the final `rates`, so it faithfully reflects any clamp-induced
         // mispricing. When the tolerance is breached, the diagnostic message
         // reports whether the clamp engaged (the usual root cause for a wide
         // tree) so the caller knows which knob to turn.
-        if !max_error_bps.is_finite() || max_error_bps > MAX_CALIBRATION_ERROR_BPS {
+        if !max_error_bp.is_finite() || max_error_bp > MAX_CALIBRATION_ERROR_BPS {
             self.calibration_quality = Some(CalibrationResult {
-                max_error_bps,
+                max_error_bp,
                 max_error_step,
                 fallback_count,
                 converged: false,
@@ -1212,14 +1212,14 @@ impl ShortRateTree {
             };
             return Err(Error::Validation(format!(
                 "BDT calibration failed to reprice the discount curve: max \
-                 error {max_error_bps:.2} bp at step {max_error_step} exceeds \
+                 error {max_error_bp:.2} bp at step {max_error_step} exceeds \
                  the {MAX_CALIBRATION_ERROR_BPS:.1} bp tolerance.{clamp_note}"
             )));
         }
 
         // Store calibration result for user inspection
         self.calibration_quality = Some(CalibrationResult {
-            max_error_bps,
+            max_error_bp,
             max_error_step,
             fallback_count,
             converged: true,
@@ -1273,7 +1273,7 @@ impl ShortRateTree {
         let mut probs: Vec<Vec<(f64, f64, f64)>> = Vec::with_capacity(steps);
         let mut state_prices: Vec<f64> = vec![1.0];
 
-        let mut max_error_bps = 0.0_f64;
+        let mut max_error_bp = 0.0_f64;
         let mut max_error_step = 0_usize;
 
         for step in 0..steps {
@@ -1358,9 +1358,9 @@ impl ShortRateTree {
             }
 
             let model_df: f64 = next_q.iter().sum();
-            let error_bps = ((model_df - target_df) / target_df).abs() * 10_000.0;
-            if error_bps > max_error_bps {
-                max_error_bps = error_bps;
+            let error_bp = ((model_df - target_df) / target_df).abs() * 10_000.0;
+            if error_bp > max_error_bp {
+                max_error_bp = error_bp;
                 max_error_step = step;
             }
 
@@ -1384,9 +1384,9 @@ impl ShortRateTree {
         // Same hard repricing gate philosophy as BDT: a well-posed lattice
         // calibrates to float noise; anything materially off must not escape.
         const MAX_CALIBRATION_ERROR_BPS: f64 = 25.0;
-        let converged = max_error_bps.is_finite() && max_error_bps <= MAX_CALIBRATION_ERROR_BPS;
+        let converged = max_error_bp.is_finite() && max_error_bp <= MAX_CALIBRATION_ERROR_BPS;
         self.calibration_quality = Some(CalibrationResult {
-            max_error_bps,
+            max_error_bp,
             max_error_step,
             fallback_count: 0,
             converged,
@@ -1394,7 +1394,7 @@ impl ShortRateTree {
         if !converged {
             return Err(Error::Validation(format!(
                 "Black-Karasinski calibration failed to reprice the discount \
-                 curve: max error {max_error_bps:.2} bp at step {max_error_step} \
+                 curve: max error {max_error_bp:.2} bp at step {max_error_step} \
                  exceeds the {MAX_CALIBRATION_ERROR_BPS:.1} bp tolerance"
             )));
         }
@@ -1977,7 +1977,7 @@ mod tests {
 
             let quality = tree.calibration_result().expect("quality");
             assert!(
-                quality.converged && quality.max_error_bps < 0.1,
+                quality.converged && quality.max_error_bp < 0.1,
                 "{compounding:?}: calibration must reprice the curve to <0.1bp, \
                  got {quality:?}"
             );
@@ -2103,7 +2103,7 @@ mod tests {
         assert!(tree.probabilities(0).expect("probabilities").0.is_finite());
         let quality = tree.calibration_result().expect("calibration result");
         assert!(quality.converged);
-        assert!(quality.max_error_bps.is_finite());
+        assert!(quality.max_error_bp.is_finite());
     }
 
     #[test]
@@ -2247,7 +2247,7 @@ mod tests {
         assert!(
             quality.is_acceptable(),
             "BK(κ=0.05) calibration: max_error={:.2}bp",
-            quality.max_error_bps
+            quality.max_error_bp
         );
 
         // Probability-weighted terminal ln-rate dispersion: κ > 0 tightens it.
@@ -2300,7 +2300,7 @@ mod tests {
 
         let quality = tree.calibration_result().expect("quality");
         assert!(
-            quality.converged && quality.max_error_bps < 0.1,
+            quality.converged && quality.max_error_bp < 0.1,
             "BK calibration must reprice the curve to <0.1bp, got {quality:?}"
         );
 
@@ -2314,11 +2314,11 @@ mod tests {
             )
             .expect("ZCB price");
         let target = curve.df(maturity);
-        let error_bps = ((zcb - target) / target).abs() * 10_000.0;
+        let error_bp = ((zcb - target) / target).abs() * 10_000.0;
         assert!(
-            error_bps < 0.1,
+            error_bp < 0.1,
             "BK backward induction must reprice ZCB to <0.1bp: \
-             got={zcb:.8}, target={target:.8} ({error_bps:.4}bp)"
+             got={zcb:.8}, target={target:.8} ({error_bp:.4}bp)"
         );
     }
 
@@ -2504,7 +2504,7 @@ mod tests {
     #[test]
     fn test_normal_to_lognormal_vol_conversion() {
         // Test that conversion produces reasonable lognormal vol and round-trips correctly
-        let normal_vol = 0.01; // 100 bps
+        let normal_vol = 0.01; // 100 bp
         let rate_level = 0.05; // 5%
 
         let lognormal = convert_atm_volatility(
@@ -2575,7 +2575,7 @@ mod tests {
 
     #[test]
     fn test_vol_conversion_roundtrip() {
-        let original_normal = 0.012; // 120 bps
+        let original_normal = 0.012; // 120 bp
         let rate_level = 0.045; // 4.5%
 
         let lognormal = convert_atm_volatility(
@@ -2630,7 +2630,7 @@ mod tests {
     #[test]
     fn test_calibration_result_quality_helpers_cover_thresholds() {
         let good = CalibrationResult {
-            max_error_bps: 0.05,
+            max_error_bp: 0.05,
             max_error_step: 2,
             fallback_count: 0,
             converged: true,
@@ -2639,7 +2639,7 @@ mod tests {
         assert!(good.is_acceptable());
 
         let acceptable_only = CalibrationResult {
-            max_error_bps: 0.5,
+            max_error_bp: 0.5,
             max_error_step: 3,
             fallback_count: 0,
             converged: true,
@@ -2648,7 +2648,7 @@ mod tests {
         assert!(acceptable_only.is_acceptable());
 
         let poor = CalibrationResult {
-            max_error_bps: 2.0,
+            max_error_bp: 2.0,
             max_error_step: 1,
             fallback_count: 1,
             converged: true,

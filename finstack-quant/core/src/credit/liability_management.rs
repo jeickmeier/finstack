@@ -117,17 +117,14 @@ impl fmt::Display for ExchangeType {
 impl FromStr for ExchangeType {
     type Err = Error;
 
-    /// Parse an exchange structure, accepting market shorthand.
-    ///
-    /// Parsing is case-insensitive, trims surrounding whitespace, normalises
-    /// `-` to `_`, and accepts `"par"` as an alias for `"par_for_par"`.
+    /// Parse an exchange structure from its canonical snake_case wire value.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Validation`] when the label is not a known structure.
     fn from_str(value: &str) -> Result<Self> {
-        match normalize_label(value).as_str() {
-            "par" | "par_for_par" => Ok(Self::ParForPar),
+        match value {
+            "par_for_par" => Ok(Self::ParForPar),
             "discount" => Ok(Self::Discount),
             "uptier" => Ok(Self::Uptier),
             "downtier" => Ok(Self::Downtier),
@@ -300,24 +297,19 @@ impl fmt::Display for LmeType {
 impl FromStr for LmeType {
     type Err = Error;
 
-    /// Parse an LME structure, accepting market shorthand.
-    ///
-    /// Parsing is case-insensitive, trims surrounding whitespace, and
-    /// normalises both `-` and `&` to `_`, so `"A&E"` and `"amend-and-extend"`
-    /// both resolve to [`LmeType::AmendAndExtend`]. Additional accepted
-    /// aliases are `"open_market"` and `"omr"`, `"tender"`, and `"ae"`.
+    /// Parse an LME structure from its canonical snake_case wire value.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Validation`] when the label is not a known structure.
     fn from_str(value: &str) -> Result<Self> {
-        match normalize_label(value).replace('&', "_").as_str() {
-            "open_market" | "open_market_repurchase" | "omr" => Ok(Self::OpenMarketRepurchase),
-            "tender_offer" | "tender" => Ok(Self::TenderOffer),
-            "amend_and_extend" | "ae" | "a_e" => Ok(Self::AmendAndExtend),
+        match value {
+            "open_market_repurchase" => Ok(Self::OpenMarketRepurchase),
+            "tender_offer" => Ok(Self::TenderOffer),
+            "amend_and_extend" => Ok(Self::AmendAndExtend),
             "dropdown" => Ok(Self::Dropdown),
             _ => Err(validation_error(format!(
-                "unknown lme_type '{value}' — expected open_market, tender_offer, \
+                "unknown lme_type '{value}' — expected open_market_repurchase, tender_offer, \
                  amend_and_extend, dropdown"
             ))),
         }
@@ -500,10 +492,6 @@ pub fn analyze_lme(
         remaining_holder_impact_pct,
         leverage_impact,
     })
-}
-
-fn normalize_label(value: &str) -> String {
-    value.trim().to_ascii_lowercase().replace('-', "_")
 }
 
 fn validate_non_negative_finite(field: &str, value: f64) -> Result<()> {

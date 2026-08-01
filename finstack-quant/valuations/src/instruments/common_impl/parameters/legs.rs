@@ -53,17 +53,10 @@ impl std::str::FromStr for PayReceive {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "pay_fixed" | "pay_protection" | "pay" | "payer" | "buyer" | "buy" | "short" => {
-                Ok(PayReceive::Pay)
-            }
-            "receive_fixed" | "receive_protection" | "receive" | "recv" | "receiver" | "seller"
-            | "sell" | "long" => Ok(PayReceive::Receive),
-            other => Err(format!(
-                "Unknown pay/receive: '{}'. Valid: pay, receive, pay_fixed, receive_fixed, payer, receiver",
-                other
-            )),
+        match s {
+            "pay" => Ok(PayReceive::Pay),
+            "receive" => Ok(PayReceive::Receive),
+            _ => Err(format!("Unknown pay/receive: '{}'. Valid: pay, receive", s)),
         }
     }
 }
@@ -92,13 +85,12 @@ impl std::str::FromStr for ParRateMethod {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "forward_based" | "forward" => Ok(Self::ForwardBased),
-            "discount_ratio" | "discount" => Ok(Self::DiscountRatio),
-            other => Err(format!(
+        match s {
+            "forward_based" => Ok(Self::ForwardBased),
+            "discount_ratio" => Ok(Self::DiscountRatio),
+            _ => Err(format!(
                 "Unknown par rate method: '{}'. Valid: forward_based, discount_ratio",
-                other
+                s
             )),
         }
     }
@@ -110,6 +102,7 @@ pub struct FixedLegSpec {
     /// Discount curve identifier for pricing
     pub discount_curve_id: CurveId,
     /// Fixed rate (e.g., 0.05 for 5%)
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub rate: Decimal,
     /// Payment frequency
     pub frequency: Tenor,
@@ -117,17 +110,17 @@ pub struct FixedLegSpec {
     pub day_count: DayCount,
     /// Business day convention for payment dates
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional calendar for business day adjustments
     pub calendar_id: Option<String>,
     /// Stub period handling rule
     #[serde(default = "crate::serde_defaults::stub_short_front")]
     pub stub: StubKind,
     /// Start date of the fixed leg
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date of the fixed leg
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Optional par-rate calculation method override
     pub par_method: Option<ParRateMethod>,
@@ -189,6 +182,7 @@ pub struct FloatLegSpec {
     /// Forward curve identifier for rate projections
     pub forward_curve_id: CurveId,
     /// Spread in basis points added to the forward rate
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
     /// Payment frequency
     pub frequency: Tenor,
@@ -196,7 +190,7 @@ pub struct FloatLegSpec {
     pub day_count: DayCount,
     /// Business day convention for payment dates
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional calendar for business day adjustments
     pub calendar_id: Option<String>,
     /// Stub period handling rule
@@ -213,10 +207,10 @@ pub struct FloatLegSpec {
     #[serde(default)]
     pub fixing_calendar_id: Option<String>,
     /// Start date of the floating leg
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date of the floating leg
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Compounding method for floating coupons.
     ///
@@ -295,10 +289,10 @@ pub struct BasisSwapLeg {
     /// Discount curve identifier for present value calculations
     pub discount_curve_id: CurveId,
     /// Start date of the leg
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date of the leg
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Payment frequency for the leg
     pub frequency: Tenor,
@@ -306,7 +300,7 @@ pub struct BasisSwapLeg {
     pub day_count: DayCount,
     /// Business day convention for date adjustments
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional calendar identifier for business day adjustments
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub calendar_id: Option<String>,
@@ -328,6 +322,7 @@ pub struct BasisSwapLeg {
     /// Basis spreads in liquid markets typically range from -50bp to +50bp.
     /// Values outside ±5000bp are considered extreme and
     /// will trigger a validation warning during pricing.
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
     /// Payment lag in business days after period end (default: 0).
     ///
@@ -348,10 +343,10 @@ pub struct BasisSwapLeg {
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PremiumLegSpec {
     /// Start date of protection
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start: Date,
     /// End date of protection
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end: Date,
     /// Payment frequency
     pub frequency: Tenor,
@@ -360,12 +355,13 @@ pub struct PremiumLegSpec {
     pub stub: StubKind,
     /// Business day convention
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Holiday calendar identifier
     pub calendar_id: Option<String>,
     /// Day count convention
     pub day_count: DayCount,
     /// Fixed spread in basis points (e.g., 100 = 100bp = 1%)
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
     /// Discount curve identifier
     pub discount_curve_id: CurveId,
@@ -474,6 +470,7 @@ pub struct FinancingLegSpec {
     /// Forward curve identifier (e.g., USD-SOFR-3M)
     pub forward_curve_id: CurveId,
     /// Spread in basis points over the floating rate (e.g., 50 = 50bp = 0.5%)
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
     /// Day count convention for accrual calculations
     pub day_count: DayCount,
@@ -559,7 +556,7 @@ mod tests {
             rate: Decimal::new(5, 2),
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::ShortFront,
             start,
@@ -578,7 +575,7 @@ mod tests {
             spread_bp: Decimal::ZERO,
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::ShortFront,
             reset_lag_days: 0,

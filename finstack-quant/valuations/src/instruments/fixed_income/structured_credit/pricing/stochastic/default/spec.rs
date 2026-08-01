@@ -20,7 +20,7 @@ use finstack_quant_core::market_data::term_structures::HazardCurve;
 /// Allows default model selection and configuration without
 /// constructing the full model.
 #[derive(Debug, Clone, serde::Deserialize, schemars::JsonSchema)]
-#[serde(tag = "model", deny_unknown_fields)]
+#[serde(tag = "model", rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum StochasticDefaultSpec {
     /// Use deterministic default model (no stochastic component).
@@ -93,7 +93,7 @@ impl serde::Serialize for StochasticDefaultSpec {
         S: serde::Serializer,
     {
         #[derive(serde::Serialize)]
-        #[serde(tag = "model")]
+        #[serde(tag = "model", rename_all = "snake_case")]
         enum PersistedStochasticDefaultSpec<'a> {
             Deterministic(&'a DefaultModelSpec),
             Copula {
@@ -512,9 +512,9 @@ mod tests {
     fn test_invalid_student_t_dof_fails_to_build() {
         let spec: StochasticDefaultSpec = serde_json::from_str(
             r#"{
-                "model": "Copula",
+                "model": "copula",
                 "base_cdr": 0.02,
-                "copula_spec": {"type": "StudentT", "degrees_of_freedom": 2.0},
+                "copula_spec": {"type": "student_t", "degrees_of_freedom": 2.0},
                 "correlation": 0.20
             }"#,
         )

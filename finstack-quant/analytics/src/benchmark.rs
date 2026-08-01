@@ -752,8 +752,8 @@ pub(crate) fn up_capture(returns: &[f64], benchmark: &[f64], ann_factor: f64) ->
 /// // Portfolio loses less than benchmark in down periods (defensive).
 /// let r = [0.04, -0.01, 0.06];
 /// let b = [0.02, -0.03, 0.03];
-/// let dc = down_capture(&r, &b, 252.0);
-/// assert!(dc < 1.0);
+/// let day_count = down_capture(&r, &b, 252.0);
+/// assert!(day_count < 1.0);
 /// ```
 #[must_use]
 pub(crate) fn down_capture(returns: &[f64], benchmark: &[f64], ann_factor: f64) -> f64 {
@@ -789,18 +789,18 @@ pub(crate) fn down_capture(returns: &[f64], benchmark: &[f64], ann_factor: f64) 
 /// ```
 #[must_use]
 pub(crate) fn capture_ratio(returns: &[f64], benchmark: &[f64], ann_factor: f64) -> f64 {
-    let dc = down_capture(returns, benchmark, ann_factor);
-    if dc.is_nan() {
+    let day_count = down_capture(returns, benchmark, ann_factor);
+    if day_count.is_nan() {
         return f64::NAN;
     }
-    if dc == 0.0 {
+    if day_count == 0.0 {
         return 0.0;
     }
     let uc = up_capture(returns, benchmark, ann_factor);
     if uc.is_nan() {
         return f64::NAN;
     }
-    uc / dc
+    uc / day_count
 }
 
 /// Batting average: fraction of periods where portfolio outperforms benchmark.
@@ -1460,8 +1460,8 @@ mod tests {
         // down_capture = (0.95−1) / (0.90−1) = −0.05/−0.10 = 0.5
         let r = [0.10, -0.05];
         let b = [0.05, -0.10];
-        let dc = down_capture(&r, &b, 1.0);
-        assert!((dc - 0.5).abs() < 1e-12);
+        let day_count = down_capture(&r, &b, 1.0);
+        assert!((day_count - 0.5).abs() < 1e-12);
     }
 
     #[test]
@@ -1510,25 +1510,25 @@ mod tests {
 
     #[test]
     fn down_capture_defensive_portfolio() {
-        // Portfolio loses less than benchmark → dc < 1.0 (desirable)
+        // Portfolio loses less than benchmark → day_count < 1.0 (desirable)
         let r = [0.04, -0.01, 0.06];
         let b = [0.02, -0.03, 0.03];
-        let dc = down_capture(&r, &b, 1.0);
+        let day_count = down_capture(&r, &b, 1.0);
         // Down periods: index 1. port_prod=0.99, bench_prod=0.97
         let expected = (0.99 - 1.0) / (0.97 - 1.0);
-        assert!((dc - expected).abs() < 1e-12);
-        assert!(dc < 1.0);
+        assert!((day_count - expected).abs() < 1e-12);
+        assert!(day_count < 1.0);
     }
 
     #[test]
     fn down_capture_uses_geometric_subset_returns() {
         let r = [-0.25, 0.0, 0.1];
         let b = [-0.5, -0.5, 0.1];
-        let dc = down_capture(&r, &b, 1.0);
+        let day_count = down_capture(&r, &b, 1.0);
         let expected_port = (0.75_f64 * 1.0_f64).sqrt() - 1.0;
         let expected_bench = (0.5_f64 * 0.5_f64).sqrt() - 1.0;
         let expected = expected_port / expected_bench;
-        assert!((dc - expected).abs() < 1e-12);
+        assert!((day_count - expected).abs() < 1e-12);
     }
 
     #[test]

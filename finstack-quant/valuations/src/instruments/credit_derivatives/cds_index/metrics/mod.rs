@@ -5,7 +5,7 @@
 //! registered via `register_cds_index_metrics`.
 //!
 //! Exposed metrics:
-//! - Par spread (bps)
+//! - Par spread (bp)
 //! - Risky PV01
 //! - CS01 (approximate)
 //! - Bucketed CS01 (key-rate, per-tenor par-spread)
@@ -31,20 +31,20 @@ pub(crate) fn register_cds_index_metrics(registry: &mut MetricRegistry) {
     registry.register_metric(
         MetricId::RiskyPv01,
         Arc::new(simple::RiskyPv01Calculator),
-        &[InstrumentType::CDSIndex],
+        &[InstrumentType::CdsIndex],
     );
 
     // Recovery01 (custom metric - recovery rate sensitivity)
     registry.register_metric(
         MetricId::Recovery01,
         Arc::new(recovery01::Recovery01Calculator),
-        &[InstrumentType::CDSIndex],
+        &[InstrumentType::CdsIndex],
     );
 
     // Standard metrics using macro
     crate::register_metrics! {
         registry: registry,
-        instrument: InstrumentType::CDSIndex,
+        instrument: InstrumentType::CdsIndex,
         metrics: [
             (ParSpread, simple::ParSpreadCalculator),
             (Cs01, cs01::Cs01Calculator),

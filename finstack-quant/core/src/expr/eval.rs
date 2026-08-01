@@ -33,7 +33,6 @@ use std::vec::Vec;
 ///   `#[serde(skip)]` so a deserialized `EvalOpts` can never inject an
 ///   arbitrary execution plan that `eval()` would execute in place of the
 ///   compiled AST; plans can only be attached in-process.
-/// - `cache_budget_mb`: Retained for API/serde compatibility; no-op (see below)
 /// - `max_arena_bytes`: Maximum scratch arena allocation in bytes
 ///
 /// # Serde
@@ -66,14 +65,6 @@ pub struct EvalOpts {
     /// inject a plan that `eval()` executes instead of the compiled AST.
     #[serde(skip)]
     pub(crate) plan: Option<ExecutionPlan>,
-    /// No-op, retained for API and serde compatibility.
-    ///
-    /// The cross-evaluation result cache was removed: it keyed entries on
-    /// `(dag_node_id, len)` with no input fingerprint, so re-evaluating the
-    /// same expression on different same-length data returned stale results.
-    /// Within a single `eval()` call each deduplicated DAG node already
-    /// executes exactly once, so no per-evaluation cache is needed either.
-    pub cache_budget_mb: Option<usize>,
     /// Maximum arena allocation in bytes. Defaults to 1 GB.
     /// Set to 0 to disable the check.
     #[serde(default = "default_max_arena_bytes")]
@@ -88,7 +79,6 @@ impl Default for EvalOpts {
     fn default() -> Self {
         Self {
             plan: None,
-            cache_budget_mb: None,
             max_arena_bytes: default_max_arena_bytes(),
         }
     }
@@ -239,30 +229,6 @@ impl CompiledExpr {
             scratch: Mutex::new(ScratchArena::default()),
             lazy_plan: OnceLock::new(),
         })
-    }
-
-    /// No-op, retained for API compatibility.
-    ///
-    /// The cross-evaluation result cache was removed because it keyed entries
-    /// on `(dag_node_id, len)` without an input fingerprint, returning stale
-    /// values when the same expression was re-evaluated on different
-    /// same-length data (see ,
-    /// ). Within one `eval()` call each deduplicated DAG node is
-    /// already evaluated exactly once.
-    ///
-    /// # Arguments
-    ///
-    /// * `_budget_mb` - Budget mb supplied by the caller for this operation
-    pub fn with_cache(self, _budget_mb: usize) -> Self {
-        self
-    }
-
-    /// Return whether this compiled expression currently has an attached cache.
-    ///
-    /// Always `false`: the cross-evaluation cache was removed (see
-    /// [`Self::with_cache`]).
-    pub fn has_cache(&self) -> bool {
-        false
     }
 
     /// Return whether this compiled expression has a pre-built execution plan.
@@ -477,7 +443,7 @@ impl CompiledExpr {
                 out[..len].copy_from_slice(&col_data[..len]);
                 out[len..].fill(f64::NAN);
             }
-            ExprNode::CSRef { .. } => {
+            ExprNode::CsRef { .. } => {
                 return Err(crate::Error::Validation(
                     "capital-structure references require the statements evaluator".to_string(),
                 ));
@@ -801,7 +767,6 @@ mod tests {
                 &cols,
                 EvalOpts {
                     plan: external_plan,
-                    cache_budget_mb: None,
                     max_arena_bytes: default_max_arena_bytes(),
                 },
             )

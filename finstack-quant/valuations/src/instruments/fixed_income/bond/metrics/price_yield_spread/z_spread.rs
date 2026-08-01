@@ -180,8 +180,8 @@ impl ZSpreadCalculator {
         if as_of >= bond.maturity {
             return Ok(self.config.base_bracket_bp / 10_000.0);
         }
-        let dc = bond.cashflow_spec.day_count();
-        let years = dc
+        let day_count = bond.cashflow_spec.day_count();
+        let years = day_count
             .year_fraction(
                 as_of,
                 bond.maturity,
@@ -273,13 +273,14 @@ impl BondZSpreadPricingKernel {
             (flows, quote_ctx.quote_date)
         };
         let disc = curves.get_discount(&bond.discount_curve_id)?;
-        let dc = disc.day_count();
+        let day_count = disc.day_count();
         let cached_flows = spread_flows
             .iter()
             .filter(|(date, _)| *date > quote_date)
             .map(
                 |(date, amount)| -> finstack_quant_core::Result<(f64, f64, f64)> {
-                    let t = dc.year_fraction(quote_date, *date, DayCountContext::default())?;
+                    let t =
+                        day_count.year_fraction(quote_date, *date, DayCountContext::default())?;
                     let df_base = disc.df_between_dates(quote_date, *date)?;
                     Ok((t, df_base, amount.amount()))
                 },
@@ -312,7 +313,7 @@ impl MetricCalculator for ZSpreadCalculator {
         let quote_ctx = QuoteDateContext::new(bond, &context.curves, context.as_of)?;
 
         // Determine dirty market value in currency at quote_date
-        let target_value_ccy: f64 = if let Some(clean_px) = bond
+        let target_value_currency: f64 = if let Some(clean_px) = bond
             .instrument_pricing_overrides
             .market_quotes
             .quoted_clean_price
@@ -335,7 +336,7 @@ impl MetricCalculator for ZSpreadCalculator {
         // rather than an opaque `SolverConvergenceFailed`.
         let pricing_error: RefCell<Option<finstack_quant_core::Error>> = RefCell::new(None);
 
-        // Objective: PV_z(z) - target_value_ccy = 0
+        // Objective: PV_z(z) - target_value_currency = 0
         //
         // When `z_spread_discount_factor` returns `Err` (non-positive DF or
         // non-positive compounding denominator), we capture the first error and
@@ -344,7 +345,7 @@ impl MetricCalculator for ZSpreadCalculator {
         // into the PV accumulator.
         let objective = |z: f64| -> f64 {
             match pricing_kernel.price(z) {
-                Ok(pv) => pv - target_value_ccy,
+                Ok(pv) => pv - target_value_currency,
                 Err(e) => {
                     let mut slot = pricing_error.borrow_mut();
                     if slot.is_none() {

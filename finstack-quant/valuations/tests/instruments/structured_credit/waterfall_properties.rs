@@ -22,7 +22,7 @@ fn create_market() -> MarketContext {
 
 /// Helper to create a minimal pool
 fn create_pool(currency: Currency) -> AssetPool {
-    AssetPool::new("TEST", DealType::CLO, currency)
+    AssetPool::new("TEST", DealType::Clo, currency)
 }
 
 /// Helper to create a simple single-tranche structure

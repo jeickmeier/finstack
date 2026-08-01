@@ -59,7 +59,9 @@ const MAX_REASONABLE_RATE: f64 = 0.50;
     Clone,
     PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct ForwardRateAgreement {
@@ -70,15 +72,16 @@ pub struct ForwardRateAgreement {
     /// Rate fixing date. If `None`, inferred from `start_date - reset_lag` business days.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub fixing_date: Option<Date>,
     /// Interest period start date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Interest period end date
-    #[schemars(with = "String")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Fixed rate (decimal, e.g., 0.05 for 5%)
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub fixed_rate: Decimal,
     /// Day count convention for interest accrual
     pub day_count: DayCount,
@@ -91,7 +94,7 @@ pub struct ForwardRateAgreement {
     /// Optional business day convention for fixing date adjustment (default: ModifiedFollowing)
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fixing_bdc: Option<BusinessDayConvention>,
+    pub fixing_business_day_convention: Option<BusinessDayConvention>,
     /// Optional observed fixing (locked rate) when known
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -105,16 +108,25 @@ pub struct ForwardRateAgreement {
     #[serde(default = "default_fra_side")]
     pub side: PayReceive,
     /// Instrument-owned pricing inputs.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -260,7 +272,7 @@ impl ForwardRateAgreement {
             .forward_curve_id(CurveId::new(forward_curve_id))
             .side(side)
             .fixing_calendar_id_opt(Some(conv.market_calendar_id.clone().into()))
-            .fixing_bdc_opt(Some(conv.market_business_day_convention))
+            .fixing_business_day_convention_opt(Some(conv.market_business_day_convention))
             .attributes(attributes)
             .build()?;
 
@@ -297,8 +309,8 @@ impl ForwardRateAgreement {
         let fixing_date = match self.fixing_date {
             Some(explicit_date) => explicit_date,
             None => {
-                let bdc = self
-                    .fixing_bdc
+                let business_day_convention = self
+                    .fixing_business_day_convention
                     .unwrap_or(BusinessDayConvention::ModifiedFollowing);
                 let resolved_cal_id = self.resolved_fixing_calendar_id();
 
@@ -323,7 +335,7 @@ impl ForwardRateAgreement {
                 // Apply business day convention adjustment to the resulting date
                 if let Some(cal_id) = resolved_cal_id.as_deref() {
                     if let Some(cal) = calendar_by_id(cal_id) {
-                        adjust(base_fixing_date, bdc, cal)?
+                        adjust(base_fixing_date, business_day_convention, cal)?
                     } else {
                         base_fixing_date
                     }
@@ -415,7 +427,7 @@ impl ForwardRateAgreement {
     /// when a calendar is available, or weekday-only subtraction otherwise. This aligns
     /// with market conventions where reset lag is specified in business days (e.g., T-2).
     ///
-    /// The inferred date is then adjusted according to `fixing_bdc` (defaults to ModifiedFollowing).
+    /// The inferred date is then adjusted according to `fixing_business_day_convention` (defaults to ModifiedFollowing).
     pub fn npv_raw(
         &self,
         context: &finstack_quant_core::market_data::context::MarketContext,
@@ -452,7 +464,7 @@ impl ForwardRateAgreementBuilder {
 
 // Explicit Instrument trait implementation (replaces macro for better IDE visibility)
 impl crate::instruments::common_impl::traits::Instrument for ForwardRateAgreement {
-    impl_instrument_base!(crate::pricer::InstrumentType::FRA);
+    impl_instrument_base!(crate::pricer::InstrumentType::Fra);
 
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
         self.validate()
@@ -769,15 +781,14 @@ mod serde_tests {
     fn fra_deserialize_defaults_side_to_pay_fixed() {
         let json = serde_json::json!({
             "id": "FRA-DEFAULT-SIDE",
-            "notional": {"amount": 1_000_000.0, "currency": "USD"},
+            "notional": {"amount": "1000000", "currency": "USD"},
             "start_date": "2025-04-03",
             "maturity": "2025-07-03",
             "fixed_rate": "0.045",
-            "day_count": "Act360",
+            "day_count": "act_360",
             "reset_lag": 2,
             "discount_curve_id": "USD-OIS",
             "forward_curve_id": "USD-SOFR-3M",
-            "pricing_overrides": {},
             "attributes": {"tags": [], "meta": {}}
         });
         let fra: ForwardRateAgreement = serde_json::from_value(json).expect("deserialize FRA");
@@ -813,7 +824,7 @@ mod serde_tests {
         assert_eq!(fra.side, PayReceive::Receive);
         assert_eq!(fra.fixing_calendar_id.as_deref(), Some("usny"));
         assert_eq!(
-            fra.fixing_bdc,
+            fra.fixing_business_day_convention,
             Some(BusinessDayConvention::ModifiedFollowing)
         );
     }

@@ -86,7 +86,7 @@ curve implementing `Discounting`:
   - `Vec<(Date, Money)>`
   - `SmallVec<(Date, Money)>` (via `AsRef`).
 - Core method:
-  - `fn npv(&self, disc: &dyn Discounting, base: Date, dc: DayCount) -> Result<Money>`
+  - `fn npv(&self, disc: &dyn Discounting, base: Date, day_count: DayCount) -> Result<Money>`
 
 This lets instruments and portfolios reuse the same discounting core while retaining their own scheduling logic.
 

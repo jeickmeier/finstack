@@ -627,7 +627,7 @@ mod tests {
         let mut swaption = build_bermudan(as_of);
         swaption.underlying_fixed_leg.frequency = Tenor::annual();
         swaption.underlying_fixed_leg.day_count = DayCount::Act365F;
-        swaption.underlying_fixed_leg.bdc = BusinessDayConvention::Preceding;
+        swaption.underlying_fixed_leg.business_day_convention = BusinessDayConvention::Preceding;
         swaption.underlying_fixed_leg.stub = StubKind::ShortBack;
         swaption.underlying_fixed_leg.calendar_id =
             Some(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID.to_string());

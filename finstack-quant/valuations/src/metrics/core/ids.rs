@@ -191,10 +191,6 @@ impl MetricId {
     /// let dv01 = MetricId::parse_strict("dv01").unwrap();
     /// assert_eq!(dv01, MetricId::Dv01);
     ///
-    /// // Case insensitive
-    /// let theta = MetricId::parse_strict("THETA").unwrap();
-    /// assert_eq!(theta, MetricId::Theta);
-    ///
     /// // Unknown metric - fails with error
     /// let result = MetricId::parse_strict("dv01x");
     /// assert!(result.is_err());
@@ -218,8 +214,7 @@ impl MetricId {
     /// assert!(result.is_err());
     /// ```
     pub fn parse_strict(s: &str) -> finstack_quant_core::Result<Self> {
-        let lower = s.to_lowercase();
-        if let Some(id) = metric_lookup().get(&lower) {
+        if let Some(id) = metric_lookup().get(s) {
             Ok(id.clone())
         } else {
             Err(finstack_quant_core::Error::unknown_metric(
@@ -507,7 +502,7 @@ impl MetricId {
     /// I-spread - Yield over interpolated swap curve
     pub const ISpread: Self = Self(Cow::Borrowed("i_spread"));
 
-    /// Discount margin for floating-rate bonds (decimal; 0.01 = 100 bps)
+    /// Discount margin for floating-rate bonds (decimal; 0.01 = 100 bp)
     pub const DiscountMargin: Self = Self(Cow::Borrowed("discount_margin"));
 
     /// G-spread - Govvie spread
@@ -1648,6 +1643,7 @@ const fn decode_hex(byte: u8) -> Option<u8> {
 /// [`MetricGroup::metrics()`] to list members and
 /// [`MetricGroup::ALL`] to iterate all groups.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum MetricGroup {
     /// Static pricing outputs: prices, yields, spreads, durations, implied
     /// levels, convexity, embedded option value.
@@ -1782,7 +1778,7 @@ impl FromStr for MetricId {
     /// Parses a string into a MetricId (permissive mode).
     ///
     /// This method never fails - any unrecognized string becomes a custom metric.
-    /// Standard metrics are matched case-insensitively in snake_case format.
+    /// Standard metrics are matched by their exact snake_case identifiers.
     ///
     /// **For user-provided inputs**, prefer `MetricId::parse_strict()` which
     /// rejects unknown metrics instead of silently creating custom metrics.
@@ -1803,11 +1799,10 @@ impl FromStr for MetricId {
     /// assert!(custom.is_custom());
     /// ```
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let lower = s.to_lowercase();
-        if let Some(id) = metric_lookup().get(&lower) {
+        if let Some(id) = metric_lookup().get(s) {
             Ok(id.clone())
         } else {
-            Ok(MetricId::custom(lower))
+            Ok(MetricId::custom(s))
         }
     }
 }
@@ -1823,15 +1818,9 @@ mod tests {
         assert_eq!(dv01, MetricId::Dv01);
         assert!(!dv01.is_custom());
 
-        // Test uppercase (case insensitive)
-        let theta = MetricId::parse_strict("THETA").unwrap();
-        assert_eq!(theta, MetricId::Theta);
-        assert!(!theta.is_custom());
-
-        // Test mixed case
-        let cs01 = MetricId::parse_strict("Cs01").unwrap();
-        assert_eq!(cs01, MetricId::Cs01);
-        assert!(!cs01.is_custom());
+        for noncanonical in ["THETA", "Cs01", " dv01", "dv-01"] {
+            assert!(MetricId::parse_strict(noncanonical).is_err());
+        }
 
         // Test various standard metrics
         let delta = MetricId::parse_strict("delta").unwrap();
@@ -1996,15 +1985,11 @@ mod tests {
     }
 
     #[test]
-    fn test_case_insensitivity() {
-        // Strict parsing is case insensitive
+    fn test_case_sensitive_canonical_ids() {
         let lower = MetricId::parse_strict("dv01").unwrap();
-        let upper = MetricId::parse_strict("DV01").unwrap();
-        let mixed = MetricId::parse_strict("Dv01").unwrap();
-
-        assert_eq!(lower, upper);
-        assert_eq!(lower, mixed);
         assert_eq!(lower, MetricId::Dv01);
+        assert!(MetricId::parse_strict("DV01").is_err());
+        assert!(MetricId::parse_strict("Dv01").is_err());
     }
 
     #[test]

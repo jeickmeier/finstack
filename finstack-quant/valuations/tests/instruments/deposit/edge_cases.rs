@@ -384,7 +384,7 @@ fn test_multiple_currencies_independent() {
 ///
 /// This results in effective_end < effective_start, which should fail validation.
 #[test]
-fn test_bdc_adjustment_causes_effective_date_crossover() {
+fn test_business_day_convention_adjustment_causes_effective_date_crossover() {
     use finstack_quant_core::dates::BusinessDayConvention;
     use finstack_quant_core::types::InstrumentId;
 
@@ -401,7 +401,7 @@ fn test_bdc_adjustment_causes_effective_date_crossover() {
         .quote_rate_opt(Some(Decimal::try_from(0.03).expect("valid decimal")))
         .discount_curve_id(CurveId::new("USD-OIS"))
         .spot_lag_days_opt(Some(2)) // T+2: Friday + 2 biz days = Tuesday Jan 7
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(Some("nyse".into()))
         .build()
         .unwrap();
@@ -437,7 +437,7 @@ fn test_extreme_rate_warning_but_valid() {
     let base = date(2025, 1, 1);
     let ctx = ctx_with_standard_disc(base, "USD-OIS");
 
-    // Test with very high rate (200% = 20000 bps)
+    // Test with very high rate (200% = 20000 bp)
     let dep_high = DepositBuilder::new(base)
         .maturity(date(2025, 7, 1))
         .quote_rate(2.0) // 200% - triggers warning
@@ -451,7 +451,7 @@ fn test_extreme_rate_warning_but_valid() {
     let pv_high = dep_high.value(&ctx, base);
     assert!(pv_high.is_ok(), "Extreme rate deposit should price");
 
-    // Test with very negative rate (-20% = -2000 bps)
+    // Test with very negative rate (-20% = -2000 bp)
     let dep_low = DepositBuilder::new(base)
         .maturity(date(2025, 7, 1))
         .quote_rate(-0.2) // -20% - triggers warning

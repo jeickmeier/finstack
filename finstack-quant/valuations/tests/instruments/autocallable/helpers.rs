@@ -22,7 +22,7 @@ pub const VOL_ID: &str = "SPX_VOL";
 pub const DIV_ID: &str = "SPX_DIV";
 
 /// Build a flat discount curve with specified day count basis.
-pub fn build_discount_curve_with_dc(
+pub fn build_discount_curve_with_day_count(
     rate: f64,
     base_date: Date,
     curve_id: &str,
@@ -58,8 +58,8 @@ pub fn build_discount_curve_with_dc(
 ///
 /// The vol surface expiries are year fractions computed assuming the standard
 /// vol surface convention (typically ACT/365F for equity options).
-pub fn build_flat_vol_surface(vol: f64, _base_date: Date, surface_id: &str) -> VolSurface {
-    VolSurface::builder(surface_id)
+pub fn build_flat_vol_surface(vol: f64, _base_date: Date, vol_surface_id: &str) -> VolSurface {
+    VolSurface::builder(vol_surface_id)
         .expiries(&[0.25, 0.5, 0.75, 1.0, 2.0, 5.0])
         .strikes(&[50.0, 80.0, 100.0, 120.0, 150.0, 200.0])
         .row(&[vol, vol, vol, vol, vol, vol])
@@ -122,7 +122,7 @@ pub fn create_quarterly_autocallable(
 ///
 /// This allows testing scenarios where the discount curve uses a different
 /// day count basis than the vol surface (vol surface is assumed ACT/365F).
-pub fn build_market_with_dc(
+pub fn build_market_with_day_count(
     as_of: Date,
     spot: f64,
     vol: f64,
@@ -130,7 +130,7 @@ pub fn build_market_with_dc(
     div_yield: f64,
     disc_day_count: DayCount,
 ) -> MarketContext {
-    let disc_curve = build_discount_curve_with_dc(rate, as_of, DISC_ID, disc_day_count);
+    let disc_curve = build_discount_curve_with_day_count(rate, as_of, DISC_ID, disc_day_count);
     let vol_surface = build_flat_vol_surface(vol, as_of, VOL_ID);
 
     MarketContext::new()

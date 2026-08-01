@@ -6,14 +6,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::Date;
 use finstack_quant_core::dates::DateExt;
+use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve, DiscountCurveRateCalibration, DiscountCurveRateQuote,
-    DiscountCurveRateQuoteType, HazardCurve,
+    DiscountCurve, HazardCurve, RateCalibrationCurveRole, RateCalibrationMethod,
+    RateCalibrationPillar, RateCalibrationQuote, RateCalibrationRecipe,
 };
 use finstack_quant_core::money::Money;
+use finstack_quant_core::types::{CurveId, IndexId};
 use finstack_quant_valuations::constants::isda::STANDARD_RECOVERY_SENIOR;
 use finstack_quant_valuations::instruments::credit_derivatives::cds_option::{
     CDSOption, CDSOptionParams, ProtectionStartConvention,
@@ -31,24 +32,31 @@ pub fn flat_discount(id: &str, base: Date, rate: f64) -> DiscountCurve {
     DiscountCurve::builder(id)
         .base_date(base)
         .knots([(0.0, 1.0), (1.0, df1), (5.0, df5), (10.0, df10)])
-        .rate_calibration(DiscountCurveRateCalibration {
-            index_id: "USD-SOFR-OIS".to_string(),
+        .rate_calibration(RateCalibrationRecipe {
             currency: Currency::USD,
+            method: RateCalibrationMethod::Bootstrap,
+            curve_day_count: DayCount::Act365F,
+            ois_compounding: None,
+            role: RateCalibrationCurveRole::Discount {
+                projection_curve_id: CurveId::new(id),
+            },
             quotes: vec![
-                DiscountCurveRateQuote {
-                    quote_type: DiscountCurveRateQuoteType::Deposit,
-                    tenor: "1Y".to_string(),
+                RateCalibrationQuote::Deposit {
+                    index_id: IndexId::new("USD-SOFR-OIS"),
+                    pillar: RateCalibrationPillar::Tenor("1Y".parse().unwrap()),
                     rate,
                 },
-                DiscountCurveRateQuote {
-                    quote_type: DiscountCurveRateQuoteType::Swap,
-                    tenor: "5Y".to_string(),
+                RateCalibrationQuote::Swap {
+                    index_id: IndexId::new("USD-SOFR-OIS"),
+                    pillar: RateCalibrationPillar::Tenor("5Y".parse().unwrap()),
                     rate,
+                    spread_decimal: None,
                 },
-                DiscountCurveRateQuote {
-                    quote_type: DiscountCurveRateQuoteType::Swap,
-                    tenor: "10Y".to_string(),
+                RateCalibrationQuote::Swap {
+                    index_id: IndexId::new("USD-SOFR-OIS"),
+                    pillar: RateCalibrationPillar::Tenor("10Y".parse().unwrap()),
                     rate,
+                    spread_decimal: None,
                 },
             ],
         })

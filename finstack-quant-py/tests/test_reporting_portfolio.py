@@ -27,7 +27,7 @@ _VAL = {
             "risk_metrics_complete": True,
         },
     },
-    "total_base_ccy": {"amount": "2993321.59", "currency": "USD"},
+    "total_base_currency": {"amount": "2993321.59", "currency": "USD"},
     "by_entity": {
         "FUND-1": {"amount": "998782.54", "currency": "USD"},
         "FUND-2": {"amount": "1994539.05", "currency": "USD"},
@@ -47,8 +47,8 @@ _METRICS = {
 _CASHFLOWS = {
     "by_date": {
         "2025-01-15": {"USD": {"Notional": {"amount": "-3000000", "currency": "USD"}}},
-        "2025-04-15": {"USD": {"Fixed": {"amount": "1011250", "currency": "USD"}}},
-        "2025-07-15": {"USD": {"Fixed": {"amount": "2050277.78", "currency": "USD"}}},
+        "2025-04-15": {"USD": {"fixed": {"amount": "1011250", "currency": "USD"}}},
+        "2025-07-15": {"USD": {"fixed": {"amount": "2050277.78", "currency": "USD"}}},
     }
 }
 
@@ -92,7 +92,7 @@ def test_portfolio_tearsheet_rejects_unknown_section() -> None:
 
 
 def test_portfolio_tearsheet_real_portfolio() -> None:
-    # Exercises the real value_portfolio JSON shape (decimal-string Money).
+    # Exercises the real typed valuation path, including decimal-string Money.
     from datetime import date
 
     from finstack_quant.core.market_data import DiscountCurve, MarketContext
@@ -107,7 +107,7 @@ def test_portfolio_tearsheet_real_portfolio() -> None:
     spec = {
         "id": "demo",
         "as_of": "2025-01-15",
-        "base_ccy": "USD",
+        "base_currency": "USD",
         "entities": {"FUND-1": {"id": "FUND-1"}},
         "positions": [
             {
@@ -118,11 +118,11 @@ def test_portfolio_tearsheet_real_portfolio() -> None:
                     "type": "deposit",
                     "spec": {
                         "id": "DEP-1",
-                        "notional": {"amount": 1_000_000.0, "currency": "USD"},
+                        "notional": {"amount": "1000000", "currency": "USD"},
                         "start_date": "2025-01-15",
                         "maturity": "2025-04-15",
-                        "day_count": "Act360",
-                        "quote_rate": 0.045,
+                        "day_count": "act_360",
+                        "quote_rate": "0.045",
                         "discount_curve_id": "USD-OIS",
                         "attributes": {},
                     },

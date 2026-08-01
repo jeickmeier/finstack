@@ -72,7 +72,6 @@ use super::common::{
 };
 use crate::math::interp::{ExtrapolationPolicy, InterpStyle};
 use crate::{
-    currency::Currency,
     dates::{Date, DayCount, DayCountContext},
     error::InputError,
     market_data::traits::{Forward, TermStructure},
@@ -80,64 +79,6 @@ use crate::{
     math::interp::types::Interp,
     types::CurveId,
 };
-
-/// Market quote metadata used to build a forward curve.
-///
-/// This optional sidecar lets risk calculations shock the original projection
-/// quotes and re-bootstrap the curve instead of directly bumping fitted forward
-/// knots.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ForwardCurveRateCalibration {
-    /// Rate index used by the projection instruments.
-    pub index_id: String,
-    /// Currency of the calibrated curve.
-    pub currency: Currency,
-    /// Discount curve used while calibrating projection instruments.
-    pub discount_curve_id: CurveId,
-    /// Benchmark rate quotes used for calibration.
-    pub quotes: Vec<ForwardCurveRateQuote>,
-}
-
-/// A single benchmark rate quote used to calibrate a forward curve.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ForwardCurveRateQuote {
-    /// Money-market deposit quote.
-    Deposit {
-        /// Tenor string, such as `3M`.
-        tenor: String,
-        /// Quoted rate in decimal form.
-        rate: f64,
-    },
-    /// Forward-rate agreement quote.
-    Fra {
-        /// FRA start date.
-        #[schemars(with = "String")]
-        start: Date,
-        /// FRA end date.
-        #[schemars(with = "String")]
-        end: Date,
-        /// Quoted rate in decimal form.
-        rate: f64,
-    },
-    /// Interest-rate swap quote.
-    Swap {
-        /// Swap tenor string, such as `5Y`.
-        tenor: String,
-        /// Fixed rate in decimal form.
-        rate: f64,
-        /// Optional floating-leg spread in decimal form.
-        spread_decimal: Option<f64>,
-    },
-    /// Tenor-basis quote versus the discount/reference curve.
-    Basis {
-        /// Basis maturity tenor string, such as `6M` or `2Y`.
-        tenor: String,
-        /// Quoted basis spread in decimal form.
-        spread_decimal: f64,
-    },
-}
 
 /// Forward rate curve for a simple floating-rate index with fixed tenor.
 ///
@@ -172,10 +113,8 @@ pub struct ForwardCurve {
     /// Optional contractual reset/end-date boundaries, separate from interpolation knots.
     projection_grid: Option<Box<[f64]>>,
     interp: Interp,
-    /// Optional market quotes used to bootstrap this curve.
-    rate_calibration: Option<ForwardCurveRateCalibration>,
     /// Exact typed recipe used to replay calibration after quote shocks.
-    rate_calibration_recipe: Option<super::RateCalibrationRecipe>,
+    rate_calibration: Option<super::RateCalibrationRecipe>,
     /// Opaque FX policy stamp; see [`DiscountCurve::fx_policy`].
     fx_policy: Option<String>,
 }
@@ -187,7 +126,7 @@ struct RawForwardCurve {
     /// Curve identifier
     pub id: String,
     /// Base date
-    #[schemars(with = "String")]
+    #[schemars(with = "crate::wire::DateWire")]
     pub base: Date,
     /// Reset lag in business days
     pub reset_lag: i32,
@@ -199,21 +138,15 @@ struct RawForwardCurve {
     pub knot_points: Vec<(f64, f64)>,
     /// Optional contractual reset/end-date boundaries.
     ///
-    /// Curves without this field retain legacy fixed numeric-tenor DF stepping.
-    #[serde(default)]
+    /// `None` selects fixed numeric-tenor discount-factor stepping.
     pub projection_grid: Option<Vec<f64>>,
     /// Interpolation style
     pub interp_style: InterpStyle,
     /// Extrapolation policy
     pub extrapolation: ExtrapolationPolicy,
-    /// Optional market quotes used to bootstrap this curve.
-    #[serde(default)]
-    pub rate_calibration: Option<ForwardCurveRateCalibration>,
     /// Exact typed calibration replay recipe.
-    #[serde(default)]
-    pub rate_calibration_recipe: Option<super::RateCalibrationRecipe>,
+    pub rate_calibration: Option<super::RateCalibrationRecipe>,
     /// Opaque FX policy stamp; see [`super::DiscountCurve::fx_policy`].
-    #[serde(default)]
     pub fx_policy: Option<String>,
 }
 
@@ -237,7 +170,6 @@ impl From<ForwardCurve> for RawForwardCurve {
             interp_style: curve.interp.style(),
             extrapolation: curve.interp.extrapolation(),
             rate_calibration: curve.rate_calibration,
-            rate_calibration_recipe: curve.rate_calibration_recipe,
             fx_policy: curve.fx_policy,
         }
     }
@@ -256,7 +188,6 @@ impl TryFrom<RawForwardCurve> for ForwardCurve {
             .interp(state.interp_style)
             .extrapolation(state.extrapolation)
             .rate_calibration_opt(state.rate_calibration)
-            .rate_calibration_recipe_opt(state.rate_calibration_recipe)
             .fx_policy_opt(state.fx_policy)
             .build()
     }
@@ -296,7 +227,6 @@ impl ForwardCurve {
             min_forward_rate: None,
             extrapolation: ExtrapolationPolicy::FlatForward,
             rate_calibration: None,
-            rate_calibration_recipe: None,
             fx_policy: None,
         }
     }
@@ -388,7 +318,7 @@ impl ForwardCurve {
     /// Contractual reset/end-date boundaries used for projection DFs, when present.
     ///
     /// This grid is independent of interpolation knots. `None` means the curve
-    /// uses legacy fixed numeric-tenor stepping from zero.
+    /// uses fixed numeric-tenor stepping from zero.
     #[inline]
     pub fn projection_grid(&self) -> Option<&[f64]> {
         self.projection_grid.as_deref()
@@ -417,16 +347,10 @@ impl ForwardCurve {
         self.interp.extrapolation()
     }
 
-    /// Market quote metadata used to build this curve, when available.
-    #[inline]
-    pub fn rate_calibration(&self) -> Option<&ForwardCurveRateCalibration> {
-        self.rate_calibration.as_ref()
-    }
-
     /// Exact typed conventions and quotes used to calibrate this curve.
     #[inline]
-    pub fn rate_calibration_recipe(&self) -> Option<&super::RateCalibrationRecipe> {
-        self.rate_calibration_recipe.as_ref()
+    pub fn rate_calibration(&self) -> Option<&super::RateCalibrationRecipe> {
+        self.rate_calibration.as_ref()
     }
 
     /// Opaque FX policy stamp set by the curve constructor; see
@@ -587,7 +511,7 @@ impl ForwardCurve {
     /// This preserves fixed-tenor quote meaning when calendar adjustment makes
     /// a contractual period differ from the numeric tenor (for example, a 3M
     /// Act/360 period spanning 91 or 92 days). Without an explicit grid, the
-    /// legacy behavior is retained: fixed numeric-tenor stepping from zero.
+    /// fixed numeric-tenor stepping from zero is used.
     ///
     /// Notes
     /// -----
@@ -657,7 +581,6 @@ impl ForwardCurve {
             .extrapolation(self.interp.extrapolation())
             .projection_grid_opt(self.projection_grid.as_deref().map(<[f64]>::to_vec))
             .rate_calibration_opt(self.rate_calibration.clone())
-            .rate_calibration_recipe_opt(self.rate_calibration_recipe.clone())
             .fx_policy_opt(self.fx_policy.clone())
     }
 
@@ -966,8 +889,7 @@ pub struct ForwardCurveBuilder {
     style: InterpStyle,
     min_forward_rate: Option<f64>,
     extrapolation: ExtrapolationPolicy,
-    rate_calibration: Option<ForwardCurveRateCalibration>,
-    rate_calibration_recipe: Option<super::RateCalibrationRecipe>,
+    rate_calibration: Option<super::RateCalibrationRecipe>,
     fx_policy: Option<String>,
 }
 
@@ -992,9 +914,9 @@ impl ForwardCurveBuilder {
     ///
     /// # Arguments
     ///
-    /// * `dc` - Dc supplied by the caller for this operation
-    pub fn day_count(mut self, dc: DayCount) -> Self {
-        self.day_count = dc;
+    /// * `day_count` - Dc supplied by the caller for this operation
+    pub fn day_count(mut self, day_count: DayCount) -> Self {
+        self.day_count = day_count;
         self
     }
     /// Supply knot points `(t, fwd)`.
@@ -1042,33 +964,18 @@ impl ForwardCurveBuilder {
         self
     }
 
-    /// Attach market quote metadata used to bootstrap this curve.
-    pub fn rate_calibration(mut self, calibration: ForwardCurveRateCalibration) -> Self {
+    /// Attach the typed calibration recipe used to bootstrap this curve.
+    pub fn rate_calibration(mut self, calibration: super::RateCalibrationRecipe) -> Self {
         self.rate_calibration = Some(calibration);
         self
     }
 
-    /// Optionally attach market quote metadata used to bootstrap this curve.
+    /// Optionally attach the typed calibration recipe used to bootstrap this curve.
     pub fn rate_calibration_opt(
         mut self,
-        calibration: Option<ForwardCurveRateCalibration>,
+        calibration: Option<super::RateCalibrationRecipe>,
     ) -> Self {
         self.rate_calibration = calibration;
-        self
-    }
-
-    /// Attach an exact typed calibration replay recipe.
-    pub fn rate_calibration_recipe(mut self, recipe: super::RateCalibrationRecipe) -> Self {
-        self.rate_calibration_recipe = Some(recipe);
-        self
-    }
-
-    /// Optionally attach an exact typed calibration replay recipe.
-    pub fn rate_calibration_recipe_opt(
-        mut self,
-        recipe: Option<super::RateCalibrationRecipe>,
-    ) -> Self {
-        self.rate_calibration_recipe = recipe;
         self
     }
 
@@ -1170,7 +1077,6 @@ impl ForwardCurveBuilder {
             projection_grid,
             interp,
             rate_calibration: self.rate_calibration,
-            rate_calibration_recipe: self.rate_calibration_recipe,
             fx_policy: self.fx_policy,
         })
     }
@@ -1328,35 +1234,24 @@ mod tests {
     }
 
     #[test]
-    fn full_rate_calibration_recipe_retains_one_day_cutoff() {
+    fn full_rate_calibration_retains_one_day_cutoff() {
         let json = serde_json::json!({
             "id": "USD-SOFR",
             "base": "2025-01-02",
             "reset_lag": 0,
-            "day_count": "Act365F",
+            "day_count": "act_365f",
             "tenor": 1.0,
             "knot_points": [[0.0, 0.04], [5.0, 0.04]],
             "interp_style": "linear",
             "extrapolation": "flat_forward",
             "rate_calibration": {
-                "index_id": "USD-SOFR-OIS",
                 "currency": "USD",
-                "discount_curve_id": "USD-OIS",
-                "quotes": [{
-                    "swap": {
-                        "tenor": "5Y",
-                        "rate": 0.04,
-                        "spread_decimal": null
-                    }
-                }]
-            },
-            "rate_calibration_recipe": {
                 "method": {
                     "global_solve": {
                         "use_analytical_jacobian": true
                     }
                 },
-                "curve_day_count": "Act365F",
+                "curve_day_count": "act_365f",
                 "ois_compounding": {
                     "compounded_with_rate_cutoff": {
                         "cutoff_days": 1
@@ -1366,8 +1261,22 @@ mod tests {
                     "projection": {
                         "discount_curve_id": "USD-OIS"
                     }
-                }
-            }
+                },
+                "quotes": [{
+                    "swap": {
+                        "index_id": "USD-SOFR-OIS",
+                        "pillar": {
+                            "tenor": {
+                                "count": 5,
+                                "unit": "years"
+                            }
+                        },
+                        "rate": 0.04,
+                        "spread_decimal": null
+                    }
+                }]
+            },
+            "fx_policy": null
         });
 
         let curve: ForwardCurve = serde_json::from_value(json).expect("full calibration recipe");
@@ -1376,15 +1285,15 @@ mod tests {
             serde_json::from_value(serialized.clone()).expect("round-trip full recipe");
 
         assert_eq!(
-            serialized["rate_calibration_recipe"]["ois_compounding"]["compounded_with_rate_cutoff"]
+            serialized["rate_calibration"]["ois_compounding"]["compounded_with_rate_cutoff"]
                 ["cutoff_days"],
             1
         );
         assert_eq!(
-            serialized["rate_calibration_recipe"]["role"]["projection"]["discount_curve_id"],
+            serialized["rate_calibration"]["role"]["projection"]["discount_curve_id"],
             "USD-OIS"
         );
-        let recipe = restored.rate_calibration_recipe().expect("restored recipe");
+        let recipe = restored.rate_calibration().expect("restored recipe");
         assert!(matches!(
             recipe.ois_compounding.as_ref(),
             Some(
@@ -1417,26 +1326,29 @@ mod tests {
     }
 
     #[test]
-    fn legacy_sparse_serde_keeps_numeric_tenor_df_economics() {
+    fn absent_projection_grid_uses_numeric_tenor_df_economics() {
         let json = serde_json::json!({
             "id": "USD-SOFR-3M",
             "base": "2025-01-01",
             "reset_lag": 2,
-            "day_count": "Act360",
+            "day_count": "act_360",
             "tenor": 0.25,
             "knot_points": [[0.0, 0.04], [1.0, 0.05], [5.0, 0.06]],
+            "projection_grid": null,
             "interp_style": "linear",
-            "extrapolation": "flat_forward"
+            "extrapolation": "flat_forward",
+            "rate_calibration": null,
+            "fx_policy": null
         });
         let curve: ForwardCurve =
-            serde_json::from_value(json).expect("legacy sparse curve should deserialize");
+            serde_json::from_value(json).expect("canonical curve should deserialize");
 
         assert_eq!(curve.projection_grid(), None);
         let expected = (0..4).fold(1.0, |df, step| {
             let reset = step as f64 * 0.25;
             df / (1.0 + curve.rate(reset) * 0.25)
         });
-        assert!((curve.df(1.0).expect("legacy DF") - expected).abs() < 1e-14);
+        assert!((curve.df(1.0).expect("projection DF") - expected).abs() < 1e-14);
     }
 
     #[test]

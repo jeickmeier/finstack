@@ -11,7 +11,7 @@ pub(crate) fn register_fixed_income_pricers(registry: &mut PricerRegistry) {
     // FI Index TRS
     register_generic!(
         registry,
-        InstrumentType::FIIndexTotalReturnSwap,
+        InstrumentType::FiIndexTotalReturnSwap,
         crate::instruments::fixed_income::fi_trs::FIIndexTotalReturnSwap
     );
 

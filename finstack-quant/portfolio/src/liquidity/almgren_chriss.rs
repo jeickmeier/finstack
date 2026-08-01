@@ -151,7 +151,7 @@ impl MarketImpactModel for AlmgrenChrissModel {
         // the caller supplies one; `profile.mid` is the default).
         let reference_price = params.effective_reference_price();
         let notional = q.abs() * reference_price;
-        let cost_bps = if notional > 0.0 {
+        let cost_bp = if notional > 0.0 {
             total_cost / notional * 10_000.0
         } else {
             0.0
@@ -165,7 +165,7 @@ impl MarketImpactModel for AlmgrenChrissModel {
             permanent_impact: perm_cost,
             temporary_impact: temp_cost,
             total_cost,
-            cost_bps,
+            cost_bp,
             execution_risk,
         })
     }
@@ -392,7 +392,7 @@ mod tests {
         assert!(est.total_cost >= 0.0);
         assert!(est.permanent_impact >= 0.0);
         assert!(est.temporary_impact >= 0.0);
-        assert!(est.cost_bps >= 0.0);
+        assert!(est.cost_bp >= 0.0);
         assert!(est.execution_risk >= 0.0);
         let expected_execution_risk = params.daily_volatility * params.horizon_days.sqrt()
             / 3.0_f64.sqrt()
@@ -566,7 +566,7 @@ mod tests {
             permanent_impact: 100.0,
             temporary_impact: 200.0,
             total_cost: 300.0,
-            cost_bps: 15.0,
+            cost_bp: 15.0,
             execution_risk: 500.0,
         };
         let json = serde_json::to_string(&est)?;

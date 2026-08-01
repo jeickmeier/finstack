@@ -366,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn equity_underlying_primary_curve_id_propagates_unsupported_ccy() {
+    fn equity_underlying_primary_curve_id_propagates_unsupported_currency() {
         let params = EquityUnderlyingParams::new("X.AB", PriceId::new("X.AB.SPOT"), Currency::SEK);
         assert!(params.primary_curve_id().is_err());
     }

@@ -6,13 +6,13 @@
 //! the standard pricer registry.
 
 use super::{shared_standard_registry, ModelKey, PricerRegistry};
-use crate::instruments::json_loader::{INSTRUMENT_CONTRACT, MAX_JSON_BYTES};
+use crate::instruments::json_loader::MAX_JSON_BYTES;
 use crate::instruments::{Instrument, InstrumentEnvelope, InstrumentJson, MetricPricingOverrides};
 use crate::metrics::MetricId;
 use crate::results::ValuationResult;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::Error;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
@@ -28,17 +28,16 @@ pub const STANDARD_OPTION_GREEKS: &[&str] = &[
     "volga",
 ];
 
-/// Parse a tagged instrument JSON payload into the canonical Rust enum.
+/// Parse a canonical instrument envelope into the canonical Rust enum.
 ///
-/// This accepts both the compatibility `{type, spec}` form and the versioned
-/// [`InstrumentEnvelope`] form. Input size is capped at
-/// [`MAX_JSON_BYTES`], and the concrete instrument is validated before the
-/// enum is returned.
+/// Input must use the canonical versioned [`InstrumentEnvelope`] form. Its size
+/// is capped at [`MAX_JSON_BYTES`], and the concrete instrument is validated
+/// before the enum is returned.
 ///
 /// # Arguments
 ///
-/// * `json` - UTF-8 JSON containing a recognized instrument `type` tag and
-///   the matching instrument specification.
+/// * `json` - UTF-8 JSON containing the required v1 envelope and a recognized
+///   instrument `type` tag.
 ///
 /// # Errors
 ///
@@ -52,113 +51,89 @@ pub fn parse_instrument_json(json: &str) -> finstack_quant_core::Result<Instrume
             MAX_JSON_BYTES / (1024 * 1024)
         )));
     }
-    let value: Value = serde_json::from_str(json)
-        .map_err(|error| Error::Validation(format!("invalid instrument JSON: {error}")))?;
-    let instrument = if value.get("schema").is_some() {
-        let envelope: InstrumentEnvelope = serde_json::from_value(value).map_err(|error| {
-            Error::Validation(format!("invalid instrument envelope JSON: {error}"))
-        })?;
-        INSTRUMENT_CONTRACT
-            .parse_schema(&envelope.schema)
-            .map_err(|error| {
-                Error::Validation(format!(
-                    "invalid instrument envelope schema {:?}; expected {:?}: {error}",
-                    envelope.schema,
-                    INSTRUMENT_CONTRACT.schema_string()
-                ))
-            })?;
-        envelope.instrument
-    } else {
-        serde_json::from_value(value)
-            .map_err(|error| Error::Validation(format!("invalid instrument JSON: {error}")))?
-    };
+    let envelope: InstrumentEnvelope = serde_json::from_str(json)
+        .map_err(|error| Error::Validation(format!("invalid instrument envelope JSON: {error}")))?;
+    let instrument = envelope.instrument;
     instrument.clone().into_boxed()?.validate_for_pricing()?;
     Ok(instrument)
 }
 
-/// Build and validate canonical tagged instrument JSON from either a bare spec
-/// object or an already-tagged instrument object.
-///
-/// A bare object is wrapped as `{ "type": type_tag, "spec": value }`. A
-/// tagged object must carry the same `type_tag`; this prevents an API caller
-/// from accidentally pricing one instrument under another's route.
+/// Build and validate a canonical instrument envelope from a bare spec object.
 ///
 /// # Arguments
 ///
 /// * `type_tag` - Canonical instrument discriminator expected by the caller's
 ///   API route.
-/// * `value` - A bare instrument spec or an already-tagged instrument object.
+/// * `spec` - Bare instrument spec object for `type_tag`. Tagged payloads and
+///   envelopes are rejected.
 ///
 /// # Returns
 ///
-/// Canonical serialized JSON after the type-specific deserialization and
-/// validation path has succeeded.
+/// Canonical serialized v1 envelope after type-specific deserialization and
+/// validation has succeeded.
 ///
 /// # Errors
 ///
-/// Returns `Error::Validation` when the tag is missing or non-string, differs
-/// from `type_tag`, the payload is not a supported instrument, or canonical
-/// serialization fails.
-pub fn canonical_instrument_json(
+/// Returns `Error::Validation` when `spec` is not a bare object, the payload is
+/// not a supported instrument, or canonical serialization fails.
+pub fn instrument_envelope_from_spec(
     type_tag: &str,
-    value: Value,
+    spec: Value,
 ) -> finstack_quant_core::Result<String> {
-    let payload = if value.get("type").is_some() {
-        let actual = value.get("type").and_then(Value::as_str).ok_or_else(|| {
-            Error::Validation("instrument JSON field `type` must be a string".to_string())
-        })?;
-        if actual != type_tag {
-            return Err(Error::Validation(format!(
-                "expected instrument type `{type_tag}`, got `{actual}`"
-            )));
-        }
-        value
-    } else {
-        let mut payload = Map::new();
-        payload.insert("type".to_string(), Value::String(type_tag.to_string()));
-        payload.insert("spec".to_string(), value);
-        Value::Object(payload)
-    };
+    let object = spec.as_object().ok_or_else(|| {
+        Error::Validation("instrument constructor requires a bare spec object".to_string())
+    })?;
+    if (object.contains_key("type") && object.contains_key("spec"))
+        || (object.contains_key("schema") && object.contains_key("instrument"))
+    {
+        return Err(Error::Validation(
+            "instrument constructor requires a bare spec object, not a tagged payload or envelope"
+                .to_string(),
+        ));
+    }
 
-    let json = serde_json::to_string(&payload)
-        .map_err(|e| Error::Validation(format!("invalid instrument JSON: {e}")))?;
-    validate_instrument_json(&json)
+    let instrument: InstrumentJson = serde_json::from_value(serde_json::json!({
+        "type": type_tag,
+        "spec": spec,
+    }))
+    .map_err(|error| Error::Validation(format!("invalid {type_tag} instrument spec: {error}")))?;
+    instrument.clone().into_boxed()?;
+    serde_json::to_string(&InstrumentEnvelope::new(instrument))
+        .map_err(|error| Error::Validation(format!("invalid instrument JSON: {error}")))
 }
 
-/// Build and validate canonical tagged instrument JSON from a JSON string.
-///
-/// This is the string-input counterpart to [`canonical_instrument_json`].
+/// Validate a canonical envelope for one exact instrument type.
 ///
 /// # Arguments
 ///
 /// * `type_tag` - Canonical instrument discriminator expected by the caller.
-/// * `json` - A JSON object containing either a bare spec or tagged payload.
+/// * `json` - Required canonical v1 instrument envelope.
 ///
 /// # Errors
 ///
-/// Returns `Error::Validation` when `json` is malformed or when canonicalizing
-/// the resulting value fails the rules documented by
-/// [`canonical_instrument_json`].
-pub fn canonical_instrument_json_from_str(
+/// Returns `Error::Validation` when `json` is malformed, uses another
+/// instrument type, fails validation, or cannot be canonically serialized.
+pub fn validate_typed_instrument_json(
     type_tag: &str,
     json: &str,
 ) -> finstack_quant_core::Result<String> {
-    let value: Value = serde_json::from_str(json)
-        .map_err(|e| Error::Validation(format!("invalid instrument JSON: {e}")))?;
-    canonical_instrument_json(type_tag, value)
+    let instrument = parse_instrument_json(json)?;
+    let actual = instrument.type_tag();
+    if actual != type_tag {
+        return Err(Error::Validation(format!(
+            "expected instrument type `{type_tag}`, got `{actual}`"
+        )));
+    }
+    serde_json::to_string(&InstrumentEnvelope::new(instrument))
+        .map_err(|error| Error::Validation(format!("invalid instrument JSON: {error}")))
 }
 
-/// Validate tagged instrument JSON against the pricing contract and return its
-/// canonical JSON representation.
-///
-/// A payload with a `schema` member is parsed as an [`InstrumentEnvelope`]; all
-/// other payloads are parsed as [`InstrumentJson`]. This function is useful for
-/// accepting external configuration before any market data or pricing model is
-/// involved.
+/// Validate a v1 instrument envelope against the pricing contract and return
+/// its canonical JSON representation.
 ///
 /// # Arguments
 ///
-/// * `json` - Tagged instrument JSON in direct or envelope form.
+/// * `json` - Required canonical v1 instrument envelope.
 ///
 /// # Errors
 ///
@@ -166,19 +141,10 @@ pub fn canonical_instrument_json_from_str(
 /// canonical serialization fails.
 pub fn validate_instrument_json(json: &str) -> finstack_quant_core::Result<String> {
     parse_boxed_instrument_json(json, None)?;
-    let value: Value = serde_json::from_str(json)
-        .map_err(|e| Error::Validation(format!("invalid instrument JSON: {e}")))?;
-    if value.get("schema").is_some() {
-        let parsed: InstrumentEnvelope = serde_json::from_value(value)
-            .map_err(|e| Error::Validation(format!("invalid instrument envelope JSON: {e}")))?;
-        serde_json::to_string(&parsed)
-            .map_err(|e| Error::Validation(format!("invalid instrument JSON: {e}")))
-    } else {
-        let parsed: InstrumentJson = serde_json::from_value(value)
-            .map_err(|e| Error::Validation(format!("invalid instrument JSON: {e}")))?;
-        serde_json::to_string(&parsed)
-            .map_err(|e| Error::Validation(format!("invalid instrument JSON: {e}")))
-    }
+    let parsed: InstrumentEnvelope = serde_json::from_str(json)
+        .map_err(|e| Error::Validation(format!("invalid instrument envelope JSON: {e}")))?;
+    serde_json::to_string(&parsed)
+        .map_err(|e| Error::Validation(format!("invalid instrument JSON: {e}")))
 }
 
 /// List all metric IDs in the standard metric registry.
@@ -253,12 +219,12 @@ pub fn list_models_grouped() -> BTreeMap<String, Vec<String>> {
         .collect()
 }
 
-/// Parse tagged instrument JSON, optionally merge metric pricing overrides, and
-/// box the concrete instrument for pricing dispatch.
+/// Parse a canonical instrument envelope, optionally merge metric pricing
+/// overrides, and box the concrete instrument for pricing dispatch.
 ///
 /// # Arguments
 ///
-/// * `instrument_json` - Tagged direct or envelope instrument JSON.
+/// * `instrument_json` - Required canonical v1 instrument envelope.
 /// * `pricing_options` - Optional JSON overrides merged into the instrument's
 ///   metric-pricing configuration before validation.
 ///
@@ -295,7 +261,7 @@ pub fn parse_model_key(model: &str) -> finstack_quant_core::Result<ModelKey> {
         .map_err(|e| Error::Validation(format!("Unknown model key: '{model}'. {e}")))
 }
 
-/// Pretty-print tagged instrument JSON for inspection-oriented binding APIs.
+/// Pretty-print JSON for inspection-oriented binding APIs.
 ///
 /// This reformats arbitrary valid JSON; it does not validate that the value is
 /// an instrument payload. Use [`validate_instrument_json`] when the caller also
@@ -321,14 +287,14 @@ fn resolve_model_key(
     instrument: &dyn Instrument,
     model: &str,
 ) -> finstack_quant_core::Result<ModelKey> {
-    if model.trim().eq_ignore_ascii_case("default") {
+    if model == "default" {
         Ok(instrument.default_model())
     } else {
         parse_model_key(model)
     }
 }
 
-/// Price a tagged instrument JSON payload using the shared standard registry.
+/// Price a canonical instrument envelope using the shared standard registry.
 ///
 /// This is the host-language-friendly path for a single valuation with no
 /// explicit metric requests. Pass `"default"` for `model` to use the
@@ -336,7 +302,7 @@ fn resolve_model_key(
 ///
 /// # Arguments
 ///
-/// * `instrument_json` - Tagged direct or envelope instrument JSON.
+/// * `instrument_json` - Required canonical v1 instrument envelope.
 /// * `market` - Market context supplying all required curves, surfaces,
 ///   fixings, and FX data.
 /// * `as_of` - ISO-8601 valuation date.
@@ -355,12 +321,12 @@ pub fn price_instrument_json(
     price_instrument_json_request(instrument_json, market, as_of, model, &[], None, None)
 }
 
-/// Price a tagged instrument JSON payload with explicit metric requests and
+/// Price a canonical instrument envelope with explicit metric requests and
 /// optional historical scenarios for VaR-style metrics.
 ///
 /// # Arguments
 ///
-/// * `instrument_json` - Tagged direct or envelope instrument JSON.
+/// * `instrument_json` - Required canonical v1 instrument envelope.
 /// * `market` - Market context used for pricing and risk calculations.
 /// * `as_of` - ISO-8601 valuation date.
 /// * `model` - A concrete model key or the case-insensitive `"default"`.
@@ -414,7 +380,7 @@ fn price_instrument_json_request(
         .iter()
         .map(|metric| {
             MetricId::parse_strict(metric).or_else(|strict_error| {
-                let registered = MetricId::custom(metric.to_lowercase());
+                let registered = MetricId::custom(metric);
                 if metric_registry.has_metric(registered.clone()) {
                     Ok(registered)
                 } else {
@@ -443,7 +409,7 @@ fn price_instrument_json_request(
     .map_err(Into::into)
 }
 
-/// Price a tagged instrument JSON payload and return one requested scalar
+/// Price a canonical instrument envelope and return one requested scalar
 /// metric, failing when the metric is not produced by the selected model.
 ///
 /// # Errors
@@ -454,7 +420,7 @@ fn price_instrument_json_request(
 ///
 /// # Arguments
 ///
-/// * `instrument_json` - UTF-8 canonical tagged instrument JSON to construct
+/// * `instrument_json` - UTF-8 canonical v1 instrument envelope to construct
 ///   and price.
 /// * `market` - Market context supplying model-required curves, quotes, and FX
 ///   data.
@@ -484,7 +450,7 @@ pub fn metric_value_from_instrument_json(
         .ok_or_else(|| Error::Validation(format!("metric `{metric}` was not returned")))
 }
 
-/// Price a tagged instrument JSON payload and return the requested scalar
+/// Price a canonical instrument envelope and return the requested scalar
 /// metrics that were produced by the selected model.
 ///
 /// The returned pairs preserve the requested order but omit unavailable
@@ -499,7 +465,7 @@ pub fn metric_value_from_instrument_json(
 ///
 /// # Arguments
 ///
-/// * `instrument_json` - UTF-8 canonical tagged instrument JSON to construct
+/// * `instrument_json` - UTF-8 canonical v1 instrument envelope to construct
 ///   and price.
 /// * `market` - Market context supplying model-required curves, quotes, and FX
 ///   data.
@@ -566,7 +532,7 @@ pub fn present_standard_option_greeks_from_instrument_json(
     )
 }
 
-/// Best-effort extraction of `spec.id` from a tagged instrument JSON payload.
+/// Best-effort extraction of `instrument.spec.id` from an envelope.
 ///
 /// Used purely to enrich error messages so an analyst running a batch can
 /// identify the offending row. Returns `None` when the JSON is malformed or
@@ -574,6 +540,7 @@ pub fn present_standard_option_greeks_from_instrument_json(
 fn extract_spec_id_lossy(instrument_json: &str) -> Option<String> {
     let value: Value = serde_json::from_str(instrument_json).ok()?;
     value
+        .get("instrument")?
         .get("spec")?
         .get("id")?
         .as_str()
@@ -623,24 +590,25 @@ fn instrument_json_for_pricing<'a>(
         ))
     })?;
     let spec = document
-        .get_mut("spec")
+        .get_mut("instrument")
+        .and_then(|instrument| instrument.get_mut("spec"))
         .and_then(Value::as_object_mut)
         .ok_or_else(|| {
             Error::Validation(with_id_suffix(
-                "instrument JSON must contain an object spec".into(),
+                "instrument envelope must contain an object instrument.spec".into(),
                 id,
             ))
         })?;
-    let pricing_overrides = spec
-        .entry("pricing_overrides".to_string())
-        .or_insert_with(|| Value::Object(Map::new()));
-    let pricing_overrides = pricing_overrides.as_object_mut().ok_or_else(|| {
+    let metric_pricing_overrides = spec
+        .entry("metric_pricing_overrides".to_string())
+        .or_insert_with(|| Value::Object(Default::default()));
+    let metric_pricing_overrides = metric_pricing_overrides.as_object_mut().ok_or_else(|| {
         Error::Validation(with_id_suffix(
-            "instrument spec.pricing_overrides must be an object".to_string(),
+            "instrument.spec.metric_pricing_overrides must be an object".to_string(),
             id,
         ))
     })?;
-    pricing_overrides.extend(patch);
+    metric_pricing_overrides.extend(patch);
 
     serde_json::to_string(&document)
         .map(Cow::Owned)
@@ -665,6 +633,14 @@ mod tests {
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
     use finstack_quant_core::money::Money;
 
+    fn envelope_value(instrument: InstrumentJson) -> Value {
+        serde_json::to_value(InstrumentEnvelope::new(instrument)).expect("serialize envelope")
+    }
+
+    fn envelope_json(instrument: InstrumentJson) -> String {
+        serde_json::to_string(&InstrumentEnvelope::new(instrument)).expect("serialize envelope")
+    }
+
     fn bond_instrument_json() -> String {
         let bond = Bond::fixed(
             "TEST-BOND",
@@ -675,7 +651,7 @@ mod tests {
             "USD-OIS",
         )
         .expect("bond");
-        serde_json::to_string(&InstrumentJson::Bond(bond)).expect("serialize")
+        envelope_json(InstrumentJson::Bond(bond))
     }
 
     fn market_context() -> MarketContext {
@@ -713,15 +689,16 @@ mod tests {
 
     fn equity_option_json_with_negative_vol_override() -> String {
         let option = EquityOption::example().expect("option");
-        let mut json = serde_json::to_value(InstrumentJson::EquityOption(option)).expect("json");
-        json["spec"]["pricing_overrides"]["implied_volatility"] = Value::from(-0.20);
+        let mut json = envelope_value(InstrumentJson::EquityOption(option));
+        json["instrument"]["spec"]["instrument_pricing_overrides"]["market_quotes"]
+            ["implied_volatility"] = Value::from(-0.20);
         serde_json::to_string(&json).expect("serialize")
     }
 
     fn equity_option_json_with_invalid_strike() -> String {
         let mut option = EquityOption::example().expect("option");
         option.strike = -100.0;
-        serde_json::to_string(&InstrumentJson::EquityOption(option)).expect("serialize")
+        envelope_json(InstrumentJson::EquityOption(option))
     }
 
     fn fx_spot_spec_value() -> Value {
@@ -731,27 +708,39 @@ mod tests {
             "quote_currency": "USD",
             "settlement": "2025-01-17",
             "spot_rate": 1.20,
-            "notional": {"amount": 1_000_000.0, "currency": "EUR"},
+            "notional": {"amount": "1000000", "currency": "EUR"},
             "attributes": {},
         })
     }
 
     #[test]
-    fn canonical_instrument_json_wraps_bare_fx_spec() {
-        let canonical =
-            canonical_instrument_json("fx_spot", fx_spot_spec_value()).expect("canonical fx spot");
+    fn instrument_envelope_from_spec_wraps_bare_fx_spec() {
+        let canonical = instrument_envelope_from_spec("fx_spot", fx_spot_spec_value())
+            .expect("canonical fx spot");
         let parsed: Value = serde_json::from_str(&canonical).expect("json");
-        assert_eq!(parsed["type"], "fx_spot");
-        assert_eq!(parsed["spec"]["id"], "EURUSD-SPOT");
+        assert_eq!(parsed["schema"], InstrumentEnvelope::CURRENT_SCHEMA);
+        assert_eq!(parsed["instrument"]["type"], "fx_spot");
+        assert_eq!(parsed["instrument"]["spec"]["id"], "EURUSD-SPOT");
     }
 
     #[test]
-    fn canonical_instrument_json_rejects_wrong_existing_type() {
-        let err = canonical_instrument_json(
+    fn instrument_envelope_from_spec_rejects_tagged_payload() {
+        let err = instrument_envelope_from_spec(
             "fx_forward",
             serde_json::json!({"type": "fx_spot", "spec": fx_spot_spec_value()}),
         )
-        .expect_err("wrong tag should be rejected");
+        .expect_err("tagged payload should be rejected");
+        assert!(err
+            .to_string()
+            .contains("constructor requires a bare spec object"));
+    }
+
+    #[test]
+    fn validate_typed_instrument_json_rejects_other_envelope_type() {
+        let fx_spot = instrument_envelope_from_spec("fx_spot", fx_spot_spec_value())
+            .expect("canonical fx spot");
+        let err = validate_typed_instrument_json("fx_forward", &fx_spot)
+            .expect_err("wrong envelope type should be rejected");
         assert!(err
             .to_string()
             .contains("expected instrument type `fx_forward`, got `fx_spot`"));
@@ -799,9 +788,12 @@ mod tests {
         )
         .expect("merge");
         let parsed: Value = serde_json::from_str(merged.as_ref()).expect("json");
-        assert_eq!(parsed["spec"]["pricing_overrides"]["theta_period"], "1D");
         assert_eq!(
-            parsed["spec"]["pricing_overrides"]["breakeven_config"]["target"],
+            parsed["instrument"]["spec"]["metric_pricing_overrides"]["theta_period"],
+            "1D"
+        );
+        assert_eq!(
+            parsed["instrument"]["spec"]["metric_pricing_overrides"]["breakeven_config"]["target"],
             "z_spread"
         );
     }
@@ -843,7 +835,7 @@ mod tests {
     fn validate_instrument_json_rejects_credit_and_convertible_invariants() {
         let mut cds_option = CDSOption::example().expect("CDS option");
         cds_option.exercise_style = crate::instruments::ExerciseStyle::American;
-        let json = serde_json::to_string(&InstrumentJson::CDSOption(cds_option)).expect("json");
+        let json = envelope_json(InstrumentJson::CDSOption(cds_option));
         assert!(validate_instrument_json(&json)
             .expect_err("unsupported exercise style must fail")
             .to_string()
@@ -852,8 +844,7 @@ mod tests {
         let mut convertible = ConvertibleBond::example().expect("convertible");
         convertible.conversion.ratio = None;
         convertible.conversion.price = None;
-        let json =
-            serde_json::to_string(&InstrumentJson::ConvertibleBond(convertible)).expect("json");
+        let json = envelope_json(InstrumentJson::ConvertibleBond(convertible));
         assert!(validate_instrument_json(&json)
             .expect_err("missing conversion terms must fail")
             .to_string()
@@ -871,7 +862,7 @@ mod tests {
                     is_draw: true,
                 },
             ]);
-        let json = serde_json::to_string(&InstrumentJson::RevolvingCredit(facility)).expect("json");
+        let json = envelope_json(InstrumentJson::RevolvingCredit(facility));
         assert!(validate_instrument_json(&json)
             .expect_err("post-maturity draw must fail")
             .to_string()
@@ -883,8 +874,7 @@ mod tests {
         let mut future = InterestRateFuture::example().expect("IR future");
         future.contract_specs.convexity_adjustment = None;
         future.vol_surface_id = None;
-        let json =
-            serde_json::to_string(&InstrumentJson::InterestRateFuture(future)).expect("json");
+        let json = envelope_json(InstrumentJson::InterestRateFuture(future));
         assert!(validate_instrument_json(&json)
             .expect_err("missing convexity source must fail")
             .to_string()
@@ -892,7 +882,7 @@ mod tests {
 
         let mut cmo = AgencyCmo::example().expect("CMO");
         cmo.reference_tranche_id = "MISSING".to_string();
-        let json = serde_json::to_string(&InstrumentJson::AgencyCmo(cmo)).expect("json");
+        let json = envelope_json(InstrumentJson::AgencyCmo(cmo));
         assert!(validate_instrument_json(&json)
             .expect_err("unknown reference tranche must fail")
             .to_string()
@@ -903,7 +893,7 @@ mod tests {
     fn validate_instrument_json_rejects_invalid_term_loan_notional() {
         let mut loan = TermLoan::example().expect("term loan");
         loan.notional_limit = Money::new(-1.0, Currency::USD);
-        let json = serde_json::to_string(&InstrumentJson::TermLoan(loan)).expect("json");
+        let json = envelope_json(InstrumentJson::TermLoan(loan));
         assert!(validate_instrument_json(&json)
             .expect_err("negative notional must fail")
             .to_string()
@@ -913,9 +903,8 @@ mod tests {
     #[test]
     fn validate_instrument_json_rejects_non_conserving_waterfall() {
         let fund = PrivateMarketsFund::example().expect("fund");
-        let mut json =
-            serde_json::to_value(InstrumentJson::PrivateMarketsFund(fund)).expect("serialize");
-        json["spec"]["waterfall_spec"]["tranches"][3]["promote_tier"]["gp_share"] =
+        let mut json = envelope_value(InstrumentJson::PrivateMarketsFund(fund));
+        json["instrument"]["spec"]["waterfall_spec"]["tranches"][3]["promote_tier"]["gp_share"] =
             Value::from(0.6);
         let json = serde_json::to_string(&json).expect("json");
 
@@ -926,8 +915,7 @@ mod tests {
     fn validate_instrument_json_rejects_invalid_cleanup_call_threshold() {
         let mut deal = StructuredCredit::example();
         deal.cleanup_call_pct = Some(-0.5);
-        let json = serde_json::to_string(&InstrumentJson::StructuredCredit(Box::new(deal)))
-            .expect("serialize");
+        let json = envelope_json(InstrumentJson::StructuredCredit(Box::new(deal)));
 
         let err = validate_instrument_json(&json)
             .expect_err("cleanup-call threshold outside (0, 1) must be rejected");
@@ -956,10 +944,7 @@ mod tests {
 
     #[test]
     fn parse_instrument_json_accepts_envelope_and_enforces_size_cap() {
-        let bare = bond_instrument_json();
-        let parsed = parse_instrument_json(&bare).expect("bare payload");
-        let envelope = InstrumentEnvelope::new(parsed);
-        let json = serde_json::to_string(&envelope).expect("envelope json");
+        let json = bond_instrument_json();
         assert!(matches!(
             parse_instrument_json(&json).expect("envelope payload"),
             InstrumentJson::Bond(_)
@@ -1074,7 +1059,7 @@ mod tests {
     #[test]
     fn json_pricing_accepts_registered_custom_term_loan_metrics() {
         let loan = TermLoan::example().expect("term loan");
-        let json = serde_json::to_string(&InstrumentJson::TermLoan(loan)).expect("serialize");
+        let json = envelope_json(InstrumentJson::TermLoan(loan));
         let result = price_instrument_json_with_metrics_and_history(
             &json,
             &market_context(),
@@ -1096,8 +1081,7 @@ mod tests {
 
         let mut facility = RevolvingCredit::example().expect("revolving credit");
         facility.base_rate_spec = BaseRateSpec::Fixed { rate: 0.05 };
-        let json =
-            serde_json::to_string(&InstrumentJson::RevolvingCredit(facility)).expect("serialize");
+        let json = envelope_json(InstrumentJson::RevolvingCredit(facility));
         let result = price_instrument_json_with_metrics_and_history(
             &json,
             &market_context(),

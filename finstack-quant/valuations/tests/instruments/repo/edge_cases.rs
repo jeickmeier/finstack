@@ -63,7 +63,7 @@ fn test_extremely_high_haircut() {
         .repo_type(RepoType::Term)
         .triparty(false)
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::Following)
+        .business_day_convention(BusinessDayConvention::Following)
         .calendar_id_opt(Some("target2".into()))
         .discount_curve_id("USD-OIS".into())
         .attributes(Attributes::default())
@@ -325,14 +325,17 @@ fn test_business_day_conventions() {
         .repo_type(RepoType::Term)
         .triparty(false)
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::Following)
+        .business_day_convention(BusinessDayConvention::Following)
         .calendar_id_opt(Some("target2".into()))
         .discount_curve_id("USD-OIS".into())
         .attributes(Attributes::default())
         .build()
         .unwrap();
 
-    assert_eq!(following.bdc, BusinessDayConvention::Following);
+    assert_eq!(
+        following.business_day_convention,
+        BusinessDayConvention::Following
+    );
 
     // Modified Following
     let mod_following = Repo::builder()
@@ -346,14 +349,17 @@ fn test_business_day_conventions() {
         .repo_type(RepoType::Term)
         .triparty(false)
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(Some("target2".into()))
         .discount_curve_id("USD-OIS".into())
         .attributes(Attributes::default())
         .build()
         .unwrap();
 
-    assert_eq!(mod_following.bdc, BusinessDayConvention::ModifiedFollowing);
+    assert_eq!(
+        mod_following.business_day_convention,
+        BusinessDayConvention::ModifiedFollowing
+    );
 }
 
 #[test]

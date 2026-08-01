@@ -129,7 +129,7 @@ fn ndf_fx01_settlement_per_base_matches_finite_difference_one_pct() {
 ///
 /// Sign convention: the generic `Fx01Calculator` bumps `rate(base, quote)`
 /// directly via `MarketBump::FxPct`. For this NDF that's `rate(CNY, USD)`
-/// (= `1 / bps_spot`). To produce a finite-difference comparison in the
+/// (= `1 / bp_spot`). To produce a finite-difference comparison in the
 /// **same direction** we set up the bumped markets quoted as `rate(CNY,
 /// USD)`, not `rate(USD, CNY)` — bumping the latter by +1% goes the
 /// opposite way and would flip the sign comparison.
@@ -139,10 +139,10 @@ fn ndf_fx01_base_per_settlement_matches_finite_difference_one_pct() {
     let fixing = Date::from_calendar_date(2024, Month::April, 13).expect("date");
     let maturity = Date::from_calendar_date(2024, Month::April, 15).expect("date");
 
-    let bps_spot = 7.25_f64;
-    let base_market = market_with_quote(as_of, Currency::USD, Currency::CNY, bps_spot);
+    let bp_spot = 7.25_f64;
+    let base_market = market_with_quote(as_of, Currency::USD, Currency::CNY, bp_spot);
     // Bump in the same orientation the generic Fx01 uses: rate(CNY, USD).
-    let inv = 1.0 / bps_spot;
+    let inv = 1.0 / bp_spot;
     let bump_up = market_with_quote(as_of, Currency::CNY, Currency::USD, inv * 1.01);
     let bump_dn = market_with_quote(as_of, Currency::CNY, Currency::USD, inv * 0.99);
 

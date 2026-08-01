@@ -69,9 +69,8 @@ pub enum CapBaseMode {
     Reported,
     /// Cap against the **progressively adjusted** value
     /// (`base_value + running_total_of_earlier_adjustments`). Earlier
-    /// adjustments widen the cap room for later ones. Retained for
-    /// backwards compatibility and edge cases where a document explicitly
-    /// caps against "adjusted" EBITDA at each step.
+    /// adjustments widen the cap room for later ones. Use this only when a
+    /// document explicitly caps against "adjusted" EBITDA at each step.
     Progressive,
 }
 

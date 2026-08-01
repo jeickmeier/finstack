@@ -1,9 +1,9 @@
 {
-  "$schema": "../../schemas/calibration/3/calibration.schema.json",
-  "schema": "finstack_quant.calibration",
+  "$schema": "../../schemas/calibration/1/calibration.schema.json",
+  "schema": "finstack_quant.calibration/1",
   "plan": {
     "id": "usd_sofr_3m_forward",
-    "description": "USD 3M SOFR forward curve bootstrapped from a strip of FRA quotes, chained on a USD-OIS discount curve that is bootstrapped in the same plan from deposit and IRS quotes. Demonstrates the standard rates pattern: step 1 produces the discount curve from quotes; step 2 uses it to bootstrap the forward curve. FRAs were chosen over futures to keep the example free of the convexity-adjustment magic numbers futures calibration requires. The envelope is fully self-bootstrapping from quotes \u2014 no hand-entered curves in initial_market.",
+    "description": "USD 3M SOFR forward curve bootstrapped from a strip of FRA quotes, chained on a USD-OIS discount curve that is bootstrapped in the same plan from deposit and IRS quotes. Demonstrates the standard rates pattern: step 1 produces the discount curve from quotes; step 2 uses it to bootstrap the forward curve. FRAs were chosen over futures to keep the example free of the convexity-adjustment magic numbers futures calibration requires. The envelope is fully self-bootstrapping from quotes \u2014 no hand-entered curves in prior_market.",
     "quote_sets": {
       "usd_rate_quotes": [
         "USD-SOFR-DEP-1M",
@@ -29,7 +29,7 @@
         "curve_id": "USD-OIS",
         "currency": "USD",
         "base_date": "2026-05-08",
-        "method": "Bootstrap",
+        "method": "bootstrap",
         "interpolation": "linear",
         "extrapolation": "flat_forward",
         "pricing_discount_id": null,
@@ -48,7 +48,7 @@
         "tenor_years": 0.25,
         "discount_curve_id": "USD-OIS",
         "method": {
-          "GlobalSolve": {
+          "global_solve": {
             "use_analytical_jacobian": false
           }
         },

@@ -77,7 +77,7 @@ struct RawBasisSpreadCurve {
     /// Curve identifier.
     pub id: String,
     /// Base date.
-    #[schemars(with = "String")]
+    #[schemars(with = "crate::wire::DateWire")]
     pub base: Date,
     /// Day count convention.
     pub day_count: DayCount,
@@ -275,8 +275,8 @@ impl BasisSpreadCurveBuilder {
     }
 
     /// Set the day count convention.
-    pub fn day_count(mut self, dc: DayCount) -> Self {
-        self.day_count = dc;
+    pub fn day_count(mut self, day_count: DayCount) -> Self {
+        self.day_count = day_count;
         self
     }
 

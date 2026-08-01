@@ -1235,7 +1235,11 @@ mod tests {
         );
         assert_eq!(result.meta.version.as_deref(), Some("model-version"));
         assert_eq!(
-            result.meta.rounding.output_scale_by_ccy.get(&Currency::USD),
+            result
+                .meta
+                .rounding
+                .output_scale_by_currency
+                .get(&Currency::USD),
             Some(&4)
         );
         assert_eq!(
@@ -1681,7 +1685,7 @@ mod tests {
             result
                 .meta
                 .rounding
-                .output_scale_by_ccy
+                .output_scale_by_currency
                 .get(&Currency::USD)
                 .copied(),
             Some(4),
@@ -1838,13 +1842,13 @@ mod tests {
         // Interest Rate pricers
         assert!(
             registry
-                .get_pricer(PricerKey::new(InstrumentType::IRS, ModelKey::Discounting))
+                .get_pricer(PricerKey::new(InstrumentType::Irs, ModelKey::Discounting))
                 .is_some(),
             "IRS Discounting pricer should be registered"
         );
         assert!(
             registry
-                .get_pricer(PricerKey::new(InstrumentType::FRA, ModelKey::Discounting))
+                .get_pricer(PricerKey::new(InstrumentType::Fra, ModelKey::Discounting))
                 .is_some(),
             "FRA Discounting pricer should be registered"
         );
@@ -1882,7 +1886,7 @@ mod tests {
         // Credit pricers
         assert!(
             registry
-                .get_pricer(PricerKey::new(InstrumentType::CDS, ModelKey::HazardRate))
+                .get_pricer(PricerKey::new(InstrumentType::Cds, ModelKey::HazardRate))
                 .is_some(),
             "CDS HazardRate pricer should be registered"
         );
@@ -1894,14 +1898,14 @@ mod tests {
         // real model key.
         assert!(
             registry
-                .get_pricer(PricerKey::new(InstrumentType::CDS, ModelKey::Discounting))
+                .get_pricer(PricerKey::new(InstrumentType::Cds, ModelKey::Discounting))
                 .is_none(),
             "CDS Discounting pricer must not be registered (misleading alias removed)"
         );
         assert!(
             registry
                 .get_pricer(PricerKey::new(
-                    InstrumentType::CDSIndex,
+                    InstrumentType::CdsIndex,
                     ModelKey::HazardRate
                 ))
                 .is_some(),
@@ -1910,7 +1914,7 @@ mod tests {
         assert!(
             registry
                 .get_pricer(PricerKey::new(
-                    InstrumentType::CDSIndex,
+                    InstrumentType::CdsIndex,
                     ModelKey::Discounting
                 ))
                 .is_none(),
@@ -1919,7 +1923,7 @@ mod tests {
         assert!(
             registry
                 .get_pricer(PricerKey::new(
-                    InstrumentType::CDSOption,
+                    InstrumentType::CdsOption,
                     ModelKey::BloombergCdso
                 ))
                 .is_some(),
@@ -1927,14 +1931,14 @@ mod tests {
         );
         assert!(
             registry
-                .get_pricer(PricerKey::new(InstrumentType::CDSOption, ModelKey::Black76))
+                .get_pricer(PricerKey::new(InstrumentType::CdsOption, ModelKey::Black76))
                 .is_none(),
             "Black76 pricer for CDSOption was decommissioned (DOCS 2055833 §1.2)"
         );
         assert!(
             registry
                 .get_pricer(PricerKey::new(
-                    InstrumentType::CDSOption,
+                    InstrumentType::CdsOption,
                     ModelKey::Discounting
                 ))
                 .is_none(),
@@ -1943,7 +1947,7 @@ mod tests {
         assert!(
             registry
                 .get_pricer(PricerKey::new(
-                    InstrumentType::CDSTranche,
+                    InstrumentType::CdsTranche,
                     ModelKey::HazardRate
                 ))
                 .is_some(),
@@ -1952,7 +1956,7 @@ mod tests {
         assert!(
             registry
                 .get_pricer(PricerKey::new(
-                    InstrumentType::CDSTranche,
+                    InstrumentType::CdsTranche,
                     ModelKey::Discounting
                 ))
                 .is_none(),
@@ -2245,7 +2249,7 @@ mod tests {
         assert!(
             registry
                 .get_pricer(PricerKey::new(
-                    InstrumentType::FIIndexTotalReturnSwap,
+                    InstrumentType::FiIndexTotalReturnSwap,
                     ModelKey::Discounting
                 ))
                 .is_some(),

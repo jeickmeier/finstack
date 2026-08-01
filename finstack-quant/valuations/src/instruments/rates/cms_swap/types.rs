@@ -40,7 +40,9 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = CmsSwap::validate)]
 #[serde(deny_unknown_fields)]
@@ -56,10 +58,10 @@ pub struct CmsSwap {
     /// CMS tenor in years (e.g., 10.0 for 10Y swap rate).
     pub cms_tenor: f64,
     /// Fixing dates for CMS rate observations.
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub cms_fixing_dates: Vec<Date>,
     /// Payment dates for the CMS leg.
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub cms_payment_dates: Vec<Date>,
     /// Accrual fractions for each CMS period.
     pub cms_accrual_fractions: Vec<f64>,
@@ -79,18 +81,18 @@ pub struct CmsSwap {
     pub cms_floor: Option<f64>,
 
     // ── Underlying Swap Conventions ──────────────────────────────────────
-    /// IRS convention for the underlying swap (e.g., `USDStandard`).
+    /// IRS convention for the underlying swap (e.g., `UsdSofr`).
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub swap_convention: Option<IRSConvention>,
     /// Fixed leg frequency of the underlying swap (overrides convention).
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub swap_fixed_freq: Option<Tenor>,
+    pub swap_fixed_frequency: Option<Tenor>,
     /// Floating leg frequency of the underlying swap (overrides convention).
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub swap_float_freq: Option<Tenor>,
+    pub swap_float_frequency: Option<Tenor>,
     /// Day count of the underlying swap fixed leg (overrides convention).
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -113,17 +115,26 @@ pub struct CmsSwap {
     pub vol_surface_id: CurveId,
 
     /// Pricing overrides (manual price, yield, spread).
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping.
     #[serde(default)]
@@ -134,13 +145,14 @@ pub struct CmsSwap {
 /// Funding leg specification for a CMS swap.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
 pub enum FundingLeg {
     /// Fixed rate funding leg.
     Fixed {
         /// Fixed coupon rate (decimal, e.g., 0.03 = 3%).
         rate: f64,
         /// Payment dates for each period.
-        #[schemars(with = "Vec<String>")]
+        #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
         payment_dates: Vec<Date>,
         /// Accrual fractions for each period.
         accrual_fractions: Vec<f64>,
@@ -164,7 +176,7 @@ pub enum FundingLeg {
         spread: f64,
         /// Payment dates for each period. Each is also treated as the period's
         /// accrual-end date (no payment lag — see the variant docs).
-        #[schemars(with = "Vec<String>")]
+        #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
         payment_dates: Vec<Date>,
         /// Accrual fractions for each period.
         accrual_fractions: Vec<f64>,
@@ -183,10 +195,10 @@ impl CmsSwap {
     ) -> finstack_quant_core::Result<Date> {
         let convention = match (self.swap_convention, self.notional.currency()) {
             (Some(convention), _) => convention,
-            (None, finstack_quant_core::currency::Currency::USD) => IRSConvention::USDStandard,
-            (None, finstack_quant_core::currency::Currency::EUR) => IRSConvention::EURStandard,
-            (None, finstack_quant_core::currency::Currency::GBP) => IRSConvention::GBPStandard,
-            (None, finstack_quant_core::currency::Currency::JPY) => IRSConvention::JPYStandard,
+            (None, finstack_quant_core::currency::Currency::USD) => IRSConvention::UsdSofr,
+            (None, finstack_quant_core::currency::Currency::EUR) => IRSConvention::EurEstr,
+            (None, finstack_quant_core::currency::Currency::GBP) => IRSConvention::GbpSonia,
+            (None, finstack_quant_core::currency::Currency::JPY) => IRSConvention::JpyTonar,
             (None, currency) => {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "CMS swap '{}' requires swap_convention for currency {}",
@@ -247,15 +259,15 @@ impl CmsSwap {
     }
 
     /// Resolved fixed leg frequency (explicit > convention > default semi-annual).
-    pub fn resolved_swap_fixed_freq(&self) -> Tenor {
-        self.swap_fixed_freq
+    pub fn resolved_swap_fixed_frequency(&self) -> Tenor {
+        self.swap_fixed_frequency
             .or_else(|| self.swap_convention.map(|c| c.fixed_frequency()))
             .unwrap_or_else(Tenor::semi_annual)
     }
 
     /// Resolved float leg frequency (explicit > convention > default quarterly).
-    pub fn resolved_swap_float_freq(&self) -> Tenor {
-        self.swap_float_freq
+    pub fn resolved_swap_float_frequency(&self) -> Tenor {
+        self.swap_float_frequency
             .or_else(|| self.swap_convention.map(|c| c.float_frequency()))
             .unwrap_or_else(Tenor::quarterly)
     }
@@ -327,7 +339,7 @@ impl CmsSwap {
             end: maturity,
             frequency: cms_frequency,
             stub: StubKind::ShortFront,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: &calendar_id,
             end_of_month: false,
             day_count: cms_day_count,
@@ -360,7 +372,7 @@ impl CmsSwap {
                     end: maturity,
                     frequency: cms_frequency,
                     stub: StubKind::ShortFront,
-                    bdc: BusinessDayConvention::ModifiedFollowing,
+                    business_day_convention: BusinessDayConvention::ModifiedFollowing,
                     calendar_id: &calendar_id,
                     end_of_month: false,
                     day_count,
@@ -389,7 +401,7 @@ impl CmsSwap {
                     end: maturity,
                     frequency: cms_frequency,
                     stub: StubKind::ShortFront,
-                    bdc: BusinessDayConvention::ModifiedFollowing,
+                    business_day_convention: BusinessDayConvention::ModifiedFollowing,
                     calendar_id: &calendar_id,
                     end_of_month: false,
                     day_count,
@@ -460,7 +472,7 @@ impl CmsSwap {
             .cms_accrual_fractions(accrual_fractions.clone())
             .cms_day_count(DayCount::Act365F)
             .cms_spread(0.0)
-            .swap_convention_opt(Some(IRSConvention::USDStandard))
+            .swap_convention_opt(Some(IRSConvention::UsdSofr))
             .swap_float_day_count_opt(Some(DayCount::Act360))
             .funding_leg(FundingLeg::Fixed {
                 rate: 0.03,
@@ -781,7 +793,12 @@ mod tests {
         assert_eq!(
             deps.volatility_dependencies
                 .iter()
-                .map(|dependency| (dependency.surface_id.clone(), dependency.reference_strike,))
+                .map(|dependency| {
+                    (
+                        dependency.vol_surface_id.clone(),
+                        dependency.reference_strike,
+                    )
+                })
                 .collect::<Vec<_>>(),
             vec![
                 (swap.vol_surface_id.clone(), None),
@@ -881,7 +898,7 @@ mod tests {
             .cms_day_count(DayCount::Act365F)
             .cms_spread(0.0)
             .swap_convention_opt(Some(
-                crate::instruments::common_impl::parameters::IRSConvention::USDStandard,
+                crate::instruments::common_impl::parameters::IRSConvention::UsdSofr,
             ))
             // Zero fixed rate so pv_funding = 0 and base_value == pv_cms
             .funding_leg(FundingLeg::Fixed {
@@ -1015,7 +1032,7 @@ mod tests {
             .cms_day_count(DayCount::Act365F)
             .cms_spread(0.0)
             .swap_convention_opt(Some(
-                crate::instruments::common_impl::parameters::IRSConvention::USDStandard,
+                crate::instruments::common_impl::parameters::IRSConvention::UsdSofr,
             ))
             .funding_leg(FundingLeg::Fixed {
                 rate: 0.0,

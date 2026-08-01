@@ -149,7 +149,7 @@ impl MetricCalculator for ParSpreadCalculator {
             end: swap.primary_leg.end,
             frequency: swap.primary_leg.frequency,
             day_count: swap.primary_leg.day_count,
-            bdc: swap.primary_leg.bdc,
+            business_day_convention: swap.primary_leg.business_day_convention,
             calendar_id: swap.primary_leg.calendar_id.clone(),
             stub: swap.primary_leg.stub,
             payment_lag_days: swap.primary_leg.payment_lag_days,

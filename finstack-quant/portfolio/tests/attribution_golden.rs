@@ -45,7 +45,7 @@ fn test_attribution_parallel_rates_shift() {
     .expect("Position::new should succeed with valid parameters");
 
     let portfolio = PortfolioBuilder::new("TEST")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of_t0)
         .entity(Entity::new("ENTITY_A"))
         .position(position)
@@ -113,7 +113,7 @@ fn test_attribution_metrics_based_rates_shift() {
     )
     .expect("position");
     let portfolio = PortfolioBuilder::new("TEST_METRICS_ATTR")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of_t0)
         .entity(Entity::new("ENTITY_A"))
         .position(position)
@@ -160,7 +160,7 @@ fn test_attribution_metrics_based_fx_translation() {
     )
     .expect("position");
     let portfolio = PortfolioBuilder::new("TEST_METRICS_FX_ATTR")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of_t0)
         .entity(Entity::new("ENTITY_A"))
         .position(position)
@@ -213,7 +213,7 @@ fn test_attribution_fx_translation() {
     .expect("Position::new should succeed with valid parameters");
 
     let portfolio = PortfolioBuilder::new("TEST")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of_t0)
         .entity(Entity::new("ENTITY_A"))
         .position(position)
@@ -309,7 +309,7 @@ fn test_attribution_carry_theta() {
     .expect("Position::new should succeed with valid parameters");
 
     let portfolio = PortfolioBuilder::new("TEST")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of_t0)
         .entity(Entity::new("ENTITY_A"))
         .position(position)
@@ -388,7 +388,7 @@ fn test_parallel_portfolio_attribution_closes_with_serial_inner_policy() {
         .collect::<Vec<_>>();
 
     let portfolio = PortfolioBuilder::new("TEST_PARALLEL_ATTR")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of_t0)
         .entity(Entity::new("ENTITY_A"))
         .positions(positions)

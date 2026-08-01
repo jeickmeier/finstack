@@ -8,7 +8,7 @@ use finstack_quant_margin::schema::{
 };
 use finstack_quant_margin::{
     CollateralAssetClass, CollateralEligibility, CsaSpec, EligibleCollateralSchedule, ImParameters,
-    MarginCall, MarginCallTiming, MaturityConstraints, OtcMarginSpec,
+    MarginCall, MarginCallTiming, MarginEnvelope, MaturityConstraints, OtcMarginSpec,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -146,17 +146,21 @@ fn margin_schema_preserves_canonical_metadata_and_nested_types() {
     );
     assert_eq!(schema["title"], MARGIN_SCHEMA_TITLE);
     assert_eq!(schema["description"], MARGIN_SCHEMA_DESCRIPTION);
-    let root_variants = schema["oneOf"]
+    let root_variants = schema["anyOf"]
         .as_array()
-        .expect("published root should remain a oneOf union");
+        .expect("serde-derived untagged root should be an anyOf union");
     assert_eq!(root_variants.len(), 3);
     for variant in root_variants {
         assert_eq!(variant["additionalProperties"], false);
         assert_eq!(
-            variant["properties"]["schema"]["const"],
-            "finstack_quant.margin/1"
+            variant["properties"]["schema"]["$ref"],
+            "#/$defs/MarginSchema"
         );
     }
+    assert_eq!(
+        schema["$defs"]["MarginSchema"]["oneOf"][0]["const"],
+        "finstack_quant.margin/1"
+    );
     assert_eq!(
         schema["$defs"]["OtcMarginSpec"]["properties"]["csa"]["$ref"],
         "#/$defs/CsaSpec"
@@ -170,21 +174,24 @@ fn margin_schema_preserves_canonical_metadata_and_nested_types() {
         "#/$defs/MarginCallType"
     );
     let asset_class = &schema["$defs"]["CollateralAssetClass"];
-    assert!(
-        asset_class["description"]
-            .as_str()
-            .is_some_and(|description| {
-                description.contains("cash")
-                    && description.contains("government_bonds")
-                    && description.contains("Custom")
-            }),
-        "collateral asset-class schema should document canonical and custom values"
-    );
-    assert!(
-        asset_class["examples"]
-            .as_array()
-            .is_some_and(|examples| !examples.is_empty()),
-        "collateral asset-class schema should provide representative values"
+    let values: Vec<&str> = asset_class["oneOf"]
+        .as_array()
+        .expect("derived collateral variants")
+        .iter()
+        .filter_map(|variant| variant["const"].as_str())
+        .collect();
+    assert_eq!(
+        values,
+        [
+            "cash",
+            "government_bonds",
+            "agency_bonds",
+            "covered_bonds",
+            "corporate_bonds",
+            "equity",
+            "gold",
+            "mutual_funds",
+        ]
     );
 }
 
@@ -193,7 +200,7 @@ fn margin_schema_applies_canonical_decimal_and_date_normalization() {
     let schema = margin_schema();
 
     assert_eq!(
-        schema.pointer("/$defs/Money/properties/amount/pattern"),
+        schema.pointer("/$defs/DecimalWire/pattern"),
         Some(&json!(CANONICAL_DECIMAL_PATTERN))
     );
     assert_eq!(
@@ -247,6 +254,8 @@ fn synthetic_margin_schema_validates_representative_union_variants() {
     for fixture in fixtures {
         validate_fixture(&schema, &fixture)
             .unwrap_or_else(|errors| panic!("valid fixture was rejected: {errors:#?}"));
+        serde_json::from_value::<MarginEnvelope>(fixture)
+            .expect("valid fixture should deserialize through the root envelope");
     }
 }
 

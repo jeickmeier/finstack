@@ -211,36 +211,17 @@ pub fn attribute_pnl_from_spec(spec_json: &str) -> Result<String, JsValue> {
 /// @param json - Canonical JSON string defining the object to deserialize or normalize.
 #[wasm_bindgen(js_name = validateAttributionJson)]
 pub fn validate_attribution_json(json: &str) -> Result<String, JsValue> {
-    let raw: serde_json::Value = serde_json::from_str(json).map_err(to_js_err)?;
-    if raw
-        .get("schema")
-        .and_then(serde_json::Value::as_str)
-        .is_some_and(|schema| schema != finstack_quant_attribution::ATTRIBUTION_SCHEMA_V1)
-    {
-        return Err(JsValue::from_str(&format!(
-            "unsupported attribution schema {:?}; expected {:?}",
-            raw.get("schema"),
-            finstack_quant_attribution::ATTRIBUTION_SCHEMA_V1
-        )));
-    }
     let envelope: finstack_quant_attribution::AttributionEnvelope =
         serde_json::from_str(json).map_err(to_js_err)?;
-    if envelope.schema != finstack_quant_attribution::ATTRIBUTION_SCHEMA_V1 {
-        return Err(JsValue::from_str(&format!(
-            "unsupported attribution schema {:?}; expected {:?}",
-            envelope.schema,
-            finstack_quant_attribution::ATTRIBUTION_SCHEMA_V1
-        )));
-    }
     serde_json::to_string(&envelope).map_err(to_js_err)
 }
 
-/// Return the default waterfall factor ordering as a JSON array.
+/// Return the default waterfall factor ordering as canonical snake-case values.
 #[wasm_bindgen(js_name = defaultWaterfallOrder)]
 pub fn default_waterfall_order() -> Result<JsValue, JsValue> {
     let factors: Vec<String> = finstack_quant_attribution::default_waterfall_order()
         .into_iter()
-        .map(|f| f.to_string())
+        .map(|factor| factor.as_str().to_owned())
         .collect();
     serde_wasm_bindgen::to_value(&factors).map_err(to_js_err)
 }

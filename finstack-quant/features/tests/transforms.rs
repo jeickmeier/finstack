@@ -541,7 +541,7 @@ fn finance_specific_transforms_handle_grouping_neutralization_and_weights() {
     assert_close_options(&residual, &[Some(-0.5), Some(-1.0), Some(0.5), Some(1.0)]);
 
     let volatility = vec![Some(1.0), Some(2.0), Some(1.0), Some(2.0)];
-    let weights = risk_scaled_weights(&signal, &time_key, &volatility, None).expect("risk weights");
+    let weights = risk_scaled_weights(&signal, &time_key, &volatility).expect("risk weights");
     assert_close_options(
         &weights,
         &[
@@ -628,11 +628,11 @@ fn pipeline_helpers_compose_cleaning_normalization_and_neutralization() {
         .expect("normalize signal");
     assert_eq!(normalized, vec![Some(0.0), Some(0.5), Some(1.0)]);
 
-    let weights = rank_to_weights(&values, &time_key, None).expect("rank to weights");
+    let weights = rank_to_weights(&values, &time_key).expect("rank to weights");
     assert_close_options(&weights, &[Some(-0.5), Some(0.0), Some(0.5)]);
 
-    let flat_weights = rank_to_weights(&[Some(1.0), Some(1.0), Some(1.0)], &time_key, None)
-        .expect("flat rank weights");
+    let flat_weights =
+        rank_to_weights(&[Some(1.0), Some(1.0), Some(1.0)], &time_key).expect("flat rank weights");
     assert_eq!(flat_weights, vec![Some(0.0), Some(0.0), Some(0.0)]);
 
     let signal = vec![Some(1.0), Some(2.0), Some(2.0), Some(4.0)];
@@ -715,8 +715,10 @@ fn transform_panel_runs_multiple_named_operations() {
 
     let out = transform_panel(&spec.to_string()).expect("panel");
     let result: serde_json::Value = serde_json::from_str(&out).expect("panel JSON");
-    assert!((result["columns"]["ret1"][1].as_f64().expect("ret1") - 0.2).abs() < 1e-12);
-    assert_eq!(result["columns"]["rank"][2], 1.0);
+    assert_eq!(result["columns"][0]["name"], "ret1");
+    assert!((result["columns"][0]["values"][1].as_f64().expect("ret1") - 0.2).abs() < 1e-12);
+    assert_eq!(result["columns"][1]["name"], "rank");
+    assert_eq!(result["columns"][1]["values"][2], 1.0);
 }
 
 #[test]

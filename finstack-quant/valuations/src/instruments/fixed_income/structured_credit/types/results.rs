@@ -78,7 +78,7 @@ pub struct TrancheValuation {
     /// Modified duration.
     pub modified_duration: f64,
     /// Z-spread (basis points).
-    pub z_spread_bps: f64,
+    pub z_spread_bp: f64,
     /// CS01 (credit DV01).
     pub cs01: f64,
     /// Yield to maturity.

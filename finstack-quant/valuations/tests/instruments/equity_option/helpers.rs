@@ -55,8 +55,8 @@ pub fn build_flat_discount_curve(rate: f64, base_date: Date, curve_id: &str) -> 
 }
 
 /// Build a flat volatility surface (same vol for all strikes/expiries)
-pub fn build_flat_vol_surface(vol: f64, _base_date: Date, surface_id: &str) -> VolSurface {
-    VolSurface::builder(surface_id)
+pub fn build_flat_vol_surface(vol: f64, _base_date: Date, vol_surface_id: &str) -> VolSurface {
+    VolSurface::builder(vol_surface_id)
         .expiries(&[0.25, 0.5, 1.0, 2.0, 5.0])
         .strikes(&[50.0, 80.0, 100.0, 120.0, 150.0])
         .row(&[vol, vol, vol, vol, vol])
@@ -69,11 +69,11 @@ pub fn build_flat_vol_surface(vol: f64, _base_date: Date, surface_id: &str) -> V
 }
 
 /// Build a smile vol surface (higher vol at wings)
-pub fn build_smile_vol_surface(_base_date: Date, surface_id: &str) -> VolSurface {
+pub fn build_smile_vol_surface(_base_date: Date, vol_surface_id: &str) -> VolSurface {
     let expiries = [0.25, 0.5, 1.0, 2.0];
     let strikes = [70.0, 90.0, 100.0, 110.0, 130.0];
 
-    VolSurface::builder(surface_id)
+    VolSurface::builder(vol_surface_id)
         .expiries(&expiries)
         .strikes(&strikes)
         .row(&[0.35, 0.28, 0.25, 0.28, 0.35]) // 3M

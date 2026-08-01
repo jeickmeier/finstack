@@ -1,5 +1,185 @@
 {
   "$defs": {
+    "CDSTranche": {
+      "additionalProperties": false,
+      "description": "CDS Tranche instrument definition (boilerplate)",
+      "properties": {
+        "accumulated_loss": {
+          "description": "Accumulated realized loss as fraction of original portfolio notional",
+          "format": "double",
+          "type": "number"
+        },
+        "attach_pct": {
+          "description": "Attachment point in percent (e.g., 0.0 for equity)",
+          "format": "double",
+          "type": "number"
+        },
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "business_day_convention": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
+          "default": "modified_following",
+          "description": "Business day convention"
+        },
+        "calendar_id": {
+          "description": "Optional holiday calendar id",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "credit_index_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Credit index identifier for survival/loss modeling (placeholder)"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count (typically Act/360)"
+        },
+        "detach_pct": {
+          "description": "Detachment point in percent (e.g., 3.0 for 0-3% tranche)",
+          "format": "double",
+          "type": "number"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier (by quote currency)"
+        },
+        "effective_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional effective date for schedule anchoring (if None, uses as_of date)"
+        },
+        "frequency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
+          "description": "Payment frequency (typically quarterly)"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
+        },
+        "index_name": {
+          "description": "Index name (e.g., \"CDX.NA.IG\", \"CDX.NA.HY\", \"iTraxx EUR\")",
+          "type": "string"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing overrides."
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Maturity date of the tranche"
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount of the tranche"
+        },
+        "running_coupon_bp": {
+          "description": "Running coupon in basis points (e.g., 100 = 1.00%)",
+          "format": "double",
+          "type": "number"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only valuation adjustments."
+        },
+        "series": {
+          "description": "Series number (e.g., 37)",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "side": {
+          "$ref": "#/$defs/TrancheSide",
+          "description": "Tranche side (buy/sell protection)"
+        },
+        "standard_imm_dates": {
+          "description": "Whether to enforce standard IMM dates (20th of Mar, Jun, Sep, Dec)",
+          "type": "boolean"
+        },
+        "upfront": {
+          "default": null,
+          "description": "Optional upfront payment (date, amount). Positive means paid by protection buyer.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "index_name",
+        "series",
+        "attach_pct",
+        "detach_pct",
+        "notional",
+        "maturity",
+        "running_coupon_bp",
+        "frequency",
+        "day_count",
+        "discount_curve_id",
+        "credit_index_id",
+        "side",
+        "accumulated_loss",
+        "standard_imm_dates",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "SingleInstrumentJson": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/CDSTranche"
+            },
+            "type": {
+              "const": "cds_tranche",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "TrancheSide": {
       "description": "Buyer/seller perspective for CDS tranche premium/protection",
       "oneOf": [
@@ -19,7 +199,7 @@
   "$id": "https://finstack_quant.dev/schemas/instrument/1/credit_derivatives/cds_tranche.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Synthetic CDO tranche on a CDS index",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -27,10 +207,10 @@
           "accumulated_loss": 0.0,
           "attach_pct": 0.0,
           "attributes": {},
-          "bdc": "following",
+          "business_day_convention": "following",
           "calendar_id": "weekends_only",
           "credit_index_id": "CDX.NA.IG.HAZARD",
-          "day_count": "Act360",
+          "day_count": "act_360",
           "detach_pct": 3.0,
           "discount_curve_id": "USD-OIS",
           "effective_date": null,
@@ -45,27 +225,6 @@
             "amount": "10000000",
             "currency": "USD"
           },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "running_coupon_bp": 100.0,
           "series": 42,
           "side": "buy_protection",
@@ -79,189 +238,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Cds Tranche instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "accumulated_loss": {
-              "description": "Accumulated realized loss as fraction of original portfolio notional",
-              "format": "double",
-              "type": "number"
-            },
-            "attach_pct": {
-              "description": "Attachment point in percent (e.g., 0.0 for equity)",
-              "format": "double",
-              "type": "number"
-            },
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "bdc": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
-              "default": "modified_following",
-              "description": "Business day convention"
-            },
-            "calendar_id": {
-              "description": "Optional holiday calendar id",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "credit_index_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Credit index identifier for survival/loss modeling (placeholder)"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count (typically Act/360)"
-            },
-            "detach_pct": {
-              "description": "Detachment point in percent (e.g., 3.0 for 0-3% tranche)",
-              "format": "double",
-              "type": "number"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier (by quote currency)"
-            },
-            "effective_date": {
-              "description": "Optional effective date for schedule anchoring (if None, uses as_of date)",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "frequency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-              "description": "Payment frequency (typically quarterly)"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "index_name": {
-              "description": "Index name (e.g., \"CDX.NA.IG\", \"CDX.NA.HY\", \"iTraxx EUR\")",
-              "type": "string"
-            },
-            "maturity": {
-              "description": "Maturity date of the tranche",
-              "format": "date",
-              "type": "string"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount of the tranche"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Instrument-owned pricing overrides."
-            },
-            "running_coupon_bp": {
-              "description": "Running coupon in basis points (e.g., 100 = 1.00%)",
-              "format": "double",
-              "type": "number"
-            },
-            "series": {
-              "description": "Series number (e.g., 37)",
-              "format": "uint16",
-              "maximum": 65535,
-              "minimum": 0,
-              "type": "integer"
-            },
-            "side": {
-              "$ref": "#/$defs/TrancheSide",
-              "description": "Tranche side (buy/sell protection)"
-            },
-            "standard_imm_dates": {
-              "description": "Whether to enforce standard IMM dates (20th of Mar, Jun, Sep, Dec)",
-              "type": "boolean"
-            },
-            "upfront": {
-              "default": null,
-              "description": "Optional upfront payment (date, amount). Positive means paid by protection buyer.",
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "string"
-                },
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-                }
-              ],
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "id",
-            "index_name",
-            "series",
-            "attach_pct",
-            "detach_pct",
-            "notional",
-            "maturity",
-            "running_coupon_bp",
-            "frequency",
-            "day_count",
-            "discount_curve_id",
-            "credit_index_id",
-            "side",
-            "accumulated_loss",
-            "standard_imm_dates",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "cds_tranche",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/SingleInstrumentJson"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "CDS Tranche",
+  "title": "cds_tranche",
   "type": "object"
 }

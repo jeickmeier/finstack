@@ -3,9 +3,8 @@
 //! Thin wrappers over the canonical Rust structs
 //! [`finstack_quant_valuations::instruments::Bond`] and
 //! [`finstack_quant_valuations::instruments::TermLoan`]. Construction and
-//! validation stay in Rust; the wrappers convert to and from the tagged
-//! instrument JSON accepted by the JSON loader (`{"type": "bond", "spec":
-//! ...}` / `{"type": "term_loan", "spec": ...}`).
+//! validation stay in Rust; the wrappers convert to and from the canonical
+//! `finstack_quant.instrument/1` envelope accepted by the JSON loader.
 //!
 //! To price a typed instrument, pass its `toJson()` output to the generic
 //! pricing entry points (`valuations.instruments.priceInstrument`,
@@ -15,12 +14,12 @@ use crate::api::core::dates::{JsDayCount, JsTenor};
 use crate::api::core::money::JsMoney;
 use crate::api::core::types::{JsBps, JsRate};
 use crate::utils::{parse_iso_date, to_js_err};
-use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
+use finstack_quant_valuations::instruments::{Instrument, InstrumentEnvelope, InstrumentJson};
 use wasm_bindgen::prelude::*;
 
-/// Parse tagged instrument JSON through the JSON-loader path.
-fn parse_tagged(json: &str) -> Result<InstrumentJson, JsValue> {
-    serde_json::from_str::<InstrumentJson>(json).map_err(to_js_err)
+/// Parse a canonical instrument envelope through the shared JSON-loader path.
+fn parse_envelope(json: &str) -> Result<InstrumentJson, JsValue> {
+    finstack_quant_valuations::pricer::json::parse_instrument_json(json).map_err(to_js_err)
 }
 
 // ---------------------------------------------------------------------------
@@ -41,10 +40,10 @@ impl JsBond {
     /// Mirrors Rust `Bond::fixed`.
     /// @param id - Unique instrument identifier.
     /// @param notional - Principal amount of the bond.
-    /// @param coupon_rate - Annual coupon rate.
+    /// @param couponRate - Annual coupon rate.
     /// @param issue - Issue date as an ISO-8601 string (`"YYYY-MM-DD"`).
     /// @param maturity - Maturity date as an ISO-8601 string (`"YYYY-MM-DD"`).
-    /// @param discount_curve_id - Discount curve identifier used for pricing.
+    /// @param discountCurveId - Discount curve identifier used for pricing.
     /// @returns The validated fixed-rate bond.
     /// @throws If validation fails (e.g. maturity not after issue).
     pub fn fixed(
@@ -72,15 +71,15 @@ impl JsBond {
     /// Mirrors Rust `Bond::floating`.
     /// @param id - Unique instrument identifier.
     /// @param notional - Principal amount of the bond.
-    /// @param index_id - Forward curve identifier (e.g. `"USD-SOFR-3M"`).
-    /// @param margin_bp - Spread over the index in whole basis points
+    /// @param indexId - Forward curve identifier (e.g. `"USD-SOFR-3M"`).
+    /// @param marginBp - Spread over the index in whole basis points
     /// (`Bps` rejects fractional values; use `Bond.fromJson` for sub-bp
     /// margins, which preserves the exact decimal spread).
     /// @param issue - Issue date as an ISO-8601 string (`"YYYY-MM-DD"`).
     /// @param maturity - Maturity date as an ISO-8601 string (`"YYYY-MM-DD"`).
-    /// @param freq - Payment frequency (e.g. `Tenor.quarterly()`).
-    /// @param dc - Day count convention (e.g. `DayCount.act360()`).
-    /// @param discount_curve_id - Discount curve identifier used for pricing.
+    /// @param frequency - Payment frequency (e.g. `Tenor.quarterly()`).
+    /// @param dayCount - Day count convention (e.g. `DayCount.act360()`).
+    /// @param discountCurveId - Discount curve identifier used for pricing.
     /// @returns The validated floating-rate note.
     /// @throws If validation fails.
     #[allow(clippy::too_many_arguments)]
@@ -91,8 +90,8 @@ impl JsBond {
         margin_bp: &JsBps,
         issue: &str,
         maturity: &str,
-        freq: &JsTenor,
-        dc: &JsDayCount,
+        frequency: &JsTenor,
+        day_count: &JsDayCount,
         discount_curve_id: &str,
     ) -> Result<JsBond, JsValue> {
         let inner = finstack_quant_valuations::instruments::Bond::floating(
@@ -102,24 +101,23 @@ impl JsBond {
             margin_bp.inner,
             parse_iso_date(issue)?,
             parse_iso_date(maturity)?,
-            freq.inner,
-            dc.inner,
+            frequency.inner,
+            day_count.inner,
             discount_curve_id,
         )
         .map_err(to_js_err)?;
         Ok(JsBond { inner })
     }
 
-    /// Deserialize a bond from tagged instrument JSON.
+    /// Deserialize a bond from its canonical v1 instrument envelope.
     ///
-    /// Accepts the same `{"type": "bond", "spec": {...}}` payload the JSON
-    /// loader accepts; the loader's validation runs on the result.
-    /// @param json - Tagged instrument JSON with type `"bond"`.
+    /// Bare payloads are rejected; the loader's validation runs on the result.
+    /// @param json - A `finstack_quant.instrument/1` envelope containing type `"bond"`.
     /// @returns The validated bond.
     /// @throws If the JSON is malformed, has a different instrument type, or fails validation.
     #[wasm_bindgen(js_name = fromJson)]
     pub fn from_json(json: &str) -> Result<JsBond, JsValue> {
-        match parse_tagged(json)? {
+        match parse_envelope(json)? {
             InstrumentJson::Bond(inner) => {
                 inner.validate_for_pricing().map_err(to_js_err)?;
                 Ok(JsBond { inner })
@@ -130,15 +128,18 @@ impl JsBond {
         }
     }
 
-    /// Serialize to tagged instrument JSON (`{"type": "bond", "spec": ...}`).
+    /// Serialize to a canonical `finstack_quant.instrument/1` envelope.
     ///
     /// Pass the result to `valuations.instruments.priceInstrument` (or the
     /// other generic pricing entry points) to price this bond.
-    /// @returns Tagged instrument JSON accepted by `priceInstrument` and `Bond.fromJson`.
+    /// @returns Canonical instrument envelope accepted by `priceInstrument` and `Bond.fromJson`.
     /// @throws If serialization fails.
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<String, JsValue> {
-        serde_json::to_string(&InstrumentJson::Bond(self.inner.clone())).map_err(to_js_err)
+        serde_json::to_string(&InstrumentEnvelope::new(InstrumentJson::Bond(
+            self.inner.clone(),
+        )))
+        .map_err(to_js_err)
     }
 
     /// Instrument identifier.
@@ -155,8 +156,8 @@ impl JsBond {
 /// Typed wrapper for the Rust `TermLoan` instrument.
 ///
 /// Rust has no `fixed`/`floating` convenience constructors for term loans;
-/// construct via `TermLoan.fromJson` with tagged JSON
-/// (`{"type": "term_loan", "spec": ...}`) or start from `TermLoan.example()`.
+/// construct via `TermLoan.fromJson` with a canonical v1 instrument envelope
+/// or start from `TermLoan.example()`.
 #[wasm_bindgen(js_name = TermLoan)]
 #[derive(Clone)]
 pub struct JsTermLoan {
@@ -165,16 +166,15 @@ pub struct JsTermLoan {
 
 #[wasm_bindgen(js_class = TermLoan)]
 impl JsTermLoan {
-    /// Deserialize a term loan from tagged instrument JSON.
+    /// Deserialize a term loan from its canonical v1 instrument envelope.
     ///
-    /// Accepts the same `{"type": "term_loan", "spec": {...}}` payload the
-    /// JSON loader accepts; the loader's validation runs on the result.
-    /// @param json - Tagged instrument JSON with type `"term_loan"`.
+    /// Bare payloads are rejected; the loader's validation runs on the result.
+    /// @param json - A `finstack_quant.instrument/1` envelope containing type `"term_loan"`.
     /// @returns The validated term loan.
     /// @throws If the JSON is malformed, has a different instrument type, or fails validation.
     #[wasm_bindgen(js_name = fromJson)]
     pub fn from_json(json: &str) -> Result<JsTermLoan, JsValue> {
-        match parse_tagged(json)? {
+        match parse_envelope(json)? {
             InstrumentJson::TermLoan(inner) => {
                 inner.validate_for_pricing().map_err(to_js_err)?;
                 Ok(JsTermLoan { inner })
@@ -197,15 +197,18 @@ impl JsTermLoan {
             .map_err(to_js_err)
     }
 
-    /// Serialize to tagged instrument JSON (`{"type": "term_loan", "spec": ...}`).
+    /// Serialize to a canonical `finstack_quant.instrument/1` envelope.
     ///
     /// Pass the result to `valuations.instruments.priceInstrument` (or the
     /// other generic pricing entry points) to price this loan.
-    /// @returns Tagged instrument JSON accepted by `priceInstrument` and `TermLoan.fromJson`.
+    /// @returns Canonical instrument envelope accepted by `priceInstrument` and `TermLoan.fromJson`.
     /// @throws If serialization fails.
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<String, JsValue> {
-        serde_json::to_string(&InstrumentJson::TermLoan(self.inner.clone())).map_err(to_js_err)
+        serde_json::to_string(&InstrumentEnvelope::new(InstrumentJson::TermLoan(
+            self.inner.clone(),
+        )))
+        .map_err(to_js_err)
     }
 
     /// Instrument identifier.

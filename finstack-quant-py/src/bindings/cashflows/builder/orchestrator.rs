@@ -198,7 +198,7 @@ impl PyCashFlowBuilder {
         slf
     }
 
-    /// Add a fee specification (fixed or periodic bps).
+    /// Add a fee specification (fixed or periodic bp).
     #[pyo3(text_signature = "(self, spec)")]
     fn fee<'py>(mut slf: PyRefMut<'py, Self>, spec: PyRef<'py, PyFeeSpec>) -> PyRefMut<'py, Self> {
         let inner_spec = spec.inner.clone();

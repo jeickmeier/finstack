@@ -88,10 +88,7 @@ pub struct Hw1fCapletSurfacePoint {
     /// Whether the contractual option is a cap/call (`true`) or floor/put.
     pub is_cap: bool,
     /// Discounted cashflow annuity, including notional where appropriate.
-    ///
-    /// This legacy field name is retained until every exotic caller has moved
-    /// to an explicit `annuity` constructor.
-    pub weight: f64,
+    pub annuity: f64,
     /// Product-specific normal-volatility factor produced by unit HW sigma.
     ///
     /// `None` uses the exact term-caplet factor. Compounded-RFR products set
@@ -105,14 +102,14 @@ pub enum Hw1fSurfaceCalibration<'a> {
     /// Infer σ from caplet normal vols on a cap/floor surface.
     CapFloor {
         /// Vol surface identifier.
-        surface_id: &'a str,
+        vol_surface_id: &'a str,
         /// Caplet observations to sample from the surface.
         points: &'a [Hw1fCapletSurfacePoint],
     },
     /// Calibrate κ/σ from an ATM swaption surface.
     Swaption {
         /// Swaption vol surface identifier.
-        surface_id: &'a str,
+        vol_surface_id: &'a str,
         /// Ignore surface expiries beyond this horizon, when supplied.
         max_expiry: Option<f64>,
         /// Underlying swap fixed-leg frequency for calibration.
@@ -183,17 +180,18 @@ fn resolve_from_surface(
         return Ok(None);
     };
     match surface_calibration {
-        Hw1fSurfaceCalibration::CapFloor { surface_id, points } => {
-            resolve_capfloor_surface_params(market, surface_id, points, kappa_hint)
-        }
+        Hw1fSurfaceCalibration::CapFloor {
+            vol_surface_id,
+            points,
+        } => resolve_capfloor_surface_params(market, vol_surface_id, points, kappa_hint),
         Hw1fSurfaceCalibration::Swaption {
-            surface_id,
+            vol_surface_id,
             max_expiry,
             frequency,
         } => resolve_swaption_surface_params(
             market,
             req.curve_id,
-            surface_id,
+            vol_surface_id,
             *max_expiry,
             *frequency,
         ),
@@ -202,11 +200,11 @@ fn resolve_from_surface(
 
 fn resolve_capfloor_surface_params(
     market: &MarketContext,
-    surface_id: &str,
+    vol_surface_id: &str,
     points: &[Hw1fCapletSurfacePoint],
     kappa: f64,
 ) -> Result<Option<HullWhiteParams>> {
-    let Ok(surface) = market.get_surface(surface_id) else {
+    let Ok(surface) = market.get_surface(vol_surface_id) else {
         return Ok(None);
     };
     // Caplet calibration points are expiry/fixing × strike normal vols.  Do
@@ -235,7 +233,7 @@ fn resolve_capfloor_surface_params(
             forward: point.forward,
             strike: point.strike,
             option_time: point.t_fix,
-            annuity: point.weight,
+            annuity: point.annuity,
             is_cap: point.is_cap,
             market_normal_vol: normal_vol,
             normal_vol_per_unit_sigma: factor,
@@ -252,11 +250,11 @@ fn resolve_capfloor_surface_params(
 fn resolve_swaption_surface_params(
     market: &MarketContext,
     curve_id: &str,
-    surface_id: &str,
+    vol_surface_id: &str,
     max_expiry: Option<f64>,
     frequency: SwapFrequency,
 ) -> Result<Option<HullWhiteParams>> {
-    let Ok(surface) = market.get_surface(surface_id) else {
+    let Ok(surface) = market.get_surface(vol_surface_id) else {
         return Ok(None);
     };
     // The swaption calibration interprets the grid as expiry × swap-tenor with
@@ -574,7 +572,7 @@ mod tests {
             forward: strike,
             strike,
             is_cap: true,
-            weight: 1.0,
+            annuity: 1.0,
             normal_vol_per_unit_sigma: None,
         }];
         let request = Hw1fResolveRequest {
@@ -582,7 +580,7 @@ mod tests {
             flavor: Hw1fCalibrationFlavor::CapFloor,
             overrides: None,
             surface: Some(Hw1fSurfaceCalibration::CapFloor {
-                surface_id: "USD-CAP-VOL",
+                vol_surface_id: "USD-CAP-VOL",
                 points: &points,
             }),
             fallback: None,
@@ -619,7 +617,7 @@ mod tests {
             forward: strike,
             strike,
             is_cap: true,
-            weight: 1.0,
+            annuity: 1.0,
             normal_vol_per_unit_sigma: None,
         }];
         let request = Hw1fResolveRequest {
@@ -627,7 +625,7 @@ mod tests {
             flavor: Hw1fCalibrationFlavor::CapFloor,
             overrides: Some(&overrides),
             surface: Some(Hw1fSurfaceCalibration::CapFloor {
-                surface_id: "USD-CAP-VOL",
+                vol_surface_id: "USD-CAP-VOL",
                 points: &points,
             }),
             fallback: None,
@@ -664,7 +662,7 @@ mod tests {
             forward: strike,
             strike,
             is_cap: true,
-            weight: 1.0,
+            annuity: 1.0,
             normal_vol_per_unit_sigma: None,
         }];
         let request = Hw1fResolveRequest {
@@ -672,7 +670,7 @@ mod tests {
             flavor: Hw1fCalibrationFlavor::CapFloor,
             overrides: None,
             surface: Some(Hw1fSurfaceCalibration::CapFloor {
-                surface_id: "USD-CAP-VOL",
+                vol_surface_id: "USD-CAP-VOL",
                 points: &points,
             }),
             fallback: Some(HullWhiteParams::new(kappa, base_sigma).expect("fallback")),
