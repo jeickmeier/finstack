@@ -4,8 +4,6 @@
 //! - Charm = ∂Δ/∂t (delta decay)
 //! - Color = ∂Γ/∂t (gamma decay)
 //! - Speed = ∂Γ/∂S (gamma convexity)
-//! - Vanna = ∂²V/∂S∂σ (delta-vol correlation)
-//! - Volga = ∂²V/∂σ² (volatility convexity)
 //!
 //! These relationships are tested using finite differences with appropriate tolerances.
 
@@ -24,62 +22,10 @@ use finstack_quant_valuations::metrics::{standard_registry, MetricContext, Metri
 use std::sync::Arc;
 use time::macros::date;
 
-#[allow(dead_code)]
-const TOLERANCE: f64 = 0.01; // 1% tolerance for FD approximations vs analytical
-#[allow(dead_code)]
-const STRICT_TOLERANCE: f64 = 0.001; // 0.1% tolerance when both metric and FD exist
+const HIGHER_ORDER_GREEK_REL_TOLERANCE: f64 = 0.05;
 const SPOT_BUMP_PCT: f64 = 0.01;
 
-fn bump_scalar_price(
-    context: &MarketContext,
-    price_id: &str,
-    bump_pct: f64,
-) -> finstack_quant_core::Result<MarketContext> {
-    let current = context.get_price(price_id)?;
-    let bumped_value = match current {
-        MarketScalar::Unitless(v) => MarketScalar::Unitless(v * (1.0 + bump_pct)),
-        MarketScalar::Price(m) => {
-            MarketScalar::Price(Money::new(m.amount() * (1.0 + bump_pct), m.currency()))
-        }
-    };
-    Ok(context.clone().insert_price(price_id, bumped_value))
-}
-
-fn delta_fd(option: &EquityOption, market: &MarketContext, as_of: Date) -> f64 {
-    let spot_scalar = market.get_price(&option.spot_id).unwrap();
-    let spot = match spot_scalar {
-        MarketScalar::Unitless(v) => *v,
-        MarketScalar::Price(m) => m.amount(),
-    };
-    let h = spot * SPOT_BUMP_PCT;
-    let up = bump_scalar_price(market, &option.spot_id, SPOT_BUMP_PCT).unwrap();
-    let dn = bump_scalar_price(market, &option.spot_id, -SPOT_BUMP_PCT).unwrap();
-    let pv_up = option.value(&up, as_of).unwrap().amount();
-    let pv_dn = option.value(&dn, as_of).unwrap().amount();
-    (pv_up - pv_dn) / (2.0 * h)
-}
-
-fn gamma_fd(option: &EquityOption, market: &MarketContext, as_of: Date) -> f64 {
-    let spot_scalar = market.get_price(&option.spot_id).unwrap();
-    let spot = match spot_scalar {
-        MarketScalar::Unitless(v) => *v,
-        MarketScalar::Price(m) => m.amount(),
-    };
-    let h = spot * SPOT_BUMP_PCT;
-    let up = bump_scalar_price(market, &option.spot_id, SPOT_BUMP_PCT).unwrap();
-    let dn = bump_scalar_price(market, &option.spot_id, -SPOT_BUMP_PCT).unwrap();
-    let pv_up = option.value(&up, as_of).unwrap().amount();
-    let pv_dn = option.value(&dn, as_of).unwrap().amount();
-    let pv_0 = option.value(market, as_of).unwrap().amount();
-    (pv_up - 2.0 * pv_0 + pv_dn) / (h * h)
-}
-
-fn create_test_option(
-    _as_of: Date,
-    expiry: Date,
-    strike: f64,
-    option_type: OptionType,
-) -> EquityOption {
+fn create_test_option(expiry: Date, strike: f64, option_type: OptionType) -> EquityOption {
     EquityOption {
         id: "TEST_OPTION".into(),
         underlying_ticker: "AAPL".to_string(),
@@ -101,6 +47,44 @@ fn create_test_option(
         exercise_schedule: None,
         attributes: Default::default(),
     }
+}
+
+fn metric_value(
+    option: &EquityOption,
+    market: &MarketContext,
+    as_of: Date,
+    metric: MetricId,
+) -> f64 {
+    let pv = option.value(market, as_of).unwrap();
+    let mut context = MetricContext::new(
+        Arc::new(option.clone()),
+        Arc::new(market.clone()),
+        as_of,
+        pv,
+        MetricContext::default_config(),
+    );
+    let results = standard_registry()
+        .compute(std::slice::from_ref(&metric), &mut context)
+        .unwrap_or_else(|error| panic!("{metric} computation failed: {error}"));
+    let value = *results
+        .get(&metric)
+        .unwrap_or_else(|| panic!("{metric} was omitted from metric results"));
+    assert!(value.is_finite(), "{metric} should be finite, got {value}");
+    value
+}
+
+fn assert_matches_finite_difference(metric: &str, actual: f64, expected: f64) {
+    assert!(
+        expected.is_finite(),
+        "{metric} finite-difference reference should be finite, got {expected}"
+    );
+    let scaled_error = (actual - expected).abs() / expected.abs().max(1e-8);
+    assert!(
+        scaled_error < HIGHER_ORDER_GREEK_REL_TOLERANCE,
+        "{metric} should match its finite-difference reference within {:.1}%: metric={actual}, fd={expected}, scaled_error={:.2}%",
+        HIGHER_ORDER_GREEK_REL_TOLERANCE * 100.0,
+        scaled_error * 100.0,
+    );
 }
 
 fn create_market_context(
@@ -148,59 +132,23 @@ fn test_charm_equals_delta_decay() {
     let strike = 100.0;
     let spot = 100.0;
 
-    let option = create_test_option(as_of, expiry, strike, OptionType::Call);
+    let option = create_test_option(expiry, strike, OptionType::Call);
     let market = create_market_context(as_of, spot, 0.25, 0.05, 0.02);
 
-    let registry = standard_registry();
-
-    // Compute delta at current time
-    let delta_at_t = delta_fd(&option, &market, as_of);
+    // Use analytical delta as an independent reference for the registry's
+    // finite-difference Charm calculator.
+    let delta_at_t = option.delta(&market, as_of).unwrap();
 
     // Compute delta at t + dt (1 day forward)
-    let dt_days = 1.0;
-    let as_of_plus_dt = as_of + time::Duration::days(dt_days as i64);
-    let delta_at_t_dt = delta_fd(&option, &market, as_of_plus_dt);
+    let as_of_plus_dt = as_of + time::Duration::days(1);
+    let delta_at_t_dt = option.delta(&market, as_of_plus_dt).unwrap();
 
     // Compute Charm via finite difference: Charm ≈ (Δ(t+dt) - Δ(t)) / dt
-    let dt_years = dt_days / 365.25;
+    let dt_years = 1.0 / 365.0;
     let charm_fd = (delta_at_t_dt - delta_at_t) / dt_years;
 
-    // Try to get Charm from registry if available
-    let pv = option.value(&market, as_of).unwrap();
-    let mut context_charm = MetricContext::new(
-        Arc::new(option),
-        Arc::new(market),
-        as_of,
-        pv,
-        MetricContext::default_config(),
-    );
-    let charm_metric = registry.compute(&[MetricId::Charm], &mut context_charm);
-
-    if let Ok(charm_results) = charm_metric {
-        if let Some(&charm_value) = charm_results.get(&MetricId::Charm) {
-            assert!(
-                charm_value.is_finite(),
-                "Charm metric should be finite, got: {}",
-                charm_value
-            );
-
-            let rel_error = if charm_fd.abs() > 1e-6 {
-                ((charm_value - charm_fd) / charm_fd).abs()
-            } else {
-                (charm_value - charm_fd).abs()
-            };
-            assert!(
-                rel_error < 0.05,
-                "Charm should match FD within 5%: metric={}, fd={}, rel_error={:.2}%",
-                charm_value,
-                charm_fd,
-                rel_error * 100.0
-            );
-        }
-    }
-
-    // Verify FD calculation is reasonable (non-zero for ATM/ITM options)
-    assert!(charm_fd.is_finite(), "Charm (FD) should be finite");
+    let charm = metric_value(&option, &market, as_of, MetricId::Charm);
+    assert_matches_finite_difference("Charm", charm, charm_fd);
 }
 
 #[test]
@@ -211,59 +159,23 @@ fn test_color_equals_gamma_decay() {
     let strike = 100.0;
     let spot = 100.0;
 
-    let option = create_test_option(as_of, expiry, strike, OptionType::Call);
+    let option = create_test_option(expiry, strike, OptionType::Call);
     let market = create_market_context(as_of, spot, 0.25, 0.05, 0.02);
 
-    let registry = standard_registry();
-
-    // Compute gamma at current time
-    let gamma_at_t = gamma_fd(&option, &market, as_of);
+    // Use analytical gamma as an independent reference for the registry's
+    // finite-difference Color calculator.
+    let gamma_at_t = option.gamma(&market, as_of).unwrap();
 
     // Compute gamma at t + dt (1 day forward)
-    let dt_days = 1.0;
-    let as_of_plus_dt = as_of + time::Duration::days(dt_days as i64);
-    let gamma_at_t_dt = gamma_fd(&option, &market, as_of_plus_dt);
+    let as_of_plus_dt = as_of + time::Duration::days(1);
+    let gamma_at_t_dt = option.gamma(&market, as_of_plus_dt).unwrap();
 
     // Compute Color via finite difference: Color ≈ (Γ(t+dt) - Γ(t)) / dt
-    let dt_years = dt_days / 365.25;
+    let dt_years = 1.0 / 365.0;
     let color_fd = (gamma_at_t_dt - gamma_at_t) / dt_years;
 
-    // Try to get Color from registry if available
-    let pv = option.value(&market, as_of).unwrap();
-    let mut context_color = MetricContext::new(
-        Arc::new(option),
-        Arc::new(market),
-        as_of,
-        pv,
-        MetricContext::default_config(),
-    );
-    let color_metric = registry.compute(&[MetricId::Color], &mut context_color);
-
-    if let Ok(color_results) = color_metric {
-        if let Some(&color_value) = color_results.get(&MetricId::Color) {
-            assert!(
-                color_value.is_finite(),
-                "Color metric should be finite, got: {}",
-                color_value
-            );
-
-            let rel_error = if color_fd.abs() > 1e-6 {
-                ((color_value - color_fd) / color_fd).abs()
-            } else {
-                (color_value - color_fd).abs()
-            };
-            assert!(
-                rel_error < 0.05,
-                "Color should match FD within 5%: metric={}, fd={}, rel_error={:.2}%",
-                color_value,
-                color_fd,
-                rel_error * 100.0
-            );
-        }
-    }
-
-    // Verify FD calculation is reasonable
-    assert!(color_fd.is_finite(), "Color (FD) should be finite");
+    let color = metric_value(&option, &market, as_of, MetricId::Color);
+    assert_matches_finite_difference("Color", color, color_fd);
 }
 
 #[test]
@@ -274,26 +186,10 @@ fn test_speed_equals_gamma_convexity() {
     let strike = 100.0;
     let spot = 100.0;
 
-    let option = create_test_option(as_of, expiry, strike, OptionType::Call);
+    let option = create_test_option(expiry, strike, OptionType::Call);
     let market = create_market_context(as_of, spot, 0.25, 0.05, 0.02);
 
-    let registry = standard_registry();
-    let spot_bump_pct = 0.01; // 1% bump
-
-    // Compute gamma at current spot
-    let pv = option.value(&market, as_of).unwrap();
-    let mut context = MetricContext::new(
-        Arc::new(option.clone()),
-        Arc::new(market.clone()),
-        as_of,
-        pv,
-        MetricContext::default_config(),
-    );
-    let _gamma_at_s = *registry
-        .compute(&[MetricId::Gamma], &mut context)
-        .unwrap()
-        .get(&MetricId::Gamma)
-        .unwrap();
+    let spot_bump_pct = SPOT_BUMP_PCT;
 
     // Compute gamma at spot + bump
     let spot_bump = spot * spot_bump_pct;
@@ -301,80 +197,20 @@ fn test_speed_equals_gamma_convexity() {
         "AAPL",
         MarketScalar::Price(Money::new(spot + spot_bump, Currency::USD)),
     );
-    let pv_up = option.value(&market_up, as_of).unwrap();
-    let mut context_up = MetricContext::new(
-        Arc::new(option.clone()),
-        Arc::new(market_up),
-        as_of,
-        pv_up,
-        MetricContext::default_config(),
-    );
-    let gamma_at_s_up = *registry
-        .compute(&[MetricId::Gamma], &mut context_up)
-        .unwrap()
-        .get(&MetricId::Gamma)
-        .unwrap();
+    let gamma_at_s_up = option.gamma(&market_up, as_of).unwrap();
 
     // Compute gamma at spot - bump
     let market_down = market.clone().insert_price(
         "AAPL",
         MarketScalar::Price(Money::new(spot - spot_bump, Currency::USD)),
     );
-    let pv_down = option.value(&market_down, as_of).unwrap();
-    let mut context_down = MetricContext::new(
-        Arc::new(option.clone()),
-        Arc::new(market_down),
-        as_of,
-        pv_down,
-        MetricContext::default_config(),
-    );
-    let gamma_at_s_down = *registry
-        .compute(&[MetricId::Gamma], &mut context_down)
-        .unwrap()
-        .get(&MetricId::Gamma)
-        .unwrap();
+    let gamma_at_s_down = option.gamma(&market_down, as_of).unwrap();
 
     // Compute Speed via finite difference: Speed ≈ (Γ(S+ΔS) - Γ(S-ΔS)) / (2 * ΔS)
     let speed_fd = (gamma_at_s_up - gamma_at_s_down) / (2.0 * spot_bump);
 
-    // Try to get Speed from registry if available
-    let mut context_speed = MetricContext::new(
-        Arc::new(option),
-        Arc::new(market),
-        as_of,
-        pv,
-        MetricContext::default_config(),
-    );
-    let speed_metric = registry.compute(&[MetricId::Speed], &mut context_speed);
-
-    if let Ok(speed_results) = speed_metric {
-        if let Some(&speed_value) = speed_results.get(&MetricId::Speed) {
-            // Validate Speed metric is finite
-            assert!(
-                speed_value.is_finite(),
-                "Speed metric should be finite, got: {}",
-                speed_value
-            );
-
-            // Compare registry Speed to FD calculation
-            // Allow 5% tolerance for FD approximation with 1% spot bump (second-order Greek)
-            let rel_error = if speed_fd.abs() > 1e-8 {
-                ((speed_value - speed_fd) / speed_fd).abs()
-            } else {
-                (speed_value - speed_fd).abs()
-            };
-            assert!(
-                rel_error < 0.05,
-                "Speed should match FD: registry={:.6}, fd={:.6}, rel_error={:.2}%",
-                speed_value,
-                speed_fd,
-                rel_error * 100.0
-            );
-        }
-    }
-
-    // Verify FD calculation is reasonable
-    assert!(speed_fd.is_finite(), "Speed (FD) should be finite");
+    let speed = metric_value(&option, &market, as_of, MetricId::Speed);
+    assert_matches_finite_difference("Speed", speed, speed_fd);
 }
 
 // NOTE: Sign convention tests for Gamma and Vega (non-negativity for long positions)
