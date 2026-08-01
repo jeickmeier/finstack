@@ -5,7 +5,7 @@
 //! multiple test files.
 //!
 //! Note: Functions are marked `#[allow(dead_code)]` because each integration test
-//! file compiles `common.rs` separately, and not all tests use all helpers.
+//! file compiles this module separately, and not all tests use all helpers.
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
