@@ -17,10 +17,11 @@ fn theta_for(fx: FxSpot, market: &MarketContext, as_of: Date) -> f64 {
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .expect("pricing with theta should succeed");
-    *result
+    result
         .measures
         .get(MetricId::Theta.as_str())
-        .unwrap_or(&0.0)
+        .copied()
+        .expect("requested theta metric must be present")
 }
 
 #[test]

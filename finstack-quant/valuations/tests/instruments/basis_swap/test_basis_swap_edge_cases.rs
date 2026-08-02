@@ -142,7 +142,7 @@ fn very_large_notional() {
         .measures
         .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
         .copied()
-        .unwrap_or(0.0);
+        .expect("primary-forward bucketed DV01 must be present");
 
     assert!(dv01.is_finite());
     assert!(

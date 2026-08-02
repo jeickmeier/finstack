@@ -306,16 +306,18 @@ fn test_time_elapsed_fraction_respects_day_count_convention() {
 
     // Act with different day counts
     swap.day_count = finstack_quant_core::dates::DayCount::Act365F;
-    let frac_365 = swap.time_elapsed_fraction(as_of);
+    let frac_actual = swap.time_elapsed_fraction(as_of);
 
-    swap.day_count = finstack_quant_core::dates::DayCount::Act360;
-    let frac_360 = swap.time_elapsed_fraction(as_of);
+    swap.day_count = finstack_quant_core::dates::DayCount::Thirty360;
+    let frac_30_360 = swap.time_elapsed_fraction(as_of);
 
     // Assert
-    assert!(frac_365 > 0.0 && frac_365 < 1.0);
-    assert!(frac_360 > 0.0 && frac_360 < 1.0);
-    // Different conventions yield different fractions (though difference may be small)
-    assert!(frac_365 != frac_360 || (frac_365 - frac_360).abs() < 1e-8);
+    assert!(frac_actual > 0.0 && frac_actual < 1.0);
+    assert!(frac_30_360 > 0.0 && frac_30_360 < 1.0);
+    assert!(
+        (frac_actual - frac_30_360).abs() > 1e-4,
+        "actual and 30/360 conventions should produce distinct elapsed fractions"
+    );
 }
 
 #[test]

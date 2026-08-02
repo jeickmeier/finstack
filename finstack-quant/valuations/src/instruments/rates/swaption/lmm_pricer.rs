@@ -796,17 +796,13 @@ mod tests {
             },
         );
 
-        let result = pricer.price_dyn(&swaption, &market, as_of);
+        let err_msg = pricer
+            .price_dyn(&swaption, &market, as_of)
+            .expect_err("enforced structural calibration must reject pricing")
+            .to_string();
         assert!(
-            result.is_err(),
-            "LMM Bermudan pricer must refuse when enforce_calibration=true, \
-             but got Ok({:?})",
-            result.ok().map(|r| r.value)
-        );
-        let err_msg = result.unwrap_err().to_string();
-        assert!(
-            err_msg.contains("uncalibrated") || err_msg.contains("calibrat"),
-            "Error message should mention calibration, got: {err_msg}"
+            err_msg.contains("uncalibrated structural parameters"),
+            "error should identify uncalibrated structural parameters, got: {err_msg}"
         );
     }
 
@@ -820,23 +816,17 @@ mod tests {
         let market = build_market(as_of);
         let swaption = build_bermudan(as_of);
 
-        // Default config: enforce_calibration = false
-        // Note: this goes through build_lmm_params which requires
-        // a discount curve — that's present. The vol surface is also
-        // present, so calibrate_base_vol will succeed.
-        let pricer = BermudanSwaptionLmmPricer::default();
+        let pricer = BermudanSwaptionLmmPricer::with_config(LmmBermudanConfig {
+            num_paths: 256,
+            seed: 42,
+            enforce_calibration: false,
+            ..Default::default()
+        });
 
-        // We don't assert Ok here because the full MC is slow (#[ignore]),
-        // but we do assert it doesn't error for the calibration guard reason.
-        // The actual pricing might produce a value or succeed; what we verify
-        // is absence of the calibration-guard error.
-        let result = pricer.price_dyn(&swaption, &market, as_of);
-        if let Err(ref e) = result {
-            let msg = e.to_string();
-            assert!(
-                !msg.contains("uncalibrated structural parameters"),
-                "Default pricer must not trigger calibration guard, got: {msg}"
-            );
-        }
+        let result = pricer
+            .price_dyn(&swaption, &market, as_of)
+            .expect("direct permissive LMM pricing");
+        let pv = result.value.amount();
+        assert!(pv.is_finite() && pv >= 0.0, "invalid LMM PV: {pv}");
     }
 }

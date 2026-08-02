@@ -198,10 +198,15 @@ fn zero_pik_coupon_matches_zero_coupon_bond() {
         price_diff,
     );
 
-    // PIK fraction should be 0 (nothing to PIK)
+    // `average_pik_fraction` records coupon-period elections, not cash amounts:
+    // the full-PIK schedule elects PIK in every period even though the coupon is zero.
     assert!(
-        pik_zero.average_pik_fraction < 1e-10 || cash_zero.average_pik_fraction < 1e-10,
-        "Zero-coupon bond should have no PIK accrual",
+        (pik_zero.average_pik_fraction - 1.0).abs() < 1e-10,
+        "Full-PIK schedule should elect PIK in every period"
+    );
+    assert!(
+        cash_zero.average_pik_fraction.abs() < 1e-10,
+        "Cash schedule should never elect PIK"
     );
 }
 

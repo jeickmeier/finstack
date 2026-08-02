@@ -1814,21 +1814,20 @@ mod per_name_copula_tests {
     /// PANICS. A NaN can reach here via `convert_clamped`, so this was a live
     /// panic path in a pricing loop.
     ///
-    /// This test does NOT discriminate: the standard sort's total-order
-    /// violation check is a heuristic that fires on some orderings and not
-    /// others, so the old comparator happens to survive this input. The test
-    /// pins that ES tolerates NaN at all; the correctness argument for
-    /// `total_cmp` is that it is a genuine total order, not that this input
-    /// reproduces the panic.
+    /// Positive-sign NaNs are the representation emitted by the live
+    /// `convert_clamped` corruption path. They must sort into the worst tail so
+    /// the measure surfaces the corrupted path instead of returning a plausible
+    /// finite value.
     #[test]
-    fn expected_shortfall_survives_a_nan_loss() {
+    fn expected_shortfall_places_nan_in_worst_tail() {
         let mut losses = vec![10.0, f64::NAN, 5.0, 100.0, 1.0, f64::NAN, 50.0];
-        // Must not panic.
         let es = expected_shortfall(&mut losses, 0.95);
         assert!(
-            es.is_nan() || es.is_finite(),
-            "expected shortfall must return a value rather than panicking, got {es}"
+            es.is_nan(),
+            "a corrupted worst-tail path must surface as NaN, got {es}"
         );
+        assert!(losses[..2].iter().all(|loss| loss.is_nan()));
+        assert_eq!(&losses[2..], &[100.0, 50.0, 10.0, 5.0, 1.0]);
     }
 
     /// SC-m06 — with clean input the measure is unchanged.

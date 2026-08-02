@@ -237,13 +237,15 @@ fn black76_pv(
     volatility: f64,
     is_payer: bool,
 ) -> f64 {
-    let annuity = swaption.swap_annuity(disc, as_of).unwrap_or(0.0);
+    let annuity = swaption
+        .swap_annuity(disc, as_of)
+        .expect("Black-76 fixture annuity");
 
     // Option expiry time uses ACT/365F (calendar-time vol axis convention),
     // matching the pricer; the instrument day count governs accruals only.
     let t = finstack_quant_core::dates::DayCount::Act365F
         .year_fraction(as_of, swaption.expiry, DayCountContext::default())
-        .unwrap_or(0.0)
+        .expect("ACT/365F option time")
         .max(0.0);
 
     if t <= 0.0 || annuity.abs() < 1e-12 {
@@ -694,7 +696,9 @@ fn test_quantlib_parity_very_low_vol() {
     // conventions, so allow for intrinsic value on top of a small time-value component.
     let disc = market.get_discount("USD_OIS").unwrap();
     let forward = swaption.forward_swap_rate(&market, as_of).unwrap();
-    let annuity = swaption.swap_annuity(disc.as_ref(), as_of).unwrap_or(0.0);
+    let annuity = swaption
+        .swap_annuity(disc.as_ref(), as_of)
+        .expect("low-vol fixture annuity");
     let intrinsic = (forward - 0.05).max(0.0) * annuity * swaption.notional.amount();
     assert!(
         pv < intrinsic + 10_000.0,
@@ -752,7 +756,9 @@ fn test_quantlib_parity_put_call_relationship() {
     // Put-call parity for swaptions: Payer - Receiver = Annuity * (Forward - Strike) * Notional
     let disc = market.get_discount("USD_OIS").unwrap();
     let forward = payer.forward_swap_rate(&market, as_of).unwrap();
-    let annuity = payer.swap_annuity(disc.as_ref(), as_of).unwrap_or(0.0);
+    let annuity = payer
+        .swap_annuity(disc.as_ref(), as_of)
+        .expect("put-call parity fixture annuity");
     let expected_diff = annuity * (forward - strike) * payer.notional.amount();
     let actual_diff = pv_payer - pv_receiver;
 
