@@ -27,7 +27,7 @@
           "value": 0.15
         },
         "id": "synergies",
-        "name": "Synergies (capped at 15% of running adjusted EBITDA)",
+        "name": "Synergies (capped at 15% of reported EBITDA)",
         "value": {
           "amounts": {
             "2025Q1": 30.0,
