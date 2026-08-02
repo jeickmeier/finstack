@@ -47,9 +47,6 @@ tests public API behavior and cross-module interactions.
 | Constant | Value | Use case |
 |----------|-------|----------|
 | `XIRR_TOLERANCE` | 1e-6 | XIRR (Excel-compatible precision) |
-| `MATH_TOLERANCE` | 1e-12 | General math |
-| `SERDE_TOLERANCE` | 1e-12 | Serialization roundtrips |
-| `CONTINUITY_TOLERANCE` | 1e-4 | Forward-rate continuity at knots |
 | `financial_tolerance(n)` | max(n × 1e-8, 0.01) | Money amounts |
 
 ## Running tests

@@ -11,25 +11,6 @@ use finstack_quant_core::math::interp::InterpStyle;
 use time::Month;
 
 // ===================================================================
-// Test Tolerance Constants (Market Standards Review)
-// ===================================================================
-
-/// Tolerance for mathematical roundtrip verification.
-/// IEEE 754 double precision has ~15-17 significant decimal digits.
-/// 1e-12 provides 3 orders of magnitude safety margin.
-#[allow(dead_code)]
-pub const MATH_TOLERANCE: f64 = 1e-12;
-
-/// Tolerance for serde roundtrip verification.
-#[allow(dead_code)]
-pub const SERDE_TOLERANCE: f64 = 1e-12;
-
-/// Tolerance for forward rate continuity checks at knot points.
-/// Looser than MATH_TOLERANCE due to numerical differentiation.
-#[allow(dead_code)]
-pub const CONTINUITY_TOLERANCE: f64 = 1e-4;
-
-// ===================================================================
 // Test Fixtures
 // ===================================================================
 
