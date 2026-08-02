@@ -199,14 +199,6 @@ Facility‑specific metrics:
 - `available_capacity`
 - `weighted_average_cost` (approximate)
 
-IRR utilities are provided for explicit analysis of generated cashflows rather than as implicit metrics:
-
-```rust
-use finstack_quant_valuations::instruments::fixed_income::revolving_credit::metrics::irr::calculate_path_irr;
-
-let irr_opt = calculate_path_irr(&cashflows_as_(t, amt), base_date, day_count);
-```
-
 ---
 
 ## Determinism, parity, and testing

@@ -1,11 +1,10 @@
 //! Metrics module for revolving credit facilities.
 //!
 //! Provides both standard metrics (PV, DV01, Theta, BucketedDV01, CS01) and
-//! facility-specific metrics (utilization rate, available capacity, weighted average cost, IRR).
+//! facility-specific metrics (utilization rate, available capacity, and weighted average cost).
 
 pub(crate) mod available_capacity;
 pub(crate) mod cs01;
-pub(crate) mod irr;
 pub(crate) mod utilization_rate;
 pub(crate) mod weighted_average_cost;
 
