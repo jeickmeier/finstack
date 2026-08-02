@@ -174,5 +174,4 @@ fn resolve_far_date(
 }
 
 #[cfg(test)]
-#[path = "../../../tests/market/build/xccy.rs"]
-mod builder_integration_tests;
+mod tests;
