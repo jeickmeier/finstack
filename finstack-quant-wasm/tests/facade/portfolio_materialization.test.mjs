@@ -11,13 +11,13 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const WASM_BG = join(__dirname, '..', 'pkg', 'finstack_quant_wasm_bg.wasm');
+const WASM_BG = join(__dirname, '..', '..', 'pkg', 'finstack_quant_wasm_bg.wasm');
 
 if (!existsSync(WASM_BG)) {
   throw new Error(`WASM web build not found at ${WASM_BG}. Generate it with: npm run build`);
 }
 
-const facade = await import('../index.js');
+const facade = await import('../../index.js');
 await facade.default({ module_or_path: readFileSync(WASM_BG) });
 const { portfolio } = facade;
 
@@ -48,7 +48,7 @@ const EMPTY_MARKET = JSON.stringify({
   prices: {},
   series: [],
   surfaces: [],
-  version: 2,
+  schema_version: 1,
   vol_cubes: [],
 });
 
