@@ -39,12 +39,9 @@
     "test:facade": "node --test \"tests/facade/**/*.test.mjs\"",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md,mjs,mks}\" index.d.ts",
-    "format:fix": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md,mjs,mks}\" index.d.ts",
+    "format": "prettier --check \"**/*.{ts,js,json,css,md,mjs,mks}\" index.d.ts",
+    "format:fix": "prettier --write \"**/*.{ts,js,json,css,md,mjs,mks}\" index.d.ts",
     "format:check": "npm run format",
-    "examples:install": "cd examples && npm install",
-    "examples:dev": "cd examples && npm run dev",
-    "examples:build": "cd examples && npm run build",
     "bench": "node benchmarks/bench.mjs"
   },
   "repository": {
@@ -79,17 +76,13 @@
   "author": "Finstack Quant Contributors",
   "license": "MIT OR Apache-2.0",
   "devDependencies": {
-    "@eslint-react/eslint-plugin": "^5.18.0",
     "@eslint/js": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.65.0",
-    "@wasm-tool/wasm-pack-plugin": "^1.7.0",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^16.5.0",
     "prettier": "^3.8.2",
-    "react": "^19.2.1",
     "typescript": "^5.9.3"
   }
 }

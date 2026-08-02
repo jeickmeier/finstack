@@ -1,8 +1,6 @@
 import js from '@eslint/js';
-import eslintReact from '@eslint-react/eslint-plugin';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
-import reactHooks from 'eslint-plugin-react-hooks';
 import prettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 
@@ -27,15 +25,12 @@ export default [
 
   // TypeScript files configuration
   {
-    files: ['**/*.{ts,tsx}'],
+    files: ['**/*.ts'],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
         ecmaVersion: 2022,
         sourceType: 'module',
-        ecmaFeatures: {
-          jsx: true,
-        },
       },
       globals: {
         ...globals.browser,
@@ -45,16 +40,9 @@ export default [
     },
     plugins: {
       '@typescript-eslint': tseslint,
-      ...eslintReact.configs['recommended-typescript'].plugins,
-      'react-hooks': reactHooks,
-    },
-    settings: {
-      ...eslintReact.configs['recommended-typescript'].settings,
     },
     rules: {
       ...tseslint.configs.recommended.rules,
-      ...eslintReact.configs['recommended-typescript'].rules,
-      ...reactHooks.configs.recommended.rules,
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -71,8 +59,6 @@ export default [
       'no-var': 'error',
       'object-shorthand': 'error',
       'prefer-arrow-callback': 'error',
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
       'no-unused-expressions': 'error',
       'no-duplicate-imports': 'error',
       'no-useless-return': 'error',
@@ -80,41 +66,25 @@ export default [
     },
   },
 
-  // JavaScript/JSX files configuration
+  // JavaScript files configuration
   {
-    files: ['**/*.{js,jsx,mjs,cjs}'],
+    files: ['**/*.{js,mjs,cjs}'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
-      parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
       globals: {
         ...globals.browser,
         ...globals.node,
         ...globals.es2020,
       },
     },
-    plugins: {
-      ...eslintReact.configs.recommended.plugins,
-      'react-hooks': reactHooks,
-    },
-    settings: {
-      ...eslintReact.configs.recommended.settings,
-    },
     rules: {
-      ...eslintReact.configs.recommended.rules,
-      ...reactHooks.configs.recommended.rules,
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'no-debugger': 'error',
       'prefer-const': 'error',
       'no-var': 'error',
       'object-shorthand': 'error',
       'prefer-arrow-callback': 'error',
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
       'no-unused-expressions': 'error',
       'no-duplicate-imports': 'error',
       'no-useless-return': 'error',
@@ -122,32 +92,9 @@ export default [
     },
   },
 
-  // Examples directory overrides
-  {
-    files: ['examples/**/*.{ts,tsx}'],
-    plugins: {
-      '@typescript-eslint': tseslint,
-    },
-    rules: {
-      'no-console': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
-      'prefer-template': 'warn',
-      'object-shorthand': 'warn',
-      '@typescript-eslint/no-non-null-assertion': 'warn',
-    },
-  },
-  {
-    files: ['examples/**/*.{js,jsx}'],
-    rules: {
-      'no-console': 'off',
-      'prefer-template': 'warn',
-      'object-shorthand': 'warn',
-    },
-  },
-
   // Test files overrides (TypeScript)
   {
-    files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
+    files: ['**/*.test.ts', '**/*.spec.ts'],
     plugins: {
       '@typescript-eslint': tseslint,
     },
@@ -158,7 +105,7 @@ export default [
   },
   // Test files overrides (JavaScript)
   {
-    files: ['**/*.test.{js,jsx}', '**/*.spec.{js,jsx}'],
+    files: ['**/*.test.{js,mjs,cjs}', '**/*.spec.{js,mjs,cjs}'],
     rules: {
       'no-console': 'off',
     },
