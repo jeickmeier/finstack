@@ -218,7 +218,7 @@ impl CompiledExpr {
     ///
     /// Returns an error if the expression graph cannot be converted into a
     /// valid execution plan, for example because planning detects an invalid
-    /// dependency structure.
+    /// dependency structure or more than 512 nested expression levels.
     pub fn with_planning(ast: Expr, meta: crate::config::ResultsMeta) -> crate::Result<Self> {
         let mut builder = DagBuilder::new();
         let plan = builder.build_plan(vec![ast.clone()], meta)?;
@@ -251,7 +251,10 @@ impl CompiledExpr {
     /// The context determines the column position for each named expression
     /// reference. An explicit plan in `opts` takes precedence over a plan
     /// attached to this instance; otherwise a plan is built once and retained
-    /// for subsequent calls. Returned metadata comes from that chosen plan.
+    /// for subsequent calls with a default-config metadata snapshot. Evaluation
+    /// does not add timing or parallelism data to that metadata. The compiled
+    /// expression may reuse plan topology and scratch allocation, but every call
+    /// recomputes values from the supplied columns.
     ///
     /// # Errors
     ///

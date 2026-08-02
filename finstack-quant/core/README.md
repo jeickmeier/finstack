@@ -20,18 +20,10 @@ configuration, and the expression engine.
   and matching utilities
 - **Configuration**: rounding policies and shared runtime settings
 
-## Module docs
+## API documentation
 
-Deeper module notes live under `src/`:
-
-- [`src/README.md`](src/README.md)
-- [`src/dates/README.md`](src/dates/README.md)
-- [`src/market_data/README.md`](src/market_data/README.md)
-- [`src/math/README.md`](src/math/README.md)
-- [`src/cashflow/README.md`](src/cashflow/README.md)
-- [`src/expr/README.md`](src/expr/README.md)
-- [`src/money/README.md`](src/money/README.md)
-- [`src/types/README.md`](src/types/README.md)
+Canonical module and item documentation is maintained in Rustdoc; use the
+documentation commands under [Verification](#verification) to build and test it.
 
 ## Cargo features
 

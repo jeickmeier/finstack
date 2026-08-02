@@ -347,9 +347,10 @@ pub enum Function {
     RollingMean,
     /// Rolling sum over a fixed row window size.
     RollingSum,
-    /// Exponentially weighted moving average with alpha. The recursion is
-    /// pandas `adjust=False, ignore_na=False` (decay advances across NaN
-    /// gaps); there is no adjust flag.
+    /// `ewm_mean(series, alpha, adjust?)`, with `alpha` normalized to
+    /// `[1e-12, 1]`. An omitted or nonzero `adjust` uses normalized weights;
+    /// zero selects the recursive form. Leading and interior NaNs are preserved,
+    /// and the recursion starts at the first non-NaN observation.
     EwmMean,
     /// Sample standard deviation (n−1, Bessel's correction; pandas `ddof=1`).
     Std,
@@ -382,9 +383,15 @@ pub enum Function {
     RollingMax,
     /// Count non-null values in rolling window.
     RollingCount,
-    /// Exponentially weighted moving standard deviation.
+    /// `ewm_std(series, alpha, adjust?)`, with `alpha` normalized to
+    /// `[1e-12, 1]`. An omitted or positive `adjust` uses adjusted weights;
+    /// zero or a negative value selects the recursive form. Leading and interior
+    /// NaNs are preserved, and the recursion starts at the first non-NaN value.
     EwmStd,
-    /// Exponentially weighted moving variance.
+    /// `ewm_var(series, alpha, adjust?)`, with `alpha` normalized to
+    /// `[1e-12, 1]`. An omitted or positive `adjust` uses adjusted weights;
+    /// zero or a negative value selects the recursive form. Leading and interior
+    /// NaNs are preserved, and the recursion starts at the first non-NaN value.
     EwmVar,
 
     // Custom financial functions
