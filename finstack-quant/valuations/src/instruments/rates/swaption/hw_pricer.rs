@@ -91,6 +91,15 @@ impl SwaptionHullWhitePricer {
         market: &MarketContext,
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
+        if let Some(pv) = swaption.terminal_value(market, as_of).map_err(|error| {
+            PricingError::from_core(
+                error,
+                PricingErrorContext::from_instrument(swaption).model(ModelKey::HullWhite1F),
+            )
+        })? {
+            return Ok(ValuationResult::stamped(swaption.id(), as_of, pv));
+        }
+
         // Single-curve requirement (same as Bermudan pricer)
         if swaption.get_forward_curve_id() != swaption.get_discount_curve_id() {
             return Err(PricingError::model_failure_with_context(

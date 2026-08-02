@@ -582,6 +582,66 @@ impl Swaption {
         year_fraction(DayCount::Act365F, as_of, self.expiry)
     }
 
+    fn validate_european_exercise(&self) -> Result<()> {
+        match self.exercise_style {
+            SwaptionExercise::European => Ok(()),
+            SwaptionExercise::Bermudan | SwaptionExercise::American => {
+                Err(Error::Validation(format!(
+                    "Swaption '{}' has exercise_style={}; the generic Swaption pricer only supports \
+                     European exercise. Use the LMM Bermudan pricer \
+                     (crate::instruments::rates::swaption::lmm_pricer) for early-exercise swaptions.",
+                    self.id, self.exercise_style,
+                )))
+            }
+        }
+    }
+
+    /// Return the model-independent terminal value at or after expiry.
+    ///
+    /// # Arguments
+    ///
+    /// * `curves` - Market context used to resolve the forward swap rate and
+    ///   settlement annuity exactly at expiry.
+    /// * `as_of` - Valuation date compared with the contractual exercise date.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(None)` before expiry, zero after expiry, or the annuity-scaled
+    /// intrinsic value exactly at expiry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for unsupported non-European exercise styles or when
+    /// the forward rate or annuity required at exact expiry cannot be resolved.
+    pub(crate) fn terminal_value(
+        &self,
+        curves: &MarketContext,
+        as_of: Date,
+    ) -> Result<Option<Money>> {
+        self.validate_european_exercise()?;
+
+        if as_of < self.expiry {
+            return Ok(None);
+        }
+        if as_of > self.expiry {
+            return Ok(Some(Money::new(0.0, self.notional.currency())));
+        }
+
+        let disc = curves.get_discount(self.get_discount_curve_id().as_ref())?;
+        let forward = self.forward_swap_rate(curves, as_of)?;
+        let annuity = self.annuity(disc.as_ref(), as_of, forward)?;
+        let strike = self.strike_f64()?;
+        let intrinsic = match self.option_type {
+            OptionType::Call => (forward - strike).max(0.0),
+            OptionType::Put => (strike - forward).max(0.0),
+        };
+
+        Ok(Some(Money::new(
+            intrinsic * annuity * self.notional.amount(),
+            self.notional.currency(),
+        )))
+    }
+
     /// Helper for common pricing logic
     fn price_model_base<F>(
         &self,
@@ -593,29 +653,11 @@ impl Swaption {
     where
         F: Fn(f64, f64, f64, f64, f64) -> f64, // forward, strike, vol, t, annuity -> value
     {
-        let time_to_expiry = self.time_to_expiry(as_of)?;
-        if time_to_expiry <= 0.0 {
-            // Past expiry an unexercised European swaption is worthless. At
-            // the exact expiry instant it is worth its (model-free) intrinsic
-            // on the annuity — matching the registry pricer's at-expiry
-            // handling so generic model paths stay consistent with it.
-            if as_of > self.expiry {
-                return Ok(Money::new(0.0, self.notional.currency()));
-            }
-            let disc = curves.get_discount(self.get_discount_curve_id().as_ref())?;
-            let forward_rate = self.forward_swap_rate(curves, as_of)?;
-            let annuity = self.annuity(disc.as_ref(), as_of, forward_rate)?;
-            let strike = self.strike_f64()?;
-            let intrinsic = match self.option_type {
-                OptionType::Call => (forward_rate - strike).max(0.0),
-                OptionType::Put => (strike - forward_rate).max(0.0),
-            };
-            return Ok(Money::new(
-                intrinsic * annuity * self.notional.amount(),
-                self.notional.currency(),
-            ));
+        if let Some(value) = self.terminal_value(curves, as_of)? {
+            return Ok(value);
         }
 
+        let time_to_expiry = self.time_to_expiry(as_of)?;
         let disc = curves.get_discount(self.get_discount_curve_id().as_ref())?;
         let forward_rate = self.forward_swap_rate(curves, as_of)?;
         let annuity = self.annuity(disc.as_ref(), as_of, forward_rate)?;
@@ -734,15 +776,16 @@ impl Swaption {
     pub fn price_sabr(&self, curves: &MarketContext, as_of: Date) -> Result<Money> {
         use super::lognormal_to_normal_vol;
 
+        if let Some(value) = self.terminal_value(curves, as_of)? {
+            return Ok(value);
+        }
+
         let params = self
             .sabr_params
             .as_ref()
             .ok_or_else(|| Error::internal("swaption SABR pricing requires sabr_params"))?;
         let model = SABRModel::new(params.clone());
         let time_to_expiry = self.time_to_expiry(as_of)?;
-        if time_to_expiry <= 0.0 {
-            return Ok(Money::new(0.0, self.notional.currency()));
-        }
         let forward_rate = self.forward_swap_rate(curves, as_of)?;
         let strike = self.strike_f64()?;
 
@@ -1097,10 +1140,10 @@ impl Swaption {
     /// `Some(GreekInputs)` containing forward, annuity, sigma, and time to expiry,
     /// or `None` if the option has expired.
     pub fn greek_inputs(&self, curves: &MarketContext, as_of: Date) -> Result<Option<GreekInputs>> {
-        let disc = curves.get_discount(self.get_discount_curve_id().as_ref())?;
         if as_of >= self.expiry {
             return Ok(None);
         }
+        let disc = curves.get_discount(self.get_discount_curve_id().as_ref())?;
         let t = self.time_to_expiry(as_of)?;
 
         if t <= 0.0 {
@@ -1149,21 +1192,8 @@ impl crate::instruments::common_impl::traits::Instrument for Swaption {
         as_of: finstack_quant_core::dates::Date,
     ) -> finstack_quant_core::Result<finstack_quant_core::money::Money> {
         self.validate()?;
-        // The default `Instrument::value()` path only implements European exercise.
-        // Bermudan / American swaptions must be priced via the dedicated LMM
-        // pricer (see `swaption::lmm_pricer::LmmPricer`); silently downcasting to
-        // European would systematically under-price the early-exercise premium.
-        match self.exercise_style {
-            SwaptionExercise::European => {}
-            SwaptionExercise::Bermudan | SwaptionExercise::American => {
-                return Err(Error::Validation(format!(
-                    "Swaption '{}' has exercise_style={}; the generic Swaption pricer only supports \
-                     European exercise. Use the LMM Bermudan pricer \
-                     (crate::instruments::rates::swaption::lmm_pricer) for early-exercise swaptions.",
-                    self.id,
-                    self.exercise_style,
-                )));
-            }
+        if let Some(value) = self.terminal_value(curves, as_of)? {
+            return Ok(value);
         }
 
         // 1. SABR model (if enabled) overrides basic model choice
