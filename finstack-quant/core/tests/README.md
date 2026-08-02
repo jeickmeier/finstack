@@ -46,8 +46,6 @@ tests public API behavior and cross-module interactions.
 
 | Constant | Value | Use case |
 |----------|-------|----------|
-| `RATE_TOLERANCE` | 1e-10 | IRR, discount factors, unitless rates |
-| `FACTOR_TOLERANCE` | 1e-12 | Year fractions, day-count |
 | `XIRR_TOLERANCE` | 1e-6 | XIRR (Excel-compatible precision) |
 | `MATH_TOLERANCE` | 1e-12 | General math |
 | `SERDE_TOLERANCE` | 1e-12 | Serialization roundtrips |
