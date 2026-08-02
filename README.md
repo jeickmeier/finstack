@@ -227,6 +227,8 @@ script under `scripts/`.
 | `mise run python-sync` | Sync Python dev dependencies with `uv sync --group dev` |
 | `mise run python-build` | Build the Python extension in-place with the dev profile |
 | `mise run python-build -- --release` | Build the Python extension in release mode |
+| `mise run python-bench` | Manually run the complete Python binding benchmark suite against a release build |
+| `mise run rust-bench` | Manually execute native Criterion benchmarks with reduced measurement timing |
 | `mise run wasm-gen-bindings` | Export TypeScript types from Rust |
 | `mise run wasm-pkg` | Build the web and Node WASM packages |
 | `mise run rust-test` | Run Rust tests with `cargo nextest` |
@@ -237,6 +239,13 @@ script under `scripts/`.
 | `mise run wasm-test-cov` | Run WASM binding tests with HTML coverage report |
 | `mise run rust-check-schemas` | Verify JSON schemas match Rust types |
 | `mise run wheel-local` | Build a Python wheel for the current platform |
+
+Benchmarks are measurement tasks and intentionally stay outside `all-test`,
+Nextest, and wall-clock-gated pull-request CI. `rust-lint --all-targets`
+compile-checks and lints native Criterion targets; run `mise run rust-bench` or
+a specific `cargo bench -p <crate> --bench <target>` command explicitly to
+collect native measurements. `mise run python-bench-portfolio` remains the controlled
+materialization-specific Python benchmark path.
 
 Run `mise tasks` to list every available task.
 

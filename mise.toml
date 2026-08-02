@@ -136,6 +136,8 @@ run = "cargo +1.90 check --locked --workspace --all-features --lib --bins --exam
 # `#[test]` modules out of this crate while `[lib] test = false`.
 # Type-checking it is still gated: `rust-lint` runs clippy with `--workspace`, and
 # clippy type-checks without linking, so binding compile errors are caught there.
+# Native Criterion targets are compile/lint-owned by `rust-lint --all-targets`;
+# run `mise run rust-bench` or the desired `cargo bench` target for measurements.
 description = "Run native Rust tests via cargo-nextest"
 run = [
   "cargo nextest run --workspace --exclude finstack-quant-py --exclude finstack-quant-wasm --lib --test '*' --no-fail-fast",
@@ -233,6 +235,13 @@ run = 'uv run maturin develop{% if usage.release %} --release{% endif %}'
 [tasks.materialization-benchmark-fixtures]
 description = "Generate deterministic portfolio materialization benchmark fixtures"
 run = "cargo run --release --quiet -p finstack-quant-portfolio --example materialization_fixtures -- target/materialization-benchmarks"
+
+[tasks.python-bench]
+description = "Manually benchmark all Python bindings with an optimized extension"
+run = """
+mise run python-build -- --release
+uv run pytest finstack-quant-py/benchmarks/bench_bindings.py -m perf --benchmark-only
+"""
 
 [tasks.python-bench-portfolio]
 description = "Benchmark portfolio Python bindings with an optimized extension"

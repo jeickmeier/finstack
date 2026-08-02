@@ -1,5 +1,9 @@
 """Comprehensive pytest-benchmark suite for all finstack-quant Python binding domains.
 
+Run the complete suite against an optimized extension::
+
+    mise run python-bench
+
 Run with pytest-benchmark::
 
     uv run pytest finstack-quant-py/benchmarks/bench_bindings.py -m "perf and not slow" --benchmark-only
