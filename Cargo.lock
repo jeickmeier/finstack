@@ -741,8 +741,6 @@ dependencies = [
  "finstack-quant-statements",
  "finstack-quant-statements-analytics",
  "finstack-quant-valuations",
- "rust_decimal",
- "time",
 ]
 
 [[package]]

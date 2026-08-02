@@ -55,7 +55,6 @@ serde = { workspace = true, features = ["alloc"] }
 serde_json = { workspace = true }
 
 [dev-dependencies]
-serde_json = { workspace = true }
 criterion = { workspace = true }
 proptest = "1.11.0"
 finstack-quant-test-utils = { path = "../test-utils", version = "0.7.0" }

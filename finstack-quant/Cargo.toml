@@ -24,9 +24,5 @@ finstack_quant_portfolio = { package = "finstack-quant-portfolio", path = "portf
 finstack_quant_scenarios = { package = "finstack-quant-scenarios", path = "scenarios", version = "0.7.0" }
 finstack_quant_monte_carlo = { package = "finstack-quant-monte-carlo", path = "monte_carlo", version = "0.7.0" }
 
-[dev-dependencies]
-time = { workspace = true, features = ["macros"] }
-rust_decimal = { workspace = true }
-
 [lints]
 workspace = true
