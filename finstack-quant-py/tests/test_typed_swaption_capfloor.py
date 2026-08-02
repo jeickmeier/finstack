@@ -160,6 +160,10 @@ class TestCapFloorTyped:
         with pytest.raises(ValueError, match="Invalid input data"):
             CapFloor.builder().id("CAP-BAD").build()
 
+    def test_nan_strike_raises(self) -> None:
+        with pytest.raises(ValueError, match="invalid strike"):
+            CapFloor.builder().strike(float("nan"))
+
     def test_rate_option_type_wrong_case_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="invalid rate_option_type"):
             CapFloor.builder().rate_option_type("Cap")

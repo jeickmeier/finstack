@@ -66,46 +66,6 @@ pub(crate) fn json_field<T: serde::de::DeserializeOwned>(json: &str, what: &str)
         .map_err(|err| crate::errors::serde_json_to_py(err, &format!("invalid {what} JSON")))
 }
 
-#[cfg(test)]
-mod helper_tests {
-    use super::*;
-
-    #[test]
-    fn enum_from_str_parses_pay_receive() {
-        let side: finstack_quant_valuations::instruments::PayReceive =
-            enum_from_str("pay", "side").expect("parses");
-        assert!(matches!(
-            side,
-            finstack_quant_valuations::instruments::PayReceive::Pay
-        ));
-    }
-
-    #[test]
-    fn enum_from_str_rejects_unknown_variant() {
-        let err =
-            enum_from_str::<finstack_quant_valuations::instruments::PayReceive>("sideways", "side")
-                .unwrap_err();
-        // `cargo test` on this crate runs outside a Python process, so the
-        // interpreter is not yet attached; inspecting `PyErr`'s value (or its
-        // `Display`/`Debug` impls, which also call `Python::attach`
-        // internally) requires initializing it first. `Python::initialize`
-        // does not require the `auto-initialize` feature (unlike the
-        // deprecated `prepare_freethreaded_python`), and this crate cannot
-        // enable that feature because it conflicts with `extension-module`,
-        // which the published wheel requires.
-        pyo3::Python::initialize();
-        pyo3::Python::attach(|py| {
-            assert!(err.value(py).to_string().contains("invalid side"));
-        });
-    }
-
-    #[test]
-    fn decimal_from_f64_rejects_nan() {
-        assert!(decimal_from_f64(f64::NAN, "strike").is_err());
-        assert!(decimal_from_f64(0.05, "strike").is_ok());
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Bond
 // ---------------------------------------------------------------------------

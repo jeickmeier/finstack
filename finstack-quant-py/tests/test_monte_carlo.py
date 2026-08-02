@@ -179,6 +179,18 @@ def test_mc_engine_antithetic_preserves_estimator_and_simulation_counts() -> Non
     assert result.num_simulated_paths == 256
 
 
+@pytest.mark.parametrize(
+    ("t_max", "num_steps"),
+    [
+        (0.0, 8),
+        (1.0, 0),
+    ],
+)
+def test_time_grid_invalid_inputs_raise_value_error(t_max: float, num_steps: int) -> None:
+    with pytest.raises(ValueError, match="Invalid input data"):
+        TimeGrid(t_max=t_max, num_steps=num_steps)
+
+
 def test_simulate_gbm_paths_is_typed_deterministic_and_shaped() -> None:
     first = simulate_gbm_paths(
         spot=100.0,

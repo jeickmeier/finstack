@@ -127,8 +127,9 @@ run = "cargo build --workspace --exclude finstack-quant-py --exclude finstack-qu
 [tasks.rust-test]
 # `--exclude finstack-quant-py` is required, not an oversight: building that crate's
 # test target links against libpython (e.g. `ld: library 'python3.9' not found`), which
-# is not available in a plain `cargo` environment. The crate has no Rust `#[test]`s
-# anyway — its behaviour is covered by pytest via `mise run python-test`.
+# is not available in a plain `cargo` environment. Binding behavior is exercised
+# against the built extension by pytest via `mise run python-test`; keep Rust
+# `#[test]` modules out of this crate while `[lib] test = false`.
 # Type-checking it is still gated: `rust-lint` runs clippy with `--workspace`, and
 # clippy type-checks without linking, so binding compile errors are caught there.
 description = "Run Rust tests via cargo-nextest"
