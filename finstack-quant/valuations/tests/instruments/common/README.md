@@ -13,8 +13,7 @@ common/
 ├── models/
 ├── metrics/
 ├── parameters/
-├── test_discountable.rs
-└── test_pricing.rs
+└── test_discountable.rs
 ```
 
 ## Scope
