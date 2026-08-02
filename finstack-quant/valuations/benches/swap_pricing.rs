@@ -31,12 +31,8 @@ use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::{FixedLegSpec, FloatLegSpec};
 use finstack_quant_valuations::metrics::MetricId;
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/rates.rs"]
+mod rates_support;
 use rust_decimal_macros::dec;
 use std::hint::black_box;
 use time::Month;
@@ -45,7 +41,7 @@ fn create_swap(tenor_years: i32) -> InterestRateSwap {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let end = Date::from_calendar_date(2025 + tenor_years, Month::January, 1).unwrap();
 
-    test_utils::usd_irs_swap(
+    rates_support::usd_irs_swap(
         InstrumentId::new(format!("IRS-{}Y", tenor_years)),
         Money::new(10_000_000.0, Currency::USD),
         0.04, // 4% fixed rate

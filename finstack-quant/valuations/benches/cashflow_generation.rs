@@ -21,12 +21,8 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::InstrumentId;
 use finstack_quant_valuations::instruments::fixed_income::bond::Bond;
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/rates.rs"]
+mod rates_support;
 use rust_decimal_macros::dec;
 use std::hint::black_box;
 use time::Month;
@@ -101,7 +97,7 @@ fn bench_swap_cashflow_generation(c: &mut Criterion) {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let end = Date::from_calendar_date(2025 + tenor, Month::January, 1).unwrap();
 
-    let swap = test_utils::usd_irs_swap(
+    let swap = rates_support::usd_irs_swap(
         InstrumentId::new(format!("IRS-{}Y", tenor)),
         Money::new(10_000_000.0, Currency::USD),
         0.04,

@@ -19,13 +19,9 @@ mod registry_coverage;
 #[path = "instruments/serde_skip_guard.rs"]
 mod serde_skip_guard;
 
-#[allow(clippy::expect_used, clippy::unwrap_used, dead_code, unused_imports)]
-mod finstack_quant_test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "support/mod.rs"]
+#[allow(dead_code, unused_imports)]
+mod test_support;
 
 // Re-export parity module at crate level for `use crate::parity::*;` compatibility
 pub use common::parity;

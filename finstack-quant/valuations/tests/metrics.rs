@@ -24,13 +24,21 @@
 #[path = "common/mod.rs"]
 mod common;
 
-#[allow(clippy::expect_used, clippy::unwrap_used, dead_code, unused_imports)]
-mod finstack_quant_test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "support/credit.rs"]
+#[allow(dead_code, unused_imports)]
+mod credit_support;
+#[path = "support/date.rs"]
+#[allow(dead_code, unused_imports)]
+mod date_support;
+#[path = "support/discount_forward_curves.rs"]
+#[allow(dead_code, unused_imports)]
+mod discount_forward_curve_support;
+#[path = "support/equity_fx_options.rs"]
+#[allow(dead_code, unused_imports)]
+mod option_support;
+#[path = "support/volatility.rs"]
+#[allow(dead_code, unused_imports)]
+mod volatility_support;
 
 // ============================================================================
 // Metrics Tests

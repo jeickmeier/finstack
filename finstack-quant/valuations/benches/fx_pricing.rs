@@ -23,12 +23,8 @@ use std::sync::Arc;
 use time::Month;
 
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/equity_fx_options.rs"]
+mod option_support;
 
 fn base_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
@@ -165,7 +161,7 @@ fn bench_fx_option_pv(c: &mut Criterion) {
 
     for (label, days) in expiries {
         let expiry = as_of + time::Duration::days(days);
-        let option = test_utils::fx_option_european_call(
+        let option = option_support::fx_option_european_call(
             InstrumentId::new(format!("FX-CALL-{label}")),
             Currency::EUR,
             Currency::USD,
@@ -189,7 +185,7 @@ fn bench_fx_option_greeks(c: &mut Criterion) {
     let as_of = base_date();
     let expiry = as_of + time::Duration::days(180);
 
-    let option = test_utils::fx_option_european_call(
+    let option = option_support::fx_option_european_call(
         "FX-CALL-6M",
         Currency::EUR,
         Currency::USD,

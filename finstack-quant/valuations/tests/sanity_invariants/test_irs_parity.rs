@@ -10,7 +10,7 @@
 //! 2. DV01 ≈ notional × duration × 0.0001
 //! 3. Par rate sensible range
 
-use crate::finstack_quant_test_utils as test_utils;
+use crate::rates_support;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -61,7 +61,7 @@ fn create_5y_swap(
     let end = Date::from_calendar_date(as_of.year() + 5, as_of.month(), as_of.day())
         .expect("valid end date");
 
-    test_utils::usd_irs_swap(
+    rates_support::usd_irs_swap(
         "IRS-QLPARITY-5Y",
         Money::new(10_000_000.0, Currency::USD),
         fixed_rate,

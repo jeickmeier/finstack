@@ -34,12 +34,11 @@ use finstack_quant_valuations::instruments::{
 };
 use finstack_quant_valuations::metrics::MetricId;
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/commodity_curves.rs"]
+mod commodity_curve_support;
+#[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
+#[path = "../tests/support/volatility.rs"]
+mod volatility_support;
 use rust_decimal::Decimal;
 use std::hint::black_box;
 use time::Month;
@@ -68,30 +67,34 @@ fn create_commodity_market() -> MarketContext {
         .build()
         .unwrap();
 
-    let wti_curve = test_utils::contango_price_curve("WTI-FWD", as_of, 75.0, 0.05, 5.0);
-    let cl_curve = test_utils::contango_price_curve("CL-FORWARD", as_of, 75.0, 0.05, 5.0);
-    let ng_curve = test_utils::contango_price_curve("NG-FORWARD", as_of, 3.5, 0.02, 5.0);
-    let rbob_curve = test_utils::contango_price_curve("RBOB-FORWARD", as_of, 90.0, 0.04, 5.0);
+    let wti_curve =
+        commodity_curve_support::contango_price_curve("WTI-FWD", as_of, 75.0, 0.05, 5.0);
+    let cl_curve =
+        commodity_curve_support::contango_price_curve("CL-FORWARD", as_of, 75.0, 0.05, 5.0);
+    let ng_curve =
+        commodity_curve_support::contango_price_curve("NG-FORWARD", as_of, 3.5, 0.02, 5.0);
+    let rbob_curve =
+        commodity_curve_support::contango_price_curve("RBOB-FORWARD", as_of, 90.0, 0.04, 5.0);
 
-    let wti_vol = test_utils::flat_vol_surface(
+    let wti_vol = volatility_support::flat_vol_surface(
         "WTI-VOL",
         &[0.25, 0.5, 1.0, 2.0],
         &[50.0, 60.0, 70.0, 80.0, 90.0],
         0.30,
     );
-    let cl_vol = test_utils::flat_vol_surface(
+    let cl_vol = volatility_support::flat_vol_surface(
         "CL-VOL",
         &[0.25, 0.5, 1.0, 2.0],
         &[50.0, 60.0, 70.0, 80.0, 90.0],
         0.30,
     );
-    let ng_vol = test_utils::flat_vol_surface(
+    let ng_vol = volatility_support::flat_vol_surface(
         "NG-VOL",
         &[0.25, 0.5, 1.0, 2.0],
         &[2.0, 3.0, 4.0, 5.0, 6.0],
         0.35,
     );
-    let rbob_vol = test_utils::flat_vol_surface(
+    let rbob_vol = volatility_support::flat_vol_surface(
         "RBOB-VOL",
         &[0.25, 0.5, 1.0, 2.0],
         &[60.0, 75.0, 90.0, 105.0, 120.0],

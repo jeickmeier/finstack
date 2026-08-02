@@ -81,10 +81,10 @@ use std::sync::Arc;
 use time::Month;
 
 #[allow(clippy::expect_used, clippy::unwrap_used, dead_code, unused_imports)]
-mod finstack_quant_test_utils {
+mod rates_support {
     include!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../valuations/tests/support/test_utils.rs"
+        "/benches/support/rates.rs"
     ));
 }
 
@@ -437,7 +437,7 @@ fn create_institutional_portfolio(num_positions: usize) -> finstack_quant_portfo
     for i in 0..positions_per_common {
         let swap_id = format!("IRS_{}", i);
         let notional = Money::new(5_000_000.0 * (i + 1) as f64, Currency::USD);
-        let swap = finstack_quant_test_utils::usd_irs_swap(
+        let swap = rates_support::usd_irs_swap(
             swap_id.clone(),
             notional,
             0.04,

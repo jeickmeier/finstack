@@ -36,12 +36,8 @@ use std::hint::black_box;
 use time::Month;
 
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/discount_forward_curves.rs"]
+mod discount_forward_curve_support;
 
 fn as_of() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
@@ -110,7 +106,7 @@ fn revolving_credit_floating(maturity: Date) -> RevolvingCredit {
 }
 
 fn revolving_credit_market(as_of: Date) -> MarketContext {
-    let disc = test_utils::flat_discount("USD-OIS", as_of, 0.05);
+    let disc = discount_forward_curve_support::flat_discount("USD-OIS", as_of, 0.05);
     let fwd = finstack_quant_core::market_data::term_structures::ForwardCurve::builder(
         "USD-SOFR-3M",
         0.25,
@@ -131,7 +127,7 @@ fn revolving_credit_market(as_of: Date) -> MarketContext {
 fn bench_term_loan_pv(c: &mut Criterion) {
     let mut group = c.benchmark_group("term_loan_pv");
     let as_of = as_of();
-    let disc = test_utils::flat_discount("USD-OIS", as_of, 0.05);
+    let disc = discount_forward_curve_support::flat_discount("USD-OIS", as_of, 0.05);
     let market = MarketContext::new().insert(disc);
 
     for (label, maturity) in [
@@ -182,7 +178,7 @@ fn bench_revolving_credit_pv(c: &mut Criterion) {
 fn bench_agency_mbs_pv(c: &mut Criterion) {
     let mut group = c.benchmark_group("agency_mbs_pv");
     let as_of = as_of();
-    let disc = test_utils::flat_discount("USD-OIS", as_of, 0.05);
+    let disc = discount_forward_curve_support::flat_discount("USD-OIS", as_of, 0.05);
     let market = MarketContext::new().insert(disc);
 
     let mbs = AgencyMbsPassthrough::example().unwrap();
@@ -204,7 +200,7 @@ fn bench_agency_mbs_pv(c: &mut Criterion) {
 
 /// Market context for FI TRS: discount, forward, and scalar yield/duration data.
 fn fi_trs_market(as_of: Date) -> MarketContext {
-    let disc = test_utils::flat_discount("USD-OIS", as_of, 0.05);
+    let disc = discount_forward_curve_support::flat_discount("USD-OIS", as_of, 0.05);
     let fwd = finstack_quant_core::market_data::term_structures::ForwardCurve::builder(
         "USD-SOFR-3M",
         0.25,
@@ -271,7 +267,7 @@ fn bench_cmo_waterfall_pv(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("cmo_waterfall_pv");
     let as_of = as_of();
-    let disc = test_utils::flat_discount("USD-OIS", as_of, 0.05);
+    let disc = discount_forward_curve_support::flat_discount("USD-OIS", as_of, 0.05);
     let market = MarketContext::new().insert(disc);
 
     {
@@ -316,7 +312,7 @@ fn bench_cmo_waterfall_pv(c: &mut Criterion) {
 fn bench_cmo_structure_type(c: &mut Criterion) {
     let mut group = c.benchmark_group("cmo_structure_type");
     let as_of = as_of();
-    let disc = test_utils::flat_discount("USD-OIS", as_of, 0.05);
+    let disc = discount_forward_curve_support::flat_discount("USD-OIS", as_of, 0.05);
     let market = MarketContext::new().insert(disc);
 
     let sequential = AgencyCmo::example().unwrap();
@@ -348,7 +344,7 @@ fn bench_cmo_structure_type(c: &mut Criterion) {
 fn bench_dollar_roll_pv(c: &mut Criterion) {
     let mut group = c.benchmark_group("dollar_roll_pv");
     let as_of = as_of();
-    let disc = test_utils::flat_discount("USD-OIS", as_of, 0.05);
+    let disc = discount_forward_curve_support::flat_discount("USD-OIS", as_of, 0.05);
     let market = MarketContext::new().insert(disc);
 
     for (label, drop_bp) in [

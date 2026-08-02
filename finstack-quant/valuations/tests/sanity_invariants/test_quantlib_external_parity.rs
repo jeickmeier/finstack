@@ -21,7 +21,7 @@ use serde::Deserialize;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::finstack_quant_test_utils as test_utils;
+use crate::rates_support;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
@@ -287,7 +287,7 @@ fn external_quantlib_parity_vanilla_irs_npv_and_dv01() {
     let settlement = parse_iso_date(&fixture.spec.settlement_date);
     let end = parse_iso_date(&fixture.spec.maturity_date);
 
-    let swap = test_utils::usd_irs_swap(
+    let swap = rates_support::usd_irs_swap(
         "QL-PARITY-IRS",
         Money::new(fixture.spec.notional, Currency::USD),
         fixture.spec.fixed_rate,

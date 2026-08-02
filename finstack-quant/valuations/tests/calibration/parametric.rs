@@ -42,7 +42,7 @@ use finstack_quant_valuations::market::quotes::market_quote::MarketQuote;
 use finstack_quant_valuations::market::quotes::rates::RateQuote;
 use time::Month;
 
-use crate::finstack_quant_test_utils::calibration as cal_utils;
+use crate::calibration_support as cal_utils;
 
 /// Builds a set of deposit quotes with rates drawn from a known Nelson-Siegel curve.
 ///

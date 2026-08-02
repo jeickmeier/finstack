@@ -21,12 +21,8 @@ use finstack_quant_valuations::instruments::exotics::barrier_option::{BarrierOpt
 use finstack_quant_valuations::instruments::{Instrument, InstrumentPricingOverrides, OptionType};
 use finstack_quant_valuations::metrics::MetricId;
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/equity_fx_options.rs"]
+mod option_support;
 use std::hint::black_box;
 use time::Month;
 
@@ -34,7 +30,7 @@ fn create_call_option(expiry_months: i64) -> EquityOption {
     let base = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let expiry = base + time::Duration::days(expiry_months * 30);
 
-    test_utils::equity_option_european_call(
+    option_support::equity_option_european_call(
         format!("CALL-{}M", expiry_months),
         "AAPL",
         100.0, // ATM strike

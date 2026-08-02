@@ -19,12 +19,9 @@ use std::sync::Arc;
 use time::Date;
 use time::Month;
 
-#[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../valuations/tests/support/test_utils.rs"
-    ));
+fn date(year: i32, month: u8, day: u8) -> Date {
+    Date::from_calendar_date(year, Month::try_from(month).expect("valid month"), day)
+        .expect("valid date")
 }
 
 /// Flat USD-OIS-style discount curve; `rate` is a continuously compounded zero approx.
@@ -53,7 +50,7 @@ fn markets_t0_t1(as_of_t0: Date, as_of_t1: Date) -> (MarketContext, MarketContex
 }
 
 fn sample_bond(id: &str, maturity_year_offset: i32) -> Bond {
-    let issue = test_utils::date(2025, 1, 1);
+    let issue = date(2025, 1, 1);
     let maturity =
         Date::from_calendar_date(2025 + maturity_year_offset, Month::January, 1).unwrap();
     Bond::fixed(
@@ -68,8 +65,8 @@ fn sample_bond(id: &str, maturity_year_offset: i32) -> Bond {
 }
 
 fn bench_attribution_parallel_1_bond(c: &mut Criterion) {
-    let as_of_t0 = test_utils::date(2025, 1, 15);
-    let as_of_t1 = test_utils::date(2025, 1, 16);
+    let as_of_t0 = date(2025, 1, 15);
+    let as_of_t1 = date(2025, 1, 16);
     let (market_t0, market_t1) = markets_t0_t1(as_of_t0, as_of_t1);
     let config = FinstackConfig::default();
     let bond: Arc<dyn Instrument> = Arc::new(sample_bond("BENCH-BOND-1", 5));
@@ -92,8 +89,8 @@ fn bench_attribution_parallel_1_bond(c: &mut Criterion) {
 }
 
 fn bench_attribution_waterfall_1_bond(c: &mut Criterion) {
-    let as_of_t0 = test_utils::date(2025, 1, 15);
-    let as_of_t1 = test_utils::date(2025, 1, 16);
+    let as_of_t0 = date(2025, 1, 15);
+    let as_of_t1 = date(2025, 1, 16);
     let (market_t0, market_t1) = markets_t0_t1(as_of_t0, as_of_t1);
     let config = FinstackConfig::default();
     let bond: Arc<dyn Instrument> = Arc::new(sample_bond("BENCH-BOND-1", 5));
@@ -119,8 +116,8 @@ fn bench_attribution_waterfall_1_bond(c: &mut Criterion) {
 }
 
 fn bench_attribution_parallel_5_bonds(c: &mut Criterion) {
-    let as_of_t0 = test_utils::date(2025, 1, 15);
-    let as_of_t1 = test_utils::date(2025, 1, 16);
+    let as_of_t0 = date(2025, 1, 15);
+    let as_of_t1 = date(2025, 1, 16);
     let (market_t0, market_t1) = markets_t0_t1(as_of_t0, as_of_t1);
     let config = FinstackConfig::default();
     let bonds: Vec<Arc<dyn Instrument>> = (0..5)

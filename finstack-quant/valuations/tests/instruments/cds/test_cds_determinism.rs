@@ -4,7 +4,7 @@
 //! par spreads, CS01, and protection/premium leg calculations, and validates
 //! correctness against market standards.
 
-use crate::finstack_quant_test_utils as test_utils;
+use crate::test_support::credit as test_utils;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;

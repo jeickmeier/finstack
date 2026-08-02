@@ -131,10 +131,17 @@ impl Pricer for SimpleSwaptionBlackPricer {
 #[cfg(test)]
 mod tests {
     #[allow(dead_code, unused_imports)]
-    mod test_utils {
+    mod date_support {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/tests/support/test_utils.rs"
+            "/tests/support/date.rs"
+        ));
+    }
+    #[allow(dead_code, unused_imports)]
+    mod discount_forward_curve_support {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/discount_forward_curves.rs"
         ));
     }
 
@@ -142,7 +149,8 @@ mod tests {
     use crate::instruments::{
         Instrument, InstrumentPricingOverrides, PricingOptions, ScenarioPricingOverrides,
     };
-    use test_utils::{date, flat_discount_with_tenor};
+    use date_support::date;
+    use discount_forward_curve_support::flat_discount_with_tenor;
 
     #[test]
     fn discounting_registry_applies_swaption_scenario_once_for_pv_and_raw() {

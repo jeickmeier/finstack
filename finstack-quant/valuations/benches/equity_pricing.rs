@@ -47,14 +47,6 @@ use rust_decimal::Decimal;
 use std::hint::black_box;
 use time::Month;
 
-#[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
-
 fn base_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
 }

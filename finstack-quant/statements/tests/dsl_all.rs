@@ -11,3 +11,6 @@ mod capital_structure_dsl_tests;
 
 #[path = "dsl/proptest_dsl.rs"]
 mod proptest_dsl;
+
+#[path = "support/rates.rs"]
+mod rates_support;

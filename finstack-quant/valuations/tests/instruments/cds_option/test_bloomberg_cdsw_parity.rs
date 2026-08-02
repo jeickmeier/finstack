@@ -113,7 +113,7 @@ fn cdx_ig_46_curves(as_of: Date) -> MarketContext {
 fn build_spot_cds(_as_of: Date) -> CreditDefaultSwap {
     // Bloomberg CDSW underlying: 100bp running coupon, accrual start at
     // the prior IMM (2026-03-20). Built via the public test helper.
-    let mut cds = crate::finstack_quant_test_utils::cds_buy_protection(
+    let mut cds = crate::test_support::credit::cds_buy_protection(
         "CDX-NA-IG-46-SPOT",
         Money::new(100_000_000.0, Currency::USD),
         100.0, // 100 bp standard CDX coupon

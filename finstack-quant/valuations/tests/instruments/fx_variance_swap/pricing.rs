@@ -1,6 +1,8 @@
 //! Pricing tests for FX variance swaps.
 
-use crate::finstack_quant_test_utils::{date, flat_discount_with_tenor, flat_vol_surface};
+use crate::test_support::date::date;
+use crate::test_support::discount_forward_curves::flat_discount_with_tenor;
+use crate::test_support::volatility::flat_vol_surface;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{DayCount, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;

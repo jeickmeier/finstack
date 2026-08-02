@@ -433,7 +433,7 @@ fn build_full_feature_structured_credit() -> StructuredCredit {
     deal.credit_model.correlation_structure =
         Some(CorrelationStructure::sectored(0.28, 0.12, -0.18));
 
-    let swap = crate::finstack_quant_test_utils::usd_irs_swap(
+    let swap = crate::test_support::rates::usd_irs_swap(
         InstrumentId::new("HEDGE-SWAP"),
         Money::new(10_000_000.0, Currency::USD),
         0.015,

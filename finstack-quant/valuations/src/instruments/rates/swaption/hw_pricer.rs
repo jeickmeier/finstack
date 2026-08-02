@@ -370,15 +370,23 @@ fn hw1f_overrides_json(swaption: &Swaption) -> Option<serde_json::Value> {
 #[cfg(test)]
 mod tests {
     #[allow(dead_code, unused_imports)]
-    mod test_utils {
+    mod date_support {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/tests/support/test_utils.rs"
+            "/tests/support/date.rs"
+        ));
+    }
+    #[allow(dead_code, unused_imports)]
+    mod discount_forward_curve_support {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/discount_forward_curves.rs"
         ));
     }
 
     use super::*;
-    use test_utils::{date, flat_discount_with_tenor};
+    use date_support::date;
+    use discount_forward_curve_support::flat_discount_with_tenor;
 
     /// Pricing a European swaption via the HW pricer (which uses uncalibrated
     /// `HullWhiteParams::default()`) must still produce a finite PV. This locks

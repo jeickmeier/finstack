@@ -6,9 +6,9 @@
 //! 1. A PriceCurve (preferred)
 //! 2. Cost-of-carry model using spot price and discount curve (fallback)
 
-use crate::finstack_quant_test_utils::{
-    flat_discount_with_tenor, flat_price_curve, flat_vol_surface,
-};
+use crate::test_support::commodity_curves::flat_price_curve;
+use crate::test_support::discount_forward_curves::flat_discount_with_tenor;
+use crate::test_support::volatility::flat_vol_surface;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;

@@ -120,7 +120,7 @@ fn create_test_market(as_of: Date) -> MarketContext {
 }
 
 fn create_test_cds(as_of: Date, maturity: Date) -> CreditDefaultSwap {
-    crate::finstack_quant_test_utils::cds_buy_protection(
+    crate::test_support::credit::cds_buy_protection(
         "METRICS_TEST",
         Money::new(10_000_000.0, Currency::USD),
         100.0,
@@ -578,7 +578,7 @@ fn test_jump_to_default_negative_for_seller() {
     let as_of = date!(2024 - 01 - 01);
     let maturity = date!(2029 - 01 - 01);
 
-    let cds = crate::finstack_quant_test_utils::cds_sell_protection(
+    let cds = crate::test_support::credit::cds_sell_protection(
         "JTD_SELLER",
         Money::new(10_000_000.0, Currency::USD),
         100.0,
@@ -643,7 +643,7 @@ fn test_jump_to_default_uses_adjusted_coupon_schedule_for_accrued() {
     let maturity = date!(2031 - 12 - 20);
 
     let notional = Money::new(10_000_000.0, Currency::USD);
-    let mut cds = crate::finstack_quant_test_utils::cds_buy_protection(
+    let mut cds = crate::test_support::credit::cds_buy_protection(
         "JTD_SCHEDULE_ADJ",
         notional,
         100.0,
@@ -1047,7 +1047,7 @@ fn test_metrics_scale_with_notional() {
     let as_of = date!(2024 - 01 - 01);
     let maturity = date!(2029 - 01 - 01);
 
-    let cds_small = crate::finstack_quant_test_utils::cds_buy_protection(
+    let cds_small = crate::test_support::credit::cds_buy_protection(
         "SMALL",
         Money::new(1_000_000.0, Currency::USD),
         100.0,
@@ -1058,7 +1058,7 @@ fn test_metrics_scale_with_notional() {
     )
     .expect("CDS construction should succeed");
 
-    let cds_large = crate::finstack_quant_test_utils::cds_buy_protection(
+    let cds_large = crate::test_support::credit::cds_buy_protection(
         "LARGE",
         Money::new(10_000_000.0, Currency::USD),
         100.0,

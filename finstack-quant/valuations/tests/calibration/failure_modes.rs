@@ -1,7 +1,7 @@
 //! Failure mode coverage for plan-driven calibration preflight checks.
 
+use crate::calibration_support as cal_utils;
 use crate::common::fixtures;
-use crate::finstack_quant_test_utils::calibration as cal_utils;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::{MarketContext, MarketContextState};

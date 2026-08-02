@@ -21,7 +21,7 @@ use finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::{
 use finstack_quant_valuations::instruments::Attributes;
 use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
 
-use crate::finstack_quant_test_utils::calibration as cal_utils;
+use crate::calibration_support as cal_utils;
 use finstack_quant_core::HashMap;
 use finstack_quant_valuations::market::quotes::cds_tranche::CDSTrancheQuote;
 use finstack_quant_valuations::market::quotes::ids::QuoteId;

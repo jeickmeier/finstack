@@ -24,12 +24,11 @@ use finstack_quant_valuations::instruments::rates::irs::{InterestRateSwap, PayRe
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/credit.rs"]
+mod credit_support;
+#[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
+#[path = "../tests/support/rates.rs"]
+mod rates_support;
 use std::hint::black_box;
 use time::Month;
 
@@ -56,7 +55,7 @@ fn create_swap(tenor_years: i32) -> InterestRateSwap {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let end = Date::from_calendar_date(2025 + tenor_years, Month::January, 1).unwrap();
 
-    test_utils::usd_irs_swap(
+    rates_support::usd_irs_swap(
         InstrumentId::new(format!("IRS-{}Y", tenor_years)),
         Money::new(10_000_000.0, Currency::USD),
         0.04, // 4% fixed rate
@@ -71,7 +70,7 @@ fn create_cds(tenor_years: i32) -> CreditDefaultSwap {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let maturity = Date::from_calendar_date(2025 + tenor_years, Month::January, 1).unwrap();
 
-    test_utils::cds_buy_protection(
+    credit_support::cds_buy_protection(
         format!("CDS-{}Y", tenor_years),
         Money::new(10_000_000.0, Currency::USD),
         200.0, // 200 bp spread

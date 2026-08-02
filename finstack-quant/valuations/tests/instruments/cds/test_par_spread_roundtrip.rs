@@ -10,7 +10,7 @@
 //!
 //! Market Standards Review (Priority 4, Week 4)
 
-use crate::finstack_quant_test_utils::calibration::execute_step;
+use crate::test_support::calibration::execute_step;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -90,7 +90,7 @@ fn test_cds_par_spread_roundtrip_1y() {
 
     // Create CDS at the quoted spread
     // Hazard curve ID is "{entity}-{seniority}" per HazardCurveCalibrator
-    let cds = crate::finstack_quant_test_utils::cds_buy_protection(
+    let cds = crate::test_support::credit::cds_buy_protection(
         "ROUNDTRIP-CDS",
         Money::new(10_000_000.0, Currency::USD),
         par_spread_bp,
@@ -191,7 +191,7 @@ fn test_cds_par_spread_roundtrip_multi_tenor() {
 
     for (maturity, par_spread_bp) in &tenors_and_spreads {
         // Hazard curve ID is "{entity}-{seniority}" per HazardCurveCalibrator
-        let cds = crate::finstack_quant_test_utils::cds_buy_protection(
+        let cds = crate::test_support::credit::cds_buy_protection(
             format!("ROUNDTRIP-CDS-{}", maturity),
             Money::new(10_000_000.0, Currency::USD),
             *par_spread_bp,
@@ -271,7 +271,7 @@ fn test_cds_par_spread_calculation_consistency() {
 
     // Create CDS with arbitrary spread
     // Hazard curve ID is "{entity}-{seniority}" per HazardCurveCalibrator
-    let cds_test = crate::finstack_quant_test_utils::cds_buy_protection(
+    let cds_test = crate::test_support::credit::cds_buy_protection(
         "TEST-CDS",
         Money::new(10_000_000.0, Currency::USD),
         150.0, // Different spread (150bp)

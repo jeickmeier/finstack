@@ -633,18 +633,26 @@ pub(super) fn cms_embedded_option_value(
 #[cfg(test)]
 mod tests {
     #[allow(dead_code, unused_imports)]
-    mod test_utils {
+    mod date_support {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/tests/support/test_utils.rs"
+            "/tests/support/date.rs"
+        ));
+    }
+    #[allow(dead_code, unused_imports)]
+    mod discount_forward_curve_support {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/discount_forward_curves.rs"
         ));
     }
 
     use super::*;
     use crate::instruments::common_impl::parameters::IRSConvention;
+    use date_support::date;
+    use discount_forward_curve_support::{flat_discount_with_tenor, flat_forward_with_tenor};
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::types::{CurveId, InstrumentId};
-    use test_utils::{date, flat_discount_with_tenor, flat_forward_with_tenor};
 
     fn floating_leg_swap() -> CmsSwap {
         let start = date(2025, 1, 1);

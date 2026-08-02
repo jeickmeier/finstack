@@ -19,12 +19,8 @@ use finstack_quant_valuations::instruments::credit_derivatives::cds::CreditDefau
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/credit.rs"]
+mod credit_support;
 use std::hint::black_box;
 use time::Month;
 
@@ -32,7 +28,7 @@ fn create_cds(tenor_years: i32) -> CreditDefaultSwap {
     let start = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let maturity = Date::from_calendar_date(2025 + tenor_years, Month::January, 1).unwrap();
 
-    test_utils::cds_buy_protection(
+    credit_support::cds_buy_protection(
         format!("CDS-{}Y", tenor_years),
         Money::new(10_000_000.0, Currency::USD),
         100.0, // 100bp spread

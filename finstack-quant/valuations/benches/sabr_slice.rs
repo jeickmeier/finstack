@@ -14,14 +14,10 @@ use finstack_quant_valuations::market::quotes::ids::QuoteId;
 use finstack_quant_valuations::market::quotes::market_quote::MarketQuote;
 use finstack_quant_valuations::market::quotes::vol::VolQuote;
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/calibration.rs"]
+mod calibration_support;
+use calibration_support::execute_step;
 use std::hint::black_box;
-use test_utils::calibration::execute_step;
 use time::Month;
 
 fn bench_sabr_slice(c: &mut Criterion) {

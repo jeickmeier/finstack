@@ -30,12 +30,8 @@ use std::hint::black_box;
 use time::Month;
 
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/date.rs"]
+mod date_support;
 
 fn base_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
@@ -224,16 +220,16 @@ fn term_repo() -> Repo {
         Money::new(1_000_000.0, Currency::USD),
         collateral,
         0.05,
-        test_utils::date(2025, 1, 15),
-        test_utils::date(2025, 4, 15),
+        date_support::date(2025, 1, 15),
+        date_support::date(2025, 4, 15),
         "USD-OIS",
     )
     .unwrap()
 }
 
 fn ir_future() -> InterestRateFuture {
-    let start = test_utils::date(2025, 7, 1);
-    let end = test_utils::date(2025, 10, 1);
+    let start = date_support::date(2025, 7, 1);
+    let end = date_support::date(2025, 10, 1);
     InterestRateFuture {
         id: InstrumentId::new("IRF-BENCH"),
         notional: Money::new(1_000_000.0, Currency::USD),
@@ -262,7 +258,7 @@ fn bench_deposit_pv(c: &mut Criterion) {
     let mut group = c.benchmark_group("deposit_pv");
     let market = create_rates_market();
     let as_of = base_date();
-    let maturities = [("3M", test_utils::date(2025, 4, 1))];
+    let maturities = [("3M", date_support::date(2025, 4, 1))];
     for (label, mat) in maturities {
         let dep = deposit(&format!("DEP-{label}"), mat);
         group.bench_with_input(BenchmarkId::from_parameter(label), &label, |b, _| {
@@ -278,8 +274,8 @@ fn bench_fra_pv(c: &mut Criterion) {
     let as_of = base_date();
     let cases = [(
         "6x9",
-        test_utils::date(2025, 7, 1),
-        test_utils::date(2025, 10, 1),
+        date_support::date(2025, 7, 1),
+        date_support::date(2025, 10, 1),
     )];
     for (label, start, end) in cases {
         let f = fra(&format!("FRA-{label}"), start, end);
@@ -294,7 +290,7 @@ fn bench_basis_swap_pv(c: &mut Criterion) {
     let mut group = c.benchmark_group("basis_swap_pv");
     let market = create_rates_market();
     let as_of = base_date();
-    let cases = [("5Y", test_utils::date(2030, 1, 1))];
+    let cases = [("5Y", date_support::date(2030, 1, 1))];
     for (label, end) in cases {
         let swap = basis_swap(&format!("BASIS-{label}"), end);
         group.bench_with_input(BenchmarkId::from_parameter(label), &label, |b, _| {
@@ -309,7 +305,7 @@ fn bench_cap_floor_pv(c: &mut Criterion) {
     let market = create_rates_market();
     let as_of = base_date();
     {
-        let (label, mat) = ("5Y", test_utils::date(2030, 1, 1));
+        let (label, mat) = ("5Y", date_support::date(2030, 1, 1));
         let cap = interest_rate_cap(&format!("CAP-{label}"), mat);
         group.bench_with_input(BenchmarkId::from_parameter(label), &label, |b, _| {
             b.iter(|| cap.value(black_box(&market), black_box(as_of)));
@@ -322,7 +318,7 @@ fn bench_cap_floor_greeks(c: &mut Criterion) {
     let mut group = c.benchmark_group("cap_floor_greeks");
     let market = create_rates_market();
     let as_of = base_date();
-    let cap = interest_rate_cap("CAP-5Y-GREEKS", test_utils::date(2030, 1, 1));
+    let cap = interest_rate_cap("CAP-5Y-GREEKS", date_support::date(2030, 1, 1));
     let metrics = [
         MetricId::Delta,
         MetricId::Gamma,
@@ -345,7 +341,7 @@ fn bench_cap_floor_greeks(c: &mut Criterion) {
 fn bench_repo_pv(c: &mut Criterion) {
     let mut group = c.benchmark_group("repo_pv");
     let market = create_rates_market();
-    let as_of = test_utils::date(2025, 1, 10);
+    let as_of = date_support::date(2025, 1, 10);
     let repo = term_repo();
     group.bench_function("term_repo", |b| {
         b.iter(|| repo.value(black_box(&market), black_box(as_of)));

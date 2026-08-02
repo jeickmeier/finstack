@@ -28,12 +28,8 @@ use std::hint::black_box;
 use time::Month;
 
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/volatility.rs"]
+mod volatility_support;
 
 fn as_of() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
@@ -52,7 +48,7 @@ fn create_mc_market(as_of: Date, spot: f64, vol: f64, rate: f64) -> MarketContex
         .build()
         .unwrap();
 
-    let vol_surface = test_utils::flat_vol_surface(
+    let vol_surface = volatility_support::flat_vol_surface(
         "SPOT_VOL",
         &[0.5_f64, 1.0, 2.0],
         &[80.0_f64, 100.0, 120.0],

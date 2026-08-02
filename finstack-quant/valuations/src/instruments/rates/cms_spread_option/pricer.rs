@@ -506,19 +506,27 @@ fn clean_volatility_or_atm(vol_provider: &dyn VolProvider, leg: &CmsSpreadLeg, s
 #[cfg(test)]
 mod tests {
     #[allow(dead_code, unused_imports)]
-    mod test_utils {
+    mod date_support {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/tests/support/test_utils.rs"
+            "/tests/support/date.rs"
+        ));
+    }
+    #[allow(dead_code, unused_imports)]
+    mod discount_forward_curve_support {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/discount_forward_curves.rs"
         ));
     }
 
     use super::*;
+    use date_support::date;
+    use discount_forward_curve_support::flat_discount_with_tenor;
     use finstack_quant_core::market_data::fixings::cms_fixing_series_id;
     use finstack_quant_core::market_data::scalars::ScalarTimeSeries;
     use finstack_quant_core::market_data::surfaces::VolSurface;
     use finstack_quant_core::types::CurveId;
-    use test_utils::{date, flat_discount_with_tenor};
 
     fn flat_vol_surface(id: &str, vol: f64) -> VolSurface {
         let strikes = vec![0.005, 0.02, 0.04, 0.08];

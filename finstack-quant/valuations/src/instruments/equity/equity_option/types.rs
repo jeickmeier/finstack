@@ -732,10 +732,31 @@ crate::impl_empty_cashflow_provider!(
 #[cfg(test)]
 mod tests {
     #[allow(dead_code, unused_imports)]
-    mod test_utils {
+    mod date_support {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/tests/support/test_utils.rs"
+            "/tests/support/date.rs"
+        ));
+    }
+    #[allow(dead_code, unused_imports)]
+    mod discount_forward_curve_support {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/discount_forward_curves.rs"
+        ));
+    }
+    #[allow(dead_code, unused_imports)]
+    mod option_support {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/equity_fx_options.rs"
+        ));
+    }
+    #[allow(dead_code, unused_imports)]
+    mod volatility_support {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/volatility.rs"
         ));
     }
 
@@ -774,7 +795,9 @@ mod tests {
         assert_eq!(volatility.reference_strike, Some(option.strike));
         assert!(deps.series_ids.is_empty());
     }
-    use test_utils::{date, flat_discount_with_tenor, flat_vol_surface};
+    use date_support::date;
+    use discount_forward_curve_support::flat_discount_with_tenor;
+    use volatility_support::flat_vol_surface;
 
     const DISC_ID: &str = "USD-OIS";
     const SPOT_ID: &str = "SPX-SPOT";
@@ -828,21 +851,22 @@ mod tests {
     #[test]
     fn convenience_constructors_apply_standard_conventions() {
         let expiry = date(2025, 12, 31);
-        let call = test_utils::equity_option_european_call("SPX-CALL", "SPX", 100.0, expiry, 100.0)
-            .unwrap();
+        let call =
+            option_support::equity_option_european_call("SPX-CALL", "SPX", 100.0, expiry, 100.0)
+                .unwrap();
         assert_eq!(call.exercise_style, ExerciseStyle::European);
         assert_eq!(call.option_type, OptionType::Call);
         assert_eq!(call.discount_curve_id, CurveId::new(DISC_ID));
         assert_eq!(call.spot_id.as_str(), "EQUITY-SPOT");
         assert_eq!(call.vol_surface_id, CurveId::new("EQUITY-VOL"));
 
-        let put =
-            test_utils::equity_option_european_put("SPX-PUT", "SPX", 90.0, expiry, 50.0).unwrap();
+        let put = option_support::equity_option_european_put("SPX-PUT", "SPX", 90.0, expiry, 50.0)
+            .unwrap();
         assert_eq!(put.option_type, OptionType::Put);
         assert_eq!(put.notional.amount(), 50.0);
 
         let american =
-            test_utils::equity_option_american_call("SPX-AMER", "SPX", 105.0, expiry, 75.0)
+            option_support::equity_option_american_call("SPX-AMER", "SPX", 105.0, expiry, 75.0)
                 .unwrap();
         assert_eq!(american.exercise_style, ExerciseStyle::American);
         assert_eq!(american.notional.amount(), 75.0);

@@ -10,7 +10,7 @@
 //! 2. CS01 ≈ risky_annuity × 1bp
 //! 3. Buy protection + sell protection = 0 (at same spread)
 
-use crate::finstack_quant_test_utils as test_utils;
+use crate::credit_support;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
@@ -72,7 +72,7 @@ fn create_5y_cds_buy(as_of: Date) -> finstack_quant_valuations::instruments::Cre
     let maturity = Date::from_calendar_date(as_of.year() + 5, as_of.month(), as_of.day())
         .expect("valid maturity");
 
-    test_utils::cds_buy_protection(
+    credit_support::cds_buy_protection(
         "CDS-QLPARITY-5Y-BUY",
         Money::new(NOTIONAL, Currency::USD),
         SPREAD_BP,
@@ -90,7 +90,7 @@ fn create_5y_cds_sell(as_of: Date) -> finstack_quant_valuations::instruments::Cr
     let maturity = Date::from_calendar_date(as_of.year() + 5, as_of.month(), as_of.day())
         .expect("valid maturity");
 
-    test_utils::cds_sell_protection(
+    credit_support::cds_sell_protection(
         "CDS-QLPARITY-5Y-SELL",
         Money::new(NOTIONAL, Currency::USD),
         SPREAD_BP,

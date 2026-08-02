@@ -33,12 +33,11 @@ use std::hint::black_box;
 use time::Month;
 
 #[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
-mod test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/support/test_utils.rs"
-    ));
-}
+#[path = "../tests/support/discount_forward_curves.rs"]
+mod discount_forward_curve_support;
+#[allow(dead_code, unused_imports, clippy::expect_used, clippy::unwrap_used)]
+#[path = "../tests/support/volatility.rs"]
+mod volatility_support;
 
 fn base_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
@@ -91,10 +90,10 @@ fn bench_inflation_index() -> InflationIndex {
 /// Nominal discount (USD-OIS), CPI curve, CPI index, and inflation vol surface.
 fn create_inflation_market() -> MarketContext {
     let as_of = base_date();
-    let disc_ois = test_utils::flat_discount("USD-OIS", as_of, 0.04);
+    let disc_ois = discount_forward_curve_support::flat_discount("USD-OIS", as_of, 0.04);
     let infl_curve = bench_flat_inflation_curve("US-CPI-U", as_of, 300.0, 0.02);
     let index = bench_inflation_index();
-    let vol = test_utils::flat_vol_surface(
+    let vol = volatility_support::flat_vol_surface(
         "US-CPI-VOL",
         &[0.25, 0.5, 1.0, 2.0, 5.0, 10.0],
         &[0.0, 0.01, 0.02, 0.05],

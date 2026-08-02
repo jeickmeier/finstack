@@ -8,7 +8,7 @@
 //! - Hull, "Options, Futures, and Other Derivatives" (Credit Risk chapter)
 //! - O'Kane, "Modelling Single-name and Multi-name Credit Derivatives"
 
-use crate::finstack_quant_test_utils as test_utils;
+use crate::test_support::credit as test_utils;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;

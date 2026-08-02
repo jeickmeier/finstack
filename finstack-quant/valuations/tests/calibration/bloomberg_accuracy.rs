@@ -3,7 +3,7 @@
 //! Validates calibrated curves against Bloomberg reference data to ensure
 //! the calibration engine produces market-standard results.
 
-use crate::finstack_quant_test_utils::calibration::execute_step;
+use crate::calibration_support::execute_step;
 use finstack_quant_core::config::FinstackConfig;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};

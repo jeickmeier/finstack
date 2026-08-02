@@ -771,10 +771,10 @@ mod tests {
     use rust_decimal::Decimal;
 
     #[allow(dead_code, unused_imports)]
-    mod test_utils {
+    mod credit_support {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/tests/support/test_utils.rs"
+            "/tests/support/credit.rs"
         ));
     }
 
@@ -1128,7 +1128,7 @@ mod tests {
 
     #[test]
     fn test_cds_roundtrip() {
-        let cds = test_utils::cds_buy_protection(
+        let cds = credit_support::cds_buy_protection(
             "CDS-TEST",
             Money::new(10_000_000.0, Currency::USD),
             100.0,

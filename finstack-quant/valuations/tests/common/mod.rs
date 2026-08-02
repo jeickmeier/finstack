@@ -37,11 +37,9 @@
 pub mod assertions;
 pub mod builders;
 pub mod fixtures;
-pub mod test_utils;
 pub mod tolerances;
 
 pub use assertions::*;
 pub use builders::*;
 pub use fixtures::*;
-pub use test_utils::*;
 pub use tolerances::*;

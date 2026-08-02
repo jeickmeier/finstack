@@ -217,25 +217,32 @@ fn basket_with_price_reference(
 #[cfg(test)]
 mod tests {
     #[allow(dead_code, unused_imports)]
-    mod test_utils {
+    mod date_support {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/tests/support/test_utils.rs"
+            "/tests/support/date.rs"
+        ));
+    }
+    #[allow(dead_code, unused_imports)]
+    mod discount_forward_curve_support {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/discount_forward_curves.rs"
         ));
     }
 
     use super::*;
     use crate::metrics::MetricId;
+    use discount_forward_curve_support::flat_discount;
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::scalars::MarketScalar;
     use finstack_quant_core::money::Money;
     use std::sync::Arc;
-    use test_utils::flat_discount;
 
     #[test]
     fn test_constituent_delta_mixed_references() {
-        let as_of = test_utils::date(2024, 1, 2);
+        let as_of = date_support::date(2024, 1, 2);
         let market = MarketContext::new()
             .insert(flat_discount("USD-OIS", as_of, 0.02))
             .insert_price(

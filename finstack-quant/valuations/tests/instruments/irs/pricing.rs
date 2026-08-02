@@ -9,7 +9,7 @@
 //! - Edge cases
 
 use crate::common::test_helpers::{dates, usd_swap_market, usd_swap_market_split};
-use crate::finstack_quant_test_utils as test_utils;
+use crate::test_support::rates as test_utils;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, DayCount, StubKind, Tenor};
 use finstack_quant_core::money::Money;

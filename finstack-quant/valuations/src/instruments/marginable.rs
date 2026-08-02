@@ -650,10 +650,17 @@ impl Marginable for Repo {
 #[cfg(test)]
 mod tests {
     #[allow(dead_code, unused_imports)]
-    mod test_utils {
+    mod rates_support {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/tests/support/test_utils.rs"
+            "/tests/support/rates.rs"
+        ));
+    }
+    #[allow(dead_code, unused_imports)]
+    mod discount_forward_curve_support {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/support/discount_forward_curves.rs"
         ));
     }
 
@@ -670,7 +677,7 @@ mod tests {
         let start = test_date();
         let end = Date::from_calendar_date(2029, Month::June, 15).expect("valid date");
 
-        let swap = test_utils::usd_irs_swap(
+        let swap = rates_support::usd_irs_swap(
             "TEST_IRS",
             Money::new(100_000_000.0, Currency::USD),
             0.035,
@@ -700,7 +707,7 @@ mod tests {
         let start = test_date();
         let end = Date::from_calendar_date(2034, Month::June, 15).expect("valid date");
 
-        let swap = test_utils::usd_irs_swap(
+        let swap = rates_support::usd_irs_swap(
             "TEST_IRS_10Y",
             Money::new(100_000_000.0, Currency::USD),
             0.035,
@@ -735,7 +742,7 @@ mod tests {
         let end = Date::from_calendar_date(2034, Month::June, 15).expect("valid date");
         let notional = Money::new(100_000_000.0, Currency::USD);
 
-        let swap = test_utils::usd_irs_swap(
+        let swap = rates_support::usd_irs_swap(
             "TEST_IRS_REPRICED",
             notional,
             0.035,
@@ -747,10 +754,10 @@ mod tests {
 
         // Real market: USD-OIS discount + USD-SOFR-3M forward, both flat at 3%.
         let market = MarketContext::new()
-            .insert(test_utils::flat_discount_with_tenor(
+            .insert(discount_forward_curve_support::flat_discount_with_tenor(
                 "USD-OIS", start, 0.03, 30.0,
             ))
-            .insert(test_utils::flat_forward_with_tenor(
+            .insert(discount_forward_curve_support::flat_forward_with_tenor(
                 "USD-SOFR-3M",
                 start,
                 0.03,
@@ -798,7 +805,7 @@ mod tests {
         let start = test_date();
         let end = Date::from_calendar_date(2029, Month::June, 15).expect("valid date");
 
-        let mut swap = test_utils::usd_irs_swap(
+        let mut swap = rates_support::usd_irs_swap(
             "TEST_IRS",
             Money::new(100_000_000.0, Currency::USD),
             0.035,

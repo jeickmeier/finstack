@@ -14,17 +14,6 @@
 //! cargo test --test attribution
 //! ```
 
-#[path = "../../valuations/tests/common/mod.rs"]
-mod common;
-
-#[allow(clippy::expect_used, clippy::unwrap_used, dead_code, unused_imports)]
-mod finstack_quant_test_utils {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../valuations/tests/support/test_utils.rs"
-    ));
-}
-
 #[allow(dead_code)]
 #[path = "support/attribution_test_utils.rs"]
 mod attribution_support;

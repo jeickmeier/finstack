@@ -1,6 +1,6 @@
 //! Pricing tests for real estate assets.
 
-use crate::finstack_quant_test_utils::date;
+use crate::test_support::date::date;
 use finstack_quant_cashflows::builder::specs::CouponType;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, StubKind, Tenor};

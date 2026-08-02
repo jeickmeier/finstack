@@ -474,7 +474,7 @@ mod cds_invariants {
             // recovery-consistency guard (same R in both legs) is satisfied.
             let (disc, hazard) = build_test_curves(0.04, hazard_rate, recovery);
 
-            let cds = crate::finstack_quant_test_utils::cds_buy_protection(
+            let cds = crate::credit_support::cds_buy_protection(
                 "PROP_PAR_TEST",
                 Money::new(10_000_000.0, Currency::USD),
                 spread_bp,
@@ -511,7 +511,7 @@ mod cds_invariants {
             let as_of = date!(2025 - 01 - 01);
             let maturity = as_of.add_months(60);
 
-            let cds_low_recovery = crate::finstack_quant_test_utils::cds_buy_protection(
+            let cds_low_recovery = crate::credit_support::cds_buy_protection(
                 "PROP_RECOVERY_LOW",
                 Money::new(10_000_000.0, Currency::USD),
                 100.0,
@@ -616,7 +616,7 @@ mod cs01_invariants {
             let as_of = date!(2025 - 01 - 01);
             let maturity = as_of.add_months(60);
 
-            let cds = crate::finstack_quant_test_utils::cds_buy_protection(
+            let cds = crate::credit_support::cds_buy_protection(
                 "PROP_CS01_TEST",
                 Money::new(10_000_000.0, Currency::USD),
                 spread_bp,
@@ -749,7 +749,7 @@ mod cs_gamma_consistency {
         let as_of = date!(2025 - 01 - 01);
         let maturity = as_of.add_months(60); // 5Y CDS
 
-        let cds = crate::finstack_quant_test_utils::cds_buy_protection(
+        let cds = crate::credit_support::cds_buy_protection(
             "CS_GAMMA_CONSISTENCY",
             Money::new(10_000_000.0, Currency::USD),
             200.0,
@@ -813,7 +813,7 @@ mod cs_gamma_consistency {
         let as_of = date!(2025 - 01 - 01);
         let maturity = as_of.add_months(60); // 5Y CDS
 
-        let cds = crate::finstack_quant_test_utils::cds_buy_protection(
+        let cds = crate::credit_support::cds_buy_protection(
             "CS_GAMMA_FALLBACK",
             Money::new(10_000_000.0, Currency::USD),
             200.0,
@@ -923,7 +923,7 @@ mod bucketed_cs01_invariants {
         let as_of = date!(2025 - 01 - 01);
         let maturity = as_of.add_months(60); // 5Y CDS
 
-        let cds = crate::finstack_quant_test_utils::cds_buy_protection(
+        let cds = crate::credit_support::cds_buy_protection(
             "CS01_BUCKET_TEST",
             Money::new(10_000_000.0, Currency::USD),
             100.0,
