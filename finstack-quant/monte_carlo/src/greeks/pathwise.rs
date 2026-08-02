@@ -202,7 +202,7 @@ mod tests {
         let terminal_spots = vec![110.0, 105.0, 115.0];
         let wiener_increments = vec![0.5, 0.3, 0.7];
 
-        let (vega, _) = pathwise_vega(
+        let (vega, stderr) = pathwise_vega(
             &terminal_spots,
             100.0, // initial_spot
             100.0, // strike
@@ -213,7 +213,8 @@ mod tests {
             true,
         );
 
-        assert!(vega.is_finite());
+        assert!(vega.is_finite() && vega > 0.0);
+        assert!(stderr.is_finite() && stderr >= 0.0);
     }
 
     /// Put-call parity: Black-Scholes vega is identical for calls and puts
@@ -294,16 +295,20 @@ mod tests {
             put_vega > 0.0,
             "put vega should be positive (historical sign bug), got {put_vega}"
         );
-        // 4σ band on each individual estimator: BS ≈ 0.3752 and MC stderr at
-        // 20k paths is ~0.003–0.005, so a tolerance of 0.05 comfortably
-        // clears natural noise while still catching a sign flip.
+        assert!(call_se.is_finite() && call_se >= 0.0);
+        assert!(put_se.is_finite() && put_se >= 0.0);
+        // Each estimator is compared with its own reported uncertainty. The
+        // call and put samples share paths and have disjoint supports, so their
+        // standard errors are not combined as though they were independent.
+        let call_tolerance = 5.0 * call_se + 1e-10 * bs_vega.abs().max(1.0);
+        let put_tolerance = 5.0 * put_se + 1e-10 * bs_vega.abs().max(1.0);
         assert!(
-            (call_vega - bs_vega).abs() < 0.05,
-            "call vega {call_vega} too far from BS {bs_vega} (se={call_se})"
+            (call_vega - bs_vega).abs() <= call_tolerance,
+            "call vega {call_vega} too far from BS {bs_vega} (se={call_se}, tolerance={call_tolerance})"
         );
         assert!(
-            (put_vega - bs_vega).abs() < 0.05,
-            "put vega {put_vega} too far from BS {bs_vega} (se={put_se})"
+            (put_vega - bs_vega).abs() <= put_tolerance,
+            "put vega {put_vega} too far from BS {bs_vega} (se={put_se}, tolerance={put_tolerance})"
         );
     }
 }

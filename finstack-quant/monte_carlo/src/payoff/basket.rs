@@ -596,11 +596,16 @@ mod tests {
             0.0,
         );
 
+        assert!(result.stderr.is_finite() && result.stderr >= 0.0);
+        assert!(result.mean.amount().is_finite() && result.mean.amount() > 0.0);
+        let tolerance = 5.0 * result.stderr + 1e-10 * expected.abs().max(1.0);
         assert!(
-            (result.mean.amount() - expected).abs() < 0.35,
-            "MC exchange option price {} should stay close to Margrabe benchmark {}",
+            (result.mean.amount() - expected).abs() <= tolerance,
+            "MC exchange option price {} should stay close to Margrabe benchmark {} (stderr={}, tolerance={})",
             result.mean.amount(),
-            expected
+            expected,
+            result.stderr,
+            tolerance
         );
     }
 
