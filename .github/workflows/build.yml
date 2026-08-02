@@ -129,6 +129,79 @@ jobs:
         run: mise run rust-test
 
   # ============================================
+  # Rust MSRV — compile production targets with the declared minimum toolchain
+  # ============================================
+  rust-msrv:
+    name: Rust MSRV (1.90)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: prime-cache
+
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_INCREMENTAL: 1
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C debuginfo=0 -C strip=symbols -C linker=cc -C link-arg=-fuse-ld=bfd"
+      PYO3_PYTHON: python3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up swap space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 10
+
+      - name: Provision current toolchain (mise)
+        uses: jdx/mise-action@v2
+        with:
+          cache: true
+          cache_save: false
+
+      - name: Set up Python 3.12 for PyO3
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Rust 1.90
+        run: rustup toolchain install 1.90 --profile minimal
+
+      - name: Check declared MSRV
+        run: mise run rust-msrv
+
+  # ============================================
+  # Rust release build — current toolchain production-build ownership
+  # ============================================
+  rust-release-build:
+    name: Rust release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: prime-cache
+
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_INCREMENTAL: 1
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C debuginfo=0 -C strip=symbols -C linker=cc -C link-arg=-fuse-ld=bfd"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up swap space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 10
+
+      - name: Provision current toolchain (mise)
+        uses: jdx/mise-action@v2
+        with:
+          cache: true
+          cache_save: false
+
+      - name: Build production Rust artifacts
+        run: mise run rust-build-prod
+
+  # ============================================
   # Documentation — strict rustdoc and public input-doc contract
   # ============================================
   docs:

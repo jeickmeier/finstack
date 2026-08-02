@@ -124,6 +124,10 @@ description = "Release build without debug info"
 env = { RUSTFLAGS = "-C debuginfo=0" }
 run = "cargo build --workspace --exclude finstack-quant-py --exclude finstack-quant-wasm --release"
 
+[tasks.rust-msrv]
+description = "Check all production Rust targets with the declared Rust 1.90 MSRV"
+run = "cargo +1.90 check --locked --workspace --all-features --lib --bins --examples"
+
 [tasks.rust-test]
 # `--exclude finstack-quant-py` is required, not an oversight: building that crate's
 # test target links against libpython (e.g. `ld: library 'python3.9' not found`), which
