@@ -212,7 +212,6 @@ impl PyXvaConfig {
 )]
 #[derive(Clone)]
 pub struct PyExposureDiagnostics {
-    #[allow(dead_code)]
     pub(super) inner: xva::ExposureDiagnostics,
 }
 
@@ -352,7 +351,6 @@ impl PyExposureProfile {
 )]
 #[derive(Clone)]
 pub struct PyXvaResult {
-    #[allow(dead_code)]
     pub(super) inner: xva::XvaResult,
 }
 
@@ -485,7 +483,6 @@ impl PyXvaResult {
 )]
 #[derive(Clone)]
 pub struct PyCsaTerms {
-    #[allow(dead_code)]
     pub(super) inner: xva::CsaTerms,
 }
 
@@ -551,7 +548,6 @@ impl PyCsaTerms {
 )]
 #[derive(Clone)]
 pub struct PyXvaNettingSet {
-    #[allow(dead_code)]
     pub(super) inner: xva::XvaNettingSet,
 }
 

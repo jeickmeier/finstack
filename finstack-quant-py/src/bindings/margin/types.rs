@@ -161,7 +161,6 @@ impl PyMarginTenor {
 )]
 #[derive(Clone, PartialEq)]
 pub struct PyMarginCallType {
-    #[allow(dead_code)]
     pub(super) inner: fm::MarginCallType,
 }
 
@@ -526,7 +525,6 @@ impl PyCsaSpec {
 )]
 #[derive(Clone)]
 pub struct PyEligibleCollateralSchedule {
-    #[allow(dead_code)]
     pub(super) inner: fm::EligibleCollateralSchedule,
 }
 

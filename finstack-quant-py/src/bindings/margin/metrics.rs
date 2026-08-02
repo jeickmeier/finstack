@@ -14,7 +14,6 @@ use pyo3::prelude::*;
 )]
 #[derive(Clone)]
 pub struct PyMarginUtilization {
-    #[allow(dead_code)]
     inner: finstack_quant_margin::metrics::MarginUtilization,
 }
 
@@ -83,7 +82,6 @@ impl PyMarginUtilization {
 )]
 #[derive(Clone)]
 pub struct PyExcessCollateral {
-    #[allow(dead_code)]
     inner: finstack_quant_margin::metrics::ExcessCollateral,
 }
 
@@ -157,7 +155,6 @@ impl PyExcessCollateral {
 )]
 #[derive(Clone)]
 pub struct PyMarginFundingCost {
-    #[allow(dead_code)]
     inner: finstack_quant_margin::metrics::MarginFundingCost,
 }
 
@@ -240,7 +237,6 @@ impl PyMarginFundingCost {
 )]
 #[derive(Clone)]
 pub struct PyHaircut01 {
-    #[allow(dead_code)]
     inner: finstack_quant_margin::metrics::Haircut01,
 }
 
