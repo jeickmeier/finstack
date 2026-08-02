@@ -2,10 +2,11 @@
 
 use finstack_quant_core::dates::PeriodId;
 use indexmap::{IndexMap, IndexSet};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Configuration for normalizing a financial metric (e.g., EBITDA).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct NormalizationConfig {
     /// The target node to normalize (e.g., "EBITDA")
@@ -17,7 +18,7 @@ pub struct NormalizationConfig {
 }
 
 /// Specification for a single adjustment (add-back or deduction).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Adjustment {
     /// Unique identifier for this adjustment
@@ -39,12 +40,13 @@ pub struct Adjustment {
 }
 
 /// Defines how an adjustment value is derived.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AdjustmentValue {
     /// Fixed amount per period
     Fixed {
         /// Map of period_id -> amount
+        #[schemars(with = "IndexMap<String, f64>")]
         amounts: IndexMap<PeriodId, f64>,
     },
     /// Percentage of a reference node's value
@@ -58,7 +60,9 @@ pub enum AdjustmentValue {
 
 /// How a self-referential cap base (where `base_node == target_node`) is
 /// resolved each period.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum CapBaseMode {
     /// Cap against the **reported** (pre-adjustment) value of the base node.
@@ -75,7 +79,7 @@ pub enum CapBaseMode {
 }
 
 /// Defines a cap on an adjustment.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AdjustmentCap {
     /// The base node to calculate the cap against (e.g., "EBITDA")

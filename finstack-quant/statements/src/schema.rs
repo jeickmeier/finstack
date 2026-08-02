@@ -82,3 +82,18 @@ pub fn statement_result_schema() -> Result<&'static Value> {
         "statement_result.schema.json",
     )
 }
+
+/// Return the checked-in schema for
+/// [`crate::adjustments::types::NormalizationConfig`].
+///
+/// # Errors
+///
+/// Returns [`Error::Serde`] if the embedded schema JSON is malformed.
+pub fn normalization_config_schema() -> Result<&'static Value> {
+    static SCHEMA: OnceLock<std::result::Result<Value, String>> = OnceLock::new();
+    parse_schema(
+        &SCHEMA,
+        include_str!("../schemas/statements/1/normalization_config.schema.json"),
+        "normalization_config.schema.json",
+    )
+}
