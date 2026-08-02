@@ -37,12 +37,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "ipykernel>=7.2.0",
-    "matplotlib>=3.10.7",
     "numpy>=2.3.5",
     "pandas>=2.3.3",
-    "pydantic>=2.12.5",
-    "python-dotenv>=1.0.0",
 ]
 
 [project.urls]
@@ -111,7 +107,6 @@ filterwarnings = [
     # Keep third-party deprecations quiet for stable output; surface ours normally
     "ignore::DeprecationWarning:pandas.*",
     "ignore::DeprecationWarning:numpy.*",
-    "ignore::DeprecationWarning:matplotlib.*",
     "ignore::DeprecationWarning:dateutil.*",
     "ignore::DeprecationWarning:pytest.*",
 ]
@@ -299,10 +294,6 @@ exclude = [
 allowed-unresolved-imports = [
     "pandas.**",
     "numpy.**",
-    "requests.**",
-    "asteval.**",
-    "pydantic.**",
-    "matplotlib.**",
     "finstack_quant.finstack_quant",
     "finstack_quant.finstack_quant.**",
 ]
