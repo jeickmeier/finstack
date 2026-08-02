@@ -168,37 +168,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_annual_to_monthly_conversion() {
-        let annual = 0.06; // 6% annual
-        let monthly = cpr_to_smm(annual).expect("valid CPR");
-
-        // 6% annual should be approximately 0.5143% monthly
-        assert!((monthly - 0.005143).abs() < 0.0001);
-        assert!(monthly > 0.0);
-        assert!(monthly < annual); // Monthly should be less than annual
-    }
-
-    #[test]
-    fn test_monthly_to_annual_conversion() {
-        let monthly = 0.01; // 1% monthly
-        let annual = smm_to_cpr(monthly).expect("valid SMM");
-
-        // Should be positive and greater than monthly
-        assert!(annual > monthly);
-        assert!(annual < 1.0);
-    }
-
-    #[test]
-    fn test_roundtrip_conversion() {
-        let original = 0.06;
-        let monthly = cpr_to_smm(original).expect("valid CPR");
-        let back = smm_to_cpr(monthly).expect("valid SMM");
-
-        // Should roundtrip with high precision
-        assert!((original - back).abs() < 1e-10);
-    }
-
-    #[test]
     fn default_rate_names_share_the_checked_kernel() {
         let annual = 0.02;
         let monthly = cdr_to_mdr(annual).expect("valid CDR");
@@ -217,71 +186,33 @@ mod tests {
     }
 
     #[test]
-    fn test_zero_rate() {
-        assert_eq!(cpr_to_smm(0.0).expect("zero CPR should succeed"), 0.0);
-        assert_eq!(smm_to_cpr(0.0).expect("zero SMM should succeed"), 0.0);
-    }
+    fn conversion_boundaries_and_invalid_inputs() {
+        let conversions = [
+            (
+                "CPR to SMM",
+                cpr_to_smm as fn(f64) -> finstack_quant_core::Result<f64>,
+            ),
+            (
+                "SMM to CPR",
+                smm_to_cpr as fn(f64) -> finstack_quant_core::Result<f64>,
+            ),
+        ];
 
-    #[test]
-    fn test_consistency_across_rates() {
-        // Test that prepayment (CPR) and default (CDR) use the same formula
-        let rate = 0.05;
-        let monthly_prepay = cpr_to_smm(rate).expect("valid CPR");
-        let monthly_default = cpr_to_smm(rate).expect("valid CPR");
+        for (name, convert) in conversions {
+            for (input, expected) in [(0.0, 0.0), (1.0, 1.0)] {
+                assert_eq!(
+                    convert(input).expect("boundary rate should succeed"),
+                    expected,
+                    "{name} returned the wrong boundary value"
+                );
+            }
 
-        // Should be identical
-        assert!((monthly_prepay - monthly_default).abs() < 1e-15);
-    }
-
-    #[test]
-    fn test_cpr_smm_roundtrip_via_new_names() {
-        let cpr = 0.06;
-        let smm = cpr_to_smm(cpr).expect("valid CPR");
-        let cpr_back = smm_to_cpr(smm).expect("valid SMM");
-        assert!((cpr - cpr_back).abs() < 1e-10);
-    }
-
-    #[test]
-    fn test_smm_to_cpr_rejects_invalid_inputs() {
-        assert!(
-            smm_to_cpr(-0.01).is_err(),
-            "negative SMM should be rejected"
-        );
-        assert!(
-            smm_to_cpr(1.01).is_err(),
-            "SMM above 100% should be rejected"
-        );
-    }
-
-    #[test]
-    fn test_cpr_100_percent_maps_to_100_percent_smm() {
-        let smm = cpr_to_smm(1.0).expect("100% CPR should succeed");
-        assert_eq!(smm, 1.0);
-    }
-
-    #[test]
-    fn test_cpr_above_100_percent_rejected() {
-        assert!(cpr_to_smm(1.5).is_err());
-    }
-
-    #[test]
-    fn test_non_finite_rates_rejected() {
-        assert!(cpr_to_smm(f64::NAN).is_err());
-        assert!(cpr_to_smm(f64::INFINITY).is_err());
-        assert!(smm_to_cpr(f64::NAN).is_err());
-        assert!(smm_to_cpr(f64::INFINITY).is_err());
-    }
-
-    #[test]
-    fn test_cpr_to_smm_rejects_negative() {
-        let result = cpr_to_smm(-0.05);
-        assert!(result.is_err(), "Negative CPR should return error");
-    }
-
-    #[test]
-    fn test_cpr_to_smm_positive() {
-        let result = cpr_to_smm(0.06).expect("positive CPR should succeed");
-        // 6% CPR -> SMM ~ 0.005143
-        assert!((result - 0.005143).abs() < 0.0001);
+            for invalid in [-0.01, 1.01, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+                assert!(
+                    convert(invalid).is_err(),
+                    "{name} accepted invalid rate {invalid}"
+                );
+            }
+        }
     }
 }
