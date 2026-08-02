@@ -566,7 +566,7 @@ pub mod calibration {
         market_data.extend(quotes.iter().cloned().map(MarketDatum::from));
     }
 
-    fn split_market_context_state(
+    pub(crate) fn split_market_context_state(
         state: MarketContextState,
     ) -> Result<(Vec<PriorMarketObject>, Vec<MarketDatum>)> {
         let mut prior = state
@@ -699,18 +699,6 @@ pub mod calibration {
         let result = engine::execute(&envelope)?;
         let market = MarketContext::try_from(result.result.final_market)?;
         Ok((market, result.result.report))
-    }
-
-    #[test]
-    fn market_context_split_rejects_malformed_collateral_currency() {
-        let mut state = MarketContextState::from(&MarketContext::new());
-        state
-            .collateral
-            .insert("NOT_A_CURRENCY".to_string(), "USD".to_string());
-
-        let err = split_market_context_state(state).expect_err("invalid currency should error");
-        assert!(err.to_string().contains("Invalid collateral currency"));
-        assert!(err.to_string().contains("NOT_A_CURRENCY"));
     }
 }
 

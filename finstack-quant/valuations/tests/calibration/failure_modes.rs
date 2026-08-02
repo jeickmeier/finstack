@@ -4,7 +4,7 @@ use crate::common::fixtures;
 use crate::finstack_quant_test_utils::calibration as cal_utils;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
-use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::market_data::context::{MarketContext, MarketContextState};
 use finstack_quant_core::market_data::scalars::{
     InflationIndex, InflationInterpolation, InflationLag,
 };
@@ -38,6 +38,19 @@ fn base_date() -> Date {
 /// Reuse shared minimal USD discount curve from fixtures module.
 fn usd_discount_curve(base_date: Date) -> DiscountCurve {
     fixtures::usd_discount_curve_minimal(base_date, "USD-OIS")
+}
+
+#[test]
+fn market_context_split_rejects_malformed_collateral_currency() {
+    let mut state = MarketContextState::from(&MarketContext::new());
+    state
+        .collateral
+        .insert("NOT_A_CURRENCY".to_string(), "USD".to_string());
+
+    let err =
+        cal_utils::split_market_context_state(state).expect_err("invalid currency should error");
+    assert!(err.to_string().contains("Invalid collateral currency"));
+    assert!(err.to_string().contains("NOT_A_CURRENCY"));
 }
 
 fn envelope_for_step(
