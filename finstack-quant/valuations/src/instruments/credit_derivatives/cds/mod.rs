@@ -111,11 +111,13 @@
 //!
 //! # Implementation Notes
 //!
-//! - Aligns with ISDA CDS Standard Model v1.8.2 conventions for deterministic curves
-//! - Accrual-on-default using midpoint approximation (ISDA standard)
-//! - Hazard rate curve bootstrapped from CDS spreads
-//! - Recovery rate typically assumed constant at 40%
-//! - IMM date generation for standard maturities
+//! - Protection and accrual-on-default legs use analytical piecewise-constant
+//!   integration over a grid containing hazard- and discount-curve knots plus
+//!   configured intra-knot substeps. Default cashflows are discounted to
+//!   settlement dates resolved from the protection-leg delay and calendar.
+//! - Valuation consumes deterministic hazard, discount, and recovery inputs;
+//!   stochastic credit/recovery, default correlation, and CDS
+//!   quanto/currency-basis effects are not modeled.
 //!
 //! # Examples
 //!

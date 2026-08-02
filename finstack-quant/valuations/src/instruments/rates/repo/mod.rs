@@ -1,70 +1,32 @@
-//! Repurchase agreement (repo) instruments with collateral haircuts.
+//! Repurchase agreements priced from the cash-lender perspective.
 //!
-//! Repos are short-term secured lending transactions where one party sells
-//! securities to another with an agreement to repurchase at a higher price.
-//! Widely used for short-term funding and liquidity management.
+//! [`Repo`] supports term, open-with-an-initial-maturity, and overnight
+//! contracts. Before settlement its contractual schedule contains a cash
+//! outflow on the business-day-adjusted start date and principal plus simple
+//! repo interest on the adjusted maturity date. [`CollateralType::Special`]
+//! may adjust the repo rate; the haircut determines required collateral but
+//! does not change those cashflows or base PV.
 //!
-//! # Repo Structure
+//! # Margining boundary
 //!
-//! - **Cash lender**: Provides cash, receives collateral
-//! - **Cash borrower**: Provides collateral, receives cash
-//! - **Repo rate**: Interest rate implicit in price difference
-//! - **Haircut**: Collateral value discount for credit protection
+//! [`Repo`] implements [`finstack_quant_margin::Marginable`] and can carry an
+//! optional [`finstack_quant_margin::RepoMarginSpec`]. Variation-margin MTM
+//! delegates to repo PV, while SIMM returns a simple 3M/6M interest-rate-delta
+//! approximation.
 //!
-//! # Types
+//! Margin configuration does not automatically add margin calls, cash-margin
+//! interest, substitutions, collateral prices, or haircuts to base PV. Those
+//! cashflows are caller-generated through `finstack-quant-margin`. The repo
+//! implementation uses a per-instrument netting-set identifier, so the
+//! `NetExposure` and `Triparty` modes do not by themselves implement
+//! cross-trade netting or tri-party-agent operations.
 //!
-//! - **Classic repo**: Sell-and-repurchase of specific securities
-//! - **General collateral (GC)**: Any eligible security as collateral
-//! - **Triparty repo**: Third party manages collateral
-//! - **Reverse repo**: Cash lender's perspective (opposite of repo)
-//!
-//! # Pricing
-//!
-//! Repo effectively borrows/lends cash at the repo rate:
-//!
-//! ```text
-//! Repurchase_price = Sale_price × (1 + Repo_rate × τ)
-//! ```
-//!
-//! Present value from cash lender perspective (cash out at start, repayment
-//! received at maturity):
-//!
-//! ```text
-//! PV = -Sale_price + Repurchase_price × DF(maturity)
-//! ```
-//!
-//! # Haircut Calculation
-//!
-//! Haircut protects against collateral value decline:
-//!
-//! ```text
-//! Cash_lent = Collateral_value × (1 - Haircut%)
-//! Collateral_value = Cash_lent / (1 - Haircut%)
-//! ```
-//!
-//! Typical haircuts:
-//! - **Treasuries**: 0-2%
-//! - **Investment-grade bonds**: 2-5%
-//! - **Equities**: 5-15%
-//! - **High-yield bonds**: 10-25%
-//!
-//! # Market Conventions
-//!
-//! - **Day count**: ACT/360 (USD/EUR), ACT/365 (GBP)
-//! - **Term**: Overnight to 1 year typical
-//! - **Settlement**: T+0, T+1, or T+2 depending on collateral
-//!
-//! # Key Metrics
-//!
-//! - **Repo rate**: Implied borrowing/lending rate
-//! - **Haircut01**: Sensitivity to haircut changes
-//! - **Collateral price01**: Sensitivity to collateral value
-//!
-//! # See Also
-//!
-//! - [`Repo`] for instrument struct
-//! - [`CollateralSpec`] for collateral details
-//! - [`RepoType`] for classic vs GC vs triparty
+//! These parameters cover selected GMRA-style maintenance terms; they are not
+//! a complete GMRA legal or lifecycle implementation. Open-repo notice,
+//! termination and roll events, securities-income/manufactured payments,
+//! failed-delivery and default/close-out remedies, rehypothecation and
+//! reinvestment economics, and currency/funding basis beyond supplied market
+//! data are outside this model.
 
 pub(crate) mod metrics;
 mod types;
