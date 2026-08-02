@@ -26,11 +26,6 @@ def test_fixture_path_pricing() -> None:
     assert "valuations" in str(path)
 
 
-def test_fixture_path_analytics() -> None:
-    path = fixture_path("analytics/returns/foo.json")
-    assert "analytics" in str(path)
-
-
 def test_fixture_path_unknown_domain_raises() -> None:
     with pytest.raises(ValueError, match="known top-level domain"):
         fixture_path("bogus/foo.json")

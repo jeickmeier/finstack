@@ -45,7 +45,6 @@ REPORT_LOCK_POLL_SECONDS = 0.01
 DATA_ROOTS = {
     "pricing": WORKSPACE_ROOT / "finstack-quant/valuations/tests/golden/data",
     "market_data": WORKSPACE_ROOT / "finstack-quant/valuations/tests/golden/data",
-    "analytics": WORKSPACE_ROOT / "finstack-quant/analytics/tests/golden/data",
 }
 KNOWN_NON_EXECUTABLE_PATH = WORKSPACE_ROOT / "finstack-quant/valuations/tests/golden/known_non_executable.json"
 VALID_SOURCES = {
@@ -90,12 +89,6 @@ class UnresolvedMetric:
 
 
 _DOMAIN_RUNNERS = {
-    "analytics.benchmark": "analytics_common",
-    "analytics.drawdown": "analytics_common",
-    "analytics.performance": "analytics_common",
-    "analytics.returns": "analytics_common",
-    "analytics.risk": "analytics_common",
-    "analytics.vol": "analytics_common",
     "credit.cds": "pricing_common",
     "credit.cds_option": "pricing_common",
     "credit.cds_tranche": "pricing_common",
