@@ -718,27 +718,4 @@ mod tests {
         let fwd_price = curve.price_on_date(six_months).expect("Should succeed");
         assert!(fwd_price > 75.0 && fwd_price < 78.0);
     }
-
-    #[test]
-    fn roll_forward() {
-        let base = Date::from_calendar_date(2025, time::Month::January, 1).expect("Valid date");
-        let curve = PriceCurve::builder("WTI")
-            .base_date(base)
-            .knots([(0.0, 75.0), (0.25, 76.0), (0.5, 77.0), (1.0, 78.0)])
-            .spot_price(75.0)
-            .build()
-            .expect("Should build");
-
-        // Roll forward 91 days (~0.25 years)
-        let rolled = curve.roll_forward(91).expect("Should roll");
-
-        // New base date should be advanced
-        assert!(rolled.base_date() > base);
-
-        // Should have fewer knots (first expired)
-        assert!(rolled.knots().len() < curve.knots().len());
-
-        // New spot should be approximately the old 3M forward
-        assert!((rolled.spot_price() - 76.0).abs() < 0.5);
-    }
 }

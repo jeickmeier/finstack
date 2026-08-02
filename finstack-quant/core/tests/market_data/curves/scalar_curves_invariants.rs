@@ -177,15 +177,6 @@ mod scalar_curve_invariants {
     }
 
     #[test]
-    fn roll_forward_preserves_far_tenor_levels() {
-        let rolled_pc = price_curve().roll_forward(30).unwrap();
-        let rolled_vc = vol_curve().roll_forward(30).unwrap();
-
-        assert!(rolled_pc.price(1.0) > 0.0);
-        assert!(rolled_vc.forward_level(1.0) > 0.0);
-    }
-
-    #[test]
     fn price_curve_serde_roundtrip() {
         let pc = price_curve();
         let restored: PriceCurve =

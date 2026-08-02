@@ -591,17 +591,33 @@ mod tests {
         let panel = make_synthetic_panel(50, &tenors, &[0.01, 0.005, 0.002]);
         let pca = YieldPca::fit(&panel).unwrap();
 
-        // +1 sigma PC1 shock
-        let delta = pca.scenario(&[1.0, 0.0, 0.0]).unwrap();
-        assert_eq!(delta.len(), tenors.len());
+        for component in 0..pca.num_components() {
+            let mut shocks = vec![0.0; pca.num_components()];
+            shocks[component] = 1.0;
+            let delta = pca.scenario(&shocks).unwrap();
+            assert_eq!(delta.len(), tenors.len());
 
-        // The magnitude should be approximately sqrt(eigenvalue_1)
-        let magnitude: f64 = delta.iter().map(|d| d * d).sum::<f64>().sqrt();
-        let expected_magnitude = pca.eigenvalues()[0].sqrt();
-        assert!(
-            (magnitude - expected_magnitude).abs() / expected_magnitude.max(1e-15) < 0.1,
-            "Scenario magnitude {magnitude} far from expected {expected_magnitude}"
-        );
+            let magnitude = delta.iter().map(|value| value * value).sum::<f64>().sqrt();
+            let expected = pca.eigenvalues()[component].sqrt();
+            let tolerance = 1e-12 + 1e-10 * expected.abs();
+            assert!(
+                (magnitude - expected).abs() <= tolerance,
+                "component {component} scenario norm {magnitude} differs from sqrt(eigenvalue) {expected}"
+            );
+        }
+
+        for left in 0..pca.num_components() {
+            let left_loading = pca.loading(left).unwrap();
+            for right in 0..pca.num_components() {
+                let right_loading = pca.loading(right).unwrap();
+                let expected = if left == right { 1.0 } else { 0.0 };
+                let dot = left_loading.dot(&right_loading);
+                assert!(
+                    (dot - expected).abs() <= 1e-10,
+                    "loading dot product ({left}, {right}) was {dot}, expected {expected}"
+                );
+            }
+        }
     }
 
     #[test]
