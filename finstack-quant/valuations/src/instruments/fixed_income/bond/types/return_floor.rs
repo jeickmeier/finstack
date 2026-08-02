@@ -44,6 +44,7 @@ use finstack_quant_core::types::Rate;
     Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum ReturnFloorKind {
     /// Minimum money-on-money multiple (e.g. `1.25` = 1.25× invested capital).
     ///
@@ -70,6 +71,7 @@ pub enum ReturnFloorKind {
     Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum IssuePrice {
     /// Par notional (default). `V0 = notional`.
     Par,
@@ -119,6 +121,7 @@ impl IssuePrice {
     Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum ProtectionWindow {
     /// From issue (or `as_of`) up to — but not including — maturity (default).
     /// The floor applies to any early issuer-called redemption during the
@@ -126,15 +129,21 @@ pub enum ProtectionWindow {
     Full,
     /// Active only on or after this date (encodes a no-call period ending at
     /// maturity). The floor is not applied to redemptions before `from`.
-    From(#[schemars(with = "String")] Date),
+    From(
+        #[serde(with = "finstack_quant_core::wire::date")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        Date,
+    ),
     /// Explicit closed interval `[start, end]` (both ends inclusive). The floor
     /// applies only for redemptions with `start <= redemption_date <= end`.
     Between {
         /// First date on which the floor-protected call window opens.
-        #[schemars(with = "String")]
+        #[serde(with = "finstack_quant_core::wire::date")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         start: Date,
         /// Last date on which the floor-protected call window closes (inclusive).
-        #[schemars(with = "String")]
+        #[serde(with = "finstack_quant_core::wire::date")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         end: Date,
     },
 }
@@ -382,10 +391,10 @@ impl ReturnFloorSpec {
     ///
     /// # Arguments
     ///
-    /// * `dc` - Dc supplied by the caller for this operation
+    /// * `day_count` - Dc supplied by the caller for this operation
     #[must_use]
-    pub fn day_count(mut self, dc: DayCount) -> Self {
-        self.day_count = Some(dc);
+    pub fn day_count(mut self, day_count: DayCount) -> Self {
+        self.day_count = Some(day_count);
         self
     }
 

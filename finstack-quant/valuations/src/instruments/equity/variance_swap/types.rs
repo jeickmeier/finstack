@@ -16,7 +16,7 @@ use crate::instruments::{common_impl::traits::Attributes, MarketDependencies};
 
 pub use crate::instruments::common_impl::parameters::PayReceive;
 
-fn default_observation_bdc() -> BusinessDayConvention {
+fn default_observation_business_day_convention() -> BusinessDayConvention {
     BusinessDayConvention::Following
 }
 
@@ -68,7 +68,9 @@ fn default_observation_bdc() -> BusinessDayConvention {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct VarianceSwap {
@@ -81,24 +83,27 @@ pub struct VarianceSwap {
     /// Strike variance (annualized)
     pub strike_variance: f64,
     /// Start date of observation period
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Contractual end of the observation period.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Optional cash-settlement date. Defaults to the adjusted final observation date.
     #[serde(default)]
     #[builder(optional)]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub settlement_date: Option<Date>,
     /// Observation frequency
-    pub observation_freq: Tenor,
+    pub observation_frequency: Tenor,
     /// Exchange/fixing calendar used for every realized-variance observation.
     pub observation_calendar_id: String,
     /// Business-day convention applied to observation dates.
-    #[serde(default = "default_observation_bdc")]
+    #[serde(default = "default_observation_business_day_convention")]
     #[builder(default = BusinessDayConvention::Following)]
-    pub observation_bdc: BusinessDayConvention,
+    pub observation_business_day_convention: BusinessDayConvention,
     /// Preserve month-end rolls for month/year observation frequencies.
     #[serde(default)]
     #[builder(default)]
@@ -133,14 +138,25 @@ pub struct VarianceSwap {
     /// Day count convention for time calculations
     pub day_count: DayCount,
     /// Attributes for scenario selection
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -168,9 +184,10 @@ impl VarianceSwap {
             self.maturity,
             "variance swap observation period",
         )?;
-        if self.observation_freq.count() == 0 {
+        if self.observation_frequency.count() == 0 {
             return Err(finstack_quant_core::Error::Validation(
-                "VarianceSwap observation_freq must contain at least one tenor unit".to_string(),
+                "VarianceSwap observation_frequency must contain at least one tenor unit"
+                    .to_string(),
             ));
         }
         finstack_quant_core::dates::calendar_by_id(&self.observation_calendar_id).ok_or_else(
@@ -293,9 +310,9 @@ impl VarianceSwap {
             .strike_variance(0.04) // 20% vol squared
             .start_date(date!(2024 - 01 - 01))
             .maturity(date!(2025 - 01 - 01))
-            .observation_freq(finstack_quant_core::dates::Tenor::daily())
+            .observation_frequency(finstack_quant_core::dates::Tenor::daily())
             .observation_calendar_id("USNY".to_string())
-            .observation_bdc(BusinessDayConvention::Following)
+            .observation_business_day_convention(BusinessDayConvention::Following)
             .observation_end_of_month(false)
             .realized_var_method(RealizedVarMethod::CloseToClose)
             .side(PayReceive::Receive)
@@ -494,13 +511,13 @@ impl crate::instruments::common_impl::traits::Instrument for VarianceSwap {
         let mut deps = MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
         let underlying_id = PriceId::new(self.underlying_ticker.as_str());
-        deps.add_spot_id(self.underlying_ticker.as_str());
-        deps.add_spot_id(self.dividend_yield_scalar_id());
-        deps.add_spot_id(self.implied_vol_scalar_id());
-        for surface_id in self.volatility_candidate_ids() {
+        deps.add_market_scalar_id(self.underlying_ticker.as_str());
+        deps.add_market_scalar_id(self.dividend_yield_scalar_id());
+        deps.add_market_scalar_id(self.implied_vol_scalar_id());
+        for vol_surface_id in self.volatility_candidate_ids() {
             deps.add_volatility_dependency(
                 crate::instruments::common_impl::dependencies::VolatilityDependency::new(
-                    surface_id,
+                    vol_surface_id,
                     Some(underlying_id.clone()),
                     None,
                 ),
@@ -563,7 +580,7 @@ mod dependency_tests {
             crate::instruments::Instrument::market_dependencies(&swap).expect("dependencies");
 
         assert_eq!(
-            deps.spot_ids,
+            deps.market_scalar_ids,
             vec![
                 swap.underlying_ticker.clone(),
                 swap.dividend_yield_scalar_id(),
@@ -573,7 +590,7 @@ mod dependency_tests {
         assert_eq!(
             deps.volatility_dependencies
                 .iter()
-                .map(|dependency| dependency.surface_id.as_str())
+                .map(|dependency| dependency.vol_surface_id.as_str())
                 .collect::<Vec<_>>(),
             swap.volatility_candidate_ids()
                 .iter()

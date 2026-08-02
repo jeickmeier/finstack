@@ -145,7 +145,7 @@ pub use types::{
 /// schedules. Month- and year-based spellings that represent the same period
 /// are normalized; other tenors fail instead of silently calibrating as 6M.
 pub(crate) fn hw1f_swaption_surface_calibration(
-    surface_id: &str,
+    vol_surface_id: &str,
     max_expiry: Option<f64>,
     fixed_frequency: finstack_quant_core::dates::Tenor,
 ) -> finstack_quant_core::Result<
@@ -167,7 +167,7 @@ pub(crate) fn hw1f_swaption_surface_calibration(
 
     Ok(
         crate::instruments::rates::exotics_shared::Hw1fSurfaceCalibration::Swaption {
-            surface_id,
+            vol_surface_id,
             max_expiry,
             frequency,
         },

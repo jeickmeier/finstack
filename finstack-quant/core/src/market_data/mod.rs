@@ -77,7 +77,7 @@
 pub mod arbitrage;
 /// Bump functionality for scenario analysis and stress testing.
 pub mod bumps;
-/// Market data context with enum-based storage (simplified from V2).
+/// Market data context with enum-based storage.
 pub mod context;
 /// Market data comparison and shift measurement.
 pub mod diff;

@@ -139,7 +139,7 @@ fn test_book_hierarchy_three_levels() {
 
     // Build portfolio with books
     let portfolio = PortfolioBuilder::new("TEST_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENTITY_A"))
         .book(americas)
@@ -273,7 +273,7 @@ fn test_book_hierarchy_multiple_root_books() {
 
     // Build portfolio
     let portfolio = PortfolioBuilder::new("TEST_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENTITY_A"))
         .book(americas)
@@ -343,7 +343,7 @@ fn test_position_without_book() {
 
     // Build portfolio without assigning position to any book
     let portfolio = PortfolioBuilder::new("TEST_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENTITY_A"))
         .position(pos1)
@@ -387,7 +387,7 @@ fn test_book_hierarchy_is_order_independent() {
     let ig = Book::new("ig", Some("Investment Grade".to_string())).with_parent("credit");
 
     let portfolio = PortfolioBuilder::new("TEST_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENTITY_A"))
         .book(ig)
@@ -440,7 +440,7 @@ fn test_reassigning_position_between_books_removes_stale_membership() {
     .expect("position should build");
 
     let portfolio = PortfolioBuilder::new("TEST_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENTITY_A"))
         .book(Book::new("book_a", Some("Book A".to_string())))

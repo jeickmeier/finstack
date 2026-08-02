@@ -58,7 +58,7 @@ impl crate::metrics::MetricCalculator for CmbsDscrCalculator {
             .downcast_ref::<StructuredCredit>()
             .ok_or(finstack_quant_core::InputError::Invalid)?;
 
-        if cmbs.deal_type != DealType::CMBS {
+        if cmbs.deal_type != DealType::Cmbs {
             return Err(finstack_quant_core::InputError::Invalid.into());
         }
 

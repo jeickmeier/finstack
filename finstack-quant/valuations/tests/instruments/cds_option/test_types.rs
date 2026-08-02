@@ -56,7 +56,7 @@ fn test_instrument_trait_implementation() {
     let option = CDSOptionBuilder::new().build(as_of);
 
     assert_eq!(option.id(), "CDSOPT-TEST");
-    assert_eq!(option.key(), InstrumentType::CDSOption);
+    assert_eq!(option.key(), InstrumentType::CdsOption);
 }
 
 #[test]

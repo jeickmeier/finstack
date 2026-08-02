@@ -74,7 +74,7 @@ fn create_make_whole_callable_bond() -> Bond {
         price_pct_of_par: 102.0,
         make_whole: Some(crate::instruments::fixed_income::bond::MakeWholeSpec {
             reference_curve_id: CurveId::from("USD-TSY"),
-            spread_bps: 25.0,
+            spread_bp: 25.0,
         }),
     });
     bond.call_put = Some(call_put);

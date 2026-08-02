@@ -15,13 +15,30 @@
         }
       ]
     },
+    "CorrelationWire": {
+      "description": "Finite correlation coefficient in the closed interval `[-1, 1]`.",
+      "format": "double",
+      "maximum": 1.0,
+      "minimum": -1.0,
+      "type": "number"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "QuantoSpec": {
+      "additionalProperties": false,
       "description": "Quanto adjustment parameters for instruments where payoff currency differs from\nunderlying currency.",
       "properties": {
         "correlation": {
-          "description": "Correlation between the underlying asset and the FX rate.\nMust be in [-1, 1].",
-          "format": "double",
-          "type": "number"
+          "$ref": "#/$defs/CorrelationWire",
+          "description": "Correlation between the underlying asset and the FX rate.\nMust be in [-1, 1]."
         },
         "fx_spot_id": {
           "description": "FX spot price identifier (for proper quanto vol lookup).\nFalls back to ATM approximation (1.0) if not provided.",
@@ -40,12 +57,221 @@
         "fx_vol_surface_id"
       ],
       "type": "object"
+    },
+    "RangeAccrual": {
+      "additionalProperties": false,
+      "description": "Range accrual instrument.\n\nRange accrual notes pay coupons that accrue only when a reference rate or asset\nstays within a specified range. The accrual is proportional to the number of\nobservation dates where the underlying is within [lower_bound, upper_bound].\n\n# Bounds Interpretation\n\nThe `bounds_type` field controls how `lower_bound` and `upper_bound` are interpreted:\n- `Absolute`: Bounds are absolute price levels (e.g., 4500.0 for SPX at 4700)\n- `RelativeToInitialSpot`: Bounds are multipliers of the initial spot (e.g., 0.95 = 95%)\n\n# Historical Fixings\n\nFor mid-life valuations, use `past_fixings_in_range` to specify how many past\nobservations were in range. The pricer will add this to expected future fixings.\n\n# Rate-Linked Underlyings: Pricing Routing\n\nThe rate-linked fields (`rate_index_id`, `projection_curve_id`,\n`reference_tenor`) describe the contract but are **not priceable by the\nstandalone `RangeAccrual` pricers**, which support equity/FX (GBM)\nunderlyings only and return a validation error when these fields are set.\nPrice rate-linked range accrual notes through\n[`CallableRangeAccrual`](crate::instruments::rates::callable_range_accrual)\n(with an empty call schedule for a non-callable note), which models the\nreference rate under HW1F and reconstructs the term rate per observation.",
+      "properties": {
+        "accrual_start_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Contractual accrual-period start date.\n\nWhen omitted, the legacy representation infers the start by stepping\none first-observation interval backward. Single-observation contracts\nmust provide this field explicitly."
+        },
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and grouping"
+        },
+        "bounds_type": {
+          "$ref": "#/$defs/BoundsType",
+          "default": "absolute",
+          "description": "How to interpret the range bounds (default: Absolute)"
+        },
+        "coupon_rate": {
+          "description": "Coupon rate earned when in range (must be >= 0)",
+          "format": "double",
+          "type": "number"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID for present value calculations"
+        },
+        "div_yield_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional dividend yield curve ID"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides (manual price, yield, spread)\nInstrument-owned pricing inputs."
+        },
+        "lower_bound": {
+          "description": "Lower bound of accrual range (interpretation depends on bounds_type)",
+          "format": "double",
+          "type": "number"
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount"
+        },
+        "observation_dates": {
+          "description": "Observation dates for range checking (must be sorted ascending)",
+          "items": {
+            "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+          },
+          "type": "array"
+        },
+        "past_fixings_in_range": {
+          "description": "Number of past observations that were in range (for mid-life valuations).\nIf None, past observations are not included in the accrual calculation.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "payment_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional payment date (defaults to last observation date)"
+        },
+        "projection_curve_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Projection curve for a rate-linked range accrual."
+        },
+        "quanto": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuantoSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional quanto adjustment parameters. When provided, applies a drift\ncorrection for instruments whose payoff currency differs from the\nunderlying asset currency."
+        },
+        "rate_index_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Explicit rate index for rate-linked range accruals."
+        },
+        "reference_tenor": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Contractual tenor of the observed reference rate."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "spot_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Spot price identifier"
+        },
+        "total_past_observations": {
+          "description": "Total number of past observations (for mid-life valuations).\nMust be provided if `past_fixings_in_range` is set.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "underlying_ticker": {
+          "description": "Underlying asset ticker symbol",
+          "type": "string"
+        },
+        "upper_bound": {
+          "description": "Upper bound of accrual range (must be > lower_bound)",
+          "format": "double",
+          "type": "number"
+        },
+        "vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Volatility surface ID"
+        }
+      },
+      "required": [
+        "id",
+        "underlying_ticker",
+        "observation_dates",
+        "lower_bound",
+        "upper_bound",
+        "coupon_rate",
+        "notional",
+        "day_count",
+        "discount_curve_id",
+        "spot_id",
+        "vol_surface_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "range_accrual": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/RangeAccrual"
+            },
+            "type": {
+              "const": "range_accrual",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/range_accrual.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Coupon accrues when underlying stays within a range",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -53,7 +279,7 @@
           "attributes": {},
           "bounds_type": "relative_to_initial_spot",
           "coupon_rate": 0.08,
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "discount_curve_id": "USD-OIS",
           "div_yield_id": "SPX-DIV",
           "id": "RANGE-SPX-1Y",
@@ -78,27 +304,6 @@
           ],
           "past_fixings_in_range": null,
           "payment_date": null,
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "spot_id": "SPX-SPOT",
           "total_past_observations": null,
           "underlying_ticker": "SPX",
@@ -112,223 +317,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Range Accrual instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "accrual_start_date": {
-              "description": "Contractual accrual-period start date.\n\nWhen omitted, the legacy representation infers the start by stepping\none first-observation interval backward. Single-observation contracts\nmust provide this field explicitly.",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and grouping"
-            },
-            "bounds_type": {
-              "$ref": "#/$defs/BoundsType",
-              "default": "absolute",
-              "description": "How to interpret the range bounds (default: Absolute)"
-            },
-            "coupon_rate": {
-              "description": "Coupon rate earned when in range (must be >= 0)",
-              "format": "double",
-              "type": "number"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID for present value calculations"
-            },
-            "div_yield_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional dividend yield curve ID"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "lower_bound": {
-              "description": "Lower bound of accrual range (interpretation depends on bounds_type)",
-              "format": "double",
-              "type": "number"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount"
-            },
-            "observation_dates": {
-              "description": "Observation dates for range checking (must be sorted ascending)",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "past_fixings_in_range": {
-              "description": "Number of past observations that were in range (for mid-life valuations).\nIf None, past observations are not included in the accrual calculation.",
-              "format": "uint",
-              "minimum": 0,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "payment_date": {
-              "description": "Optional payment date (defaults to last observation date)",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides (manual price, yield, spread)\nInstrument-owned pricing inputs."
-            },
-            "projection_curve_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Projection curve for a rate-linked range accrual."
-            },
-            "quanto": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/QuantoSpec"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional quanto adjustment parameters. When provided, applies a drift\ncorrection for instruments whose payoff currency differs from the\nunderlying asset currency."
-            },
-            "rate_index_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Explicit rate index for rate-linked range accruals."
-            },
-            "reference_tenor": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Contractual tenor of the observed reference rate."
-            },
-            "spot_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Spot price identifier"
-            },
-            "total_past_observations": {
-              "description": "Total number of past observations (for mid-life valuations).\nMust be provided if `past_fixings_in_range` is set.",
-              "format": "uint",
-              "minimum": 0,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "underlying_ticker": {
-              "description": "Underlying asset ticker symbol",
-              "type": "string"
-            },
-            "upper_bound": {
-              "description": "Upper bound of accrual range (must be > lower_bound)",
-              "format": "double",
-              "type": "number"
-            },
-            "vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Volatility surface ID"
-            }
-          },
-          "required": [
-            "id",
-            "underlying_ticker",
-            "observation_dates",
-            "lower_bound",
-            "upper_bound",
-            "coupon_rate",
-            "notional",
-            "day_count",
-            "discount_curve_id",
-            "spot_id",
-            "vol_surface_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "range_accrual",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/range_accrual"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Range Accrual",
+  "title": "range_accrual",
   "type": "object"
 }

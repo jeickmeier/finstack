@@ -1,6 +1,6 @@
-//! Serialization tests for the plan-driven calibration v2 API.
+//! Serialization tests for the plan-driven calibration canonical API.
 //!
-//! v2 introduces a strict JSON contract for plan-driven execution:
+//! canonical introduces a strict JSON contract for plan-driven execution:
 //! - `CalibrationEnvelope` and `CalibrationPlan` (`deny_unknown_fields`)
 //! - `StepParams` for discount/forward/hazard/inflation/vol/swaption/base-correlation
 //! - Domain quotes (`MarketQuote` + concrete quote enums)
@@ -9,6 +9,7 @@ use crate::finstack_quant_test_utils::calibration as cal_utils;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
+use finstack_quant_core::market_data::surfaces::VolQuoteType;
 use finstack_quant_core::market_data::term_structures::Seniority;
 use finstack_quant_core::math::interp::ExtrapolationPolicy;
 use finstack_quant_core::types::CurveId;
@@ -19,7 +20,7 @@ use finstack_quant_valuations::calibration::api::schema::{
     BaseCorrelationParams, CalibrationEnvelope, CalibrationPlan, CalibrationStep,
     DiscountCurveParams, ForwardCurveParams, HazardCurveParams, HullWhiteStepParams,
     InflationCurveParams, StepParams, SurfaceExtrapolationPolicy, SviSurfaceParams,
-    SwaptionVolParams, VolSurfaceParams,
+    SwaptionVolParams, VolSurfaceModel, VolSurfaceParams,
 };
 use finstack_quant_valuations::calibration::CalibrationMethod;
 use finstack_quant_valuations::market::conventions::ids::{
@@ -89,14 +90,17 @@ fn envelope_v2_roundtrips() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
     };
 
     let decoded = roundtrip_json(&envelope);
-    assert_eq!(decoded.schema, "finstack_quant.calibration/2");
+    assert_eq!(
+        decoded.schema,
+        finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT
+    );
     assert_eq!(decoded.plan.steps.len(), 1);
 }
 
@@ -163,10 +167,10 @@ fn step_params_v2_roundtrip_for_all_variants() {
     let _ = roundtrip_json(&inflation);
 
     let vol_surface = StepParams::VolSurface(VolSurfaceParams {
-        surface_id: "SPX-VOL".to_string(),
+        vol_surface_id: "SPX-VOL".to_string(),
         base_date,
         underlying_ticker: "SPX".to_string(),
-        model: "SABR".to_string(),
+        model: VolSurfaceModel::Sabr,
         discount_curve_id: Some("USD-OIS".into()),
         beta: 0.5,
         target_expiries: vec![0.5, 1.0],
@@ -178,7 +182,7 @@ fn step_params_v2_roundtrip_for_all_variants() {
     let _ = roundtrip_json(&vol_surface);
 
     let swaption_vol = StepParams::SwaptionVol(SwaptionVolParams {
-        surface_id: "USD-SWPT".to_string(),
+        vol_surface_id: "USD-SWPT".to_string(),
         base_date,
         discount_curve_id: "USD-OIS".into(),
         forward_id: None,
@@ -209,7 +213,7 @@ fn step_params_v2_roundtrip_for_all_variants() {
         notional: 1.0,
         frequency: Some(Tenor::quarterly()),
         day_count: Some(DayCount::Act360),
-        bdc: Some(BusinessDayConvention::Following),
+        business_day_convention: Some(BusinessDayConvention::Following),
         calendar_id: Some("usny".to_string()),
         detachment_points: vec![0.03, 0.07, 0.1],
         use_imm_dates: true,
@@ -251,7 +255,7 @@ fn market_quote_roundtrip_smoke() {
         maturity: base_date + time::Duration::days(365 * 5),
         strike: 0.04,
         vol: 0.01,
-        quote_type: "ATM".to_string(),
+        quote_type: VolQuoteType::Normal,
         convention: SwaptionConventionId::new("USD"),
     });
     let _ = roundtrip_json(&vq);
@@ -260,7 +264,7 @@ fn market_quote_roundtrip_smoke() {
 #[test]
 fn envelope_unknown_field_is_rejected() {
     let payload = r#"{
-        "schema": "finstack_quant.calibration/2",
+        "schema": "finstack_quant.calibration/1",
         "plan": {
             "id": "p",
             "quote_sets": {},
@@ -293,14 +297,14 @@ fn test_hull_white_step_params_serde() {
 
 #[test]
 fn test_svi_surface_step_params_serde() {
-    let json = r#"{"kind":"svi_surface","id":"svi","quote_set":"vols","surface_id":"EQ_SPX","base_date":"2024-01-02","underlying_ticker":"SPX"}"#;
+    let json = r#"{"kind":"svi_surface","id":"svi","quote_set":"vols","vol_surface_id":"EQ_SPX","base_date":"2024-01-02","underlying_ticker":"SPX"}"#;
     let step: CalibrationStep = serde_json::from_str(json).expect("should deserialize");
     assert!(matches!(step.params, StepParams::SviSurface(_)));
 
     // Also test roundtrip through Rust struct construction
     let base_date = Date::from_calendar_date(2024, Month::January, 2).unwrap();
     let svi = StepParams::SviSurface(SviSurfaceParams {
-        surface_id: "EQ_SPX".to_string(),
+        vol_surface_id: "EQ_SPX".to_string(),
         base_date,
         underlying_ticker: "SPX".to_string(),
         discount_curve_id: Some("USD-OIS".into()),

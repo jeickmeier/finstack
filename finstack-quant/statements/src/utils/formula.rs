@@ -156,7 +156,7 @@ fn collect_identifiers_from_ast(
         StmtExpr::NodeRef(name) => {
             identifiers.insert(name.as_str().to_string());
         }
-        StmtExpr::CSRef {
+        StmtExpr::CsRef {
             component,
             instrument_or_total,
         } => {

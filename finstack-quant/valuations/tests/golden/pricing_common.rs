@@ -97,14 +97,14 @@ pub(crate) fn run_pricing_fixture(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::golden::schema::SCHEMA_VERSION;
+    use crate::golden::schema::SCHEMA;
     use finstack_quant_core::market_data::bumps::{BumpSpec, MarketBump};
     use finstack_quant_core::types::CurveId;
-    use finstack_quant_valuations::instruments::{Instrument, InstrumentJson};
+    use finstack_quant_valuations::instruments::{Instrument, InstrumentEnvelope, InstrumentJson};
 
     fn pricing_fixture(market: serde_json::Value) -> GoldenFixture {
         let json = serde_json::json!({
-            "schema_version": SCHEMA_VERSION,
+            "schema": SCHEMA,
             "metadata": {
                 "name": "market_test",
                 "domain": "rates.deposit",
@@ -131,7 +131,7 @@ mod tests {
 
     fn minimal_market() -> serde_json::Value {
         serde_json::json!({
-            "version": 2,
+            "schema_version": 1,
             "curves": [],
             "fx": null,
             "surfaces": [],
@@ -142,13 +142,14 @@ mod tests {
             "credit_indices": [],
             "fx_delta_vol_surfaces": [],
             "vol_cubes": [],
-            "collateral": {}
+            "collateral": {},
+            "hierarchy": null
         })
     }
 
     fn minimal_envelope() -> serde_json::Value {
         serde_json::json!({
-            "schema": "finstack_quant.calibration",
+            "schema": "finstack_quant.calibration/1",
             "plan": {"id": "test_envelope", "quote_sets": {}, "steps": [], "settings": {}}
         })
     }
@@ -208,7 +209,7 @@ mod tests {
     #[test]
     fn requested_metrics_derives_from_expected_and_excludes_npv() {
         let json = serde_json::json!({
-            "schema_version": SCHEMA_VERSION,
+            "schema": SCHEMA,
             "metadata": {
                 "name": "m", "domain": "rates.irs", "description": "d",
                 "valuation_date": "2026-04-30", "source": "formula",
@@ -255,8 +256,9 @@ mod tests {
     fn structured_credit_dependencies_preserve_curve_roles_and_fixing_ids() {
         let fixture = structured_credit_fixture();
         let pricing = fixture.pricing().expect("pricing body");
-        let instrument: InstrumentJson = serde_json::from_value(pricing.instrument.clone())
-            .expect("parse structured-credit instrument");
+        let envelope: InstrumentEnvelope = serde_json::from_value(pricing.instrument.clone())
+            .expect("parse structured-credit instrument envelope");
+        let instrument = envelope.instrument;
         let InstrumentJson::StructuredCredit(instrument) = instrument else {
             panic!("fixture should contain structured credit");
         };
@@ -282,7 +284,7 @@ mod tests {
         assert!(dependencies.curves.credit_curves.is_empty());
         assert!(dependencies.curves.inflation_curves.is_empty());
         assert_eq!(dependencies.series_ids, ["FIXING:SOFR-3M"]);
-        assert!(dependencies.spot_ids.is_empty());
+        assert!(dependencies.market_scalar_ids.is_empty());
         assert!(dependencies.volatility_dependencies.is_empty());
         assert!(dependencies.fx_pairs.is_empty());
     }
@@ -327,11 +329,21 @@ mod tests {
         .expect("registry DV01 should price");
         let registry_dv01 = registry_result.measures["dv01"];
 
-        assert_close(discount, -3_043.885_803_190_06, 1e-6);
-        assert_close(sofr_3m, 2836.106479169801, 1e-6);
-        assert_close(combined, -207.779270004481, 1e-6);
+        assert_close(discount, -3_051.583_130_820_654, 1e-6);
+        assert_close(sofr_3m, 2_893.358_724_945_225, 1e-6);
+        // Take the combined target from the fixture rather than repeating the
+        // literal here, so a re-blessed fixture cannot leave this test stale.
+        assert_close(combined, fixture.expected["dv01"], 1e-6);
         assert_close(combined, registry_dv01, 1e-8);
-        assert!((combined - (discount + sofr_3m)).abs() < 1e-3);
+        // Bumping both curves together is not exactly the sum of the two
+        // single-curve bumps: the OC/IC triggers divert cash discontinuously in
+        // rates, so the legs carry a small cross-term. Bound it relative to the
+        // leg size instead of in absolute currency.
+        let cross_term = (combined - (discount + sofr_3m)).abs();
+        assert!(
+            cross_term < 1e-5 * discount.abs(),
+            "curve-leg cross-term {cross_term:.15} exceeds 1e-5 of the discount leg"
+        );
         assert!((combined - discount).abs() > 2_000.0);
     }
 }

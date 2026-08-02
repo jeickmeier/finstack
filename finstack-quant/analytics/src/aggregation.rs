@@ -69,11 +69,11 @@ impl PeriodStats {
 /// Map a date to its `PeriodId` for the requested frequency.
 fn date_to_period_id(
     date: Date,
-    freq: PeriodKind,
+    frequency: PeriodKind,
     fiscal_config: Option<FiscalConfig>,
 ) -> PeriodId {
     let (year, month, _day) = date.to_calendar_date();
-    match freq {
+    match frequency {
         PeriodKind::Daily => PeriodId::day(year, date.ordinal()),
         PeriodKind::Weekly => {
             let (iso_year, iso_week, _weekday) = date.to_iso_week_date();
@@ -100,7 +100,7 @@ fn date_to_period_id(
 
 /// Group daily returns by period, compounding within each period.
 ///
-/// Assigns each observation to a [`PeriodId`] bucket determined by `freq`
+/// Assigns each observation to a [`PeriodId`] bucket determined by `frequency`
 /// and `fiscal_config`, then compounds the intra-period returns using
 /// [`comp_total`]. The result is a time-ordered sequence of
 /// `(period_id, compounded_return)` pairs suitable for period-level
@@ -111,8 +111,8 @@ fn date_to_period_id(
 /// * `dates` - Sorted slice of observation dates.
 /// * `returns` - Return series aligned with `dates`. If longer, excess
 ///   elements are ignored.
-/// * `freq` - Aggregation frequency (e.g., `Monthly`, `Annual`).
-/// * `fiscal_config` - Fiscal year configuration, required when `freq` is
+/// * `frequency` - Aggregation frequency (e.g., `Monthly`, `Annual`).
+/// * `fiscal_config` - Fiscal year configuration, required when `frequency` is
 ///   `Annual` and a non-calendar fiscal year is desired.
 ///
 /// # Returns
@@ -139,7 +139,7 @@ fn date_to_period_id(
 pub(crate) fn group_by_period(
     dates: &[Date],
     returns: &[f64],
-    freq: PeriodKind,
+    frequency: PeriodKind,
     fiscal_config: Option<FiscalConfig>,
 ) -> Vec<(PeriodId, f64)> {
     let mut observations = dates.iter().copied().zip(returns.iter().copied());
@@ -148,11 +148,11 @@ pub(crate) fn group_by_period(
     };
 
     let mut result: Vec<(PeriodId, f64)> = Vec::new();
-    let mut current_pid = date_to_period_id(first_date, freq, fiscal_config);
+    let mut current_pid = date_to_period_id(first_date, frequency, fiscal_config);
     let mut period_returns = vec![first_return];
 
     for (date, ret) in observations {
-        let pid = date_to_period_id(date, freq, fiscal_config);
+        let pid = date_to_period_id(date, frequency, fiscal_config);
         if pid != current_pid {
             let comp = comp_total(&period_returns);
             result.push((current_pid, comp));
@@ -174,7 +174,7 @@ pub(crate) fn group_by_period(
 pub(crate) fn group_by_period_dated(
     dates: &[Date],
     returns: &[f64],
-    freq: PeriodKind,
+    frequency: PeriodKind,
 ) -> Vec<(Date, f64)> {
     let mut it = dates.iter().copied().zip(returns.iter().copied());
     let Some((first_date, first_ret)) = it.next() else {
@@ -182,12 +182,12 @@ pub(crate) fn group_by_period_dated(
     };
 
     let mut out: Vec<(Date, f64)> = Vec::new();
-    let mut current_pid = date_to_period_id(first_date, freq, None);
+    let mut current_pid = date_to_period_id(first_date, frequency, None);
     let mut bucket = vec![first_ret];
     let mut last_date = first_date;
 
     for (date, ret) in it {
-        let pid = date_to_period_id(date, freq, None);
+        let pid = date_to_period_id(date, frequency, None);
         if pid != current_pid {
             out.push((last_date, comp_total(&bucket)));
             bucket.clear();

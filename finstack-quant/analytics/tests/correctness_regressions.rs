@@ -350,24 +350,27 @@ fn benchmark_drawdown_views_follow_benchmark_switch_with_active_window() {
 }
 
 #[test]
-fn performance_max_drawdown_and_calmar_are_consistent() {
+fn performance_calmar_matches_cagr_over_absolute_max_drawdown() {
     let returns = vec![0.10, -0.20, 0.05, -0.10, 0.08];
-    let dates: Vec<Date> = (0..returns.len() as u8 + 1)
-        .map(|i| d(2024, Month::January, i + 1))
-        .collect();
+    let dates: Vec<Date> = (2..=6).map(|day| d(2024, Month::January, day)).collect();
     let perf = Performance::from_returns(
-        dates[1..].to_vec(),
+        dates,
         vec![returns],
         vec!["P".to_string()],
         None,
-        PeriodKind::Monthly,
+        PeriodKind::Daily,
     )
     .expect("performance should build");
 
     let max_dd = perf.max_drawdown()[0];
-    assert!(max_dd <= 0.0);
+    assert_close(max_dd, -0.244);
+
+    let expected_cagr = 0.898128_f64.powf(365.25 / 5.0) - 1.0;
+    let cagr = perf.cagr().expect("valid CAGR")[0];
+    assert_close(cagr, expected_cagr);
+
     let calmar = perf.calmar().expect("valid Calmar")[0];
-    assert!(calmar.is_finite() || calmar.is_nan());
+    assert_close(calmar, cagr / max_dd.abs());
 }
 
 #[test]

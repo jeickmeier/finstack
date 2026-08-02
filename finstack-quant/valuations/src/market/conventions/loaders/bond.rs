@@ -29,7 +29,7 @@ mod tests {
             .expect("USD-UST conventions");
 
         assert_eq!(conv.currency, Currency::USD);
-        assert_eq!(conv.market_convention, BondConvention::USTreasury);
+        assert_eq!(conv.market_convention, BondConvention::UsTreasury);
         assert_eq!(conv.default_discount_curve_id, "USD-TREASURY");
     }
 
@@ -41,7 +41,7 @@ mod tests {
             .get(&BondConventionId::new("USD-AGENCY"))
             .expect("USD-AGENCY");
         assert_eq!(agency.currency, Currency::USD);
-        assert_eq!(agency.market_convention, BondConvention::USAgency);
+        assert_eq!(agency.market_convention, BondConvention::UsAgency);
 
         let bund = registry
             .get(&BondConventionId::new("EUR-BUND"))
@@ -53,18 +53,18 @@ mod tests {
             .get(&BondConventionId::new("GBP-GILT"))
             .expect("GBP-GILT");
         assert_eq!(gilt.currency, Currency::GBP);
-        assert_eq!(gilt.market_convention, BondConvention::UKGilt);
+        assert_eq!(gilt.market_convention, BondConvention::UkGilt);
 
         let oat = registry
             .get(&BondConventionId::new("EUR-OAT"))
             .expect("EUR-OAT");
         assert_eq!(oat.currency, Currency::EUR);
-        assert_eq!(oat.market_convention, BondConvention::FrenchOAT);
+        assert_eq!(oat.market_convention, BondConvention::FrenchOat);
 
         let jgb = registry
             .get(&BondConventionId::new("JPY-JGB"))
             .expect("JPY-JGB");
         assert_eq!(jgb.currency, Currency::JPY);
-        assert_eq!(jgb.market_convention, BondConvention::JGB);
+        assert_eq!(jgb.market_convention, BondConvention::Jgb);
     }
 }

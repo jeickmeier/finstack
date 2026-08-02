@@ -7,7 +7,7 @@
         "call_dates": {
           "description": "Dates on which the issuer can call (must be sorted ascending).",
           "items": {
-            "type": "string"
+            "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
           },
           "type": "array"
         },
@@ -30,6 +30,139 @@
       ],
       "type": "object"
     },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "Snowball": {
+      "additionalProperties": false,
+      "description": "Snowball structured note.\n\nThe coupon in each period depends on the previous period's coupon,\ncreating a path-dependent \"snowball\" accumulation:\n\n```text\nc_i = max(c_{i-1} + fixed_rate - L_i, 0)\n```\n\nwhere L_i is the floating rate and c_0 = initial_coupon.\n\nIf the floating rate stays low, coupons ratchet up over time.\nIf rates spike, the coupon floors at zero and must rebuild.\n\n# Variants\n\n- **Snowball**: Coupon depends on previous coupon (path-dependent)\n- **Inverse Floater**: Coupon = fixed_rate - leverage * floating_rate\n  (simpler, not path-dependent, but often combined with callability)\n\n# References\n\n- Brigo, D., & Mercurio, F. (2006). *Interest Rate Models*. Chapter 14.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes."
+        },
+        "callable": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BermudanCallProvision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional Bermudan call provision."
+        },
+        "coupon_cap": {
+          "description": "Optional cap on each period coupon.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "coupon_dates": {
+          "description": "Coupon payment dates (must be sorted ascending).",
+          "items": {
+            "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+          },
+          "type": "array"
+        },
+        "coupon_floor": {
+          "description": "Floor on each period coupon (typically 0.0).",
+          "format": "double",
+          "type": "number"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID."
+        },
+        "fixed_rate": {
+          "description": "Fixed rate component.",
+          "format": "double",
+          "type": "number"
+        },
+        "floating_index_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Floating rate index identifier."
+        },
+        "floating_tenor": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
+          "description": "Floating rate tenor."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "initial_coupon": {
+          "description": "Initial coupon for snowball (c_0); ignored for inverse floater.",
+          "format": "double",
+          "type": "number"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides.\nInstrument-owned pricing inputs."
+        },
+        "leverage": {
+          "description": "Leverage multiplier on floating rate (1.0 for snowball, variable for inverse floater).",
+          "format": "double",
+          "type": "number"
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "variant": {
+          "$ref": "#/$defs/SnowballVariant",
+          "description": "Snowball or inverse floater variant."
+        },
+        "vol_surface_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional normal-vol surface used to infer HW1F short-rate σ for stress scenarios."
+        }
+      },
+      "required": [
+        "id",
+        "variant",
+        "initial_coupon",
+        "fixed_rate",
+        "leverage",
+        "coupon_floor",
+        "notional",
+        "coupon_dates",
+        "floating_index_id",
+        "floating_tenor",
+        "discount_curve_id",
+        "day_count",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "SnowballVariant": {
       "description": "Snowball note variant.",
       "oneOf": [
@@ -44,173 +177,84 @@
           "type": "string"
         }
       ]
+    },
+    "snowball": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/Snowball"
+            },
+            "type": {
+              "const": "snowball",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/snowball.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Snowball instrument schema",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
+  "examples": [
+    {
+      "instrument": {
+        "spec": {
+          "attributes": {},
+          "callable": null,
+          "coupon_cap": null,
+          "coupon_dates": [
+            "2026-06-30",
+            "2026-12-31",
+            "2027-06-30",
+            "2027-12-31",
+            "2028-06-30",
+            "2028-12-31"
+          ],
+          "coupon_floor": 0.0,
+          "day_count": "act_360",
+          "discount_curve_id": "USD-OIS",
+          "fixed_rate": 0.05,
+          "floating_index_id": "USD-SOFR-6M",
+          "floating_tenor": {
+            "count": 6,
+            "unit": "months"
+          },
+          "id": "SNOWBALL-USD-3Y",
+          "initial_coupon": 0.03,
+          "leverage": 1.0,
+          "notional": {
+            "amount": "1000000",
+            "currency": "USD"
+          },
+          "variant": "snowball",
+          "vol_surface_id": "USD-SOFR-HW-VOL"
+        },
+        "type": "snowball"
+      },
+      "schema": "finstack_quant.instrument/1"
+    }
+  ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Snowball instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes."
-            },
-            "callable": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/BermudanCallProvision"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional Bermudan call provision."
-            },
-            "coupon_cap": {
-              "description": "Optional cap on each period coupon.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "coupon_dates": {
-              "description": "Coupon payment dates (must be sorted ascending).",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "coupon_floor": {
-              "description": "Floor on each period coupon (typically 0.0).",
-              "format": "double",
-              "type": "number"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention."
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID."
-            },
-            "fixed_rate": {
-              "description": "Fixed rate component.",
-              "format": "double",
-              "type": "number"
-            },
-            "floating_index_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Floating rate index identifier."
-            },
-            "floating_tenor": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-              "description": "Floating rate tenor."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "initial_coupon": {
-              "description": "Initial coupon for snowball (c_0); ignored for inverse floater.",
-              "format": "double",
-              "type": "number"
-            },
-            "leverage": {
-              "description": "Leverage multiplier on floating rate (1.0 for snowball, variable for inverse floater).",
-              "format": "double",
-              "type": "number"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides.\nInstrument-owned pricing inputs."
-            },
-            "variant": {
-              "$ref": "#/$defs/SnowballVariant",
-              "description": "Snowball or inverse floater variant."
-            },
-            "vol_surface_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional normal-vol surface used to infer HW1F short-rate σ for stress scenarios."
-            }
-          },
-          "required": [
-            "id",
-            "variant",
-            "initial_coupon",
-            "fixed_rate",
-            "leverage",
-            "coupon_floor",
-            "notional",
-            "coupon_dates",
-            "floating_index_id",
-            "floating_tenor",
-            "discount_curve_id",
-            "day_count",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "snowball",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/snowball"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Snowball",
+  "title": "snowball",
   "type": "object"
 }

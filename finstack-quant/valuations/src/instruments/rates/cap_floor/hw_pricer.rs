@@ -556,7 +556,7 @@ pub(crate) fn resolve_capfloor_hw1f_params(
         flavor: Hw1fCalibrationFlavor::CapFloor,
         overrides: overrides.as_ref(),
         surface: Some(Hw1fSurfaceCalibration::CapFloor {
-            surface_id: cap_floor.vol_surface_id.as_str(),
+            vol_surface_id: cap_floor.vol_surface_id.as_str(),
             points: &surface_points,
         }),
         fallback: None,
@@ -726,7 +726,7 @@ fn capfloor_surface_points(
                 cap_floor.rate_option_type,
                 RateOptionType::Cap | RateOptionType::Caplet
             ),
-            weight: (cap_floor.notional.amount() * tau * df).abs(),
+            annuity: (cap_floor.notional.amount() * tau * df).abs(),
             normal_vol_per_unit_sigma,
         });
     }

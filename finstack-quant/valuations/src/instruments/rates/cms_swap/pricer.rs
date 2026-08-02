@@ -284,7 +284,7 @@ impl CmsSwapReplicationPricer {
         let vol_surface = market.get_surface(inst.vol_surface_id.as_str())?;
         // Fixed-leg payments per year of the reference swap, matching the
         // Hagan path's frequency argument.
-        let payments_per_year = 1.0 / inst.resolved_swap_fixed_freq().to_years_simple();
+        let payments_per_year = 1.0 / inst.resolved_swap_fixed_frequency().to_years_simple();
 
         let mut total_pv = 0.0;
         for (i, &fixing_date) in inst.cms_fixing_dates.iter().enumerate() {
@@ -433,7 +433,7 @@ pub(super) fn cms_coupon_rate(
             time_to_fixing,
             inst.cms_tenor,
             forward_swap_rate,
-            1.0 / inst.resolved_swap_fixed_freq().to_years_simple(),
+            1.0 / inst.resolved_swap_fixed_frequency().to_years_simple(),
         ) * convexity_scale
     } else {
         0.0
@@ -484,9 +484,9 @@ pub(super) fn cms_forward_and_ttf(
                 as_of,
                 start: swap_start,
                 end: swap_end,
-                fixed_freq: inst.resolved_swap_fixed_freq(),
+                fixed_frequency: inst.resolved_swap_fixed_frequency(),
                 fixed_day_count: inst.resolved_swap_day_count(),
-                float_freq: inst.resolved_swap_float_freq(),
+                float_frequency: inst.resolved_swap_float_frequency(),
                 float_day_count: inst.resolved_swap_float_day_count(),
                 calendar_id: &calendar_id,
                 business_day_convention: convention.business_day_convention(),
@@ -660,7 +660,7 @@ mod tests {
             .cms_accrual_fractions(vec![0.25])
             .cms_day_count(DayCount::Act365F)
             .cms_spread(0.0)
-            .swap_convention_opt(Some(IRSConvention::USDStandard))
+            .swap_convention_opt(Some(IRSConvention::UsdSofr))
             .funding_leg(FundingLeg::Floating {
                 spread: 0.0,
                 payment_dates: vec![first_pay, second_pay],
@@ -780,7 +780,7 @@ mod tests {
             .cms_accrual_fractions(vec![0.25])
             .cms_day_count(DayCount::Act365F)
             .cms_spread(0.0)
-            .swap_convention_opt(Some(IRSConvention::USDStandard))
+            .swap_convention_opt(Some(IRSConvention::UsdSofr))
             .funding_leg(FundingLeg::Fixed {
                 rate: 0.0,
                 payment_dates: vec![pay],
@@ -893,7 +893,7 @@ mod tests {
             .cms_accrual_fractions(vec![0.25])
             .cms_day_count(DayCount::Act365F)
             .cms_spread(0.0)
-            .swap_convention_opt(Some(IRSConvention::USDStandard))
+            .swap_convention_opt(Some(IRSConvention::UsdSofr))
             .funding_leg(FundingLeg::Fixed {
                 rate: 0.0,
                 payment_dates: vec![pay],
@@ -970,7 +970,7 @@ mod tests {
             .cms_accrual_fractions(vec![0.25])
             .cms_day_count(DayCount::Act365F)
             .cms_spread(0.0)
-            .swap_convention_opt(Some(IRSConvention::USDStandard))
+            .swap_convention_opt(Some(IRSConvention::UsdSofr))
             .funding_leg(FundingLeg::Fixed {
                 rate: 0.0,
                 payment_dates: vec![pay],
@@ -1055,7 +1055,7 @@ mod tests {
             .cms_accrual_fractions(vec![0.25])
             .cms_day_count(DayCount::Act365F)
             .cms_spread(0.0)
-            .swap_convention_opt(Some(IRSConvention::USDStandard))
+            .swap_convention_opt(Some(IRSConvention::UsdSofr))
             .funding_leg(FundingLeg::Fixed {
                 rate: 0.0,
                 payment_dates: vec![payment],

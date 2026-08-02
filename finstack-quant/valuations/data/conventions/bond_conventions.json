@@ -10,7 +10,7 @@
       ],
       "record": {
         "currency": "USD",
-        "market_convention": "u_s_treasury",
+        "market_convention": "us_treasury",
         "default_discount_curve_id": "USD-TREASURY"
       }
     },
@@ -21,7 +21,7 @@
       ],
       "record": {
         "currency": "USD",
-        "market_convention": "u_s_agency",
+        "market_convention": "us_agency",
         "default_discount_curve_id": "USD-OIS"
       }
     },
@@ -54,7 +54,7 @@
       ],
       "record": {
         "currency": "GBP",
-        "market_convention": "u_k_gilt",
+        "market_convention": "uk_gilt",
         "default_discount_curve_id": "GBP-GILT"
       }
     },
@@ -65,7 +65,7 @@
       ],
       "record": {
         "currency": "EUR",
-        "market_convention": "french_o_a_t",
+        "market_convention": "french_oat",
         "default_discount_curve_id": "EUR-BUND"
       }
     },
@@ -76,7 +76,7 @@
       ],
       "record": {
         "currency": "JPY",
-        "market_convention": "j_g_b",
+        "market_convention": "jgb",
         "default_discount_curve_id": "JPY-JGB"
       }
     }

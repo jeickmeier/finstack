@@ -134,7 +134,7 @@ fn test_mc_pricer_market_anchored_zero_vol_and_vol_sensitivity() {
                     correlation_matrix: None,
                     recovery_rate: 0.40,
                     credit_spread_process: CreditSpreadProcessSpec::MarketAnchored {
-                        hazard_curve_id: "BORROWER-HZD".into(),
+                        credit_curve_id: "BORROWER-HZD".into(),
                         kappa: 0.5,
                         implied_vol: 1e-8, // near-zero, but positive to satisfy CIR constraints
                         tenor_years: None,
@@ -178,7 +178,7 @@ fn test_mc_pricer_market_anchored_zero_vol_and_vol_sensitivity() {
                     correlation_matrix: None,
                     recovery_rate: 0.40,
                     credit_spread_process: CreditSpreadProcessSpec::MarketAnchored {
-                        hazard_curve_id: "BORROWER-HZD".into(),
+                        credit_curve_id: "BORROWER-HZD".into(),
                         kappa: 0.5,
                         implied_vol: 0.30,
                         tenor_years: None,
@@ -442,7 +442,7 @@ fn test_mc_stochastic_floating_rate_index_cap() {
     let make_float_spec = |all_in_cap_bp: Option<Decimal>| -> FloatingRateSpec {
         FloatingRateSpec {
             index_id: "USD-SOFR-3M".into(),
-            spread_bp: Decimal::try_from(100.0).expect("valid"), // 100 bps spread
+            spread_bp: Decimal::try_from(100.0).expect("valid"), // 100 bp spread
             gearing: Decimal::try_from(1.0).expect("valid"),
             gearing_includes_spread: true,
             index_floor_bp: None,
@@ -450,7 +450,7 @@ fn test_mc_stochastic_floating_rate_index_cap() {
             all_in_cap_bp: None,
             index_cap_bp: all_in_cap_bp,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,
@@ -498,7 +498,7 @@ fn test_mc_stochastic_floating_rate_index_cap() {
         RevolvingCreditPricer::price_with_paths(&facility_no_cap, &market, val_date).unwrap();
     let pv_no_cap = mc_no_cap.mc_result.estimate.mean.amount();
 
-    // Facility with index cap at 300 bps (3%): index rate capped at 3%, all-in ≈ 4%
+    // Facility with index cap at 300 bp (3%): index rate capped at 3%, all-in ≈ 4%
     let cap_300 = Decimal::try_from(300.0).expect("valid");
     let facility_with_cap = make_stoch_spec("RC-MC-CAP300", Some(cap_300));
     let mc_with_cap =

@@ -1,12 +1,12 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "cds_5y_par_spread",
     "domain": "credit.cds",
     "description": "Bloomberg CDSW 5Y IBM single-name CDS with standard coupon and quoted spread.",
     "valuation_date": "2026-05-02",
     "source": "bloomberg-screen",
-    "source_detail": "Bloomberg CDSW IBM USD senior CDS, 2014 SNAC XR14, S531 USD Custom Swap Curve - Mid, IBM USD Senior Curve, valuation date 2026-05-02 Phase-2 envelope migration (2026-05-09): Tier-A wrap. Original snapshot preserved verbatim in initial_market; pricing tolerance contract preserved.",
+    "source_detail": "Bloomberg CDSW IBM USD senior CDS, 2014 SNAC XR14, S531 USD Custom Swap Curve - Mid, IBM USD Senior Curve, valuation date 2026-05-02 Canonical typed market inputs are supplied directly; the pricing tolerance contract is preserved.",
     "captured_by": "jeickmeier",
     "captured_on": "2026-05-02",
     "last_reviewed_by": "jeickmeier",
@@ -39,10 +39,10 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
-        "id": "cds_5y_par_spread_tier_a_wrap",
-        "description": "Tier-A wrap (Phase-2 envelope migration, 2026-05-09): the original market snapshot is preserved in initial_market with empty plan.steps. Routes through engine::execute_with_diagnostics without changing pricing math.",
+        "id": "cds_5y_par_spread_market",
+        "description": "the canonical typed market inputs are supplied with no calibration steps. Routes through engine::execute_with_diagnostics without changing pricing math.",
         "quote_sets": {},
         "steps": [],
         "settings": {
@@ -149,7 +149,7 @@
           "issuer": null,
           "seniority": null,
           "currency": null,
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "par_points": [
             [
               0.5,
@@ -184,13 +184,13 @@
               80.4
             ]
           ],
-          "par_interp": "Linear"
+          "par_interp": "linear"
         },
         {
           "kind": "discount_curve",
           "id": "USD-S531-SWAP",
           "base": "2026-05-02",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "knot_points": [
             [
               0.0,
@@ -287,164 +287,326 @@
           "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
           "rate_calibration": {
-            "index_id": "USD-SOFR-OIS",
             "currency": "USD",
+            "method": "bootstrap",
+            "curve_day_count": "act_365f",
+            "ois_compounding": null,
+            "role": {
+              "discount": {
+                "projection_curve_id": "USD-S531-SWAP"
+              }
+            },
             "quotes": [
               {
-                "quote_type": "deposit",
-                "tenor": "1M",
-                "rate": 0.03644
+                "deposit": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 1,
+                      "unit": "months"
+                    }
+                  },
+                  "rate": 0.03644
+                }
               },
               {
-                "quote_type": "deposit",
-                "tenor": "2M",
-                "rate": 0.036528
+                "deposit": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 2,
+                      "unit": "months"
+                    }
+                  },
+                  "rate": 0.036528
+                }
               },
               {
-                "quote_type": "deposit",
-                "tenor": "3M",
-                "rate": 0.036583
+                "deposit": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 3,
+                      "unit": "months"
+                    }
+                  },
+                  "rate": 0.036583
+                }
               },
               {
-                "quote_type": "deposit",
-                "tenor": "6M",
-                "rate": 0.03672
+                "deposit": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 6,
+                      "unit": "months"
+                    }
+                  },
+                  "rate": 0.03672
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "1Y",
-                "rate": 0.037255
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 1,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.037255,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "2Y",
-                "rate": 0.037125
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 2,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.037125,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "3Y",
-                "rate": 0.03681
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 3,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.03681,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "4Y",
-                "rate": 0.036840000000000005
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 4,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.036840000000000005,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "5Y",
-                "rate": 0.037115
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 5,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.037115,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "6Y",
-                "rate": 0.037555
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 6,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.037555,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "7Y",
-                "rate": 0.038045
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 7,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.038045,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "8Y",
-                "rate": 0.038505
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 8,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.038505,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "9Y",
-                "rate": 0.03894
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 9,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.03894,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "10Y",
-                "rate": 0.039369999999999995
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 10,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.039369999999999995,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "12Y",
-                "rate": 0.040235
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 12,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.040235,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "15Y",
-                "rate": 0.04133
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 15,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.04133,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "20Y",
-                "rate": 0.04221
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 20,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.04221,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "25Y",
-                "rate": 0.042265
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 25,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.042265,
+                  "spread_decimal": null
+                }
               },
               {
-                "quote_type": "swap",
-                "tenor": "30Y",
-                "rate": 0.041935
+                "swap": {
+                  "index_id": "USD-SOFR-OIS",
+                  "pillar": {
+                    "tenor": {
+                      "count": 30,
+                      "unit": "years"
+                    }
+                  },
+                  "rate": 0.041935,
+                  "spread_decimal": null
+                }
               }
             ]
-          }
+          },
+          "calibration_ois_cutoff_days": null,
+          "fx_policy": null
         }
       ]
     }
   },
   "instrument": {
-    "type": "credit_default_swap",
-    "spec": {
-      "id": "IBM-USD-SENIOR-CDS-5Y-CDSW-20260502",
-      "notional": {
-        "amount": "10000000",
-        "currency": "USD"
-      },
-      "side": "pay",
-      "convention": "isda_na",
-      "premium": {
-        "start": "2026-03-20",
-        "end": "2031-06-20",
-        "frequency": {
-          "count": 3,
-          "unit": "months"
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "type": "credit_default_swap",
+      "spec": {
+        "id": "IBM-USD-SENIOR-CDS-5Y-CDSW-20260502",
+        "notional": {
+          "amount": "10000000",
+          "currency": "USD"
         },
-        "calendar_id": "nyse",
-        "day_count": "Act360",
-        "spread_bp": "100.0",
-        "discount_curve_id": "USD-S531-SWAP"
-      },
-      "protection": {
-        "credit_curve_id": "IBM-USD-SENIOR",
-        "recovery_rate": 0.4,
-        "settlement_delay": 2
-      },
-      "pricing_overrides": {
-        "cds_quote_bp": 60.5
-      },
-      "valuation_convention": "bloomberg_cdsw_clean",
-      "doc_clause": "xr14",
-      "protection_effective_date": "2026-05-02",
-      "attributes": {
-        "tags": [
-          "golden",
-          "bloomberg",
-          "cdsw",
-          "single-name-cds"
-        ],
-        "meta": {
-          "bloomberg_screen": "CDSW",
-          "reference_entity": "International Business Machines Corp",
-          "ticker": "IBM",
-          "reference_obligation": "US459200KA85",
-          "debt_type": "Senior",
-          "contract": "2014 SNAC",
-          "restructuring": "XR14",
-          "trade_date": "2026-05-02",
-          "cash_settle_date": "2026-05-07",
-          "cash_calculated_date": "2026-05-06",
-          "curve_date": "2026-05-02",
-          "swap_curve": "S531 USD Custom Swap Curve - Mid",
-          "cds_curve": "IBM USD Senior Curve"
+        "side": "pay",
+        "convention": "isda_na",
+        "premium": {
+          "start": "2026-03-20",
+          "end": "2031-06-20",
+          "frequency": {
+            "count": 3,
+            "unit": "months"
+          },
+          "calendar_id": "nyse",
+          "day_count": "act_360",
+          "spread_bp": "100.0",
+          "discount_curve_id": "USD-S531-SWAP"
+        },
+        "protection": {
+          "credit_curve_id": "IBM-USD-SENIOR",
+          "recovery_rate": 0.4,
+          "settlement_delay": 2
+        },
+        "instrument_pricing_overrides": {
+          "market_quotes": {
+            "cds_quote_bp": 60.5
+          }
+        },
+        "valuation_convention": "bloomberg_cdsw_clean",
+        "doc_clause": "xr14",
+        "protection_effective_date": "2026-05-02",
+        "attributes": {
+          "tags": [
+            "golden",
+            "bloomberg",
+            "cdsw",
+            "single-name-cds"
+          ],
+          "meta": {
+            "bloomberg_screen": "CDSW",
+            "reference_entity": "International Business Machines Corp",
+            "ticker": "IBM",
+            "reference_obligation": "US459200KA85",
+            "debt_type": "Senior",
+            "contract": "2014 SNAC",
+            "restructuring": "XR14",
+            "trade_date": "2026-05-02",
+            "cash_settle_date": "2026-05-07",
+            "cash_calculated_date": "2026-05-06",
+            "curve_date": "2026-05-02",
+            "swap_curve": "S531 USD Custom Swap Curve - Mid",
+            "cds_curve": "IBM USD Senior Curve"
+          }
         }
       }
     }

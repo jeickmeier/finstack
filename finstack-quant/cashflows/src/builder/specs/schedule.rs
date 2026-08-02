@@ -45,6 +45,7 @@ use rust_decimal::Decimal;
     schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum RollRule {
     /// Plain tenor stepping from the schedule boundaries (no roll-date grid).
     #[default]
@@ -75,10 +76,10 @@ impl RollRule {
 #[serde(deny_unknown_fields)]
 pub struct ScheduleParams {
     /// Accrual and payment frequency used to generate the schedule boundaries.
-    pub freq: Tenor,
+    pub frequency: Tenor,
     /// Day-count convention used to convert each generated accrual period into a
     /// year fraction.
-    pub dc: DayCount,
+    pub day_count: DayCount,
     /// Business-day convention applied when rolling **payment dates** onto
     /// valid business days.
     ///
@@ -87,8 +88,8 @@ pub struct ScheduleParams {
     /// convention also rolls both accrual-period boundaries (swap/ISDA 2006
     /// §4.10 convention).
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
-    /// Holiday calendar identifier used together with `bdc`.
+    pub business_day_convention: BusinessDayConvention,
+    /// Holiday calendar identifier used together with `business_day_convention`.
     ///
     /// Use `"weekends_only"` when only Saturday/Sunday adjustment is needed.
     pub calendar_id: String,
@@ -103,12 +104,13 @@ pub struct ScheduleParams {
     /// Payment lag in business days after the adjusted accrual end date.
     #[serde(default)]
     pub payment_lag_days: i32,
-    /// Whether accrual-period boundaries are business-day adjusted with `bdc`.
+    /// Whether accrual-period boundaries are business-day adjusted with
+    /// `business_day_convention`.
     ///
     /// - `false` (default, bond convention): accrual periods run between the
     ///   unadjusted schedule anchors; only payment dates roll.
     /// - `true` (swap convention, ISDA 2006 §4.10 / ARRC SOFR conventions):
-    ///   both accrual-period boundaries are rolled with `bdc` before year
+    ///   both accrual-period boundaries are rolled with `business_day_convention` before year
     ///   fractions and overnight observation windows are computed. The swap
     ///   presets ([`Self::usd_sofr_swap`], [`Self::eur_estr_swap`],
     ///   [`Self::gbp_sonia_swap`], [`Self::jpy_tona_swap`]) set this to
@@ -120,7 +122,7 @@ pub struct ScheduleParams {
     /// Roll-date rule for schedule anchors (standard IMM or CDS IMM grids).
     ///
     /// [`RollRule::None`] (default) keeps plain tenor stepping. The IMM modes
-    /// override `freq`/`stub` with quarterly / short-back; see [`RollRule`].
+    /// override `frequency`/`stub` with quarterly / short-back; see [`RollRule`].
     ///
     /// Serialized only when not `None`, so existing wire payloads are
     /// unchanged.
@@ -131,11 +133,16 @@ pub struct ScheduleParams {
 const WK: &str = crate::builder::calendar::WEEKENDS_ONLY_ID;
 
 impl ScheduleParams {
-    fn preset(freq: Tenor, dc: DayCount, bdc: BusinessDayConvention, calendar_id: &str) -> Self {
+    fn preset(
+        frequency: Tenor,
+        day_count: DayCount,
+        business_day_convention: BusinessDayConvention,
+        calendar_id: &str,
+    ) -> Self {
         Self {
-            freq,
-            dc,
-            bdc,
+            frequency,
+            day_count,
+            business_day_convention,
             calendar_id: calendar_id.to_string(),
             stub: StubKind::ShortFront,
             end_of_month: false,
@@ -148,16 +155,16 @@ impl ScheduleParams {
     /// Swap-style preset: accrual periods are business-day adjusted
     /// (ISDA 2006 §4.10; ARRC SOFR conventions).
     fn swap_preset(
-        freq: Tenor,
-        dc: DayCount,
-        bdc: BusinessDayConvention,
+        frequency: Tenor,
+        day_count: DayCount,
+        business_day_convention: BusinessDayConvention,
         calendar_id: &str,
         payment_lag_days: i32,
     ) -> Self {
         Self {
             payment_lag_days,
             adjust_accrual_dates: true,
-            ..Self::preset(freq, dc, bdc, calendar_id)
+            ..Self::preset(frequency, day_count, business_day_convention, calendar_id)
         }
     }
 
@@ -181,9 +188,9 @@ impl ScheduleParams {
     /// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
     ///
     /// let params = ScheduleParams::quarterly_act360();
-    /// assert_eq!(params.freq, Tenor::quarterly());
-    /// assert_eq!(params.dc, DayCount::Act360);
-    /// assert_eq!(params.bdc, BusinessDayConvention::ModifiedFollowing);
+    /// assert_eq!(params.frequency, Tenor::quarterly());
+    /// assert_eq!(params.day_count, DayCount::Act360);
+    /// assert_eq!(params.business_day_convention, BusinessDayConvention::ModifiedFollowing);
     /// assert_eq!(params.calendar_id, "weekends_only");
     /// ```
     ///
@@ -217,9 +224,9 @@ impl ScheduleParams {
     /// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
     ///
     /// let params = ScheduleParams::semiannual_30360();
-    /// assert_eq!(params.freq, Tenor::semi_annual());
-    /// assert_eq!(params.dc, DayCount::Thirty360);
-    /// assert_eq!(params.bdc, BusinessDayConvention::ModifiedFollowing);
+    /// assert_eq!(params.frequency, Tenor::semi_annual());
+    /// assert_eq!(params.day_count, DayCount::Thirty360);
+    /// assert_eq!(params.business_day_convention, BusinessDayConvention::ModifiedFollowing);
     /// ```
     ///
     /// # References
@@ -252,9 +259,9 @@ impl ScheduleParams {
     /// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
     ///
     /// let params = ScheduleParams::annual_actact();
-    /// assert_eq!(params.freq, Tenor::annual());
-    /// assert_eq!(params.dc, DayCount::ActAct);
-    /// assert_eq!(params.bdc, BusinessDayConvention::Following);
+    /// assert_eq!(params.frequency, Tenor::annual());
+    /// assert_eq!(params.day_count, DayCount::ActAct);
+    /// assert_eq!(params.business_day_convention, BusinessDayConvention::Following);
     /// ```
     ///
     /// # References
@@ -291,9 +298,9 @@ impl ScheduleParams {
     /// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
     ///
     /// let params = ScheduleParams::usd_sofr_swap();
-    /// assert_eq!(params.freq, Tenor::quarterly());
-    /// assert_eq!(params.dc, DayCount::Act360);
-    /// assert_eq!(params.bdc, BusinessDayConvention::ModifiedFollowing);
+    /// assert_eq!(params.frequency, Tenor::quarterly());
+    /// assert_eq!(params.day_count, DayCount::Act360);
+    /// assert_eq!(params.business_day_convention, BusinessDayConvention::ModifiedFollowing);
     /// assert_eq!(params.calendar_id, "usny");
     /// assert_eq!(params.payment_lag_days, 2);
     /// assert!(params.adjust_accrual_dates);
@@ -330,9 +337,9 @@ impl ScheduleParams {
     /// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
     ///
     /// let params = ScheduleParams::usd_corporate_bond();
-    /// assert_eq!(params.freq, Tenor::semi_annual());
-    /// assert_eq!(params.dc, DayCount::Thirty360);
-    /// assert_eq!(params.bdc, BusinessDayConvention::Following);
+    /// assert_eq!(params.frequency, Tenor::semi_annual());
+    /// assert_eq!(params.day_count, DayCount::Thirty360);
+    /// assert_eq!(params.business_day_convention, BusinessDayConvention::Following);
     /// assert_eq!(params.calendar_id, "usny");
     /// ```
     ///
@@ -366,9 +373,9 @@ impl ScheduleParams {
     /// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
     ///
     /// let params = ScheduleParams::usd_treasury();
-    /// assert_eq!(params.freq, Tenor::semi_annual());
-    /// assert_eq!(params.dc, DayCount::ActActIsma);
-    /// assert_eq!(params.bdc, BusinessDayConvention::Following);
+    /// assert_eq!(params.frequency, Tenor::semi_annual());
+    /// assert_eq!(params.day_count, DayCount::ActActIsma);
+    /// assert_eq!(params.business_day_convention, BusinessDayConvention::Following);
     /// assert_eq!(params.calendar_id, "usny");
     /// ```
     ///
@@ -407,9 +414,9 @@ impl ScheduleParams {
     /// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
     ///
     /// let params = ScheduleParams::eur_estr_swap();
-    /// assert_eq!(params.freq, Tenor::annual());
-    /// assert_eq!(params.dc, DayCount::Act360);
-    /// assert_eq!(params.bdc, BusinessDayConvention::ModifiedFollowing);
+    /// assert_eq!(params.frequency, Tenor::annual());
+    /// assert_eq!(params.day_count, DayCount::Act360);
+    /// assert_eq!(params.business_day_convention, BusinessDayConvention::ModifiedFollowing);
     /// assert_eq!(params.calendar_id, "target2");
     /// assert_eq!(params.payment_lag_days, 2);
     /// ```
@@ -445,9 +452,9 @@ impl ScheduleParams {
     /// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
     ///
     /// let params = ScheduleParams::eur_gov_bond();
-    /// assert_eq!(params.freq, Tenor::annual());
-    /// assert_eq!(params.dc, DayCount::ActActIsma);
-    /// assert_eq!(params.bdc, BusinessDayConvention::Following);
+    /// assert_eq!(params.frequency, Tenor::annual());
+    /// assert_eq!(params.day_count, DayCount::ActActIsma);
+    /// assert_eq!(params.business_day_convention, BusinessDayConvention::Following);
     /// assert_eq!(params.calendar_id, "target2");
     /// ```
     ///
@@ -486,9 +493,9 @@ impl ScheduleParams {
     /// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
     ///
     /// let params = ScheduleParams::gbp_sonia_swap();
-    /// assert_eq!(params.freq, Tenor::annual());
-    /// assert_eq!(params.dc, DayCount::Act365F);
-    /// assert_eq!(params.bdc, BusinessDayConvention::ModifiedFollowing);
+    /// assert_eq!(params.frequency, Tenor::annual());
+    /// assert_eq!(params.day_count, DayCount::Act365F);
+    /// assert_eq!(params.business_day_convention, BusinessDayConvention::ModifiedFollowing);
     /// assert_eq!(params.calendar_id, "gblo");
     /// assert_eq!(params.payment_lag_days, 0);
     /// ```
@@ -529,9 +536,9 @@ impl ScheduleParams {
     /// use finstack_quant_core::dates::{BusinessDayConvention, DayCount, Tenor};
     ///
     /// let params = ScheduleParams::jpy_tona_swap();
-    /// assert_eq!(params.freq, Tenor::annual());
-    /// assert_eq!(params.dc, DayCount::Act365F);
-    /// assert_eq!(params.bdc, BusinessDayConvention::ModifiedFollowing);
+    /// assert_eq!(params.frequency, Tenor::annual());
+    /// assert_eq!(params.day_count, DayCount::Act365F);
+    /// assert_eq!(params.business_day_convention, BusinessDayConvention::ModifiedFollowing);
     /// assert_eq!(params.calendar_id, "jpto");
     /// assert_eq!(params.payment_lag_days, 2);
     /// ```
@@ -556,6 +563,8 @@ impl ScheduleParams {
 #[serde(deny_unknown_fields)]
 pub struct FixedWindow {
     /// Annual coupon rate as a decimal, for example `0.05` for 5%.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub rate: Decimal,
     /// Schedule-generation parameters for this fixed-rate window.
     pub schedule: ScheduleParams,

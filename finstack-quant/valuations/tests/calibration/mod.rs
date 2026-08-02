@@ -22,7 +22,7 @@
 //! - `validation` - Curve and surface validation tests
 //! - `quote_construction` - All quote types instrument construction verification
 //! - `bloomberg_accuracy` - Bloomberg benchmark accuracy tests
-//! - `v2_engine_smoke` - V2 API smoke tests
+//! - `engine_smoke` - calibration engine smoke tests
 
 mod base_correlation;
 mod bloomberg_accuracy;
@@ -31,6 +31,7 @@ mod builder;
 mod bumps;
 mod config;
 mod diagnostics;
+mod engine_smoke;
 mod explainability;
 mod failure_modes;
 mod finstack_config;
@@ -43,7 +44,6 @@ mod repricing;
 mod serialization;
 mod svi_surface;
 mod swaption_vol;
-mod v2_engine_smoke;
 mod validation;
 
 mod term_structures;

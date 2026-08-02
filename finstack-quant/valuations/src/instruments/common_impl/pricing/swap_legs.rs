@@ -403,13 +403,13 @@ pub(crate) fn compounded_forward_projection(
         )));
     }
 
-    let fwd_dc = fwd.day_count();
+    let fwd_day_count = fwd.day_count();
     let fwd_base = fwd.base_date();
     let curve_time = |d: Date| -> Result<f64> {
         if d <= fwd_base {
             Ok(0.0)
         } else {
-            fwd_dc.year_fraction(fwd_base, d, DayCountContext::default())
+            fwd_day_count.year_fraction(fwd_base, d, DayCountContext::default())
         }
     };
 
@@ -427,7 +427,7 @@ pub(crate) fn compounded_forward_projection(
 
         // Day-count weight dᵢ is anchored to the accrual sub-period (lookback
         // semantics: observation dates shift, weights do not).
-        let dcf = fwd_dc.year_fraction(d, next_d, DayCountContext::default())?;
+        let dcf = fwd_day_count.year_fraction(d, next_d, DayCountContext::default())?;
         if dcf <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "Compounded OIS leg produced a non-positive day-count fraction \
@@ -592,13 +592,13 @@ pub(crate) fn compounded_spliced_projection(
         )));
     }
 
-    let fwd_dc = fwd.day_count();
+    let fwd_day_count = fwd.day_count();
     let fwd_base = fwd.base_date();
     let curve_time = |d: Date| -> Result<f64> {
         if d <= fwd_base {
             Ok(0.0)
         } else {
-            fwd_dc.year_fraction(fwd_base, d, DayCountContext::default())
+            fwd_day_count.year_fraction(fwd_base, d, DayCountContext::default())
         }
     };
 
@@ -616,7 +616,7 @@ pub(crate) fn compounded_spliced_projection(
         let next_d = shift_business_days_with(d, 1, cal)?.min(accrual_end);
 
         // Day-count weight dᵢ is anchored to the accrual sub-period.
-        let dcf = fwd_dc.year_fraction(d, next_d, DayCountContext::default())?;
+        let dcf = fwd_day_count.year_fraction(d, next_d, DayCountContext::default())?;
         if dcf <= 0.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "Compounded OIS leg produced a non-positive day-count fraction \
@@ -1448,7 +1448,7 @@ mod tests {
             },
         ];
 
-        let params = float_spread(100.0); // 100 bps
+        let params = float_spread(100.0); // 100 bp
         let pv = pv_floating_leg(
             periods.into_iter(),
             1_000_000.0,
@@ -1606,7 +1606,7 @@ mod tests {
         )
         .expect("fixings series");
 
-        let params = float_spread(100.0); // 100 bps spread
+        let params = float_spread(100.0); // 100 bp spread
         let pv = pv_floating_leg(
             periods.into_iter(),
             1_000_000.0,
@@ -1910,17 +1910,17 @@ mod tests {
         let implied_rate = pv / (1_000_000.0 * year_fraction * df);
 
         // Expected: fixing-date-anchored forward.
-        let fwd_dc = fwd.day_count();
-        let t_reset = fwd_dc
+        let fwd_day_count = fwd.day_count();
+        let t_reset = fwd_day_count
             .year_fraction(base_date, reset_date, DayCountContext::default())
             .expect("yf");
         let expected_fixing_anchored = fwd.rate(t_reset);
 
         // The (incorrect) accrual-interval projection, for contrast.
-        let t0 = fwd_dc
+        let t0 = fwd_day_count
             .year_fraction(base_date, accrual_start, DayCountContext::default())
             .expect("yf");
-        let t1 = fwd_dc
+        let t1 = fwd_day_count
             .year_fraction(base_date, accrual_end, DayCountContext::default())
             .expect("yf");
         let accrual_interval_rate = fwd.rate_period(t0, t1);
@@ -1991,11 +1991,11 @@ mod tests {
         let df = robust_relative_df(&disc, base_date, accrual_end).expect("df");
         let implied_rate = pv / (1_000_000.0 * year_fraction * df);
 
-        let fwd_dc = fwd.day_count();
-        let t0 = fwd_dc
+        let fwd_day_count = fwd.day_count();
+        let t0 = fwd_day_count
             .year_fraction(base_date, accrual_start, DayCountContext::default())
             .expect("yf");
-        let t1 = fwd_dc
+        let t1 = fwd_day_count
             .year_fraction(base_date, accrual_end, DayCountContext::default())
             .expect("yf");
         // The simple arithmetic-average forward over the accrual interval — the
@@ -2003,7 +2003,7 @@ mod tests {
         let simple_avg_rate = fwd.rate_period(t0, t1);
         // The fixing-date-anchored forward — the projection W-48 guards AGAINST
         // for OIS legs.
-        let t_reset = fwd_dc
+        let t_reset = fwd_day_count
             .year_fraction(base_date, reset_date, DayCountContext::default())
             .expect("yf");
         let fixing_anchored_rate = fwd.rate(t_reset);
@@ -2013,13 +2013,13 @@ mod tests {
         let mut d = accrual_start;
         while d < accrual_end {
             let nxt = d.add_weekdays(1).min(accrual_end);
-            let dcf = fwd_dc
+            let dcf = fwd_day_count
                 .year_fraction(d, nxt, DayCountContext::default())
                 .expect("dcf");
-            let ts = fwd_dc
+            let ts = fwd_day_count
                 .year_fraction(base_date, d, DayCountContext::default())
                 .expect("ts");
-            let te = fwd_dc
+            let te = fwd_day_count
                 .year_fraction(base_date, nxt, DayCountContext::default())
                 .expect("te");
             let r = if te > ts {
@@ -2171,11 +2171,11 @@ mod tests {
         let implied_rate = pv / (1_000_000.0 * year_fraction * df);
 
         // The simple arithmetic-average forward (the OLD, buggy projection).
-        let fwd_dc = fwd.day_count();
-        let t0 = fwd_dc
+        let fwd_day_count = fwd.day_count();
+        let t0 = fwd_day_count
             .year_fraction(base_date, accrual_start, DayCountContext::default())
             .expect("yf");
-        let t1 = fwd_dc
+        let t1 = fwd_day_count
             .year_fraction(base_date, accrual_end, DayCountContext::default())
             .expect("yf");
         let simple_avg_rate = fwd.rate_period(t0, t1);
@@ -2194,13 +2194,13 @@ mod tests {
         let mut d = accrual_start;
         while d < accrual_end {
             let nxt = d.add_weekdays(1).min(accrual_end);
-            let dcf = fwd_dc
+            let dcf = fwd_day_count
                 .year_fraction(d, nxt, DayCountContext::default())
                 .expect("dcf");
-            let ts = fwd_dc
+            let ts = fwd_day_count
                 .year_fraction(base_date, d, DayCountContext::default())
                 .expect("ts");
-            let te = fwd_dc
+            let te = fwd_day_count
                 .year_fraction(base_date, nxt, DayCountContext::default())
                 .expect("te");
             let r = if te > ts {
@@ -2342,8 +2342,8 @@ mod tests {
 
         let accrual_start = date(2024, 7, 1);
         let accrual_end = date(2025, 1, 1);
-        let fwd_dc = fwd.day_count();
-        let year_fraction = fwd_dc
+        let fwd_day_count = fwd.day_count();
+        let year_fraction = fwd_day_count
             .year_fraction(accrual_start, accrual_end, DayCountContext::default())
             .expect("yf");
         let periods = vec![LegPeriod {
@@ -2400,7 +2400,7 @@ mod tests {
         let mut d = accrual_start;
         while d < accrual_end {
             let nxt = d.add_weekdays(1).min(accrual_end);
-            let dcf = fwd_dc
+            let dcf = fwd_day_count
                 .year_fraction(d, nxt, DayCountContext::default())
                 .expect("dcf");
             acc *= 1.0 + floor * dcf;
@@ -2438,8 +2438,8 @@ mod tests {
         let accrual_start = date(2024, 1, 1);
         let accrual_end = date(2024, 4, 1);
         let as_of = date(2024, 2, 15);
-        let fwd_dc = fwd.day_count();
-        let year_fraction = fwd_dc
+        let fwd_day_count = fwd.day_count();
+        let year_fraction = fwd_day_count
             .year_fraction(accrual_start, accrual_end, DayCountContext::default())
             .expect("yf");
 
@@ -2496,16 +2496,16 @@ mod tests {
         let mut d = accrual_start;
         while d < accrual_end {
             let nxt = d.add_weekdays(1).min(accrual_end);
-            let dcf = fwd_dc
+            let dcf = fwd_day_count
                 .year_fraction(d, nxt, DayCountContext::default())
                 .expect("dcf");
             let r = if d < as_of {
                 fixing_lookup(d)
             } else {
-                let ts = fwd_dc
+                let ts = fwd_day_count
                     .year_fraction(base_date, d, DayCountContext::default())
                     .expect("ts");
-                let te = fwd_dc
+                let te = fwd_day_count
                     .year_fraction(base_date, nxt, DayCountContext::default())
                     .expect("te");
                 if te > ts {
@@ -2561,8 +2561,8 @@ mod tests {
         let accrual_end = date(2024, 4, 1);
         let as_of = date(2024, 4, 2); // past accrual_end, payment not yet made
 
-        let fwd_dc = fwd.day_count();
-        let year_fraction = fwd_dc
+        let fwd_day_count = fwd.day_count();
+        let year_fraction = fwd_day_count
             .year_fraction(accrual_start, accrual_end, DayCountContext::default())
             .expect("yf");
 
@@ -2617,7 +2617,7 @@ mod tests {
             let mut d = accrual_start;
             while d < accrual_end {
                 let nxt = d.add_weekdays(1).min(accrual_end);
-                let dcf = fwd_dc
+                let dcf = fwd_day_count
                     .year_fraction(d, nxt, DayCountContext::default())
                     .expect("dcf");
                 let r = fixing_obs[idx].1;

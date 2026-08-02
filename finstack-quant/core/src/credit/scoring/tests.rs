@@ -41,8 +41,7 @@ mod altman_tests {
             sales_to_total_assets: 1.80,
         };
 
-        let result =
-            altman_z_score_with_pd(&input, AltmanPdCalibration::HeuristicV1).expect("score");
+        let result = altman_z_score_with_pd(&input, AltmanPdCalibration::Heuristic).expect("score");
         assert!(result.implied_pd.is_some_and(|pd| pd < 0.01));
     }
 
@@ -245,7 +244,7 @@ mod altman_tests {
             sales_to_total_assets: 3.00,
         };
         let safe_result =
-            altman_z_score_with_pd(&safe_input, AltmanPdCalibration::HeuristicV1).unwrap();
+            altman_z_score_with_pd(&safe_input, AltmanPdCalibration::Heuristic).unwrap();
         assert!(safe_result
             .implied_pd
             .is_some_and(|pd| (0.0..=1.0).contains(&pd)));
@@ -259,7 +258,7 @@ mod altman_tests {
             sales_to_total_assets: 0.10,
         };
         let dist_result =
-            altman_z_score_with_pd(&dist_input, AltmanPdCalibration::HeuristicV1).unwrap();
+            altman_z_score_with_pd(&dist_input, AltmanPdCalibration::Heuristic).unwrap();
         assert!(dist_result
             .implied_pd
             .is_some_and(|pd| (0.0..=1.0).contains(&pd)));

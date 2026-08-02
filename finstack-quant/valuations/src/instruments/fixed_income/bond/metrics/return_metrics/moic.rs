@@ -76,7 +76,7 @@ pub(crate) fn lifetime_dated_cashflows(
         .into_flows()
         .into_iter()
         .filter(|cf| {
-            cf.kind != CFKind::PIK && !(cf.kind == CFKind::Notional && cf.amount.amount() < 0.0)
+            cf.kind != CFKind::Pik && !(cf.kind == CFKind::Notional && cf.amount.amount() < 0.0)
         })
         .map(|cf| (cf.date, cf.amount))
         .collect())

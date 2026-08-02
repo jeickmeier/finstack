@@ -5,6 +5,8 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::money::Money;
 use finstack_quant_statements::builder::{ModelBuilder, NeedPeriods};
+use finstack_quant_statements::types::FinancialStatementInstrument;
+use finstack_quant_valuations::instruments::RevolvingCredit;
 use time::Month;
 
 #[test]
@@ -33,7 +35,10 @@ fn test_add_bond() {
     assert_eq!(cs.debt_instruments.len(), 1);
 
     assert_eq!(cs.debt_instruments[0].id, "BOND-001");
-    assert_eq!(cs.debt_instruments[0].spec["type"], "bond");
+    assert!(matches!(
+        cs.debt_instruments[0].spec,
+        FinancialStatementInstrument::Bond(_)
+    ));
 }
 
 #[test]
@@ -63,7 +68,10 @@ fn test_add_swap() {
     assert_eq!(cs.debt_instruments.len(), 1);
 
     assert_eq!(cs.debt_instruments[0].id, "SWAP-001");
-    assert_eq!(cs.debt_instruments[0].spec["type"], "interest_rate_swap");
+    assert!(matches!(
+        cs.debt_instruments[0].spec,
+        FinancialStatementInstrument::InterestRateSwap(_)
+    ));
 }
 
 #[test]
@@ -102,20 +110,14 @@ fn test_add_multiple_instruments() {
 }
 
 #[test]
-fn test_add_custom_debt() {
+fn test_add_debt() {
+    let instrument = FinancialStatementInstrument::RevolvingCredit(
+        RevolvingCredit::example().expect("valid revolving credit example"),
+    );
     let builder = ModelBuilder::<NeedPeriods>::new("test")
         .periods("2025Q1..2025Q2", None)
         .expect("valid period range")
-        .add_custom_debt(
-            "TL-A",
-            serde_json::json!({
-                "type": "term_loan",
-                "spec": {
-                    "id": "TL-A",
-                    "notional": { "amount": 10_000_000.0, "currency": "USD" }
-                }
-            }),
-        );
+        .add_debt("RCF-A", instrument);
     let model = builder.build().expect("valid model");
 
     let cs = model
@@ -124,7 +126,7 @@ fn test_add_custom_debt() {
         .expect("capital_structure should exist");
     assert_eq!(cs.debt_instruments.len(), 1);
 
-    assert_eq!(cs.debt_instruments[0].id, "TL-A");
+    assert_eq!(cs.debt_instruments[0].id, "RCF-A");
 }
 
 // --- Parity: add_bond vs add_bond_with_convention (USD defaults) ---
@@ -180,14 +182,14 @@ fn parity_add_bond_and_add_bond_with_convention_same_id() {
         .expect("capital_structure present");
 
     // Both produce a bond-tagged payload
-    assert_eq!(
-        cs_simple.debt_instruments[0].spec["type"], "bond",
-        "add_bond should produce a bond payload"
-    );
-    assert_eq!(
-        cs_conv.debt_instruments[0].spec["type"], "bond",
-        "add_bond_with_convention should produce a bond payload"
-    );
+    assert!(matches!(
+        cs_simple.debt_instruments[0].spec,
+        FinancialStatementInstrument::Bond(_)
+    ));
+    assert!(matches!(
+        cs_conv.debt_instruments[0].spec,
+        FinancialStatementInstrument::Bond(_)
+    ));
 }
 
 // --- Parity: add_swap vs add_swap_with_conventions (USD defaults) ---
@@ -247,12 +249,12 @@ fn parity_add_swap_and_add_swap_with_conventions_produce_swap_variant() {
         .as_ref()
         .expect("capital_structure present");
 
-    assert_eq!(
-        cs_simple.debt_instruments[0].spec["type"], "interest_rate_swap",
-        "add_swap should produce an interest_rate_swap payload"
-    );
-    assert_eq!(
-        cs_conv.debt_instruments[0].spec["type"], "interest_rate_swap",
-        "add_swap_with_conventions should produce an interest_rate_swap payload"
-    );
+    assert!(matches!(
+        cs_simple.debt_instruments[0].spec,
+        FinancialStatementInstrument::InterestRateSwap(_)
+    ));
+    assert!(matches!(
+        cs_conv.debt_instruments[0].spec,
+        FinancialStatementInstrument::InterestRateSwap(_)
+    ));
 }

@@ -551,7 +551,7 @@ fn actact_isma_multiple_frequencies() {
 #[test]
 fn actact_isma_eom_regular_period_is_exactly_half() {
     // Regression for the the frequency-only
-    // quasi-coupon grid was anchored at `start.add_months(-freq)` and stepped
+    // quasi-coupon grid was anchored at `start.add_months(-frequency)` and stepped
     // cumulatively, so month-end starts drifted (grid Aug 28 instead of
     // Aug 31) and a regular EOM semi-annual period returned
     // 181/184 × 0.5 ≈ 0.49185. Anchoring k-multiples on `start` itself must

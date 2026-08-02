@@ -4,19 +4,19 @@
       "attributes": {},
       "call_put": null,
       "cashflow_spec": {
-        "Fixed": {
-          "bdc": "following",
+        "fixed": {
+          "business_day_convention": "following",
           "calendar_id": "sifma",
-          "coupon_type": "Cash",
-          "dc": "ActActIsma",
+          "coupon_type": "cash",
+          "day_count": "act_act_isma",
           "end_of_month": false,
-          "freq": {
+          "frequency": {
             "count": 6,
             "unit": "months"
           },
           "payment_lag_days": 0,
           "rate": "0.0425",
-          "stub": "None"
+          "stub": "short_front"
         }
       },
       "credit_curve_id": null,
@@ -29,27 +29,6 @@
       "notional": {
         "amount": "1000000",
         "currency": "USD"
-      },
-      "pricing_overrides": {
-        "adaptive_bumps": false,
-        "call_friction_cents": null,
-        "cds_quote_bp": null,
-        "credit_spread_bump_bp": null,
-        "implied_volatility": null,
-        "mc_seed_scenario": null,
-        "mean_reversion": null,
-        "quoted_clean_price": 98.75,
-        "rate_bump_bp": null,
-        "rho_bump_decimal": null,
-        "spot_bump_pct": null,
-        "theta_period": null,
-        "tree_steps": null,
-        "upfront_payment": null,
-        "use_gobet_miri": false,
-        "vega_bump_decimal": null,
-        "vol_bump_pct": null,
-        "vol_surface_extrapolation": "error",
-        "ytm_bump_decimal": null
       },
       "settlement_days": 1
     },

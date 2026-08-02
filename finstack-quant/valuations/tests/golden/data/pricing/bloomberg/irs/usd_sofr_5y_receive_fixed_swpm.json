@@ -1,12 +1,12 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "usd_sofr_5y_receive_fixed_swpm",
     "domain": "rates.irs",
     "description": "Bloomberg SWPM USD SOFR 5Y receive-fixed swap captured from screens on 2026-04-30.",
     "valuation_date": "2026-05-04",
     "source": "bloomberg-screen",
-    "source_detail": "Bloomberg SWPM, curve 490 USD SOFR, curve date 2026-04-30, valuation date 2026-05-04 Phase-2 envelope migration (2026-05-09): replaced materialized market.curves with a calibration plan driven by SWPM Curve 490 Market Rates (26 quotes, deposits + OIS swaps) transcribed from the curve screenshot.",
+    "source_detail": "Bloomberg SWPM, curve 490 USD SOFR, curve date 2026-04-30, valuation date 2026-05-04 . Uses calibrated prior_market with a calibration plan driven by SWPM Curve 490 Market Rates (26 quotes, deposits + OIS swaps) transcribed from the curve screenshot.",
     "captured_by": "jeickmeier",
     "captured_on": "2026-04-30",
     "last_reviewed_by": "jeickmeier",
@@ -51,7 +51,7 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
         "id": "usd_sofr_5y_swpm_calibrated",
         "description": "USD-SOFR discount curve calibrated from Bloomberg SWPM Curve 490 Market Rates (transcribed 2026-04-30). 26 quotes total: 3 short-end deposits (1W-3W) and 23 OIS swaps (1M-12Y). The step's `conventions.ois_compounding` override sets the bootstrap-internal float-leg compounding to `CompoundedWithRateCutoff{cutoff_days: 1}` to match Bloomberg SWPM's convention (which differs from ARRC's `CompoundedInArrears{lookback_days: 2}` default). Without this override, calibrated DFs at the 5Y zone drift by ~3-4e-4 from Bloomberg's screen values.",
@@ -93,15 +93,15 @@
             "curve_id": "USD-SOFR",
             "currency": "USD",
             "base_date": "2026-04-30",
-            "method": "Bootstrap",
+            "method": "bootstrap",
             "interpolation": "log_linear",
             "extrapolation": "flat_forward",
             "pricing_discount_id": null,
             "pricing_forward_id": null,
             "conventions": {
-              "curve_day_count": "Act365F",
+              "curve_day_count": "act_365f",
               "ois_compounding": {
-                "CompoundedWithRateCutoff": {
+                "compounded_with_rate_cutoff": {
                   "cutoff_days": 1
                 }
               }
@@ -477,9 +477,9 @@
             "count": 1,
             "unit": "years"
           },
-          "day_count": "Act360",
+          "day_count": "act_360",
           "calendar_id": "usny",
-          "stub": "None",
+          "stub": "none",
           "start": "2026-05-04",
           "end": "2031-05-04",
           "par_method": null,
@@ -494,16 +494,16 @@
             "count": 1,
             "unit": "years"
           },
-          "day_count": "Act360",
+          "day_count": "act_360",
           "calendar_id": "usny",
-          "stub": "None",
+          "stub": "none",
           "reset_lag_days": 0,
           "payment_lag_days": 2,
           "fixing_calendar_id": "usny",
           "start": "2026-05-04",
           "end": "2031-05-04",
           "compounding": {
-            "CompoundedWithRateCutoff": {
+            "compounded_with_rate_cutoff": {
               "cutoff_days": 1
             }
           }

@@ -111,9 +111,9 @@
 //!
 //! // ACT/ACT (ISMA): frequency-only helper for regular coupon periods
 //! // Returns year fractions: a full 6-month regular period = 0.5 years
-//! let freq = Tenor::semi_annual(); // Semi-annual
+//! let frequency = Tenor::semi_annual(); // Semi-annual
 //! let yf_isma = DayCount::ActActIsma
-//!     .year_fraction(start, end, DayCountContext { frequency: Some(freq), ..DayCountContext::default() })
+//!     .year_fraction(start, end, DayCountContext { frequency: Some(frequency), ..DayCountContext::default() })
 //!     .expect("Year fraction calculation should succeed");
 //! // yf_isma ≈ 0.5 (one full semi-annual period in years)
 //! ```
@@ -184,7 +184,8 @@ impl<'a> std::fmt::Debug for DayCountContext<'a> {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 /// Serializable snapshot of [`DayCountContext`] state for persistence and interchange.
 ///
 /// This struct captures the optional context parameters (calendar, frequency, business-day basis)
@@ -199,12 +200,12 @@ pub struct DayCountContextState {
     /// Optional reference coupon period `(start, end)` for ACT/ACT ISMA,
     /// serialized as two ISO dates.
     ///
-    /// Required for exact ICMA accrual on round-trip. `#[serde(default)]` keeps
-    /// older payloads wire-compatible (`None` → frequency-only path).
-    #[serde(default)]
+    /// Required for exact ICMA accrual on round-trip. `None` selects the
+    /// frequency-only calculation path.
+    #[serde(default, with = "crate::wire::optional_date_pair")]
+    #[schemars(with = "Option<(crate::wire::DateWire, crate::wire::DateWire)>")]
     pub coupon_period: Option<(Date, Date)>,
     /// Whether the accrual end is the instrument termination date.
-    #[serde(default)]
     pub end_is_termination_date: bool,
 }
 
@@ -282,7 +283,6 @@ impl<'a> From<DayCountContext<'a>> for DayCountContextState {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
-#[serde(rename_all = "PascalCase")]
 #[non_exhaustive]
 pub enum DayCount {
     /// Actual/360 day count convention.
@@ -315,6 +315,7 @@ pub enum DayCount {
     /// let yf = DayCount::Act360.year_fraction(start, end, DayCountContext::default()).expect("Year fraction calculation should succeed");
     /// assert_eq!(yf, 90.0 / 360.0);
     /// ```
+    #[serde(rename = "act_360")]
     Act360,
 
     /// Actual/365 Fixed day count convention.
@@ -346,6 +347,7 @@ pub enum DayCount {
     /// let yf = DayCount::Act365F.year_fraction(start, end, DayCountContext::default()).expect("Year fraction calculation should succeed");
     /// assert!((yf - 1.0).abs() < 1e-9); // 365 days / 365 = 1.0
     /// ```
+    #[serde(rename = "act_365f")]
     Act365F,
 
     /// Actual/365 Leap day count convention (Actual/365L) per ICMA Rule 251.
@@ -390,6 +392,7 @@ pub enum DayCount {
     /// // 29 days / 366 (leap year denominator)
     /// assert_eq!(yf, 29.0 / 366.0);
     /// ```
+    #[serde(rename = "act_365l")]
     Act365L,
 
     /// 30/360 US (Bond Basis) day count convention.
@@ -446,6 +449,7 @@ pub enum DayCount {
     /// // Treats Jan 31 as day 30, Feb 28 as day 28: 28 days / 360
     /// assert_eq!(yf, 28.0 / 360.0);
     /// ```
+    #[serde(rename = "30_360")]
     Thirty360,
 
     /// 30E/360 (Eurobond Basis) day count convention.
@@ -488,6 +492,7 @@ pub enum DayCount {
     /// // Treats both 31st as day 30: 60 days / 360
     /// assert_eq!(yf, 60.0 / 360.0);
     /// ```
+    #[serde(rename = "30e_360")]
     ThirtyE360,
 
     /// 30E/360 (ISDA) day count convention.
@@ -531,6 +536,7 @@ pub enum DayCount {
     /// let yf = DayCount::ThirtyE360Isda.year_fraction(start, end, DayCountContext::default()).expect("Year fraction calculation should succeed");
     /// assert_eq!(yf, 180.0 / 360.0);
     /// ```
+    #[serde(rename = "30e_360_isda")]
     ThirtyE360Isda,
 
     /// NL/365 (Actual/365 No Leap) day count convention.
@@ -563,6 +569,7 @@ pub enum DayCount {
     /// let yf = DayCount::Nl365.year_fraction(start, end, DayCountContext::default()).expect("Year fraction calculation should succeed");
     /// assert_eq!(yf, 1.0);
     /// ```
+    #[serde(rename = "nl_365")]
     Nl365,
 
     /// Actual/Actual (ISDA) day count convention.
@@ -608,6 +615,7 @@ pub enum DayCount {
     /// # References
     ///
     /// - ISDA (2006). "2006 ISDA Definitions." Section 4.16(b).
+    #[serde(rename = "act_act")]
     ActAct,
 
     /// Actual/Actual (ICMA) day count convention.
@@ -648,12 +656,12 @@ pub enum DayCount {
     ///
     /// let start = Date::from_calendar_date(2025, Month::January, 15).expect("Valid date");
     /// let end = Date::from_calendar_date(2025, Month::July, 15).expect("Valid date");
-    /// let freq = Tenor::semi_annual(); // Semi-annual
+    /// let frequency = Tenor::semi_annual(); // Semi-annual
     ///
     /// let yf = DayCount::ActActIsma.year_fraction(
     ///     start,
     ///     end,
-    ///     DayCountContext { frequency: Some(freq), ..Default::default() }
+    ///     DayCountContext { frequency: Some(frequency), ..Default::default() }
     /// ).expect("Year fraction calculation should succeed");
     ///
     /// // Full semi-annual period = 0.5 year fraction (6 months / 12 months)
@@ -664,6 +672,7 @@ pub enum DayCount {
     ///
     /// - ICMA (2010). "ICMA Rule Book." Rule 251.
     /// - ISMA (1999). "Recommendations for Accrued Interest Calculations."
+    #[serde(rename = "act_act_isma")]
     ActActIsma,
 
     /// Business/252 day count convention.
@@ -705,6 +714,7 @@ pub enum DayCount {
     /// // 5 business days / 252
     /// assert!((yf * 252.0 - 5.0).abs() < 0.1);
     /// ```
+    #[serde(rename = "bus_252")]
     Bus252,
 }
 
@@ -1056,9 +1066,9 @@ pub fn act_act_isma_year_fraction_with_reference_period(
 // -------------------------------------------------------------------------------------------------
 /// 30/360 day-count variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Thirty360Convention {
     /// 30U/360 (US SIA / Bond Basis).
-    #[serde(rename = "Us", alias = "us")]
     UsSia,
     /// 30/360 ISDA bond basis (ISDA 2006 §4.16(f); no February EOM rule).
     ///
@@ -1263,13 +1273,13 @@ fn year_fraction_act_act_isma_with_ctx(
     end: Date,
     ctx: DayCountContext<'_>,
 ) -> crate::Result<f64> {
-    let freq = ctx
+    let frequency = ctx
         .frequency
         .ok_or(InputError::MissingFrequencyForActActIsma)?;
     if let Some((ref_start, ref_end)) = ctx.coupon_period {
         act_act_isma_year_fraction_with_reference_period(start, end, ref_start, ref_end)
     } else {
-        year_fraction_act_act_isma(start, end, freq)
+        year_fraction_act_act_isma(start, end, frequency)
     }
 }
 
@@ -1288,19 +1298,19 @@ fn year_fraction_bus252(start: Date, end: Date, ctx: DayCountContext<'_>) -> cra
 // ACT/ACT (ISMA/ICMA) helper
 // -------------------------------------------------------------------------------------------------
 /// Calculate year fraction for ACT/ACT (ISMA/ICMA) convention with coupon-period awareness.
-fn year_fraction_act_act_isma(start: Date, end: Date, freq: Tenor) -> crate::Result<f64> {
+fn year_fraction_act_act_isma(start: Date, end: Date, frequency: Tenor) -> crate::Result<f64> {
     if start == end {
         return Ok(0.0);
     }
 
     // Coupon length in years based on frequency (e.g., 0.5 for semi-annual, 0.25 for quarterly).
     // ISMA/ICMA is defined for regular coupon periods; treat Week/Day frequencies as invalid.
-    let coupon_length_years = match freq.unit() {
-        TenorUnit::Months => freq.count() as f64 / 12.0,
-        TenorUnit::Years => freq.count() as f64,
+    let coupon_length_years = match frequency.unit() {
+        TenorUnit::Months => frequency.count() as f64 / 12.0,
+        TenorUnit::Years => frequency.count() as f64,
         TenorUnit::Weeks | TenorUnit::Days => {
             return Err(InputError::ActActIsmaUnsupportedFrequency {
-                frequency: freq.to_string(),
+                frequency: frequency.to_string(),
             }
             .into());
         }
@@ -1309,27 +1319,27 @@ fn year_fraction_act_act_isma(start: Date, end: Date, freq: Tenor) -> crate::Res
     // For ISMA, we need to work with quasi-coupon periods.
     //
     // The quasi-coupon grid is anchored on `start` itself: each boundary is
-    // `start + k·freq` computed directly from the unadjusted anchor
+    // `start + k·frequency` computed directly from the unadjusted anchor
     // (k-multiples, roll-day preserved with per-month clamping), NOT by
-    // chaining `prev + freq`. Chained stepping from `start - freq` (the
+    // chaining `prev + frequency`. Chained stepping from `start - frequency` (the
     // previous implementation) lost the roll day for month-end starts: a
     // regular EOM semi-annual period [2025-08-31, 2026-02-28) drifted to a
     // grid ending Aug 28 and returned 181/184 × 0.5 ≈ 0.49185 instead of
     // exactly 0.5 .
-    let months_per_period = match freq.unit() {
-        TenorUnit::Months => freq.count() as i32,
-        TenorUnit::Years => freq.count() as i32 * 12,
+    let months_per_period = match frequency.unit() {
+        TenorUnit::Months => frequency.count() as i32,
+        TenorUnit::Years => frequency.count() as i32 * 12,
         // Unreachable: rejected above when computing `coupon_length_years`.
         TenorUnit::Weeks | TenorUnit::Days => {
             return Err(InputError::ActActIsmaUnsupportedFrequency {
-                frequency: freq.to_string(),
+                frequency: frequency.to_string(),
             }
             .into());
         }
     };
     if months_per_period <= 0 {
         return Err(InputError::ActActIsmaUnsupportedFrequency {
-            frequency: freq.to_string(),
+            frequency: frequency.to_string(),
         }
         .into());
     }
@@ -1401,8 +1411,8 @@ fn year_fraction_act_365l(start: Date, end: Date, ctx: DayCountContext<'_>) -> f
     // any other frequency the leap-year status of the period end date decides.
     // With no frequency in context, default to the annual rule.
     let annual = match ctx.frequency {
-        Some(freq) => matches!(
-            (freq.unit(), freq.count()),
+        Some(frequency) => matches!(
+            (frequency.unit(), frequency.count()),
             (TenorUnit::Years, 1) | (TenorUnit::Months, 12)
         ),
         None => true,
@@ -1502,56 +1512,23 @@ impl std::fmt::Display for DayCount {
     }
 }
 
-impl crate::parse::NormalizedEnum for DayCount {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("act_360", Self::Act360),
-        ("act360", Self::Act360),
-        ("actual_360", Self::Act360),
-        ("act_365f", Self::Act365F),
-        ("act365f", Self::Act365F),
-        ("actual_365f", Self::Act365F),
-        ("act_365l", Self::Act365L),
-        ("act365l", Self::Act365L),
-        ("actual_365l", Self::Act365L),
-        // NOTE: the former "act_365afb" alias was removed: ACT/ACT AFB is a
-        // different convention from Act/365L .
-        ("nl_365", Self::Nl365),
-        ("nl365", Self::Nl365),
-        ("act_365_nl", Self::Nl365),
-        ("actual_365_nl", Self::Nl365),
-        ("30_360", Self::Thirty360),
-        ("thirty_360", Self::Thirty360),
-        ("thirty360", Self::Thirty360),
-        ("30u_360", Self::Thirty360),
-        ("bond_basis", Self::Thirty360),
-        ("30_360_bond_basis", Self::Thirty360),
-        ("30e_360", Self::ThirtyE360),
-        ("30e360", Self::ThirtyE360),
-        ("30_360e", Self::ThirtyE360),
-        ("eurobond_basis", Self::ThirtyE360),
-        ("30e_360_isda", Self::ThirtyE360Isda),
-        ("30e360_isda", Self::ThirtyE360Isda),
-        ("30e_360isda", Self::ThirtyE360Isda),
-        ("act_act", Self::ActAct),
-        ("actact", Self::ActAct),
-        ("actual_actual", Self::ActAct),
-        ("act_act_isda", Self::ActAct),
-        ("isda", Self::ActAct),
-        ("act_act_isma", Self::ActActIsma),
-        ("act_act_icma", Self::ActActIsma),
-        ("actactisma", Self::ActActIsma),
-        ("icma", Self::ActActIsma),
-        ("bus_252", Self::Bus252),
-        ("bus252", Self::Bus252),
-        ("business_252", Self::Bus252),
-    ];
-}
-
 impl std::str::FromStr for DayCount {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s)
+        match s {
+            "act_360" => Ok(Self::Act360),
+            "act_365f" => Ok(Self::Act365F),
+            "act_365l" => Ok(Self::Act365L),
+            "nl_365" => Ok(Self::Nl365),
+            "30_360" => Ok(Self::Thirty360),
+            "30e_360" => Ok(Self::ThirtyE360),
+            "30e_360_isda" => Ok(Self::ThirtyE360Isda),
+            "act_act" => Ok(Self::ActAct),
+            "act_act_isma" => Ok(Self::ActActIsma),
+            "bus_252" => Ok(Self::Bus252),
+            other => Err(format!("unknown day-count convention: {other}")),
+        }
     }
 }
 
@@ -1559,10 +1536,6 @@ impl std::str::FromStr for DayCount {
 mod tests {
     use super::act_act_isma_year_fraction_with_reference_period;
     use time::macros::date;
-
-    fn assert_parses_to(label: &str, expected: super::DayCount) {
-        assert!(matches!(label.parse::<super::DayCount>(), Ok(value) if value == expected));
-    }
 
     /// Per-year and bulk additions differ for a representative ISDA seed.
     #[test]
@@ -1658,65 +1631,43 @@ mod tests {
             super::DayCount::Bus252,
         ];
 
-        for dc in &all {
-            let label = dc.to_string();
+        for day_count in &all {
+            let label = day_count.to_string();
             assert!(
-                matches!(label.parse::<super::DayCount>(), Ok(value) if value == *dc),
+                matches!(label.parse::<super::DayCount>(), Ok(value) if value == *day_count),
                 "roundtrip failed for {label}"
             );
         }
     }
 
     #[test]
-    fn daycount_from_str_aliases() {
+    fn daycount_from_str_rejects_noncanonical_spellings() {
+        // schema-rejection-test
         use super::DayCount;
 
-        // Act360
-        assert_parses_to("act360", DayCount::Act360);
-        assert_parses_to("actual_360", DayCount::Act360);
-        assert_parses_to("ACT/360", DayCount::Act360);
-
-        // Act365F
-        assert_parses_to("act365f", DayCount::Act365F);
-        assert_parses_to("actual_365f", DayCount::Act365F);
-
-        // Act365L
-        assert_parses_to("actual_365l", DayCount::Act365L);
-        // The "act_365afb" alias was removed: ACT/ACT AFB is a different
-        // convention from Act/365L .
-        assert!("act_365afb".parse::<DayCount>().is_err());
-
-        // Nl365
-        assert_parses_to("nl_365", DayCount::Nl365);
-        assert_parses_to("NL/365", DayCount::Nl365);
-        assert_parses_to("act_365_nl", DayCount::Nl365);
-
-        // Thirty360
-        assert_parses_to("30/360", DayCount::Thirty360);
-        assert_parses_to("thirty360", DayCount::Thirty360);
-        assert_parses_to("bond_basis", DayCount::Thirty360);
-        assert_parses_to("30U/360", DayCount::Thirty360);
-
-        // ThirtyE360
-        assert_parses_to("30E/360", DayCount::ThirtyE360);
-        assert_parses_to("eurobond_basis", DayCount::ThirtyE360);
-
-        // ThirtyE360Isda
-        assert_parses_to("30E/360 ISDA", DayCount::ThirtyE360Isda);
-        assert_parses_to("30e_360_isda", DayCount::ThirtyE360Isda);
-
-        // ActAct
-        assert_parses_to("act_act", DayCount::ActAct);
-        assert_parses_to("act/act ISDA", DayCount::ActAct);
-        assert_parses_to("isda", DayCount::ActAct);
-
-        // ActActIsma
-        assert_parses_to("act_act_icma", DayCount::ActActIsma);
-        assert_parses_to("icma", DayCount::ActActIsma);
-
-        // Bus252
-        assert_parses_to("bus252", DayCount::Bus252);
-        assert_parses_to("business_252", DayCount::Bus252);
+        for rejected in [
+            "act360",
+            "actual_360",
+            "ACT/360",
+            "act365f",
+            "actual_365l",
+            "NL/365",
+            "act_365_nl",
+            "30/360",
+            "thirty360",
+            "bond_basis",
+            "30E/360",
+            "eurobond_basis",
+            "30E/360 ISDA",
+            "act/act ISDA",
+            "isda",
+            "act_act_icma",
+            "icma",
+            "bus252",
+            "business_252",
+        ] {
+            assert!(rejected.parse::<DayCount>().is_err());
+        }
     }
 
     #[test]
@@ -1964,12 +1915,12 @@ mod tests {
         let restored_ctx = restored.to_ctx().expect("calendar state hydrates");
         assert_eq!(restored_ctx.coupon_period, Some(coupon));
 
-        // Serde-additive: payloads written before the field existed still
-        // deserialize (coupon_period defaults to None).
-        let legacy = r#"{"calendar_id":null,"frequency":null,"bus_basis":null}"#;
-        let legacy_state: DayCountContextState =
-            serde_json::from_str(legacy).expect("legacy payload deserializes");
-        assert_eq!(legacy_state.coupon_period, None);
+        let missing_required =
+            r#"{"calendar_id":null,"frequency":null,"bus_basis":null,"coupon_period":null}"#;
+        assert!(
+            serde_json::from_str::<DayCountContextState>(missing_required).is_err(),
+            "the canonical state requires end_is_termination_date"
+        );
     }
 
     #[test]
@@ -2001,11 +1952,11 @@ mod tests {
 
         // Mid-coupon accrual: settlement to next coupon
         let settlement = date!(2025 - 03 - 15);
-        let freq = Tenor::semi_annual();
+        let frequency = Tenor::semi_annual();
 
         // With coupon_period: uses the explicit reference period
         let ctx_with = DayCountContext {
-            frequency: Some(freq),
+            frequency: Some(frequency),
             coupon_period: Some((coupon_start, coupon_end)),
             ..Default::default()
         };
@@ -2015,7 +1966,7 @@ mod tests {
 
         // Without coupon_period: re-anchors from settlement
         let ctx_without = DayCountContext {
-            frequency: Some(freq),
+            frequency: Some(frequency),
             ..Default::default()
         };
         let yf_without = DayCount::ActActIsma

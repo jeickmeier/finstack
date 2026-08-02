@@ -77,7 +77,7 @@ pub(crate) fn floor_sabr_vol(v: f64, floored: &mut usize) -> f64 {
 pub(crate) fn warn_sabr_vol_floored(context: &str, id: &crate::types::CurveId, floored: usize) {
     if floored > 0 {
         tracing::warn!(
-            surface_id = %id,
+            vol_surface_id = %id,
             count = floored,
             floor = SABR_VOL_FLOOR,
             context = context,

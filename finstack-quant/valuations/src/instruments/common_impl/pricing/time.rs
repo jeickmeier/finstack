@@ -111,20 +111,20 @@ pub fn relative_df_discounting(disc: &dyn Discounting, as_of: Date, target: Date
     }
 
     let base = disc.base_date();
-    let dc = disc.day_count();
+    let day_count = disc.day_count();
     let ctx = DayCountContext::default();
 
     // Compute times using the curve's own day count and base date
     let t_as_of = if as_of == base {
         0.0
     } else {
-        dc.year_fraction(base, as_of, ctx)?
+        day_count.year_fraction(base, as_of, ctx)?
     };
 
     let t_target = if target == base {
         0.0
     } else {
-        dc.year_fraction(base, target, ctx)?
+        day_count.year_fraction(base, target, ctx)?
     };
 
     let df_as_of = disc.df(t_as_of);
@@ -193,8 +193,8 @@ pub fn curve_time(fwd: &ForwardCurve, date: Date) -> Result<f64> {
     if date <= base {
         return Ok(0.0);
     }
-    let dc = fwd.day_count();
-    let t = dc.year_fraction(base, date, DayCountContext::default())?;
+    let day_count = fwd.day_count();
+    let t = day_count.year_fraction(base, date, DayCountContext::default())?;
     Ok(t.max(0.0))
 }
 
@@ -479,8 +479,8 @@ mod tests {
         let target = date(2025, 1, 1);
 
         // OLD (buggy) approach: compute t using instrument's day count
-        let inst_dc = DayCount::Act365F;
-        let t_instrument = inst_dc
+        let inst_day_count = DayCount::Act365F;
+        let t_instrument = inst_day_count
             .year_fraction(base, target, DayCountContext::default())
             .expect("yf");
         let df_old = disc.df(t_instrument);

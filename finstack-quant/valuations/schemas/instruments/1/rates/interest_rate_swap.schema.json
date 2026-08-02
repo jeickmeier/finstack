@@ -4,7 +4,7 @@
       "description": "Clearing status for OTC derivatives.\n\nDetermines whether a trade is cleared through a CCP or remains bilateral\nunder a CSA agreement.",
       "oneOf": [
         {
-          "const": "Bilateral",
+          "const": "bilateral",
           "description": "Bilateral (uncleared) trade governed by CSA\n\nSubject to BCBS-IOSCO margin requirements for non-centrally cleared derivatives.\nRequires both VM and IM (above thresholds).",
           "type": "string"
         },
@@ -12,7 +12,7 @@
           "additionalProperties": false,
           "description": "Trade cleared through a central counterparty (CCP)\n\nMargin requirements set by the CCP. IM is typically VaR-based.\nVM is exchanged daily with no threshold.",
           "properties": {
-            "Cleared": {
+            "cleared": {
               "properties": {
                 "ccp": {
                   "description": "CCP identifier (e.g., \"LCH\", \"CME\", \"ICE\", \"JSCC\")",
@@ -26,14 +26,56 @@
             }
           },
           "required": [
-            "Cleared"
+            "cleared"
           ],
           "type": "object"
         }
       ]
     },
     "CollateralAssetClass": {
-      "type": "string"
+      "description": "Collateral asset classes per BCBS-IOSCO standards.\n\nAsset classes determine baseline haircuts and eligibility criteria.\nThe BCBS-IOSCO framework specifies minimum haircuts by asset class.\n\n# Reference\n\nBCBS-IOSCO \"Margin requirements for non-centrally cleared derivatives\" (2020)\nAnnex A: Standardized haircut schedule",
+      "oneOf": [
+        {
+          "const": "cash",
+          "description": "Cash in eligible currency",
+          "type": "string"
+        },
+        {
+          "const": "government_bonds",
+          "description": "Sovereign government bonds accepted as collateral.",
+          "type": "string"
+        },
+        {
+          "const": "agency_bonds",
+          "description": "Debt issued or guaranteed by eligible agencies.",
+          "type": "string"
+        },
+        {
+          "const": "covered_bonds",
+          "description": "Covered bonds meeting the applicable eligibility criteria.",
+          "type": "string"
+        },
+        {
+          "const": "corporate_bonds",
+          "description": "Investment-grade corporate bonds accepted under the CSA.",
+          "type": "string"
+        },
+        {
+          "const": "equity",
+          "description": "Eligible listed equity collateral.",
+          "type": "string"
+        },
+        {
+          "const": "gold",
+          "description": "Eligible gold collateral.",
+          "type": "string"
+        },
+        {
+          "const": "mutual_funds",
+          "description": "Eligible mutual funds or exchange-traded funds.",
+          "type": "string"
+        }
+      ]
     },
     "CollateralEligibility": {
       "additionalProperties": false,
@@ -46,6 +88,8 @@
         "concentration_limit": {
           "description": "Concentration limit as fraction of total collateral (optional)\n\nE.g., 0.30 means max 30% of collateral can be this type.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
@@ -55,11 +99,15 @@
           "default": 0.0,
           "description": "Additional FX haircut for currency mismatch (decimal)\n\nApplied when collateral currency differs from settlement currency.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": "number"
         },
         "haircut": {
           "description": "Haircut as decimal (e.g., 0.02 = 2%)",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": "number"
         },
         "maturity_constraints": {
@@ -149,6 +197,8 @@
         "default_haircut": {
           "description": "Default haircut for unlisted collateral (if accepted)\n\nIf None, only explicitly listed collateral types are accepted.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
@@ -173,9 +223,10 @@
       "type": "object"
     },
     "FixedLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for fixed rate legs in interest rate swaps",
       "properties": {
-        "bdc": {
+        "business_day_convention": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
           "default": "modified_following",
           "description": "Business day convention for payment dates"
@@ -200,8 +251,8 @@
           "description": "Discount curve identifier for pricing"
         },
         "end": {
-          "description": "End date of the fixed leg",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "End date of the fixed leg"
         },
         "end_of_month": {
           "default": false,
@@ -230,20 +281,16 @@
           "type": "integer"
         },
         "rate": {
-          "description": "Fixed rate (e.g., 0.05 for 5%)",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Fixed rate (e.g., 0.05 for 5%)"
         },
         "start": {
-          "description": "Start date of the fixed leg",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of the fixed leg"
         },
         "stub": {
           "$ref": "#/$defs/StubKind",
-          "default": "ShortFront",
+          "default": "short_front",
           "description": "Stub period handling rule"
         }
       },
@@ -259,9 +306,10 @@
       "type": "object"
     },
     "FloatLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for floating rate legs in interest rate swaps",
       "properties": {
-        "bdc": {
+        "business_day_convention": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
           "default": "modified_following",
           "description": "Business day convention for payment dates"
@@ -275,7 +323,7 @@
         },
         "compounding": {
           "$ref": "#/$defs/FloatingLegCompounding",
-          "default": "Simple",
+          "default": "simple",
           "description": "Compounding method for floating coupons.\n\nDetermines how floating rate coupons are calculated:\n- `Simple` (default): LIBOR-style simple interest\n- `CompoundedInArrears`: SOFR/SONIA-style daily compounding\n\n# Implementation Notes\n\nCompounded-in-arrears is implemented for IRS pricing in `instruments::irs` with\nsupport for lookback and observation shift conventions. For seasoned (already\nstarted) compounded swaps, pricing requires explicit fixings for observation\ndates prior to `as_of`."
         },
         "day_count": {
@@ -287,8 +335,8 @@
           "description": "Discount curve identifier for pricing"
         },
         "end": {
-          "description": "End date of the floating leg",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "End date of the floating leg"
         },
         "end_of_month": {
           "default": false,
@@ -323,20 +371,16 @@
           "type": "integer"
         },
         "spread_bp": {
-          "description": "Spread in basis points added to the forward rate",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Spread in basis points added to the forward rate"
         },
         "start": {
-          "description": "Start date of the floating leg",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of the floating leg"
         },
         "stub": {
           "$ref": "#/$defs/StubKind",
-          "default": "ShortFront",
+          "default": "short_front",
           "description": "Stub period handling rule"
         }
       },
@@ -356,7 +400,7 @@
       "description": "Method for calculating floating leg coupon payments.\n\nDifferent reference rates require different compounding conventions:\n- **Term rates (SOFR 3M, EURIBOR, historical LIBOR)**: Simple interest\n- **Overnight rates (SOFR, SONIA, €STR, TONA)**: Compounded in arrears\n\n# Market Standards\n\n## Simple (LIBOR-style)\n- **Formula**: `Coupon = Notional × (Forward_Rate + Spread) × DCF`\n- **Use for**: USD LIBOR, EUR EURIBOR, GBP LIBOR (historical)\n- **Standard**: ISDA 2006 Definitions\n\n## Compounded In Arrears (RFR-style)\n- **Formula**: `Coupon = Notional × [∏(1 + r_i × dcf_i) - 1]`\n- **Use for**: USD SOFR, GBP SONIA, EUR €STR, JPY TONA\n- **Standard**: ISDA 2021 Definitions\n- **Lookback**: Typically 2-5 business days before period end\n- **Observation shift**: Optional shift for operational convenience\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::rates::irs::FloatingLegCompounding;\n\n// LIBOR-style swap (simple compounding)\nlet simple = FloatingLegCompounding::Simple;\nassert_eq!(simple, FloatingLegCompounding::default());\n\n// SOFR OIS swap: plain compounded in arrears (no lookback)\nlet sofr = FloatingLegCompounding::CompoundedInArrears {\n    lookback_days: 0,\n    observation_shift: None,\n};\nassert_eq!(sofr, FloatingLegCompounding::sofr());\n\n// SONIA FRN-style leg with the BoE 5-day lookback (explicit, not the OIS preset)\nlet sonia_frn = FloatingLegCompounding::CompoundedInArrears {\n    lookback_days: 5,\n    observation_shift: None,\n};\nassert_ne!(sonia_frn, FloatingLegCompounding::sonia());\n```\n\n# References\n\n- **ISDA 2021 Definitions**: Compounded RFR conventions\n- **ARRC** (Alternative Reference Rates Committee): SOFR conventions\n- **BoE** (Bank of England): SONIA conventions\n- **ECB**: €STR conventions\n\nIn the IRS instrument implementation, the RFR-style variant\n(`CompoundedInArrears`) is also used to classify swaps as OIS for\ndiscount-only float-leg pricing; see `InterestRateSwap::is_single_curve_ois` for details.",
       "oneOf": [
         {
-          "const": "Simple",
+          "const": "simple",
           "description": "Simple interest compounding (term-rate style).\n\nCoupon = Notional × (Forward_Rate + Spread) × Day_Count_Fraction\n\nUse for:\n- Term SOFR / EURIBOR-style swaps with fixed-tenor indices\n- Legacy USD/EUR/GBP LIBOR swaps (for back-testing only)\n\nThis is the current default behavior for vanilla IRS and matches\nISDA 2006 term-rate conventions.",
           "type": "string"
         },
@@ -364,7 +408,7 @@
           "additionalProperties": false,
           "description": "Compounded in arrears (overnight RFR rates).\n\nCoupon = Notional × [∏(1 + r_i × dcf_i) - 1] where the product\nis taken over daily observations in the accrual period.\n\nUse for:\n- USD SOFR (Secured Overnight Financing Rate)\n- GBP SONIA (Sterling Overnight Index Average)\n- EUR €STR (Euro Short-Term Rate)\n- JPY TONA (Tokyo Overnight Average Rate)\n\n# Fields\n\n- `lookback_days`: Days to shift observation end date before period end (typically 2-5)\n- `observation_shift`: Optional additional shift for operational convenience\n\n# Market Conventions\n\n- **SOFR**: 2-day lookback (ARRC recommended)\n- **SONIA**: 5-day lookback (BoE recommended)\n- **€STR**: 2-day shift (ECB convention)\n- **TONA**: 2-day lag (JSCC convention)",
           "properties": {
-            "CompoundedInArrears": {
+            "compounded_in_arrears": {
               "properties": {
                 "lookback_days": {
                   "description": "Number of business days to shift observation dates back from the accrual\nperiod (lookback).  Typically 2–5 days depending on market convention.\n\nThe observation dates are shifted while the day-count-fraction (DCF)\nweights remain anchored to the **original** accrual period dates.\nThis is consistent with \"lookback without observation shift\" as\ndescribed in the ISDA 2021 Definitions and ARRC SOFR conventions.",
@@ -391,7 +435,7 @@
             }
           },
           "required": [
-            "CompoundedInArrears"
+            "compounded_in_arrears"
           ],
           "type": "object"
         },
@@ -399,7 +443,7 @@
           "additionalProperties": false,
           "description": "Compounded in arrears with true ISDA 2021 observation shift.\n\nUnlike `CompoundedInArrears` (lookback semantics), this variant shifts\n**both** the observation dates AND the day-count-fraction (DCF) weights.\nThis matches ISDA 2021 Definitions Section 4.5(c).\n\n```text\nLookback:           DCF(d, d+1)           × rate(d - shift, d+1 - shift)\nObservation Shift:  DCF(d - shift, d+1 - shift) × rate(d - shift, d+1 - shift)\n```",
           "properties": {
-            "CompoundedWithObservationShift": {
+            "compounded_with_observation_shift": {
               "properties": {
                 "shift_days": {
                   "description": "Number of business days to shift both observation dates and DCF weights.",
@@ -416,7 +460,7 @@
             }
           },
           "required": [
-            "CompoundedWithObservationShift"
+            "compounded_with_observation_shift"
           ],
           "type": "object"
         },
@@ -424,7 +468,7 @@
           "additionalProperties": false,
           "description": "Compounded in arrears with a rate cut-off near the period end.\n\nThis freezes the last observed overnight rate for the final `cutoff_days`\nbusiness days of the accrual period. Bloomberg SWPM labels this\nconvention as \"Rate Cut-Off Days\".",
           "properties": {
-            "CompoundedWithRateCutoff": {
+            "compounded_with_rate_cutoff": {
               "properties": {
                 "cutoff_days": {
                   "description": "Number of business days before period end to freeze the overnight rate.",
@@ -441,7 +485,7 @@
             }
           },
           "required": [
-            "CompoundedWithRateCutoff"
+            "compounded_with_rate_cutoff"
           ],
           "type": "object"
         }
@@ -451,27 +495,27 @@
       "description": "Initial margin calculation methodology.\n\nDifferent methodologies are used depending on regulatory requirements,\nproduct type, and whether trades are cleared or bilateral.\n\n# BCBS-IOSCO Standards\n\nFor bilateral (uncleared) OTC derivatives, either SIMM or the regulatory\nschedule approach may be used. SIMM is the industry standard for large\ndealers due to its risk-sensitivity.",
       "oneOf": [
         {
-          "const": "Haircut",
+          "const": "haircut",
           "description": "Haircut-based IM calculation (standard for repos and securities financing)\n\nIM = Collateral_Value × Haircut\n\nHaircuts are determined by asset class, rating, maturity, and FX mismatch.",
           "type": "string"
         },
         {
-          "const": "Simm",
+          "const": "simm",
           "description": "ISDA Standard Initial Margin Model (SIMM)\n\nSensitivities-based model calculating IM from delta, vega, and curvature\nrisk across interest rate, credit, equity, commodity, and FX risk classes.\n\nReference: ISDA SIMM Methodology v2.6 (2023)",
           "type": "string"
         },
         {
-          "const": "Schedule",
+          "const": "schedule",
           "description": "BCBS-IOSCO regulatory schedule approach\n\nGrid-based IM calculation using notional × rate based on asset class and maturity.\nSimpler but typically more conservative than SIMM.\n\nExample rates:\n- Interest Rate: 0-2yr: 1%, 2-5yr: 2%, 5+yr: 4%\n- Credit: 2-5yr: 5%, 5+yr: 10%\n- Equity: 15%\n- FX: 6%",
           "type": "string"
         },
         {
-          "const": "InternalModel",
+          "const": "internal_model",
           "description": "Internal model approved by regulator\n\nBank's proprietary VaR or ES-based model approved by supervisor.\nMust meet regulatory backtesting and validation requirements.",
           "type": "string"
         },
         {
-          "const": "ClearingHouse",
+          "const": "clearing_house",
           "description": "Clearing house methodology\n\nCCP-specific IM calculation (typically VaR or SPAN-based).\nExamples: LCH SwapClear, CME, ICE Clear Credit",
           "type": "string"
         }
@@ -488,7 +532,7 @@
         "mpor_days": {
           "description": "Margin Period of Risk in business days.\n\nStandard is 10 days under BCBS-IOSCO. CCPs may use shorter periods.",
           "format": "uint32",
-          "minimum": 0,
+          "minimum": 1,
           "type": "integer"
         },
         "mta": {
@@ -513,6 +557,78 @@
       ],
       "type": "object"
     },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "InterestRateSwap": {
+      "additionalProperties": false,
+      "description": "Interest rate swap with fixed and floating legs.\n\nRepresents a standard interest rate swap where one party pays\na fixed rate and the other pays a floating rate plus spread.\n\n# Market Standards & Citations\n\n## ISDA Definitions\n\nThis implementation follows the **ISDA 2006 Definitions** for interest rate derivatives:\n- **Section 4.1:** Fixed Rate Payer calculation conventions\n- **Section 4.2:** Floating Rate Option conventions\n- **Section 4.5:** Compounding methods\n- **Section 4.16:** Business Day Conventions\n\n## USD Market Standard (Default)\n\nPer **ISDA 2006 Definitions** and US market practice:\n- **Fixed Leg:** Semi-annual, 30/360, Modified Following\n- **Floating Leg:** Quarterly, ACT/360, Modified Following\n- **Reset Lag:** T-2 (2 business days before period start)\n- **Discounting:** OIS curve (post-2008 multi-curve framework)\n\n## Day-Count Convention Notes\n\nThe USD standard uses different day-count conventions for different purposes:\n- **Fixed leg accrual:** 30/360 (Bond Basis)\n- **Floating leg accrual:** ACT/360 (Money Market)\n- **Discount curve:** Typically ACT/365F or ACT/360 depending on construction\n\nThis day-count mismatch between accrual and discounting is market-standard\nand reflects the different conventions used in bond vs money markets.\nThe impact on par rates is typically < 0.5bp for USD swaps.\n\n## Validation\n\nUse [`InterestRateSwap::validate()`] to check swaps constructed via\nthe builder pattern.\n\n## References\n\n- ISDA 2006 Definitions (incorporating 2008 Supplement for OIS)\n- ISDA 2021 Definitions (for RFR compounding conventions)\n- \"Interest Rate Swaps and Their Derivatives\" by Amir Sadr\n- Bloomberg SWPM function documentation",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "fixed": {
+          "$ref": "#/$defs/FixedLegSpec",
+          "description": "Fixed leg specification."
+        },
+        "float": {
+          "$ref": "#/$defs/FloatLegSpec",
+          "description": "Floating leg specification."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique identifier for the swap."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Attributes for scenario selection and tagging.\nInstrument-owned pricing inputs."
+        },
+        "margin_spec": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OtcMarginSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional OTC margin specification for VM/IM.\n\nWhen present, enables margin calculation using SIMM or schedule-based\nmethodologies. For cleared swaps, specify clearing house in\n`OtcMarginSpec::cleared()`."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount for both legs."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "side": {
+          "$ref": "#/$defs/PayReceive",
+          "description": "Direction of the swap (Pay or Receive)."
+        }
+      },
+      "required": [
+        "id",
+        "notional",
+        "side",
+        "fixed",
+        "float",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "MarginCallTiming": {
       "additionalProperties": false,
       "description": "Margin call timing parameters.\n\nSpecifies the operational timing for margin calls including\nnotification and dispute resolution windows.",
@@ -534,7 +650,7 @@
         "notification_deadline_hours": {
           "description": "Notification deadline (hours after valuation, e.g., 13:00 local time)",
           "format": "uint8",
-          "maximum": 255,
+          "maximum": 23,
           "minimum": 0,
           "type": "integer"
         },
@@ -558,22 +674,22 @@
       "description": "Margin call frequency.\n\nDetermines how often margin calls are made and collateral is exchanged.\nIndustry standard for OTC derivatives is daily under BCBS-IOSCO rules.",
       "oneOf": [
         {
-          "const": "Daily",
+          "const": "daily",
           "description": "Daily margin calls (standard for OTC derivatives post-2016)",
           "type": "string"
         },
         {
-          "const": "Weekly",
+          "const": "weekly",
           "description": "Weekly margin calls (pre-regulatory period)",
           "type": "string"
         },
         {
-          "const": "Monthly",
+          "const": "monthly",
           "description": "Monthly margin calls (pre-regulatory period)",
           "type": "string"
         },
         {
-          "const": "OnDemand",
+          "const": "on_demand",
           "description": "On-demand margin calls (used for repos and some bilateral agreements)",
           "type": "string"
         }
@@ -584,16 +700,20 @@
       "description": "Maturity constraints for eligible collateral.\n\nSome CSAs restrict collateral based on remaining maturity to limit\nduration risk in the collateral portfolio.",
       "properties": {
         "max_remaining_years": {
+          "default": null,
           "description": "Maximum remaining years to maturity (if any)",
           "format": "double",
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
           ]
         },
         "min_remaining_years": {
+          "default": null,
           "description": "Minimum remaining years to maturity (if any)",
           "format": "double",
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
@@ -672,27 +792,27 @@
       "description": "Stub period handling when start/end dates don't align with payment frequency.\n\nControls how schedules are generated when the start and end dates don't\ndivide evenly by the payment frequency, resulting in an irregular period\n(stub) at the beginning or end of the schedule.\n\n# Variants\n\n- **`None`**: No stub allowed (default). Generates regular periods from\n  start to end and returns an error\n  ([`InputError::NonIntegerScheduleTenor`]) when the dates don't divide\n  evenly by the frequency. Use a stub variant for misaligned schedules.\n\n[`InputError::NonIntegerScheduleTenor`]: crate::error::InputError::NonIntegerScheduleTenor\n- **`ShortFront`**: Short stub period at the start. Schedule is built\n  backward from the end date, creating a short first period.\n- **`ShortBack`**: Short stub period at the end. Schedule is built forward\n  from the start date, creating a short final period.\n- **`LongFront`**: Long stub period at the start. Combines the first two\n  periods into a single longer period.\n- **`LongBack`**: Long stub period at the end. Combines the last two periods\n  into a single longer period.\n\n# Financial Context\n\nStub conventions are important for:\n- Interest accrual calculations (short/long first coupons)\n- Cash flow present value computations\n- Matching market conventions for specific instruments\n\n# Examples\n\n```rust\nuse finstack_quant_core::dates::{ScheduleBuilder, Tenor, StubKind};\nuse time::{Date, Month};\n\nlet start = Date::from_calendar_date(2025, Month::January, 10)?;\nlet end = Date::from_calendar_date(2025, Month::December, 15)?;\n\n// Short stub at front\nlet sched = ScheduleBuilder::new(start, end)?\n    .frequency(Tenor::quarterly())\n    .stub_rule(StubKind::ShortFront)\n    .build()?;\n# Ok::<(), Box<dyn std::error::Error>>(())\n```\n\n# See Also\n\n- [`ScheduleBuilder::stub_rule`] to configure stub behavior",
       "oneOf": [
         {
-          "const": "None",
+          "const": "none",
           "description": "No stub allowed: start/end must align exactly with the frequency,\notherwise schedule generation returns an error.",
           "type": "string"
         },
         {
-          "const": "ShortFront",
+          "const": "short_front",
           "description": "Short stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "ShortBack",
+          "const": "short_back",
           "description": "Short stub period at the end of the schedule (final step truncated to maturity).",
           "type": "string"
         },
         {
-          "const": "LongFront",
+          "const": "long_front",
           "description": "Long stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "LongBack",
+          "const": "long_back",
           "description": "Long stub period at the end of the schedule (merges final two periods).",
           "type": "string"
         }
@@ -738,24 +858,45 @@
         "settlement_lag"
       ],
       "type": "object"
+    },
+    "interest_rate_swap": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/InterestRateSwap"
+            },
+            "type": {
+              "const": "interest_rate_swap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/interest_rate_swap.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Fixed-for-floating interest rate swap",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
           "fixed": {
-            "bdc": "modified_following",
-            "calendar_id": null,
+            "business_day_convention": "modified_following",
+            "calendar_id": "usny",
             "compounding_simple": true,
-            "day_count": "Thirty360",
+            "day_count": "30_360",
             "discount_curve_id": "USD-OIS",
-            "end": "2029-01-01",
+            "end": "2029-01-02",
             "end_of_month": false,
             "frequency": {
               "count": 6,
@@ -763,134 +904,34 @@
             },
             "par_method": null,
             "payment_lag_days": 0,
-            "rate": "0.03",
-            "start": "2024-01-01",
-            "stub": "None"
+            "rate": "0.04",
+            "start": "2024-01-02",
+            "stub": "short_front"
           },
           "float": {
-            "bdc": "modified_following",
-            "calendar_id": null,
-            "compounding": "Simple",
-            "day_count": "Act360",
+            "business_day_convention": "modified_following",
+            "calendar_id": "usny",
+            "compounding": "simple",
+            "day_count": "act_360",
             "discount_curve_id": "USD-OIS",
-            "end": "2029-01-01",
+            "end": "2029-01-02",
             "end_of_month": false,
-            "fixing_calendar_id": null,
+            "fixing_calendar_id": "usny",
             "forward_curve_id": "USD-SOFR-3M",
             "frequency": {
               "count": 3,
               "unit": "months"
             },
             "payment_lag_days": 0,
-            "reset_lag_days": 0,
+            "reset_lag_days": 2,
             "spread_bp": "0",
-            "start": "2024-01-01",
-            "stub": "None"
+            "start": "2024-01-02",
+            "stub": "short_front"
           },
-          "id": "IRS-5Y-USD",
+          "id": "IRS-5Y-USD-STD",
           "notional": {
             "amount": "10000000",
             "currency": "USD"
-          },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
-          "side": "pay"
-        },
-        "type": "interest_rate_swap"
-      },
-      "schema": "finstack_quant.instrument/1"
-    },
-    {
-      "instrument": {
-        "spec": {
-          "attributes": {},
-          "fixed": {
-            "bdc": "modified_following",
-            "calendar_id": "usny",
-            "compounding_simple": true,
-            "day_count": "Act360",
-            "discount_curve_id": "USD-OIS",
-            "end": "2029-03-01",
-            "end_of_month": false,
-            "frequency": {
-              "count": 1,
-              "unit": "years"
-            },
-            "par_method": null,
-            "payment_lag_days": 2,
-            "rate": "0.035",
-            "start": "2024-03-01",
-            "stub": "ShortFront"
-          },
-          "float": {
-            "bdc": "modified_following",
-            "calendar_id": "usny",
-            "compounding": {
-              "CompoundedInArrears": {
-                "lookback_days": 2,
-                "observation_shift": null
-              }
-            },
-            "day_count": "Act360",
-            "discount_curve_id": "USD-OIS",
-            "end": "2029-03-01",
-            "end_of_month": false,
-            "fixing_calendar_id": "usny",
-            "forward_curve_id": "USD-SOFR",
-            "frequency": {
-              "count": 1,
-              "unit": "years"
-            },
-            "payment_lag_days": 2,
-            "reset_lag_days": 0,
-            "spread_bp": "0",
-            "start": "2024-03-01",
-            "stub": "ShortFront"
-          },
-          "id": "OIS-5Y-SOFR",
-          "notional": {
-            "amount": "10000000",
-            "currency": "USD"
-          },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
           },
           "side": "pay"
         },
@@ -901,104 +942,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Interest Rate Swap instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "fixed": {
-              "$ref": "#/$defs/FixedLegSpec",
-              "description": "Fixed leg specification."
-            },
-            "float": {
-              "$ref": "#/$defs/FloatLegSpec",
-              "description": "Floating leg specification."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique identifier for the swap."
-            },
-            "margin_spec": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/OtcMarginSpec"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional OTC margin specification for VM/IM.\n\nWhen present, enables margin calculation using SIMM or schedule-based\nmethodologies. For cleared swaps, specify clearing house in\n`OtcMarginSpec::cleared()`."
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount for both legs."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for scenario selection and tagging.\nInstrument-owned pricing inputs."
-            },
-            "side": {
-              "$ref": "#/$defs/PayReceive",
-              "description": "Direction of the swap (Pay or Receive)."
-            }
-          },
-          "required": [
-            "id",
-            "notional",
-            "side",
-            "fixed",
-            "float",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "interest_rate_swap",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/interest_rate_swap"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Interest Rate Swap",
+  "title": "interest_rate_swap",
   "type": "object"
 }

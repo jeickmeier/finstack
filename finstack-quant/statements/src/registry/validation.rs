@@ -145,7 +145,7 @@ mod dos_regression_tests {
             .collect::<Vec<_>>()
             .join("+");
         let json = format!(
-            r#"{{"namespace":"custom","metrics":[{{"id":"m1","name":"M1","formula":"{bomb}"}}]}}"#
+            r#"{{"namespace":"custom","schema_version":1,"metrics":[{{"id":"m1","name":"M1","formula":"{bomb}"}}]}}"#
         );
         let mut registry = crate::registry::Registry::new();
         let err = registry

@@ -71,9 +71,9 @@ let maturity = Date::from_calendar_date(2030, Month::January, 15)?;
 let fixed_spec = FixedCouponSpec {
     coupon_type: CouponType::Cash,
     rate: dec!(0.05),
-    freq: Tenor::semi_annual(),
-    dc: DayCount::Thirty360,
-    bdc: BusinessDayConvention::Following,
+    frequency: Tenor::semi_annual(),
+    day_count: DayCount::Thirty360,
+    business_day_convention: BusinessDayConvention::Following,
     calendar_id: "weekends_only".to_string(),
     stub: StubKind::None,
     end_of_month: false,
@@ -106,12 +106,12 @@ use time::Month;
 let issue = Date::from_calendar_date(2025, Month::January, 1)?;
 let maturity = Date::from_calendar_date(2028, Month::January, 1)?;
 
-let fee = FeeSpec::PeriodicBps {
+let fee = FeeSpec::PeriodicBp {
     base: FeeBase::Drawn,
-    bps: dec!(25),
-    freq: Tenor::quarterly(),
-    dc: DayCount::Act360,
-    bdc: BusinessDayConvention::ModifiedFollowing,
+    bp: dec!(25),
+    frequency: Tenor::quarterly(),
+    day_count: DayCount::Act360,
+    business_day_convention: BusinessDayConvention::ModifiedFollowing,
     calendar_id: "weekends_only".to_string(),
     stub: StubKind::None,
     accrual_basis: Default::default(),
@@ -120,9 +120,9 @@ let fee = FeeSpec::PeriodicBps {
 let coupon = FixedCouponSpec {
     coupon_type: CouponType::Cash,
     rate: dec!(0.06),
-    freq: Tenor::quarterly(),
-    dc: DayCount::Act360,
-    bdc: BusinessDayConvention::ModifiedFollowing,
+    frequency: Tenor::quarterly(),
+    day_count: DayCount::Act360,
+    business_day_convention: BusinessDayConvention::ModifiedFollowing,
     calendar_id: "weekends_only".to_string(),
     stub: StubKind::None,
     end_of_month: false,
@@ -170,10 +170,10 @@ let float_spec = FloatingCouponSpec {
         all_in_floor_bp: None,
         all_in_cap_bp: None,
         index_cap_bp: None,
-        reset_freq: Tenor::quarterly(),
+        reset_frequency: Tenor::quarterly(),
         reset_lag_days: 2,
-        dc: DayCount::Act360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        day_count: DayCount::Act360,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: "weekends_only".to_string(),
         fixing_calendar_id: None,
         end_of_month: false,
@@ -182,7 +182,7 @@ let float_spec = FloatingCouponSpec {
         overnight_basis: None,
         fallback: Default::default(),
     },
-    freq: Tenor::quarterly(),
+    frequency: Tenor::quarterly(),
     stub: StubKind::None,
 };
 
@@ -334,9 +334,9 @@ impl CashflowScheduleSource for FixedBondLike {
             .fixed_cf(FixedCouponSpec {
                 coupon_type: CouponType::Cash,
                 rate: dec!(0.05),
-                freq: Tenor::semi_annual(),
-                dc: DayCount::Thirty360,
-                bdc: BusinessDayConvention::Following,
+                frequency: Tenor::semi_annual(),
+                day_count: DayCount::Thirty360,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,

@@ -1,43 +1,147 @@
 {
+  "$defs": {
+    "Deposit": {
+      "additionalProperties": false,
+      "description": "Simple deposit instrument with optional quoted rate.\n\nRepresents a single-period deposit where principal is exchanged\nat start and principal plus interest at maturity.\n\n# Market Convention Fields\n\nThe instrument supports optional settlement convention fields for proper\nbusiness-day adjusted cashflow generation:\n\n- `spot_lag_days`: Number of business days from trade date to spot date (default: 2 for USD/EUR/JPY, 0 for GBP)\n- `business_day_convention`: Business day convention for date adjustment (default: ModifiedFollowing)\n- `calendar_id`: Holiday calendar identifier for business day logic (e.g., \"nyse\", \"target\")\n\nWhen these fields are set, the effective start date is computed as\n`start + spot_lag` adjusted by the business day convention. In this case,\n`start` is treated as the trade date; otherwise it is the accrual start date.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "business_day_convention": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
+          "default": "modified_following",
+          "description": "Business day convention for date adjustments.\n\nUsed to adjust the effective start/end dates to valid business days.\nDefault: `ModifiedFollowing` (standard money market convention)."
+        },
+        "calendar_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional holiday calendar identifier for business day logic.\n\nExamples: \"nyse\", \"target\", \"london\", \"tokyo\".\nWhen set, enables calendar-aware spot date and accrual date adjustments."
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention for interest accrual."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve id used for valuation and par extraction."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique identifier for the deposit."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Attributes for scenario selection and tagging.\nInstrument-owned pricing inputs."
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Maturity date of the deposit period."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Principal amount of the deposit."
+        },
+        "quote_rate": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional quoted simple rate r (annualised) for the deposit.\n\nNote: `cashflow_schedule()` requires `quote_rate` to be set. Leaving it as `None`\nis only appropriate if the caller never requests cashflow generation/PV from\nthis instrument (e.g., constructing placeholders)."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "spot_lag_days": {
+          "description": "Optional spot lag in business days from trade date to effective start.\n\nMarket convention: T+2 for USD/EUR/JPY, T+0 for GBP.\nIf not set, the raw `start` date is used without adjustment.",
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "start_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of the deposit period."
+        }
+      },
+      "required": [
+        "id",
+        "notional",
+        "start_date",
+        "maturity",
+        "day_count",
+        "discount_curve_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "deposit": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/Deposit"
+            },
+            "type": {
+              "const": "deposit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/deposit.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Simple single-period deposit instrument",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
-          "bdc": "modified_following",
+          "business_day_convention": "modified_following",
           "calendar_id": null,
-          "day_count": "Act360",
+          "day_count": "act_360",
           "discount_curve_id": "USD-OIS",
           "id": "DEP-USD-6M",
           "maturity": "2024-07-01",
           "notional": {
             "amount": "100000",
             "currency": "USD"
-          },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
           },
           "quote_rate": "0.045",
           "spot_lag_days": 2,
@@ -50,133 +154,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Deposit instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "bdc": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
-              "default": "modified_following",
-              "description": "Business day convention for date adjustments.\n\nUsed to adjust the effective start/end dates to valid business days.\nDefault: `ModifiedFollowing` (standard money market convention)."
-            },
-            "calendar_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional holiday calendar identifier for business day logic.\n\nExamples: \"nyse\", \"target\", \"london\", \"tokyo\".\nWhen set, enables calendar-aware spot date and accrual date adjustments."
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention for interest accrual."
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve id used for valuation and par extraction."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique identifier for the deposit."
-            },
-            "maturity": {
-              "description": "Maturity date of the deposit period.",
-              "format": "date",
-              "type": "string"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Principal amount of the deposit."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for scenario selection and tagging.\nInstrument-owned pricing inputs."
-            },
-            "quote_rate": {
-              "description": "Optional quoted simple rate r (annualised) for the deposit.\n\nNote: `cashflow_schedule()` requires `quote_rate` to be set. Leaving it as `None`\nis only appropriate if the caller never requests cashflow generation/PV from\nthis instrument (e.g., constructing placeholders).",
-              "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-              "type": [
-                "string",
-                "number",
-                "null"
-              ]
-            },
-            "spot_lag_days": {
-              "description": "Optional spot lag in business days from trade date to effective start.\n\nMarket convention: T+2 for USD/EUR/JPY, T+0 for GBP.\nIf not set, the raw `start` date is used without adjustment.",
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "start_date": {
-              "description": "Start date of the deposit period.",
-              "format": "date",
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "notional",
-            "start_date",
-            "maturity",
-            "day_count",
-            "discount_curve_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "deposit",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/deposit"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Deposit",
+  "title": "deposit",
   "type": "object"
 }

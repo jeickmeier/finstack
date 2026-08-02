@@ -214,7 +214,7 @@ impl LatentFactorKind {
 
 /// Factor model specification for configuration and serialization.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(tag = "type", deny_unknown_fields)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 #[allow(clippy::enum_variant_names)]
 #[non_exhaustive]
 pub enum LatentFactorSpec {

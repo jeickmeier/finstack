@@ -396,7 +396,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
     let base = base_date();
     let mut builder = PortfolioBuilder::new("INSTITUTIONAL_PORTFOLIO")
         .name("Large Investment Organization")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base);
 
     for i in 0..5 {
@@ -583,7 +583,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             end: maturity_5y(),
             frequency: convention.frequency(),
             stub: convention.stub_convention(),
-            bdc: convention.business_day_convention(),
+            business_day_convention: convention.business_day_convention(),
             calendar_id: None,
             day_count: convention.day_count(),
             spread_bp: rust_decimal::Decimal::from(100),
@@ -633,12 +633,12 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
     // 7. FX Spot
     for i in 0..positions_per_derivative.min(3) {
         let fx_id = format!("FXSPOT_{}", i);
-        let (base_ccy, quote_ccy) = match i % 3 {
+        let (base_currency, quote_currency) = match i % 3 {
             0 => (Currency::EUR, Currency::USD),
             1 => (Currency::GBP, Currency::USD),
             _ => (Currency::USD, Currency::JPY),
         };
-        let fx_spot = FxSpot::new(fx_id.clone().into(), base_ccy, quote_ccy);
+        let fx_spot = FxSpot::new(fx_id.clone().into(), base_currency, quote_currency);
         let entity_id = format!("FUND_{}", (i % 5) + 1);
         builder = builder.position(
             Position::new(
@@ -803,7 +803,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             .strike_variance(0.0625)
             .start_date(base)
             .maturity(maturity_2y())
-            .observation_freq(Tenor::daily())
+            .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(RealizedVarMethod::CloseToClose)
             .side(
@@ -840,9 +840,9 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             500.0,
         );
         let schedule_params = ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,
@@ -937,7 +937,7 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
     // 16. Structured Credit (CLO)
     for i in 0..positions_per_exotic.min(2) {
         let sc_id = format!("CLO_{}", i);
-        let mut pool = AssetPool::new(sc_id.clone(), DealType::CLO, Currency::USD);
+        let mut pool = AssetPool::new(sc_id.clone(), DealType::Clo, Currency::USD);
         for j in 0..10 {
             pool.assets.push(PoolAsset::fixed_rate_bond(
                 format!("{}_ASSET_{}", sc_id, j),
@@ -1000,11 +1000,11 @@ pub fn create_institutional_portfolio(num_positions: usize) -> Portfolio {
             coupon_type: CouponType::Cash,
             rate: dec!(0.03),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -1096,7 +1096,7 @@ pub fn create_attribution_portfolio(num_positions: usize) -> Portfolio {
     let portfolio = create_institutional_portfolio(num_positions);
     let mut builder = PortfolioBuilder::new(format!("ATTRIBUTION_{}", num_positions))
         .name("Attribution Benchmark Portfolio")
-        .base_ccy(portfolio.base_ccy)
+        .base_currency(portfolio.base_currency)
         .as_of(portfolio.as_of);
 
     for entity in portfolio.entities.values().cloned() {

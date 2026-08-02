@@ -195,16 +195,16 @@ fn lvar_bangia<'py>(
 /// temporary_impact_coef : float
 ///     Temporary impact coefficient eta. Strictly positive.
 /// reference_price : float | None, default ``None``
-///     Optional arrival/decision price used for notional and cost-bps scaling.
+///     Optional arrival/decision price used for notional and cost-bp scaling.
 ///     When omitted, the helper keeps the historical normalized unit-price
 ///     convention.
 ///
 /// Returns
 /// -------
 /// dict
-///     ``{permanent_impact, temporary_impact, total_impact, expected_cost_bps}``
+///     ``{permanent_impact, temporary_impact, total_impact, expected_cost_bp}``
 ///     where impacts are expressed in model cost units and
-///     ``expected_cost_bps`` is scaled by ``abs(position_size) *
+///     ``expected_cost_bp`` is scaled by ``abs(position_size) *
 ///     reference_price`` when a reference price is supplied.
 #[pyfunction]
 #[pyo3(signature = (
@@ -242,7 +242,7 @@ fn almgren_chriss_impact<'py>(
     out.set_item("permanent_impact", est.permanent_impact)?;
     out.set_item("temporary_impact", est.temporary_impact)?;
     out.set_item("total_impact", est.total_impact)?;
-    out.set_item("expected_cost_bps", est.expected_cost_bps)?;
+    out.set_item("expected_cost_bp", est.expected_cost_bp)?;
     Ok(out)
 }
 

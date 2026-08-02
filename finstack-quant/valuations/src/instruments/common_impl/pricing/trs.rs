@@ -284,19 +284,19 @@ impl TrsEngine {
                 params
                     .schedule
                     .params
-                    .dc
+                    .day_count
                     .year_fraction(as_of, period_start, ctx)?
             } else {
                 -params
                     .schedule
                     .params
-                    .dc
+                    .day_count
                     .year_fraction(period_start, as_of, ctx)?
             };
             let t_end = params
                 .schedule
                 .params
-                .dc
+                .day_count
                 .year_fraction(as_of, period_end, ctx)?;
 
             let total_return = model.period_return(
@@ -651,9 +651,9 @@ mod tests {
             as_of,
             end,
             ScheduleParams {
-                freq: Tenor::monthly(),
-                dc: DayCount::Act365F,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                frequency: Tenor::monthly(),
+                day_count: DayCount::Act365F,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,
@@ -698,9 +698,9 @@ mod tests {
             start,
             end,
             ScheduleParams {
-                freq: Tenor::quarterly(),
-                dc: DayCount::Act365F,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                frequency: Tenor::quarterly(),
+                day_count: DayCount::Act365F,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,
@@ -733,7 +733,7 @@ mod tests {
         let period_schedule = schedule.period_schedule().expect("schedule");
         let mut expected = 0.0;
         let mut naive = 0.0;
-        let ctx_dc = DayCountContext::default();
+        let ctx_day_count = DayCountContext::default();
 
         for i in 1..period_schedule.dates.len() {
             let _period_start = period_schedule.dates[i - 1];
@@ -741,8 +741,8 @@ mod tests {
             let df = relative_df_discount_curve(&disc, as_of, period_end).expect("df");
             let t_end = schedule
                 .params
-                .dc
-                .year_fraction(as_of, period_end, ctx_dc)
+                .day_count
+                .year_fraction(as_of, period_end, ctx_day_count)
                 .expect("t_end");
             let df_naive = disc.df(t_end);
             let payment = 1_000_000.0 * model.rate;
@@ -768,9 +768,9 @@ mod tests {
             start,
             end,
             ScheduleParams {
-                freq: Tenor::quarterly(),
-                dc: DayCount::Act365F,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                frequency: Tenor::quarterly(),
+                day_count: DayCount::Act365F,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,
@@ -818,7 +818,7 @@ mod tests {
         let period_schedule = schedule.period_schedule().expect("schedule");
         let mut expected = 0.0;
         let mut naive = 0.0;
-        let ctx_dc = DayCountContext::default();
+        let ctx_day_count = DayCountContext::default();
 
         for i in 1..period_schedule.dates.len() {
             let period_start = period_schedule.dates[i - 1];
@@ -826,7 +826,7 @@ mod tests {
             // Use financing.day_count for accrual (matches engine after fix)
             let yf = financing
                 .day_count
-                .year_fraction(period_start, period_end, ctx_dc)
+                .year_fraction(period_start, period_end, ctx_day_count)
                 .expect("yf");
             let fwd_rate = rate_between_on_dates(&fwd, period_start, period_end).expect("fwd");
             let df = relative_df_discount_curve(&disc, as_of, period_end).expect("df");
@@ -834,13 +834,13 @@ mod tests {
 
             let t_start = schedule
                 .params
-                .dc
-                .year_fraction(as_of, period_start, ctx_dc)
+                .day_count
+                .year_fraction(as_of, period_start, ctx_day_count)
                 .expect("t_start");
             let t_end = schedule
                 .params
-                .dc
-                .year_fraction(as_of, period_end, ctx_dc)
+                .day_count
+                .year_fraction(as_of, period_end, ctx_day_count)
                 .expect("t_end");
             let fwd_naive = fwd.rate_period(t_start, t_end);
             let df_naive = disc.df(t_end);
@@ -916,9 +916,9 @@ mod tests {
             period_start,
             period_end,
             ScheduleParams {
-                freq: Tenor::monthly(),
-                dc: DayCount::Act365F,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                frequency: Tenor::monthly(),
+                day_count: DayCount::Act365F,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::ShortBack,
                 end_of_month: false,
@@ -943,7 +943,7 @@ mod tests {
         // Compute expected spliced compound independently:
         // realized sub-period: weekdays in [Jan 6, Jan 17], each at 4 %
         // projected sub-period: weekdays in [Jan 20, Feb 3), each at 5 %
-        let ctx_dc = DayCountContext::default();
+        let ctx_day_count = DayCountContext::default();
         use time::Weekday;
         let mut cf = 1.0_f64;
         let mut d = period_start;
@@ -957,14 +957,14 @@ mod tests {
                 nd.min(period_end)
             };
             let dcf = DayCount::Act360
-                .year_fraction(d, next_d, ctx_dc)
+                .year_fraction(d, next_d, ctx_day_count)
                 .expect("dcf");
             let r = if d < as_of { 0.04 } else { 0.05 };
             cf *= 1.0 + r * dcf;
             d = next_d;
         }
         let yf = DayCount::Act360
-            .year_fraction(period_start, period_end, ctx_dc)
+            .year_fraction(period_start, period_end, ctx_day_count)
             .expect("yf");
         let expected_rate = (cf - 1.0) / yf;
         let expected_pv = 1_000_000.0 * expected_rate * yf; // df = 1
@@ -1017,7 +1017,7 @@ mod tests {
                 nd.min(period_end)
             };
             let dcf = DayCount::Act360
-                .year_fraction(d2, next_d, ctx_dc)
+                .year_fraction(d2, next_d, ctx_day_count)
                 .expect("dcf");
             cf_all5 *= 1.0 + 0.05 * dcf;
             d2 = next_d;
@@ -1110,9 +1110,9 @@ mod tests {
             start,
             end,
             ScheduleParams {
-                freq: Tenor::quarterly(),
-                dc: DayCount::Act365F,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                frequency: Tenor::quarterly(),
+                day_count: DayCount::Act365F,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,

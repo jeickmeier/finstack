@@ -30,7 +30,7 @@ fn config_extensions_roundtrip() {
 fn config_extensions_serde_roundtrip() {
     let json = r#"{
         "rounding": {
-            "mode": "Bankers",
+            "mode": "bankers",
             "ingest_scale": { "overrides": {} },
             "output_scale": { "overrides": {} }
         }
@@ -125,11 +125,11 @@ fn tolerance_config_partial_deserialize_uses_defaults() {
 fn finstack_config_rejects_unknown_top_level_field() {
     let json = r#"{
         "rounding": {
-            "mode": "Bankers",
+            "mode": "bankers",
             "ingest_scale": {"overrides": {}},
             "output_scale": {"overrides": {}}
         },
-        "roundingmode": "Floor"
+        "roundingmode": "floor"
     }"#;
     let error = serde_json::from_str::<FinstackConfig>(json)
         .expect_err("a misspelled top-level key must be rejected");
@@ -143,7 +143,7 @@ fn finstack_config_rejects_unknown_top_level_field() {
 fn rounding_policy_rejects_unknown_field() {
     let json = r#"{
         "rounding": {
-            "mode": "Bankers",
+            "mode": "bankers",
             "ingest_scale": {"overrides": {}},
             "output_scale": {"overrides": {}},
             "output_scaal": {"overrides": {}}
@@ -158,7 +158,7 @@ fn rounding_policy_rejects_unknown_field() {
 fn tolerance_config_rejects_unknown_field() {
     let json = r#"{
         "rounding": {
-            "mode": "Bankers",
+            "mode": "bankers",
             "ingest_scale": {"overrides": {}},
             "output_scale": {"overrides": {}}
         },
@@ -173,7 +173,7 @@ fn tolerance_config_rejects_unknown_field() {
 fn finstack_config_still_accepts_valid_minimal_config() {
     let json = r#"{
         "rounding": {
-            "mode": "Bankers",
+            "mode": "bankers",
             "ingest_scale": {"overrides": {}},
             "output_scale": {"overrides": {}}
         }
@@ -189,11 +189,11 @@ fn finstack_config_still_accepts_valid_minimal_config() {
 fn finstack_config_still_accepts_valid_extensions() {
     let json = r#"{
         "rounding": {
-            "mode": "Bankers",
+            "mode": "bankers",
             "ingest_scale": {"overrides": {}},
             "output_scale": {"overrides": {}}
         },
-        "extensions": {"valuations.calibration.v2": {"anything": 1}}
+        "extensions": {"valuations.calibration.v1": {"anything": 1}}
     }"#;
     let config: serde_json::Result<FinstackConfig> = serde_json::from_str(json);
     assert!(

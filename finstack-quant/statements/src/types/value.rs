@@ -3,6 +3,7 @@
 use crate::error::{Error, Result};
 use crate::types::NodeValueType;
 use finstack_quant_core::{currency::Currency, money::Money};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Value that can be currency-aware or unitless.
@@ -10,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// Used for node values that can represent:
 /// - **Amount**: Currency-aware monetary values (e.g., USD 1,000,000)
 /// - **Scalar**: Unitless values (e.g., ratios, percentages, counts)
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum AmountOrScalar {
     /// Currency-aware amount

@@ -618,12 +618,14 @@ mod tests {
     use crate::instruments::exotics::barrier_option::types::BarrierType;
     use crate::instruments::Instrument;
     use crate::instruments::OptionType;
+    use crate::models::closed_form::barrier::{barrier_rebate_continuous, RebateTiming};
     use finstack_quant_core::currency::Currency;
-    use finstack_quant_core::dates::Date;
+    use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
     use finstack_quant_core::market_data::context::MarketContext;
     use finstack_quant_core::market_data::scalars::MarketScalar;
     use finstack_quant_core::market_data::surfaces::VolSurface;
     use finstack_quant_core::market_data::term_structures::DiscountCurve;
+    use finstack_quant_core::math::interp::InterpStyle;
     use finstack_quant_core::money::fx::{FxMatrix, SimpleFxProvider};
     use finstack_quant_core::money::Money;
     use std::sync::Arc;
@@ -793,6 +795,123 @@ mod tests {
             pv.amount()
         );
         assert_eq!(pv.currency(), Currency::USD);
+    }
+
+    #[test]
+    fn analytical_pricer_finite_vol_rebate_delta_matches_closed_form_and_notional() {
+        let as_of = Date::from_calendar_date(2024, Month::January, 1).expect("valid date");
+        let expiry = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
+        let notional = 1_000_000.0;
+        let rebate = 0.02;
+
+        let build_option = |id: &str, rebate: Option<f64>| {
+            FxBarrierOption::builder()
+                .id(id.into())
+                .strike(1.10)
+                .barrier(1.20)
+                .rebate_opt(rebate)
+                .rebate_timing(RebateTiming::AtExpiry)
+                .option_type(OptionType::Call)
+                .barrier_type(BarrierType::UpAndOut)
+                .monitoring_start_date(as_of)
+                .expiry(expiry)
+                .notional(Money::new(notional, Currency::EUR))
+                .base_currency(Currency::EUR)
+                .quote_currency(Currency::USD)
+                .day_count(DayCount::Act365F)
+                .use_gobet_miri(false)
+                .domestic_discount_curve_id("USD-OIS".into())
+                .foreign_discount_curve_id("EUR-OIS".into())
+                .fx_spot_id_opt(Some("EURUSD-SPOT".into()))
+                .vol_surface_id("EURUSD-VOL".into())
+                .attributes(crate::instruments::Attributes::new())
+                .build()
+                .expect("finite-vol FX barrier option")
+        };
+
+        let base_option = build_option("FXBAR-FINITE-VOL-NO-REBATE", None);
+        let rebate_option = build_option("FXBAR-FINITE-VOL-REBATE", Some(rebate));
+        let domestic_rate: f64 = 0.03;
+        let foreign_rate: f64 = 0.01;
+        let volatility: f64 = 0.15;
+        let market = MarketContext::new()
+            .insert(
+                DiscountCurve::builder("USD-OIS")
+                    .base_date(as_of)
+                    .day_count(DayCount::Act365F)
+                    .knots([(0.0, 1.0), (5.0, (-domestic_rate * 5.0).exp())])
+                    .interp(InterpStyle::LogLinear)
+                    .build()
+                    .expect("domestic curve"),
+            )
+            .insert(
+                DiscountCurve::builder("EUR-OIS")
+                    .base_date(as_of)
+                    .day_count(DayCount::Act365F)
+                    .knots([(0.0, 1.0), (5.0, (-foreign_rate * 5.0).exp())])
+                    .interp(InterpStyle::LogLinear)
+                    .build()
+                    .expect("foreign curve"),
+            )
+            .insert_surface(
+                VolSurface::builder("EURUSD-VOL")
+                    .expiries(&[0.5, 1.0, 2.0])
+                    .strikes(&[1.0, 1.1, 1.2])
+                    .row(&[volatility, volatility, volatility])
+                    .row(&[volatility, volatility, volatility])
+                    .row(&[volatility, volatility, volatility])
+                    .build()
+                    .expect("vol surface"),
+            )
+            .insert_price("EURUSD-SPOT", MarketScalar::Unitless(1.10));
+
+        let base_pv = base_option
+            .value(&market, as_of)
+            .expect("finite-vol FX barrier price without rebate");
+        let rebate_pv = rebate_option
+            .value(&market, as_of)
+            .expect("finite-vol FX barrier price with rebate");
+
+        let (spot, r_dom, r_for, sigma, _) =
+            collect_fx_barrier_inputs(&rebate_option, &market, as_of)
+                .expect("finite-vol FX barrier inputs");
+        let t = rebate_option
+            .day_count
+            .year_fraction(as_of, expiry, DayCountContext::default())
+            .expect("year fraction");
+        let params = BarrierParams::new(
+            spot,
+            rebate_option.strike,
+            rebate_option.barrier,
+            t,
+            r_dom,
+            r_for,
+            sigma,
+        );
+        let expected_per_unit = barrier_rebate(
+            &params,
+            rebate,
+            BarrierType::UpAndOut,
+            RebateTiming::AtExpiry,
+        );
+        let continuous_per_unit = barrier_rebate_continuous(&params, rebate, BarrierType::UpAndOut);
+        let actual_delta = rebate_pv.amount() - base_pv.amount();
+        let expected_delta = expected_per_unit * notional;
+
+        assert!(
+            sigma.is_finite() && sigma > 0.0,
+            "test must exercise a finite positive volatility, got {sigma}"
+        );
+        assert!(
+            (expected_per_unit - continuous_per_unit).abs() < 1e-12,
+            "at-expiry rebate must match the continuous legacy formula"
+        );
+        assert!(
+            (actual_delta - expected_delta).abs() < 0.02,
+            "instrument rebate delta {actual_delta} should equal per-unit rebate {expected_per_unit} scaled by notional {notional}"
+        );
+        assert_eq!(base_pv.currency(), Currency::USD);
+        assert_eq!(rebate_pv.currency(), Currency::USD);
     }
 
     #[test]

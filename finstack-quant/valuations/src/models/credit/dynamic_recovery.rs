@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 
 /// Recovery model specification.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum RecoveryModel {
     /// Constant recovery (ignores notional changes).
     Constant,
@@ -53,6 +54,7 @@ pub enum RecoveryModel {
 /// rate in default. As PIK accrual increases the notional relative to the
 /// original base, recovery declines according to the chosen [`RecoveryModel`].
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DynamicRecoverySpec {
     /// Base (reference) recovery rate `R_0`.
     base_recovery: f64,

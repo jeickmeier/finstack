@@ -1,5 +1,5 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "usd_5y_term_irs_self_test",
     "domain": "rates.irs",
@@ -20,7 +20,7 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
         "id": "usd_5y_term_irs_self_test_market",
         "description": "Two-step plan: USD-OIS discount step (12 SOFR OIS quotes with rate_cutoff override) followed by USD-SOFR-3M forward step (8 term-rate IRS quotes against the calibrated discount curve). Sequential dependency exercises the engine's plan-step ordering and the new ois_compounding override plumbing.",
@@ -58,15 +58,15 @@
             "curve_id": "USD-OIS",
             "currency": "USD",
             "base_date": "2026-04-30",
-            "method": "Bootstrap",
+            "method": "bootstrap",
             "interpolation": "log_linear",
             "extrapolation": "flat_forward",
             "pricing_discount_id": null,
             "pricing_forward_id": null,
             "conventions": {
-              "curve_day_count": "Act365F",
+              "curve_day_count": "act_365f",
               "ois_compounding": {
-                "CompoundedWithRateCutoff": {
+                "compounded_with_rate_cutoff": {
                   "cutoff_days": 1
                 }
               }
@@ -82,13 +82,13 @@
             "tenor_years": 0.25,
             "discount_curve_id": "USD-OIS",
             "method": {
-              "GlobalSolve": {
+              "global_solve": {
                 "use_analytical_jacobian": false
               }
             },
             "interpolation": "linear",
             "conventions": {
-              "curve_day_count": "Act365F"
+              "curve_day_count": "act_365f"
             }
           }
         ],
@@ -377,9 +377,9 @@
             "count": 6,
             "unit": "months"
           },
-          "day_count": "Thirty360",
+          "day_count": "30_360",
           "calendar_id": "usny",
-          "stub": "None",
+          "stub": "none",
           "start": "2026-05-04",
           "end": "2031-05-04",
           "par_method": null,
@@ -394,15 +394,15 @@
             "count": 3,
             "unit": "months"
           },
-          "day_count": "Act360",
+          "day_count": "act_360",
           "calendar_id": "usny",
-          "stub": "None",
+          "stub": "none",
           "reset_lag_days": 2,
           "payment_lag_days": 0,
           "fixing_calendar_id": "usny",
           "start": "2026-05-04",
           "end": "2031-05-04",
-          "compounding": "Simple"
+          "compounding": "simple"
         },
         "attributes": {
           "tags": [

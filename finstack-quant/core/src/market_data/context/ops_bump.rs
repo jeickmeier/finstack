@@ -51,14 +51,14 @@ impl MarketContext {
     /// that restores the original surface.
     pub fn apply_surface_bump_in_place(
         &mut self,
-        surface_id: &str,
+        vol_surface_id: &str,
         spec: BumpSpec,
     ) -> Result<ContextScratchBump> {
         spec.validate_finite()?;
-        let key = CurveId::from(surface_id);
-        let previous = self.surfaces.get(surface_id).cloned().ok_or_else(|| {
+        let key = CurveId::from(vol_surface_id);
+        let previous = self.surfaces.get(vol_surface_id).cloned().ok_or_else(|| {
             crate::error::InputError::NotFound {
-                id: surface_id.to_string(),
+                id: vol_surface_id.to_string(),
             }
         })?;
         let bumped = previous.apply_bump(spec)?;
@@ -74,7 +74,7 @@ impl MarketContext {
     ///
     /// # Arguments
     ///
-    /// * `surface_id` - Identifier of the volatility surface to mutate.
+    /// * `vol_surface_id` - Identifier of the volatility surface to mutate.
     /// * `expiry` - Expiry in years; values inside or outside the grid are
     ///   mapped to the nearest clamped expiry node.
     /// * `strike` - Strike coordinate; values inside or outside the grid are
@@ -85,11 +85,11 @@ impl MarketContext {
     /// # Errors
     ///
     /// Returns a validation error for non-finite coordinates or bumps,
-    /// `InputError::NotFound` when `surface_id` is absent, and
+    /// `InputError::NotFound` when `vol_surface_id` is absent, and
     /// `InputError::TooFewPoints` when either surface axis is empty.
     pub fn apply_surface_point_bump_in_place(
         &mut self,
-        surface_id: &str,
+        vol_surface_id: &str,
         expiry: f64,
         strike: f64,
         bump_pct: f64,
@@ -100,11 +100,11 @@ impl MarketContext {
                  strike={strike}, bump_pct={bump_pct}"
             )));
         }
-        let key = CurveId::from(surface_id);
+        let key = CurveId::from(vol_surface_id);
         let surface = Arc::make_mut(&mut self.surfaces)
-            .get_mut(surface_id)
+            .get_mut(vol_surface_id)
             .ok_or_else(|| crate::error::InputError::NotFound {
-                id: surface_id.to_string(),
+                id: vol_surface_id.to_string(),
             })?;
         let original_vol = Arc::make_mut(surface).bump_point_in_place(expiry, strike, bump_pct)?;
         Ok(ContextScratchBump::SurfacePoint {
@@ -251,7 +251,7 @@ impl MarketContext {
                     fx_bumps.push((base, quote, pct, as_of));
                 }
                 MarketBump::VolBucketPct {
-                    surface_id,
+                    vol_surface_id,
                     expiries,
                     strikes,
                     pct,
@@ -260,7 +260,7 @@ impl MarketContext {
                     // multiplicative `apply_bucket_bump` path as filtered bumps so
                     // semantics (vol × (1 + pct/100)) are identical with or without
                     // filters .
-                    vol_bumps.push((surface_id, expiries, strikes, pct));
+                    vol_bumps.push((vol_surface_id, expiries, strikes, pct));
                 }
                 MarketBump::BaseCorrBucketPts {
                     surface_id,
@@ -289,11 +289,11 @@ impl MarketContext {
         }
 
         // Apply vol bucket bumps
-        for (surface_id, expiries, strikes, pct) in vol_bumps {
+        for (vol_surface_id, expiries, strikes, pct) in vol_bumps {
             let surface =
-                ctx.get_surface(surface_id.as_str())
+                ctx.get_surface(vol_surface_id.as_str())
                     .map_err(|_| InputError::NotFound {
-                        id: surface_id.to_string(),
+                        id: vol_surface_id.to_string(),
                     })?;
             let bumped = surface
                 .apply_bucket_bump(expiries.as_deref(), strikes.as_deref(), pct)

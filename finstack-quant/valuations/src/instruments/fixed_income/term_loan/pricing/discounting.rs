@@ -229,7 +229,7 @@ impl TermLoanDiscountingPricer {
         let flows: Vec<(finstack_quant_core::dates::Date, Money)> = schedule
             .get_flows()
             .iter()
-            .filter(|cf| cf.kind != CFKind::PIK && cf.date >= settlement_date)
+            .filter(|cf| cf.kind != CFKind::Pik && cf.date >= settlement_date)
             .map(|cf| (cf.date, cf.amount))
             .collect();
 
@@ -422,12 +422,12 @@ mod tests {
         let market = MarketContext::new().insert(disc.clone());
 
         let mut loan = TermLoan::example().expect("TermLoan example is valid");
-        loan.coupon_type = CouponType::PIK;
+        loan.coupon_type = CouponType::Pik;
         loan.discount_curve_id = CurveId::new("USD-OIS");
 
         let schedule = generate_cashflows(&loan, &market, as_of).expect("cashflows");
         assert!(
-            schedule.get_flows().iter().any(|cf| cf.kind == CFKind::PIK),
+            schedule.get_flows().iter().any(|cf| cf.kind == CFKind::Pik),
             "PIK loan should generate PIK cashflows"
         );
 
@@ -454,7 +454,7 @@ mod tests {
     /// Build a simple floating-rate term loan for fixing tests.
     ///
     /// Issue: 2024-01-01, Maturity: 2026-01-01 (2Y), Quarterly, Act/360.
-    /// SOFR + 300 bps, 0% index floor, no amortization.
+    /// SOFR + 300 bp, 0% index floor, no amortization.
     fn floating_loan_for_fixings() -> TermLoan {
         let floating_rate = FloatingRateSpec {
             index_id: CurveId::new("USD-SOFR-3M"),
@@ -466,7 +466,7 @@ mod tests {
             all_in_cap_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,
@@ -484,7 +484,7 @@ mod tests {
             .rate(RateSpec::Floating(floating_rate))
             .frequency(Tenor::quarterly())
             .day_count(DayCount::Act360)
-            .bdc(BusinessDayConvention::ModifiedFollowing)
+            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
             .calendar_id_opt(None)
             .stub(StubKind::None)
             .discount_curve_id(CurveId::new("USD-OIS"))
@@ -560,8 +560,8 @@ mod tests {
             .expect("complete fixing history");
 
         // Check that FloatReset flows with reset_date < as_of use the fixing rate.
-        // Fixing rate = 0.02, spread = 300 bps = 0.03 => all_in = 0.05 (with gearing=1).
-        let fixing_rate_expected = 0.02 + 0.03; // 5% all-in (but from 2% fixing + 300 bps)
+        // Fixing rate = 0.02, spread = 300 bp = 0.03 => all_in = 0.05 (with gearing=1).
+        let fixing_rate_expected = 0.02 + 0.03; // 5% all-in (but from 2% fixing + 300 bp)
 
         let past_float_flows: Vec<_> = schedule
             .get_flows()

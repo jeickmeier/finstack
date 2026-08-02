@@ -23,9 +23,9 @@ class TestPrimitives:
         assert CFKind.PIK != CFKind.FIXED
         assert CFKind.FIXED.is_interest_like()
         assert not CFKind.FEE.is_interest_like()
-        # FromStr accepts the documented alias set (e.g. "amort").
-        assert CFKind.parse("amort") == CFKind.AMORTIZATION
-        with pytest.raises(ValueError, match="unknown variant"):
+        with pytest.raises(ValueError, match="unknown cashflow kind"):
+            CFKind.parse("amort")
+        with pytest.raises(ValueError, match="unknown cashflow kind"):
             CFKind.parse("not_a_kind")
 
     def test_cashflow_construction_getters_and_validate(self) -> None:
@@ -101,8 +101,8 @@ class TestBuilderSpecs:
         from finstack_quant.core.dates import DayCount, Tenor
 
         p = ScheduleParams(
-            freq=Tenor.quarterly(),
-            dc=DayCount.ACT_360,
+            frequency=Tenor.quarterly(),
+            day_count=DayCount.ACT_360,
             calendar_id="weekends_only",
         )
         assert p.calendar_id == "weekends_only"
@@ -155,12 +155,12 @@ class TestBuilderSpecs:
         assert FeeBase.DRAWN is not None
         fixed = FeeSpec.fixed(dt.date(2025, 1, 15), Money(-5_000.0, "USD"))
         assert fixed is not None
-        periodic = FeeSpec.periodic_bps(
+        periodic = FeeSpec.periodic_bp(
             base=FeeBase.undrawn(facility_limit=Money(10_000_000.0, "USD")),
-            bps=50,
-            freq=Tenor.quarterly(),
-            dc=DayCount.ACT_360,
-            bdc="modified_following",
+            bp=50,
+            frequency=Tenor.quarterly(),
+            day_count=DayCount.ACT_360,
+            business_day_convention="modified_following",
             calendar_id="weekends_only",
             accrual_basis=FeeAccrualBasis.TIME_WEIGHTED_AVERAGE,
         )
@@ -174,14 +174,14 @@ class TestBuilderSpecs:
         spec = FloatingRateSpec(
             index_id="USD-SOFR-3M",
             spread_bp=Decimal("200"),
-            reset_freq="3M",
+            reset_frequency="3M",
             index_floor_bp=Decimal("0"),
         )
         spec.validate()
         bad = FloatingRateSpec(
             index_id="USD-SOFR-3M",
             spread_bp=Decimal("200"),
-            reset_freq="3M",
+            reset_frequency="3M",
             index_floor_bp=Decimal("100"),
             index_cap_bp=Decimal("50"),
         )
@@ -192,7 +192,7 @@ class TestBuilderSpecs:
         """Typed constructors must not hand-re-encode private Rust serde defaults.
 
         `ScheduleParams.new` and `FixedCouponSpec.new` re-derive several
-        defaults (bdc, stub, roll_rule, coupon_type) that live in Rust's
+        defaults (business_day_convention, stub, roll_rule, coupon_type) that live in Rust's
         private `serde_defaults.rs` / `Default` impls rather than a shared
         public constant. Build the same schedule through the typed path
         (all optional fields omitted) and through the JSON path (same
@@ -206,8 +206,8 @@ class TestBuilderSpecs:
         exact grid -- a 12-month horizon would make the stub default inert.
         The quarterly anchors this produces (2025-02-15, 2025-11-15,
         2026-02-15) land on a Saturday/Saturday/Sunday, so the default
-        `bdc` (ModifiedFollowing) actually rolls those payment dates
-        forward -- an all-weekday horizon would make `bdc` (and, since
+        `business_day_convention` (ModifiedFollowing) actually rolls those payment dates
+        forward -- an all-weekday horizon would make `business_day_convention` (and, since
         `adjust_accrual_dates` defaults to `false`, the fact that accrual
         boundaries stay unadjusted while payment dates roll) inert too.
         """
@@ -232,14 +232,14 @@ class TestBuilderSpecs:
             .fixed_cf(
                 FixedCouponSpec(
                     rate=Decimal("0.05"),
-                    schedule=ScheduleParams(freq="3M", dc=DayCount.ACT_360, calendar_id="weekends_only"),
+                    schedule=ScheduleParams(frequency="3M", day_count=DayCount.ACT_360, calendar_id="weekends_only"),
                 )
             )
             .build(None)
         )
 
         json_spec = json.dumps({
-            "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "None"},
+            "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "none"},
             "issue": "2025-01-15",
             "maturity": "2026-02-15",
             "coupon_program": [
@@ -247,8 +247,8 @@ class TestBuilderSpecs:
                     "kind": "fixed",
                     "spec": {
                         "rate": "0.05",
-                        "freq": {"count": 3, "unit": "months"},
-                        "dc": "Act360",
+                        "frequency": {"count": 3, "unit": "months"},
+                        "day_count": "act_360",
                         "calendar_id": "weekends_only",
                     },
                 }
@@ -259,7 +259,7 @@ class TestBuilderSpecs:
         # Sanity check that this fixture genuinely exercises the defaults it
         # claims to: a short front stub (5 coupons, not the 4 an exact
         # 12-month/3M grid would produce) and at least one payment date
-        # rolled off a weekend by the default ModifiedFollowing bdc.
+        # rolled off a weekend by the default ModifiedFollowing business_day_convention.
         typed_coupons = typed_schedule.coupons()
         assert len(typed_coupons) == 5  # stub + 4 regular quarters
         coupon_dates = [cf.date for cf in typed_coupons]
@@ -317,16 +317,16 @@ class TestBuilderSpecs:
                     rate_spec=FloatingRateSpec(
                         index_id="USD-SOFR-3M",
                         spread_bp=Decimal("150"),
-                        reset_freq="3M",
+                        reset_frequency="3M",
                     ),
-                    schedule=ScheduleParams(freq="3M", dc=DayCount.ACT_360, calendar_id="weekends_only"),
+                    schedule=ScheduleParams(frequency="3M", day_count=DayCount.ACT_360, calendar_id="weekends_only"),
                 )
             )
             .build(market)
         )
 
         json_spec = json.dumps({
-            "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "None"},
+            "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "none"},
             "issue": "2025-01-15",
             "maturity": "2026-01-15",
             "coupon_program": [
@@ -336,10 +336,10 @@ class TestBuilderSpecs:
                         "rate_spec": {
                             "index_id": "USD-SOFR-3M",
                             "spread_bp": "150",
-                            "reset_freq": {"count": 3, "unit": "months"},
+                            "reset_frequency": {"count": 3, "unit": "months"},
                         },
-                        "freq": {"count": 3, "unit": "months"},
-                        "dc": "Act360",
+                        "frequency": {"count": 3, "unit": "months"},
+                        "day_count": "act_360",
                         "calendar_id": "weekends_only",
                     },
                 }
@@ -394,7 +394,7 @@ class TestBuilderSpecs:
             rate_spec = FloatingRateSpec(
                 index_id="USD-SOFR-3M",
                 spread_bp=Decimal("0"),
-                reset_freq="3M",
+                reset_frequency="3M",
                 index_floor_bp=Decimal("300"),
                 overnight_compounding=OvernightCompoundingMethod.COMPOUNDED_IN_ARREARS,
                 **kwargs,
@@ -406,7 +406,9 @@ class TestBuilderSpecs:
                 .floating_cf(
                     FloatingCouponSpec(
                         rate_spec=rate_spec,
-                        schedule=ScheduleParams(freq="3M", dc=DayCount.ACT_360, calendar_id="weekends_only"),
+                        schedule=ScheduleParams(
+                            frequency="3M", day_count=DayCount.ACT_360, calendar_id="weekends_only"
+                        ),
                     )
                 )
                 .build(market)
@@ -415,7 +417,7 @@ class TestBuilderSpecs:
         typed_schedule = build_schedule(None)
 
         json_spec = json.dumps({
-            "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "None"},
+            "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "none"},
             "issue": "2025-01-15",
             "maturity": "2026-01-15",
             "coupon_program": [
@@ -425,12 +427,12 @@ class TestBuilderSpecs:
                         "rate_spec": {
                             "index_id": "USD-SOFR-3M",
                             "spread_bp": "0",
-                            "reset_freq": {"count": 3, "unit": "months"},
+                            "reset_frequency": {"count": 3, "unit": "months"},
                             "index_floor_bp": "300",
-                            "overnight_compounding": "CompoundedInArrears",
+                            "overnight_compounding": "compounded_in_arrears",
                         },
-                        "freq": {"count": 3, "unit": "months"},
-                        "dc": "Act360",
+                        "frequency": {"count": 3, "unit": "months"},
+                        "day_count": "act_360",
                         "calendar_id": "weekends_only",
                     },
                 }
@@ -482,9 +484,9 @@ class TestBuilderSpecs:
                     rate_spec=FloatingRateSpec(
                         index_id="USD-SOFR-3M",
                         spread_bp=Decimal("150"),
-                        reset_freq="3M",
+                        reset_frequency="3M",
                     ),
-                    schedule=ScheduleParams(freq="3M", dc=DayCount.ACT_360, calendar_id="weekends_only"),
+                    schedule=ScheduleParams(frequency="3M", day_count=DayCount.ACT_360, calendar_id="weekends_only"),
                 )
             )
         )
@@ -492,7 +494,7 @@ class TestBuilderSpecs:
             typed_builder.build(None)
 
         json_spec = json.dumps({
-            "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "None"},
+            "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "none"},
             "issue": "2025-01-15",
             "maturity": "2026-01-15",
             "coupon_program": [
@@ -502,10 +504,10 @@ class TestBuilderSpecs:
                         "rate_spec": {
                             "index_id": "USD-SOFR-3M",
                             "spread_bp": "150",
-                            "reset_freq": {"count": 3, "unit": "months"},
+                            "reset_frequency": {"count": 3, "unit": "months"},
                         },
-                        "freq": {"count": 3, "unit": "months"},
-                        "dc": "Act360",
+                        "frequency": {"count": 3, "unit": "months"},
+                        "day_count": "act_360",
                         "calendar_id": "weekends_only",
                     },
                 }
@@ -615,7 +617,7 @@ class TestCashFlowBuilder:
         )
 
         spec = FloatingCouponSpec(
-            rate_spec=FloatingRateSpec(index_id="USD-SOFR-3M", spread_bp=Decimal("200"), reset_freq="3M"),
+            rate_spec=FloatingRateSpec(index_id="USD-SOFR-3M", spread_bp=Decimal("200"), reset_frequency="3M"),
             schedule=ScheduleParams.quarterly_act360(),
         )
         builder = (
@@ -650,7 +652,7 @@ class TestCashFlowBuilder:
         )
         market = MarketContext().insert(curve)
         spec = FloatingCouponSpec(
-            rate_spec=FloatingRateSpec(index_id="USD-SOFR-3M", spread_bp=Decimal("0"), reset_freq="3M"),
+            rate_spec=FloatingRateSpec(index_id="USD-SOFR-3M", spread_bp=Decimal("0"), reset_frequency="3M"),
             schedule=ScheduleParams.quarterly_act360(),
         )
         schedule = (

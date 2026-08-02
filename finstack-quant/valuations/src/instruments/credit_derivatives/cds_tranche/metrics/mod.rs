@@ -36,33 +36,33 @@ pub(crate) fn register_cds_tranche_metrics(registry: &mut MetricRegistry) {
         .register_metric(
             MetricId::custom("upfront"),
             Arc::new(upfront::UpfrontCalculator),
-            &[InstrumentType::CDSTranche],
+            &[InstrumentType::CdsTranche],
         )
         .register_metric(
             MetricId::SpreadDv01,
             Arc::new(spread_dv01::SpreadDv01Calculator),
-            &[InstrumentType::CDSTranche],
+            &[InstrumentType::CdsTranche],
         )
         .register_metric(
             MetricId::Correlation01,
             Arc::new(correlation01::Correlation01Calculator),
-            &[InstrumentType::CDSTranche],
+            &[InstrumentType::CdsTranche],
         )
         .register_metric(
             MetricId::Recovery01,
             Arc::new(recovery01::Recovery01Calculator),
-            &[InstrumentType::CDSTranche],
+            &[InstrumentType::CdsTranche],
         )
         .register_metric(
             MetricId::custom("tail_dependence"),
             Arc::new(tail_dependence::TailDependenceCalculator),
-            &[InstrumentType::CDSTranche],
+            &[InstrumentType::CdsTranche],
         );
 
     // Standard metrics using macro
     crate::register_metrics! {
         registry: registry,
-        instrument: InstrumentType::CDSTranche,
+        instrument: InstrumentType::CdsTranche,
         metrics: [
             (Cs01, cs01::CdsTrancheCs01Calculator),
             (BucketedCs01, cs01::CdsTrancheBucketedCs01Calculator),

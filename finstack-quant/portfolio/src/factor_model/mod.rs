@@ -173,7 +173,7 @@ pub struct RiskBudgetResultView {
     pub positions: Vec<PositionBudgetEntryView>,
 }
 
-/// Convert a full position risk decomposition into the legacy VaR view.
+/// Convert a full position risk decomposition into the binding VaR view.
 ///
 /// # Arguments
 ///
@@ -205,7 +205,7 @@ pub fn parametric_var_decomposition_view(
     }
 }
 
-/// Convert a risk-budget result into the legacy binding view.
+/// Convert a risk-budget result into the binding view.
 ///
 /// # Arguments
 ///
@@ -252,7 +252,7 @@ pub fn risk_budget_result_view(
     }
 }
 
-/// Convert a full position risk decomposition into the legacy ES-only view.
+/// Convert a full position risk decomposition into the binding ES-only view.
 ///
 /// # Arguments
 ///

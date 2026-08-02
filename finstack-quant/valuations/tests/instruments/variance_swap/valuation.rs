@@ -95,7 +95,7 @@ fn test_npv_before_start_pay_side_opposite_sign() {
 fn test_npv_mid_period_blends_realized_and_forward_components() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
     let prices = price_series(&swap, 4_950.0, 10.0);
     let ctx = add_series(base_context(), &prices);
     let dates = swap.observation_dates().expect("observation schedule");
@@ -148,7 +148,7 @@ fn test_npv_mid_period_blends_realized_and_forward_components() {
 fn test_npv_mid_period_with_high_realized_vol_increases_value_for_receive() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
     let prices = price_series(&swap, 5_000.0, 50.0); // High volatility moves
     let ctx = add_series(base_context(), &prices);
     let dates = swap.observation_dates().expect("observation schedule");
@@ -169,7 +169,7 @@ fn test_npv_mid_period_with_high_realized_vol_increases_value_for_receive() {
 fn test_npv_mid_period_discounting_reduces_value() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
     let prices = price_series(&swap, 5_000.0, 10.0);
     let ctx = add_series(base_context(), &prices);
     let dates = swap.observation_dates().expect("observation schedule");
@@ -196,9 +196,9 @@ fn test_npv_mid_period_with_different_frequencies() {
     let base_swap = sample_swap(PayReceive::Receive);
     let frequencies = vec![Tenor::daily(), Tenor::weekly(), Tenor::monthly()];
 
-    for freq in frequencies {
+    for frequency in frequencies {
         let mut swap = base_swap.clone();
-        swap.observation_freq = freq;
+        swap.observation_frequency = frequency;
         let prices = price_series(&swap, 5_000.0, 5.0);
         let ctx = add_series(base_context(), &prices);
         let dates = swap.observation_dates().expect("observation schedule");
@@ -218,7 +218,7 @@ fn test_daily_observation_dates_skip_weekends() {
     let mut swap = sample_swap(PayReceive::Receive);
     swap.start_date = date!(2025 - 01 - 03); // Friday
     swap.maturity = date!(2025 - 01 - 08); // Wednesday
-    swap.observation_freq = Tenor::daily();
+    swap.observation_frequency = Tenor::daily();
 
     let dates = swap.observation_dates().expect("observation schedule");
     assert!(
@@ -332,7 +332,7 @@ fn test_npv_after_settlement_is_zero() {
 fn test_npv_time_progression_from_pre_start_to_maturity() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
     let prices = price_series(&swap, 5_000.0, 8.0);
     let ctx = add_series(
         add_unitless(base_context(), format!("{}_IMPL_VOL", UNDERLYING_ID), 0.22),
@@ -363,7 +363,7 @@ fn test_npv_time_progression_from_pre_start_to_maturity() {
 fn test_npv_converges_as_maturity_approaches() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
     let prices = price_series(&swap, 5_000.0, 5.0);
     let ctx = add_series(base_context(), &prices);
     let dates = swap.observation_dates().expect("observation schedule");

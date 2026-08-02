@@ -1007,13 +1007,13 @@ dependencies = { python = "finstack_quant.portfolio.dependencies", status = "mis
 error        = { python = "finstack_quant.portfolio.error",        status = "missing" }
 excess_return = { python = "finstack_quant.portfolio",             status = "flattened", note = "Duration-matched credit excess return functions (cell_returns_from_reference, cell_returns_from_curves, excess_returns) are exported flat on finstack_quant.portfolio (Dynkin, Hyman & Vankudre 1998, Appendix B); duration_cell_label remains Rust-only" }
 factor_brinson = { python = "finstack_quant.portfolio",            status = "flattened", note = "Jeet-Partani (2023) factor-Brinson unified attribution (factor_brinson_attribution) is exported flat on finstack_quant.portfolio" }
-factor_model = { python = "finstack_quant.portfolio",              status = "flattened", note = "Result types (RiskDecomposition, PositionRiskDecomposition, RiskBudgetResult, WhatIfResult, StressResult, StressAttribution, FactorAssignmentReport, CreditVolReport, VolHorizon, DecompositionConfig, ...) plus allocation/risk functions (allocate_weights, validate_allocation_json, parametric/historical_var_decomposition_typed, evaluate_risk_budget_typed) are exported flat on finstack_quant.portfolio; engine/builder types remain Rust-only for now" }
+factor_model = { python = "finstack_quant.portfolio",              status = "flattened", note = "Result types (RiskDecomposition, PositionRiskDecomposition, RiskBudgetResult, WhatIfResult, StressResult, StressAttribution, FactorAssignmentReport, CreditVolReport, VolHorizon, DecompositionConfig, ...) plus typed allocation and risk functions are exported flat on finstack_quant.portfolio; engine and builder types remain Rust-only" }
 fi_attribution = { python = "finstack_quant.portfolio",            status = "flattened", note = "Campisi fixed-income benchmark attribution (campisi_attribution, campisi_carino_link, campisi_carino_link_from_snapshots, campisi_reconciliation_check) is exported flat on finstack_quant.portfolio; campisi_reconciliation_check binds the Rust method FiAttributionResult::reconciliation_check; snapshot_from_position_metrics and typed results remain Rust-only" }
 grid_attribution = { python = "finstack_quant.portfolio",          status = "flattened", note = "Hierarchical duration-cell x sector grid attribution (grid_attribution, grid_carino_link) is exported flat on finstack_quant.portfolio (Dynkin, Hyman & Vankudre 1998, Appendix A; Carino 1999 linking)" }
 grouping     = { python = "finstack_quant.portfolio.grouping",     status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
 margin       = { python = "finstack_quant.portfolio.margin",       status = "missing", note = "Portfolio margin helpers are not materialized as a dedicated submodule" }
 metrics      = { python = "finstack_quant.portfolio.metrics",      status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
-optimization = { python = "finstack_quant.portfolio",              status = "flattened", note = "Spec/result types (PortfolioOptimizationSpec, Constraint, Objective, MetricExpr, PerPositionMetric, PositionFilter, WeightingScheme, MissingMetricPolicy, Inequality, OptimizationStatus, TradeSpec, TradeDirection, TradeType, CandidatePosition, TradeUniverse, PortfolioOptimizationResult) plus optimize_portfolio_typed are exported flat on finstack_quant.portfolio alongside the legacy JSON-string optimize_portfolio entry point" }
+optimization = { python = "finstack_quant.portfolio",              status = "flattened", note = "Spec/result types (PortfolioOptimizationSpec, Constraint, Objective, MetricExpr, PerPositionMetric, PositionFilter, WeightingScheme, MissingMetricPolicy, Inequality, OptimizationStatus, TradeSpec, TradeDirection, TradeType, CandidatePosition, TradeUniverse, PortfolioOptimizationResult) and the typed optimize_portfolio entry point are exported flat on finstack_quant.portfolio" }
 performance  = { python = "finstack_quant.portfolio",              status = "flattened", note = "TWRR/MWRR performance helpers are exported flat on finstack_quant.portfolio" }
 portfolio    = { python = "finstack_quant.portfolio.portfolio",    status = "missing", note = "Bindings are currently exported from finstack_quant.portfolio root" }
 position     = { python = "finstack_quant.portfolio.position",     status = "missing" }
@@ -1107,23 +1107,19 @@ public = [
   "days_to_liquidate",
   "decompose_factor_risk",
   "evaluate_risk_budget",
-  "evaluate_risk_budget_typed",
   "excess_returns",
   "factor_brinson_attribution",
   "factor_stress",
   "grid_attribution",
   "grid_carino_link",
   "historical_var_decomposition",
-  "historical_var_decomposition_typed",
   "kyle_lambda",
   "liquidity_tier",
   "lvar_bangia",
   "mwr_xirr",
   "optimize_portfolio",
-  "optimize_portfolio_typed",
   "parametric_es_decomposition",
   "parametric_var_decomposition",
-  "parametric_var_decomposition_typed",
   "parse_portfolio_spec",
   "portfolio_result_get_metric",
   "portfolio_result_total_value",
@@ -1137,7 +1133,6 @@ public = [
   "twrr_modified_dietz",
   "validate_allocation_json",
   "value_portfolio",
-  "value_portfolio_typed",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1268,15 +1263,10 @@ python_only = [
   "attribute_portfolio_pnl",
   "build_credit_vol_report",
   "build_stress_attribution",
-  "evaluate_risk_budget_typed",
   "factor_stress",
-  "historical_var_decomposition_typed",
-  "optimize_portfolio_typed",
-  "parametric_var_decomposition_typed",
   "position_component_var",
   "position_what_if",
   "validate_allocation_json",
-  "value_portfolio_typed",
 ]
 
 wasm_only = [

@@ -24,6 +24,7 @@ const STRICT_ENDPOINT_BATCH_SIZE: usize = 8;
 
 /// What to compute at each replay step.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ReplayMode {
     /// Just portfolio PV at each date.
     PvOnly,
@@ -53,6 +54,7 @@ pub enum ReplayErrorPolicy {
 
 /// Configuration for a replay run.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReplayConfig {
     /// What to compute at each step.
     pub mode: ReplayMode,
@@ -71,6 +73,7 @@ pub struct ReplayConfig {
 ///
 /// Shape: `{"date": "YYYY-MM-DD", "market": <MarketContext JSON>}`.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct JsonSnapshot {
     date: String,
     market: MarketContext,
@@ -306,7 +309,7 @@ fn valuation_matches_endpoint_profile(
 ) -> bool {
     valuation.provenance.as_ref().is_some_and(|provenance| {
         let same_state = provenance.portfolio_state_id == portfolio.evaluation_state_id
-            && provenance.base_ccy == portfolio.base_ccy
+            && provenance.base_currency == portfolio.base_currency
             && provenance.profile.base_currency_policy == profile.base_currency_policy;
         if !same_state {
             return false;
@@ -514,14 +517,14 @@ pub fn replay_portfolio(
             let daily_pnl = if compute_pnl {
                 Some(
                     val_i
-                        .total_base_ccy
-                        .checked_sub(prev_step.valuation.total_base_ccy)
+                        .total_base_currency
+                        .checked_sub(prev_step.valuation.total_base_currency)
                         .map_err(|e| {
                             Error::InvalidInput(format!(
                                 "daily P&L overflow computing {date} minus {} \
                                  (base {}): {e}",
                                 prev_step.date,
-                                val_i.total_base_ccy.currency()
+                                val_i.total_base_currency.currency()
                             ))
                         })?,
                 )
@@ -532,14 +535,14 @@ pub fn replay_portfolio(
             let cumulative_pnl = if compute_pnl {
                 Some(
                     val_i
-                        .total_base_ccy
-                        .checked_sub(steps[0].valuation.total_base_ccy)
+                        .total_base_currency
+                        .checked_sub(steps[0].valuation.total_base_currency)
                         .map_err(|e| {
                             Error::InvalidInput(format!(
                                 "cumulative P&L overflow computing {date} minus {} \
                                  (base {}): {e}",
                                 steps[0].date,
-                                val_i.total_base_ccy.currency()
+                                val_i.total_base_currency.currency()
                             ))
                         })?,
                 )
@@ -605,8 +608,8 @@ pub fn replay_portfolio(
 }
 
 fn compute_summary(steps: &[ReplayStep]) -> ReplaySummary {
-    let start_value = steps[0].valuation.total_base_ccy;
-    let end_value = steps[steps.len() - 1].valuation.total_base_ccy;
+    let start_value = steps[0].valuation.total_base_currency;
+    let end_value = steps[steps.len() - 1].valuation.total_base_currency;
     let total_pnl = Money::new(
         end_value.amount() - start_value.amount(),
         start_value.currency(),
@@ -621,7 +624,7 @@ fn compute_summary(steps: &[ReplayStep]) -> ReplaySummary {
     let mut max_dd_trough_date = steps[0].date;
 
     for step in steps {
-        let val = step.valuation.total_base_ccy.amount();
+        let val = step.valuation.total_base_currency.amount();
         if val > peak_value {
             peak_value = val;
             peak_date = step.date;
@@ -672,7 +675,7 @@ mod tests {
             valuation: PortfolioValuation {
                 as_of: date,
                 position_values: IndexMap::new(),
-                total_base_ccy: Money::new(value, Currency::USD),
+                total_base_currency: Money::new(value, Currency::USD),
                 by_entity: IndexMap::new(),
                 degraded_positions: Vec::new(),
                 fx_collapse_policy: FxConversionPolicy::CashflowDate,

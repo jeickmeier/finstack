@@ -31,7 +31,8 @@ define_string_id! {
 /// - [`Book::child_book_ids`] drives rollup in [`crate::grouping::aggregate_by_book`];
 ///   [`crate::portfolio::Portfolio::validate`] checks parent/child consistency
 ///   between child lists and [`Book::parent_id`]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Book {
     /// Unique identifier for this book
     pub id: BookId,

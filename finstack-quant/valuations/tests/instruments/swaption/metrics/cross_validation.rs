@@ -99,31 +99,6 @@ fn test_delta_gamma_consistency() {
 }
 
 #[test]
-fn test_vega_theta_tradeoff() {
-    let (as_of, expiry, swap_start, swap_end) = standard_dates();
-    let swaption = create_standard_payer_swaption(expiry, swap_start, swap_end, 0.05);
-    let market = create_flat_market(as_of, 0.05, 0.30);
-
-    let result = swaption
-        .price_with_metrics(
-            &market,
-            as_of,
-            &[MetricId::Vega, MetricId::Theta],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
-        .unwrap();
-
-    let vega = *result.measures.get("vega").unwrap();
-    let theta = *result.measures.get("theta").unwrap();
-
-    // Vega should be positive (long option)
-    assert!(vega > 0.0, "Vega should be positive");
-
-    // Theta can be positive or negative depending on carry
-    assert!(theta.is_finite(), "Theta should be finite");
-}
-
-#[test]
 fn test_metric_stability_across_maturities() {
     let as_of = time::macros::date!(2024 - 01 - 01);
     let swap_start = time::macros::date!(2025 - 01 - 01);

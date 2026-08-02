@@ -1,5 +1,5 @@
 {
-  "schema_version": "finstack_quant.ecl_policy/1",
+  "schema": "finstack_quant.ecl_policy/1",
   "default_ifrs9_policy_id": "ifrs9_default",
   "default_cecl_policy_id": "cecl_default",
   "ifrs9_policies": [
@@ -13,7 +13,7 @@
         "base_scenario_id": "base",
         "base_scenario_weight": 1.0,
         "base_scenario_lgd_override": null,
-        "lgd_type": "PointInTime"
+        "lgd_type": "point_in_time"
       },
       "staging": {
         "pd_delta_absolute": 0.01,
@@ -36,12 +36,12 @@
       "effective_date": "2026-04-26",
       "bucket_width_years": 0.25,
       "forecast_horizon_years": 2.0,
-      "reversion_method": "Immediate",
+      "reversion_method": "immediate",
       "historical_annual_pd": 0.02,
       "base_scenario_id": "base",
       "base_scenario_weight": 1.0,
       "base_scenario_lgd_override": null,
-      "methodology": "PdLgdEad"
+      "methodology": "pd_lgd_ead"
     }
   ],
   "binding_defaults": {

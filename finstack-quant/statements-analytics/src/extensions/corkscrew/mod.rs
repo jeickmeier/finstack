@@ -158,8 +158,8 @@ pub enum CorkscrewStatus {
 
 /// Report produced by [`CorkscrewExtension::execute`].
 ///
-/// Mirrors the historical extension result shape so existing callers can be
-/// migrated mechanically: status, message, structured data, warnings, errors.
+/// Uses the extension result shape shared by analytical reports: status,
+/// message, structured data, warnings, and errors.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CorkscrewReport {
     /// Overall execution status
@@ -365,7 +365,7 @@ impl CorkscrewExtension {
     ) -> Result<AccountValidation> {
         let mut validation = AccountValidation {
             account_id: account.node_id.clone(),
-            account_type: format!("{:?}", account.account_type),
+            account_type: account.account_type,
             periods_validated: 0,
             max_error: 0.0,
             is_valid: true,
@@ -516,7 +516,7 @@ impl CorkscrewExtension {
 /// Result of validating a single account.
 struct AccountValidation {
     account_id: String,
-    account_type: String,
+    account_type: AccountType,
     periods_validated: usize,
     max_error: f64,
     is_valid: bool,
@@ -708,6 +708,7 @@ mod tests {
             .expect("extension should execute");
 
         assert_eq!(report.status, CorkscrewStatus::Success);
+        assert_eq!(report.data["validations"][0]["type"], "asset");
         assert!(
             report
                 .warnings

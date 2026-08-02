@@ -18,7 +18,7 @@ use super::ast::{Expr, ExprNode};
 /// layer is [`super::ast::Function::is_scalar_evaluable`].
 pub(crate) fn ensure_scalar_evaluable(ast: &Expr) -> crate::Result<()> {
     match &ast.node {
-        ExprNode::Column(_) | ExprNode::CSRef { .. } | ExprNode::Literal(_) => Ok(()),
+        ExprNode::Column(_) | ExprNode::CsRef { .. } | ExprNode::Literal(_) => Ok(()),
         ExprNode::Call(func, args) => {
             if !func.is_scalar_evaluable() {
                 return Err(crate::Error::Validation(format!(

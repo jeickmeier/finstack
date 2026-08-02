@@ -18,7 +18,7 @@ from finstack_quant.valuations import (
 
 def _empty_envelope() -> dict:
     return {
-        "schema": "finstack_quant.calibration",
+        "schema": "finstack_quant.calibration/1",
         "plan": {
             "id": "smoke",
             "description": None,

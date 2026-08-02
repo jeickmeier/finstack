@@ -138,7 +138,7 @@ fn bench_npv_by_deal_type(c: &mut Criterion) {
     let market = create_market();
     let as_of = test_date();
 
-    for deal_type in [DealType::ABS, DealType::CLO, DealType::CMBS, DealType::RMBS].iter() {
+    for deal_type in [DealType::Abs, DealType::Clo, DealType::Cmbs, DealType::Rmbs].iter() {
         let deal = create_deal(*deal_type, 10);
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{:?}", deal_type)),
@@ -162,7 +162,7 @@ fn bench_cashflow_generation(c: &mut Criterion) {
 
     {
         let num_assets = &50;
-        let deal = create_deal(DealType::CLO, *num_assets);
+        let deal = create_deal(DealType::Clo, *num_assets);
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}assets", num_assets)),
             num_assets,
@@ -185,7 +185,7 @@ fn bench_wal_calculation(c: &mut Criterion) {
     let market = create_market();
     let as_of = test_date();
 
-    for deal_type in [DealType::CLO, DealType::RMBS].iter() {
+    for deal_type in [DealType::Clo, DealType::Rmbs].iter() {
         let deal = create_deal(*deal_type, 20);
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{:?}", deal_type)),
@@ -209,7 +209,7 @@ fn bench_duration_metrics(c: &mut Criterion) {
     let mut group = c.benchmark_group("structured_credit_duration");
     let market = create_market();
     let as_of = test_date();
-    let deal = create_deal(DealType::CLO, 25);
+    let deal = create_deal(DealType::Clo, 25);
 
     let metrics = vec![MetricId::DurationMod, MetricId::SpreadDuration];
 
@@ -233,7 +233,7 @@ fn bench_cs01(c: &mut Criterion) {
 
     {
         let num_assets = &50;
-        let deal = create_deal(DealType::CLO, *num_assets);
+        let deal = create_deal(DealType::Clo, *num_assets);
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}assets", num_assets)),
             num_assets,
@@ -270,7 +270,7 @@ fn bench_pool_metrics(c: &mut Criterion) {
 
     {
         let num_assets = &100;
-        let deal = create_deal(DealType::CLO, *num_assets);
+        let deal = create_deal(DealType::Clo, *num_assets);
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}assets", num_assets)),
             num_assets,
@@ -296,7 +296,7 @@ fn bench_warf_calculation(c: &mut Criterion) {
 
     {
         let num_assets = &100;
-        let deal = create_deal(DealType::CLO, *num_assets);
+        let deal = create_deal(DealType::Clo, *num_assets);
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}assets", num_assets)),
             num_assets,
@@ -323,7 +323,7 @@ fn bench_price_metrics(c: &mut Criterion) {
     let mut group = c.benchmark_group("structured_credit_prices");
     let market = create_market();
     let as_of = test_date();
-    let deal = create_deal(DealType::ABS, 20);
+    let deal = create_deal(DealType::Abs, 20);
 
     let price_metrics = vec![
         MetricId::DirtyPrice,
@@ -352,7 +352,7 @@ fn bench_full_metrics_suite(c: &mut Criterion) {
     let mut group = c.benchmark_group("structured_credit_full_metrics");
     let market = create_market();
     let as_of = test_date();
-    let deal = create_deal(DealType::CLO, 50);
+    let deal = create_deal(DealType::Clo, 50);
 
     let all_metrics = vec![
         MetricId::DirtyPrice,
@@ -393,7 +393,7 @@ fn bench_scaling_with_pool_size(c: &mut Criterion) {
 
     {
         let num_assets = &100;
-        let deal = create_deal(DealType::CLO, *num_assets);
+        let deal = create_deal(DealType::Clo, *num_assets);
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{}assets", num_assets)),
             num_assets,

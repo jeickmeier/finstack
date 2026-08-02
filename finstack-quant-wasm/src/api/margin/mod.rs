@@ -100,9 +100,9 @@ pub fn calculate_vm(
 /// only when `fundingJson` carries an `im_profile`; that posted IM also reduces
 /// ENE for bilateral DVA.
 ///
-/// The returned object reports `bilateral_cva = CVA - DVA + FVA` for legacy
-/// compatibility and `total_xva = bilateral_cva + MVA` for the all-in amount.
-/// Optional legs are absent from the payload when they were not computed.
+/// The returned object reports the required all-in amount as
+/// `total_xva = CVA - DVA + FVA + MVA`. Optional funding legs are absent from
+/// the payload when they were not computed.
 ///
 /// @param exposureProfileJson - `ExposureProfile` JSON with `times`,
 /// `mtm_values`, `epe`, and `ene` arrays of equal length.
@@ -128,9 +128,9 @@ pub fn calculate_vm(
 /// const result = margin.computeBilateralXva(
 ///   JSON.stringify({ times: [1, 2], mtm_values: [1e6, 1e6], epe: [1e6, 1e6], ene: [0, 0] }),
 ///   hz, hz, df, 0.4, 0.4,
-///   JSON.stringify({ funding_spread_bps: 50.0 }),
+///   JSON.stringify({ funding_spread_bp: 50.0 }),
 /// );
-/// result.total_xva; // bilateral_cva + MVA
+/// result.total_xva; // CVA - DVA + FVA + MVA
 /// ```
 #[wasm_bindgen(js_name = computeBilateralXva)]
 pub fn compute_bilateral_xva(
@@ -169,7 +169,7 @@ mod tests {
     use super::*;
     use serde_json::Value;
 
-    fn assert_csa_json_shape(json: &str, expected_base_ccy: &str) {
+    fn assert_csa_json_shape(json: &str, expected_base_currency: &str) {
         let Ok(v) = serde_json::from_str::<Value>(json) else {
             panic!("CSA JSON should parse");
         };
@@ -184,7 +184,7 @@ mod tests {
         assert!(obj.contains_key("collateral_curve_id"));
         assert_eq!(
             obj.get("base_currency").and_then(Value::as_str),
-            Some(expected_base_ccy)
+            Some(expected_base_currency)
         );
     }
 

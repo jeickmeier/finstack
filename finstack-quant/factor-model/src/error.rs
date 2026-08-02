@@ -6,12 +6,14 @@
 //! unmatched dependency is a hard error or a skipped entry.
 
 use super::{FactorId, MarketDependency};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
 /// Errors produced by factor-model workflows.
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum FactorModelError {
     /// No factor matched a dependency for a position.
@@ -56,10 +58,9 @@ pub enum FactorModelError {
 
 /// Policy for handling dependencies that do not match any factor.
 ///
-/// Serializes in `snake_case` (matching the crate-wide convention and this
-/// type's own `Display`/`FromStr`); the legacy PascalCase wire forms are
-/// still accepted on input via serde aliases.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+/// Serializes in `snake_case`, matching the crate-wide wire convention and
+/// this type's own `Display`/`FromStr` representation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum UnmatchedPolicy {
@@ -67,20 +68,17 @@ pub enum UnmatchedPolicy {
     ///
     /// Use this in production risk runs where dropping unmapped risk would be a
     /// control failure.
-    #[serde(alias = "Strict")]
     Strict,
     /// Roll unmatched risk into a residual bucket.
     ///
     /// Use this when the engine should preserve total exposure while making the
     /// unmatched component explicit as residual risk.
     #[default]
-    #[serde(alias = "Residual")]
     Residual,
     /// Continue but surface a warning to the caller.
     ///
     /// Suitable for exploratory workflows where visibility matters but a hard
     /// failure would be too disruptive.
-    #[serde(alias = "Warn")]
     Warn,
 }
 
@@ -94,32 +92,24 @@ impl fmt::Display for UnmatchedPolicy {
     }
 }
 
-impl crate::parse::NormalizedEnum for UnmatchedPolicy {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("strict", Self::Strict),
-        ("error", Self::Strict),
-        ("residual", Self::Residual),
-        ("warn", Self::Warn),
-        ("ignore", Self::Warn),
-    ];
-}
-
 impl FromStr for UnmatchedPolicy {
     type Err = finstack_quant_core::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s)
-            .map_err(|e| finstack_quant_core::Error::Validation(format!("UnmatchedPolicy: {e}")))
+        match s {
+            "strict" => Ok(Self::Strict),
+            "residual" => Ok(Self::Residual),
+            "warn" => Ok(Self::Warn),
+            _ => Err(finstack_quant_core::Error::Validation(format!(
+                "UnmatchedPolicy: unknown label {s:?}"
+            ))),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn assert_parses_to(label: &str, expected: UnmatchedPolicy) {
-        assert!(matches!(label.parse::<UnmatchedPolicy>(), Ok(value) if value == expected));
-    }
 
     #[test]
     fn test_error_display_missing_factor() {
@@ -156,12 +146,10 @@ mod tests {
     fn test_unmatched_policy_fromstr_display_roundtrip() {
         for (input, expected) in [
             ("strict", UnmatchedPolicy::Strict),
-            ("error", UnmatchedPolicy::Strict),
             ("residual", UnmatchedPolicy::Residual),
             ("warn", UnmatchedPolicy::Warn),
-            ("ignore", UnmatchedPolicy::Warn),
         ] {
-            assert_parses_to(input, expected);
+            assert!(matches!(input.parse::<UnmatchedPolicy>(), Ok(value) if value == expected));
         }
 
         for variant in [
@@ -176,15 +164,15 @@ mod tests {
 
     #[test]
     fn test_unmatched_policy_fromstr_rejects_unknown() {
-        assert!("unknown".parse::<UnmatchedPolicy>().is_err());
+        for rejected in ["error", "ignore", "Strict", " warn"] {
+            assert!(rejected.parse::<UnmatchedPolicy>().is_err());
+        }
     }
 
     #[test]
-    fn unmatched_policy_serializes_snake_case_and_reads_legacy_pascal_case() {
+    fn unmatched_policy_serializes_snake_case_and_rejects_pascal_case() {
         let json = serde_json::to_string(&UnmatchedPolicy::Strict).unwrap_or_default();
         assert_eq!(json, "\"strict\"");
-        // Legacy PascalCase wire form still accepted on input.
-        let legacy: Result<UnmatchedPolicy, _> = serde_json::from_str("\"Residual\"");
-        assert!(matches!(legacy, Ok(UnmatchedPolicy::Residual)));
+        assert!(serde_json::from_str::<UnmatchedPolicy>("\"Residual\"").is_err());
     }
 }

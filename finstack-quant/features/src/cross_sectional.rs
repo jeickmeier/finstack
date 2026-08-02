@@ -16,31 +16,31 @@ use std::str::FromStr;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CrossSectionalOp {
-    /// Z-score within each partition.
+    /// Population z-score within each partition; `0.0` when std ≤ `1e-12`.
     Zscore,
-    /// Percentile rank within each partition.
+    /// Closed-interval percentile rank in `[0, 1]`; ties share the lowest rank.
     Rank,
-    /// Open-interval percentile rank within each partition.
+    /// Open-interval percentile rank using average tied positions.
     PercentileRank,
-    /// Integer quantile bucket within each partition.
+    /// Integer quantile bucket labels from `0` to `buckets - 1`.
     QuantileBucket,
     /// Difference from partition mean.
     Demean,
-    /// Robust z-score using median and median absolute deviation.
+    /// Robust z-score using median and MAD with normal-consistency scaling.
     RobustZscore,
-    /// Scale values to the `[0, 1]` range within each partition.
+    /// Scale finite values to the `[0, 1]` range within each partition.
     MinmaxScale,
     /// Clamp values to explicit lower and upper bounds.
     Clip,
-    /// Clamp values to mean plus or minus a standard deviation multiple.
+    /// Clamp values to `mean ± sigma * population_std`.
     ClipBySigma,
-    /// Alias for `winsorize`: clamp values to partition quantile bounds.
+    /// Alias for [`Self::Winsorize`]: clamp to partition quantile bounds.
     ClipByQuantile,
-    /// Map ranks to standard-normal scores.
+    /// Map open-interval percentile ranks to standard-normal scores.
     NormalScoreTransform,
-    /// Convert signal values into gross-normalized long/short weights.
+    /// Demean signal values and normalize by gross absolute exposure.
     LongShortWeights,
-    /// Convert signal values into dollar-neutral gross-normalized weights.
+    /// Alias for [`Self::LongShortWeights`] (dollar-neutral long/short weights).
     DollarNeutralWeights,
     /// Cap absolute centered weights before gross normalization.
     CapWeights,

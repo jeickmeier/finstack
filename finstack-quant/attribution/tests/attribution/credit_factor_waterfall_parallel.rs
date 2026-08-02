@@ -12,9 +12,7 @@ use finstack_quant_attribution::{
 };
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{create_date, DayCount};
-use finstack_quant_core::market_data::context::{
-    CurveState, MarketContextState, MARKET_CONTEXT_STATE_VERSION,
-};
+use finstack_quant_core::market_data::context::{CurveState, MarketContextState};
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IssuerId};
@@ -71,7 +69,7 @@ fn issuer_row(id: &str, rating: &str, region: &str, pc: f64, lv: Vec<f64>) -> Is
 fn make_model(levels: Vec<HierarchyDimension>) -> CreditFactorModel {
     let n = levels.len();
     CreditFactorModel {
-        schema_version: CreditFactorModel::SCHEMA_VERSION.into(),
+        schema: finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
         as_of: create_date(2024, Month::March, 29).unwrap(),
         calibration_window: DateRange {
             start: create_date(2022, Month::March, 29).unwrap(),
@@ -154,7 +152,7 @@ fn flat_hazard(base: time::Date, rate: f64) -> HazardCurve {
 
 fn make_market_state(disc: DiscountCurve, haz: HazardCurve) -> MarketContextState {
     MarketContextState {
-        version: MARKET_CONTEXT_STATE_VERSION,
+        schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
         curves: vec![CurveState::Discount(disc), CurveState::Hazard(haz)],
         fx: None,
         surfaces: vec![],

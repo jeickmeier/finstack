@@ -73,7 +73,9 @@
 /// let vol = params.implied_vol_lognormal(fwd, strike, expiry).expect("valid checked inputs");
 /// assert!(vol > 0.0);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(try_from = "RawSabrParams")]
 pub struct SabrParams {
     /// Alpha (α): initial volatility level.
@@ -95,7 +97,7 @@ pub struct SabrParams {
 /// Mirrors the serialized field layout exactly so the wire format is
 /// unchanged; conversion runs [`SabrParams::new`] validation and rejects
 /// unknown fields.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawSabrParams {
     /// Initial volatility level.
@@ -223,7 +225,7 @@ impl SabrParams {
     ///
     /// The shift is used to handle negative rate environments: when evaluating
     /// implied vol the model internally uses `F+shift` and `K+shift`, keeping
-    /// both arguments positive. A typical value for EUR/JPY is `0.03` (300 bps).
+    /// both arguments positive. A typical value for EUR/JPY is `0.03` (300 bp).
     ///
     /// # Arguments
     ///
@@ -1325,28 +1327,6 @@ mod tests {
         assert!(params.implied_vol_lognormal(-0.01, 0.05, 1.0).is_err());
         assert!(params.implied_vol_lognormal(0.05, -0.01, 1.0).is_err());
         assert!(params.implied_vol_lognormal(0.05, 0.05, 0.0).is_err());
-    }
-
-    #[test]
-    fn test_sabr_density_check_extreme_nu() {
-        let params = SabrParams {
-            alpha: 0.04,
-            beta: 0.5,
-            rho: -0.7,
-            nu: 2.0,
-            shift: None,
-        };
-        let forward = 0.05;
-        let expiry = 5.0;
-        let strikes: Vec<f64> = (1..=20)
-            .map(|i| forward * (0.5 + i as f64 * 0.05))
-            .collect();
-
-        let warnings = params.check_density(&strikes, forward, expiry);
-        // With extreme nu=2.0 and long expiry, we may see negative density
-        // at wing strikes. If not, that's also fine -- the test verifies
-        // the method runs without panic.
-        let _ = warnings; // Don't assert non-empty -- depends on approximation accuracy
     }
 
     #[test]

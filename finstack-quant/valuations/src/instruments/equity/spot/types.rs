@@ -26,7 +26,9 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     Debug,
     PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 // Note: JsonSchema derive requires finstack-quant-core types to implement JsonSchema
@@ -49,19 +51,31 @@ pub struct Equity {
     /// Optional discrete cash dividends `(ex_date, amount)` for single-name forwards.
     #[serde(default)]
     #[builder(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Discount curve ID for pricing
     pub discount_curve_id: CurveId,
     /// Attributes for scenario selection and tagging
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -436,10 +450,10 @@ impl crate::instruments::common_impl::traits::Instrument for Equity {
         let mut deps = MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
         for spot_id in self.price_id_candidates() {
-            deps.add_spot_id(spot_id);
+            deps.add_market_scalar_id(spot_id);
         }
         for dividend_yield_id in self.dividend_yield_id_candidates() {
-            deps.add_spot_id(dividend_yield_id);
+            deps.add_market_scalar_id(dividend_yield_id);
         }
         Ok(deps)
     }
@@ -521,7 +535,7 @@ mod tests {
         assert!(price_candidates
             .iter()
             .chain(&dividend_candidates)
-            .all(|id| deps.spot_ids.contains(id)));
+            .all(|id| deps.market_scalar_ids.contains(id)));
         assert!(deps.series_ids.is_empty());
     }
 

@@ -87,8 +87,11 @@ pub use crate::instruments::common_impl::parameters::SettlementType;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
+#[schemars(deny_unknown_fields)]
 pub struct CommodityForward {
     /// Unique instrument identifier.
     pub id: InstrumentId,
@@ -96,13 +99,24 @@ pub struct CommodityForward {
     #[serde(flatten)]
     pub underlying: CommodityUnderlyingParams,
     /// Contract quantity in units.
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub quantity: f64,
     /// Contract multiplier (typically 1.0 for OTC forwards, defaults to 1.0).
-    #[serde(default = "crate::serde_defaults::multiplier_one")]
+    #[serde(
+        default = "crate::serde_defaults::multiplier_one",
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     #[builder(default = 1.0)]
     pub multiplier: f64,
     /// Settlement/delivery date.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Settlement type (physical or cash).
     ///
@@ -188,26 +202,38 @@ pub struct CommodityForward {
     /// for precious metals.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub settlement_bdc: Option<BusinessDayConvention>,
+    pub settlement_business_day_convention: Option<BusinessDayConvention>,
     /// Instrument-owned pricing inputs.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     #[serde(default)]
     #[builder(default)]
     pub attributes: Attributes,
     /// Rejects unknown JSON fields (restores `deny_unknown_fields` despite the
-    /// `#[serde(flatten)]` on `underlying`). See [`UnknownFieldGuard`].
+    /// `#[serde(flatten)]` on `underlying`).
     #[serde(flatten)]
     #[schemars(skip)]
     #[builder(default)]
-    pub(crate) unknown_fields: crate::instruments::common_impl::serde_guard::UnknownFieldGuard,
+    pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }
 
 impl CommodityForward {
@@ -269,7 +295,7 @@ impl CommodityForward {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .exchange_opt(Some("NYMEX".to_string()))
             .contract_month_opt(Some("2025M03".to_string()))
-            .convention_opt(Some(CommodityConvention::WTICrude)) // Use WTI convention
+            .convention_opt(Some(CommodityConvention::WtiCrude)) // Use WTI convention
             .attributes(
                 Attributes::new()
                     .with_tag("energy")
@@ -411,11 +437,11 @@ impl CommodityForward {
     /// Get the effective business day convention for settlement.
     ///
     /// Resolution order:
-    /// 1. `settlement_bdc` if explicitly set
+    /// 1. `settlement_business_day_convention` if explicitly set
     /// 2. `convention.business_day_convention()` if convention is set
     /// 3. Default: `Following`
-    pub fn effective_settlement_bdc(&self) -> BusinessDayConvention {
-        self.settlement_bdc
+    pub fn effective_settlement_business_day_convention(&self) -> BusinessDayConvention {
+        self.settlement_business_day_convention
             .or_else(|| self.convention.map(|c| c.business_day_convention()))
             .unwrap_or(BusinessDayConvention::Following)
     }
@@ -445,7 +471,7 @@ impl crate::instruments::common_impl::traits::Instrument for CommodityForward {
         deps.add_discount_curve(self.discount_curve_id.clone());
         deps.add_forward_curve(self.forward_curve_id.clone());
         if let Some(spot_id) = self.spot_id.as_deref() {
-            deps.add_spot_id(spot_id);
+            deps.add_market_scalar_id(spot_id);
         }
         Ok(deps)
     }
@@ -818,7 +844,7 @@ mod tests {
             .position(Position::Long)
             .forward_curve_id(CurveId::new("WTI-FORWARD"))
             .discount_curve_id(CurveId::new("USD-OIS"))
-            .convention_opt(Some(CommodityConvention::WTICrude))
+            .convention_opt(Some(CommodityConvention::WtiCrude))
             .build()
             .expect("should build");
 
@@ -826,7 +852,7 @@ mod tests {
         assert_eq!(forward.effective_settlement_lag(), 2);
         assert_eq!(forward.effective_settlement_calendar(), Some("nymex"));
         assert_eq!(
-            forward.effective_settlement_bdc(),
+            forward.effective_settlement_business_day_convention(),
             BusinessDayConvention::Following
         );
 
@@ -852,7 +878,7 @@ mod tests {
         assert_eq!(gold_forward.effective_settlement_lag(), 2);
         assert_eq!(gold_forward.effective_settlement_calendar(), Some("comex"));
         assert_eq!(
-            gold_forward.effective_settlement_bdc(),
+            gold_forward.effective_settlement_business_day_convention(),
             BusinessDayConvention::ModifiedFollowing
         );
     }
@@ -876,16 +902,16 @@ mod tests {
             .position(Position::Long)
             .forward_curve_id(CurveId::new("WTI-FORWARD"))
             .discount_curve_id(CurveId::new("USD-OIS"))
-            .convention_opt(Some(CommodityConvention::WTICrude)) // T+2, Following
+            .convention_opt(Some(CommodityConvention::WtiCrude)) // T+2, Following
             .settlement_lag_days_opt(Some(1)) // Override to T+1
-            .settlement_bdc_opt(Some(BusinessDayConvention::ModifiedFollowing)) // Override BDC
+            .settlement_business_day_convention_opt(Some(BusinessDayConvention::ModifiedFollowing)) // Override BDC
             .build()
             .expect("should build");
 
         // Explicit values take precedence over convention
         assert_eq!(forward.effective_settlement_lag(), 1);
         assert_eq!(
-            forward.effective_settlement_bdc(),
+            forward.effective_settlement_business_day_convention(),
             BusinessDayConvention::ModifiedFollowing
         );
         // Calendar still comes from convention
@@ -918,7 +944,7 @@ mod tests {
         assert_eq!(forward.effective_settlement_lag(), 2);
         assert_eq!(forward.effective_settlement_calendar(), None);
         assert_eq!(
-            forward.effective_settlement_bdc(),
+            forward.effective_settlement_business_day_convention(),
             BusinessDayConvention::Following
         );
     }

@@ -54,7 +54,7 @@ pub(crate) struct DurationResult {
     /// Price at down shock
     pub price_down: f64,
     /// Shock size in basis points
-    pub shock_bps: f64,
+    pub shock_bp: f64,
 }
 
 /// Calculate effective duration using parallel curve bumps.
@@ -73,7 +73,7 @@ pub(crate) struct DurationResult {
 /// * `mbs` - Agency MBS passthrough instrument
 /// * `market` - Market context with discount curves
 /// * `as_of` - Valuation date
-/// * `shock_bps` - Shock size in basis points (default: 25)
+/// * `shock_bp` - Shock size in basis points (default: 25)
 ///
 /// # Returns
 ///
@@ -82,9 +82,9 @@ pub(crate) fn effective_duration(
     mbs: &AgencyMbsPassthrough,
     market: &MarketContext,
     as_of: Date,
-    shock_bps: Option<f64>,
+    shock_bp: Option<f64>,
 ) -> Result<f64> {
-    let result = duration_convexity(mbs, market, as_of, shock_bps)?;
+    let result = duration_convexity(mbs, market, as_of, shock_bp)?;
     Ok(result.duration)
 }
 
@@ -105,7 +105,7 @@ pub(crate) fn effective_duration(
 /// * `mbs` - Agency MBS passthrough instrument
 /// * `market` - Market context with discount curves
 /// * `as_of` - Valuation date
-/// * `shock_bps` - Shock size in basis points (default: 25)
+/// * `shock_bp` - Shock size in basis points (default: 25)
 ///
 /// # Returns
 ///
@@ -114,9 +114,9 @@ pub(crate) fn effective_convexity(
     mbs: &AgencyMbsPassthrough,
     market: &MarketContext,
     as_of: Date,
-    shock_bps: Option<f64>,
+    shock_bp: Option<f64>,
 ) -> Result<f64> {
-    let result = duration_convexity(mbs, market, as_of, shock_bps)?;
+    let result = duration_convexity(mbs, market, as_of, shock_bp)?;
     Ok(result.convexity)
 }
 
@@ -128,10 +128,10 @@ pub(crate) fn duration_convexity(
     mbs: &AgencyMbsPassthrough,
     market: &MarketContext,
     as_of: Date,
-    shock_bps: Option<f64>,
+    shock_bp: Option<f64>,
 ) -> Result<DurationResult> {
-    let shock_bps = shock_bps.unwrap_or(25.0);
-    let shock = shock_bps / 10_000.0; // Convert to decimal
+    let shock_bp = shock_bp.unwrap_or(25.0);
+    let shock = shock_bp / 10_000.0; // Convert to decimal
 
     // Get base price
     let base_price = price_mbs(mbs, market, as_of)?.amount();
@@ -143,18 +143,18 @@ pub(crate) fn duration_convexity(
             base_price,
             price_up: 0.0,
             price_down: 0.0,
-            shock_bps,
+            shock_bp,
         });
     }
 
     // Create bumped markets using shared calibration bump helpers (parallel bump in bp).
     let market_up = market.bump([MarketBump::Curve {
         id: mbs.discount_curve_id.clone(),
-        spec: BumpSpec::parallel_bp(shock_bps),
+        spec: BumpSpec::parallel_bp(shock_bp),
     }])?;
     let market_down = market.bump([MarketBump::Curve {
         id: mbs.discount_curve_id.clone(),
-        spec: BumpSpec::parallel_bp(-shock_bps),
+        spec: BumpSpec::parallel_bp(-shock_bp),
     }])?;
 
     // Effective measures require the prepayment speed to respond to the rate
@@ -186,7 +186,7 @@ pub(crate) fn duration_convexity(
         base_price,
         price_up,
         price_down,
-        shock_bps,
+        shock_bp,
     })
 }
 

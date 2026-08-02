@@ -25,13 +25,14 @@ use finstack_quant_core::money::fx::FxQuery;
 use finstack_quant_core::{HashMap, HashSet};
 use finstack_quant_valuations::metrics::MetricId;
 use indexmap::IndexMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 
 /// Aggregated metric across the portfolio.
 ///
 /// Contains portfolio-wide totals as well as breakdowns by entity.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AggregatedMetric {
     /// Metric identifier
     pub metric_id: String,
@@ -47,7 +48,7 @@ pub struct AggregatedMetric {
 ///
 /// Holds both aggregated metrics and per-position values returned
 /// by `aggregate_metrics`.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PortfolioMetrics {
     /// Aggregated metrics (summable only)
     pub aggregated: IndexMap<String, AggregatedMetric>,
@@ -65,7 +66,7 @@ pub struct PortfolioMetrics {
 }
 
 /// Position-level metrics with explicit native currency context.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PositionMetrics {
     /// Native currency for this position's valuation and non-summable metrics.
     pub currency: Currency,
@@ -139,7 +140,7 @@ impl PortfolioMetrics {
 
 /// A metric value that was excluded from portfolio aggregation because it was
 /// non-finite (NaN or ±Inf).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct SkippedMetric {
     /// Position that produced the non-finite value.
     pub position_id: PositionId,
@@ -249,7 +250,7 @@ pub(crate) fn is_summable(metric_id: &str) -> bool {
 /// # Arguments
 ///
 /// * `valuation` - Portfolio valuation containing per-position valuation results.
-/// * `base_ccy` - Portfolio base currency for aggregation.
+/// * `base_currency` - Portfolio base currency for aggregation.
 /// * `market` - Market context providing FX rates for zero-PV positions.
 /// * `as_of` - Valuation date used for FX rate lookups.
 ///
@@ -272,22 +273,22 @@ pub(crate) fn is_summable(metric_id: &str) -> bool {
 ///
 /// # Errors
 ///
-/// Returns an error when `base_ccy` or `as_of` differs from the valuation,
+/// Returns an error when `base_currency` or `as_of` differs from the valuation,
 /// or when an out-of-base position with near-zero native PV cannot obtain an
 /// FX conversion rate from `market`. Non-finite summable metric values are
 /// recorded as skipped in the result rather than failing aggregation.
 pub fn aggregate_metrics(
     valuation: &PortfolioValuation,
-    base_ccy: Currency,
+    base_currency: Currency,
     market: &MarketContext,
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<PortfolioMetrics> {
     use rayon::prelude::*;
 
-    let valuation_base_ccy = valuation.total_base_ccy.currency();
-    if base_ccy != valuation_base_ccy {
+    let valuation_base_currency = valuation.total_base_currency.currency();
+    if base_currency != valuation_base_currency {
         return Err(Error::invalid_input(format!(
-            "M-17: aggregate_metrics base_ccy {base_ccy} does not match valuation base currency {valuation_base_ccy}"
+            "M-17: aggregate_metrics base_currency {base_currency} does not match valuation base currency {valuation_base_currency}"
         )));
     }
     if as_of != valuation.as_of {
@@ -313,7 +314,7 @@ pub fn aggregate_metrics(
                         (metric_id, scaled)
                     })
                     .collect();
-                let fx_rate = fx_rate_for_position(position_value, base_ccy, market, as_of)?;
+                let fx_rate = fx_rate_for_position(position_value, base_currency, market, as_of)?;
                 Ok(PositionMetricData {
                     position_id: (*position_id).clone(),
                     entity_id: position_value.entity_id.clone(),
@@ -338,13 +339,13 @@ pub fn aggregate_metrics(
 /// pair is missing and the native PV is large enough for a reliable ratio.
 fn fx_rate_for_position(
     position_value: &crate::valuation::PositionValue,
-    base_ccy: Currency,
+    base_currency: Currency,
     market: &MarketContext,
     as_of: finstack_quant_core::dates::Date,
 ) -> Result<f64> {
-    let native_ccy = position_value.value_native.currency();
+    let native_currency = position_value.value_native.currency();
 
-    if native_ccy == base_ccy {
+    if native_currency == base_currency {
         return Ok(1.0);
     }
 
@@ -353,7 +354,8 @@ fn fx_rate_for_position(
     // (value_base was rounded to currency decimals), and that noise would
     // scale every summable risk metric (DV01, CS01, deltas).
     if let Some(fx_matrix) = market.fx() {
-        if let Ok(rate_result) = fx_matrix.rate(FxQuery::new(native_ccy, base_ccy, as_of)) {
+        if let Ok(rate_result) = fx_matrix.rate(FxQuery::new(native_currency, base_currency, as_of))
+        {
             return Ok(rate_result.rate);
         }
     }
@@ -369,8 +371,8 @@ fn fx_rate_for_position(
     }
 
     Err(crate::error::Error::FxConversionFailed {
-        from: native_ccy,
-        to: base_ccy,
+        from: native_currency,
+        to: base_currency,
     })
 }
 
@@ -628,7 +630,7 @@ mod tests {
         .expect("test should succeed");
 
         let portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -744,7 +746,7 @@ mod tests {
         let valuation = PortfolioValuation {
             as_of,
             position_values,
-            total_base_ccy: Money::new(0.0, Currency::USD),
+            total_base_currency: Money::new(0.0, Currency::USD),
             by_entity: IndexMap::new(),
             degraded_positions: Vec::new(),
             fx_collapse_policy: FxConversionPolicy::CashflowDate,

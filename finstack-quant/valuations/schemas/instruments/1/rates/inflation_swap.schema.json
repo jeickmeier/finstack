@@ -42,6 +42,122 @@
         }
       ]
     },
+    "InflationSwap": {
+      "additionalProperties": false,
+      "description": "Zero-coupon Inflation Swap instrument.\n\nRepresents a zero-coupon inflation swap where one party pays a fixed real rate\nand the other receives the cumulative inflation over the swap's life. At maturity:\n\n```text\nInflation leg = Notional × [CPI(T_mat - Lag) / CPI(T_start - Lag) - 1]\nFixed leg     = Notional × [(1 + fixed_rate)^τ - 1]\n```\n\n# Market Conventions\n\n- **Lag**: Standard 3-month lag for US CPI, EUR HICP; 8-month for UK RPI\n- **Day Count**: Typically ACT/ACT for accrual, curve-specific for discounting\n- **Business Day**: Payment dates adjusted per calendar; index observation typically unadjusted\n\n# Validation\n\nCall [`validate()`](Self::validate) to check structural invariants before pricing.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "base_cpi": {
+          "description": "Explicit Base CPI (reference index level at start with lag applied).\nIf not provided, it will be looked up/calculated from start date.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "business_day_convention": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
+          "default": "modified_following",
+          "description": "Business day convention for payment date adjustment.\nDefaults to `Following` if not specified."
+        },
+        "calendar_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Holiday calendar identifier for payment date adjustment.\nIf not specified, payment dates are used unadjusted."
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count for accrual calculation (fixed leg compounding)"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier (quote currency)"
+        },
+        "fixed_rate": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Fixed real rate (as decimal)"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
+        },
+        "inflation_index_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Inflation index identifier (e.g., US-CPI-U)"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Attributes for scenario selection and tagging\nInstrument-owned pricing inputs."
+        },
+        "lag_override": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InflationLag"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional contract-level lag override (if set, overrides index lag)"
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Maturity date"
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional in quote currency"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "side": {
+          "$ref": "#/$defs/PayReceive",
+          "description": "Trade side"
+        },
+        "start_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of indexation"
+        }
+      },
+      "required": [
+        "id",
+        "notional",
+        "start_date",
+        "maturity",
+        "fixed_rate",
+        "inflation_index_id",
+        "discount_curve_id",
+        "day_count",
+        "side",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "PayReceive": {
       "description": "Direction for instrument legs (universal for IRS, CDS, variance swaps, etc.)\n\nFor interest rate swaps: Pay = pay fixed/receive floating, Receive = receive fixed/pay floating\nFor credit default swaps: Pay = buy protection (pay premium), Receive = sell protection (receive premium)\nFor variance swaps: Pay = short variance, Receive = long variance",
       "oneOf": [
@@ -56,21 +172,42 @@
           "type": "string"
         }
       ]
+    },
+    "inflation_swap": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/InflationSwap"
+            },
+            "type": {
+              "const": "inflation_swap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/inflation_swap.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Zero-coupon inflation swap",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
           "base_cpi": null,
-          "bdc": "following",
+          "business_day_convention": "following",
           "calendar_id": null,
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "discount_curve_id": "USD-OIS",
           "fixed_rate": "0.02",
           "id": "INFLSWAP-USD-5Y",
@@ -83,27 +220,6 @@
             "amount": "1000000",
             "currency": "USD"
           },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "side": "pay",
           "start_date": "2024-01-15"
         },
@@ -114,154 +230,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Inflation Swap instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "base_cpi": {
-              "description": "Explicit Base CPI (reference index level at start with lag applied).\nIf not provided, it will be looked up/calculated from start date.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "bdc": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
-              "default": "modified_following",
-              "description": "Business day convention for payment date adjustment.\nDefaults to `Following` if not specified."
-            },
-            "calendar_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Holiday calendar identifier for payment date adjustment.\nIf not specified, payment dates are used unadjusted."
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count for accrual calculation (fixed leg compounding)"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier (quote currency)"
-            },
-            "fixed_rate": {
-              "description": "Fixed real rate (as decimal)",
-              "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-              "type": [
-                "string",
-                "number"
-              ]
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "inflation_index_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Inflation index identifier (e.g., US-CPI-U)"
-            },
-            "lag_override": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/InflationLag"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional contract-level lag override (if set, overrides index lag)"
-            },
-            "maturity": {
-              "description": "Maturity date",
-              "format": "date",
-              "type": "string"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional in quote currency"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for scenario selection and tagging\nInstrument-owned pricing inputs."
-            },
-            "side": {
-              "$ref": "#/$defs/PayReceive",
-              "description": "Trade side"
-            },
-            "start_date": {
-              "description": "Start date of indexation",
-              "format": "date",
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "notional",
-            "start_date",
-            "maturity",
-            "fixed_rate",
-            "inflation_index_id",
-            "discount_curve_id",
-            "day_count",
-            "side",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "inflation_swap",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/inflation_swap"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Inflation Swap",
+  "title": "inflation_swap",
   "type": "object"
 }

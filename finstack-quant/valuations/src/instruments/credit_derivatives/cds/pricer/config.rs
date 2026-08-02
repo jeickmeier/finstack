@@ -15,7 +15,7 @@ pub(crate) struct CDSPricerConfig {
     /// - `false` (default): Use Risky Annuity only (ISDA Standard Model)
     /// - `true`: Include accrual-on-default in denominator (Bloomberg CDSW style)
     ///
-    /// The difference is typically < 1bp for investment grade but can reach 2-5 bps
+    /// The difference is typically < 1bp for investment grade but can reach 2-5 bp
     /// for distressed credits (hazard rate > 3%).
     pub(crate) par_spread_uses_full_premium: bool,
     /// Business days per year for settlement delay calculations (region-specific).

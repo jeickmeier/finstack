@@ -10,9 +10,10 @@ use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_statements::capital_structure::aggregate_instrument_cashflows;
-use finstack_quant_statements::capital_structure::build_any_instrument_from_spec;
-use finstack_quant_statements::types::CapitalStructureSpec;
-use finstack_quant_statements::types::DebtInstrumentSpec;
+use finstack_quant_statements::capital_structure::build_instrument_from_spec;
+use finstack_quant_statements::types::{
+    CapitalStructureSpec, DebtInstrumentSpec, FinancialStatementInstrument,
+};
 use finstack_quant_valuations::instruments::rates::irs::{
     FloatingLegCompounding, InterestRateSwap,
 };
@@ -42,7 +43,7 @@ fn usd_irs_swap(
         rate: rate_decimal,
         frequency: Tenor::semi_annual(),
         day_count: DayCount::Thirty360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: Some("usny".to_string()),
         stub: StubKind::None,
         start,
@@ -59,7 +60,7 @@ fn usd_irs_swap(
         spread_bp: Decimal::ZERO,
         frequency: Tenor::quarterly(),
         day_count: DayCount::Act360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: Some("usny".to_string()),
         stub: StubKind::None,
         reset_lag_days: 0,
@@ -84,7 +85,7 @@ fn usd_irs_swap(
 }
 
 #[test]
-fn test_build_any_instrument_from_bond_spec() {
+fn test_build_instrument_from_bond_spec() {
     let bond = Bond::fixed(
         InstrumentId::new("BOND-001"),
         Money::new(1_000_000.0, Currency::USD),
@@ -97,19 +98,16 @@ fn test_build_any_instrument_from_bond_spec() {
 
     let spec = DebtInstrumentSpec {
         id: "BOND-001".to_string(),
-        spec: serde_json::to_value(
-            finstack_quant_valuations::instruments::InstrumentJson::Bond(bond),
-        )
-        .expect("bond should serialize"),
+        spec: FinancialStatementInstrument::Bond(bond),
     };
 
-    let instrument = build_any_instrument_from_spec(&spec).expect("bond should deserialize");
+    let instrument = build_instrument_from_spec(&spec).expect("bond should build");
     let notional = instrument.notional().expect("bond exposes notional");
     assert_eq!(notional.currency(), Currency::USD);
 }
 
 #[test]
-fn test_build_any_instrument_from_swap_spec() {
+fn test_build_instrument_from_swap_spec() {
     let swap = usd_irs_swap(
         InstrumentId::new("SWAP-001"),
         Money::new(5_000_000.0, Currency::USD),
@@ -122,13 +120,10 @@ fn test_build_any_instrument_from_swap_spec() {
 
     let spec = DebtInstrumentSpec {
         id: "SWAP-001".to_string(),
-        spec: serde_json::to_value(
-            finstack_quant_valuations::instruments::InstrumentJson::InterestRateSwap(swap),
-        )
-        .expect("swap should serialize"),
+        spec: FinancialStatementInstrument::InterestRateSwap(swap),
     };
 
-    let instrument = build_any_instrument_from_spec(&spec).expect("swap should deserialize");
+    let instrument = build_instrument_from_spec(&spec).expect("swap should build");
     let notional = instrument.notional().expect("swap exposes notional");
     assert_eq!(notional.currency(), Currency::USD);
 }
@@ -173,7 +168,6 @@ fn test_reporting_totals_sum_without_fx_when_same_currency() {
 
     let spec = CapitalStructureSpec {
         debt_instruments: vec![],
-        equity_instruments: vec![],
         meta: IndexMap::new(),
         reporting_currency: Some(Currency::USD),
         fx_policy: None,
@@ -215,15 +209,14 @@ fn test_capital_structure_builds_revolving_credit() {
     // RevolvingCredit had no typed DebtInstrumentSpec variant and was absent
     // from the old `Generic` brute-force list (Bond/IRS/TermLoan/Deposit/FRA/
     // Repo). Routing through the canonical registry makes it constructible.
-    use finstack_quant_valuations::instruments::{InstrumentJson, RevolvingCredit};
+    use finstack_quant_valuations::instruments::RevolvingCredit;
 
     let rcf = RevolvingCredit::example().expect("example RevolvingCredit");
     let spec = DebtInstrumentSpec {
         id: "RCF-001".to_string(),
-        spec: serde_json::to_value(InstrumentJson::RevolvingCredit(rcf))
-            .expect("revolving credit should serialize"),
+        spec: FinancialStatementInstrument::RevolvingCredit(rcf),
     };
 
-    build_any_instrument_from_spec(&spec)
+    build_instrument_from_spec(&spec)
         .expect("revolving credit must build via the canonical registry");
 }

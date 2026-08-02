@@ -157,7 +157,7 @@ fn test_settlement_with_business_day_convention() {
     let settlement = d(2025, 1, 18); // Saturday
     let fx = eurusd_with_notional(1_000_000.0, 1.20)
         .with_settlement(settlement)
-        .with_bdc(BusinessDayConvention::Following)
+        .with_business_day_convention(BusinessDayConvention::Following)
         .with_base_calendar_id("target2")
         .with_quote_calendar_id("usny");
 

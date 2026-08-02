@@ -13,7 +13,7 @@ fn test_model_spec_creation() {
 
     assert_eq!(model.id, "test_model");
     assert_eq!(model.periods.len(), 4);
-    assert_eq!(model.schema_version, 2);
+    assert_eq!(u32::from(model.schema_version), 1);
     assert!(model.nodes.is_empty());
 }
 
@@ -48,5 +48,8 @@ fn test_serialization_roundtrip() {
     let deserialized: FinancialModelSpec =
         serde_json::from_str(&json).expect("model should deserialize");
 
-    assert_eq!(model, deserialized);
+    assert_eq!(
+        serde_json::to_value(model).expect("model should serialize"),
+        serde_json::to_value(deserialized).expect("deserialized model should serialize")
+    );
 }

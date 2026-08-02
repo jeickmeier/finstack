@@ -104,16 +104,17 @@ class StatementView:
 
 
 def json_or_dict(obj: Any, *, noun: str = "value") -> dict[str, Any]:
-    """Normalise a dict or JSON-object string into a dict.
+    """Normalise a typed contract, dict, or JSON-object string into a dict.
 
     Raises:
-        TypeError: if ``obj`` is not a dict/str, or its JSON does not decode to
-            an object.
+        TypeError: if ``obj`` is not a typed contract, dict, or string, or its
+            JSON does not decode to an object.
 
     Parameters
     ----------
     obj : Any
-        Mapping object or JSON-object string to normalize into a dictionary.
+        Typed contract exposing ``to_json()``, mapping object, or JSON-object
+        string to normalize into a dictionary.
     noun : str
         Reader-facing noun used in type and JSON-decoding error messages.
 
@@ -132,10 +133,13 @@ def json_or_dict(obj: Any, *, noun: str = "value") -> dict[str, Any]:
         return obj
     if isinstance(obj, str):
         data = json.loads(obj)
-        if not isinstance(data, dict):
-            raise TypeError(f"{noun} JSON must decode to an object; got {type(data).__name__}")
-        return data
-    raise TypeError(f"{noun} must be a dict or JSON string; got {type(obj).__name__}")
+    elif hasattr(obj, "to_json"):
+        data = json.loads(obj.to_json())
+    else:
+        raise TypeError(f"{noun} must be a typed contract, dict, or JSON string; got {type(obj).__name__}")
+    if not isinstance(data, dict):
+        raise TypeError(f"{noun} JSON must decode to an object; got {type(data).__name__}")
+    return data
 
 
 def parse_statement(results: Any) -> StatementView:

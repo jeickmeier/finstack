@@ -599,11 +599,11 @@ impl PyVolatilityIndexCurve {
         let base = py_to_date(base_date)?;
         let extrap = parse_extrapolation(extrapolation)?;
         let style = parse_interp_style(interp)?;
-        let dc = parse_day_count(day_count)?;
+        let day_count = parse_day_count(day_count)?;
 
         let curve = VolatilityIndexCurve::builder(id)
             .base_date(base)
-            .day_count(dc)
+            .day_count(day_count)
             .knots(knots)
             .interp(style)
             .extrapolation(extrap)

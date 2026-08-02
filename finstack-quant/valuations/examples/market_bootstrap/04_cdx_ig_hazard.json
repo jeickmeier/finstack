@@ -1,9 +1,9 @@
 {
-  "$schema": "../../schemas/calibration/3/calibration.schema.json",
-  "schema": "finstack_quant.calibration",
+  "$schema": "../../schemas/calibration/1/calibration.schema.json",
+  "schema": "finstack_quant.calibration/1",
   "plan": {
     "id": "cdx_ig_46_hazard",
-    "description": "CDX.NA.IG.46 index hazard curve calibrated from index par-spread quotes, chained on a USD-OIS discount curve bootstrapped from deposit and IRS quotes in the same plan. Step 1 produces the USD-OIS discount curve; step 2 calibrates the CDX hazard curve against it. The envelope is fully self-bootstrapping from quotes \u2014 no hand-entered curves in initial_market. Differs from 03_single_name_hazard.json by switching the entity from a single-name issuer to the index name, with index-shaped spreads (50/75/100/110/120 bp). The HazardCurveParams schema does not currently expose an IMM-date convention flag (that flag exists only on BaseCorrelationParams); pillars are tenor-based for both single-name and index calibrations, and the IMM rolling shows up only inside the synthetic CDS schedule generation controlled by doc_clause. doc_clause `isda_na` is the USD default and applies to both single-name and index NA conventions. Used as reference for 05 (base correlation) and 06 (CDX index vol).",
+    "description": "CDX.NA.IG.46 index hazard curve calibrated from index par-spread quotes, chained on a USD-OIS discount curve bootstrapped from deposit and IRS quotes in the same plan. Step 1 produces the USD-OIS discount curve; step 2 calibrates the CDX hazard curve against it. The envelope is fully self-bootstrapping from quotes \u2014 no hand-entered curves in prior_market. Differs from 03_single_name_hazard.json by switching the entity from a single-name issuer to the index name, with index-shaped spreads (50/75/100/110/120 bp). The HazardCurveParams schema does not currently expose an IMM-date convention flag (that flag exists only on BaseCorrelationParams); pillars are tenor-based for both single-name and index calibrations, and the IMM rolling shows up only inside the synthetic CDS schedule generation controlled by doc_clause. doc_clause `isda_na` is the USD default and applies to both single-name and index NA conventions. Used as reference for 05 (base correlation) and 06 (CDX index vol).",
     "quote_sets": {
       "usd_rate_quotes": [
         "USD-SOFR-DEP-1M",
@@ -29,7 +29,7 @@
         "curve_id": "USD-OIS",
         "currency": "USD",
         "base_date": "2026-05-08",
-        "method": "Bootstrap",
+        "method": "bootstrap",
         "interpolation": "linear",
         "extrapolation": "flat_forward",
         "pricing_discount_id": null,
@@ -50,9 +50,9 @@
         "discount_curve_id": "USD-OIS",
         "recovery_rate": 0.4,
         "notional": 1.0,
-        "method": "Bootstrap",
+        "method": "bootstrap",
         "interpolation": "linear",
-        "par_interp": "Linear"
+        "par_interp": "linear"
       }
     ],
     "settings": {}

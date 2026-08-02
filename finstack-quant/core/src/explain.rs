@@ -38,6 +38,7 @@
 //! }
 //! ```
 
+use crate::dates::Date;
 use serde::{Deserialize, Serialize};
 
 /// Opt-in configuration for generating explanation traces.
@@ -153,7 +154,7 @@ impl ExplanationTrace {
 /// - Pricing: cashflow-level PV breakdowns
 /// - Waterfall: step-by-step payment allocations
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(tag = "kind")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TraceEntry {
     /// Calibration solver iteration details
     #[serde(rename = "calibration_iteration")]
@@ -172,7 +173,9 @@ pub enum TraceEntry {
     #[serde(rename = "cashflow_pv")]
     CashflowPV {
         /// Cashflow payment date (ISO8601)
-        date: String,
+        #[serde(with = "crate::wire::date")]
+        #[schemars(with = "crate::wire::DateWire")]
+        date: Date,
         /// Cashflow amount (stored as f64 for JSON simplicity)
         cashflow_amount: f64,
         /// Cashflow currency
@@ -256,7 +259,7 @@ mod tests {
     #[test]
     fn test_cashflow_pv_entry() {
         let entry = TraceEntry::CashflowPV {
-            date: "2025-01-15".to_string(),
+            date: time::macros::date!(2025 - 01 - 15),
             cashflow_amount: 50000.0,
             cashflow_currency: "USD".to_string(),
             discount_factor: 0.95,

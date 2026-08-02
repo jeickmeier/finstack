@@ -25,6 +25,156 @@
         }
       ]
     },
+    "FxBarrierOption": {
+      "additionalProperties": false,
+      "description": "FX barrier option instrument.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and grouping"
+        },
+        "barrier": {
+          "description": "Barrier level (exchange rate that triggers knock-in/out, dimensionless)",
+          "format": "double",
+          "type": "number"
+        },
+        "barrier_type": {
+          "$ref": "#/$defs/BarrierType",
+          "description": "Barrier type (up/down, in/out)"
+        },
+        "base_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency (the currency being priced, formerly foreign_currency)"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "default": "act_365f",
+          "description": "Day count convention (defaults to ACT/365F, consistent with FxOption)"
+        },
+        "domestic_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Domestic discount curve ID"
+        },
+        "expiry": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Option expiry date"
+        },
+        "foreign_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Foreign discount curve ID"
+        },
+        "fx_spot_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional FX spot scalar identifier.\n\nIf omitted, pricing falls back to `FxMatrix(base_currency, quote_currency)`."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides (manual price, yield, spread)\nInstrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "monitoring_start_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "First date on which barrier monitoring is active. When set, a live\nvaluation after this date requires `observed_barrier_breached`."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount in foreign currency"
+        },
+        "observed_barrier_breached": {
+          "description": "Observed barrier state for expired options.\n\nHistorical monitoring must be supplied explicitly for expired contracts.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "option_type": {
+          "$ref": "#/$defs/OptionType",
+          "description": "Option type (call or put on foreign currency)"
+        },
+        "quote_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Quote currency (the pricing/settlement currency, formerly domestic_currency)"
+        },
+        "rebate": {
+          "description": "Optional rebate amount (paid if the barrier condition is met, dimensionless;\nsee `rebate_timing` for when a knock-out rebate pays)",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rebate_timing": {
+          "$ref": "#/$defs/RebateTiming",
+          "default": "at_hit",
+          "description": "Timing of the knock-out rebate payment.\n\n`at_hit` (default, market standard) pays the rebate the moment a\nknock-out barrier is breached; `at_expiry` defers payment to expiry.\nKnock-in rebates always pay at expiry, so this setting does not affect\nthem. The analytical pricer values at-hit rebates via the discounted\nfirst-passage closed form; the Monte Carlo path currently approximates\nat-hit rebates as at-expiry."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "strike": {
+          "description": "Strike exchange rate (quote per base, dimensionless)",
+          "format": "double",
+          "type": "number"
+        },
+        "use_gobet_miri": {
+          "default": false,
+          "description": "Whether to use Gobet-Miri continuous barrier adjustment.\n\nDefaults to `false` (analytical continuous-monitoring pricer).",
+          "type": "boolean"
+        },
+        "vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "FX volatility surface ID"
+        }
+      },
+      "required": [
+        "id",
+        "strike",
+        "barrier",
+        "option_type",
+        "barrier_type",
+        "expiry",
+        "notional",
+        "base_currency",
+        "quote_currency",
+        "domestic_discount_curve_id",
+        "foreign_discount_curve_id",
+        "vol_surface_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "OptionType": {
       "description": "Option type for pricing",
       "oneOf": [
@@ -54,12 +204,33 @@
           "type": "string"
         }
       ]
+    },
+    "fx_barrier_option": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/FxBarrierOption"
+            },
+            "type": {
+              "const": "fx_barrier_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_barrier_option.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "FX option with barrier feature",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -68,41 +239,21 @@
           "barrier": 1.2,
           "barrier_type": "up_and_out",
           "base_currency": "EUR",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "domestic_discount_curve_id": "USD-OIS",
           "expiry": "2024-12-20",
           "foreign_discount_curve_id": "EUR-OIS",
           "fx_spot_id": "EURUSD-SPOT",
           "id": "FXBAR-EURUSD-UO-CALL",
-          "monitoring_start_date": "2024-01-02",
+          "monitoring_start_date": "2024-01-01",
           "notional": {
             "amount": "1000000",
             "currency": "EUR"
           },
           "option_type": "call",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quote_currency": "USD",
           "rebate": null,
+          "rebate_timing": "at_hit",
           "strike": 1.1,
           "use_gobet_miri": false,
           "vol_surface_id": "EURUSD-VOL"
@@ -114,180 +265,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Fx Barrier Option instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and grouping"
-            },
-            "barrier": {
-              "description": "Barrier level (exchange rate that triggers knock-in/out, dimensionless)",
-              "format": "double",
-              "type": "number"
-            },
-            "barrier_type": {
-              "$ref": "#/$defs/BarrierType",
-              "description": "Barrier type (up/down, in/out)"
-            },
-            "base_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency (the currency being priced, formerly foreign_currency)"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "default": "Act365F",
-              "description": "Day count convention (defaults to ACT/365F, consistent with FxOption)"
-            },
-            "domestic_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Domestic discount curve ID"
-            },
-            "expiry": {
-              "description": "Option expiry date",
-              "format": "date",
-              "type": "string"
-            },
-            "foreign_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Foreign discount curve ID"
-            },
-            "fx_spot_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional FX spot scalar identifier.\n\nIf omitted, pricing falls back to `FxMatrix(base_currency, quote_currency)`."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "monitoring_start_date": {
-              "description": "First date on which barrier monitoring is active. When set, a live\nvaluation after this date requires `observed_barrier_breached`.",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount in foreign currency"
-            },
-            "observed_barrier_breached": {
-              "description": "Observed barrier state for expired options.\n\nHistorical monitoring must be supplied explicitly for expired contracts.",
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "option_type": {
-              "$ref": "#/$defs/OptionType",
-              "description": "Option type (call or put on foreign currency)"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides (manual price, yield, spread)\nInstrument-owned pricing inputs."
-            },
-            "quote_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Quote currency (the pricing/settlement currency, formerly domestic_currency)"
-            },
-            "rebate": {
-              "description": "Optional rebate amount (paid if the barrier condition is met, dimensionless;\nsee `rebate_timing` for when a knock-out rebate pays)",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "rebate_timing": {
-              "$ref": "#/$defs/RebateTiming",
-              "default": "at_hit",
-              "description": "Timing of the knock-out rebate payment.\n\n`at_hit` (default, market standard) pays the rebate the moment a\nknock-out barrier is breached; `at_expiry` defers payment to expiry.\nKnock-in rebates always pay at expiry, so this setting does not affect\nthem. The analytical pricer values at-hit rebates via the discounted\nfirst-passage closed form; the Monte Carlo path currently approximates\nat-hit rebates as at-expiry."
-            },
-            "strike": {
-              "description": "Strike exchange rate (quote per base, dimensionless)",
-              "format": "double",
-              "type": "number"
-            },
-            "use_gobet_miri": {
-              "default": false,
-              "description": "Whether to use Gobet-Miri continuous barrier adjustment.\n\nDefaults to `false` (analytical continuous-monitoring pricer).",
-              "type": "boolean"
-            },
-            "vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "FX volatility surface ID"
-            }
-          },
-          "required": [
-            "id",
-            "strike",
-            "barrier",
-            "option_type",
-            "barrier_type",
-            "expiry",
-            "notional",
-            "base_currency",
-            "quote_currency",
-            "domestic_discount_curve_id",
-            "foreign_discount_curve_id",
-            "vol_surface_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "fx_barrier_option",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/fx_barrier_option"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "FX Barrier Option",
+  "title": "fx_barrier_option",
   "type": "object"
 }

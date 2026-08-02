@@ -27,8 +27,15 @@ def canonical_fixture_entries(root: Path) -> list[tuple[str, Path]]:
 
 
 def generated_fixtures_are_valid(root: Path) -> bool:
-    """Return whether generated fixtures exist and match their manifest tags."""
-    for tag, relative_path in canonical_fixture_entries(root):
+    """Return whether the fixture inventory exactly matches the registry."""
+    entries = canonical_fixture_entries(root)
+    expected_paths = {relative_path for _, relative_path in entries}
+    fixture_root = root / INSTRUMENTS_DIR / "json_examples"
+    actual_paths = {path.relative_to(root) for path in fixture_root.glob("*.json") if path.is_file()}
+    if actual_paths != expected_paths:
+        return False
+
+    for tag, relative_path in entries:
         path = root / relative_path
         if not path.is_file():
             return False

@@ -96,8 +96,11 @@ fn is_irregular_fixed_period(
         expected_regular_end = expected_regular_end.end_of_month();
     }
     if adjust_accrual_dates {
-        expected_regular_end =
-            finstack_quant_core::dates::adjust(expected_regular_end, fixed.bdc, cal)?;
+        expected_regular_end = finstack_quant_core::dates::adjust(
+            expected_regular_end,
+            fixed.business_day_convention,
+            cal,
+        )?;
     }
 
     let dc_ctx = DayCountContext {
@@ -212,7 +215,7 @@ pub(crate) fn projected_compounded_float_leg_schedule(
         end: float.end,
         frequency: float.frequency,
         stub: float.stub,
-        bdc: float.bdc,
+        business_day_convention: float.business_day_convention,
         calendar_id: float
             .calendar_id
             .as_deref()
@@ -265,7 +268,7 @@ pub(crate) fn projected_compounded_float_leg_schedule(
             crate::instruments::common_impl::pricing::overnight::adjust_overnight_accrual_boundaries(
                 period.accrual_start,
                 period.accrual_end,
-                float.bdc,
+                float.business_day_convention,
                 cal,
             )?;
         if accrual_end <= accrual_start {
@@ -370,7 +373,7 @@ pub(crate) fn fixed_leg_schedule(irs: &InterestRateSwap) -> Result<CashFlowSched
         end: fixed.end,
         frequency: fixed.frequency,
         stub: fixed.stub,
-        bdc: fixed.bdc,
+        business_day_convention: fixed.business_day_convention,
         calendar_id,
         end_of_month: fixed.end_of_month,
         day_count: fixed.day_count,
@@ -486,7 +489,7 @@ pub(crate) fn float_leg_schedule_with_curves_as_of(
                 all_in_floor_bp: None,
                 index_cap_bp: None,
                 overnight_index_constraints: Default::default(),
-                reset_freq: float.frequency,
+                reset_frequency: float.frequency,
                 index_tenor: None,
                 reset_lag_days: float.reset_lag_days,
                 fixing_calendar_id: float.fixing_calendar_id.clone(),
@@ -500,9 +503,9 @@ pub(crate) fn float_leg_schedule_with_curves_as_of(
             },
             coupon_type: crate::cashflow::builder::CouponType::Cash,
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: float.frequency,
-                dc: float.day_count,
-                bdc: float.bdc,
+                frequency: float.frequency,
+                day_count: float.day_count,
+                business_day_convention: float.business_day_convention,
                 calendar_id: float
                     .calendar_id
                     .clone()
@@ -636,7 +639,7 @@ mod tests {
         irs.float.end = date!(2025 - 07 - 04);
         irs.float.frequency = Tenor::semi_annual();
         irs.float.day_count = DayCount::Act360;
-        irs.float.bdc = BusinessDayConvention::ModifiedFollowing;
+        irs.float.business_day_convention = BusinessDayConvention::ModifiedFollowing;
         irs.float.calendar_id = Some("usny".to_string());
         irs.float.forward_curve_id = "USD-SOFR".into();
         irs.float.spread_bp = Decimal::from(100);
@@ -917,7 +920,7 @@ mod tests {
                     rate: Decimal::ZERO,
                     frequency: Tenor::quarterly(),
                     day_count: DayCount::Act360,
-                    bdc: BusinessDayConvention::ModifiedFollowing,
+                    business_day_convention: BusinessDayConvention::ModifiedFollowing,
                     calendar_id: None,
                     stub: StubKind::ShortFront,
                     start,
@@ -933,7 +936,7 @@ mod tests {
                     spread_bp: Decimal::ZERO,
                     frequency: Tenor::quarterly(),
                     day_count: DayCount::Act360,
-                    bdc: BusinessDayConvention::ModifiedFollowing,
+                    business_day_convention: BusinessDayConvention::ModifiedFollowing,
                     calendar_id: None,
                     stub: StubKind::ShortFront,
                     reset_lag_days: 0,

@@ -47,9 +47,6 @@ mod tests {
     use crate::currency::Currency;
     use std::sync::Arc;
 
-    fn assert_parses_to(label: &str, expected: FxConversionPolicy) {
-        assert!(matches!(label.parse::<FxConversionPolicy>(), Ok(value) if value == expected));
-    }
     use time::macros::date;
 
     #[test]
@@ -68,14 +65,11 @@ mod tests {
     fn test_fx_conversion_policy_fromstr_display_roundtrip() {
         for (input, expected) in [
             ("cashflow_date", FxConversionPolicy::CashflowDate),
-            ("cashflow", FxConversionPolicy::CashflowDate),
             ("period_end", FxConversionPolicy::PeriodEnd),
-            ("end", FxConversionPolicy::PeriodEnd),
             ("period_average", FxConversionPolicy::PeriodAverage),
-            ("average", FxConversionPolicy::PeriodAverage),
             ("custom", FxConversionPolicy::Custom),
         ] {
-            assert_parses_to(input, expected);
+            assert!(matches!(input.parse::<FxConversionPolicy>(), Ok(value) if value == expected));
         }
 
         for variant in [
@@ -91,7 +85,9 @@ mod tests {
 
     #[test]
     fn test_fx_conversion_policy_fromstr_rejects_unknown() {
-        assert!("unknown".parse::<FxConversionPolicy>().is_err());
+        for rejected in ["cashflow", "end", "average", "CashflowDate", "period-end"] {
+            assert!(rejected.parse::<FxConversionPolicy>().is_err());
+        }
     }
 
     #[test]

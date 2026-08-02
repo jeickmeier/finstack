@@ -145,8 +145,8 @@ impl PyPortfolioAttribution {
 ///
 /// ``portfolio`` and both markets accept either typed binding objects or their
 /// canonical JSON representations. ``method`` uses the same serde shape as
-/// instrument attribution (for example ``"Parallel"`` or
-/// ``{"Waterfall": ["Carry", "RatesCurves"]}``). ``config`` is an optional
+/// instrument attribution (for example ``"parallel"`` or
+/// ``{"waterfall": ["carry", "rates_curves"]}``). ``config`` is an optional
 /// canonical ``FinstackConfig`` dictionary or JSON string.
 #[pyfunction]
 #[pyo3(signature = (portfolio, market_t0, market_t1, as_of_t0, as_of_t1, method, config=None))]

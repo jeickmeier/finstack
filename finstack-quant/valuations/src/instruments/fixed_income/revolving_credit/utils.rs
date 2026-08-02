@@ -28,7 +28,7 @@ pub(super) fn build_payment_periods(
         end: facility.maturity,
         frequency: facility.frequency,
         stub: facility.stub,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id,
         end_of_month: false,
         day_count: facility.day_count,
@@ -154,9 +154,9 @@ pub(super) fn build_reset_dates(facility: &RevolvingCredit) -> Result<Option<Vec
             let periods = build_periods(BuildPeriodsParams {
                 start: facility.commitment_date,
                 end: facility.maturity,
-                frequency: spec.reset_freq,
+                frequency: spec.reset_frequency,
                 stub: facility.stub,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id,
                 end_of_month: false,
                 day_count: facility.day_count,
@@ -272,7 +272,7 @@ pub(super) fn apply_draw_repay_event(
 /// # Arguments
 ///
 /// * `reset_date` - Start date of the reset period
-/// * `reset_freq` - Tenor determining the period length
+/// * `reset_frequency` - Tenor determining the period length
 /// * `attrs` - Facility attributes (for calendar resolution)
 ///
 /// # Returns
@@ -287,14 +287,14 @@ pub(super) fn compute_reset_period_end(
     spec: &crate::cashflow::builder::FloatingRateSpec,
     attrs: &Attributes,
 ) -> Result<Date> {
-    let reset_freq = spec.index_tenor.as_ref().unwrap_or(&spec.reset_freq);
+    let reset_frequency = spec.index_tenor.as_ref().unwrap_or(&spec.reset_frequency);
     // Compute unadjusted end date based on frequency
     use finstack_quant_core::dates::TenorUnit;
-    let mut reset_end = match reset_freq.unit() {
-        TenorUnit::Months => reset_date.add_months(reset_freq.count() as i32),
-        TenorUnit::Years => reset_date.add_months(reset_freq.count() as i32 * 12),
-        TenorUnit::Weeks => reset_date + time::Duration::weeks(reset_freq.count() as i64),
-        TenorUnit::Days => reset_date + time::Duration::days(reset_freq.count() as i64),
+    let mut reset_end = match reset_frequency.unit() {
+        TenorUnit::Months => reset_date.add_months(reset_frequency.count() as i32),
+        TenorUnit::Years => reset_date.add_months(reset_frequency.count() as i32 * 12),
+        TenorUnit::Weeks => reset_date + time::Duration::weeks(reset_frequency.count() as i64),
+        TenorUnit::Days => reset_date + time::Duration::days(reset_frequency.count() as i64),
     };
 
     reset_end = finstack_quant_core::dates::adjust(
@@ -327,7 +327,7 @@ mod tests {
             all_in_floor_bp: None,
             all_in_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: tenor,
+            reset_frequency: tenor,
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,
@@ -340,7 +340,7 @@ mod tests {
     fn create_test_facility(
         start: Date,
         end: Date,
-        payment_freq: Tenor,
+        payment_frequency: Tenor,
         base_rate_spec: BaseRateSpec,
         calendar_id: Option<&str>,
     ) -> RevolvingCredit {
@@ -359,7 +359,7 @@ mod tests {
             maturity: end,
             base_rate_spec,
             day_count: DayCount::Act360,
-            frequency: payment_freq,
+            frequency: payment_frequency,
             fees: super::super::types::RevolvingCreditFees::default(),
             draw_repay_spec: super::super::types::DrawRepaySpec::Deterministic(vec![]),
             discount_curve_id: "USD-OIS".into(),
@@ -498,7 +498,7 @@ mod tests {
                 all_in_floor_bp: None,
                 index_cap_bp: None,
                 overnight_index_constraints: Default::default(),
-                reset_freq: Tenor::quarterly(),
+                reset_frequency: Tenor::quarterly(),
                 index_tenor: None,
                 reset_lag_days: 2,
                 fixing_calendar_id: None,
@@ -532,7 +532,7 @@ mod tests {
             all_in_floor_bp: None,
             all_in_cap_bp: Some(Decimal::from(200)),
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,

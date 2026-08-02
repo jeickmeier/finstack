@@ -39,6 +39,7 @@ use ts_rs::TS;
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum CalibrationMethod {
     /// Traditional sequential bootstrap (default).
     #[default]
@@ -46,7 +47,6 @@ pub enum CalibrationMethod {
     /// Global solve of all knots simultaneously (Newton/LM).
     GlobalSolve {
         /// Use analytical Jacobian if available (otherwise finite-difference).
-        #[serde(default)]
         use_analytical_jacobian: bool,
     },
 }
@@ -64,10 +64,9 @@ impl std::str::FromStr for CalibrationMethod {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
+        match s {
             "bootstrap" => Ok(Self::Bootstrap),
-            "global_solve" | "globalsolve" => Ok(Self::GlobalSolve {
+            "global_solve" => Ok(Self::GlobalSolve {
                 use_analytical_jacobian: false,
             }),
             other => Err(format!(
@@ -90,7 +89,8 @@ impl std::str::FromStr for CalibrationMethod {
 /// - `InverseDuration`: Weights based on inverse DV01 approximation.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum ResidualWeightingScheme {
     /// Equal weighting (1.0 for all quotes).
     Equal,
@@ -118,12 +118,11 @@ impl std::str::FromStr for ResidualWeightingScheme {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
+        match s {
             "equal" => Ok(Self::Equal),
-            "linear_time" | "lineartime" => Ok(Self::LinearTime),
-            "sqrt_time" | "sqrttime" => Ok(Self::SqrtTime),
-            "inverse_duration" | "inverseduration" => Ok(Self::InverseDuration),
+            "linear_time" => Ok(Self::LinearTime),
+            "sqrt_time" => Ok(Self::SqrtTime),
+            "inverse_duration" => Ok(Self::InverseDuration),
             other => Err(format!(
                 "Unknown residual weighting scheme: '{}'. Valid: equal, linear_time, sqrt_time, inverse_duration",
                 other
@@ -153,7 +152,7 @@ impl std::str::FromStr for ResidualWeightingScheme {
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct HazardCurveSolveConfig {
     /// Minimum allowed hazard rate (must be non-negative for survival monotonicity).
@@ -206,7 +205,7 @@ impl Default for HazardCurveSolveConfig {
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct InflationCurveSolveConfig {
     /// Weighting scheme for global solve residuals.
@@ -267,7 +266,7 @@ impl Default for InflationCurveSolveConfig {
 /// ```
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct DiscountCurveSolveConfig {
     /// Number of points in the initial geometric scan grid.
@@ -374,7 +373,7 @@ impl Default for DiscountCurveSolveConfig {
 ///
 /// 1. **Step-level** (`CalibrationStep.params.method`): Per-instrument-type overrides
 /// 2. **Plan-level** (`CalibrationPlan.settings`): Plan-wide defaults
-/// 3. **Finstack config extensions** (`valuations.calibration.v2`): application defaults
+/// 3. **Finstack config extensions** (`valuations.calibration.canonical`): application defaults
 /// 4. **Global defaults** (`CalibrationConfig::default()`): fallback values
 ///
 /// Step-level settings always take precedence over plan-level settings.
@@ -405,7 +404,6 @@ impl Default for DiscountCurveSolveConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct CalibrationConfig {
     /// Solver configuration including numerical method (e.g., Brent) and parameters (tolerance, iterations).
-    #[schemars(with = "serde_json::Value")]
     pub solver: SolverConfig,
     /// Use parallel processing when available (e.g., for independent curves).
     pub use_parallel: bool,
@@ -414,23 +412,18 @@ pub struct CalibrationConfig {
     /// Explanation options (opt-in detailed trace for debugging).
     #[serde(skip)]
     #[cfg_attr(feature = "ts_export", ts(skip))]
-    #[schemars(with = "serde_json::Value")]
     pub explain: ExplainOpts,
     /// Runtime validation mode (warnings vs errors).
-    #[schemars(with = "serde_json::Value")]
     pub validation_mode: ValidationMode,
     /// Validation configuration with thresholds and quality checks.
     #[serde(default)]
     #[cfg_attr(feature = "ts_export", ts(type = "Record<string, unknown>"))]
-    #[schemars(with = "serde_json::Value")]
     pub validation: crate::calibration::validation::ValidationConfig,
     /// Policy for selecting rate bounds (explicit vs currency-derived).
     #[serde(default = "crate::calibration::validation::default_rate_bounds_policy_for_serde")]
-    #[schemars(with = "serde_json::Value")]
     pub rate_bounds_policy: RateBoundsPolicy,
     /// Rate bounds for forward/zero rate calibration (when policy is `Explicit`).
     #[serde(default)]
-    #[schemars(with = "serde_json::Value")]
     pub rate_bounds: RateBounds,
     /// High-level calibration method (bootstrap vs global solve).
     ///
@@ -456,17 +449,14 @@ pub struct CalibrationConfig {
 
     /// Discount-curve specific solver configuration.
     #[serde(default)]
-    #[schemars(with = "serde_json::Value")]
     pub discount_curve: DiscountCurveSolveConfig,
 
     /// Hazard-curve specific solver configuration.
     #[serde(default)]
-    #[schemars(with = "serde_json::Value")]
     pub hazard_curve: HazardCurveSolveConfig,
 
     /// Inflation-curve specific solver configuration.
     #[serde(default)]
-    #[schemars(with = "serde_json::Value")]
     pub inflation_curve: InflationCurveSolveConfig,
 
     /// When `true`, a calibration step whose solver reports
@@ -476,23 +466,19 @@ pub struct CalibrationConfig {
     ///
     /// Defaults to `true` — this is the safe production choice because
     /// a non-converged solver would otherwise silently poison downstream
-    /// pricing. Legacy or exploratory workflows that want to inspect the
+    /// pricing. Diagnostic workflows that want to inspect the
     /// report without aborting can set this to `false`.
     #[serde(default = "default_fail_on_bad_fit")]
     pub fail_on_bad_fit: bool,
 
     /// FX matrix runtime config (pivot currency, triangulation, cache capacity).
-    /// Hoisted out of `initial_market.fx.config` in v3 envelopes.
     #[serde(default)]
     #[cfg_attr(feature = "ts_export", ts(type = "Record<string, unknown>"))]
-    #[schemars(with = "serde_json::Value")]
     pub fx: FxConfig,
 
     /// Optional market-data hierarchy snapshot.
-    /// Hoisted out of `initial_market.hierarchy` in v3 envelopes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "ts_export", ts(type = "Record<string, unknown> | null"))]
-    #[schemars(with = "serde_json::Value")]
     pub hierarchy: Option<MarketDataHierarchy>,
 }
 
@@ -501,7 +487,7 @@ fn default_fail_on_bad_fit() -> bool {
 }
 
 /// Extension section key for calibration overrides.
-pub const CALIBRATION_CONFIG_KEY: &str = "valuations.calibration.v2";
+pub const CALIBRATION_CONFIG_KEY: &str = "valuations.calibration.v1";
 
 impl Default for CalibrationConfig {
     fn default() -> Self {
@@ -529,7 +515,7 @@ impl Default for CalibrationConfig {
 impl CalibrationConfig {
     /// Build a calibration config from a `FinstackConfig` extension section.
     ///
-    /// If the extension section `valuations.calibration.v2` is present, its
+    /// If the extension section `valuations.calibration` is present, its
     /// fields override the defaults; otherwise defaults are used.
     ///
     /// # Errors
@@ -752,12 +738,6 @@ mod tests {
 
     #[test]
     fn residual_weighting_scheme_fromstr_display_roundtrip() {
-        fn assert_residual_weighting_scheme(label: &str, expected: ResidualWeightingScheme) {
-            assert!(
-                matches!(ResidualWeightingScheme::from_str(label), Ok(value) if value == expected)
-            );
-        }
-
         let variants = [
             ResidualWeightingScheme::Equal,
             ResidualWeightingScheme::LinearTime,
@@ -770,9 +750,9 @@ mod tests {
                 ResidualWeightingScheme::from_str(&s).expect("roundtrip parse should succeed");
             assert_eq!(v, parsed, "roundtrip failed for {s}");
         }
-        // Test aliases
-        assert_residual_weighting_scheme("lineartime", ResidualWeightingScheme::LinearTime);
-        assert_residual_weighting_scheme("sqrttime", ResidualWeightingScheme::SqrtTime);
+        for rejected in ["lineartime", "sqrt-time", "SqrtTime", " sqrt_time"] {
+            assert!(ResidualWeightingScheme::from_str(rejected).is_err());
+        }
         assert!(ResidualWeightingScheme::from_str("invalid").is_err());
     }
 
@@ -799,12 +779,21 @@ mod tests {
             )
         });
 
-        // Alias
-        assert_calibration_method("globalsolve", |value| {
-            matches!(value, CalibrationMethod::GlobalSolve { .. })
-        });
-
+        for rejected in [
+            "globalsolve",
+            "global-solve",
+            "GlobalSolve",
+            " global_solve",
+        ] {
+            assert!(CalibrationMethod::from_str(rejected).is_err());
+        }
         assert!(CalibrationMethod::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn global_solve_json_requires_explicit_jacobian_policy() {
+        let json = serde_json::json!({ "global_solve": {} });
+        assert!(serde_json::from_value::<CalibrationMethod>(json).is_err());
     }
 }
 

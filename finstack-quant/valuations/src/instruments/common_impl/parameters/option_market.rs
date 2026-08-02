@@ -233,14 +233,14 @@ mod tests {
         let typed_call = OptionMarketParams::call_typed(
             100.0,
             100.0,
-            Rate::from_bps(500),
+            Rate::from_bp(500),
             Percentage::new(30.0),
             1.0,
         );
         let typed_put = OptionMarketParams::put_typed(
             100.0,
             100.0,
-            Rate::from_bps(500),
+            Rate::from_bp(500),
             Percentage::new(30.0),
             1.0,
         );

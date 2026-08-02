@@ -19,12 +19,11 @@ contract about how disruptive future changes are likely to be.
   ``portfolio_result_get_metric``
 * ``replay_portfolio``
 
-**Stable, JSON-shape may evolve** — function signatures stable, but the
-returned/accepted JSON payload structure can grow new fields (additive,
-non-breaking) between releases:
+**Stable, typed contracts may evolve** — function signatures are stable, but
+typed result classes may gain fields between releases:
 
 * ``optimize_portfolio`` (``PortfolioOptimizationSpec`` /
-  ``PortfolioOptimizationResult`` JSON)
+  ``PortfolioOptimizationResult``)
 * ``parametric_var_decomposition``, ``parametric_es_decomposition``,
   ``historical_var_decomposition``, ``evaluate_risk_budget``
 
@@ -84,7 +83,6 @@ portfolio_result_total_value = _portfolio.portfolio_result_total_value
 portfolio_result_get_metric = _portfolio.portfolio_result_get_metric
 aggregate_metrics = _portfolio.aggregate_metrics
 value_portfolio = _portfolio.value_portfolio
-value_portfolio_typed = _portfolio.value_portfolio_typed
 aggregate_full_cashflows = _portfolio.aggregate_full_cashflows
 apply_scenario_and_revalue = _portfolio.apply_scenario_and_revalue
 scenario_pnl = _portfolio.scenario_pnl
@@ -151,9 +149,6 @@ PositionVolContribution = _portfolio.PositionVolContribution
 CreditVolReport = _portfolio.CreditVolReport
 VolHorizon = _portfolio.VolHorizon
 DecompositionConfig = _portfolio.DecompositionConfig
-parametric_var_decomposition_typed = _portfolio.parametric_var_decomposition_typed
-historical_var_decomposition_typed = _portfolio.historical_var_decomposition_typed
-evaluate_risk_budget_typed = _portfolio.evaluate_risk_budget_typed
 factor_stress = _portfolio.factor_stress
 position_what_if = _portfolio.position_what_if
 build_stress_attribution = _portfolio.build_stress_attribution
@@ -177,7 +172,6 @@ PortfolioOptimizationSpec = _portfolio.PortfolioOptimizationSpec
 PortfolioOptimizationResult = _portfolio.PortfolioOptimizationResult
 CandidatePosition = _portfolio.CandidatePosition
 TradeUniverse = _portfolio.TradeUniverse
-optimize_portfolio_typed = _portfolio.optimize_portfolio_typed
 
 __all__: list[str] = [
     "CandidatePosition",
@@ -262,23 +256,19 @@ __all__: list[str] = [
     "days_to_liquidate",
     "decompose_factor_risk",
     "evaluate_risk_budget",
-    "evaluate_risk_budget_typed",
     "excess_returns",
     "factor_brinson_attribution",
     "factor_stress",
     "grid_attribution",
     "grid_carino_link",
     "historical_var_decomposition",
-    "historical_var_decomposition_typed",
     "kyle_lambda",
     "liquidity_tier",
     "lvar_bangia",
     "mwr_xirr",
     "optimize_portfolio",
-    "optimize_portfolio_typed",
     "parametric_es_decomposition",
     "parametric_var_decomposition",
-    "parametric_var_decomposition_typed",
     "parse_portfolio_spec",
     "portfolio_result_get_metric",
     "portfolio_result_total_value",
@@ -292,5 +282,4 @@ __all__: list[str] = [
     "twrr_modified_dietz",
     "validate_allocation_json",
     "value_portfolio",
-    "value_portfolio_typed",
 ]

@@ -192,14 +192,14 @@ impl Performance {
     pub fn period_stats(
         &self,
         ticker_idx: usize,
-        agg_freq: PeriodKind,
+        aggregation_frequency: PeriodKind,
         fiscal_config: Option<FiscalConfig>,
     ) -> crate::Result<PeriodStats> {
         self.ensure_ticker_idx(ticker_idx)?;
         let grouped = group_by_period(
             self.active_dates_for_ticker_unchecked(ticker_idx),
             self.active_returns(ticker_idx),
-            agg_freq,
+            aggregation_frequency,
             fiscal_config,
         );
         Ok(period_stats_from_grouped(&grouped))
@@ -208,15 +208,15 @@ impl Performance {
     /// Calendar-bucketed compounded returns per ticker.
     ///
     /// Returns one `Vec<(Date, f64)>` per ticker — each entry is
-    /// `(period_end_date, compounded_return)` for one calendar bucket of `freq`.
+    /// `(period_end_date, compounded_return)` for one calendar bucket of `frequency`.
     /// Buckets compound via the shared kernel, so they reconcile exactly with
     /// [`Performance::cumulative_returns`]. Calendar bucketing only.
-    pub fn periodic_returns(&self, freq: PeriodKind) -> Vec<Vec<(Date, f64)>> {
+    pub fn periodic_returns(&self, frequency: PeriodKind) -> Vec<Vec<(Date, f64)>> {
         self.map_tickers(|i| {
             group_by_period_dated(
                 self.active_dates_for_ticker_unchecked(i),
                 self.active_returns(i),
-                freq,
+                frequency,
             )
         })
     }

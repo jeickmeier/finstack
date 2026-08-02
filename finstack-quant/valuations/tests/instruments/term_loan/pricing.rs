@@ -27,7 +27,7 @@ fn test_par_loan_pricing() {
         .rate(RateSpec::Fixed { rate_bp: 500 }) // 5%
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -66,7 +66,7 @@ fn test_discount_pricing() {
         .rate(RateSpec::Fixed { rate_bp: 300 }) // 3%
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -106,7 +106,7 @@ fn test_premium_pricing() {
         .rate(RateSpec::Fixed { rate_bp: 700 }) // 7%
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))

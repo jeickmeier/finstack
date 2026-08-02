@@ -74,7 +74,7 @@ fn minimal_inputs_json() -> String {
             "values": (0..n).map(|i| 100.0 + 0.5 * (i as f64).sin()).collect::<Vec<f64>>()
         },
         "as_of": as_of,
-        "asof_spreads": {
+        "as_of_spreads": {
             "ISSUER-A": 150.0,
             "ISSUER-B": 175.0,
             "ISSUER-C": 200.0
@@ -87,11 +87,11 @@ fn minimal_inputs_json() -> String {
 // ---- tests ------------------------------------------------------------------
 
 /// JSON round-trip: load the golden artifact, re-serialize, verify
-/// `schema_version` is preserved.
+/// the namespaced `schema` marker is preserved.
 #[wasm_bindgen_test]
 fn credit_factor_model_round_trips_through_json() {
     let json = include_str!(
-        "../../finstack-quant/valuations/tests/schema_fixtures/credit_factor_model_v1.json"
+        "../../finstack-quant/factor-model/tests/data/canonical/credit_factor_model.json"
     );
     let model =
         JsCreditFactorModel::from_json(json).expect("from_json must succeed on golden artifact");
@@ -101,13 +101,13 @@ fn credit_factor_model_round_trips_through_json() {
     let parsed_out: serde_json::Value = serde_json::from_str(&out).unwrap();
 
     assert_eq!(
-        parsed_in["schema_version"], parsed_out["schema_version"],
-        "schema_version must be preserved through round-trip"
+        parsed_in["schema"], parsed_out["schema"],
+        "schema must be preserved through round-trip"
     );
 }
 
 /// Calibrate a minimal model, serialize it, and verify the JSON contains
-/// `schema_version`.
+/// the canonical namespaced `schema` marker.
 #[wasm_bindgen_test]
 fn calibrate_then_decompose_round_trip() {
     let config_json = minimal_config_json();
@@ -120,15 +120,11 @@ fn calibrate_then_decompose_round_trip() {
         .expect("calibrate must succeed on minimal inputs");
     let model_json = model.to_json().expect("to_json must succeed");
 
-    assert!(
-        model_json.contains("schema_version"),
-        "serialized model must contain schema_version"
-    );
-
     let parsed: serde_json::Value = serde_json::from_str(&model_json).unwrap();
     assert_eq!(
-        parsed["schema_version"].as_str().unwrap(),
-        finstack_quant_factor_model::credit::hierarchy::CreditFactorModel::SCHEMA_VERSION,
-        "schema_version must match the canonical constant"
+        parsed["schema"].as_str().unwrap(),
+        "finstack_quant.credit_factor_model/1",
+        "schema must match the canonical v1 marker"
     );
+    assert_eq!(model.schema(), "finstack_quant.credit_factor_model/1");
 }

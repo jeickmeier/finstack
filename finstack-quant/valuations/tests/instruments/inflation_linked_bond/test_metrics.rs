@@ -11,12 +11,6 @@ use super::common::*;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
 
-fn running_under_coverage() -> bool {
-    // `cargo llvm-cov` runs tests with LLVM coverage instrumentation enabled, which can slow down
-    // execution significantly and make time-based assertions flaky.
-    std::env::var_os("LLVM_PROFILE_FILE").is_some() || std::env::var_os("CARGO_LLVM_COV").is_some()
-}
-
 #[test]
 fn test_price_with_metrics_real_yield() {
     // Arrange
@@ -370,45 +364,6 @@ fn test_price_with_metrics_uk_gilt() {
 }
 
 #[test]
-fn test_price_with_metrics_performance() {
-    // Arrange
-    let ilb = sample_tips();
-    let (ctx, _) = market_context_with_index();
-    let as_of = d(2025, 1, 2);
-
-    if running_under_coverage() {
-        // Coverage builds are expected to be slower; this test is intended to catch performance
-        // regressions in normal, non-instrumented test runs.
-        return;
-    }
-
-    let metrics = [
-        MetricId::RealYield,
-        MetricId::IndexRatio,
-        MetricId::RealDuration,
-        MetricId::BreakevenInflation,
-        MetricId::Dv01,
-    ];
-
-    // Act
-    let start = std::time::Instant::now();
-    for _ in 0..10 {
-        let _ = ilb
-            .price_with_metrics(
-                &ctx,
-                as_of,
-                &metrics,
-                finstack_quant_valuations::instruments::PricingOptions::default(),
-            )
-            .unwrap();
-    }
-    let elapsed = start.elapsed();
-
-    // Assert - 10 full metric calculations should be fast (< 500ms)
-    assert!(elapsed.as_millis() < 500);
-}
-
-#[test]
 fn test_metric_ids_have_str_representation() {
     // Arrange & Act & Assert
     assert!(!MetricId::RealYield.as_str().is_empty());
@@ -564,10 +519,10 @@ fn test_breakeven_inflation_metric_non_flat_nominal_curve() {
         .maturity(maturity)
         .base_index(100.0)
         .base_date(as_of)
-        .indexation_method(IndexationMethod::TIPS)
+        .indexation_method(IndexationMethod::Tips)
         .lag(InflationLag::None)
         .deflation_protection(DeflationProtection::MaturityOnly)
-        .bdc(BusinessDayConvention::Following)
+        .business_day_convention(BusinessDayConvention::Following)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::new("USD-OIS"))
         .inflation_index_id(CurveId::new("US-CPI"))

@@ -262,7 +262,7 @@ pub fn apply_scenario_to_market(
 ///
 /// # Arguments
 ///
-/// * `instrument_json` - JSON-serialized instrument (tagged).
+/// * `instrument_json` - Canonical `finstack_quant.instrument/1` envelope.
 /// * `market_json` - JSON-serialized `MarketContext`.
 /// * `as_of` - Valuation date (ISO 8601).
 /// * `scenario_json` - JSON-serialized `ScenarioSpec`.
@@ -286,12 +286,12 @@ pub fn compute_horizon_return(
     calendar_id: Option<String>,
 ) -> Result<String, JsValue> {
     use finstack_quant_attribution::AttributionMethod;
-    use finstack_quant_valuations::instruments::InstrumentJson;
     use std::sync::Arc;
 
     // Parse instrument
-    let inst: InstrumentJson = serde_json::from_str(instrument_json).map_err(to_js_err)?;
-    let boxed = inst.into_boxed().map_err(to_js_err)?;
+    let boxed =
+        finstack_quant_valuations::pricer::json::parse_boxed_instrument_json(instrument_json, None)
+            .map_err(to_js_err)?;
     let instrument: Arc<dyn finstack_quant_valuations::instruments::Instrument> = Arc::from(boxed);
 
     // Parse market

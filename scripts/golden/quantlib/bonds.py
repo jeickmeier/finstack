@@ -7,10 +7,10 @@ from typing import Any
 
 import QuantLib as ql  # type: ignore[import-not-found]  # noqa: N813
 
-from .common import SCHEMA_VERSION, VALUATION_DATE, central_difference, market_snapshot, metadata, ql_date, tolerance
+from .common import SCHEMA, VALUATION_DATE, central_difference, market_snapshot, metadata, ql_date, tolerance
 
 
-def _bond_discount_curve(curve_id: str, rate: float, *, day_count: str = "Thirty360") -> dict[str, Any]:
+def _bond_discount_curve(curve_id: str, rate: float, *, day_count: str = "30_360") -> dict[str, Any]:
     """Build the continuously compounded flat curve used by bond parity."""
     return {
         "type": "discount",
@@ -62,7 +62,7 @@ def build_fixed_risk_free_bond() -> dict[str, Any]:
         "DV01 within 0.1% under matched schedule and curve conventions."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="usd_fixed_10y_risk_free_quantlib",
             domain="fixed_income.bond",
@@ -82,14 +82,14 @@ def build_fixed_risk_free_bond() -> dict[str, Any]:
                     "issue_date": VALUATION_DATE,
                     "maturity": "2036-04-30",
                     "cashflow_spec": {
-                        "Fixed": {
-                            "coupon_type": "Cash",
+                        "fixed": {
+                            "coupon_type": "cash",
                             "rate": "0.05",
-                            "freq": {"count": 6, "unit": "months"},
-                            "dc": "Thirty360",
-                            "bdc": "following",
+                            "frequency": {"count": 6, "unit": "months"},
+                            "day_count": "30_360",
+                            "business_day_convention": "following",
                             "calendar_id": "weekends_only",
-                            "stub": "ShortFront",
+                            "stub": "short_front",
                             "adjust_accrual_dates": True,
                         }
                     },
@@ -120,9 +120,9 @@ def _hazard_curve(curve_id: str, hazard_rate: float) -> dict[str, Any]:
         "issuer": None,
         "seniority": None,
         "currency": "USD",
-        "day_count": "Act365F",
+        "day_count": "act_365f",
         "par_points": [],
-        "par_interp": "Linear",
+        "par_interp": "linear",
         "survival_interp": "log_linear",
         "fx_policy": None,
     }
@@ -204,7 +204,7 @@ def _floating_bond_spec(*, credit_curve_id: str | None) -> dict[str, Any]:
                 "issue_date": "2026-05-06",
                 "maturity": "2031-05-06",
                 "cashflow_spec": {
-                    "Floating": {
+                    "floating": {
                         "rate_spec": {
                             "index_id": "USD-SOFR-3M",
                             "spread_bp": "100",
@@ -214,16 +214,16 @@ def _floating_bond_spec(*, credit_curve_id: str | None) -> dict[str, Any]:
                             "all_in_floor_bp": None,
                             "all_in_cap_bp": None,
                             "index_cap_bp": None,
-                            "reset_freq": {"count": 3, "unit": "months"},
+                            "reset_frequency": {"count": 3, "unit": "months"},
                             "reset_lag_days": 2,
                             "fixing_calendar_id": "weekends_only",
                         },
-                        "coupon_type": "Cash",
-                        "freq": {"count": 3, "unit": "months"},
-                        "dc": "Act360",
-                        "bdc": "following",
+                        "coupon_type": "cash",
+                        "frequency": {"count": 3, "unit": "months"},
+                        "day_count": "act_360",
+                        "business_day_convention": "following",
                         "calendar_id": "weekends_only",
-                        "stub": "ShortFront",
+                        "stub": "short_front",
                         "end_of_month": False,
                         "payment_lag_days": 0,
                         "adjust_accrual_dates": True,
@@ -326,7 +326,7 @@ def build_floating_risk_free_bond() -> dict[str, Any]:
         "discount/projection DV01 within 0.5%."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="usd_floating_5y_risk_free_quantlib",
             domain="fixed_income.bond",
@@ -336,13 +336,13 @@ def build_floating_risk_free_bond() -> dict[str, Any]:
         "kind": "pricing",
         "model": "discounting",
         "market": market_snapshot([
-            _bond_discount_curve("USD-OIS", discount_rate, day_count="Act365F"),
+            _bond_discount_curve("USD-OIS", discount_rate, day_count="act_365f"),
             {
                 "type": "forward",
                 "id": "USD-SOFR-3M",
                 "base": VALUATION_DATE,
                 "reset_lag": 2,
-                "day_count": "Act360",
+                "day_count": "act_360",
                 "tenor": 0.25,
                 "knot_points": [[0.0, projection_rate], [30.0, projection_rate]],
                 "interp_style": "linear",
@@ -477,14 +477,20 @@ def build_fixed_callable_oas_bond() -> dict[str, Any]:
     spec = fixture["instrument"]["instrument"]["spec"]
     spec["id"] = "USD-FIXED-CALLABLE-8Y-OAS-QUANTLIB"
     spec["maturity"] = "2034-04-30"
-    spec["cashflow_spec"]["Fixed"]["rate"] = str(coupon)
-    spec["pricing_overrides"] = {
-        "quoted_clean_price": clean_price,
-        "tree_steps": 200,
-        "implied_volatility": volatility,
-        "mean_reversion": mean_reversion,
-        "tree_discount_curve_id": "USD-OIS",
-        "oas_quote_compounding": "continuous",
+    spec["cashflow_spec"]["fixed"]["rate"] = str(coupon)
+    spec["instrument_pricing_overrides"] = {
+        "market_quotes": {
+            "quoted_clean_price": clean_price,
+            "implied_volatility": volatility,
+        },
+        "model_config": {
+            "tree_steps": 200,
+            "mean_reversion": mean_reversion,
+            "tree_discount_curve_id": "USD-OIS",
+            "oas_quote_compounding": "continuous",
+        },
+    }
+    spec["metric_pricing_overrides"] = {
         "bond_risk_basis": "callable_oas",
     }
     spec["call_put"] = {

@@ -50,11 +50,3 @@ pub(crate) mod types;
 pub use crate::instruments::Position;
 pub use pricer::BondFuturePricer;
 pub use types::{BondFuture, BondFutureBuilder, BondFutureSpecs, DeliverableBond};
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_module_compiles() {
-        // This test exists only to ensure the module compiles
-    }
-}

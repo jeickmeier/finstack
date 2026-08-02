@@ -72,6 +72,7 @@ use tracing::debug;
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum SimmVersion {
     /// SIMM v2.5 (2022)
@@ -105,16 +106,11 @@ impl std::str::FromStr for SimmVersion {
     type Err = String;
 
     fn from_str(raw: &str) -> std::result::Result<Self, Self::Err> {
-        match raw
-            .trim()
-            .to_ascii_lowercase()
-            .replace([' ', '-', '.'], "_")
-            .as_str()
-        {
-            "v2_5" | "2_5" | "simm_v2_5" | "simm_2_5" | "simm2_5" => Ok(Self::V2_5),
-            "v2_6" | "2_6" | "simm_v2_6" | "simm_2_6" | "simm2_6" => Ok(Self::V2_6),
-            other => Err(format!(
-                "unknown SIMM version '{other}' (expected 'v2_5' or 'v2_6')"
+        match raw {
+            "v2_5" => Ok(Self::V2_5),
+            "v2_6" => Ok(Self::V2_6),
+            _ => Err(format!(
+                "unknown SIMM version '{raw}' (expected 'v2_5' or 'v2_6')"
             )),
         }
     }
@@ -147,21 +143,11 @@ impl SimmParams {
 
 // Lookup helpers for credit qualifying bucket parameters.
 impl SimmParams {
-    fn canonical_cq_sector(sector: SimmCreditSector) -> SimmCreditSector {
-        match sector {
-            SimmCreditSector::Index | SimmCreditSector::Securitized => SimmCreditSector::Residual,
-            other => other,
-        }
-    }
-
     fn cq_bucket_weight(&self, sector: SimmCreditSector) -> f64 {
-        let sector = Self::canonical_cq_sector(sector);
         self.cq_bucket_weights.get(&sector).copied().unwrap_or(0.0)
     }
 
     fn cq_inter_bucket_correlation(&self, a: SimmCreditSector, b: SimmCreditSector) -> f64 {
-        let a = Self::canonical_cq_sector(a);
-        let b = Self::canonical_cq_sector(b);
         if a == b {
             return 1.0;
         }
@@ -173,7 +159,6 @@ impl SimmParams {
     }
 
     fn cq_concentration_factor(&self, sector: SimmCreditSector, net_ws: f64) -> f64 {
-        let sector = Self::canonical_cq_sector(sector);
         if let Some(&threshold) = self.cq_concentration_thresholds.get(&sector) {
             if threshold > 0.0 && net_ws.abs() > threshold {
                 (net_ws.abs() / threshold).sqrt()
@@ -338,20 +323,6 @@ fn validate_simm_params(params: &SimmParams) -> finstack_quant_core::Result<()> 
 /// One-sided 99.5% standard-normal quantile `Φ⁻¹(0.995)`, used in the ISDA
 /// SIMM curvature `λ` scaling. ISDA specifies this exact constant.
 const SIMM_CURVATURE_Z: f64 = 2.575_829_303_548_900_4;
-
-/// Normalize an incoming IR tenor label to the registry's canonical casing.
-///
-/// The SIMM registry (`simm.v*.json`) keys IR tenors in lowercase (`"5y"`,
-/// `"6m"`), and `IrTenorCorrelationMatrix::tenor_to_idx` is derived from those
-/// keys. Sensitivity producers (e.g. `Marginable` in `finstack-quant-valuations`)
-/// emit uppercase SIMM labels (`"5Y"`, `"6M"`). Without normalization the
-/// exact-match `HashMap::get` lookups silently drop every uppercase tenor,
-/// zeroing IR delta/vega margin. Lowercasing at the lookup boundary makes the
-/// match case-insensitive.
-#[inline]
-fn normalize_ir_tenor(tenor: &str) -> String {
-    tenor.to_ascii_lowercase()
-}
 
 /// Pre-computed flat correlation matrix for IR tenor lookups.
 /// Avoids per-lookup String allocations in the O(n^2) delta/vega loops.
@@ -575,9 +546,8 @@ impl SimmCalculator {
                 let mut weighted: Vec<(usize, f64)> = tenor_map
                     .iter()
                     .filter_map(|(tenor, dv01)| {
-                        let key = normalize_ir_tenor(tenor);
-                        let w = self.params.ir_delta_weights.get(&key)?;
-                        let idx = self.ir_corr_matrix.tenor_to_idx.get(&key)?;
+                        let w = self.params.ir_delta_weights.get(tenor)?;
+                        let idx = self.ir_corr_matrix.tenor_to_idx.get(tenor)?;
                         Some((*idx, dv01 * w))
                     })
                     .collect();
@@ -671,9 +641,8 @@ impl SimmCalculator {
         let mut weighted: Vec<(usize, f64)> = dv01_by_tenor
             .iter()
             .filter_map(|(tenor, dv01)| {
-                let key = normalize_ir_tenor(tenor);
-                let weight = self.params.ir_delta_weights.get(&key)?;
-                let idx = self.ir_corr_matrix.tenor_to_idx.get(&key)?;
+                let weight = self.params.ir_delta_weights.get(tenor)?;
+                let idx = self.ir_corr_matrix.tenor_to_idx.get(tenor)?;
                 Some((*idx, dv01 * weight))
             })
             .collect();
@@ -930,10 +899,7 @@ impl SimmCalculator {
         let mut indexed: Vec<(usize, f64)> = vega_by_tenor
             .iter()
             .filter_map(|(tenor, vega)| {
-                let idx = self
-                    .ir_corr_matrix
-                    .tenor_to_idx
-                    .get(normalize_ir_tenor(tenor).as_str())?;
+                let idx = self.ir_corr_matrix.tenor_to_idx.get(tenor)?;
                 Some((*idx, *vega * weight))
             })
             .collect();
@@ -1113,7 +1079,7 @@ impl SimmCalculator {
     /// # fn main() -> finstack_quant_core::Result<()> {
     /// let calc = SimmCalculator::new(SimmVersion::V2_6)?;
     /// let mut sensitivities = SimmSensitivities::new(Currency::USD);
-    /// sensitivities.add_ir_delta(Currency::USD, "5y", 50_000.0);
+    /// sensitivities.add_ir_delta(Currency::USD, "5Y", 50_000.0);
     ///
     /// let (total, breakdown) =
     ///     calc.calculate_from_sensitivities(&sensitivities, Currency::USD);
@@ -1445,9 +1411,12 @@ mod tests {
         assert_eq!(SimmVersion::V2_6.to_string(), "SIMM v2.6");
         assert_eq!(SimmVersion::V2_6.as_str(), "v2_6");
         assert_eq!(
-            "SIMM 2.5".parse::<SimmVersion>().expect("version alias"),
+            "v2_5".parse::<SimmVersion>().expect("canonical version"),
             SimmVersion::V2_5
         );
+        for noncanonical in ["SIMM 2.5", "2_5", "v2.5", " V2_5"] {
+            assert!(noncanonical.parse::<SimmVersion>().is_err());
+        }
     }
 
     #[test]
@@ -1502,7 +1471,7 @@ mod tests {
         // Single-tenor: correlation matrix is 1.0 on diagonal so
         // result = sqrt((dv01 * weight)^2) = |dv01 * weight|
         let dv01_by_tenor: HashMap<String, f64> = [
-            ("5y".to_string(), 100_000.0), // $100K DV01 at 5y
+            ("5Y".to_string(), 100_000.0), // $100K DV01 at 5y
         ]
         .into_iter()
         .collect();
@@ -1514,30 +1483,26 @@ mod tests {
     }
 
     #[test]
-    fn ir_delta_tenor_lookup_is_case_insensitive() {
-        // Regression: the SIMM registry keys IR tenors in lowercase ("5y"),
-        // but sensitivity producers emit uppercase SIMM labels ("5Y"). Before
-        // case-normalization the exact-match lookup silently dropped uppercase
-        // tenors, zeroing IR delta margin for every swap. Uppercase input must
-        // now produce the same non-zero margin as lowercase.
+    fn ir_delta_tenor_lookup_uses_canonical_simm_case() {
         let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
 
-        let lower: HashMap<String, f64> = [("5y".to_string(), 100_000.0)].into_iter().collect();
-        let upper: HashMap<String, f64> = [("5Y".to_string(), 100_000.0)].into_iter().collect();
+        let canonical: HashMap<String, f64> = [("5Y".to_string(), 100_000.0)].into_iter().collect();
+        let noncanonical: HashMap<String, f64> =
+            [("5y".to_string(), 100_000.0)].into_iter().collect();
 
-        let lower_margin = calc.calculate_ir_delta(&lower);
-        let upper_margin = calc.calculate_ir_delta(&upper);
+        let canonical_margin = calc.calculate_ir_delta(&canonical);
+        let noncanonical_margin = calc.calculate_ir_delta(&noncanonical);
 
-        assert!(upper_margin > 0.0, "uppercase tenor must not be dropped");
-        assert!((upper_margin - lower_margin).abs() < 1e-6);
+        assert!(canonical_margin > 0.0, "canonical tenor must be recognized");
+        assert_eq!(noncanonical_margin, 0.0);
 
         // Vega path shares the same tenor index lookup.
-        let lower_vega: HashMap<String, f64> = [("5y".to_string(), 50_000.0)].into_iter().collect();
-        let upper_vega: HashMap<String, f64> = [("5Y".to_string(), 50_000.0)].into_iter().collect();
-        let lower_vm = calc.calculate_ir_vega(&lower_vega);
-        let upper_vm = calc.calculate_ir_vega(&upper_vega);
-        assert!(upper_vm > 0.0, "uppercase vega tenor must not be dropped");
-        assert!((upper_vm - lower_vm).abs() < 1e-6);
+        let canonical_vega: HashMap<String, f64> =
+            [("5Y".to_string(), 50_000.0)].into_iter().collect();
+        let noncanonical_vega: HashMap<String, f64> =
+            [("5y".to_string(), 50_000.0)].into_iter().collect();
+        assert!(calc.calculate_ir_vega(&canonical_vega) > 0.0);
+        assert_eq!(calc.calculate_ir_vega(&noncanonical_vega), 0.0);
     }
 
     #[test]
@@ -1575,7 +1540,7 @@ mod tests {
     fn params_loaded() {
         let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
         assert_eq!(calc.version(), SimmVersion::V2_6);
-        assert!(calc.params.ir_delta_weights.contains_key("5y"));
+        assert!(calc.params.ir_delta_weights.contains_key("5Y"));
         assert!(calc.params.cq_delta_weights.contains_key("corporates"));
     }
 
@@ -1601,7 +1566,7 @@ mod tests {
         let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
 
         let mut sens = SimmSensitivities::new(Currency::USD);
-        sens.add_ir_delta(Currency::USD, "5y", 100_000.0);
+        sens.add_ir_delta(Currency::USD, "5Y", 100_000.0);
         sens.add_equity_delta("AAPL", 100_000.0);
 
         let (total_im, breakdown) = calc.calculate_from_sensitivities(&sens, Currency::USD);
@@ -1626,8 +1591,8 @@ mod tests {
         let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
 
         let dv01_by_tenor: HashMap<String, f64> = [
-            ("5y".to_string(), 100_000.0),
-            ("10y".to_string(), -80_000.0), // Partially hedged
+            ("5Y".to_string(), 100_000.0),
+            ("10Y".to_string(), -80_000.0), // Partially hedged
         ]
         .into_iter()
         .collect();
@@ -1646,7 +1611,7 @@ mod tests {
         let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
 
         let vega_by_tenor: HashMap<String, f64> =
-            [("5y".to_string(), 500_000.0)].into_iter().collect();
+            [("5Y".to_string(), 500_000.0)].into_iter().collect();
 
         let ir_vega_margin = calc.calculate_ir_vega(&vega_by_tenor);
         // Single tenor: sqrt((500K * 0.21)^2) = 500K * 0.21 = 105K
@@ -1657,8 +1622,8 @@ mod tests {
     fn m15_ir_vega_multi_currency_preserves_same_tenor_exposures() {
         let calc = SimmCalculator::new(SimmVersion::V2_6).expect("registry should load");
         let mut sensitivities = SimmSensitivities::new(Currency::USD);
-        sensitivities.add_ir_vega(Currency::USD, "5y", 500_000.0);
-        sensitivities.add_ir_vega(Currency::EUR, "5y", 500_000.0);
+        sensitivities.add_ir_vega(Currency::USD, "5Y", 500_000.0);
+        sensitivities.add_ir_vega(Currency::EUR, "5Y", 500_000.0);
 
         let (_, breakdown) = calc.calculate_from_sensitivities(&sensitivities, Currency::USD);
         let ir_vega_margin = breakdown
@@ -1667,7 +1632,7 @@ mod tests {
             .amount();
 
         let single_currency_margin =
-            calc.calculate_ir_vega(&[("5y".to_string(), 500_000.0)].into_iter().collect());
+            calc.calculate_ir_vega(&[("5Y".to_string(), 500_000.0)].into_iter().collect());
         assert!(
             ir_vega_margin > single_currency_margin,
             "M-15: same-tenor multi-currency IR vega must not collapse to one exposure"
@@ -1789,7 +1754,7 @@ mod tests {
         let as_of = Date::from_calendar_date(2024, time::Month::January, 1).expect("valid date");
 
         let mut sensitivities = SimmSensitivities::new(Currency::USD);
-        sensitivities.add_ir_delta(Currency::USD, "5y", 50_000.0);
+        sensitivities.add_ir_delta(Currency::USD, "5Y", 50_000.0);
         sensitivities.add_equity_delta("AAPL", 100_000.0);
         sensitivities.add_fx_delta(Currency::EUR, 80_000.0);
 

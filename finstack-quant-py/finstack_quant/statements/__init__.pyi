@@ -1213,7 +1213,7 @@ class ModelBuilder:
         """
         Add a fixed-rate bond to the capital structure (US 30/360 semi-annual).
 
-        For non-USD conventions, use :meth:`add_custom_debt` with a pre-built
+        For non-USD conventions, use :meth:`add_debt` with a pre-built
         ``Bond`` JSON specification.
 
         Parameters
@@ -1299,26 +1299,31 @@ class ModelBuilder:
         """
         ...
 
-    def add_custom_debt(self, id: str, spec_json: str) -> None:
+    def add_debt(self, id: str, spec_json: str) -> None:
         """
-        Add an arbitrary debt instrument via its serde JSON representation.
+        Add a debt instrument via its canonical v1 instrument envelope.
 
-        Parameters
-        ----------
-        id:
-            Instrument identifier.
-        spec_json:
-            JSON-serialized instrument specification (e.g. a bond or term loan).
+        Supported instrument types are bonds, convertible bonds, revolving
+        credit facilities, term loans, interest-rate swaps, caps/floors, and
+        swaptions.
 
-        Example
-        -------
-        >>> b = ModelBuilder("x")
-        >>> b.add_custom_debt("loan_a", '{"type":"term_loan",...}')  # doctest: +SKIP
+                Parameters
+                ----------
+                id:
+                    Instrument identifier.
+                spec_json:
+                    ``finstack_quant.instrument/1`` envelope containing the debt instrument.
 
-        Raises
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+                Example
+                -------
+                >>> b = ModelBuilder("x")
+                >>> b.add_debt("loan_a", '{"schema":"finstack_quant.instrument/1","instrument":...}')  # doctest: +SKIP
+
+                Raises
+                ------
+                ValueError
+                    If the envelope is invalid or its instrument type is not supported by
+                    financial statement capital structures.
         """
         ...
 

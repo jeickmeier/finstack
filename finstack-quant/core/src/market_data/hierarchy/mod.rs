@@ -57,7 +57,7 @@ pub(crate) fn parse_path(path: &str) -> crate::Result<Vec<String>> {
 ///
 /// Nodes form a tree: each has a name, optional key-value tags for cross-cutting
 /// queries, ordered children, and leaf `CurveId` references.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HierarchyNode {
     /// Node name. Populated from the parent map key during deserialization.
@@ -145,7 +145,7 @@ impl HierarchyNode {
 /// Each root represents a major asset class or category (e.g., "Rates", "Credit",
 /// "FX", "Equity", "Volatility"). The hierarchy is fully serializable and can be
 /// loaded from JSON configuration files.
-#[derive(Debug, Clone, Serialize, Default)]
+#[derive(Debug, Clone, Serialize, Default, schemars::JsonSchema)]
 pub struct MarketDataHierarchy {
     pub(crate) roots: IndexMap<String, HierarchyNode>,
 }

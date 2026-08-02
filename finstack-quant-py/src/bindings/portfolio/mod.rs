@@ -17,11 +17,9 @@ mod json_bridge;
 mod liquidity;
 mod materialization;
 mod matrix_input;
-mod optimization;
 mod optimization_spec;
 mod performance;
 mod pipeline;
-mod position_risk;
 mod replay;
 mod sensitivity;
 mod spec;
@@ -80,11 +78,9 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     spec::register(py, &m)?;
     pipeline::register(py, &m)?;
     attribution::register(py, &m)?;
-    optimization::register(py, &m)?;
     optimization_spec::register(py, &m)?;
     allocation::register(py, &m)?;
     replay::register(py, &m)?;
-    position_risk::register(py, &m)?;
     factor_model::register(py, &m)?;
     sensitivity::register(py, &m)?;
     liquidity::register(py, &m)?;
@@ -119,7 +115,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "portfolio_result_get_metric",
         "aggregate_metrics",
         "value_portfolio",
-        "value_portfolio_typed",
         "aggregate_full_cashflows",
         "apply_scenario_and_revalue",
         "scenario_pnl",
@@ -184,9 +179,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "CreditVolReport",
         "VolHorizon",
         "DecompositionConfig",
-        "parametric_var_decomposition_typed",
-        "historical_var_decomposition_typed",
-        "evaluate_risk_budget_typed",
         "factor_stress",
         "position_what_if",
         "build_stress_attribution",
@@ -210,7 +202,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
         "TradeSpec",
         "PortfolioOptimizationSpec",
         "PortfolioOptimizationResult",
-        "optimize_portfolio_typed",
     ];
 
     let all = PyList::new(py, exports)?;

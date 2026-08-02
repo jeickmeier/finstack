@@ -1,12 +1,12 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "gk_usdjpy_atm_1y",
     "domain": "fx.fx_option",
     "description": "Synthetic USD/JPY one-year at-the-money European FX call under Garman-Kohlhagen.",
     "valuation_date": "2026-04-30",
     "source": "formula",
-    "source_detail": "Finstack Quant canonical Garman-Kohlhagen FX option calculation on deterministic synthetic market inputs Phase-2 envelope migration (2026-05-09): Tier-A wrap. The original snapshot is preserved verbatim in initial_market with empty plan.steps; no calibration math changes. Pricing tolerance contracts preserved.",
+    "source_detail": "Finstack Quant canonical Garman-Kohlhagen FX option calculation on deterministic synthetic market inputs The canonical typed market inputs are supplied with no calibration steps. Pricing tolerance contracts preserved.",
     "captured_by": "jeickmeier",
     "captured_on": "2026-05-01",
     "last_reviewed_by": "jeickmeier",
@@ -20,10 +20,10 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
-        "id": "gk_usdjpy_atm_1y_tier_a_wrap",
-        "description": "Tier-A wrap (Phase-2 envelope migration, 2026-05-09): the original market snapshot is preserved in initial_market with empty plan.steps. Routes through engine::execute_with_diagnostics without changing pricing math.",
+        "id": "gk_usdjpy_atm_1y_market",
+        "description": "the canonical typed market inputs are supplied with no calibration steps. Routes through engine::execute_with_diagnostics without changing pricing math.",
         "quote_sets": {},
         "steps": [],
         "settings": {
@@ -55,7 +55,7 @@
           "kind": "discount_curve",
           "id": "EUR-OIS",
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "knot_points": [
             [
               0.0,
@@ -87,13 +87,15 @@
           "min_forward_rate": null,
           "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null
+          "rate_calibration": null,
+          "calibration_ois_cutoff_days": null,
+          "fx_policy": null
         },
         {
           "kind": "discount_curve",
           "id": "JPY-OIS",
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "knot_points": [
             [
               0.0,
@@ -125,13 +127,15 @@
           "min_forward_rate": null,
           "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null
+          "rate_calibration": null,
+          "calibration_ois_cutoff_days": null,
+          "fx_policy": null
         },
         {
           "kind": "discount_curve",
           "id": "USD-OIS",
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "knot_points": [
             [
               0.0,
@@ -163,7 +167,9 @@
           "min_forward_rate": null,
           "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null
+          "rate_calibration": null,
+          "calibration_ois_cutoff_days": null,
+          "fx_policy": null
         },
         {
           "kind": "vol_surface",
@@ -182,6 +188,7 @@
             1.2
           ],
           "secondary_axis": "strike",
+          "quote_type": "black_lognormal",
           "interpolation_mode": "vol",
           "vols_row_major": [
             0.105,
@@ -223,6 +230,7 @@
             155.0
           ],
           "secondary_axis": "strike",
+          "quote_type": "black_lognormal",
           "interpolation_mode": "vol",
           "vols_row_major": [
             0.115,
@@ -251,26 +259,29 @@
     }
   },
   "instrument": {
-    "type": "fx_option",
-    "spec": {
-      "id": "USDJPY-GK-ATM-1Y-GOLDEN",
-      "base_currency": "USD",
-      "quote_currency": "JPY",
-      "strike": 145.0,
-      "option_type": "call",
-      "expiry": "2027-04-30",
-      "notional": {
-        "amount": "1000000",
-        "currency": "USD"
-      },
-      "domestic_discount_curve_id": "JPY-OIS",
-      "foreign_discount_curve_id": "USD-OIS",
-      "vol_surface_id": "USDJPY-VOL",
-      "attributes": {
-        "tags": [
-          "golden"
-        ],
-        "meta": {}
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "type": "fx_option",
+      "spec": {
+        "id": "USDJPY-GK-ATM-1Y-GOLDEN",
+        "base_currency": "USD",
+        "quote_currency": "JPY",
+        "strike": 145.0,
+        "option_type": "call",
+        "expiry": "2027-04-30",
+        "notional": {
+          "amount": "1000000",
+          "currency": "USD"
+        },
+        "domestic_discount_curve_id": "JPY-OIS",
+        "foreign_discount_curve_id": "USD-OIS",
+        "vol_surface_id": "USDJPY-VOL",
+        "attributes": {
+          "tags": [
+            "golden"
+          ],
+          "meta": {}
+        }
       }
     }
   },

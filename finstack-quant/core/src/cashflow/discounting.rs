@@ -194,7 +194,7 @@ pub trait Discountable: Send + Sync {
 ///
 /// # Day Count Selection
 ///
-/// Discounting always uses the curve's internal day count. The `dc` parameter
+/// Discounting always uses the curve's internal day count. The `day_count` parameter
 /// is retained for source compatibility but cannot override the curve
 /// abscissa. Instrument accrual day count belongs in cashflow generation.
 ///
@@ -594,7 +594,7 @@ pub fn npv_amounts_with_ctx(
             .min()
             .unwrap_or(cash_flows[0].0)
     });
-    let dc = day_count.unwrap_or(DayCount::Act365F);
+    let day_count = day_count.unwrap_or(DayCount::Act365F);
 
     // Convert annually compounded rate to continuously compounded rate:
     // FlatCurve expects continuously compounded rates: r_cont = ln(1 + r_annual)
@@ -606,7 +606,7 @@ pub fn npv_amounts_with_ctx(
     // Use Neumaier compensated summation for numerical stability with many cashflows
     let mut acc = NeumaierAccumulator::new();
     for (date, amount) in cash_flows {
-        let t = dc.signed_year_fraction(base, *date, ctx)?;
+        let t = day_count.signed_year_fraction(base, *date, ctx)?;
         acc.add(amount * (-continuous_rate * t).exp());
     }
 
@@ -942,11 +942,11 @@ mod tests {
             ),
         ];
         let rate: f64 = 0.05;
-        let dc = DayCount::Act365F;
+        let day_count = DayCount::Act365F;
 
         // Create FlatCurve with continuous rate
         let continuous_rate = (1.0 + rate).ln();
-        let curve = FlatCurve::new(continuous_rate, base, dc, "NPV-TEST");
+        let curve = FlatCurve::new(continuous_rate, base, day_count, "NPV-TEST");
 
         //  the default npv now
         // excludes flows on or before the valuation date, so the time-0
@@ -984,7 +984,7 @@ mod tests {
         ];
 
         let rate: f64 = 0.05;
-        let dc = DayCount::Act365F;
+        let day_count = DayCount::Act365F;
 
         // Scalar NPV via npv_amounts (investment convention: includes the
         // base-date flow). Compare against npv_with_options with
@@ -995,7 +995,7 @@ mod tests {
 
         // Money NPV via npv_with_options with FlatCurve
         let continuous_rate = (1.0 + rate).ln();
-        let curve = FlatCurve::new(continuous_rate, base, dc, "TEST");
+        let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
         let pv_money = npv_with_options(
             &curve,
             base,
@@ -1024,10 +1024,10 @@ mod tests {
                 Money::new(100.0, Currency::USD),
             ),
         ];
-        let dc = DayCount::Act365F;
+        let day_count = DayCount::Act365F;
 
         // Create FlatCurve with 0% rate (continuous rate = ln(1) = 0)
-        let curve = FlatCurve::new(0.0, base, dc, "ZERO-RATE");
+        let curve = FlatCurve::new(0.0, base, day_count, "ZERO-RATE");
 
         // Default pricing semantics exclude the base-date flow
         // , so only the +100 remains.
@@ -1060,10 +1060,10 @@ mod tests {
             (future, Money::new(55.0, Currency::USD)), // future relative to base
         ];
         let rate: f64 = 0.05;
-        let dc = DayCount::Act365F;
+        let day_count = DayCount::Act365F;
 
         let continuous_rate = (1.0 + rate).ln();
-        let curve = FlatCurve::new(continuous_rate, base, dc, "TEST");
+        let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
 
         // Default: only the strictly-future +55 flow is priced.
         let pv = npv(&curve, base, &flows).expect("NPV calculation should succeed in test");
@@ -1097,8 +1097,8 @@ mod tests {
             ),
             (base, Money::new(50.0, Currency::USD)),
         ];
-        let dc = DayCount::Act365F;
-        let curve = FlatCurve::new((1.05_f64).ln(), base, dc, "TEST");
+        let day_count = DayCount::Act365F;
+        let curve = FlatCurve::new((1.05_f64).ln(), base, day_count, "TEST");
 
         let pv = npv(&curve, base, &flows).expect("NPV should succeed");
         assert_eq!(pv.amount(), 0.0);
@@ -1109,10 +1109,10 @@ mod tests {
     fn test_npv_errors_on_empty_flows_with_flat_curve() {
         let base = create_date(2025, Month::January, 1).expect("Valid date");
         let flows: Vec<(Date, Money)> = vec![];
-        let dc = DayCount::Act365F;
+        let day_count = DayCount::Act365F;
 
         let continuous_rate = (1.05_f64).ln();
-        let curve = FlatCurve::new(continuous_rate, base, dc, "TEST");
+        let curve = FlatCurve::new(continuous_rate, base, day_count, "TEST");
 
         let err = npv(&curve, base, &flows).expect_err("Should fail with empty flows");
         let _ = format!("{}", err);

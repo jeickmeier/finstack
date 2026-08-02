@@ -13,6 +13,7 @@ use super::filter::{AttributeFilter, DependencyFilter};
 use crate::primitives::dependency::MarketDependency;
 use crate::primitives::factor_types::FactorId;
 use finstack_quant_core::types::Attributes;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -110,7 +111,7 @@ fn deepest_match(
 // ---------------------------------------------------------------------------
 
 /// A single matching rule from dependency and attribute filters to a factor.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct MappingRule {
     /// Dependency-side filter.
@@ -157,7 +158,7 @@ impl FactorMatcher for MappingTableMatcher {
 // ---------------------------------------------------------------------------
 
 /// A node in a hierarchical factor classification tree.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FactorNode {
     /// Factor assigned at this node when it is a valid classification level.

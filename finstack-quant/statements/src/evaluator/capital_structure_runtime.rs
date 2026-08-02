@@ -15,7 +15,6 @@ type Instruments =
 
 impl Evaluator {
     /// Build instruments from model specifications.
-    #[cfg(feature = "valuation-integration")]
     pub(crate) fn build_instruments(
         &self,
         model: &FinancialModelSpec,
@@ -38,30 +37,11 @@ impl Evaluator {
                     debt_spec.id
                 )));
             }
-            let instrument = integration::build_any_instrument_from_spec(debt_spec)?;
+            let instrument = integration::build_instrument_from_spec(debt_spec)?;
             instruments.insert(debt_spec.id.clone(), instrument);
         }
 
         Ok(Some(instruments))
-    }
-
-    /// Build instruments from model specifications.
-    #[cfg(not(feature = "valuation-integration"))]
-    pub(crate) fn build_instruments(
-        &self,
-        model: &FinancialModelSpec,
-    ) -> Result<Option<Instruments>> {
-        let Some(cs_spec) = &model.capital_structure else {
-            return Ok(None);
-        };
-
-        if cs_spec.debt_instruments.is_empty() {
-            return Ok(Some(IndexMap::new()));
-        }
-
-        Err(crate::error::Error::capital_structure(
-            "capital-structure debt instruments require the `valuation-integration` feature",
-        ))
     }
 
     /// Evaluate a period with dynamic capital structure support.

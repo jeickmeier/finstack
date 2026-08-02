@@ -71,7 +71,7 @@ pub struct AllocationResult {
 /// # Simplifying Assumptions
 ///
 /// - Pool factor: 1.0 (newly issued)
-/// - WAC: TBA coupon + standard fee strip (50 bps)
+/// - WAC: TBA coupon + standard fee strip (50 bp)
 /// - WAM: Full term (180/240/360 months)
 /// - Prepayment: 100% PSA
 ///
@@ -183,7 +183,7 @@ impl PoolCharacteristics {
         // WAC should be within reasonable range of TBA coupon
         let wac_spread = self.wac - tba_coupon;
         if !(0.0025..=0.01).contains(&wac_spread) {
-            return false; // Typical servicing spread: 25-100 bps
+            return false; // Typical servicing spread: 25-100 bp
         }
 
         // Factor shouldn't be too low (seasoned pools may not deliver)
@@ -362,10 +362,10 @@ mod tests {
             geographic_concentration: None,
         };
 
-        // With 4.0% TBA coupon, 50 bps spread should pass
+        // With 4.0% TBA coupon, 50 bp spread should pass
         assert!(chars.meets_good_delivery(0.04));
 
-        // With 4.2% TBA coupon, 30 bps spread is within range (25-100 bps)
+        // With 4.2% TBA coupon, 30 bp spread is within range (25-100 bp)
         assert!(chars.meets_good_delivery(0.042));
     }
 

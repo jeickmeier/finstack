@@ -63,7 +63,7 @@ def _returns_panel(prices: pd.DataFrame) -> pd.DataFrame:
 
 @pytest.fixture
 def perf_prices() -> Performance:
-    return Performance(_prices_panel(), benchmark_ticker="BENCH", freq="daily")
+    return Performance(_prices_panel(), benchmark_ticker="BENCH", frequency="daily")
 
 
 @pytest.fixture
@@ -71,7 +71,7 @@ def perf_returns() -> Performance:
     return Performance.from_returns(
         _returns_panel(_prices_panel()),
         benchmark_ticker="BENCH",
-        freq="daily",
+        frequency="daily",
     )
 
 
@@ -84,7 +84,7 @@ class TestConstruction:
     def test_from_prices_dataframe(self, perf_prices: Performance) -> None:
         assert perf_prices.ticker_names == ["ACME", "BENCH"]
         assert perf_prices.benchmark_idx == 1
-        assert perf_prices.freq == "daily"
+        assert perf_prices.frequency == "daily"
         active = perf_prices.dates()
         # Returns from N prices yield N-1 active observation dates (first
         # price date is dropped because returns are pct_change).
@@ -227,7 +227,7 @@ class TestPeriodicReturns:
             perf_prices.lookback_returns(date(2024, 2, 29), fiscal_year_start_month=13)
 
     def test_period_stats_monthly(self, perf_prices: Performance) -> None:
-        stats = perf_prices.period_stats(0, agg_freq="monthly")
+        stats = perf_prices.period_stats(0, aggregation_frequency="monthly")
         assert isinstance(stats, PeriodStats)
         assert 0.0 <= stats.win_rate <= 1.0
 
@@ -263,7 +263,7 @@ class TestBenchmark:
             [target, benchmark],
             ["TARGET", "BENCH"],
             benchmark_ticker="BENCH",
-            freq="monthly",
+            frequency="monthly",
         )
 
         zero_rf = perf.greeks()[0]
@@ -287,7 +287,7 @@ class TestBenchmark:
             [target, benchmark],
             ["TARGET", "BENCH"],
             benchmark_ticker="BENCH",
-            freq="monthly",
+            frequency="monthly",
         )
 
         zero_rf = perf.rolling_greeks(0, window=5)
@@ -387,7 +387,7 @@ class TestStubs:
 class TestCompsBindings:
     def test_compute_multiple(self) -> None:
         metrics = {"enterprise_value": 8_500.0, "ebitda": 1_000.0}
-        assert compute_multiple(metrics, "EvEbitda") == pytest.approx(8.5)
+        assert compute_multiple(metrics, "ev_ebitda") == pytest.approx(8.5)
 
     def test_regression_fair_value(self) -> None:
         result = regression_fair_value([1.0, 2.0, 3.0, 4.0], [3.0, 5.0, 7.0, 9.0], 3.0, 10.0)
@@ -404,16 +404,16 @@ class TestCompsBindings:
         assert z_score(5.0, [5.0, 5.0, 5.0]) is None
 
     def test_score_relative_value(self) -> None:
-        subject = {"leverage": 2.0, "oas_bps": 250.0}
+        subject = {"leverage": 2.0, "oas_bp": 250.0}
         peers = [
-            {"leverage": 1.0, "oas_bps": 100.0},
-            {"leverage": 2.0, "oas_bps": 200.0},
-            {"leverage": 3.0, "oas_bps": 300.0},
+            {"leverage": 1.0, "oas_bp": 100.0},
+            {"leverage": 2.0, "oas_bp": 200.0},
+            {"leverage": 3.0, "oas_bp": 300.0},
         ]
         result = score_relative_value(
             subject,
             peers,
-            [{"label": "Spread vs Leverage", "y": "oas_bps", "x": ["leverage"], "weight": 1.0}],
+            [{"label": "Spread vs Leverage", "y": "oas_bp", "x": ["leverage"], "weight": 1.0}],
         )
         assert result["company_id"] == "SUBJECT"
         assert "by_dimension" not in result
@@ -462,13 +462,13 @@ class TestCompsBindings:
         assert result["dimensions"][0]["label"] == "multiple:ev_ebitda"
 
     def test_non_numeric_metric_raises_value_error(self) -> None:
-        with pytest.raises(ValueError, match="oas_bps"):
+        with pytest.raises(ValueError, match="oas_bp"):
             score_relative_value(
-                {"oas_bps": "wide"},
-                [{"oas_bps": 100.0}],
-                [("oas_bps", 1.0)],
+                {"oas_bp": "wide"},
+                [{"oas_bp": 100.0}],
+                [("oas_bp", 1.0)],
             )
 
     def test_none_metric_treated_as_missing(self) -> None:
         metrics = {"enterprise_value": 8_500.0, "ebitda": 1_000.0, "revenue": None}
-        assert compute_multiple(metrics, "EvEbitda") == pytest.approx(8.5)
+        assert compute_multiple(metrics, "ev_ebitda") == pytest.approx(8.5)

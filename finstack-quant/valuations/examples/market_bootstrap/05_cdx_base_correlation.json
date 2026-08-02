@@ -1,9 +1,9 @@
 {
-  "$schema": "../../schemas/calibration/3/calibration.schema.json",
-  "schema": "finstack_quant.calibration",
+  "$schema": "../../schemas/calibration/1/calibration.schema.json",
+  "schema": "finstack_quant.calibration/1",
   "plan": {
     "id": "cdx_ig_46_base_correlation",
-    "description": "CDX.NA.IG.46 base correlation curve calibrated from 5 standard CDX tranche quotes (0/3%, 3/7%, 7/10%, 10/15%, 15/30% detachment points), chained on a USD-OIS discount curve and CDX-NA-IG-46 index hazard curve that are bootstrapped in the same plan. Step 1 produces the USD-OIS discount curve from deposit and IRS quotes; step 2 calibrates the CDX-NA-IG-46 index hazard curve from realistic par-spread CDS quotes (50/75/100/110/120 bp); step 3 solves for the base correlation smile. No hand-entered USD-OIS discount curve remains in initial_market \u2014 it is produced entirely from quotes. A placeholder CDX-NA-IG-46 hazard curve in initial_market is required because the credit_indices entry must reference an existing hazard curve at context-load time; step 2 overwrites it with the bootstrapped curve. A seed base_correlation curve (CDX-NA-IG-46_CORR) and credit_indices entry also remain in initial_market as required by the base correlation solver. Tranche upfront quotes are self-consistent with the chained USD-OIS + realistic CDX-IG-46 hazard market (re-derived by pricing each tranche against the bootstrapped market at seed correlations [0.20, 0.21, 0.22, 0.23, 0.24]). The base_correlation step uses use_imm_dates: true to align tranche payment dates to IMM convention. Used by 12 (full credit desk composite).",
+    "description": "CDX.NA.IG.46 base correlation curve calibrated from 5 standard CDX tranche quotes (0/3%, 3/7%, 7/10%, 10/15%, 15/30% detachment points), chained on a USD-OIS discount curve and CDX-NA-IG-46 index hazard curve that are bootstrapped in the same plan. Step 1 produces the USD-OIS discount curve from deposit and IRS quotes; step 2 calibrates the CDX-NA-IG-46 index hazard curve from realistic par-spread CDS quotes (50/75/100/110/120 bp); step 3 solves for the base correlation smile. No hand-entered USD-OIS discount curve remains in prior_market \u2014 it is produced entirely from quotes. A placeholder CDX-NA-IG-46 hazard curve in prior_market is required because the credit_indices entry must reference an existing hazard curve at context-load time; step 2 overwrites it with the bootstrapped curve. A seed base_correlation curve (CDX-NA-IG-46_CORR) and credit_indices entry also remain in prior_market as required by the base correlation solver. Tranche upfront quotes are self-consistent with the chained USD-OIS + realistic CDX-IG-46 hazard market (re-derived by pricing each tranche against the bootstrapped market at seed correlations [0.20, 0.21, 0.22, 0.23, 0.24]). The base_correlation step uses use_imm_dates: true to align tranche payment dates to IMM convention. Used by 12 (full credit desk composite).",
     "quote_sets": {
       "usd_rate_quotes": [
         "USD-SOFR-DEP-1M",
@@ -36,7 +36,7 @@
         "curve_id": "USD-OIS",
         "currency": "USD",
         "base_date": "2026-05-08",
-        "method": "Bootstrap",
+        "method": "bootstrap",
         "interpolation": "linear",
         "extrapolation": "flat_forward",
         "pricing_discount_id": null,
@@ -57,9 +57,9 @@
         "discount_curve_id": "USD-OIS",
         "recovery_rate": 0.4,
         "notional": 1.0,
-        "method": "Bootstrap",
+        "method": "bootstrap",
         "interpolation": "linear",
-        "par_interp": "Linear"
+        "par_interp": "linear"
       },
       {
         "id": "CDX-NA-IG-46-BASE-CORR-STEP",
@@ -362,9 +362,9 @@
       "issuer": null,
       "seniority": null,
       "currency": null,
-      "day_count": "Act365F",
+      "day_count": "act_365f",
       "par_points": [],
-      "par_interp": "Linear"
+      "par_interp": "linear"
     },
     {
       "kind": "base_correlation_curve",

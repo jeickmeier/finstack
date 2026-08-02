@@ -137,8 +137,7 @@
           "description": "An absolute date.\n\nThe maturity is fixed to a specific date, regardless of the valuation date. This is\ntypically used for futures contracts or bespoke instruments with fixed maturities.",
           "properties": {
             "date": {
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
             }
           },
           "required": [
@@ -156,6 +155,21 @@
       "description": "Identifier for Swaption market conventions (e.g., \"USD\", \"EUR\").\n\nUsed to look up [`SwaptionConventions`](crate::market::conventions::defs::SwaptionConventions)\nfrom the convention registry.",
       "type": "string"
     },
+    "VolQuoteType": {
+      "description": "Quoting convention of the volatilities stored on a [`VolSurface`].\n\nThe same `vol_surface_id` channel is read by consumers with very different\nexpectations: rates calibrations typically read normal (Bachelier, absolute)\nvols on an `expiry × tenor` ATM matrix, while equity/FX/swaption smile\nconsumers read Black (lognormal, relative) vols on `expiry × strike`. The\nstored numbers are an order of magnitude apart (e.g. 0.008 normal vs 0.20\nBlack), so misreading one as the other silently mis-prices. Tagging the\nquote type lets consumers enforce their convention via\n[`VolSurface::require_quote_type`].",
+      "oneOf": [
+        {
+          "const": "black_lognormal",
+          "description": "Black (lognormal) implied volatility, relative units (the default).",
+          "type": "string"
+        },
+        {
+          "const": "normal",
+          "description": "Normal (Bachelier) implied volatility, absolute rate units.",
+          "type": "string"
+        }
+      ]
+    },
     "XccyConventionId": {
       "description": "Identifier for cross-currency swap market conventions (e.g., \"EUR/USD-XCCY\").",
       "type": "string"
@@ -163,7 +177,7 @@
   },
   "$id": "https://finstack_quant.dev/schemas/market/1/market_quote.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Tagged union of all supported market quote types (rates, CDS, FX, vol, inflation, etc.)",
+  "description": "Canonical tagged market quote.",
   "oneOf": [
     {
       "description": "Bond instruments",
@@ -194,14 +208,12 @@
               "description": "Unique identifier for the quote."
             },
             "issue_date": {
-              "description": "Bond issue date.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Bond issue date."
             },
             "maturity": {
-              "description": "Bond maturity date.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Bond maturity date."
             },
             "type": {
               "const": "fixed_rate_bullet_clean_price",
@@ -241,14 +253,12 @@
               "description": "Unique identifier for the quote."
             },
             "issue_date": {
-              "description": "Bond issue date.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Bond issue date."
             },
             "maturity": {
-              "description": "Bond maturity date.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Bond maturity date."
             },
             "type": {
               "const": "fixed_rate_bullet_z_spread",
@@ -293,14 +303,12 @@
               "description": "Unique identifier for the quote."
             },
             "issue_date": {
-              "description": "Bond issue date.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Bond issue date."
             },
             "maturity": {
-              "description": "Bond maturity date.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Bond maturity date."
             },
             "oas": {
               "description": "Option-adjusted spread in decimal form (e.g. 0.005 = 50bp).",
@@ -345,14 +353,12 @@
               "description": "Unique identifier for the quote."
             },
             "issue_date": {
-              "description": "Bond issue date.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Bond issue date."
             },
             "maturity": {
-              "description": "Bond maturity date.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Bond maturity date."
             },
             "type": {
               "const": "fixed_rate_bullet_ytm",
@@ -481,9 +487,8 @@
               ]
             },
             "expiry": {
-              "description": "Expiry date of the future.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Expiry date of the future."
             },
             "id": {
               "$ref": "#/$defs/QuoteId",
@@ -715,12 +720,11 @@
               "type": "string"
             },
             "maturity": {
-              "description": "Maturity date.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Maturity date."
             },
             "running_spread_bp": {
-              "description": "Running spread (bps).",
+              "description": "Running spread (bp).",
               "format": "double",
               "type": "number"
             },
@@ -844,9 +848,8 @@
               "description": "FX option convention identifier (e.g., `EUR/USD-VANILLA`)."
             },
             "expiry": {
-              "description": "Option expiry date.",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Option expiry date."
             },
             "id": {
               "$ref": "#/$defs/QuoteId",
@@ -915,9 +918,8 @@
                   "type": "string"
                 },
                 "maturity": {
-                  "description": "Swap maturity",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Swap maturity"
                 },
                 "rate": {
                   "description": "Fixed rate (decimal)",
@@ -943,7 +945,7 @@
         {
           "description": "Year-on-year (YoY) inflation swap quote.",
           "properties": {
-            "yo_y_inflation_swap": {
+            "yoy_inflation_swap": {
               "additionalProperties": false,
               "properties": {
                 "convention": {
@@ -963,9 +965,8 @@
                   "type": "string"
                 },
                 "maturity": {
-                  "description": "Swap maturity",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Swap maturity"
                 },
                 "rate": {
                   "description": "Fixed rate (decimal)",
@@ -985,7 +986,7 @@
             }
           },
           "required": [
-            "yo_y_inflation_swap"
+            "yoy_inflation_swap"
           ],
           "type": "object"
         }
@@ -1015,9 +1016,8 @@
                   "description": "Per-instrument conventions"
                 },
                 "expiry": {
-                  "description": "Option expiry",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Option expiry"
                 },
                 "id": {
                   "$ref": "#/$defs/QuoteId",
@@ -1070,22 +1070,20 @@
                   "description": "Option exercise conventions"
                 },
                 "expiry": {
-                  "description": "Option expiry",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Option expiry"
                 },
                 "id": {
                   "$ref": "#/$defs/QuoteId",
                   "description": "Unique identifier for the quote."
                 },
                 "maturity": {
-                  "description": "Underlying swap maturity date",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Underlying swap maturity date"
                 },
                 "quote_type": {
-                  "description": "Quote type label; see [`parse_vol_quote_type`].",
-                  "type": "string"
+                  "$ref": "#/$defs/VolQuoteType",
+                  "description": "Volatility quoting convention."
                 },
                 "strike": {
                   "description": "Strike rate",
@@ -1126,9 +1124,8 @@
                   "description": "Cap/floor market conventions."
                 },
                 "expiry": {
-                  "description": "Cap/floor maturity or caplet expiry.",
-                  "format": "date",
-                  "type": "string"
+                  "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+                  "description": "Cap/floor maturity or caplet expiry."
                 },
                 "id": {
                   "$ref": "#/$defs/QuoteId",
@@ -1139,8 +1136,8 @@
                   "type": "boolean"
                 },
                 "quote_type": {
-                  "description": "Quote type label, e.g. `\"normal\"`; see [`parse_vol_quote_type`].",
-                  "type": "string"
+                  "$ref": "#/$defs/VolQuoteType",
+                  "description": "Volatility quoting convention."
                 },
                 "strike": {
                   "description": "Strike rate.",

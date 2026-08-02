@@ -90,7 +90,7 @@ impl MetricCalculator for CprCalculator {
             let assumptions =
                 registry.default_assumptions(registry.profile_id_for_deal_type(sc.deal_type))?;
             return Ok(match sc.deal_type {
-                DealType::RMBS => psa_to_cpr(
+                DealType::Rmbs => psa_to_cpr(
                     assumptions.psa_speed.unwrap_or(1.0),
                     deal_seasoning_month(sc, context.as_of),
                 ),
@@ -143,7 +143,7 @@ impl MetricCalculator for CdrCalculator {
             let assumptions =
                 registry.default_assumptions(registry.profile_id_for_deal_type(sc.deal_type))?;
             return Ok(match sc.deal_type {
-                DealType::RMBS => sda_to_cdr(
+                DealType::Rmbs => sda_to_cdr(
                     assumptions.sda_speed.unwrap_or(1.0),
                     deal_seasoning_month(sc, context.as_of),
                 )?,

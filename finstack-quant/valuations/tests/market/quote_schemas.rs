@@ -237,7 +237,7 @@ fn inflation_quote_maturity_and_bump() {
 }
 
 #[test]
-fn vol_quote_bump_and_swaption_maturity_alias() {
+fn vol_quote_bump_and_swaption_maturity_contract() {
     let opt = VolQuote::OptionVol {
         id: QuoteId::new("SPX-VOL-20241220-4500"),
         underlying: UnderlyingId::new("SPX"),
@@ -267,7 +267,7 @@ fn vol_quote_bump_and_swaption_maturity_alias() {
         "tenor": "2030-06-20",
         "strike": 0.045,
         "vol": 0.15,
-        "quote_type": "Normal",
+        "quote_type": "normal",
         "convention": "USD"
       }
     }"#;
@@ -283,7 +283,7 @@ fn vol_quote_bump_and_swaption_maturity_alias() {
         "maturity": "2030-06-20",
         "strike": 0.045,
         "vol": 0.15,
-        "quote_type": "Normal",
+        "quote_type": "normal",
         "convention": "USD"
       }
     }"#;
@@ -717,7 +717,7 @@ fn bond_fx_and_xccy_quote_helpers_preserve_ids_and_bumps() {
 }
 
 #[test]
-fn convention_ids_and_doc_clause_aliases_roundtrip() {
+fn convention_ids_and_doc_clause_names_roundtrip() {
     let bond = BondConventionId::from("USD-CORP");
     let fx = FxConventionId::new("EUR/USD");
     let xccy = XccyConventionId::new("EUR/USD-XCCY");
@@ -727,11 +727,12 @@ fn convention_ids_and_doc_clause_aliases_roundtrip() {
     assert_eq!(fx.as_str(), "EUR/USD");
     assert_eq!(xccy.to_string(), "EUR/USD-XCCY");
 
-    let clause = CdsDocClause::from_str("isda_na").expect("alias should parse");
+    let clause = CdsDocClause::from_str("isda_na").expect("canonical name should parse");
     assert_eq!(clause, CdsDocClause::IsdaNa);
-    let short_alias = CdsDocClause::from_str("xr").expect("short alias should parse");
-    assert_eq!(short_alias, CdsDocClause::Xr14);
-    let err = CdsDocClause::from_str("bad_clause").expect_err("unknown alias should fail");
+    let xr = CdsDocClause::from_str("xr14").expect("canonical name should parse");
+    assert_eq!(xr, CdsDocClause::Xr14);
+    assert!(CdsDocClause::from_str("xr").is_err());
+    let err = CdsDocClause::from_str("bad_clause").expect_err("unknown name should fail");
     assert!(err.contains("Unknown CDS doc clause"));
 
     let key = CdsConventionKey {

@@ -10,29 +10,32 @@
     "vega": 2166.7289586767106
   },
   "instrument": {
-    "spec": {
-      "attributes": {
-        "meta": {},
-        "tags": [
-          "golden",
-          "quantlib"
-        ]
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "spec": {
+        "attributes": {
+          "meta": {},
+          "tags": [
+            "golden",
+            "quantlib"
+          ]
+        },
+        "base_currency": "EUR",
+        "domestic_discount_curve_id": "USD-OIS",
+        "expiry": "2026-07-30",
+        "foreign_discount_curve_id": "EUR-OIS",
+        "id": "EURUSD-ATM-CALL-3M-QUANTLIB",
+        "notional": {
+          "amount": "1000000",
+          "currency": "EUR"
+        },
+        "option_type": "call",
+        "quote_currency": "USD",
+        "strike": 1.1,
+        "vol_surface_id": "EURUSD-VOL-QL"
       },
-      "base_currency": "EUR",
-      "domestic_discount_curve_id": "USD-OIS",
-      "expiry": "2026-07-30",
-      "foreign_discount_curve_id": "EUR-OIS",
-      "id": "EURUSD-ATM-CALL-3M-QUANTLIB",
-      "notional": {
-        "amount": "1000000",
-        "currency": "EUR"
-      },
-      "option_type": "call",
-      "quote_currency": "USD",
-      "strike": 1.1,
-      "vol_surface_id": "EURUSD-VOL-QL"
-    },
-    "type": "fx_option"
+      "type": "fx_option"
+    }
   },
   "kind": "pricing",
   "market": {
@@ -43,7 +46,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "extrapolation": "flat_forward",
           "id": "USD-OIS",
           "interp_style": "log_linear",
@@ -65,7 +68,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "extrapolation": "flat_forward",
           "id": "EUR-OIS",
           "interp_style": "log_linear",
@@ -102,8 +105,10 @@
         ]
       },
       "fx_delta_vol_surfaces": [],
+      "hierarchy": null,
       "inflation_indices": [],
       "prices": {},
+      "schema_version": 1,
       "series": [],
       "surfaces": [
         {
@@ -134,7 +139,6 @@
           ]
         }
       ],
-      "version": 2,
       "vol_cubes": []
     },
     "kind": "snapshot"
@@ -151,11 +155,11 @@
     "review_interval_months": 6,
     "screenshots": [],
     "source": "quantlib",
-    "source_detail": "QuantLib 1.42.1; deterministic flat-curve native instrument benchmark.",
+    "source_detail": "QuantLib 1.43; deterministic flat-curve native instrument benchmark.",
     "valuation_date": "2026-04-30"
   },
   "model": "black76",
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "tolerances": {
     "delta": {
       "abs": 1e-07,

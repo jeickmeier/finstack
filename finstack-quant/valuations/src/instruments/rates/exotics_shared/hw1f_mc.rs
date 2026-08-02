@@ -179,7 +179,6 @@ impl RateExoticHw1fMcPricer {
             percentile_75: None,
             min: None,
             max: None,
-            num_skipped: 0,
         })
     }
 }

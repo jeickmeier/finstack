@@ -58,7 +58,7 @@ fn covenant_report_failed_with_negative_headroom() {
 
 #[test]
 fn headroom_calculation_max_covenant() {
-    // For MaxDebtToEBITDA: headroom = (threshold - actual) / threshold
+    // For MaxDebtToEbitda: headroom = (threshold - actual) / threshold
     // If threshold = 5.0 and actual = 4.0, headroom = (5-4)/5 = 0.20 (20% cushion)
     let threshold: f64 = 5.0;
     let actual: f64 = 4.0;
@@ -105,7 +105,7 @@ fn covenant_engine_add_specs() {
     // Add leverage covenant
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 5.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 5.0 },
             Tenor::quarterly(),
         ),
         CovenantMetricId::from("debt_to_ebitda"),
@@ -132,7 +132,7 @@ fn same_type_covenants_with_distinct_labels_do_not_collide() {
     let mut engine = CovenantEngine::new();
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
         )
         .with_label("senior_leverage"),
@@ -140,7 +140,7 @@ fn same_type_covenants_with_distinct_labels_do_not_collide() {
     ));
     engine.add_spec(CovenantSpec::with_metric(
         Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
         )
         .with_label("total_leverage"),
@@ -170,7 +170,7 @@ fn same_type_covenants_with_distinct_labels_do_not_collide() {
 #[test]
 fn covenant_description_formatting() {
     let leverage = Covenant::new(
-        CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+        CovenantType::MaxDebtToEbitda { threshold: 4.5 },
         Tenor::quarterly(),
     );
     assert_eq!(leverage.description(), "Debt/EBITDA <= 4.50x");
@@ -197,7 +197,7 @@ fn covenant_description_formatting() {
 
 #[test]
 fn max_covenant_type_pass_fail_logic() {
-    // MaxDebtToEBITDA: passes when actual <= threshold
+    // MaxDebtToEbitda: passes when actual <= threshold
     let threshold = 5.0;
 
     // Pass case: actual (4.5) <= threshold (5.0)
@@ -258,7 +258,7 @@ fn covenant_with_multiple_consequences() {
     use finstack_quant_covenants::CovenantConsequence;
 
     let covenant = Covenant::new(
-        CovenantType::MaxDebtToEBITDA { threshold: 5.0 },
+        CovenantType::MaxDebtToEbitda { threshold: 5.0 },
         Tenor::quarterly(),
     )
     .with_consequence(CovenantConsequence::RateIncrease { bp_increase: 100.0 })
@@ -276,7 +276,7 @@ fn covenant_with_multiple_consequences() {
 #[test]
 fn covenant_scope_maintenance_vs_incurrence() {
     let maintenance = Covenant::new(
-        CovenantType::MaxDebtToEBITDA { threshold: 5.0 },
+        CovenantType::MaxDebtToEbitda { threshold: 5.0 },
         Tenor::quarterly(),
     )
     .with_scope(CovenantScope::Maintenance);

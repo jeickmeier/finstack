@@ -62,7 +62,9 @@ use time::macros::date;
     Debug,
     PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = FxForward::validate)]
 #[serde(deny_unknown_fields, try_from = "FxForwardUnchecked")]
@@ -74,7 +76,8 @@ pub struct FxForward {
     /// Quote currency (domestic currency, denominator of the pair, PV currency).
     pub quote_currency: Currency,
     /// Maturity/settlement date.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Notional amount in base currency.
     pub notional: Money,
@@ -99,17 +102,26 @@ pub struct FxForward {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quote_calendar_id: Option<String>,
     /// Attributes for tagging and selection.
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -125,7 +137,8 @@ struct FxForwardUnchecked {
     /// Quote currency (domestic currency, denominator of the pair, PV currency).
     quote_currency: Currency,
     /// Maturity/settlement date.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     maturity: Date,
     /// Notional amount in base currency.
     notional: Money,
@@ -378,7 +391,7 @@ impl FxForward {
     /// * `quote_calendar_id` - Optional quote currency calendar
     /// * `spot_lag_days` - Spot lag (typically 2, or 1 for USD/CAD). Use
     ///   [`standard_spot_days`](Self::standard_spot_days) to determine automatically.
-    /// * `bdc` - Business day convention
+    /// * `business_day_convention` - Business day convention
     #[allow(clippy::too_many_arguments)]
     pub fn from_trade_date(
         id: impl Into<InstrumentId>,
@@ -392,7 +405,7 @@ impl FxForward {
         base_calendar_id: Option<String>,
         quote_calendar_id: Option<String>,
         spot_lag_days: u32,
-        bdc: finstack_quant_core::dates::BusinessDayConvention,
+        business_day_convention: finstack_quant_core::dates::BusinessDayConvention,
     ) -> finstack_quant_core::Result<Self> {
         use crate::instruments::common_impl::fx_dates::{
             adjust_joint_calendar, fx_spot_date_for_pair,
@@ -412,7 +425,7 @@ impl FxForward {
         let maturity_unadjusted = spot_date + time::Duration::days(tenor_days);
         let maturity = adjust_joint_calendar(
             maturity_unadjusted,
-            bdc,
+            business_day_convention,
             base_calendar_id.as_deref(),
             quote_calendar_id.as_deref(),
         )?;
@@ -800,7 +813,7 @@ mod tests {
     }
 
     #[test]
-    fn focused_overrides_preserve_legacy_wire_shape() {
+    fn focused_overrides_use_canonical_wire_shape() {
         let mut forward = FxForward::example().expect("valid FX forward");
         forward
             .instrument_pricing_overrides
@@ -810,27 +823,22 @@ mod tests {
         forward.scenario_pricing_overrides.scenario_price_shock_pct = Some(-0.03);
 
         let value = serde_json::to_value(&forward).expect("serialize focused overrides");
-        assert!(value.get("instrument_pricing_overrides").is_none());
-        assert!(value.get("metric_pricing_overrides").is_none());
-        assert!(value.get("scenario_pricing_overrides").is_none());
-        let wire = value
-            .get("pricing_overrides")
-            .and_then(serde_json::Value::as_object)
-            .expect("legacy pricing_overrides object");
         assert_eq!(
-            wire.get("implied_volatility"),
+            value.pointer("/instrument_pricing_overrides/market_quotes/implied_volatility"),
             Some(&serde_json::json!(0.17))
         );
         assert_eq!(
-            wire.get("mc_seed_scenario"),
+            value.pointer("/metric_pricing_overrides/mc_seed_scenario"),
             Some(&serde_json::json!("rho_up"))
         );
         assert_eq!(
-            wire.get("scenario_price_shock_pct"),
+            value.pointer("/scenario_pricing_overrides/scenario_price_shock_pct"),
             Some(&serde_json::json!(-0.03))
         );
+        assert!(value.get("pricing_overrides").is_none());
 
-        let roundtrip: FxForward = serde_json::from_value(value).expect("deserialize legacy wire");
+        let roundtrip: FxForward =
+            serde_json::from_value(value).expect("deserialize canonical wire");
         assert_eq!(
             roundtrip
                 .instrument_pricing_overrides

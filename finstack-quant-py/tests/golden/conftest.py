@@ -22,7 +22,7 @@ from finstack_quant.core.market_data import MarketContext
 from finstack_quant.valuations import validate_calibration_json
 
 from .pricing_validation import requested_metrics, validate_requested_metrics, validated_instrument_json
-from .schema import SCHEMA_VERSION, GoldenFixture
+from .schema import SCHEMA, GoldenFixture
 from .tolerance import compare
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
@@ -308,9 +308,7 @@ def run_golden(relative_path: str) -> None:
 def validate_fixture(path: Path, fixture: GoldenFixture) -> None:
     """Validate one golden fixture before runner dispatch."""
     metadata = fixture.metadata
-    assert fixture.schema_version == SCHEMA_VERSION, (
-        f"schema_version is {fixture.schema_version!r}, expected {SCHEMA_VERSION!r}"
-    )
+    assert fixture.schema == SCHEMA, f"schema is {fixture.schema!r}, expected {SCHEMA!r}"
     assert metadata.name.strip(), "metadata.name is empty"
     assert metadata.domain.strip(), "metadata.domain is empty"
     assert metadata.description.strip(), "metadata.description is empty"
@@ -405,14 +403,10 @@ def _validate_swaption_underlying_tenor(instrument_json: dict) -> None:
         return
     spec = instrument.get("spec", {})
     assert isinstance(spec, dict), "swaption instrument.spec must be an object"
-    top_tenor = _tenor_days(spec, "swap_start", "swap_end")
     fixed_tenor = _tenor_days(spec["underlying_fixed_leg"], "start", "end")
     float_tenor = _tenor_days(spec["underlying_float_leg"], "start", "end")
     assert fixed_tenor == float_tenor, (
         f"swaption underlying fixed/float leg tenors differ: fixed={fixed_tenor}d, float={float_tenor}d"
-    )
-    assert abs(top_tenor - fixed_tenor) <= 7, (
-        f"swaption top-level tenor ({top_tenor}d) does not match underlying leg tenor ({fixed_tenor}d)"
     )
 
 

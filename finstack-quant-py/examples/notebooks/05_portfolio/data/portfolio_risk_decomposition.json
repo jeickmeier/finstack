@@ -12,10 +12,10 @@
     "factors": [
       {
         "description": "Parallel USD rates shift",
-        "factor_type": "Rates",
+        "factor_type": "rates",
         "id": "usd_rates",
         "market_mapping": {
-          "CurveParallel": {
+          "curve_parallel": {
             "curve_ids": [
               "USD-OIS"
             ],
@@ -25,7 +25,7 @@
       }
     ],
     "matching": {
-      "MappingTable": [
+      "mapping_table": [
         {
           "attribute_filter": {},
           "dependency_filter": {},
@@ -75,7 +75,7 @@
   },
   "portfolio_spec": {
     "as_of": "2025-01-15",
-    "base_ccy": "USD",
+    "base_currency": "USD",
     "entities": {
       "BOOK": {
         "id": "BOOK"
@@ -89,15 +89,15 @@
         "instrument_spec": {
           "spec": {
             "attributes": {},
-            "day_count": "Act360",
+            "day_count": "act_360",
             "discount_curve_id": "USD-OIS",
             "id": "DEP-1",
             "maturity": "2025-07-15",
             "notional": {
-              "amount": 1000000.0,
+              "amount": "1000000",
               "currency": "USD"
             },
-            "quote_rate": 0.05,
+            "quote_rate": "0.05",
             "start_date": "2025-01-15"
           },
           "type": "deposit"

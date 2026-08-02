@@ -4,7 +4,7 @@
       "description": "Standard commodity market conventions by product type.\n\nEach variant provides market-standard defaults for settlement days,\nbusiness day convention, and calendar. Use when constructing commodity\nforwards, options, or swaps without explicitly specifying these parameters.\n\n# Market Standards Reference\n\n| Convention | Settlement | BDC | Calendar | Exchange |\n|------------|------------|-----|----------|----------|\n| WTI Crude | T+2 | Following | NYMEX | NYMEX/CME |\n| Brent Crude | T+2 | Following | ICE | ICE |\n| Natural Gas | T+2 | Following | NYMEX | NYMEX/CME |\n| Gold | T+2 | Modified Following | COMEX | CME |\n| Silver | T+2 | Modified Following | COMEX | CME |\n| Copper | T+2 | Following | LME | LME |\n| Corn/Wheat | T+2 | Following | CBOT | CME |\n| Power | T+1 | Modified Following | NERC | Various |\n\n# Sources\n\n- CME Group rulebooks\n- ICE Futures exchange rules\n- LME trading procedures",
       "oneOf": [
         {
-          "const": "w_t_i_crude",
+          "const": "wti_crude",
           "description": "WTI Crude Oil: T+2, Following, NYMEX calendar",
           "type": "string"
         },
@@ -45,6 +45,157 @@
         }
       ]
     },
+    "CommodityOption": {
+      "additionalProperties": false,
+      "description": "Commodity option (option on commodity forward or spot).\n\n# Pricing\n\n- **European options**: Black-76 model using the forward price from the `PriceCurve`\n- **American options**: Binomial tree (Leisen-Reimer) with cost-of-carry derived from\n  the forward/spot relationship\n\n# American Option Assumptions\n\nFor American exercise, the model requires a spot price to build the binomial tree.\nIf `spot_id` is provided, it uses that spot price. Otherwise, the forward\nprice is used as a proxy for spot, which may underestimate early exercise value.\nThe convenience yield (cost-of-carry) is implied from the forward/spot ratio:\n`q = r - ln(F/S)/T`\n\nBermudan exercise uses the configured exercise schedule and a binomial\ntree. The schedule must contain at least one strictly future date when the\noption is priced before expiry.\n\n# Forward Price Retrieval\n\nForward prices are retrieved from a `PriceCurve` (not a `ForwardCurve`).\nThe curve must be added via `MarketContext::insert_price_curve()`.\nIf `quoted_forward` is provided, it overrides the curve lookup.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for tagging and selection.\nAttributes for scenario selection and tagging"
+        },
+        "commodity_type": {
+          "description": "Commodity type (e.g., \"Energy\", \"Metal\", \"Agricultural\")",
+          "type": "string"
+        },
+        "convention": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommodityConvention"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional market convention for this commodity.\n\nWhen set, provides default premium settlement days and calendar."
+        },
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency for pricing"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "default": "act_365f",
+          "description": "Day count convention for time to expiry."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID for present value."
+        },
+        "exercise_schedule": {
+          "description": "Optional Bermudan exercise schedule.\n\nRequired when `exercise_style == ExerciseStyle::Bermudan`.",
+          "items": {
+            "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "exercise_style": {
+          "$ref": "#/$defs/ExerciseStyle",
+          "default": "european",
+          "description": "Exercise style (European or American)."
+        },
+        "expiry": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Option expiry date."
+        },
+        "forward_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Forward/futures curve ID for price interpolation."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "multiplier": {
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Contract multiplier (typically 1.0 for OTC options)."
+        },
+        "option_type": {
+          "$ref": "#/$defs/OptionType",
+          "description": "Option type (call or put)."
+        },
+        "premium_settlement_days": {
+          "description": "Premium settlement lag in business days after trade date.\n\nStandard: T+1 for most exchange-traded options, T+2 for OTC.\nIf not set and `convention` is provided, uses convention default.\nOtherwise defaults to 1 (T+1).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "quantity": {
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Contract quantity in units."
+        },
+        "quoted_forward": {
+          "description": "Optional quoted forward price (overrides curve lookup).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only valuation adjustments."
+        },
+        "settlement": {
+          "$ref": "#/$defs/SettlementType",
+          "default": "cash",
+          "description": "Settlement type (physical or cash).\n\nDefaults to cash settlement when omitted in serialized payloads."
+        },
+        "spot_id": {
+          "description": "Optional spot price ID (for spot-based pricing and American options).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "strike": {
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Strike price per unit."
+        },
+        "ticker": {
+          "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
+          "type": "string"
+        },
+        "unit": {
+          "description": "Unit of measurement (e.g., \"BBL\", \"OZ\", \"MT\", \"MMBTU\")",
+          "type": "string"
+        },
+        "vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Volatility surface ID for implied vol."
+        }
+      },
+      "required": [
+        "id",
+        "commodity_type",
+        "ticker",
+        "unit",
+        "currency",
+        "strike",
+        "option_type",
+        "expiry",
+        "quantity",
+        "multiplier",
+        "forward_curve_id",
+        "discount_curve_id",
+        "vol_surface_id"
+      ],
+      "type": "object"
+    },
     "ExerciseStyle": {
       "description": "Exercise style for options",
       "oneOf": [
@@ -65,6 +216,16 @@
         }
       ]
     },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "OptionType": {
       "description": "Option type for pricing",
       "oneOf": [
@@ -80,6 +241,12 @@
         }
       ]
     },
+    "PositiveF64Wire": {
+      "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
+      "exclusiveMinimum": 0.0,
+      "format": "double",
+      "type": "number"
+    },
     "SettlementType": {
       "description": "Settlement type for options",
       "oneOf": [
@@ -94,12 +261,33 @@
           "type": "string"
         }
       ]
+    },
+    "commodity_option": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/CommodityOption"
+            },
+            "type": {
+              "const": "commodity_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_option.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Commodity option with Black-76 pricing for European exercise and binomial tree for American",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -107,7 +295,7 @@
           "attributes": {},
           "commodity_type": "Energy",
           "currency": "USD",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "discount_curve_id": "USD-OIS",
           "exercise_style": "european",
           "expiry": "2025-06-15",
@@ -115,27 +303,6 @@
           "id": "WTI-OPT-2025M06",
           "multiplier": 1.0,
           "option_type": "call",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quantity": 1000.0,
           "settlement": "cash",
           "strike": 75.0,
@@ -150,196 +317,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Commodity Option instrument definition",
-      "properties": {
-        "spec": {
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "default": {},
-              "description": "Attributes for tagging and selection.\nAttributes for scenario selection and tagging"
-            },
-            "commodity_type": {
-              "description": "Commodity type (e.g., \"Energy\", \"Metal\", \"Agricultural\")",
-              "type": "string"
-            },
-            "convention": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/CommodityConvention"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional market convention for this commodity.\n\nWhen set, provides default premium settlement days and calendar."
-            },
-            "currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency for pricing"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "default": "Act365F",
-              "description": "Day count convention for time to expiry."
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID for present value."
-            },
-            "exercise_schedule": {
-              "description": "Optional Bermudan exercise schedule.\n\nRequired when `exercise_style == ExerciseStyle::Bermudan`.",
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "exercise_style": {
-              "$ref": "#/$defs/ExerciseStyle",
-              "default": "european",
-              "description": "Exercise style (European or American)."
-            },
-            "expiry": {
-              "description": "Option expiry date.",
-              "format": "date",
-              "type": "string"
-            },
-            "forward_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Forward/futures curve ID for price interpolation."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "multiplier": {
-              "description": "Contract multiplier (typically 1.0 for OTC options).",
-              "format": "double",
-              "type": "number"
-            },
-            "option_type": {
-              "$ref": "#/$defs/OptionType",
-              "description": "Option type (call or put)."
-            },
-            "premium_settlement_days": {
-              "description": "Premium settlement lag in business days after trade date.\n\nStandard: T+1 for most exchange-traded options, T+2 for OTC.\nIf not set and `convention` is provided, uses convention default.\nOtherwise defaults to 1 (T+1).",
-              "format": "uint32",
-              "minimum": 0,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Instrument-owned pricing inputs."
-            },
-            "quantity": {
-              "description": "Contract quantity in units.",
-              "format": "double",
-              "type": "number"
-            },
-            "quoted_forward": {
-              "description": "Optional quoted forward price (overrides curve lookup).",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "settlement": {
-              "$ref": "#/$defs/SettlementType",
-              "default": "cash",
-              "description": "Settlement type (physical or cash).\n\nDefaults to cash settlement when omitted in serialized payloads."
-            },
-            "spot_id": {
-              "description": "Optional spot price ID (for spot-based pricing and American options).",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "strike": {
-              "description": "Strike price per unit.",
-              "format": "double",
-              "type": "number"
-            },
-            "ticker": {
-              "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
-              "type": "string"
-            },
-            "unit": {
-              "description": "Unit of measurement (e.g., \"BBL\", \"OZ\", \"MT\", \"MMBTU\")",
-              "type": "string"
-            },
-            "vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Volatility surface ID for implied vol."
-            }
-          },
-          "required": [
-            "id",
-            "commodity_type",
-            "ticker",
-            "unit",
-            "currency",
-            "strike",
-            "option_type",
-            "expiry",
-            "quantity",
-            "multiplier",
-            "forward_curve_id",
-            "discount_curve_id",
-            "vol_surface_id"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "commodity_option",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/commodity_option"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Commodity Option",
+  "title": "commodity_option",
   "type": "object"
 }

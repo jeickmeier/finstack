@@ -9,12 +9,12 @@ use finstack_quant_cashflows::builder::{FixedCouponSpec, FloatingCouponSpec, Ste
 fn fixed_coupon_spec_accepts_known_fields() {
     let json = r#"{
         "rate": "0.05",
-        "coupon_type": "Cash",
-        "freq": {"count": 6, "unit": "months"},
-        "dc": "Thirty360",
-        "bdc": "following",
+        "coupon_type": "cash",
+        "frequency": {"count": 6, "unit": "months"},
+        "day_count": "30_360",
+        "business_day_convention": "following",
         "calendar_id": "weekends_only",
-        "stub": "None",
+        "stub": "none",
         "end_of_month": false,
         "payment_lag_days": 0,
         "adjust_accrual_dates": false
@@ -27,8 +27,8 @@ fn fixed_coupon_spec_accepts_known_fields() {
 fn fixed_coupon_spec_rejects_unknown_field() {
     let json = r#"{
         "rate": "0.05",
-        "freq": {"count": 6, "unit": "months"},
-        "dc": "Thirty360",
+        "frequency": {"count": 6, "unit": "months"},
+        "day_count": "30_360",
         "calendar_id": "weekends_only",
         "totally_bogus_field": 42
     }"#;
@@ -46,12 +46,12 @@ fn floating_coupon_spec_rejects_misspelled_schedule_field() {
         "rate_spec": {
             "index_id": "SOFR",
             "spread_bp": "10",
-            "reset_freq": {"count": 3, "unit": "months"},
+            "reset_frequency": {"count": 3, "unit": "months"},
             "reset_lag_days": 0,
-            "fallback": "SpreadOnly"
+            "fallback": "spread_only"
         },
-        "freq": {"count": 3, "unit": "months"},
-        "dc": "Act360",
+        "frequency": {"count": 3, "unit": "months"},
+        "day_count": "act_360",
         "calendar_id": "weekends_only",
         "calender_id": "weekends_only"
     }"#;
@@ -63,12 +63,34 @@ fn floating_coupon_spec_rejects_misspelled_schedule_field() {
 }
 
 #[test]
+fn floating_coupon_spec_rejects_pascal_case_fallback() {
+    let json = r#"{
+        "rate_spec": {
+            "index_id": "SOFR",
+            "spread_bp": "10",
+            "reset_frequency": {"count": 3, "unit": "months"},
+            "reset_lag_days": 0,
+            "fallback": "SpreadOnly"
+        },
+        "coupon_type": "cash",
+        "frequency": {"count": 3, "unit": "months"},
+        "day_count": "act_360",
+        "business_day_convention": "following",
+        "calendar_id": "weekends_only",
+        "stub": "none"
+    }"#;
+    let error = serde_json::from_str::<FloatingCouponSpec>(json)
+        .expect_err("legacy PascalCase fallback must be rejected");
+    assert!(error.to_string().contains("SpreadOnly"));
+}
+
+#[test]
 fn step_up_coupon_spec_rejects_unknown_field() {
     let json = r#"{
         "initial_rate": "0.03",
         "step_schedule": [],
-        "freq": {"count": 6, "unit": "months"},
-        "dc": "Thirty360",
+        "frequency": {"count": 6, "unit": "months"},
+        "day_count": "30_360",
         "calendar_id": "weekends_only",
         "nope": true
     }"#;

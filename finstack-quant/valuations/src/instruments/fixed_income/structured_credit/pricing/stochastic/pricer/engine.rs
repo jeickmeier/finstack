@@ -14,7 +14,9 @@ use crate::instruments::fixed_income::structured_credit::pricing::stochastic::de
 use crate::instruments::fixed_income::structured_credit::pricing::{
     StochasticDefaultSpec, StochasticPrepaySpec,
 };
-use crate::instruments::fixed_income::structured_credit::types::{StructuredCredit, Tranche};
+use crate::instruments::fixed_income::structured_credit::types::{
+    StructuredCredit, Tranche, TrancheSeniority,
+};
 use finstack_quant_core::dates::{Date, DayCount, DayCountContext};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::math::stats::OnlineStats;
@@ -133,7 +135,7 @@ impl StochasticPricer {
             let output = self.price_path(instrument, context, shocks, per_name_engine)?;
             collector.record_output(output);
         }
-        Ok(collector.finalize(self, "Tree"))
+        Ok(collector.finalize(self, PricingMode::Tree))
     }
 
     fn price_monte_carlo(
@@ -156,18 +158,16 @@ impl StochasticPricer {
         // path count; with an odd count the antithetic flag is dropped so the
         // collector falls back to the plain i.i.d. estimator.
         let antithetic_paired = antithetic && num_paths.is_multiple_of(2);
-        let mode = if antithetic {
-            format!("MonteCarlo({}, antithetic)", num_paths)
-        } else {
-            format!("MonteCarlo({num_paths})")
-        };
         self.price_factor_sets(
             instrument,
             context,
             factor_sets,
             num_paths,
             antithetic_paired,
-            &mode,
+            PricingMode::MonteCarlo {
+                num_paths,
+                antithetic,
+            },
         )
     }
 
@@ -253,7 +253,10 @@ impl StochasticPricer {
             total_paths,
             // Hybrid mode draws no antithetic pairs.
             false,
-            &format!("Hybrid(tree_periods={tree_periods}, mc_paths={mc_paths})"),
+            PricingMode::Hybrid {
+                tree_periods,
+                mc_paths,
+            },
         )
     }
 
@@ -264,7 +267,7 @@ impl StochasticPricer {
         factor_sets: Vec<Vec<f64>>,
         num_paths: usize,
         antithetic: bool,
-        pricing_mode: &str,
+        pricing_mode: PricingMode,
     ) -> Result<StochasticPricingResult> {
         let per_name_simulator = self.per_name_simulator()?;
         // `into_par_iter().enumerate()` on a `Vec` is an order-preserving
@@ -1117,7 +1120,7 @@ impl PathTrancheMetrics {
 
 struct TrancheScenarioStats {
     tranche_id: String,
-    seniority: String,
+    seniority: TrancheSeniority,
     attachment: f64,
     detachment: f64,
     pv_stats: OnlineStats,
@@ -1131,7 +1134,7 @@ impl TrancheScenarioStats {
     fn new(tranche: &Tranche, num_paths: usize) -> Self {
         Self {
             tranche_id: tranche.id.to_string(),
-            seniority: format!("{:?}", tranche.seniority),
+            seniority: tranche.seniority,
             attachment: tranche.attachment_point / 100.0,
             detachment: tranche.detachment_point / 100.0,
             pv_stats: OnlineStats::new(),
@@ -1245,7 +1248,7 @@ impl ScenarioCollector {
     fn finalize(
         mut self,
         pricer: &StochasticPricer,
-        pricing_mode: &str,
+        pricing_mode: PricingMode,
     ) -> StochasticPricingResult {
         let mean_pv = self.deal_pv_stats.mean();
         let mean_loss = self.deal_loss_stats.mean();
@@ -1265,6 +1268,7 @@ impl ScenarioCollector {
             Money::new(mean_pv, self.currency),
             Money::new(mean_loss, self.currency),
             self.num_paths,
+            pricing_mode,
         )
         .with_unexpected_loss(Money::new(loss_pop_var.sqrt(), self.currency))
         .with_expected_shortfall(Money::new(es, self.currency), pricer.config.es_confidence);
@@ -1290,7 +1294,6 @@ impl ScenarioCollector {
         }
         result.pv_std_error = std_error;
         result.pv_confidence_interval = (mean_pv - 1.96 * std_error, mean_pv + 1.96 * std_error);
-        result.pricing_mode = pricing_mode.to_string();
         result.tranche_results = self
             .tranche_stats
             .into_iter()
@@ -1439,7 +1442,7 @@ mod tests {
 
     fn test_instrument() -> StructuredCredit {
         let maturity = Date::from_calendar_date(2026, Month::January, 1).expect("valid date");
-        let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
             Money::new(1_000_000.0, Currency::USD),
@@ -1513,7 +1516,13 @@ mod tests {
         assert_eq!(result.num_paths, 800);
         assert_eq!(result.tranche_results.len(), 1);
         assert!(result.npv.amount().is_finite());
-        assert!(result.pricing_mode.contains("Hybrid"));
+        assert_eq!(
+            result.pricing_mode,
+            PricingMode::Hybrid {
+                tree_periods: 3,
+                mc_paths: 100,
+            }
+        );
     }
 
     /// Regression test: catastrophic cancellation in MC variance accumulation.
@@ -1570,7 +1579,7 @@ mod tests {
             ScenarioTreeConfig::new(12, 1.0, BranchingSpec::fixed(2)),
         );
         let pricer = StochasticPricer::new(config);
-        let result = collector.finalize(&pricer, "Test");
+        let result = collector.finalize(&pricer, PricingMode::Tree);
 
         // True population variance = delta² = 0.0025
         // True std_error of the mean = 0.05 / sqrt(1000) ≈ 0.001581
@@ -1805,21 +1814,20 @@ mod per_name_copula_tests {
     /// PANICS. A NaN can reach here via `convert_clamped`, so this was a live
     /// panic path in a pricing loop.
     ///
-    /// This test does NOT discriminate: the standard sort's total-order
-    /// violation check is a heuristic that fires on some orderings and not
-    /// others, so the old comparator happens to survive this input. The test
-    /// pins that ES tolerates NaN at all; the correctness argument for
-    /// `total_cmp` is that it is a genuine total order, not that this input
-    /// reproduces the panic.
+    /// Positive-sign NaNs are the representation emitted by the live
+    /// `convert_clamped` corruption path. They must sort into the worst tail so
+    /// the measure surfaces the corrupted path instead of returning a plausible
+    /// finite value.
     #[test]
-    fn expected_shortfall_survives_a_nan_loss() {
+    fn expected_shortfall_places_nan_in_worst_tail() {
         let mut losses = vec![10.0, f64::NAN, 5.0, 100.0, 1.0, f64::NAN, 50.0];
-        // Must not panic.
         let es = expected_shortfall(&mut losses, 0.95);
         assert!(
-            es.is_nan() || es.is_finite(),
-            "expected shortfall must return a value rather than panicking, got {es}"
+            es.is_nan(),
+            "a corrupted worst-tail path must surface as NaN, got {es}"
         );
+        assert!(losses[..2].iter().all(|loss| loss.is_nan()));
+        assert_eq!(&losses[2..], &[100.0, 50.0, 10.0, 5.0, 1.0]);
     }
 
     /// SC-m06 — with clean input the measure is unchanged.
@@ -1874,7 +1882,7 @@ mod per_name_copula_tests {
     fn clo_deal(n_assets: usize) -> StructuredCredit {
         let total = 100_000_000.0;
         let per_asset = total / n_assets as f64;
-        let mut pool = AssetPool::new("CLO-POOL", DealType::CLO, Currency::USD);
+        let mut pool = AssetPool::new("CLO-POOL", DealType::Clo, Currency::USD);
         for i in 0..n_assets {
             pool.assets.push(PoolAsset::fixed_rate_bond(
                 format!("L{i}"),

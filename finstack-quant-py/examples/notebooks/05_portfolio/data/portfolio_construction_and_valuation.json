@@ -1,10 +1,10 @@
 {
   "meta": {
-    "numeric_mode": "F64",
+    "numeric_mode":"f64",
     "rounding": {
-      "ingest_scale_by_ccy": {},
-      "mode": "Bankers",
-      "output_scale_by_ccy": {},
+      "ingest_scale_by_currency": {},
+      "mode":"bankers",
+      "output_scale_by_currency": {},
       "tolerances": {
         "generic_epsilon": 1e-10,
         "rate_epsilon": 1e-12

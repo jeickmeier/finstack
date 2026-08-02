@@ -55,7 +55,7 @@ fn grouping_and_multi_attribute_aggregation() {
         .with_text_attribute("rating", "AA");
 
     let portfolio = PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E"))
         .positions(vec![p1, p2])
@@ -111,7 +111,7 @@ fn dataframe_exports_have_expected_columns() {
     let p = Position::new("P", "E", "D", Arc::new(dep), 1.0, PositionUnit::Units).unwrap();
 
     let portfolio = PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E"))
         .position(p)

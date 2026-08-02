@@ -89,11 +89,11 @@ fn create_quantlib_convertible(
         coupon_type: CouponType::Cash,
         rate: rust_decimal::Decimal::from_f64_retain(coupon_rate).unwrap_or_default(),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -920,11 +920,11 @@ fn quantlib_parity_mandatory_conversion() {
         coupon_type: CouponType::Cash,
         rate: rust_decimal::Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -1012,11 +1012,11 @@ fn quantlib_parity_window_conversion() {
         coupon_type: CouponType::Cash,
         rate: rust_decimal::Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 

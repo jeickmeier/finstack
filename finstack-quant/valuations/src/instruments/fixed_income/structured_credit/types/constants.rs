@@ -44,21 +44,21 @@ pub const PERCENTAGE_MULTIPLIER: f64 = 100.0;
 
 /// Solver tolerance for Z-spread calculations (decimal spread).
 ///
-/// Market standard: 0.1 bps = 0.0001% = 1e-6 in decimal terms.
-/// Z-spread is quoted in bps to 1 decimal place (e.g., 125.3 bps).
+/// Market standard: 0.1 bp = 0.0001% = 1e-6 in decimal terms.
+/// Z-spread is quoted in bp to 1 decimal place (e.g., 125.3 bp).
 pub const Z_SPREAD_SOLVER_TOLERANCE: f64 = 1e-6;
 
 /// Solver tolerance for YTM calculations (decimal yield).
 ///
-/// Market standard: 0.1 bps = 1e-6 in decimal terms.
-/// YTM is quoted in bps to 1 decimal place.
+/// Market standard: 0.1 bp = 1e-6 in decimal terms.
+/// YTM is quoted in bp to 1 decimal place.
 pub const YTM_SOLVER_TOLERANCE: f64 = 1e-6;
 
 /// Initial bracket size for Z-spread solver (decimal spread).
 ///
-/// ±500 bps is sufficient for most structured credit instruments.
+/// ±500 bp is sufficient for most structured credit instruments.
 /// Extreme distressed securities may require wider brackets.
-pub const Z_SPREAD_INITIAL_BRACKET: f64 = 0.05; // ±500 bps
+pub const Z_SPREAD_INITIAL_BRACKET: f64 = 0.05; // ±500 bp
 
 /// Lower bound for prepayment rates expressed as a decimal fraction.
 pub const MIN_PREPAYMENT_RATE: f64 = 0.0;
@@ -99,40 +99,40 @@ pub fn standard_severity_rates() -> &'static [f64] {
     assumptions_registry().standard_severity_rates()
 }
 
-/// Standard CLO senior management fee (bps).
-pub fn clo_senior_mgmt_fee_bps() -> f64 {
-    clo_fees().senior_mgmt_fee_bps
+/// Standard CLO senior management fee (bp).
+pub fn clo_senior_mgmt_fee_bp() -> f64 {
+    clo_fees().senior_mgmt_fee_bp
 }
 
-/// Standard CLO subordinated management fee (bps).
-pub fn clo_subordinated_mgmt_fee_bps() -> f64 {
-    clo_fees().subordinated_mgmt_fee_bps
+/// Standard CLO subordinated management fee (bp).
+pub fn clo_subordinated_mgmt_fee_bp() -> f64 {
+    clo_fees().subordinated_mgmt_fee_bp
 }
 
-/// Standard ABS servicing fee (bps).
-pub fn abs_servicing_fee_bps() -> f64 {
-    abs_fees().servicing_fee_bps
+/// Standard ABS servicing fee (bp).
+pub fn abs_servicing_fee_bp() -> f64 {
+    abs_fees().servicing_fee_bp
 }
 
-/// Standard CMBS master servicer fee (bps).
-pub fn cmbs_master_servicer_fee_bps() -> f64 {
+/// Standard CMBS master servicer fee (bp).
+pub fn cmbs_master_servicer_fee_bp() -> f64 {
     required_optional(
-        cmbs_fees().master_servicer_fee_bps,
+        cmbs_fees().master_servicer_fee_bp,
         "standard CMBS master servicer fee",
     )
 }
 
-/// Standard CMBS special servicer fee (bps).
-pub fn cmbs_special_servicer_fee_bps() -> f64 {
+/// Standard CMBS special servicer fee (bp).
+pub fn cmbs_special_servicer_fee_bp() -> f64 {
     required_optional(
-        cmbs_fees().special_servicer_fee_bps,
+        cmbs_fees().special_servicer_fee_bp,
         "standard CMBS special servicer fee",
     )
 }
 
-/// Standard RMBS servicing fee (bps).
-pub fn rmbs_servicing_fee_bps() -> f64 {
-    rmbs_fees().servicing_fee_bps
+/// Standard RMBS servicing fee (bp).
+pub fn rmbs_servicing_fee_bp() -> f64 {
+    rmbs_fees().servicing_fee_bp
 }
 
 /// Standard CLO trustee annual fee (USD).

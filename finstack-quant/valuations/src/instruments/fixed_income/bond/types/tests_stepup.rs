@@ -97,11 +97,11 @@ fn test_bond_serde_allows_missing_issue_date_with_custom_cashflows() {
             coupon_type: CouponType::Cash,
             rate: Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -157,7 +157,7 @@ fn test_bond_serde_rejects_missing_issue_date_even_with_clean_price() {
         .expect("Bond should serialize to an object");
     obj.remove("issue_date");
     obj.insert(
-        "pricing_overrides".to_string(),
+        "instrument_pricing_overrides".to_string(),
         serde_json::to_value(InstrumentPricingOverrides::default().with_quoted_clean_price(99.0))
             .expect("serialize pricing overrides"),
     );
@@ -183,11 +183,11 @@ fn test_bond_custom_cashflows_serde_roundtrip() {
             coupon_type: CouponType::Cash,
             rate: Decimal::try_from(0.06).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -705,10 +705,10 @@ fn step_up_serde_roundtrip() {
     // Serialize to JSON
     let json = serde_json::to_string(&bond).expect("Serialization should succeed");
 
-    // Verify it contains StepUp tag
+    // Verify it contains the canonical step_up tag.
     assert!(
-        json.contains("StepUp"),
-        "Serialized JSON should contain StepUp variant tag"
+        json.contains("step_up"),
+        "Serialized JSON should contain step_up variant tag"
     );
 
     // Deserialize back

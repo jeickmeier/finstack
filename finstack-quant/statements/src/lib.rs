@@ -98,6 +98,8 @@ pub mod formula;
 pub mod prelude;
 /// Metric registry and namespace management.
 pub mod registry;
+/// Checked-in JSON Schemas for persisted statement contracts.
+pub mod schema;
 /// Core statement model types.
 pub mod types;
 /// Internal utilities used within the crate implementation.

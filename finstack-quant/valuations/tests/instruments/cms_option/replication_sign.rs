@@ -204,8 +204,8 @@ fn single_curve_cms(
         notional: Money::new(1.0, Currency::USD),
         day_count: DayCount::Act365F,
         swap_convention: None,
-        swap_fixed_freq: Some(Tenor::semi_annual()),
-        swap_float_freq: Some(Tenor::quarterly()),
+        swap_fixed_frequency: Some(Tenor::semi_annual()),
+        swap_float_frequency: Some(Tenor::quarterly()),
         // Same day count for both legs so forward rate equals OIS rate exactly.
         swap_day_count: Some(DayCount::Act365F),
         swap_float_day_count: Some(DayCount::Act365F),

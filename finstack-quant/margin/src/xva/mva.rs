@@ -7,7 +7,7 @@
 //! MVA = ∫₀ᵀ λ_B(t) · E[IM(t)] · DF(t) · S(t) dt
 //! ```
 //!
-//! where `λ_B(t)` is the bank's funding spread (decimal, from bps inputs),
+//! where `λ_B(t)` is the bank's funding spread (decimal, from bp inputs),
 //! `E[IM(t)]` the expected IM profile, `DF(t)` the risk-free discount factor,
 //! and `S(t)` the survival probability (optional; `S ≡ 1` when omitted).
 //! [`compute_mva`](crate::xva::mva::compute_mva) conditions on the bank's own
@@ -35,8 +35,7 @@
 //! MVA is a positive funding cost using the same sign convention as CVA and
 //! FVA. [`crate::xva::cva::compute_bilateral_xva`] computes it automatically
 //! whenever [`crate::xva::types::FundingConfig::im_profile`] is set and reports
-//! the legacy funding-inclusive `CVA − DVA + FVA` in `bilateral_cva`, then
-//! reports `bilateral_cva + MVA` in
+//! `CVA − DVA + FVA + MVA` in
 //! [`crate::xva::types::XvaResult::total_xva`].
 //!
 //! # Model Boundaries
@@ -279,7 +278,7 @@ pub struct MvaResult {
 ///
 /// * `im_profile` - Expected IM profile `E[IM(t)]` (from
 ///   [`im_profile_from_simm`] or the stochastic engine's mean per-path IM)
-/// * `funding_spread_curve` - `(time_years, spread_bps)` pairs, linearly
+/// * `funding_spread_curve` - `(time_years, spread_bp)` pairs, linearly
 ///   interpolated with flat extrapolation; a single pair means a flat spread
 /// * `discount_curve` - Risk-free discount curve
 /// * `survival_curve` - Optional bank (own) hazard curve; when `None`, `S ≡ 1`
@@ -295,7 +294,7 @@ pub struct MvaResult {
 /// survival. [`crate::xva::cva::compute_bilateral_xva`] computes MVA itself
 /// whenever [`crate::xva::types::FundingConfig::im_profile`] is set, weights it
 /// by *joint* survival (consistent with its FVA leg), and folds the result into
-/// [`crate::xva::types::XvaResult::total_xva`] as `bilateral_cva + MVA`.
+/// [`crate::xva::types::XvaResult::total_xva`].
 /// Prefer that entry point for netting-set-level XVA; use this function for
 /// standalone MVA analysis.
 ///
@@ -405,7 +404,7 @@ pub(crate) fn compute_mva_internal(
     })
 }
 
-/// Linear interpolation of the spread curve (bps) with flat extrapolation.
+/// Linear interpolation of the spread curve (bp) with flat extrapolation.
 fn spread_at(curve: &[(f64, f64)], t: f64) -> f64 {
     let first = curve[0];
     if t <= first.0 {
@@ -435,7 +434,7 @@ fn validate_spread_curve(curve: &[(f64, f64)]) -> finstack_quant_core::Result<()
         }
         if !s.is_finite() || s < 0.0 {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "MVA: funding_spread_curve[{i}] spread {s} bps must be non-negative and finite"
+                "MVA: funding_spread_curve[{i}] spread {s} bp must be non-negative and finite"
             )));
         }
         if i > 0 && t <= curve[i - 1].0 {

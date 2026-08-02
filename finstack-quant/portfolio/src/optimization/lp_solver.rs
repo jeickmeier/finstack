@@ -688,8 +688,6 @@ impl DefaultLpOptimizer {
             );
         }
 
-        let dual_values: IndexMap<String, f64> = IndexMap::new();
-
         let status = OptimizationStatus::Optimal;
 
         let meta = finstack_quant_core::config::results_meta_now(config);
@@ -703,7 +701,6 @@ impl DefaultLpOptimizer {
             objective_value,
             metric_values,
             status,
-            dual_values,
             constraint_slacks,
             meta,
         }
@@ -832,7 +829,6 @@ impl DefaultLpOptimizer {
                     objective_value: f64::NAN,
                     metric_values: IndexMap::new(),
                     status,
-                    dual_values: IndexMap::new(),
                     constraint_slacks: IndexMap::new(),
                     meta,
                 });

@@ -41,13 +41,13 @@ fn build_market_from_deps(
     }
     for dependency in &deps.volatility_dependencies {
         market = market.insert_surface(flat_vol_surface(
-            dependency.surface_id.as_str(),
+            dependency.vol_surface_id.as_str(),
             &[0.25, 0.5, 1.0],
             &[50.0, 75.0, 100.0],
             0.2,
         ));
     }
-    for spot_id in deps.spot_ids.iter() {
+    for spot_id in deps.market_scalar_ids.iter() {
         market = market.insert_price(
             spot_id,
             MarketScalar::Price(Money::new(100.0, spot_currency)),
@@ -98,13 +98,13 @@ fn test_missing_forward_curve_with_spot_succeeds() {
     }
     for dependency in &deps.volatility_dependencies {
         market = market.insert_surface(flat_vol_surface(
-            dependency.surface_id.as_str(),
+            dependency.vol_surface_id.as_str(),
             &[0.25, 0.5, 1.0],
             &[50.0, 75.0, 100.0],
             0.2,
         ));
     }
-    for spot_id in deps.spot_ids.iter() {
+    for spot_id in deps.market_scalar_ids.iter() {
         market = market.insert_price(
             spot_id,
             MarketScalar::Price(Money::new(100.0, option.underlying.currency)),
@@ -142,7 +142,7 @@ fn test_missing_both_forward_and_spot_fails() {
     }
     for dependency in &deps.volatility_dependencies {
         market = market.insert_surface(flat_vol_surface(
-            dependency.surface_id.as_str(),
+            dependency.vol_surface_id.as_str(),
             &[0.25, 0.5, 1.0],
             &[50.0, 75.0, 100.0],
             0.2,

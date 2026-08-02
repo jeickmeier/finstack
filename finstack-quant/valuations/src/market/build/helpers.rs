@@ -16,9 +16,9 @@ pub(crate) fn resolve_spot_date(
     as_of: Date,
     calendar_id: &str,
     settlement_days: i32,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
 ) -> Result<Date> {
     let cal = resolve_calendar(calendar_id)?;
     let spot = as_of.add_business_days(settlement_days, cal)?;
-    adjust(spot, bdc, cal)
+    adjust(spot, business_day_convention, cal)
 }

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime
 import json
-from pathlib import Path
 
 import pytest
 
@@ -21,42 +20,22 @@ from finstack_quant.valuations.instruments import (
     StructuredCredit,
     Tranche,
 )
-from tests.tests_typed_helpers import structured_credit_pool as _pool, structured_credit_tranches as _tranches
-
-# Fixture path + helpers copied from test_structured_credit_bindings.py so the
-# typed golden below exercises the exact same deal/market fixtures as the
-# JSON-path tests.
-FIXTURE = (
-    Path(__file__).resolve().parents[2]
-    / "finstack-quant"
-    / "valuations"
-    / "tests"
-    / "instruments"
-    / "json_examples"
-    / "structured_credit_full.json"
+from tests.tests_typed_helpers import (
+    canonical_structured_credit_json,
+    structured_credit_pool as _pool,
+    structured_credit_tranches as _tranches,
 )
 
 
 def _valid_deal_json() -> str:
-    instrument = json.loads(FIXTURE.read_text())["instrument"]
-    instrument["spec"]["payment_calendar_id"] = "nyse"
-    return json.dumps(instrument)
+    return canonical_structured_credit_json()
 
 
 def _metrics_tranche_id(deal_json: str) -> str:
-    """Return a tranche id whose z-spread solve is well-posed.
-
-    ``spec["tranches"]["tranches"][0]`` is the fixture's equity tranche,
-    whose near-zero residual cashflows make the z-spread bracket solve in
-    ``structured_credit_tranche_metrics`` degenerate (``f(a) == f(b) == 0``,
-    no sign change) — a pre-existing Rust-side numerical property of that
-    tranche, unrelated to typed-vs-JSON parity. Picking the first non-equity
-    tranche lands on "SENIOR", the same tranche
-    ``test_structured_credit_bindings.py`` exercises for this call.
-    """
-    tranches = json.loads(deal_json)["spec"]["tranches"]["tranches"]
+    """Return the first non-equity tranche from the canonical fixture."""
+    tranches = json.loads(deal_json)["instrument"]["spec"]["tranches"]["tranches"]
     for tranche in tranches:
-        if tranche.get("seniority") != "Equity":
+        if tranche.get("seniority") != "equity":
             return tranche["id"]
     return tranches[0]["id"]
 
@@ -65,7 +44,7 @@ def _market() -> MarketContext:
     as_of = datetime.date(2024, 1, 1)
     market = (
         MarketContext()
-        .insert(DiscountCurve.flat("USD-SOFR-DISC", as_of, 0.04))
+        .insert(DiscountCurve.flat("USD-OIS", as_of, 0.04))
         .insert(
             ForwardCurve(
                 "SOFR-3M",
@@ -91,12 +70,9 @@ class TestStructuredCreditTyped:
             "USD-SOFR-DISC",
         )
         payload = json.loads(deal.to_json())
-        assert payload["type"] == "structured_credit"
-        # DealType has no `#[serde(rename_all)]` in Rust, so the wire value is
-        # the exact PascalCase/acronym variant name ("ABS"), and that is also
-        # exactly what the typed Python constructors accept (see
-        # `test_wire_casing_round_trips_without_translation` below).
-        assert payload["spec"]["deal_type"] == "ABS"
+        assert payload["instrument"]["type"] == "structured_credit"
+        # The typed constructor and serde wire both use canonical snake_case.
+        assert payload["instrument"]["spec"]["deal_type"] == "abs"
         assert StructuredCredit.from_json(deal.to_json()).id == "ABS-1"
 
     def test_tranche_builder_validates_attach_detach(self) -> None:
@@ -107,7 +83,7 @@ class TestStructuredCreditTyped:
                 .id("BAD")
                 .attachment_point(50.0)
                 .detachment_point(10.0)
-                .seniority("Senior")
+                .seniority("senior")
                 .original_balance(Money(1.0, Currency("USD")))
                 .coupon_fixed(0.05)
                 .maturity(datetime.date(2031, 1, 15))
@@ -121,15 +97,11 @@ class TestStructuredCreditTyped:
     def test_wire_casing_round_trips_without_translation(self) -> None:
         """The typed surface must accept exactly the strings `to_json()` emits.
 
-        `DealType`/`TrancheSeniority` have no `#[serde(rename_all)]` in Rust,
-        so their wire form is the literal PascalCase/acronym variant name
-        ("ABS", "Senior", ...). This asserts the round trip end to end: build
-        a deal, serialize it, pull the `deal_type` and a tranche `seniority`
-        straight out of that JSON, and feed those exact strings back into the
-        typed constructors. If a lowercase-translation shim like the old
-        `deal_type_from_str`/`seniority_from_str` helpers were reintroduced,
-        this would fail because the JSON values ("ABS", "Senior") no longer
-        match the shim's lowercase-only vocabulary.
+        `DealType` and `TrancheSeniority` use canonical snake_case at their
+        serde source. This asserts the round trip end to end: build a deal,
+        serialize it, pull the `deal_type` and a tranche `seniority` straight
+        out of that JSON, and feed those exact strings back into the typed
+        constructors without a translation shim.
         """
         deal = StructuredCredit.new_abs(
             "ABS-1",
@@ -140,8 +112,8 @@ class TestStructuredCreditTyped:
             "USD-SOFR-DISC",
         )
         payload = json.loads(deal.to_json())
-        deal_type_wire = payload["spec"]["deal_type"]
-        tranche_seniority_wire = payload["spec"]["tranches"]["tranches"][0]["seniority"]
+        deal_type_wire = payload["instrument"]["spec"]["deal_type"]
+        tranche_seniority_wire = payload["instrument"]["spec"]["tranches"]["tranches"][0]["seniority"]
 
         # Feed the exact wire strings straight back into the typed
         # constructors: this must succeed without any casing translation.
@@ -150,23 +122,23 @@ class TestStructuredCreditTyped:
         StructuredCredit.builder().deal_type(deal_type_wire)
 
     def test_all_deal_type_literal_values_accepted(self) -> None:
-        for value in ("CLO", "CBO", "ABS", "RMBS", "CMBS", "Auto", "Card"):
+        for value in ("clo", "cbo", "abs", "rmbs", "cmbs", "auto", "card"):
             AssetPool("POOL-DT", value, Currency("USD"))
             StructuredCredit.builder().deal_type(value)
 
     def test_all_seniority_literal_values_accepted(self) -> None:
-        for value in ("Senior", "Mezzanine", "Subordinated", "Equity"):
+        for value in ("senior", "mezzanine", "subordinated", "equity"):
             Tranche.builder().seniority(value)
 
-    def test_lowercase_deal_type_is_rejected(self) -> None:
+    def test_uppercase_deal_type_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="invalid deal_type"):
-            AssetPool("POOL-LC", "abs", Currency("USD"))
+            AssetPool("POOL-LC", "ABS", Currency("USD"))  # schema-rejection-test
         with pytest.raises(ValueError, match="invalid deal_type"):
-            StructuredCredit.builder().deal_type("abs")
+            StructuredCredit.builder().deal_type("ABS")  # schema-rejection-test
 
-    def test_lowercase_seniority_is_rejected(self) -> None:
+    def test_pascal_case_seniority_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="invalid seniority"):
-            Tranche.builder().seniority("senior")
+            Tranche.builder().seniority("Senior")  # schema-rejection-test
 
     def test_from_json_accepts_repo_fixture(self) -> None:
         from pathlib import Path
@@ -178,11 +150,11 @@ class TestStructuredCreditTyped:
             / "tests"
             / "instruments"
             / "json_examples"
-            / "structured_credit_full.json"
+            / "structured_credit.json"
         )
-        instrument = json.loads(fixture.read_text())["instrument"]
-        deal = StructuredCredit.from_json(json.dumps(instrument))
-        assert json.loads(deal.to_json())["type"] == "structured_credit"
+        envelope = json.loads(fixture.read_text())
+        deal = StructuredCredit.from_json(json.dumps(envelope))
+        assert json.loads(deal.to_json())["instrument"]["type"] == "structured_credit"
 
 
 class TestStructuredCreditTypedAnalytics:

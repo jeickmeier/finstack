@@ -194,7 +194,7 @@ pub(crate) fn lower_return_floor(
     let dist = realized_distributions(bond, curves, issue)?;
     // The XIRR floor discounts on the same basis as the verification metric
     // (`core::cashflow::xirr`, Act/365F) so the guarantee holds exactly.
-    let dc = spec.day_count.unwrap_or(DayCount::Act365F);
+    let day_count = spec.day_count.unwrap_or(DayCount::Act365F);
 
     // Resolve the kind once so the loop is a single O(N) pass. For XIRR we carry a
     // running PV of coupons discounted from issue, accumulated one date at a time,
@@ -216,7 +216,7 @@ pub(crate) fn lower_return_floor(
         // Accumulate this date's discounted coupon BEFORE any skip — a later
         // in-window candidate still earned the coupons paid on skipped dates.
         let yf_p = if let Target::Xirr(rate) = target {
-            let yf = dc.year_fraction(issue, p.date, DayCountContext::default())?;
+            let yf = day_count.year_fraction(issue, p.date, DayCountContext::default())?;
             pv_coupons += p.coupon / (1.0_f64 + rate).powf(yf);
             yf
         } else {

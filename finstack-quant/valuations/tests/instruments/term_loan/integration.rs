@@ -36,7 +36,9 @@ fn build_simple_term_loan(as_of: Date, maturity: Date) -> TermLoan {
         .rate(term_loan::RateSpec::Fixed { rate_bp: 600 }) // 6%
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(
+            finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+        )
         .calendar_id_opt(None)
         .stub(finstack_quant_core::dates::StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -194,7 +196,7 @@ fn test_floating_rate_term_loan_yield_and_dm() {
             all_in_cap_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,
@@ -204,7 +206,7 @@ fn test_floating_rate_term_loan_yield_and_dm() {
         }))
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))

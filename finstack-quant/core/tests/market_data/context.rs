@@ -992,7 +992,7 @@ fn market_context_apply_bumps_exercises_all_variants() {
         },
         // Vol surface bucket bump: filter a single bucket so we hit the filtered path
         MarketBump::VolBucketPct {
-            surface_id: CurveId::from("EQ-VOL"),
+            vol_surface_id: CurveId::from("EQ-VOL"),
             expiries: Some(vec![0.5]),
             strikes: Some(vec![1.0]),
             pct: 10.0,
@@ -1288,7 +1288,7 @@ fn market_context_apply_bumps_additional_branches_and_errors() {
     let ctx = MarketContext::new().insert_surface(surface);
     let bumped = ctx
         .bump([MarketBump::VolBucketPct {
-            surface_id: CurveId::from("EQ-VOL"),
+            vol_surface_id: CurveId::from("EQ-VOL"),
             expiries: None,
             strikes: None,
             pct: 10.0,
@@ -1308,7 +1308,7 @@ fn market_context_apply_bumps_additional_branches_and_errors() {
     let ctx = MarketContext::new();
     assert!(ctx
         .bump([MarketBump::VolBucketPct {
-            surface_id: CurveId::from("MISSING-VOL"),
+            vol_surface_id: CurveId::from("MISSING-VOL"),
             expiries: Some(vec![0.5]),
             strikes: Some(vec![1.0]),
             pct: 1.0,

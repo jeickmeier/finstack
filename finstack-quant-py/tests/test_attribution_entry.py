@@ -16,6 +16,7 @@ from finstack_quant.attribution import (
     PnlAttribution,
     attribute_pnl,
     attribute_return_contribution,
+    default_waterfall_order,
     validate_attribution_json,
     validate_return_contribution_json,
 )
@@ -27,29 +28,31 @@ AS_OF_T1 = "2025-01-16"
 
 def _bond_json() -> str:
     return json.dumps({
-        "type": "bond",
-        "spec": {
-            "id": "ENTRY-TEST-BOND",
-            "notional": {"amount": "1000000", "currency": "USD"},
-            "issue_date": "2024-01-15",
-            "maturity": "2029-01-15",
-            "cashflow_spec": {
-                "Fixed": {
-                    "coupon_type": "Cash",
-                    "rate": 0.05,
-                    "freq": {"count": 6, "unit": "months"},
-                    "dc": "Thirty360",
-                    "bdc": "following",
-                    "calendar_id": "weekends_only",
-                    "stub": "None",
-                    "end_of_month": False,
-                    "payment_lag_days": 0,
-                }
+        "schema": "finstack_quant.instrument/1",
+        "instrument": {
+            "type": "bond",
+            "spec": {
+                "id": "ENTRY-TEST-BOND",
+                "notional": {"amount": "1000000", "currency": "USD"},
+                "issue_date": "2024-01-15",
+                "maturity": "2029-01-15",
+                "cashflow_spec": {
+                    "fixed": {
+                        "coupon_type": "cash",
+                        "rate": "0.05",
+                        "frequency": {"count": 6, "unit": "months"},
+                        "day_count": "30_360",
+                        "business_day_convention": "following",
+                        "calendar_id": "weekends_only",
+                        "stub": "none",
+                        "end_of_month": False,
+                        "payment_lag_days": 0,
+                    }
+                },
+                "discount_curve_id": "USD-OIS",
+                "call_put": None,
+                "attributes": {"tags": [], "meta": {}},
             },
-            "discount_curve_id": "USD-OIS",
-            "call_put": None,
-            "attributes": {"tags": [], "meta": {}},
-            "pricing_overrides": {},
         },
     })
 
@@ -71,7 +74,7 @@ def _market_json(as_of: str, shift: float = 0.0) -> str:
 
 
 def test_attribute_pnl_accepts_bare_method_strings() -> None:
-    """Regression (M11): the documented ``method="Parallel"`` form must work.
+    """The documented canonical ``method="parallel"`` form must work.
 
     ``py_to_json_value`` previously required the Python str to already be
     valid JSON, so the bare unit-variant names raised
@@ -83,12 +86,39 @@ def test_attribute_pnl_accepts_bare_method_strings() -> None:
         _market_json(AS_OF_T1, shift=0.002),
         AS_OF_T0,
         AS_OF_T1,
-        "Parallel",
+        "parallel",
     )
     attr = PnlAttribution.from_json(out)
+    assert attr.method == "parallel"
     assert attr.total_pnl != 0.0
     # Rates moved between T0 and T1; the parallel method must attribute it.
     assert attr.rates_curves_pnl != 0.0
+
+
+def test_attribution_rejects_legacy_pascal_case_method() -> None:
+    with pytest.raises(ValueError, match="unknown variant"):
+        attribute_pnl(
+            _bond_json(),
+            _market_json(AS_OF_T0),
+            _market_json(AS_OF_T1),
+            AS_OF_T0,
+            AS_OF_T1,
+            "Parallel",
+        )
+
+
+def test_default_waterfall_order_uses_canonical_factor_names() -> None:
+    assert default_waterfall_order() == [
+        "carry",
+        "rates_curves",
+        "credit_curves",
+        "inflation_curves",
+        "correlations",
+        "fx",
+        "volatility",
+        "model_parameters",
+        "market_scalars",
+    ]
 
 
 def test_attribute_pnl_accepts_dict_method_forms() -> None:
@@ -98,7 +128,7 @@ def test_attribute_pnl_accepts_dict_method_forms() -> None:
         _market_json(AS_OF_T1, shift=0.002),
         AS_OF_T0,
         AS_OF_T1,
-        {"Waterfall": ["Carry", "RatesCurves"]},
+        {"waterfall": ["carry", "rates_curves"]},
     )
     attr = PnlAttribution.from_json(out)
     assert attr.rates_curves_pnl != 0.0
@@ -120,7 +150,7 @@ def test_attribute_pnl_missing_market_data_raises_key_error() -> None:
             empty_market,
             AS_OF_T0,
             AS_OF_T1,
-            "Parallel",
+            "parallel",
         )
 
 
@@ -138,10 +168,10 @@ def test_validate_attribution_json_rejects_wrong_schema() -> None:
             "market_t1": json.loads(_market_json(AS_OF_T1)),
             "as_of_t0": AS_OF_T0,
             "as_of_t1": AS_OF_T1,
-            "method": "Parallel",
+            "method": "parallel",
         },
     }
-    with pytest.raises(ValueError, match="schema"):
+    with pytest.raises(ValueError, match=r"finstack_quant\.attribution/99"):
         validate_attribution_json(json.dumps(envelope))
 
 
@@ -157,7 +187,7 @@ def test_empty_detail_dataframes_keep_schema_columns() -> None:
         _market_json(AS_OF_T1),
         AS_OF_T0,
         AS_OF_T1,
-        "Parallel",
+        "parallel",
     )
     attr = PnlAttribution.from_json(out)
     expected_columns = ["kind", "factor", "key_a", "key_b", "amount", "currency"]

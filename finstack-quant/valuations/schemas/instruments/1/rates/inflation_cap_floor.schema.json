@@ -1,5 +1,130 @@
 {
   "$defs": {
+    "InflationCapFloor": {
+      "additionalProperties": false,
+      "description": "YoY inflation cap/floor instrument.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging."
+        },
+        "business_day_convention": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
+          "default": "modified_following",
+          "description": "Business day convention for schedule and payments."
+        },
+        "calendar_id": {
+          "description": "Optional holiday calendar identifier.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention for accrual and option time."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier."
+        },
+        "frequency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
+          "description": "Payment frequency (ignored for caplet/floorlet)."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "inflation_index_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Inflation index/curve identifier (e.g., US-CPI-U)."
+        },
+        "inflation_nominal_correlation": {
+          "description": "Correlation between the inflation index and the nominal short rate,\nused in the YoY convexity/timing adjustment. `None` ⇒ treated as 0\n(the timing term vanishes; the pure inflation-vol Jensen convexity\n`σ_I²·τ` is still applied).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides (implied volatility, surface extrapolation).\nInstrument-owned pricing inputs."
+        },
+        "lag_override": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InflationLag"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional contract-level lag override."
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "End date of the final inflation period."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "nominal_rate_volatility": {
+          "description": "Nominal short-rate volatility `σ_n` (annualized, absolute), used in the\nYoY timing term. `None` ⇒ the `ρ·σ_n` timing term is dropped.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount in quote currency."
+        },
+        "option_type": {
+          "$ref": "#/$defs/InflationCapFloorType",
+          "description": "Cap/floor type (cap, floor, caplet, floorlet)."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "start_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of the first inflation period."
+        },
+        "strike": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Strike (annualized, decimal)."
+        },
+        "stub": {
+          "$ref": "#/$defs/StubKind",
+          "default": "short_front",
+          "description": "Schedule stub convention."
+        },
+        "vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Volatility surface identifier."
+        }
+      },
+      "required": [
+        "id",
+        "option_type",
+        "notional",
+        "strike",
+        "start_date",
+        "maturity",
+        "frequency",
+        "day_count",
+        "inflation_index_id",
+        "discount_curve_id",
+        "vol_surface_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "InflationCapFloorType": {
       "description": "Inflation option type.",
       "oneOf": [
@@ -67,33 +192,64 @@
         }
       ]
     },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "StubKind": {
       "description": "Stub period handling when start/end dates don't align with payment frequency.\n\nControls how schedules are generated when the start and end dates don't\ndivide evenly by the payment frequency, resulting in an irregular period\n(stub) at the beginning or end of the schedule.\n\n# Variants\n\n- **`None`**: No stub allowed (default). Generates regular periods from\n  start to end and returns an error\n  ([`InputError::NonIntegerScheduleTenor`]) when the dates don't divide\n  evenly by the frequency. Use a stub variant for misaligned schedules.\n\n[`InputError::NonIntegerScheduleTenor`]: crate::error::InputError::NonIntegerScheduleTenor\n- **`ShortFront`**: Short stub period at the start. Schedule is built\n  backward from the end date, creating a short first period.\n- **`ShortBack`**: Short stub period at the end. Schedule is built forward\n  from the start date, creating a short final period.\n- **`LongFront`**: Long stub period at the start. Combines the first two\n  periods into a single longer period.\n- **`LongBack`**: Long stub period at the end. Combines the last two periods\n  into a single longer period.\n\n# Financial Context\n\nStub conventions are important for:\n- Interest accrual calculations (short/long first coupons)\n- Cash flow present value computations\n- Matching market conventions for specific instruments\n\n# Examples\n\n```rust\nuse finstack_quant_core::dates::{ScheduleBuilder, Tenor, StubKind};\nuse time::{Date, Month};\n\nlet start = Date::from_calendar_date(2025, Month::January, 10)?;\nlet end = Date::from_calendar_date(2025, Month::December, 15)?;\n\n// Short stub at front\nlet sched = ScheduleBuilder::new(start, end)?\n    .frequency(Tenor::quarterly())\n    .stub_rule(StubKind::ShortFront)\n    .build()?;\n# Ok::<(), Box<dyn std::error::Error>>(())\n```\n\n# See Also\n\n- [`ScheduleBuilder::stub_rule`] to configure stub behavior",
       "oneOf": [
         {
-          "const": "None",
+          "const": "none",
           "description": "No stub allowed: start/end must align exactly with the frequency,\notherwise schedule generation returns an error.",
           "type": "string"
         },
         {
-          "const": "ShortFront",
+          "const": "short_front",
           "description": "Short stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "ShortBack",
+          "const": "short_back",
           "description": "Short stub period at the end of the schedule (final step truncated to maturity).",
           "type": "string"
         },
         {
-          "const": "LongFront",
+          "const": "long_front",
           "description": "Long stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "LongBack",
+          "const": "long_back",
           "description": "Long stub period at the end of the schedule (merges final two periods).",
           "type": "string"
+        }
+      ]
+    },
+    "inflation_cap_floor": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/InflationCapFloor"
+            },
+            "type": {
+              "const": "inflation_cap_floor",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
         }
       ]
     }
@@ -101,15 +257,15 @@
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/inflation_cap_floor.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "YoY inflation cap/floor option priced with Black-76 or Bachelier model",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
-          "bdc": "modified_following",
+          "business_day_convention": "modified_following",
           "calendar_id": null,
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "discount_curve_id": "USD-OIS",
           "frequency": {
             "count": 1,
@@ -126,30 +282,9 @@
             "currency": "USD"
           },
           "option_type": "cap",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "start_date": "2024-01-15",
           "strike": "0.03",
-          "stub": "ShortFront",
+          "stub": "short_front",
           "vol_surface_id": "USD-INFL-VOL"
         },
         "type": "inflation_cap_floor"
@@ -159,173 +294,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Inflation Cap Floor instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging."
-            },
-            "bdc": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
-              "default": "modified_following",
-              "description": "Business day convention for schedule and payments."
-            },
-            "calendar_id": {
-              "description": "Optional holiday calendar identifier.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention for accrual and option time."
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier."
-            },
-            "frequency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-              "description": "Payment frequency (ignored for caplet/floorlet)."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "inflation_index_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Inflation index/curve identifier (e.g., US-CPI-U)."
-            },
-            "inflation_nominal_correlation": {
-              "description": "Correlation between the inflation index and the nominal short rate,\nused in the YoY convexity/timing adjustment. `None` ⇒ treated as 0\n(the timing term vanishes; the pure inflation-vol Jensen convexity\n`σ_I²·τ` is still applied).",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "lag_override": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/InflationLag"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional contract-level lag override."
-            },
-            "maturity": {
-              "description": "End date of the final inflation period.",
-              "format": "date",
-              "type": "string"
-            },
-            "nominal_rate_volatility": {
-              "description": "Nominal short-rate volatility `σ_n` (annualized, absolute), used in the\nYoY timing term. `None` ⇒ the `ρ·σ_n` timing term is dropped.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount in quote currency."
-            },
-            "option_type": {
-              "$ref": "#/$defs/InflationCapFloorType",
-              "description": "Cap/floor type (cap, floor, caplet, floorlet)."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides (implied volatility, surface extrapolation).\nInstrument-owned pricing inputs."
-            },
-            "start_date": {
-              "description": "Start date of the first inflation period.",
-              "format": "date",
-              "type": "string"
-            },
-            "strike": {
-              "description": "Strike (annualized, decimal).",
-              "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-              "type": [
-                "string",
-                "number"
-              ]
-            },
-            "stub": {
-              "$ref": "#/$defs/StubKind",
-              "default": "ShortFront",
-              "description": "Schedule stub convention."
-            },
-            "vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Volatility surface identifier."
-            }
-          },
-          "required": [
-            "id",
-            "option_type",
-            "notional",
-            "strike",
-            "start_date",
-            "maturity",
-            "frequency",
-            "day_count",
-            "inflation_index_id",
-            "discount_curve_id",
-            "vol_surface_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "inflation_cap_floor",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/inflation_cap_floor"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Inflation Cap/Floor",
+  "title": "inflation_cap_floor",
   "type": "object"
 }

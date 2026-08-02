@@ -197,8 +197,6 @@ mod xccy_swap;
 // Commodity Derivatives
 // ============================================================================
 
-// NOTE: instruments/commodity/ tests are orphaned and need API updates
-// They use legacy `finstack_quant_core::market_data::curves` imports
 #[path = "instruments/commodity/mod.rs"]
 mod commodity;
 
@@ -296,7 +294,6 @@ mod forward_curve_dependency_completeness;
 #[path = "instruments/forward_dependency_completeness.rs"]
 mod forward_dependency_completeness;
 
-// NOTE: fx_dependency_completeness.rs uses private `providers` module
 #[path = "instruments/fx_dependency_completeness.rs"]
 mod fx_dependency_completeness;
 

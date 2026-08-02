@@ -17,7 +17,7 @@
 //!
 //! Typical fees:
 //! - **Upfront fee**: Paid at facility origination (% of commitment)
-//! - **Commitment fee**: Paid on undrawn amount (bps per annum)
+//! - **Commitment fee**: Paid on undrawn amount (bp per annum)
 //! - **Usage fee**: Additional spread when utilization > threshold
 //! - **Facility fee**: Paid on total commitment regardless of usage
 //!

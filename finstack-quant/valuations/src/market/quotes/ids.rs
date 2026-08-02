@@ -121,7 +121,11 @@ pub enum Pillar {
     ///
     /// The maturity is fixed to a specific date, regardless of the valuation date. This is
     /// typically used for futures contracts or bespoke instruments with fixed maturities.
-    Date(#[schemars(with = "String")] Date),
+    Date(
+        #[serde(with = "finstack_quant_core::wire::date")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
+        Date,
+    ),
 }
 
 impl fmt::Display for Pillar {

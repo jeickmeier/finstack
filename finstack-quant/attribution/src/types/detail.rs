@@ -184,19 +184,12 @@ pub struct CreditFactorAttribution {
     /// The reprice-based parallel/waterfall cascades distribute convexity
     /// into the steps via cumulative bumps.
     ///
-    /// Audit item #1: previously this residual was absorbed into
-    /// `adder_pnl_total`, which mislabeled curve-shape risk as
-    /// issuer-idiosyncratic. It is now a distinct component. The reconciliation
-    /// invariant is correspondingly:
+    /// The reconciliation invariant is:
     /// `generic + Σ levels + adder + curve_shape ≡ credit_curves_pnl`.
-    ///
-    /// `#[serde(default)]` keeps backward compatibility: older serialized
-    /// attributions (no `curve_shape_pnl`) deserialize with a zero value.
-    #[serde(default = "super::zero_money_usd")]
     pub curve_shape_pnl: Money,
     /// Optional per-issuer adder breakdown (gated by
     /// `CreditFactorDetailOptions.include_per_issuer_adder`, default off).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<BTreeMap<String, Money>>")]
     pub adder_pnl_by_issuer: Option<BTreeMap<IssuerId, Money>>,
     /// Diagnostic: absolute magnitude of the per-issuer adder step P&L
@@ -205,7 +198,7 @@ pub struct CreditFactorAttribution {
     /// A `tracing::warn!` is also emitted by the cascade builder when the
     /// adder magnitude exceeds `credit_cascade::ADDER_MAGNITUDE_WARN_RATIO`
     /// of total credit P&L.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub adder_magnitude: Option<Money>,
 }
 
@@ -343,30 +336,21 @@ pub struct ModelParamsAttribution {
 ///
 /// Used for `CarryDetail.coupon_income` and `CarryDetail.roll_down`. When no
 /// `CreditFactorModel` is supplied to attribution, `rates_part` and
-/// `credit_part` are both `None` and `total` carries the scalar value (legacy
-/// behavior). When a model is supplied, the two parts sum to `total` at
+/// `credit_part` are both `None` and `total` carries the canonical scalar
+/// value. When a model is supplied, the two parts sum to `total` at
 /// 1e-8 absolute tolerance (PR-8b §7.1, §7.4 invariants 1 & 2).
-///
-/// # JSON backward-compat
-///
-/// Pre-PR-8b JSON encoded `coupon_income` / `roll_down` as a bare `Money`
-/// object (`{"amount": ..., "currency": ...}`). The custom `Deserialize`
-/// implementation below accepts either:
-///   - a legacy `Money` shape → `SourceLine { total: <money>, rates_part: None, credit_part: None }`
-///   - the full `SourceLine` shape (`total` + optional `rates_part` / `credit_part`)
-///
-/// New JSON serialization always uses the `SourceLine` shape.
-#[derive(Debug, Clone, Serialize, PartialEq, schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct SourceLine {
     /// Total signed amount for this line (always populated).
     pub total: Money,
     /// Rates-only contribution (populated only when a credit factor model
     /// drove the split).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rates_part: Option<Money>,
     /// Credit-only contribution (populated only when a credit factor model
     /// drove the split).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub credit_part: Option<Money>,
 }
 
@@ -388,52 +372,6 @@ impl SourceLine {
             rates_part: Some(rates_part),
             credit_part: Some(credit_part),
         }
-    }
-}
-
-// Custom Deserialize that accepts either the legacy `Money` shape (object
-// with `amount` and `currency`) or the new `SourceLine` shape (object with
-// `total` and optional `rates_part` / `credit_part`). Disambiguation is by
-// presence of the `total` key — `Money` has no `total` field.
-impl<'de> Deserialize<'de> for SourceLine {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        // Read into a JSON Value first so we can route on shape. This is
-        // fine for an `Option<SourceLine>` field: serde only invokes us when
-        // a value is present.
-        let v = serde_json::Value::deserialize(deserializer)?;
-        if let Some(obj) = v.as_object() {
-            if obj.contains_key("total") {
-                // New shape. `deny_unknown_fields` keeps this inbound surface
-                // as strict as the rest of the crate (a
-                // typo'd key was previously dropped silently).
-                #[derive(Deserialize)]
-                #[serde(deny_unknown_fields)]
-                struct Helper {
-                    total: Money,
-                    #[serde(default)]
-                    rates_part: Option<Money>,
-                    #[serde(default)]
-                    credit_part: Option<Money>,
-                }
-                let h: Helper = serde_json::from_value(v).map_err(serde::de::Error::custom)?;
-                return Ok(SourceLine {
-                    total: h.total,
-                    rates_part: h.rates_part,
-                    credit_part: h.credit_part,
-                });
-            }
-            if obj.contains_key("amount") && obj.contains_key("currency") {
-                // Legacy bare-Money shape.
-                let m: Money = serde_json::from_value(v).map_err(serde::de::Error::custom)?;
-                return Ok(SourceLine::scalar(m));
-            }
-        }
-        Err(serde::de::Error::custom(
-            "expected SourceLine ({total, rates_part?, credit_part?}) or legacy Money ({amount, currency})",
-        ))
     }
 }
 
@@ -533,7 +471,7 @@ pub struct CreditCarryByLevel {
     pub adder_total: Money,
     /// Optional per-issuer adder breakdown (gated by
     /// `CreditFactorDetailOptions.include_per_issuer_adder`).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<BTreeMap<String, Money>>")]
     pub adder_by_issuer: Option<BTreeMap<IssuerId, Money>>,
 }

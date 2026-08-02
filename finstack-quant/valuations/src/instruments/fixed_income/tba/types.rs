@@ -65,10 +65,12 @@ impl std::fmt::Display for TbaTerm {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct TbaSettlement {
     /// Good delivery (settlement) date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub settlement_date: Date,
     /// Last trading day (48 hours before settlement)
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub notification_date: Date,
 }
 
@@ -121,7 +123,9 @@ pub struct TbaSettlement {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = AgencyTba::validate)]
 #[serde(deny_unknown_fields)]
@@ -153,7 +157,8 @@ pub struct AgencyTba {
     /// pricing consistent with explicit roll settlement dates.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub settlement_date: Option<Date>,
     /// Trade notional (par amount).
     pub notional: Money,
@@ -162,7 +167,8 @@ pub struct AgencyTba {
     /// Trade date.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub trade_date: Option<Date>,
     /// Expected pool factor for valuation.
     /// Defaults to 1.0 (newly issued) if not specified.
@@ -178,16 +184,25 @@ pub struct AgencyTba {
     pub discount_curve_id: CurveId,
     /// Pricing overrides.
     #[builder(default)]
-    #[serde(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for tagging and selection.
     #[builder(default)]

@@ -269,7 +269,7 @@ fn test_instrument_trait_key() {
 
     let idx = standard_single_curve_index("CDX-KEY", start, end, 10_000_000.0);
 
-    assert_eq!(idx.key(), InstrumentType::CDSIndex);
+    assert_eq!(idx.key(), InstrumentType::CdsIndex);
 }
 
 #[test]

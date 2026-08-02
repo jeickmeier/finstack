@@ -26,6 +26,7 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_valuations::pricer::InstrumentType;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
@@ -67,14 +68,14 @@ const DEFAULT_FAR_FUTURE_FX_HORIZON_YEARS: i32 = 30;
 fn should_warn_far_future_fx_conversion(
     as_of: Date,
     payment_date: Date,
-    from_ccy: Currency,
-    base_ccy: Currency,
+    from_currency: Currency,
+    base_currency: Currency,
 ) -> bool {
     should_warn_far_future_fx_conversion_with_horizon(
         as_of,
         payment_date,
-        from_ccy,
-        base_ccy,
+        from_currency,
+        base_currency,
         DEFAULT_FAR_FUTURE_FX_HORIZON_YEARS,
     )
 }
@@ -91,11 +92,11 @@ fn should_warn_far_future_fx_conversion(
 fn should_warn_far_future_fx_conversion_with_horizon(
     as_of: Date,
     payment_date: Date,
-    from_ccy: Currency,
-    base_ccy: Currency,
+    from_currency: Currency,
+    base_currency: Currency,
     horizon_years: i32,
 ) -> bool {
-    if from_ccy == base_ccy {
+    if from_currency == base_currency {
         return false;
     }
     let Some(threshold) = add_years_clamped(as_of, horizon_years) else {
@@ -106,6 +107,7 @@ fn should_warn_far_future_fx_conversion_with_horizon(
 
 /// Why a position did not contribute classified cashflows to a portfolio ladder.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CashflowExtractionIssueKind {
     /// The instrument exposes `CashflowProvider`, but schedule construction failed.
     BuildFailed,
@@ -119,7 +121,7 @@ pub struct CashflowExtractionIssue {
     /// Underlying instrument identifier.
     pub instrument_id: String,
     /// Underlying instrument type key.
-    pub instrument_type: String,
+    pub instrument_type: InstrumentType,
     /// Failure category.
     pub kind: CashflowExtractionIssueKind,
     /// Human-readable failure detail.
@@ -134,7 +136,7 @@ pub struct PortfolioCashflowPositionSummary {
     /// Underlying instrument identifier.
     pub instrument_id: String,
     /// Underlying instrument type key.
-    pub instrument_type: String,
+    pub instrument_type: InstrumentType,
     /// Schedule representation carried by the instrument.
     pub representation: CashflowRepresentation,
     /// Number of emitted dated events after schedule construction.
@@ -149,7 +151,7 @@ pub struct PortfolioCashflowEvent {
     /// Underlying instrument identifier.
     pub instrument_id: String,
     /// Underlying instrument type key.
-    pub instrument_type: String,
+    pub instrument_type: InstrumentType,
     /// Payment date.
     pub date: Date,
     /// Position-scaled amount.
@@ -199,8 +201,8 @@ impl PortfolioCashflows {
     /// ### FX convention
     ///
     /// Each foreign-currency flow on payment date `T` is converted to
-    /// `base_ccy` using whatever rate the `FxMatrix` resolves for
-    /// `(from → base_ccy, T)`. For most market setups this will be a
+    /// `base_currency` using whatever rate the `FxMatrix` resolves for
+    /// `(from → base_currency, T)`. For most market setups this will be a
     /// spot-equivalent rate rather than a true forward FX rate derived from
     /// discount curves; the module-level docstring explains the trade-off.
     /// For NPV-grade accuracy, convert via forward FX on the calling side and
@@ -219,28 +221,28 @@ impl PortfolioCashflows {
     pub fn collapse_to_base_by_date_kind(
         &self,
         market: &MarketContext,
-        base_ccy: Currency,
+        base_currency: Currency,
         as_of: Date,
     ) -> Result<IndexMap<Date, IndexMap<CFKind, Money>>> {
         let mut by_date_base: IndexMap<Date, IndexMap<CFKind, Money>> = IndexMap::new();
         let mut warned_pairs: HashSet<(Currency, Currency, Date)> = HashSet::new();
 
-        for (date, per_ccy) in &self.by_date {
+        for (date, per_currency) in &self.by_date {
             let mut per_kind_base: IndexMap<CFKind, Money> = IndexMap::new();
 
-            for per_kind in per_ccy.values() {
+            for per_kind in per_currency.values() {
                 for (kind, money) in per_kind {
                     let converted = convert_money_to_base_on_date(
                         *money,
                         *date,
                         market,
-                        base_ccy,
+                        base_currency,
                         as_of,
                         &mut warned_pairs,
                     )?;
                     let entry = per_kind_base
                         .entry(*kind)
-                        .or_insert_with(|| Money::new(0.0, base_ccy));
+                        .or_insert_with(|| Money::new(0.0, base_currency));
                     *entry = entry.checked_add(converted).map_err(Error::Core)?;
                 }
             }
@@ -293,7 +295,7 @@ pub fn aggregate_full_cashflows(
     struct PositionCashflowResult {
         position_id: PositionId,
         instrument_id: String,
-        instrument_type: String,
+        instrument_type: InstrumentType,
         schedule: std::result::Result<CashFlowSchedule, finstack_quant_core::Error>,
         scaled_flows: Vec<(finstack_quant_core::cashflow::CashFlow, Money)>,
     }
@@ -301,7 +303,7 @@ pub fn aggregate_full_cashflows(
     use rayon::prelude::*;
     let schedule_position = |position: &crate::position::Position| -> PositionCashflowResult {
         let instrument_id = position.instrument.id().to_string();
-        let instrument_type = format!("{:?}", position.instrument.key());
+        let instrument_type = position.instrument.key();
         match instrument_cashflow_schedule(position.instrument.as_ref(), market, portfolio.as_of) {
             Ok(schedule) => {
                 let scaled_flows: Vec<_> = schedule
@@ -357,7 +359,7 @@ pub fn aggregate_full_cashflows(
                     let event = PortfolioCashflowEvent {
                         position_id: result.position_id.clone(),
                         instrument_id: result.instrument_id.clone(),
-                        instrument_type: result.instrument_type.clone(),
+                        instrument_type: result.instrument_type,
                         date: flow.date,
                         amount: scaled_amount,
                         kind: flow.kind,
@@ -374,7 +376,7 @@ pub fn aggregate_full_cashflows(
                     PortfolioCashflowPositionSummary {
                         position_id: result.position_id.clone(),
                         instrument_id: result.instrument_id.clone(),
-                        instrument_type: result.instrument_type.clone(),
+                        instrument_type: result.instrument_type,
                         representation,
                         event_count,
                     },
@@ -403,8 +405,8 @@ pub fn aggregate_full_cashflows(
 
     let mut by_date: IndexMap<Date, IndexMap<Currency, IndexMap<CFKind, Money>>> = IndexMap::new();
     for event in &events {
-        let per_ccy = by_date.entry(event.date).or_default();
-        let per_kind = per_ccy.entry(event.amount.currency()).or_default();
+        let per_currency = by_date.entry(event.date).or_default();
+        let per_kind = per_currency.entry(event.amount.currency()).or_default();
         let entry = per_kind
             .entry(event.kind)
             .or_insert_with(|| Money::new(0.0, event.amount.currency()));
@@ -425,12 +427,12 @@ fn convert_money_to_base_on_date(
     money: Money,
     payment_date: Date,
     market: &MarketContext,
-    base_ccy: Currency,
+    base_currency: Currency,
     as_of: Date,
     warned_pairs: &mut HashSet<(Currency, Currency, Date)>,
 ) -> Result<Money> {
     let ccy = money.currency();
-    if ccy == base_ccy {
+    if ccy == base_currency {
         return Ok(money);
     }
 
@@ -438,18 +440,18 @@ fn convert_money_to_base_on_date(
     // actual FX lookup/conversion to the shared `crate::fx::convert_to_base`
     // helper so the rate application and error mapping stay consistent across
     // the portfolio crate.
-    if should_warn_far_future_fx_conversion(as_of, payment_date, ccy, base_ccy)
-        && warned_pairs.insert((ccy, base_ccy, payment_date))
+    if should_warn_far_future_fx_conversion(as_of, payment_date, ccy, base_currency)
+        && warned_pairs.insert((ccy, base_currency, payment_date))
     {
         tracing::warn!(
             from = %ccy,
-            to = %base_ccy,
+            to = %base_currency,
             payment_date = %payment_date,
             "Converting cashflow beyond market as-of + 30Y using spot-equivalent FX; prefer forward FX for long-dated reporting"
         );
     }
 
-    crate::fx::convert_to_base(money, payment_date, market, base_ccy).map_err(|e| match e {
+    crate::fx::convert_to_base(money, payment_date, market, base_currency).map_err(|e| match e {
         // Pin the offending payment date onto the FX failure: the bare
         // `FxConversionFailed` only names the currency pair, which is not
         // enough to find the missing rate when a collapse spans many dates.
@@ -621,7 +623,7 @@ mod tests {
         .expect("test should succeed");
 
         let portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -689,7 +691,7 @@ mod tests {
         )
         .expect("test should succeed");
         let portfolio = PortfolioBuilder::new("WARNINGS")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -730,7 +732,7 @@ mod tests {
         )
         .expect("test should succeed");
         let portfolio = PortfolioBuilder::new("PLACEHOLDER")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -766,7 +768,7 @@ mod tests {
         )
         .expect("test should succeed");
         let portfolio = PortfolioBuilder::new("AGENCY")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -800,7 +802,7 @@ mod tests {
         )
         .expect("test should succeed");
         let portfolio = PortfolioBuilder::new("CDX")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -852,7 +854,7 @@ mod tests {
         )
         .expect("test should succeed");
         let portfolio = PortfolioBuilder::new("FULL")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -879,8 +881,8 @@ mod tests {
             "expected coupon or principal classifications"
         );
 
-        let has_kind_bucket = full.by_date.values().any(|per_ccy| {
-            per_ccy.values().any(|per_kind| {
+        let has_kind_bucket = full.by_date.values().any(|per_currency| {
+            per_currency.values().any(|per_kind| {
                 per_kind.contains_key(&CFKind::Fixed) || per_kind.contains_key(&CFKind::Notional)
             })
         });
@@ -903,7 +905,7 @@ mod tests {
         )
         .expect("test should succeed");
         let portfolio = PortfolioBuilder::new("UNSUPPORTED")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)

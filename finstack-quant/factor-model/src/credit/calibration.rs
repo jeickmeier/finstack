@@ -55,13 +55,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::credit::hierarchy::{
-    dimension_key, AdderVolSource, CalibrationDiagnostics, CreditFactorModel, CreditHierarchySpec,
-    DateRange, FactorCorrelationMatrix, FactorHistories, FactorVolModel, FitQuality, FoldUpRecord,
-    GenericFactorSpec, IdiosyncraticVolModel, IssuerBetaMode, IssuerBetaOverride, IssuerBetaPolicy,
-    IssuerBetaRow, IssuerBetas, IssuerTags, LevelAnchor, LevelsAtAnchor, VolState,
+    dimension_key, AdderVolSource, CalibrationDiagnostics, CreditFactorModel,
+    CreditFactorModelSchema, CreditHierarchySpec, DateRange, FactorCorrelationMatrix,
+    FactorHistories, FactorVolModel, FitQuality, FoldUpRecord, GenericFactorSpec,
+    IdiosyncraticVolModel, IssuerBetaMode, IssuerBetaOverride, IssuerBetaPolicy, IssuerBetaRow,
+    IssuerBetas, IssuerTags, LevelAnchor, LevelsAtAnchor, VolState,
 };
 use finstack_quant_core::dates::Date;
 
@@ -87,7 +89,7 @@ use finstack_quant_core::{Error, Result};
 ///
 /// `Returns` (the default) matches the spec's reference math: `r_i(t) =
 /// S_i(t) - S_i(t-1)` and the generic factor is differenced the same way.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PanelSpace {
@@ -113,7 +115,7 @@ pub enum PanelSpace {
 /// ([`PanelSpace::Levels`]) is rejected by
 /// `validate_calibration_config` because the squared-level mean-square is
 /// dominated by the level itself, not its dispersion.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum VolModelChoice {
@@ -133,13 +135,14 @@ pub enum VolModelChoice {
     ///   Document* (4th ed.). J.P. Morgan/Reuters. §5.2.
     Ewma {
         /// Smoothing parameter λ ∈ (0, 1) (RiskMetrics daily default 0.94).
+        #[schemars(extend("exclusiveMinimum" = 0.0, "exclusiveMaximum" = 1.0))]
         lambda: f64,
     },
 }
 
 /// Strategy for assembling the factor covariance matrix.
 ///
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CovarianceStrategy {
@@ -149,6 +152,7 @@ pub enum CovarianceStrategy {
     /// Σ = D·ρ·D + α·I. Requires `alpha >= 0`. See design spec §4.1.
     Ridge {
         /// Ridge regularisation parameter; must be `>= 0`.
+        #[schemars(range(min = 0.0))]
         alpha: f64,
     },
     /// Full sample covariance with PSD repair via nearest-correlation projection:
@@ -179,7 +183,7 @@ pub enum CovarianceStrategy {
 }
 
 /// OLS β shrinkage rule.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum BetaShrinkage {
@@ -188,13 +192,14 @@ pub enum BetaShrinkage {
     /// Convex shrinkage toward 1.0: `β ← (1 - α) · β_fit + α · 1.0`.
     TowardOne {
         /// Shrinkage weight in `[0, 1]`.
+        #[schemars(range(min = 0.0, max = 1.0))]
         alpha: f64,
     },
 }
 
 /// Per-level minimum-bucket-size thresholds used to gate fold-up of sparse
 /// hierarchy buckets.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BucketSizeThresholds {
     /// Threshold per hierarchy level. Levels beyond `per_level.len()` use the
@@ -217,7 +222,7 @@ impl BucketSizeThresholds {
 }
 
 /// Configuration for the calibrator.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreditCalibrationConfig {
     /// Issuer-beta classification policy.
@@ -235,6 +240,7 @@ pub struct CreditCalibrationConfig {
     /// Whether to differentiate the panel before peeling.
     pub use_returns_or_levels: PanelSpace,
     /// Annualization factor for sample variance (default 12.0 ≈ monthly data).
+    #[schemars(extend("exclusiveMinimum" = 0.0))]
     pub annualization_factor: f64,
 }
 
@@ -262,17 +268,19 @@ impl Default for CreditCalibrationConfig {
 /// `dates` is the sorted observation grid. `spreads[issuer]` has length
 /// `dates.len()`; entries are `Some(spread)` when the issuer was observed at
 /// that date and `None` otherwise.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryPanel {
     /// Observation dates (sorted ascending).
+    #[serde(with = "finstack_quant_core::wire::dates")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub dates: Vec<Date>,
     /// Per-issuer spread series aligned with [`dates`][Self::dates].
     pub spreads: BTreeMap<IssuerId, Vec<Option<f64>>>,
 }
 
 /// Point-in-time issuer tags at the calibration `as_of`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssuerTagPanel {
     /// Tag map keyed by issuer.
@@ -280,7 +288,7 @@ pub struct IssuerTagPanel {
 }
 
 /// Generic (PC) factor reference and aligned values.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GenericFactorSeries {
     /// Reference (name + series_id) embedded into the artifact.
@@ -290,7 +298,7 @@ pub struct GenericFactorSeries {
 }
 
 /// All inputs the calibrator needs for a single calibration run.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreditCalibrationInputs {
     /// Sparse issuer-spread history.
@@ -300,9 +308,11 @@ pub struct CreditCalibrationInputs {
     /// Generic factor series + spec.
     pub generic_factor: GenericFactorSeries,
     /// Calibration anchor date (must appear in `history_panel.dates`).
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of: Date,
     /// Issuer spreads at `as_of` (level space).
-    pub asof_spreads: BTreeMap<IssuerId, f64>,
+    pub as_of_spreads: BTreeMap<IssuerId, f64>,
     /// Optional caller-supplied idiosyncratic vol overrides.
     ///
     /// Caller-supplied values take precedence over history, peer-proxy, and
@@ -456,7 +466,7 @@ impl CreditCalibrator {
         let generic_at_asof = inputs.generic_factor.values[asof_idx];
         let anchor = anchor_levels(
             &self.config.hierarchy,
-            &inputs.asof_spreads,
+            &inputs.as_of_spreads,
             &inputs.issuer_tags.tags,
             generic_at_asof,
             &peel_outcome.betas,
@@ -558,7 +568,7 @@ impl CreditCalibrator {
         let vol_state = build_vol_state(&factor_variances, &issuer_betas, self.config.vol_model);
 
         let model = CreditFactorModel {
-            schema_version: CreditFactorModel::SCHEMA_VERSION.to_owned(),
+            schema: CreditFactorModelSchema::CURRENT,
             as_of: inputs.as_of,
             calibration_window,
             policy: self.config.policy.clone(),
@@ -691,7 +701,7 @@ fn validate_calibration_inputs(inputs: &CreditCalibrationInputs) -> Result<()> {
     }
 
     // The anchor cross-section must cover exactly the calibrated universe.
-    // A history issuer missing from `asof_spreads` would silently receive
+    // A history issuer missing from `as_of_spreads` would silently receive
     // `adder_at_anchor = 0.0` and shift every bucket peer's anchor mean; an
     // asof-only issuer would silently enter anchor bucket means with unit
     // betas while receiving no artifact row. Both directions are data gaps
@@ -700,12 +710,12 @@ fn validate_calibration_inputs(inputs: &CreditCalibrationInputs) -> Result<()> {
         .history_panel
         .spreads
         .keys()
-        .filter(|id| !inputs.asof_spreads.contains_key(*id))
+        .filter(|id| !inputs.as_of_spreads.contains_key(*id))
         .map(IssuerId::as_str)
         .collect();
     if !history_only.is_empty() {
         return Err(validation_err(format!(
-            "CreditCalibrator: asof_spreads is missing {} issuer(s) present in \
+            "CreditCalibrator: as_of_spreads is missing {} issuer(s) present in \
              history_panel.spreads (first few: {:?}); supply an as_of spread for \
              every calibrated issuer",
             history_only.len(),
@@ -713,14 +723,14 @@ fn validate_calibration_inputs(inputs: &CreditCalibrationInputs) -> Result<()> {
         )));
     }
     let asof_only: Vec<&str> = inputs
-        .asof_spreads
+        .as_of_spreads
         .keys()
         .filter(|id| !inputs.history_panel.spreads.contains_key(*id))
         .map(IssuerId::as_str)
         .collect();
     if !asof_only.is_empty() {
         return Err(validation_err(format!(
-            "CreditCalibrator: asof_spreads contains {} issuer(s) absent from \
+            "CreditCalibrator: as_of_spreads contains {} issuer(s) absent from \
              history_panel.spreads (first few: {:?}); anchor-only issuers would \
              distort bucket anchors without receiving an artifact row",
             asof_only.len(),
@@ -749,10 +759,10 @@ fn validate_calibration_inputs(inputs: &CreditCalibrationInputs) -> Result<()> {
         }
     }
 
-    for (issuer, spread) in &inputs.asof_spreads {
+    for (issuer, spread) in &inputs.as_of_spreads {
         validate_finite(
             format!(
-                "CreditCalibrator: asof_spreads for issuer {:?}",
+                "CreditCalibrator: as_of_spreads for issuer {:?}",
                 issuer.as_str()
             ),
             *spread,
@@ -1491,7 +1501,7 @@ struct AnchorOutcome {
 /// `CreditFactorModel` yet, so this is a self-contained re-implementation.
 fn anchor_levels(
     hierarchy: &CreditHierarchySpec,
-    asof_spreads: &BTreeMap<IssuerId, f64>,
+    as_of_spreads: &BTreeMap<IssuerId, f64>,
     tags: &BTreeMap<IssuerId, IssuerTags>,
     generic_at_asof: f64,
     betas: &BTreeMap<IssuerId, IssuerBetas>,
@@ -1500,7 +1510,7 @@ fn anchor_levels(
     let num_levels = hierarchy.levels.len();
     // Resolve issuer → tags + bucket_paths.
     let mut bucket_paths: BTreeMap<IssuerId, Vec<String>> = BTreeMap::new();
-    for issuer in asof_spreads.keys() {
+    for issuer in as_of_spreads.keys() {
         let issuer_tags = tags.get(issuer).cloned().unwrap_or_default();
         let mut paths = Vec::with_capacity(num_levels);
         for k in 0..num_levels {
@@ -1522,7 +1532,7 @@ fn anchor_levels(
     }
 
     let peel = super::peel::peel_single_observation(
-        asof_spreads,
+        as_of_spreads,
         generic_at_asof,
         betas,
         &bucket_paths,

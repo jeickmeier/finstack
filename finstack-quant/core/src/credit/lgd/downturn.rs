@@ -26,6 +26,7 @@ use crate::Result;
 
 /// Method for computing downturn LGD from base (through-the-cycle) LGD.
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum DownturnMethod {
     /// Proprietary stressed-LGD approximation (mean plus a multiple of the
     /// Bernoulli standard deviation).
@@ -41,11 +42,10 @@ pub enum DownturnMethod {
     /// because the same macro factor driving defaults also depresses asset
     /// values.
     ///
-    /// **Naming note:** the variant name is retained for serde stability, but
-    /// this is *not* the Frye-Jacobs (2012) model (whose LGD function is
+    /// This is *not* the Frye-Jacobs (2012) model (whose LGD function is
     /// `cLGD = Φ(Φ⁻¹(cDR) − k) / cDR`); Frye & Jacobs (2012) is related
     /// literature only. See the module-level Methodology Note.
-    FryeJacobs {
+    StressedApproximation {
         /// Asset correlation (rho). Typical: 0.10-0.24 per Basel.
         asset_correlation: f64,
         /// LGD sensitivity to systematic factor. Typical: 0.3-0.5.
@@ -71,6 +71,7 @@ pub enum DownturnMethod {
 /// Wraps a base LGD estimate and applies a downturn adjustment method
 /// to produce a stressed LGD for capital calculations.
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DownturnLgd {
     /// Downturn adjustment method.
     method: DownturnMethod,
@@ -79,7 +80,7 @@ pub struct DownturnLgd {
 impl DownturnLgd {
     /// Create a stressed-LGD downturn adjuster (proprietary mean-plus-
     /// multiple-of-Bernoulli-stdev approximation; see
-    /// [`DownturnMethod::FryeJacobs`] for the formula and naming note).
+    /// [`DownturnMethod::StressedApproximation`] for the formula).
     ///
     /// # Arguments
     ///
@@ -96,13 +97,13 @@ impl DownturnLgd {
     /// - `asset_correlation` is not in (0, 1)
     /// - `lgd_sensitivity` is negative
     /// - `stress_quantile` is not in (0, 1)
-    pub fn frye_jacobs(
+    pub fn stressed(
         asset_correlation: f64,
         lgd_sensitivity: f64,
         stress_quantile: f64,
     ) -> Result<Self> {
         let dt = Self {
-            method: DownturnMethod::FryeJacobs {
+            method: DownturnMethod::StressedApproximation {
                 asset_correlation,
                 lgd_sensitivity,
                 stress_quantile,
@@ -134,7 +135,7 @@ impl DownturnLgd {
 
     /// Validate the invariants of the configured downturn method's parameters.
     ///
-    /// [`DownturnLgd::frye_jacobs`] and [`DownturnLgd::regulatory_floor`]
+    /// [`DownturnLgd::stressed`] and [`DownturnLgd::regulatory_floor`]
     /// already enforce these invariants at construction time, but
     /// `DownturnLgd` also derives `Deserialize` and can be produced directly
     /// from untrusted JSON (e.g. embedded in a config struct's
@@ -148,14 +149,14 @@ impl DownturnLgd {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - `FryeJacobs`: `asset_correlation` is not finite or not in (0, 1),
+    /// - `StressedApproximation`: `asset_correlation` is not finite or not in (0, 1),
     ///   `lgd_sensitivity` is not finite or negative, or
     ///   `stress_quantile` is not finite or not in (0, 1)
     /// - `RegulatoryFloor`: `add_on` is not finite or negative, or
     ///   `floor` is not finite or not in \[0, 1\]
     pub fn validate(&self) -> Result<()> {
         match self.method {
-            DownturnMethod::FryeJacobs {
+            DownturnMethod::StressedApproximation {
                 asset_correlation,
                 lgd_sensitivity,
                 stress_quantile,
@@ -227,7 +228,7 @@ impl DownturnLgd {
             return Err(InputError::Invalid.into());
         }
         let adjusted = match self.method {
-            DownturnMethod::FryeJacobs {
+            DownturnMethod::StressedApproximation {
                 asset_correlation,
                 lgd_sensitivity,
                 stress_quantile,
@@ -255,8 +256,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn frye_jacobs_increases_lgd() {
-        let dt = DownturnLgd::frye_jacobs(0.15, 0.4, 0.999).expect("valid params");
+    fn stressed_increases_lgd() {
+        let dt = DownturnLgd::stressed(0.15, 0.4, 0.999).expect("valid params");
         let base = 0.45;
         let adjusted = dt.adjust(base).expect("valid base");
         assert!(
@@ -269,8 +270,8 @@ mod tests {
     }
 
     #[test]
-    fn frye_jacobs_result_in_range() {
-        let dt = DownturnLgd::frye_jacobs(0.15, 0.4, 0.999).expect("valid params");
+    fn stressed_result_in_range() {
+        let dt = DownturnLgd::stressed(0.15, 0.4, 0.999).expect("valid params");
         for &base in &[0.0, 0.10, 0.30, 0.50, 0.70, 0.90, 1.0] {
             let adj = dt.adjust(base).expect("valid base");
             assert!(
@@ -302,7 +303,7 @@ mod tests {
 
     #[test]
     fn downturn_monotonicity() {
-        let dt = DownturnLgd::frye_jacobs(0.15, 0.4, 0.999).expect("valid params");
+        let dt = DownturnLgd::stressed(0.15, 0.4, 0.999).expect("valid params");
         let bases = [0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90];
         let adjusted: Vec<f64> = bases
             .iter()
@@ -324,16 +325,16 @@ mod tests {
     #[test]
     fn downturn_validation_rejects_invalid() {
         // asset_correlation out of range
-        assert!(DownturnLgd::frye_jacobs(0.0, 0.4, 0.999).is_err());
-        assert!(DownturnLgd::frye_jacobs(1.0, 0.4, 0.999).is_err());
-        assert!(DownturnLgd::frye_jacobs(-0.1, 0.4, 0.999).is_err());
+        assert!(DownturnLgd::stressed(0.0, 0.4, 0.999).is_err());
+        assert!(DownturnLgd::stressed(1.0, 0.4, 0.999).is_err());
+        assert!(DownturnLgd::stressed(-0.1, 0.4, 0.999).is_err());
 
         // negative sensitivity
-        assert!(DownturnLgd::frye_jacobs(0.15, -0.1, 0.999).is_err());
+        assert!(DownturnLgd::stressed(0.15, -0.1, 0.999).is_err());
 
         // stress_quantile out of range
-        assert!(DownturnLgd::frye_jacobs(0.15, 0.4, 0.0).is_err());
-        assert!(DownturnLgd::frye_jacobs(0.15, 0.4, 1.0).is_err());
+        assert!(DownturnLgd::stressed(0.15, 0.4, 0.0).is_err());
+        assert!(DownturnLgd::stressed(0.15, 0.4, 1.0).is_err());
 
         // regulatory floor: negative add_on
         assert!(DownturnLgd::regulatory_floor(-0.01, 0.25).is_err());
@@ -342,9 +343,9 @@ mod tests {
         assert!(DownturnLgd::regulatory_floor(0.05, -0.1).is_err());
         assert!(DownturnLgd::regulatory_floor(0.05, 1.1).is_err());
         for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            assert!(DownturnLgd::frye_jacobs(bad, 0.4, 0.999).is_err());
-            assert!(DownturnLgd::frye_jacobs(0.15, bad, 0.999).is_err());
-            assert!(DownturnLgd::frye_jacobs(0.15, 0.4, bad).is_err());
+            assert!(DownturnLgd::stressed(bad, 0.4, 0.999).is_err());
+            assert!(DownturnLgd::stressed(0.15, bad, 0.999).is_err());
+            assert!(DownturnLgd::stressed(0.15, 0.4, bad).is_err());
             assert!(DownturnLgd::regulatory_floor(bad, 0.25).is_err());
             assert!(DownturnLgd::regulatory_floor(0.05, bad).is_err());
         }
@@ -352,7 +353,7 @@ mod tests {
 
     #[test]
     fn downturn_adjust_rejects_invalid_base() {
-        let dt = DownturnLgd::frye_jacobs(0.15, 0.4, 0.999).expect("valid");
+        let dt = DownturnLgd::stressed(0.15, 0.4, 0.999).expect("valid");
         assert!(dt.adjust(-0.1).is_err());
         assert!(dt.adjust(1.1).is_err());
         assert!(dt.adjust(f64::NAN).is_err());
@@ -375,10 +376,10 @@ mod tests {
 
     #[test]
     fn validate_rejects_deserialized_negative_correlation() {
-        // Deserialization bypasses the frye_jacobs constructor entirely, so a
+        // Deserialization bypasses the stressed constructor entirely, so a
         // struct built directly (mirroring what serde produces from
         // untrusted JSON) must still be caught by `validate`.
-        let json = r#"{"method":{"FryeJacobs":{"asset_correlation":-0.5,"lgd_sensitivity":0.4,"stress_quantile":0.999}}}"#;
+        let json = r#"{"method":{"stressed_approximation":{"asset_correlation":-0.5,"lgd_sensitivity":0.4,"stress_quantile":0.999}}}"#;
         let dt: DownturnLgd = serde_json::from_str(json).expect("deserializes despite bad data");
         let err = dt
             .validate()
@@ -390,7 +391,7 @@ mod tests {
     fn validate_rejects_deserialized_unit_stress_quantile() {
         // stress_quantile = 1.0 pins Phi^-1(q) at +infinity, which would
         // silently propagate through `adjust` as LGD = 1.0 for any base.
-        let json = r#"{"method":{"FryeJacobs":{"asset_correlation":0.15,"lgd_sensitivity":0.4,"stress_quantile":1.0}}}"#;
+        let json = r#"{"method":{"stressed_approximation":{"asset_correlation":0.15,"lgd_sensitivity":0.4,"stress_quantile":1.0}}}"#;
         let dt: DownturnLgd = serde_json::from_str(json).expect("deserializes despite bad data");
         let err = dt
             .validate()
@@ -400,7 +401,7 @@ mod tests {
 
     #[test]
     fn downturn_serialization_roundtrip() {
-        let dt = DownturnLgd::frye_jacobs(0.15, 0.4, 0.999).expect("valid");
+        let dt = DownturnLgd::stressed(0.15, 0.4, 0.999).expect("valid");
         let json = serde_json::to_string(&dt).expect("serialize");
         let dt2: DownturnLgd = serde_json::from_str(&json).expect("deserialize");
 

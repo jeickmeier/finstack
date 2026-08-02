@@ -43,7 +43,7 @@ fn seasoned_note(past_fixings: Vec<(Date, f64)>, initial_level: Option<f64>) -> 
 #[test]
 fn past_observation_dates_without_fixings_error() {
     let as_of = date!(2024 - 07 - 15); // two observation dates already past
-    let market = build_market_with_dc(
+    let market = build_market_with_day_count(
         as_of,
         SPOT,
         VOL,
@@ -76,7 +76,7 @@ fn past_observation_dates_without_fixings_error() {
 #[test]
 fn already_autocalled_note_values_to_zero() {
     let as_of = date!(2024 - 07 - 15);
-    let market = build_market_with_dc(
+    let market = build_market_with_day_count(
         as_of,
         SPOT,
         VOL,
@@ -104,7 +104,7 @@ fn already_autocalled_note_values_to_zero() {
 #[test]
 fn surviving_seasoned_note_equals_remaining_note() {
     let as_of = date!(2024 - 07 - 15);
-    let market = build_market_with_dc(
+    let market = build_market_with_day_count(
         as_of,
         SPOT,
         VOL,
@@ -143,7 +143,7 @@ fn surviving_seasoned_note_equals_remaining_note() {
 #[test]
 fn missed_past_memory_coupons_accrue_to_future_autocall() {
     let as_of = date!(2024 - 07 - 15);
-    let market = build_market_with_dc(
+    let market = build_market_with_day_count(
         as_of,
         SPOT,
         VOL,
@@ -174,7 +174,7 @@ fn missed_past_memory_coupons_accrue_to_future_autocall() {
 #[test]
 fn all_past_observations_give_deterministic_payoff() {
     let as_of = date!(2025 - 01 - 15);
-    let market = build_market_with_dc(
+    let market = build_market_with_day_count(
         as_of,
         SPOT,
         VOL,

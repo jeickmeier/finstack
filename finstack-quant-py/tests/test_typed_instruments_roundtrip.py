@@ -46,7 +46,7 @@ ALL_TYPED = [
 PUBLIC_TYPED_JSON_TAGS = {
     "Bond": "bond",
     "TermLoan": "term_loan",
-    **{name: json.loads(factory().to_json())["type"] for name, factory in ALL_TYPED},
+    **{name: json.loads(factory().to_json())["instrument"]["type"] for name, factory in ALL_TYPED},
 }
 
 
@@ -60,24 +60,25 @@ def test_json_round_trip_is_stable(name: str, factory: Callable[[], Any]) -> Non
 
 
 @pytest.mark.parametrize(("name", "factory"), ALL_TYPED)
-def test_from_json_accepts_versioned_instrument_envelope(name: str, factory: Callable[[], Any]) -> None:
+def test_from_json_requires_canonical_instrument_envelope(name: str, factory: Callable[[], Any]) -> None:
     cls = getattr(instruments, name)
-    bare = json.loads(factory().to_json())
-    envelope = {
-        "schema": "finstack_quant.instrument/1",
-        "instrument": bare,
-    }
+    envelope = json.loads(factory().to_json())
+    assert envelope["schema"] == "finstack_quant.instrument/1"
 
     parsed = cls.from_json(json.dumps(envelope))
-    assert json.loads(parsed.to_json()) == bare
+    assert json.loads(parsed.to_json()) == envelope
+
+    with pytest.raises(ValueError, match=r"schema|envelope"):
+        cls.from_json(json.dumps(envelope["instrument"]))
 
 
 @pytest.mark.parametrize(("name", "type_tag"), PUBLIC_TYPED_JSON_TAGS.items())
 def test_public_from_json_runtime_docs_describe_shared_contract(name: str, type_tag: str) -> None:
     doc = getattr(instruments, name).from_json.__doc__
     assert doc
-    assert "bare tagged" in doc
+    assert "canonical v1 envelope" in doc
     assert "envelope" in doc
+    assert "Bare payloads" in doc
     assert "16 MiB" in doc
     assert f'"{type_tag}"' in doc
     assert "ValueError" in doc

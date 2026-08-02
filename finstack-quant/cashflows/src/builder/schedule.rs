@@ -33,7 +33,7 @@ pub(crate) fn kind_rank(kind: CFKind) -> u8 {
         CFKind::PrePayment => 3,
         CFKind::DefaultedNotional => 4,
         CFKind::Recovery | CFKind::AccruedOnDefault => 5,
-        CFKind::PIK => 6,
+        CFKind::Pik => 6,
         CFKind::Notional | CFKind::RevolvingDraw | CFKind::RevolvingRepayment => 7,
         CFKind::InitialMarginPost
         | CFKind::InitialMarginReturn
@@ -159,14 +159,14 @@ pub(crate) fn finalize_flows(
         representation: CashflowRepresentation::default(),
     };
 
-    let out_dc = if let Some(schedule) = fixed.first() {
-        schedule.spec.schedule.dc
+    let out_day_count = if let Some(schedule) = fixed.first() {
+        schedule.spec.schedule.day_count
     } else if let Some(schedule) = floating.first() {
-        schedule.spec.schedule.dc
+        schedule.spec.schedule.day_count
     } else {
         DayCount::Act365F
     };
-    (flows, meta, out_dc)
+    (flows, meta, out_day_count)
 }
 
 /// Meaning of the emitted schedule relative to pricing and waterfall policy.
@@ -214,11 +214,13 @@ pub struct CashFlowMeta {
     /// date precisely, avoiding the inverse day count approximation that can
     /// be off by 1-2 days.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub issue_date: Option<Date>,
     /// Contractual maturity date, distinct from an adjusted final payment date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub maturity_date: Option<Date>,
 }
 
@@ -568,7 +570,7 @@ impl CashFlowSchedule {
                     CFKind::Fixed
                         | CFKind::FloatReset
                         | CFKind::InflationCoupon
-                        | CFKind::PIK
+                        | CFKind::Pik
                         | CFKind::Stub
                 );
                 if flow.date < issue_date && interest_bearing {
@@ -601,7 +603,7 @@ impl CashFlowSchedule {
     /// Internal PIK-omission step for composed schedule normalization.
     #[must_use]
     pub(crate) fn omit_pure_pik(mut self) -> Self {
-        retain_schedule_flows(&mut self, |cf| cf.kind != CFKind::PIK);
+        retain_schedule_flows(&mut self, |cf| cf.kind != CFKind::Pik);
         self
     }
 
@@ -1012,7 +1014,7 @@ fn apply_flow_to_outstanding(
             // PrePayment and DefaultedNotional likewise reduce outstanding.
             *outstanding = outstanding.checked_sub(cf.amount)?;
         }
-        CFKind::PIK => {
+        CFKind::Pik => {
             *outstanding = outstanding.checked_add(cf.amount)?;
         }
         CFKind::Notional | CFKind::RevolvingDraw | CFKind::RevolvingRepayment
@@ -1149,8 +1151,8 @@ impl CashFlowSchedule {
                         periods,
                         disc,
                         date_ctx.base,
-                        date_ctx.dc,
-                        date_ctx.dc_ctx,
+                        date_ctx.day_count,
+                        date_ctx.day_count_context,
                         None,
                     )
                 }
@@ -1501,7 +1503,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_accrual_sidecars_are_rejected() {
+    fn retired_accrual_sidecars_are_rejected() {
         let end = Date::from_calendar_date(2025, Month::April, 15).expect("valid date");
         let schedule = CashFlowSchedule::from_parts(
             vec![flow(end, 12.5, CFKind::Fixed)],
@@ -1509,15 +1511,15 @@ mod tests {
             DayCount::Act365F,
             CashFlowMeta::default(),
         );
-        let mut legacy = serde_json::to_value(&schedule).expect("serialize schedule");
-        let meta = legacy["meta"].as_object_mut().expect("meta object");
+        let mut retired = serde_json::to_value(&schedule).expect("serialize schedule");
+        let meta = retired["meta"].as_object_mut().expect("meta object");
         meta.insert(
             "accrual_periods".to_string(),
             serde_json::to_value(vec![Some((end, end))]).expect("periods"),
         );
 
-        let error = serde_json::from_value::<CashFlowSchedule>(legacy)
-            .expect_err("legacy schedule sidecars must fail");
+        let error = serde_json::from_value::<CashFlowSchedule>(retired)
+            .expect_err("retired schedule sidecars must fail");
         assert!(error.to_string().contains("unknown field"));
     }
 

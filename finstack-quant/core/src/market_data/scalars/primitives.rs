@@ -39,7 +39,17 @@ use time::Duration as TimeDuration;
 /// let mid_date = Date::from_calendar_date(2024, Month::January, 15).expect("Valid date");
 /// assert_eq!(stepped.value_on(mid_date).expect("Value lookup should succeed"), 100.0);
 /// ```
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum SeriesInterpolation {
     /// Last observation carried forward
@@ -58,16 +68,15 @@ impl std::fmt::Display for SeriesInterpolation {
     }
 }
 
-impl crate::parse::NormalizedEnum for SeriesInterpolation {
-    const VARIANTS: &'static [(&'static str, Self)] =
-        &[("step", Self::Step), ("linear", Self::Linear)];
-}
-
 impl std::str::FromStr for SeriesInterpolation {
     type Err = crate::error::Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s).map_err(|_| crate::error::InputError::Invalid.into())
+        match s {
+            "step" => Ok(Self::Step),
+            "linear" => Ok(Self::Linear),
+            _ => Err(crate::error::InputError::Invalid.into()),
+        }
     }
 }
 
@@ -103,8 +112,9 @@ impl std::str::FromStr for SeriesInterpolation {
 ///     assert_eq!(m.currency(), Currency::USD);
 /// }
 /// ```
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(try_from = "RawMarketScalar", into = "RawMarketScalar")]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(try_from = "MarketScalarWire", into = "MarketScalarWire")]
+#[schemars(try_from = "MarketScalarWire")]
 pub enum MarketScalar {
     /// Unitless numeric (e.g., equity beta, recovery rate assumption)
     Unitless(f64),
@@ -112,31 +122,31 @@ pub enum MarketScalar {
     Price(crate::money::Money),
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
-enum RawMarketScalar {
+enum MarketScalarWire {
     Unitless(f64),
     Price(crate::money::Money),
 }
 
-impl TryFrom<RawMarketScalar> for MarketScalar {
+impl TryFrom<MarketScalarWire> for MarketScalar {
     type Error = crate::Error;
 
-    fn try_from(raw: RawMarketScalar) -> std::result::Result<Self, Self::Error> {
+    fn try_from(raw: MarketScalarWire) -> std::result::Result<Self, Self::Error> {
         match raw {
-            RawMarketScalar::Unitless(value) if value.is_finite() => Ok(Self::Unitless(value)),
-            RawMarketScalar::Unitless(_) => Err(crate::Error::Validation(
+            MarketScalarWire::Unitless(value) if value.is_finite() => Ok(Self::Unitless(value)),
+            MarketScalarWire::Unitless(_) => Err(crate::Error::Validation(
                 "MarketScalar unitless value must be finite".into(),
             )),
-            RawMarketScalar::Price(value) if value.amount().is_finite() => Ok(Self::Price(value)),
-            RawMarketScalar::Price(_) => Err(crate::Error::Validation(
+            MarketScalarWire::Price(value) if value.amount().is_finite() => Ok(Self::Price(value)),
+            MarketScalarWire::Price(_) => Err(crate::Error::Validation(
                 "MarketScalar price amount must be finite".into(),
             )),
         }
     }
 }
 
-impl From<MarketScalar> for RawMarketScalar {
+impl From<MarketScalar> for MarketScalarWire {
     fn from(value: MarketScalar) -> Self {
         match value {
             MarketScalar::Unitless(value) => Self::Unitless(value),
@@ -192,8 +202,9 @@ impl From<MarketScalar> for RawMarketScalar {
 /// let interpolated = series.value_on(mid).expect("Value lookup should succeed");
 /// assert!(interpolated > 3.7 && interpolated < 3.9);
 /// ```
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(try_from = "RawScalarTimeSeries", into = "RawScalarTimeSeries")]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(try_from = "ScalarTimeSeriesWire", into = "ScalarTimeSeriesWire")]
+#[schemars(try_from = "ScalarTimeSeriesWire")]
 pub struct ScalarTimeSeries {
     id: CurveId,
     currency: Option<Currency>,
@@ -588,24 +599,26 @@ fn from_days(days: i32) -> Date {
 }
 
 /// Raw serializable state of a ScalarTimeSeries
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct RawScalarTimeSeries {
+struct ScalarTimeSeriesWire {
     /// Series identifier
     pub id: String,
     /// Optional currency
     pub currency: Option<Currency>,
     /// Observations as (date, value) pairs
+    #[serde(with = "crate::wire::dated_f64_values")]
+    #[schemars(with = "Vec<(crate::wire::DateWire, f64)>")]
     pub observations: Vec<(Date, f64)>,
     /// Interpolation method
     pub interpolation: SeriesInterpolation,
 }
 
-impl From<ScalarTimeSeries> for RawScalarTimeSeries {
+impl From<ScalarTimeSeries> for ScalarTimeSeriesWire {
     fn from(series: ScalarTimeSeries) -> Self {
         let observations = series.observations();
 
-        RawScalarTimeSeries {
+        ScalarTimeSeriesWire {
             id: series.id.to_string(),
             currency: series.currency,
             observations,
@@ -614,10 +627,10 @@ impl From<ScalarTimeSeries> for RawScalarTimeSeries {
     }
 }
 
-impl TryFrom<RawScalarTimeSeries> for ScalarTimeSeries {
+impl TryFrom<ScalarTimeSeriesWire> for ScalarTimeSeries {
     type Error = crate::Error;
 
-    fn try_from(state: RawScalarTimeSeries) -> Result<Self> {
+    fn try_from(state: ScalarTimeSeriesWire) -> Result<Self> {
         Self::new(state.id, state.observations, state.currency)
             .map(|s| s.with_interpolation(state.interpolation))
     }
@@ -629,8 +642,8 @@ mod tests {
 
     #[test]
     fn market_scalar_shadow_rejects_non_finite_values() {
-        assert!(MarketScalar::try_from(RawMarketScalar::Unitless(f64::NAN)).is_err());
-        assert!(MarketScalar::try_from(RawMarketScalar::Unitless(f64::INFINITY)).is_err());
+        assert!(MarketScalar::try_from(MarketScalarWire::Unitless(f64::NAN)).is_err());
+        assert!(MarketScalar::try_from(MarketScalarWire::Unitless(f64::INFINITY)).is_err());
         assert!(crate::money::Money::try_new(f64::NEG_INFINITY, Currency::USD).is_err());
     }
 

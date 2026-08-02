@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 )]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum RecipientType {
     /// Service provider (trustee, admin, rating agency, etc.)
     ServiceProvider(String),
@@ -47,6 +48,7 @@ pub enum RecipientType {
 )]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum ManagementFeeType {
     /// Senior variant.
     Senior,
@@ -62,6 +64,7 @@ pub enum ManagementFeeType {
 )]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum RoundingConvention {
     /// Round to nearest precision
     #[default]
@@ -76,6 +79,7 @@ pub enum RoundingConvention {
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum PaymentCalculation {
     /// Fixed amount
     FixedAmount {
@@ -184,7 +188,7 @@ impl WaterfallRules {
     /// time. Checked here:
     ///
     /// - `afc.capped_tranches` and `shifting_interest.senior_id` resolve to real
-    ///   tranches; `afc.net_wac_fee_bps` is finite and non-negative.
+    ///   tranches; `afc.net_wac_fee_bp` is finite and non-negative.
     /// - Loss/enhancement/share fractions (`trap_loss_pct`,
     ///   `MaxCumulativeLoss`, `MinCreditEnhancement`, `senior_pct`,
     ///   `max_cumulative_loss_pct`) lie in `[0, 1]`; `MinOcRatio` is finite and
@@ -221,10 +225,10 @@ impl WaterfallRules {
                     )));
                 }
             }
-            if let Some(bps) = afc.net_wac_fee_bps {
-                if !bps.is_finite() || bps < 0.0 {
+            if let Some(bp) = afc.net_wac_fee_bp {
+                if !bp.is_finite() || bp < 0.0 {
                     return Err(invalid(format!(
-                        "waterfall_rules: afc.net_wac_fee_bps must be finite and non-negative, got {bps}"
+                        "waterfall_rules: afc.net_wac_fee_bp must be finite and non-negative, got {bp}"
                     )));
                 }
             }
@@ -324,7 +328,7 @@ pub struct AfcSpec {
     /// gross collateral WAC to form the **net**-WAC cap. When `None` the cap is
     /// the gross collateral WAC.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub net_wac_fee_bps: Option<f64>,
+    pub net_wac_fee_bp: Option<f64>,
 }
 
 /// Excess-spread / spread-account specification.
@@ -367,7 +371,7 @@ pub struct ExcessSpreadSpec {
 /// delinquency rate to test against.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum StepDownTrigger {
     /// Passes while cumulative losses (fraction of the original pool) are at or
     /// below this level.
@@ -392,7 +396,8 @@ pub enum StepDownTrigger {
 #[serde(deny_unknown_fields)]
 pub struct StepDownSpec {
     /// Earliest date principal may switch to pro-rata.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub step_down_date: Date,
     /// Performance triggers; all must pass for the step-down to take effect.
     pub triggers: Vec<StepDownTrigger>,
@@ -463,10 +468,12 @@ pub struct EarlyAmortizationSpec {
 #[serde(deny_unknown_fields)]
 pub struct ControlledAccumulationSpec {
     /// First date principal is accumulated into the funding account.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Date the accumulated funding account is released as a bullet payment.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub bullet_date: Date,
 }
 
@@ -474,6 +481,7 @@ pub struct ControlledAccumulationSpec {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum AllocationMode {
     /// Pay recipients sequentially in order until tier allocation exhausted
     Sequential,
@@ -485,6 +493,7 @@ pub enum AllocationMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum PaymentType {
     /// Fee payment
     Fee,
@@ -642,7 +651,8 @@ impl WaterfallTier {
 #[serde(deny_unknown_fields)]
 pub struct WaterfallDistribution {
     /// Payment date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub payment_date: Date,
     /// Total available cash at start
     pub total_available: Money,
@@ -800,12 +810,12 @@ pub struct CoverageTrigger {
 /// Type of coverage test (simplified to OC/IC only)
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum CoverageTestType {
     /// Overcollateralization test
-    OC,
+    Oc,
     /// Interest coverage test
-    IC,
+    Ic,
 }
 
 // ============================================================================

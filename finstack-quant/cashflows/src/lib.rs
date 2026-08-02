@@ -142,7 +142,7 @@ pub mod primitives {
     ///   `DefaultedNotional` return `false`, while all settlement kinds return
     ///   `true`.
     pub fn is_cash_settlement_kind(kind: CFKind) -> bool {
-        !matches!(kind, CFKind::PIK | CFKind::DefaultedNotional)
+        !matches!(kind, CFKind::Pik | CFKind::DefaultedNotional)
     }
 }
 

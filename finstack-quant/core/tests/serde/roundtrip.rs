@@ -110,46 +110,21 @@ fn schedule_spec_builds_expected_dates() {
 }
 
 #[test]
-fn schedule_spec_reads_legacy_policy_booleans_without_reserializing_them() {
-    let legacy = r#"{
+fn schedule_spec_rejects_retired_policy_booleans() {
+    let retired = r#"{
         "start":"2025-01-15",
         "end":"2025-09-30",
         "frequency":{"count":3,"unit":"months"},
-        "stub":"ShortBack",
-        "business_day_convention":null,
-        "calendar_id":null,
-        "end_of_month":false,
-        "imm_mode":false,
-        "cds_imm_mode":false,
-        "graceful":false,
-        "allow_missing_calendar":true
-    }"#;
-    let spec: ScheduleSpec = serde_json::from_str(legacy).unwrap();
-    assert_eq!(
-        spec.error_policy,
-        finstack_quant_core::dates::ScheduleErrorPolicy::MissingCalendarWarning
-    );
-    let canonical = serde_json::to_string(&spec).unwrap();
-    assert!(canonical.contains("\"error_policy\":\"missing_calendar_warning\""));
-    assert!(!canonical.contains("\"allow_missing_calendar\""));
-}
-
-#[test]
-fn schedule_spec_rejects_mixed_canonical_and_legacy_policy_fields() {
-    let mixed = r#"{
-        "start":"2025-01-15",
-        "end":"2025-09-30",
-        "frequency":{"count":3,"unit":"months"},
-        "stub":"ShortBack",
+        "stub":"short_back",
         "business_day_convention":null,
         "calendar_id":null,
         "end_of_month":false,
         "imm_mode":false,
         "cds_imm_mode":false,
         "error_policy":"strict",
-        "graceful":false
+        "allow_missing_calendar":true
     }"#;
-    assert!(serde_json::from_str::<ScheduleSpec>(mixed).is_err());
+    assert!(serde_json::from_str::<ScheduleSpec>(retired).is_err());
 }
 
 #[test]
@@ -158,14 +133,13 @@ fn schedule_spec_rejects_dual_imm_modes() {
         "start":"2025-01-15",
         "end":"2025-09-30",
         "frequency":{"count":3,"unit":"months"},
-        "stub":"ShortBack",
+        "stub":"short_back",
         "business_day_convention":null,
         "calendar_id":null,
         "end_of_month":false,
         "imm_mode":true,
         "cds_imm_mode":true,
-        "graceful":false,
-        "allow_missing_calendar":false
+        "error_policy":"strict"
     }"#;
     assert!(serde_json::from_str::<ScheduleSpec>(malformed).is_err());
 

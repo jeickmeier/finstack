@@ -76,7 +76,8 @@ pub use finstack_quant_attribution::{
 /// The portfolio-level aggregates are reported in portfolio base currency,
 /// while `by_position` remains in each instrument's native currency so callers
 /// can inspect raw instrument attribution before FX translation.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PortfolioAttribution {
     /// Total portfolio P&L in base currency.
     ///
@@ -178,74 +179,7 @@ pub struct PortfolioAttribution {
     /// aggregates and [`PortfolioAttribution::reconciliation_check`] are not
     /// trustworthy and must not be relied on for reporting.
     ///
-    /// Defaults to `false`; results serialized before this field existed
-    /// deserialize as `false`.
-    #[serde(default)]
     pub result_invalid: bool,
-}
-
-#[derive(Deserialize)]
-struct PortfolioAttributionWire {
-    total_pnl: Money,
-    carry: Money,
-    rates_curves_pnl: Money,
-    credit_curves_pnl: Money,
-    inflation_curves_pnl: Money,
-    correlations_pnl: Money,
-    fx_pnl: Money,
-    fx_translation_pnl: Money,
-    #[serde(default)]
-    cross_factor_pnl: Option<Money>,
-    vol_pnl: Money,
-    model_params_pnl: Money,
-    market_scalars_pnl: Money,
-    residual: Money,
-    by_position: IndexMap<PositionId, PnlAttribution>,
-    rates_detail: Option<RatesCurvesAttribution>,
-    credit_detail: Option<CreditCurvesAttribution>,
-    inflation_detail: Option<InflationCurvesAttribution>,
-    correlations_detail: Option<CorrelationsAttribution>,
-    fx_detail: Option<FxAttribution>,
-    vol_detail: Option<VolAttribution>,
-    scalars_detail: Option<ScalarsAttribution>,
-    #[serde(default)]
-    result_invalid: bool,
-}
-
-impl<'de> Deserialize<'de> for PortfolioAttribution {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let wire = PortfolioAttributionWire::deserialize(deserializer)?;
-        let total_currency = wire.total_pnl.currency();
-        Ok(Self {
-            total_pnl: wire.total_pnl,
-            carry: wire.carry,
-            rates_curves_pnl: wire.rates_curves_pnl,
-            credit_curves_pnl: wire.credit_curves_pnl,
-            inflation_curves_pnl: wire.inflation_curves_pnl,
-            correlations_pnl: wire.correlations_pnl,
-            fx_pnl: wire.fx_pnl,
-            fx_translation_pnl: wire.fx_translation_pnl,
-            cross_factor_pnl: wire
-                .cross_factor_pnl
-                .unwrap_or_else(|| Money::new(0.0, total_currency)),
-            vol_pnl: wire.vol_pnl,
-            model_params_pnl: wire.model_params_pnl,
-            market_scalars_pnl: wire.market_scalars_pnl,
-            residual: wire.residual,
-            by_position: wire.by_position,
-            rates_detail: wire.rates_detail,
-            credit_detail: wire.credit_detail,
-            inflation_detail: wire.inflation_detail,
-            correlations_detail: wire.correlations_detail,
-            fx_detail: wire.fx_detail,
-            vol_detail: wire.vol_detail,
-            scalars_detail: wire.scalars_detail,
-            result_invalid: wire.result_invalid,
-        })
-    }
 }
 
 /// Report from reconciling position-level P&L attribution against portfolio totals.
@@ -265,7 +199,7 @@ struct PositionAttributionData {
     position_id: PositionId,
     pos_attr: PnlAttribution,
     val_t0_native: Money,
-    inst_ccy: Currency,
+    inst_currency: Currency,
 }
 
 #[derive(Copy, Clone)]
@@ -365,26 +299,32 @@ impl FactorAccumulator {
 
     fn into_portfolio_attribution(
         self,
-        base_ccy: Currency,
+        base_currency: Currency,
         by_position: IndexMap<PositionId, PnlAttribution>,
     ) -> PortfolioAttribution {
         PortfolioAttribution {
-            total_pnl: Money::new(self.total(FactorBucket::TotalPnl), base_ccy),
-            carry: Money::new(self.total(FactorBucket::Carry), base_ccy),
-            rates_curves_pnl: Money::new(self.total(FactorBucket::RatesCurvesPnl), base_ccy),
-            credit_curves_pnl: Money::new(self.total(FactorBucket::CreditCurvesPnl), base_ccy),
+            total_pnl: Money::new(self.total(FactorBucket::TotalPnl), base_currency),
+            carry: Money::new(self.total(FactorBucket::Carry), base_currency),
+            rates_curves_pnl: Money::new(self.total(FactorBucket::RatesCurvesPnl), base_currency),
+            credit_curves_pnl: Money::new(self.total(FactorBucket::CreditCurvesPnl), base_currency),
             inflation_curves_pnl: Money::new(
                 self.total(FactorBucket::InflationCurvesPnl),
-                base_ccy,
+                base_currency,
             ),
-            correlations_pnl: Money::new(self.total(FactorBucket::CorrelationsPnl), base_ccy),
-            fx_pnl: Money::new(self.total(FactorBucket::FxPnl), base_ccy),
-            fx_translation_pnl: Money::new(self.total(FactorBucket::FxTranslationPnl), base_ccy),
-            cross_factor_pnl: Money::new(self.total(FactorBucket::CrossFactorPnl), base_ccy),
-            vol_pnl: Money::new(self.total(FactorBucket::VolPnl), base_ccy),
-            model_params_pnl: Money::new(self.total(FactorBucket::ModelParamsPnl), base_ccy),
-            market_scalars_pnl: Money::new(self.total(FactorBucket::MarketScalarsPnl), base_ccy),
-            residual: Money::new(self.total(FactorBucket::Residual), base_ccy),
+            correlations_pnl: Money::new(self.total(FactorBucket::CorrelationsPnl), base_currency),
+            fx_pnl: Money::new(self.total(FactorBucket::FxPnl), base_currency),
+            fx_translation_pnl: Money::new(
+                self.total(FactorBucket::FxTranslationPnl),
+                base_currency,
+            ),
+            cross_factor_pnl: Money::new(self.total(FactorBucket::CrossFactorPnl), base_currency),
+            vol_pnl: Money::new(self.total(FactorBucket::VolPnl), base_currency),
+            model_params_pnl: Money::new(self.total(FactorBucket::ModelParamsPnl), base_currency),
+            market_scalars_pnl: Money::new(
+                self.total(FactorBucket::MarketScalarsPnl),
+                base_currency,
+            ),
+            residual: Money::new(self.total(FactorBucket::Residual), base_currency),
             by_position,
             rates_detail: None,
             credit_detail: None,
@@ -450,13 +390,13 @@ fn attribute_single_position_method_owned(
     })?;
 
     pos_attr.scale(position.scale_factor());
-    let inst_ccy = pos_attr.total_pnl.currency();
+    let inst_currency = pos_attr.total_pnl.currency();
 
     Ok(PositionAttributionData {
         position_id: position.position_id.clone(),
         pos_attr,
         val_t0_native,
-        inst_ccy,
+        inst_currency,
     })
 }
 
@@ -622,12 +562,12 @@ pub(crate) fn reduce_metrics_based_prepared(
         })?;
 
         pos_attr.scale(position.scale_factor());
-        let inst_ccy = pos_attr.total_pnl.currency();
+        let inst_currency = pos_attr.total_pnl.currency();
         position_data.push(PositionAttributionData {
             position_id: position.position_id.clone(),
             pos_attr,
             val_t0_native: position_t0.value_native,
-            inst_ccy,
+            inst_currency,
         });
     }
 
@@ -736,18 +676,18 @@ fn aggregate_position_attributions(
     as_of_t1: Date,
     position_data: Vec<PositionAttributionData>,
 ) -> Result<PortfolioAttribution> {
-    let base_ccy = portfolio.base_ccy;
+    let base_currency = portfolio.base_currency;
     let mut acc = FactorAccumulator::new();
     let mut by_position: IndexMap<PositionId, PnlAttribution> =
         IndexMap::with_capacity(position_data.len());
 
     // Hoisted out of the per-position loop: the closure captures `market_t1`,
-    // `base_ccy`, and `as_of_t1` by reference and is reused for every field of
+    // `base_currency`, and `as_of_t1` by reference and is reused for every field of
     // every position. Delegates to the shared `crate::fx::convert_to_base`
     // helper so the FX lookup + error mapping stay consistent with the rest of
     // the portfolio crate.
     let convert = |money: Money| -> Result<Money> {
-        crate::fx::convert_to_base(money, as_of_t1, market_t1, base_ccy)
+        crate::fx::convert_to_base(money, as_of_t1, market_t1, base_currency)
     };
 
     for data in position_data {
@@ -755,12 +695,12 @@ fn aggregate_position_attributions(
             position_id,
             pos_attr,
             val_t0_native,
-            inst_ccy,
+            inst_currency,
         } = data;
 
         acc.add_converted(&pos_attr, &convert)?;
 
-        if inst_ccy != base_ccy {
+        if inst_currency != base_currency {
             let fx_t0 = market_t0.fx().ok_or_else(|| {
                 Error::MissingMarketData("FX matrix at T0 not available".to_string())
             })?;
@@ -768,20 +708,20 @@ fn aggregate_position_attributions(
                 Error::MissingMarketData("FX matrix at T1 not available".to_string())
             })?;
 
-            let query_t0 = FxQuery::new(inst_ccy, base_ccy, as_of_t0);
+            let query_t0 = FxQuery::new(inst_currency, base_currency, as_of_t0);
             let rate_t0 = fx_t0
                 .rate(query_t0)
                 .map_err(|_| Error::FxConversionFailed {
-                    from: inst_ccy,
-                    to: base_ccy,
+                    from: inst_currency,
+                    to: base_currency,
                 })?;
 
-            let query_t1 = FxQuery::new(inst_ccy, base_ccy, as_of_t1);
+            let query_t1 = FxQuery::new(inst_currency, base_currency, as_of_t1);
             let rate_t1 = fx_t1
                 .rate(query_t1)
                 .map_err(|_| Error::FxConversionFailed {
-                    from: inst_ccy,
-                    to: base_ccy,
+                    from: inst_currency,
+                    to: base_currency,
                 })?;
 
             let principal_translation = val_t0_native.amount() * (rate_t1.rate - rate_t0.rate);
@@ -791,7 +731,7 @@ fn aggregate_position_attributions(
         by_position.insert(position_id, pos_attr);
     }
 
-    Ok(acc.into_portfolio_attribution(base_ccy, by_position))
+    Ok(acc.into_portfolio_attribution(base_currency, by_position))
 }
 
 /// Compile and reduce strict T0/T1 metric endpoint valuations for the public
@@ -1341,13 +1281,13 @@ mod tests {
 
     #[test]
     fn test_portfolio_attribution_structure() {
-        let base_ccy = Currency::USD;
-        let zero = Money::new(0.0, base_ccy);
+        let base_currency = Currency::USD;
+        let zero = Money::new(0.0, base_currency);
 
         let portfolio_attr = PortfolioAttribution {
-            total_pnl: Money::new(1000.0, base_ccy),
-            carry: Money::new(100.0, base_ccy),
-            rates_curves_pnl: Money::new(500.0, base_ccy),
+            total_pnl: Money::new(1000.0, base_currency),
+            carry: Money::new(100.0, base_currency),
+            rates_curves_pnl: Money::new(500.0, base_currency),
             credit_curves_pnl: zero,
             inflation_curves_pnl: zero,
             correlations_pnl: zero,
@@ -1357,7 +1297,7 @@ mod tests {
             vol_pnl: zero,
             model_params_pnl: zero,
             market_scalars_pnl: zero,
-            residual: Money::new(400.0, base_ccy),
+            residual: Money::new(400.0, base_currency),
             by_position: IndexMap::new(),
             rates_detail: None,
             credit_detail: None,
@@ -1407,7 +1347,7 @@ mod tests {
             .insert(Currency::USD, 4);
 
         let portfolio = Portfolio::builder("CONFIG_PORTFOLIO")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2026 - 01 - 02))
             .entity(crate::types::Entity::new("E_CONFIG"))
             .position(position)
@@ -1484,7 +1424,7 @@ mod tests {
             )
             .expect("position");
             let portfolio = Portfolio::builder("CONFIG_PORTFOLIO")
-                .base_ccy(Currency::USD)
+                .base_currency(Currency::USD)
                 .as_of(as_of_t0)
                 .entity(crate::types::Entity::new("E_CONFIG"))
                 .position(position)
@@ -1567,7 +1507,7 @@ mod tests {
         let as_of_t0 = date!(2026 - 01 - 02);
         let as_of_t1 = date!(2026 - 01 - 03);
         let mut portfolio_builder = Portfolio::builder("ORDERED_ERRORS")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of_t0)
             .entity(crate::types::Entity::new("E"));
 
@@ -1661,11 +1601,11 @@ mod tests {
     }
 
     #[test]
-    fn mo4_deserialize_missing_cross_factor_uses_total_currency() {
-        let base_ccy = Currency::EUR;
-        let zero = Money::new(0.0, base_ccy);
+    fn portfolio_attribution_rejects_missing_cross_factor_pnl() {
+        let base_currency = Currency::EUR;
+        let zero = Money::new(0.0, base_currency);
         let attr = PortfolioAttribution {
-            total_pnl: Money::new(100.0, base_ccy),
+            total_pnl: Money::new(100.0, base_currency),
             carry: zero,
             rates_curves_pnl: zero,
             credit_curves_pnl: zero,
@@ -1694,9 +1634,9 @@ mod tests {
             .expect("attribution serializes to object")
             .remove("cross_factor_pnl");
 
-        let restored: PortfolioAttribution =
-            serde_json::from_value(value).expect("MO-4: legacy payload should deserialize");
-        assert_eq!(restored.cross_factor_pnl, Money::new(0.0, Currency::EUR));
+        let error = serde_json::from_value::<PortfolioAttribution>(value)
+            .expect_err("cross_factor_pnl is required by the canonical contract");
+        assert!(error.to_string().contains("cross_factor_pnl"));
     }
 
     #[test]
@@ -1763,21 +1703,21 @@ mod tests {
 
     #[test]
     fn test_reconciliation_check_passes_for_consistent_attribution() {
-        let base_ccy = Currency::USD;
+        let base_currency = Currency::USD;
         let portfolio_attr = PortfolioAttribution {
-            total_pnl: Money::new(200.0, base_ccy),
-            carry: Money::new(20.0, base_ccy),
-            rates_curves_pnl: Money::new(100.0, base_ccy),
-            credit_curves_pnl: Money::new(10.0, base_ccy),
-            inflation_curves_pnl: Money::new(5.0, base_ccy),
-            correlations_pnl: Money::new(15.0, base_ccy),
-            fx_pnl: Money::new(25.0, base_ccy),
-            fx_translation_pnl: Money::new(10.0, base_ccy),
-            cross_factor_pnl: Money::new(0.0, base_ccy),
-            vol_pnl: Money::new(5.0, base_ccy),
-            model_params_pnl: Money::new(5.0, base_ccy),
-            market_scalars_pnl: Money::new(3.0, base_ccy),
-            residual: Money::new(2.0, base_ccy),
+            total_pnl: Money::new(200.0, base_currency),
+            carry: Money::new(20.0, base_currency),
+            rates_curves_pnl: Money::new(100.0, base_currency),
+            credit_curves_pnl: Money::new(10.0, base_currency),
+            inflation_curves_pnl: Money::new(5.0, base_currency),
+            correlations_pnl: Money::new(15.0, base_currency),
+            fx_pnl: Money::new(25.0, base_currency),
+            fx_translation_pnl: Money::new(10.0, base_currency),
+            cross_factor_pnl: Money::new(0.0, base_currency),
+            vol_pnl: Money::new(5.0, base_currency),
+            model_params_pnl: Money::new(5.0, base_currency),
+            market_scalars_pnl: Money::new(3.0, base_currency),
+            residual: Money::new(2.0, base_currency),
             by_position: IndexMap::new(),
             rates_detail: None,
             credit_detail: None,
@@ -1804,19 +1744,19 @@ mod tests {
 
     #[test]
     fn reconciliation_check_includes_cross_factor_pnl() {
-        let base_ccy = Currency::USD;
-        let zero = Money::new(0.0, base_ccy);
+        let base_currency = Currency::USD;
+        let zero = Money::new(0.0, base_currency);
         let portfolio_attr = PortfolioAttribution {
-            total_pnl: Money::new(107.0, base_ccy),
-            carry: Money::new(20.0, base_ccy),
-            rates_curves_pnl: Money::new(80.0, base_ccy),
+            total_pnl: Money::new(107.0, base_currency),
+            carry: Money::new(20.0, base_currency),
+            rates_curves_pnl: Money::new(80.0, base_currency),
             credit_curves_pnl: zero,
             inflation_curves_pnl: zero,
             correlations_pnl: zero,
             fx_pnl: zero,
             fx_translation_pnl: zero,
             vol_pnl: zero,
-            cross_factor_pnl: Money::new(7.0, base_ccy),
+            cross_factor_pnl: Money::new(7.0, base_currency),
             model_params_pnl: zero,
             market_scalars_pnl: zero,
             residual: zero,
@@ -1838,13 +1778,13 @@ mod tests {
 
     #[test]
     fn test_reconciliation_check_fails_when_totals_mismatch() {
-        let base_ccy = Currency::USD;
-        let zero = Money::new(0.0, base_ccy);
+        let base_currency = Currency::USD;
+        let zero = Money::new(0.0, base_currency);
         // total_pnl deliberately mismatches the sum of factor buckets
         let portfolio_attr = PortfolioAttribution {
-            total_pnl: Money::new(1000.0, base_ccy),
-            carry: Money::new(100.0, base_ccy),
-            rates_curves_pnl: Money::new(500.0, base_ccy),
+            total_pnl: Money::new(1000.0, base_currency),
+            carry: Money::new(100.0, base_currency),
+            rates_curves_pnl: Money::new(500.0, base_currency),
             credit_curves_pnl: zero,
             inflation_curves_pnl: zero,
             correlations_pnl: zero,

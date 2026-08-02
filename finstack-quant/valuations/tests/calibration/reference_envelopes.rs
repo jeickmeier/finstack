@@ -65,10 +65,10 @@ fn example_03_single_name_hazard_composes_on_initial_market() {
     let envelope = load_envelope("03_single_name_hazard.json");
     let market = execute(&envelope);
 
-    // Discount curve must survive from initial_market unchanged.
+    // Discount curve must survive from source_market unchanged.
     market
         .get_discount("USD-OIS")
-        .expect("discount curve carried through from initial_market");
+        .expect("discount curve carried through from source_market");
 
     // Hazard curve must be produced by the calibration step.
     let hazard = market
@@ -145,10 +145,10 @@ fn example_02_usd_3m_forward_builds_queryable_curve() {
     let envelope = load_envelope("02_usd_3m_forward_curve.json");
     let market = execute(&envelope);
 
-    // Discount curve passes through unchanged from initial_market.
+    // Discount curve passes through unchanged from source_market.
     market
         .get_discount("USD-OIS")
-        .expect("discount curve carried through from initial_market");
+        .expect("discount curve carried through from source_market");
 
     // Forward curve must be produced by the calibration step.
     let forward = market
@@ -170,7 +170,7 @@ fn example_04_cdx_ig_hazard_builds_queryable_curve() {
 
     market
         .get_discount("USD-OIS")
-        .expect("discount carried through from initial_market");
+        .expect("discount carried through from source_market");
 
     let hazard = market
         .get_hazard("CDX-NA-IG-46")
@@ -190,10 +190,10 @@ fn example_05_cdx_base_correlation_builds_queryable_curve() {
 
     market
         .get_discount("USD-OIS")
-        .expect("discount carried through from initial_market");
+        .expect("discount carried through from source_market");
     market
         .get_hazard("CDX-NA-IG-46")
-        .expect("CDX index hazard carried through from initial_market");
+        .expect("CDX index hazard carried through from source_market");
 
     let bc = market
         .get_base_correlation("CDX-NA-IG-46_CORR")
@@ -214,10 +214,10 @@ fn example_06_cdx_index_vol_builds_queryable_surface() {
 
     market
         .get_discount("USD-OIS")
-        .expect("discount carried through from initial_market");
+        .expect("discount carried through from source_market");
     market
         .get_hazard("CDX-NA-IG-46")
-        .expect("CDX index hazard carried through from initial_market");
+        .expect("CDX index hazard carried through from source_market");
 
     let surface = market
         .get_surface("CDX-NA-IG-46-CDSO-VOL")
@@ -243,10 +243,10 @@ fn example_07_swaption_vol_surface_builds_queryable_surface() {
 
     market
         .get_discount("USD-OIS")
-        .expect("discount carried through from initial_market");
+        .expect("discount carried through from source_market");
     market
         .get_forward("USD-SOFR-3M")
-        .expect("forward carried through from initial_market");
+        .expect("forward carried through from source_market");
 
     // swaption_vol calibration produces a VolCube (SABR params on expiry x tenor
     // grid). Retrieve via get_vol_provider, which resolves cubes before surfaces.
@@ -280,12 +280,12 @@ fn example_08_equity_vol_surface_builds_queryable_surface() {
 
     market
         .get_discount("USD-OIS")
-        .expect("discount carried through from initial_market");
+        .expect("discount carried through from source_market");
 
-    // Equity spot price must be present in initial_market.prices.
+    // Equity spot price must be present in source_market.prices.
     let scalar = market
         .get_price("AAPL")
-        .expect("AAPL spot price present in initial_market.prices");
+        .expect("AAPL spot price present in source_market.prices");
     let spot = match scalar {
         MarketScalar::Price(m) => m.amount(),
         MarketScalar::Unitless(v) => *v,
@@ -319,7 +319,7 @@ fn example_10_bond_prices_supports_lookup() {
     // At least two distinct bond IDs must be retrievable.
     let scalar1 = market
         .get_price("US-TREASURY-10Y-2026-05-08")
-        .expect("US 10Y treasury price present in initial_market.prices");
+        .expect("US 10Y treasury price present in source_market.prices");
     let p1 = match scalar1 {
         MarketScalar::Price(m) => m.amount(),
         MarketScalar::Unitless(v) => *v,
@@ -346,7 +346,7 @@ fn example_11_equity_spots_and_dividends_support_lookup() {
 
     let scalar_aapl = market
         .get_price("AAPL")
-        .expect("AAPL spot present in initial_market.prices");
+        .expect("AAPL spot present in source_market.prices");
     let aapl_spot = match scalar_aapl {
         MarketScalar::Price(m) => m.amount(),
         MarketScalar::Unitless(v) => *v,
@@ -363,7 +363,7 @@ fn example_11_equity_spots_and_dividends_support_lookup() {
     // Dividend schedule for AAPL must be retrievable by schedule ID.
     let aapl_divs = market
         .get_dividend_schedule("AAPL-DIVS")
-        .expect("AAPL dividend schedule present in initial_market.dividends");
+        .expect("AAPL dividend schedule present in source_market.dividends");
     // The schedule should have at least one dividend entry.
     assert!(
         !aapl_divs.events.is_empty(),
@@ -387,8 +387,8 @@ fn example_12_full_credit_desk_market_chains_steps() {
         .get_base_correlation("CDX-NA-IG-46_CORR")
         .expect("base correlation curve produced by step");
 
-    // FX matrix from initial_market must survive.
-    let fx = market.fx().expect("fx matrix from initial_market");
+    // FX matrix from source_market must survive.
+    let fx = market.fx().expect("fx matrix from source_market");
     let _ = fx;
 
     // Hazard at 5y reflects the SYNTHETIC sub-1bp CDS spreads used to keep

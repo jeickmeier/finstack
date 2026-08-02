@@ -20,7 +20,7 @@
 //! let disc = flat_discount_curve(0.05, as_of, "USD-OIS");
 //!
 //! // Build curves with custom day count
-//! let disc = flat_discount_curve_with_dc(0.05, as_of, "USD-OIS", DayCount::Act365F);
+//! let disc = flat_discount_curve_with_day_count(0.05, as_of, "USD-OIS", DayCount::Act365F);
 //!
 //! // Use tolerance presets
 //! assert_approx_eq_with_config(actual, expected, tolerances::NUMERICAL, "test");
@@ -285,7 +285,7 @@ pub fn assert_in_range(value: f64, min: f64, max: f64, msg: &str) {
 /// Create a flat discount curve for testing with simple knots.
 ///
 /// Uses `dates::TODAY` as base date and LogLinear interpolation.
-/// For more control, use `flat_discount_curve()` or `flat_discount_curve_with_dc()`.
+/// For more control, use `flat_discount_curve()` or `flat_discount_curve_with_day_count()`.
 pub fn flat_curve(rate: f64, curve_id: &str) -> DiscountCurve {
     let base = dates::TODAY;
     let t_max = 30.0; // 30 years
@@ -316,7 +316,7 @@ pub fn flat_curve(rate: f64, curve_id: &str) -> DiscountCurve {
 /// let curve = flat_discount_curve(0.05, dates::TODAY, "USD-OIS");
 /// ```
 pub fn flat_discount_curve(rate: f64, base_date: Date, curve_id: &str) -> DiscountCurve {
-    flat_discount_curve_with_dc(rate, base_date, curve_id, DayCount::Act360)
+    flat_discount_curve_with_day_count(rate, base_date, curve_id, DayCount::Act360)
 }
 
 /// Create a flat discount curve with custom day count convention.
@@ -337,12 +337,12 @@ pub fn flat_discount_curve(rate: f64, base_date: Date, curve_id: &str) -> Discou
 ///
 /// ```rust,ignore
 /// // Standard USD curve with ACT/360
-/// let usd_curve = flat_discount_curve_with_dc(0.05, as_of, "USD-OIS", DayCount::Act360);
+/// let usd_curve = flat_discount_curve_with_day_count(0.05, as_of, "USD-OIS", DayCount::Act360);
 ///
 /// // EUR curve with ACT/365F
-/// let eur_curve = flat_discount_curve_with_dc(0.03, as_of, "EUR-OIS", DayCount::Act365F);
+/// let eur_curve = flat_discount_curve_with_day_count(0.03, as_of, "EUR-OIS", DayCount::Act365F);
 /// ```
-pub fn flat_discount_curve_with_dc(
+pub fn flat_discount_curve_with_day_count(
     rate: f64,
     base_date: Date,
     curve_id: &str,
@@ -640,14 +640,14 @@ pub fn gbp(amount: f64) -> Money {
 }
 
 /// Standard day count for testing
-pub fn standard_dc() -> DayCount {
+pub fn standard_day_count() -> DayCount {
     DayCount::Act365F
 }
 
 /// Calculate year fraction for testing
 pub fn year_fraction(start: Date, end: Date) -> f64 {
     use finstack_quant_core::dates::DayCountContext;
-    standard_dc()
+    standard_day_count()
         .year_fraction(start, end, DayCountContext::default())
         .unwrap_or(0.0)
 }
@@ -792,8 +792,9 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_flat_discount_curve_with_dc() {
-        let curve = flat_discount_curve_with_dc(0.05, dates::TODAY, "TEST", DayCount::Act365F);
+    fn test_flat_discount_curve_with_day_count() {
+        let curve =
+            flat_discount_curve_with_day_count(0.05, dates::TODAY, "TEST", DayCount::Act365F);
         assert_eq!(curve.id().as_str(), "TEST");
         assert_eq!(curve.base_date(), dates::TODAY);
 
@@ -934,7 +935,7 @@ mod tests {
             "Expected yf ≈ 1.00274 for leap year, got {}",
             yf
         );
-        assert_eq!(standard_dc(), DayCount::Act365F);
+        assert_eq!(standard_day_count(), DayCount::Act365F);
     }
 
     #[test]

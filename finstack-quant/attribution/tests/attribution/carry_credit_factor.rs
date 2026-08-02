@@ -15,9 +15,7 @@ use finstack_quant_attribution::{
 };
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{create_date, DayCount};
-use finstack_quant_core::market_data::context::{
-    CurveState, MarketContextState, MARKET_CONTEXT_STATE_VERSION,
-};
+use finstack_quant_core::market_data::context::{CurveState, MarketContextState};
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, IssuerId};
@@ -103,7 +101,7 @@ fn make_model() -> CreditFactorModel {
     });
 
     CreditFactorModel {
-        schema_version: CreditFactorModel::SCHEMA_VERSION.into(),
+        schema: finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
         as_of: create_date(2024, Month::December, 31).unwrap(),
         calibration_window: DateRange {
             start: create_date(2022, Month::December, 31).unwrap(),
@@ -188,7 +186,7 @@ fn flat_hazard(base: time::Date, h: f64) -> HazardCurve {
 
 fn make_market_state(disc: DiscountCurve, haz: HazardCurve) -> MarketContextState {
     MarketContextState {
-        version: MARKET_CONTEXT_STATE_VERSION,
+        schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
         curves: vec![CurveState::Discount(disc), CurveState::Hazard(haz)],
         fx: None,
         surfaces: vec![],
@@ -242,7 +240,7 @@ fn run_metrics_based_with_model(model: Option<CreditFactorModel>) -> PnlAttribut
             strict_validation: None,
             rounding_scale: None,
             rate_bump_bp: None,
-            target_ccy: None,
+            target_currency: None,
             execution_policy: None,
         }),
         full_cross_attribution: false,
@@ -500,21 +498,15 @@ fn invariant4_holds_when_s_model_is_subnormal() {
     );
 }
 
-/// Backward-compat: a JSON payload using the legacy `Money` shape for
-/// `coupon_income` / `roll_down` deserializes into `SourceLine::scalar`.
-///
-/// We build it by serializing a current PnlAttribution then surgically
-/// rewriting `carry_detail.coupon_income` / `roll_down` from the new
-/// SourceLine shape (`{total: {amount,currency}, ...}`) to the legacy bare
-/// Money shape (`{amount, currency}`).
+/// A bare `Money` value is not a valid source line.
 #[test]
-fn legacy_carry_detail_json_deserializes_into_scalar_source_line() {
+fn bare_money_carry_detail_is_rejected() {
     use finstack_quant_attribution::{CarryDetail, SourceLine};
     use finstack_quant_core::dates::create_date;
 
     let mut attr = PnlAttribution::new(
         Money::new(100.0, Currency::USD),
-        "LEGACY",
+        "STRICT-SOURCE-LINE",
         create_date(2025, time::Month::January, 1).unwrap(),
         create_date(2025, time::Month::January, 2).unwrap(),
         AttributionMethod::Parallel,
@@ -528,7 +520,7 @@ fn legacy_carry_detail_json_deserializes_into_scalar_source_line() {
         funding_cost: None,
     });
 
-    // Serialize then mutate to legacy shape.
+    // Serialize then replace the typed source lines with invalid bare Money.
     let mut value = serde_json::to_value(&attr).expect("serialize");
     if let Some(carry) = value
         .get_mut("carry_detail")
@@ -537,22 +529,12 @@ fn legacy_carry_detail_json_deserializes_into_scalar_source_line() {
         for key in ["coupon_income", "roll_down"] {
             if let Some(line) = carry.get(key).cloned() {
                 if let Some(total) = line.get("total").cloned() {
-                    // Replace with the legacy `Money` shape.
                     carry.insert(key.to_string(), total);
                 }
             }
         }
     }
-    let legacy_json = serde_json::to_string(&value).expect("re-serialize");
-
-    let parsed: PnlAttribution =
-        serde_json::from_str(&legacy_json).expect("legacy carry_detail JSON should parse");
-    let detail = parsed.carry_detail.expect("carry_detail");
-    let coupon = detail.coupon_income.expect("coupon");
-    assert!((coupon.total.amount() - 25.0).abs() < TOL);
-    assert!(coupon.rates_part.is_none());
-    assert!(coupon.credit_part.is_none());
-    let roll = detail.roll_down.expect("roll");
-    assert!((roll.total.amount() - 5.0).abs() < TOL);
-    assert!(roll.rates_part.is_none());
+    let invalid_json = serde_json::to_string(&value).expect("re-serialize");
+    serde_json::from_str::<PnlAttribution>(&invalid_json)
+        .expect_err("bare Money source lines must be rejected");
 }

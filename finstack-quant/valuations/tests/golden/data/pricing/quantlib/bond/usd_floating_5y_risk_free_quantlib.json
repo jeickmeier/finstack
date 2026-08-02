@@ -14,14 +14,14 @@
           ]
         },
         "cashflow_spec": {
-          "Floating": {
+          "floating": {
             "adjust_accrual_dates": true,
-            "bdc": "following",
+            "business_day_convention": "following",
             "calendar_id": "weekends_only",
-            "coupon_type": "Cash",
-            "dc": "Act360",
+            "coupon_type": "cash",
+            "day_count": "act_360",
             "end_of_month": false,
-            "freq": {
+            "frequency": {
               "count": 3,
               "unit": "months"
             },
@@ -35,14 +35,14 @@
               "index_cap_bp": null,
               "index_floor_bp": null,
               "index_id": "USD-SOFR-3M",
-              "reset_freq": {
+              "reset_frequency": {
                 "count": 3,
                 "unit": "months"
               },
               "reset_lag_days": 2,
               "spread_bp": "100"
             },
-            "stub": "ShortFront"
+            "stub": "short_front"
           }
         },
         "credit_curve_id": null,
@@ -70,7 +70,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "extrapolation": "flat_forward",
           "id": "USD-OIS",
           "interp_style": "log_linear",
@@ -91,7 +91,7 @@
         },
         {
           "base": "2026-04-30",
-          "day_count": "Act360",
+          "day_count": "act_360",
           "extrapolation": "flat_forward",
           "id": "USD-SOFR-3M",
           "interp_style": "linear",
@@ -114,11 +114,12 @@
       "dividends": [],
       "fx": null,
       "fx_delta_vol_surfaces": [],
+      "hierarchy": null,
       "inflation_indices": [],
       "prices": {},
+      "schema_version": 1,
       "series": [],
       "surfaces": [],
-      "version": 2,
       "vol_cubes": []
     },
     "kind": "snapshot"
@@ -135,11 +136,11 @@
     "review_interval_months": 6,
     "screenshots": [],
     "source": "quantlib",
-    "source_detail": "QuantLib 1.42.1; deterministic flat-curve native instrument benchmark.",
+    "source_detail": "QuantLib 1.43; deterministic flat-curve native instrument benchmark.",
     "valuation_date": "2026-04-30"
   },
   "model": "discounting",
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "tolerances": {
     "dv01": {
       "rel": 0.005,

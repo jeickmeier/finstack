@@ -51,7 +51,7 @@ where
     /// # Example
     ///
     /// ```ignore
-    /// let irs_pricer = GenericInstrumentPricer::<InterestRateSwap>::discounting(InstrumentType::IRS);
+    /// let irs_pricer = GenericInstrumentPricer::<InterestRateSwap>::discounting(InstrumentType::Irs);
     /// ```
     pub fn discounting(instrument_type: InstrumentType) -> Self {
         Self::new(instrument_type, ModelKey::Discounting)

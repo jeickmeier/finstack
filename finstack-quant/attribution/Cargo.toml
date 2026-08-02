@@ -24,10 +24,15 @@ tracing = { version = "0.1", default-features = false, features = ["attributes"]
 
 [dev-dependencies]
 criterion = { workspace = true }
+jsonschema = { version = "0.28", default-features = false }
 proptest = "1.11.0"
 rust_decimal = { workspace = true }
 smallvec = { version = "1.15", default-features = false }
 time = { workspace = true, features = ["macros"] }
+
+[[bin]]
+name = "gen_attribution_schemas"
+path = "src/bin/gen_schemas.rs"
 
 [[bench]]
 name = "attribution"

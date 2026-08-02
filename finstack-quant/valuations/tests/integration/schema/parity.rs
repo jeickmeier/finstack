@@ -67,15 +67,15 @@ fn assert_enum_parity(schema_name: &str, mut actual: Vec<&str>, expected: &[&str
 ///
 /// Must match `AttributionFactor` enum in `src/attribution/types.rs`.
 const CANONICAL_ATTRIBUTION_FACTORS: &[&str] = &[
-    "Carry",
-    "Correlations",
-    "CreditCurves",
-    "Fx",
-    "InflationCurves",
-    "MarketScalars",
-    "ModelParameters",
-    "RatesCurves",
-    "Volatility",
+    "carry",
+    "correlations",
+    "credit_curves",
+    "fx",
+    "inflation_curves",
+    "market_scalars",
+    "model_parameters",
+    "rates_curves",
+    "volatility",
 ];
 
 #[test]
@@ -128,7 +128,7 @@ const CANONICAL_CALIBRATION_STEP_KINDS: &[&str] = &[
 
 #[test]
 fn test_calibration_step_kinds_schema_parity() {
-    let schema_json = include_str!("../../../schemas/calibration/2/calibration.schema.json");
+    let schema_json = include_str!("../../../schemas/calibration/1/calibration.schema.json");
     let schema: Value = serde_json::from_str(schema_json).expect("Schema JSON should be valid");
 
     // StepParams is a tagged enum with tag="kind". In schemars output it appears
@@ -178,11 +178,11 @@ fn test_calibration_step_kinds_schema_parity() {
 ///
 /// Must match `AmortizationSpec` enum in cashflows crate.
 const CANONICAL_AMORTIZATION_VARIANTS: &[&str] = &[
-    "CustomPrincipal",
-    "LinearTo",
-    "None",
-    "PercentOfOriginalPerPeriod",
-    "StepRemaining",
+    "custom_principal",
+    "linear_to",
+    "none",
+    "percent_of_original_per_period",
+    "step_remaining",
 ];
 
 #[test]

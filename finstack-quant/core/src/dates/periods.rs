@@ -36,11 +36,22 @@ use time::Month;
 /// calendar-day convention (365 per year). Use `Weekly` if you need
 /// calendar-week granularity.
 ///
-/// Parses from short and long string forms via [`std::str::FromStr`]
-/// (e.g. `"q"` or `"quarterly"`).
+/// Parses the exact snake_case wire values via [`std::str::FromStr`]
+/// (for example, `"quarterly"` or `"semi_annual"`).
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum PeriodKind {
     /// Daily periods (252 trading days per year by convention)
     Daily,
@@ -63,7 +74,7 @@ impl fmt::Display for PeriodKind {
             PeriodKind::Weekly => f.write_str("weekly"),
             PeriodKind::Monthly => f.write_str("monthly"),
             PeriodKind::Quarterly => f.write_str("quarterly"),
-            PeriodKind::SemiAnnual => f.write_str("semiannual"),
+            PeriodKind::SemiAnnual => f.write_str("semi_annual"),
             PeriodKind::Annual => f.write_str("annual"),
         }
     }
@@ -73,13 +84,13 @@ impl FromStr for PeriodKind {
     type Err = crate::error::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "daily" | "d" => Ok(PeriodKind::Daily),
-            "weekly" | "w" => Ok(PeriodKind::Weekly),
-            "monthly" | "m" => Ok(PeriodKind::Monthly),
-            "quarterly" | "q" => Ok(PeriodKind::Quarterly),
-            "semiannual" | "semi_annual" | "h" => Ok(PeriodKind::SemiAnnual),
-            "annual" | "yearly" | "a" | "y" => Ok(PeriodKind::Annual),
+        match s {
+            "daily" => Ok(PeriodKind::Daily),
+            "weekly" => Ok(PeriodKind::Weekly),
+            "monthly" => Ok(PeriodKind::Monthly),
+            "quarterly" => Ok(PeriodKind::Quarterly),
+            "semi_annual" => Ok(PeriodKind::SemiAnnual),
+            "annual" => Ok(PeriodKind::Annual),
             _ => Err(crate::error::InputError::Invalid.into()),
         }
     }
@@ -228,8 +239,19 @@ impl PeriodKind {
 
 /// Identifier for a Gregorian period like `2025Q1` or a fiscal period like
 /// `FY2025W53`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(into = "String", try_from = "String")]
+#[schemars(with = "String")]
 pub struct PeriodId {
     /// Gregorian or fiscal year label.
     pub year: i32,
@@ -658,14 +680,18 @@ impl FiscalConfig {
 }
 
 /// A concrete period with start/end dates and actual/forecast flag.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(deny_unknown_fields)]
 pub struct Period {
     /// Identifier of this period.
     pub id: PeriodId,
     /// Inclusive start date.
+    #[schemars(with = "String", extend("format" = "date"))]
     pub start: Date,
     /// Exclusive end date.
+    #[schemars(with = "String", extend("format" = "date"))]
     pub end: Date,
     /// True when this period is part of the "actuals" subset.
     pub is_actual: bool,
@@ -677,7 +703,7 @@ pub struct Period {
 /// run of model periods. Each [`Period`] uses the crate-wide `[start, end)`
 /// interval convention, so the `end` of one period naturally aligns with the
 /// `start` of the next.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct PeriodPlan {
     /// Ordered periods produced by the parser.
     pub periods: Vec<Period>,
@@ -1366,12 +1392,15 @@ mod tests {
 
     #[test]
     fn period_kind_display_parse_and_counts() {
-        assert_eq!(PeriodKind::SemiAnnual.to_string(), "semiannual");
+        assert_eq!(PeriodKind::SemiAnnual.to_string(), "semi_annual");
         assert_eq!(
             PeriodKind::from_str("semi_annual"),
             Ok(PeriodKind::SemiAnnual)
         );
-        assert_eq!(PeriodKind::from_str("Y"), Ok(PeriodKind::Annual));
+        assert_eq!(PeriodKind::from_str("annual"), Ok(PeriodKind::Annual));
+        for noncanonical in ["Y", "q", "semiannual", "SemiAnnual", " quarterly"] {
+            assert!(PeriodKind::from_str(noncanonical).is_err());
+        }
         assert!(PeriodKind::from_str("unknown").is_err());
 
         assert_eq!(PeriodKind::Daily.periods_per_year(), 252);

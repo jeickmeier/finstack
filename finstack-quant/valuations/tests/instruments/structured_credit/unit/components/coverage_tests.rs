@@ -60,7 +60,7 @@ fn context_for_tranche<'a>(
 #[test]
 fn test_oc_test_passing_scenario() {
     // Arrange: AssetPool value > required multiple of tranche
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::floating_rate_loan(
         "L1",
         Money::new(125_000_000.0, Currency::USD),
@@ -115,7 +115,7 @@ fn test_oc_test_passing_scenario() {
 
 #[test]
 fn test_coverage_test_result_preserves_tranche_id_with_underscore() {
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::floating_rate_loan(
         "L1",
         Money::new(100_000_000.0, Currency::USD),
@@ -156,7 +156,7 @@ fn test_coverage_test_result_preserves_tranche_id_with_underscore() {
 #[test]
 fn test_oc_test_failing_scenario() {
     // Arrange: AssetPool value < required multiple
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::floating_rate_loan(
         "L1",
         Money::new(120_000_000.0, Currency::USD),
@@ -211,7 +211,7 @@ fn test_oc_test_failing_scenario() {
 #[test]
 fn test_oc_test_with_cash_balance() {
     // Arrange: AssetPool + cash should pass
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::floating_rate_loan(
         "L1",
         Money::new(120_000_000.0, Currency::USD),
@@ -265,7 +265,7 @@ fn test_oc_test_with_cash_balance() {
 #[test]
 fn test_oc_test_cure_amount_calculation() {
     // Arrange
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::floating_rate_loan(
         "L1",
         Money::new(115_000_000.0, Currency::USD),
@@ -327,7 +327,7 @@ fn test_oc_test_cure_amount_calculation() {
 #[test]
 fn test_ic_test_passing_scenario() {
     // Arrange: Interest collections > required multiple of interest due
-    let pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     let equity = Tranche::new(
         "EQUITY",
@@ -374,7 +374,7 @@ fn test_ic_test_passing_scenario() {
 #[test]
 fn test_ic_test_failing_scenario() {
     // Arrange: Interest collections < required
-    let pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     let equity = Tranche::new(
         "EQUITY",
@@ -420,7 +420,7 @@ fn test_ic_test_failing_scenario() {
 #[test]
 fn test_ic_test_no_cure_amount() {
     // Arrange
-    let pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     let equity = Tranche::new(
         "EQUITY",
@@ -499,7 +499,7 @@ fn test_ic_test_no_cure_amount() {
 #[test]
 fn test_oc_test_empty_pool() {
     // Arrange: Empty pool
-    let pool = AssetPool::new("EMPTY", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("EMPTY", DealType::Clo, Currency::USD);
 
     let equity = Tranche::new(
         "EQUITY",
@@ -546,7 +546,7 @@ fn test_oc_test_empty_pool() {
 #[test]
 fn test_ic_test_no_interest_collections() {
     // Arrange
-    let pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     let equity = Tranche::new(
         "EQUITY",
@@ -592,7 +592,7 @@ fn test_ic_test_no_interest_collections() {
 #[test]
 fn test_oc_test_infinity_ratio_zero_debt() {
     // Arrange: Edge case with zero tranche balance
-    let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::floating_rate_loan(
         "L1",
         Money::new(100_000_000.0, Currency::USD),
@@ -676,7 +676,7 @@ fn claim_test_tranches() -> TrancheStructure {
 
 #[test]
 fn ic_measures_coverage_of_the_capped_claim() {
-    let pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     let tranches = claim_test_tranches();
 
     // The waterfall caps SENIOR's claim at 2%: due = 100M * 0.02 * 0.25 = 0.5M.
@@ -709,7 +709,7 @@ fn ic_measures_coverage_of_the_capped_claim() {
 
 #[test]
 fn ic_treats_a_tranche_without_interest_recipient_as_owing_nothing() {
-    let pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
     let tranches = claim_test_tranches();
 
     // The waterfall defines no interest claim for SENIOR at all.

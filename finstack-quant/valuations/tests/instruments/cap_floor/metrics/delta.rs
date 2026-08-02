@@ -42,8 +42,8 @@ fn build_flat_discount_curve(rate: f64, base_date: Date, curve_id: &str) -> Disc
         .unwrap()
 }
 
-fn build_flat_vol_surface(vol: f64, _base_date: Date, surface_id: &str) -> VolSurface {
-    VolSurface::builder(surface_id)
+fn build_flat_vol_surface(vol: f64, _base_date: Date, vol_surface_id: &str) -> VolSurface {
+    VolSurface::builder(vol_surface_id)
         .expiries(&[0.25, 1.0, 5.0, 10.0])
         .strikes(&[0.01, 0.03, 0.05, 0.07, 0.10])
         .row(&[vol, vol, vol, vol, vol])
@@ -65,7 +65,7 @@ fn create_standard_cap(as_of: Date, end: Date, strike: f64) -> CapFloor {
         frequency: Tenor::quarterly(),
         day_count: DayCount::Act360,
         stub: StubKind::None,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: None,
         exercise_style: ExerciseStyle::European,
         settlement: SettlementType::Cash,
@@ -94,7 +94,7 @@ fn create_standard_floor(as_of: Date, end: Date, strike: f64) -> CapFloor {
         frequency: Tenor::quarterly(),
         day_count: DayCount::Act360,
         stub: StubKind::None,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: None,
         exercise_style: ExerciseStyle::European,
         settlement: SettlementType::Cash,
@@ -397,7 +397,7 @@ fn test_caplet_delta() {
         frequency: Tenor::quarterly(),
         day_count: DayCount::Act360,
         stub: StubKind::None,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: None,
         exercise_style: ExerciseStyle::European,
         settlement: SettlementType::Cash,

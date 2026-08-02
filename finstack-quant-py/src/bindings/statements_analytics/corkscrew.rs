@@ -35,16 +35,16 @@ pub enum PyAccountType {
 
 #[pymethods]
 impl PyAccountType {
-    /// Parse from a string identifier (``"asset"``, ``"liability"``, ``"equity"``; case-insensitive).
+    /// Parse an exact snake_case identifier (``"asset"``, ``"liability"``, or ``"equity"``).
     #[staticmethod]
     fn from_str(value: &str) -> PyResult<Self> {
-        match value.trim().to_ascii_lowercase().as_str() {
+        match value {
             "asset" => Ok(PyAccountType::Asset),
             "liability" => Ok(PyAccountType::Liability),
             "equity" => Ok(PyAccountType::Equity),
-            other => Err(crate::errors::value_error(format!(
+            _ => Err(crate::errors::value_error(format!(
                 "unknown account type '{}' (expected asset / liability / equity)",
-                other
+                value
             ))),
         }
     }

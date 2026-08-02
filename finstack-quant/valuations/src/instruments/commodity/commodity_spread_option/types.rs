@@ -77,8 +77,11 @@ use finstack_quant_core::Result;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
+#[schemars(deny_unknown_fields)]
 #[builder(validate = CommoditySpreadOption::validate)]
 pub struct CommoditySpreadOption {
     /// Unique instrument identifier.
@@ -88,11 +91,17 @@ pub struct CommoditySpreadOption {
     /// Option type (call or put on the spread S1 - S2).
     pub option_type: OptionType,
     /// Option expiry date.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Spread strike price K in the payoff max(S1 - S2 - K, 0).
     pub strike: f64,
     /// Notional quantity (number of units).
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub notional: f64,
     /// Forward/price curve ID for leg 1 (the "long" commodity).
     pub leg1_forward_curve_id: CurveId,
@@ -105,6 +114,11 @@ pub struct CommoditySpreadOption {
     /// Discount curve ID for present value.
     pub discount_curve_id: CurveId,
     /// Correlation between the two commodity prices, in [-1, 1].
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_correlation",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_correlation"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::CorrelationWire")]
     pub correlation: f64,
     /// Day count convention for time to expiry.
     #[serde(default = "crate::serde_defaults::day_count_act365f")]
@@ -112,12 +126,24 @@ pub struct CommoditySpreadOption {
     pub day_count: DayCount,
     /// Instrument-owned pricing inputs.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging.
     #[builder(default)]
@@ -128,7 +154,7 @@ pub struct CommoditySpreadOption {
     #[serde(flatten)]
     #[schemars(skip)]
     #[builder(default)]
-    pub(crate) unknown_fields: crate::instruments::common_impl::serde_guard::UnknownFieldGuard,
+    pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }
 
 impl CommoditySpreadOption {

@@ -6,14 +6,11 @@ use finstack_quant_factor_model::credit::hierarchy::CreditFactorModel;
 use finstack_quant_factor_model::FactorModelConfigEnvelope;
 
 fn config_bytes(overrides: &str) -> Vec<u8> {
-    let matrix: serde_json::Value =
-        serde_json::from_str(include_str!("data/contract_version_matrix.json"))
-            .expect("contract matrix parses");
-    let mut base = matrix["config"]["base"].clone();
-    base["config"]["bump_size"] = serde_json::json!({"overrides": {}});
-    serde_json::to_string(&base)
-        .expect("factor-model fixture serializes")
-        .replace(r#""overrides":{}"#, &format!(r#""overrides":{overrides}"#))
+    include_str!("data/canonical/factor_model_config.json")
+        .replace(
+            r#""overrides":{"credit:acme":1.0,"rates:usd":2.0}"#,
+            &format!(r#""overrides":{overrides}"#),
+        )
         .into_bytes()
 }
 
@@ -47,8 +44,7 @@ fn factor_model_envelope_has_golden_canonical_bytes_hash_and_order_invariance() 
 
 #[test]
 fn credit_factor_model_has_exact_canonical_bytes_and_hash() {
-    let source =
-        include_bytes!("../../valuations/tests/schema_fixtures/credit_factor_model_v1.json");
+    let source = include_bytes!("data/canonical/credit_factor_model.json");
     let (model, report) = CreditFactorModel::from_slice_strict(source, &LoadLimits::default())
         .expect("strict credit factor model");
     assert!(!report.has_errors());

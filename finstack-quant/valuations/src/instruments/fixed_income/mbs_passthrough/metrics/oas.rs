@@ -19,7 +19,7 @@ use finstack_quant_core::Result;
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // public API result struct
 pub(crate) struct StaticSpreadResult {
-    /// Static Z-spread in decimal (e.g., 0.01 for 100 bps)
+    /// Static Z-spread in decimal (e.g., 0.01 for 100 bp)
     pub spread: f64,
     /// Model price at the solved static Z-spread
     pub model_price: f64,
@@ -60,7 +60,7 @@ pub(crate) fn calculate_static_zspread(
     let market_price = market_price_pct / 100.0 * mbs.current_face.amount();
 
     // Use core's BrentSolver instead of a hand-rolled implementation.
-    // Bracket bounds: -500 bps to +2000 bps covers virtually all OAS scenarios.
+    // Bracket bounds: -500 bp to +2000 bp covers virtually all OAS scenarios.
     let solver = BrentSolver::new()
         .tolerance(1e-8)
         .max_iterations(100)
@@ -166,50 +166,28 @@ mod tests {
     }
 
     #[test]
-    fn test_oas_calculation() {
+    fn static_zspread_recovers_synthetic_spreads() {
         let mbs = create_test_mbs();
         let as_of = Date::from_calendar_date(2024, Month::January, 15).expect("valid");
         let market = create_test_market(as_of);
 
-        // Get model price at zero spread
-        let base_price = price_with_spread(&mbs, &market, as_of, 0.0).expect("price");
-        let market_price_pct = base_price / mbs.current_face.amount() * 100.0;
+        for expected_spread in [-0.01, 0.0, 0.01] {
+            let target =
+                price_with_spread(&mbs, &market, as_of, expected_spread).expect("target price");
+            let target_pct = target / mbs.current_face.amount() * 100.0;
+            let result = calculate_static_zspread(&mbs, target_pct, &market, as_of)
+                .expect("static Z-spread solve");
 
-        // OAS should be approximately zero when market price equals model price
-        let result = calculate_static_zspread(&mbs, market_price_pct, &market, as_of).expect("oas");
-
-        assert!(result.converged);
-        assert!(result.spread.abs() < 0.001); // Within 10 bps of zero
-    }
-
-    #[test]
-    fn test_oas_with_discount() {
-        let mbs = create_test_mbs();
-        let as_of = Date::from_calendar_date(2024, Month::January, 15).expect("valid");
-        let market = create_test_market(as_of);
-
-        // Test with discount price (should give positive OAS)
-        let discount_price = 95.0; // 95% of par
-
-        let result = calculate_static_zspread(&mbs, discount_price, &market, as_of).expect("oas");
-
-        // Price below par should imply positive spread
-        // (this depends on the specific curve setup)
-        assert!(result.converged || result.iterations > 0);
-    }
-
-    #[test]
-    fn test_oas_with_premium() {
-        let mbs = create_test_mbs();
-        let as_of = Date::from_calendar_date(2024, Month::January, 15).expect("valid");
-        let market = create_test_market(as_of);
-
-        // Test with premium price (should give negative OAS)
-        let premium_price = 105.0; // 105% of par
-
-        let result = calculate_static_zspread(&mbs, premium_price, &market, as_of).expect("oas");
-
-        // Price above par should imply negative spread
-        assert!(result.converged || result.iterations > 0);
+            assert!(
+                (result.spread - expected_spread).abs() < 1e-6,
+                "expected spread {expected_spread}, recovered {}",
+                result.spread
+            );
+            assert!(
+                result.price_error.abs() / mbs.current_face.amount() < 1e-8,
+                "relative repricing error should be negligible, got {}",
+                result.price_error / mbs.current_face.amount()
+            );
+        }
     }
 }

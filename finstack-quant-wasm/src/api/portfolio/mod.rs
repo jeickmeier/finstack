@@ -95,8 +95,8 @@ impl JsPortfolio {
 
     /// Base currency code.
     #[wasm_bindgen(getter, js_name = baseCcy)]
-    pub fn base_ccy(&self) -> String {
-        self.inner.base_ccy.to_string()
+    pub fn base_currency(&self) -> String {
+        self.inner.base_currency.to_string()
     }
 
     /// Number of positions in the portfolio.
@@ -486,19 +486,19 @@ pub fn portfolio_result_get_metric(result_json: &str, metric_id: &str) -> Result
 
 /// Aggregate portfolio metrics from a valuation JSON.
 /// @param valuation_json - Canonical JSON payload representing the valuation consumed by this API.
-/// @param base_ccy - ISO-4217 base currency in which aggregate portfolio values are reported.
+/// @param base_currency - ISO-4217 base currency in which aggregate portfolio values are reported.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
 /// @param as_of - ISO-8601 valuation date used to resolve date-dependent market data.
 #[wasm_bindgen(js_name = aggregateMetrics)]
 pub fn aggregate_metrics(
     valuation_json: &str,
-    base_ccy: &str,
+    base_currency: &str,
     market_json: &str,
     as_of: &str,
 ) -> Result<String, JsValue> {
     let valuation: finstack_quant_portfolio::valuation::PortfolioValuation =
         serde_json::from_str(valuation_json).map_err(to_js_err)?;
-    let ccy: finstack_quant_core::currency::Currency = base_ccy.parse().map_err(to_js_err)?;
+    let ccy: finstack_quant_core::currency::Currency = base_currency.parse().map_err(to_js_err)?;
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;
     let format = time::format_description::well_known::Iso8601::DEFAULT;
@@ -599,7 +599,7 @@ pub fn apply_scenario_and_revalue_built(
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;
     let config = finstack_quant_core::config::FinstackConfig::default();
-    let out = finstack_quant_portfolio::scenarios::apply_and_revalue_envelope(
+    let out = finstack_quant_portfolio::scenarios::apply_and_revalue_view(
         &portfolio.inner,
         &scenario,
         &market,
@@ -647,7 +647,7 @@ pub fn scenario_pnl_built(
     let market: finstack_quant_core::market_data::context::MarketContext =
         serde_json::from_str(market_json).map_err(to_js_err)?;
     let config = finstack_quant_core::config::FinstackConfig::default();
-    let out = finstack_quant_portfolio::scenarios::scenario_pnl_envelope(
+    let out = finstack_quant_portfolio::scenarios::scenario_pnl_view(
         &portfolio.inner,
         &scenario,
         &market,
@@ -1045,7 +1045,7 @@ mod tests {
         serde_json::json!({
             "id": "test_portfolio",
             "name": "Test",
-            "base_ccy": "USD",
+            "base_currency": "USD",
             "as_of": "2024-01-15",
             "entities": {},
             "positions": []
@@ -1112,7 +1112,7 @@ mod tests {
         let spec_json = minimal_portfolio_spec_json();
         let handle = JsPortfolio::from_spec(&spec_json).expect("build handle");
         assert_eq!(handle.id(), "test_portfolio");
-        assert_eq!(handle.base_ccy(), "USD");
+        assert_eq!(handle.base_currency(), "USD");
         assert_eq!(handle.as_of(), "2024-01-15");
         assert_eq!(handle.num_positions(), 0);
 
@@ -1180,8 +1180,8 @@ mod tests {
                 .expect("build timeline");
 
         let config_json = serde_json::json!({
-            "mode": "PvOnly",
-            "attribution_method": "Parallel"
+            "mode": "pv_only",
+            "attribution_method": "parallel"
         })
         .to_string();
         let config: finstack_quant_portfolio::replay::ReplayConfig =
@@ -1204,7 +1204,7 @@ mod tests {
     }
 
     #[test]
-    fn almgren_chriss_impact_uses_reference_price_for_bps() {
+    fn almgren_chriss_impact_uses_reference_price_for_bp() {
         let default_json = almgren_chriss_impact(10_000.0, 1_000_000.0, 0.02, 1.0, 0.0, 0.01, None)
             .expect("default reference price");
         let priced_json =
@@ -1213,10 +1213,10 @@ mod tests {
 
         let default: serde_json::Value = serde_json::from_str(&default_json).expect("json");
         let priced: serde_json::Value = serde_json::from_str(&priced_json).expect("json");
-        let default_bps = default["expected_cost_bps"].as_f64().expect("default bps");
-        let priced_bps = priced["expected_cost_bps"].as_f64().expect("priced bps");
+        let default_bp = default["expected_cost_bp"].as_f64().expect("default bp");
+        let priced_bp = priced["expected_cost_bp"].as_f64().expect("priced bp");
 
-        assert!((priced_bps - default_bps / 100.0).abs() < 1e-12);
+        assert!((priced_bp - default_bp / 100.0).abs() < 1e-12);
     }
 
     #[test]

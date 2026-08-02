@@ -54,7 +54,7 @@ fn shared_fixtures_are_deterministic_and_have_required_shapes() {
     for (index, instrument) in instruments.iter().enumerate() {
         let spec = &instrument["envelope"]["instrument"]["spec"];
         if index % 2 == 0 {
-            let schedule = spec["cashflow_spec"]["Amortizing"]["schedule"]["StepRemaining"]
+            let schedule = spec["cashflow_spec"]["amortizing"]["schedule"]["step_remaining"]
                 ["schedule"]
                 .as_array()
                 .expect("bond serialized amortization schedule");

@@ -17,6 +17,7 @@ use crate::instruments::fixed_income::structured_credit::utils::rates::clamped_c
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(tag = "model", deny_unknown_fields)]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum StochasticPrepaySpec {
     /// Use deterministic prepayment model (no stochastic component).
     Deterministic(PrepaymentModelSpec),

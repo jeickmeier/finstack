@@ -240,10 +240,10 @@ def _metric_cell(metric_id: str, v: float | None) -> tuple[str, str, str]:
     return (label, _fmt_value(kind, float(v)), fmt.sign_class(v) if kind == "money" else "")
 
 
-def _freq_str(freq: dict[str, Any]) -> str:
-    if not freq:
+def _frequency_str(frequency: dict[str, Any]) -> str:
+    if not frequency:
         return ""
-    count, unit = freq.get("count"), freq.get("unit", "")
+    count, unit = frequency.get("count"), frequency.get("unit", "")
     mapping = {
         ("6", "months"): "Semi-annual",
         ("3", "months"): "Quarterly",
@@ -260,23 +260,23 @@ def _definition_terms(definition: dict[str, Any]) -> list[list[tuple[str, str]]]
     itype = definition.get("type", "")
     if itype == "bond":
         cf = spec.get("cashflow_spec") or {}
-        fixed = cf.get("Fixed") or {}
-        floating = (cf.get("Floating") or {}).get("rate") or {}
+        fixed = cf.get("fixed") or {}
+        floating = (cf.get("floating") or {}).get("rate") or {}
         if fixed:
-            coupon = f"{fixed.get('rate', 0) * 100:.3f}% Fixed"
-            freq = fixed.get("freq", {})
-            dc = fixed.get("dc", "")
+            coupon = f"{float(fixed.get('rate', 0)) * 100:.3f}% Fixed"
+            frequency = fixed.get("frequency", {})
+            day_count = fixed.get("day_count", "")
         else:
             coupon = f"{floating.get('index_id', 'float')} + {floating.get('spread_bp', 0)}bp"
-            freq = floating.get("reset_freq", {})
-            dc = floating.get("dc", "")
+            frequency = floating.get("reset_frequency", {})
+            day_count = floating.get("day_count", "")
         return [
             [("Notional", _money_str(spec.get("notional"))), ("Coupon", coupon), ("Issuer", spec.get("id", ""))],
             [
                 ("Issue Date", spec.get("issue_date", "")),
                 ("Maturity", spec.get("maturity", "")),
-                ("Frequency", _freq_str(freq)),
-                ("Day Count", dc),
+                ("Frequency", _frequency_str(frequency)),
+                ("Day Count", day_count),
             ],
             [
                 ("Discount Curve", spec.get("discount_curve_id", "")),
@@ -296,10 +296,10 @@ def _definition_terms(definition: dict[str, Any]) -> list[list[tuple[str, str]]]
                 ("Running Spread", f"{prem.get('spread_bp', 0)} bp"),
                 ("Effective", prem.get("start", "")),
                 ("Maturity", prem.get("end", "")),
-                ("Frequency", _freq_str(prem.get("frequency", {}))),
+                ("Frequency", _frequency_str(prem.get("frequency", {}))),
             ],
             [
-                ("Recovery", f"{prot.get('recovery_rate', 0) * 100:.0f}%"),
+                ("Recovery", f"{float(prot.get('recovery_rate', 0)) * 100:.0f}%"),
                 ("Credit Curve", prot.get("credit_curve_id", "")),
                 ("Doc Clause", str(spec.get("doc_clause") or "—")),
             ],
@@ -312,7 +312,7 @@ def _definition_terms(definition: dict[str, Any]) -> list[list[tuple[str, str]]]
                 ("Exercise", str(spec.get("exercise_style", ""))),
             ],
             [
-                ("Strike", f"{spec.get('strike', 0):,.2f}"),
+                ("Strike", f"{float(spec.get('strike', 0)):,.2f}"),
                 ("Expiry", spec.get("expiry", "")),
                 ("Settlement", str(spec.get("settlement", ""))),
             ],
@@ -620,7 +620,7 @@ def _price_path(
     market_price: float | None,
     cashflows: Any,
 ) -> tuple[Any, Any, dict]:
-    """Price an instrument JSON and return ``(result, cashflows, definition_dict)``.
+    """Price an instrument envelope and return ``(result, cashflows, definition_dict)``.
 
     Deliberate, documented relaxation of the "reporting never prices" rule, confined
     to this one entry point. When ``market_price`` is given it is injected as the
@@ -630,14 +630,19 @@ def _price_path(
     """
     if market is None or as_of is None:
         raise ValueError("instrument_tearsheet: pricing an instrument JSON requires market= and as_of=")
-    spec_obj = json.loads(instrument) if isinstance(instrument, str) else json.loads(json.dumps(instrument))
-    itype = spec_obj.get("type", "")
+    envelope = json.loads(instrument) if isinstance(instrument, str) else json.loads(json.dumps(instrument))
+    definition = envelope.get("instrument")
+    if envelope.get("schema") != "finstack_quant.instrument/1" or not isinstance(definition, dict):
+        raise ValueError("instrument_tearsheet requires a canonical finstack_quant.instrument/1 envelope")
+    itype = definition.get("type", "")
     metrics = recommended_metrics(itype)
     if market_price is None:
         metrics = [m for m in metrics if m not in _NEEDS_QUOTE]
     else:
-        spec_obj.setdefault("spec", {}).setdefault("pricing_overrides", {})["quoted_clean_price"] = market_price
-    instrument_json = json.dumps(spec_obj)
+        definition.setdefault("spec", {}).setdefault("instrument_pricing_overrides", {}).setdefault(
+            "market_quotes", {}
+        )["quoted_clean_price"] = market_price
+    instrument_json = json.dumps(envelope)
     market_arg = market.to_json() if hasattr(market, "to_json") else market
     # Lazy import keeps `import finstack_quant.reporting` light and makes the dependency explicit.
     from finstack_quant.valuations import ValuationResult, instrument_cashflows
@@ -653,7 +658,7 @@ def _price_path(
         except (ValueError, RuntimeError):
             # Some instruments (e.g. options) have no deterministic cashflow schedule.
             cashflows = None
-    return result, cashflows, spec_obj
+    return result, cashflows, definition
 
 
 def instrument_tearsheet(
@@ -674,22 +679,23 @@ def instrument_tearsheet(
     """Render an instrument tear sheet.
 
     ``result`` is either an already-priced ``valuations.ValuationResult`` (pure
-    formatter path) **or** an instrument JSON (``str``/``dict``). For the latter,
-    pass ``market=`` and ``as_of=``; the instrument is priced with
+    formatter path) **or** a canonical ``finstack_quant.instrument/1`` envelope
+    (``str``/``dict``). For the latter, pass ``market=`` and ``as_of=``; the
+    instrument is priced with
     :func:`recommended_metrics` (plus ``oas``/``ytw`` when ``market_price`` is
     given) and its cashflows fetched, then rendered.
 
     Parameters
     ----------
     result : Any
-        Priced valuation result, or instrument JSON/object that should be priced
-        through the supplied market context.
+        Priced valuation result, or canonical instrument envelope that should
+        be priced through the supplied market context.
     market : Any
         Market context or JSON required when ``result`` is an instrument spec.
     as_of : str or None
-        ISO-8601 valuation date required when pricing an instrument spec.
+        ISO-8601 valuation date required when pricing an instrument envelope.
     model : str
-        Pricing-model key used for the instrument-spec pricing path.
+        Pricing-model key used for the instrument-envelope pricing path.
     market_price : float or None
         Optional observed price used to calculate quote-dependent metrics.
     cashflows : Any

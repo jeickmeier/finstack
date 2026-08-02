@@ -4,7 +4,7 @@
       "description": "Clearing status for OTC derivatives.\n\nDetermines whether a trade is cleared through a CCP or remains bilateral\nunder a CSA agreement.",
       "oneOf": [
         {
-          "const": "Bilateral",
+          "const": "bilateral",
           "description": "Bilateral (uncleared) trade governed by CSA\n\nSubject to BCBS-IOSCO margin requirements for non-centrally cleared derivatives.\nRequires both VM and IM (above thresholds).",
           "type": "string"
         },
@@ -12,7 +12,7 @@
           "additionalProperties": false,
           "description": "Trade cleared through a central counterparty (CCP)\n\nMargin requirements set by the CCP. IM is typically VaR-based.\nVM is exchanged daily with no threshold.",
           "properties": {
-            "Cleared": {
+            "cleared": {
               "properties": {
                 "ccp": {
                   "description": "CCP identifier (e.g., \"LCH\", \"CME\", \"ICE\", \"JSCC\")",
@@ -26,14 +26,56 @@
             }
           },
           "required": [
-            "Cleared"
+            "cleared"
           ],
           "type": "object"
         }
       ]
     },
     "CollateralAssetClass": {
-      "type": "string"
+      "description": "Collateral asset classes per BCBS-IOSCO standards.\n\nAsset classes determine baseline haircuts and eligibility criteria.\nThe BCBS-IOSCO framework specifies minimum haircuts by asset class.\n\n# Reference\n\nBCBS-IOSCO \"Margin requirements for non-centrally cleared derivatives\" (2020)\nAnnex A: Standardized haircut schedule",
+      "oneOf": [
+        {
+          "const": "cash",
+          "description": "Cash in eligible currency",
+          "type": "string"
+        },
+        {
+          "const": "government_bonds",
+          "description": "Sovereign government bonds accepted as collateral.",
+          "type": "string"
+        },
+        {
+          "const": "agency_bonds",
+          "description": "Debt issued or guaranteed by eligible agencies.",
+          "type": "string"
+        },
+        {
+          "const": "covered_bonds",
+          "description": "Covered bonds meeting the applicable eligibility criteria.",
+          "type": "string"
+        },
+        {
+          "const": "corporate_bonds",
+          "description": "Investment-grade corporate bonds accepted under the CSA.",
+          "type": "string"
+        },
+        {
+          "const": "equity",
+          "description": "Eligible listed equity collateral.",
+          "type": "string"
+        },
+        {
+          "const": "gold",
+          "description": "Eligible gold collateral.",
+          "type": "string"
+        },
+        {
+          "const": "mutual_funds",
+          "description": "Eligible mutual funds or exchange-traded funds.",
+          "type": "string"
+        }
+      ]
     },
     "CollateralEligibility": {
       "additionalProperties": false,
@@ -46,6 +88,8 @@
         "concentration_limit": {
           "description": "Concentration limit as fraction of total collateral (optional)\n\nE.g., 0.30 means max 30% of collateral can be this type.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
@@ -55,11 +99,15 @@
           "default": 0.0,
           "description": "Additional FX haircut for currency mismatch (decimal)\n\nApplied when collateral currency differs from settlement currency.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": "number"
         },
         "haircut": {
           "description": "Haircut as decimal (e.g., 0.02 = 2%)",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": "number"
         },
         "maturity_constraints": {
@@ -149,6 +197,8 @@
         "default_haircut": {
           "description": "Default haircut for unlisted collateral (if accepted)\n\nIf None, only explicitly listed collateral types are accepted.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
@@ -172,7 +222,83 @@
       ],
       "type": "object"
     },
+    "FIIndexTotalReturnSwap": {
+      "additionalProperties": false,
+      "description": "Fixed Income Index Total Return Swap instrument.\n\nA TRS where the total return leg is based on a fixed income index (e.g., corporate bond index).\nThe holder receives the total return (carry + roll) of the underlying index in exchange\nfor paying a floating rate plus spread on the notional amount.\n\n# Use Cases\n\n- **Synthetic bond exposure**: Gain bond index exposure without buying bonds\n- **Duration management**: Adjust portfolio duration synthetically\n- **ETF replication**: Replicate bond ETF returns synthetically\n- **Credit exposure**: Access corporate bond index returns\n\n# Example\n\n```\nuse finstack_quant_valuations::instruments::fixed_income::fi_trs::FIIndexTotalReturnSwap;\n\nlet trs = FIIndexTotalReturnSwap::example().unwrap();\n// let pv = trs.value(&market_context, as_of_date)?;\n```",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "financing": {
+          "$ref": "#/$defs/FinancingLegSpec",
+          "description": "Financing leg specification (curves, spread, day count)."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "initial_level": {
+          "description": "Initial index level (if known, otherwise fetched from market).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Attributes for scenario selection and tagging.\nInstrument-owned pricing inputs."
+        },
+        "margin_spec": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OtcMarginSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional OTC margin specification for VM/IM.\n\nFixed income index TRS use duration-based margin calculations."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount for the swap."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "schedule": {
+          "$ref": "#/$defs/TrsScheduleSpec",
+          "description": "Schedule specification (payment dates and frequency)."
+        },
+        "side": {
+          "$ref": "#/$defs/TrsSide",
+          "description": "Trade side (receive/pay total return)."
+        },
+        "underlying": {
+          "$ref": "#/$defs/IndexUnderlyingParams",
+          "description": "Underlying index parameters (index ID, yield, duration, base currency)."
+        }
+      },
+      "required": [
+        "id",
+        "notional",
+        "underlying",
+        "financing",
+        "schedule",
+        "side",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "FinancingLegSpec": {
+      "additionalProperties": false,
       "description": "Specification for TRS financing legs",
       "properties": {
         "compounding": {
@@ -193,12 +319,8 @@
           "description": "Forward curve identifier (e.g., USD-SOFR-3M)"
         },
         "spread_bp": {
-          "description": "Spread in basis points over the floating rate (e.g., 50 = 50bp = 0.5%)",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Spread in basis points over the floating rate (e.g., 50 = 50bp = 0.5%)"
         }
       },
       "required": [
@@ -228,27 +350,27 @@
       "description": "Initial margin calculation methodology.\n\nDifferent methodologies are used depending on regulatory requirements,\nproduct type, and whether trades are cleared or bilateral.\n\n# BCBS-IOSCO Standards\n\nFor bilateral (uncleared) OTC derivatives, either SIMM or the regulatory\nschedule approach may be used. SIMM is the industry standard for large\ndealers due to its risk-sensitivity.",
       "oneOf": [
         {
-          "const": "Haircut",
+          "const": "haircut",
           "description": "Haircut-based IM calculation (standard for repos and securities financing)\n\nIM = Collateral_Value × Haircut\n\nHaircuts are determined by asset class, rating, maturity, and FX mismatch.",
           "type": "string"
         },
         {
-          "const": "Simm",
+          "const": "simm",
           "description": "ISDA Standard Initial Margin Model (SIMM)\n\nSensitivities-based model calculating IM from delta, vega, and curvature\nrisk across interest rate, credit, equity, commodity, and FX risk classes.\n\nReference: ISDA SIMM Methodology v2.6 (2023)",
           "type": "string"
         },
         {
-          "const": "Schedule",
+          "const": "schedule",
           "description": "BCBS-IOSCO regulatory schedule approach\n\nGrid-based IM calculation using notional × rate based on asset class and maturity.\nSimpler but typically more conservative than SIMM.\n\nExample rates:\n- Interest Rate: 0-2yr: 1%, 2-5yr: 2%, 5+yr: 4%\n- Credit: 2-5yr: 5%, 5+yr: 10%\n- Equity: 15%\n- FX: 6%",
           "type": "string"
         },
         {
-          "const": "InternalModel",
+          "const": "internal_model",
           "description": "Internal model approved by regulator\n\nBank's proprietary VaR or ES-based model approved by supervisor.\nMust meet regulatory backtesting and validation requirements.",
           "type": "string"
         },
         {
-          "const": "ClearingHouse",
+          "const": "clearing_house",
           "description": "Clearing house methodology\n\nCCP-specific IM calculation (typically VaR or SPAN-based).\nExamples: LCH SwapClear, CME, ICE Clear Credit",
           "type": "string"
         }
@@ -265,7 +387,7 @@
         "mpor_days": {
           "description": "Margin Period of Risk in business days.\n\nStandard is 10 days under BCBS-IOSCO. CCPs may use shorter periods.",
           "format": "uint32",
-          "minimum": 0,
+          "minimum": 1,
           "type": "integer"
         },
         "mta": {
@@ -291,6 +413,7 @@
       "type": "object"
     },
     "IndexUnderlyingParams": {
+      "additionalProperties": false,
       "description": "Index underlying parameters for total return swaps and index-linked instruments.",
       "properties": {
         "base_currency": {
@@ -335,6 +458,16 @@
       ],
       "type": "object"
     },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "MarginCallTiming": {
       "additionalProperties": false,
       "description": "Margin call timing parameters.\n\nSpecifies the operational timing for margin calls including\nnotification and dispute resolution windows.",
@@ -356,7 +489,7 @@
         "notification_deadline_hours": {
           "description": "Notification deadline (hours after valuation, e.g., 13:00 local time)",
           "format": "uint8",
-          "maximum": 255,
+          "maximum": 23,
           "minimum": 0,
           "type": "integer"
         },
@@ -380,22 +513,22 @@
       "description": "Margin call frequency.\n\nDetermines how often margin calls are made and collateral is exchanged.\nIndustry standard for OTC derivatives is daily under BCBS-IOSCO rules.",
       "oneOf": [
         {
-          "const": "Daily",
+          "const": "daily",
           "description": "Daily margin calls (standard for OTC derivatives post-2016)",
           "type": "string"
         },
         {
-          "const": "Weekly",
+          "const": "weekly",
           "description": "Weekly margin calls (pre-regulatory period)",
           "type": "string"
         },
         {
-          "const": "Monthly",
+          "const": "monthly",
           "description": "Monthly margin calls (pre-regulatory period)",
           "type": "string"
         },
         {
-          "const": "OnDemand",
+          "const": "on_demand",
           "description": "On-demand margin calls (used for repos and some bilateral agreements)",
           "type": "string"
         }
@@ -406,16 +539,20 @@
       "description": "Maturity constraints for eligible collateral.\n\nSome CSAs restrict collateral based on remaining maturity to limit\nduration risk in the collateral portfolio.",
       "properties": {
         "max_remaining_years": {
+          "default": null,
           "description": "Maximum remaining years to maturity (if any)",
           "format": "double",
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
           ]
         },
         "min_remaining_years": {
+          "default": null,
           "description": "Minimum remaining years to maturity (if any)",
           "format": "double",
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
@@ -462,19 +599,19 @@
     },
     "TrsScheduleSpec": {
       "additionalProperties": false,
-      "description": "Schedule specification for TRS payment periods.\n\nDefines the payment schedule and frequency for both legs of the TRS.\nThis is shared between equity and fixed income TRS instruments.\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::TrsScheduleSpec;\nuse finstack_quant_cashflows::builder::ScheduleParams;\nuse finstack_quant_core::dates::{Date, Tenor, DayCount, BusinessDayConvention, StubKind};\n\nlet schedule = TrsScheduleSpec::from_params(\n    Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),\n    Date::from_calendar_date(2025, time::Month::January, 1).unwrap(),\n    ScheduleParams {\n        freq: Tenor::quarterly(),\n        dc: DayCount::Act360,\n        bdc: BusinessDayConvention::Following,\n        calendar_id: \"weekends_only\".to_string(),\n        stub: StubKind::None,\n        end_of_month: false,\n        payment_lag_days: 0,\n        adjust_accrual_dates: false,\n        roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,\n    },\n);\n```",
+      "description": "Schedule specification for TRS payment periods.\n\nDefines the payment schedule and frequency for both legs of the TRS.\nThis is shared between equity and fixed income TRS instruments.\n\n# Examples\n\n```\nuse finstack_quant_valuations::instruments::TrsScheduleSpec;\nuse finstack_quant_cashflows::builder::ScheduleParams;\nuse finstack_quant_core::dates::{Date, Tenor, DayCount, BusinessDayConvention, StubKind};\n\nlet schedule = TrsScheduleSpec::from_params(\n    Date::from_calendar_date(2024, time::Month::January, 1).unwrap(),\n    Date::from_calendar_date(2025, time::Month::January, 1).unwrap(),\n    ScheduleParams {\n        frequency: Tenor::quarterly(),\n        day_count: DayCount::Act360,\n        business_day_convention: BusinessDayConvention::Following,\n        calendar_id: \"weekends_only\".to_string(),\n        stub: StubKind::None,\n        end_of_month: false,\n        payment_lag_days: 0,\n        adjust_accrual_dates: false,\n        roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,\n    },\n);\n```",
       "properties": {
         "end": {
-          "description": "End date for the TRS leg.",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "End date for the TRS leg."
         },
         "params": {
           "$ref": "https://finstack_quant.dev/schemas/cashflow/1/schedule_params.schema.json",
-          "description": "Schedule parameters (frequency, day count, bdc, calendar, stub)."
+          "description": "Schedule parameters (frequency, day count, business_day_convention, calendar, stub)."
         },
         "start": {
-          "description": "Start date for the TRS leg.",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date for the TRS leg."
         }
       },
       "required": [
@@ -539,19 +676,41 @@
         "settlement_lag"
       ],
       "type": "object"
+    },
+    "trs_fixed_income_index": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/FIIndexTotalReturnSwap"
+            },
+            "type": {
+              "const": "trs_fixed_income_index",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/trs_fixed_income_index.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "TRS on a fixed income index with financing leg",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
           "financing": {
-            "day_count": "Act360",
+            "compounding": "term_rate",
+            "day_count": "act_360",
             "discount_curve_id": "USD-OIS",
             "forward_curve_id": "USD-SOFR-3M",
             "spread_bp": "100"
@@ -562,40 +721,19 @@
             "amount": "5000000",
             "currency": "USD"
           },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "schedule": {
             "end": "2025-01-01",
             "params": {
-              "bdc": "following",
+              "business_day_convention": "following",
               "calendar_id": "weekends_only",
-              "dc": "Act360",
+              "day_count": "act_360",
               "end_of_month": false,
-              "freq": {
+              "frequency": {
                 "count": 3,
                 "unit": "months"
               },
               "payment_lag_days": 0,
-              "stub": "None"
+              "stub": "none"
             },
             "start": "2024-01-01"
           },
@@ -616,117 +754,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Trs Fixed Income Index instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "financing": {
-              "$ref": "#/$defs/FinancingLegSpec",
-              "description": "Financing leg specification (curves, spread, day count)."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "initial_level": {
-              "description": "Initial index level (if known, otherwise fetched from market).",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "margin_spec": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/OtcMarginSpec"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional OTC margin specification for VM/IM.\n\nFixed income index TRS use duration-based margin calculations."
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount for the swap."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for scenario selection and tagging.\nInstrument-owned pricing inputs."
-            },
-            "schedule": {
-              "$ref": "#/$defs/TrsScheduleSpec",
-              "description": "Schedule specification (payment dates and frequency)."
-            },
-            "side": {
-              "$ref": "#/$defs/TrsSide",
-              "description": "Trade side (receive/pay total return)."
-            },
-            "underlying": {
-              "$ref": "#/$defs/IndexUnderlyingParams",
-              "description": "Underlying index parameters (index ID, yield, duration, base currency)."
-            }
-          },
-          "required": [
-            "id",
-            "notional",
-            "underlying",
-            "financing",
-            "schedule",
-            "side",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "trs_fixed_income_index",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/trs_fixed_income_index"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Fixed Income Index Total Return Swap",
+  "title": "trs_fixed_income_index",
   "type": "object"
 }

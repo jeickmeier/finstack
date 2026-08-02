@@ -23,18 +23,18 @@ use indexmap::IndexMap;
 /// Register pricers for credit instruments.
 pub(crate) fn register_credit_pricers(registry: &mut PricerRegistry) {
     // CDS
-    registry.register(InstrumentType::CDS, ModelKey::HazardRate, CDSHazardPricer);
+    registry.register(InstrumentType::Cds, ModelKey::HazardRate, CDSHazardPricer);
 
     // CDS Index
     registry.register(
-        InstrumentType::CDSIndex,
+        InstrumentType::CdsIndex,
         ModelKey::HazardRate,
         crate::instruments::credit_derivatives::cds_index::pricer::SimpleCdsIndexHazardPricer::default(),
     );
 
     // CDS Tranche
     registry.register(
-        InstrumentType::CDSTranche,
+        InstrumentType::CdsTranche,
         ModelKey::HazardRate,
         crate::instruments::credit_derivatives::cds_tranche::pricer::SimpleCDSTrancheHazardPricer::default(),
     );
@@ -44,7 +44,7 @@ pub(crate) fn register_credit_pricers(registry: &mut PricerRegistry) {
     // 2010 (DOCS 2055833 §1.2) and removed from finstack-quant alongside the
     // Bloomberg-quadrature default.
     registry.register(
-        InstrumentType::CDSOption,
+        InstrumentType::CdsOption,
         ModelKey::BloombergCdso,
         crate::instruments::credit_derivatives::cds_option::pricer::BloombergCdsoPricer,
     );
@@ -67,7 +67,7 @@ struct CDSHazardPricer;
 
 impl Pricer for CDSHazardPricer {
     fn key(&self) -> PricerKey {
-        PricerKey::new(InstrumentType::CDS, ModelKey::HazardRate)
+        PricerKey::new(InstrumentType::Cds, ModelKey::HazardRate)
     }
 
     fn price_dyn(
@@ -77,7 +77,7 @@ impl Pricer for CDSHazardPricer {
         as_of: finstack_quant_core::dates::Date,
     ) -> std::result::Result<ValuationResult, PricingError> {
         let cds =
-            expect_inst::<crate::instruments::CreditDefaultSwap>(instrument, InstrumentType::CDS)?;
+            expect_inst::<crate::instruments::CreditDefaultSwap>(instrument, InstrumentType::Cds)?;
         let value = cds.base_value(market, as_of).map_err(|e| {
             PricingError::model_failure_with_context(e.to_string(), PricingErrorContext::default())
         })?;
@@ -98,7 +98,7 @@ fn credit_derivative_details(
     integration_method: Option<&str>,
 ) -> CreditDerivativeValuationDetails {
     CreditDerivativeValuationDetails {
-        model_key: format!("{model_key:?}"),
+        model_key,
         integration_method: integration_method.map(str::to_string),
     }
 }

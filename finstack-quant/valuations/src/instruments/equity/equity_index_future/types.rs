@@ -59,6 +59,7 @@ use time::macros::date;
 /// assert_eq!(es_specs.tick_value, 12.50);
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EquityFutureSpecs {
     /// Contract multiplier (USD per index point).
     /// E-mini S&P 500: 50.0 (each point = $50)
@@ -200,7 +201,9 @@ impl EquityFutureSpecs {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct EquityIndexFuture {
@@ -211,10 +214,12 @@ pub struct EquityIndexFuture {
     /// Notional exposure in settlement currency.
     pub notional: Money,
     /// Future expiry/settlement date.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Last trading date (typically one day before expiry).
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub last_trading_date: Date,
     /// Entry price at trade inception (optional for new trades).
     #[builder(optional)]
@@ -248,17 +253,29 @@ pub struct EquityIndexFuture {
     /// continuous dividend yield as zero to avoid double counting.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Attributes for tagging and selection.
     #[builder(default)]
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     #[serde(default)]
@@ -496,9 +513,9 @@ impl crate::instruments::common_impl::traits::Instrument for EquityIndexFuture {
     > {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
-        deps.add_spot_id(self.spot_id.as_str());
+        deps.add_market_scalar_id(self.spot_id.as_str());
         if let Some(dividend_yield_id) = &self.div_yield_id {
-            deps.add_spot_id(dividend_yield_id.as_str());
+            deps.add_market_scalar_id(dividend_yield_id.as_str());
         }
         Ok(deps)
     }
@@ -616,7 +633,7 @@ mod tests {
 
         let mut expected_spots = vec![future.spot_id.as_str().to_string()];
         expected_spots.extend(future.div_yield_id.iter().map(|id| id.as_str().to_string()));
-        assert_eq!(deps.spot_ids, expected_spots);
+        assert_eq!(deps.market_scalar_ids, expected_spots);
         assert!(deps.series_ids.is_empty());
     }
 

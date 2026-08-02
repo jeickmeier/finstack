@@ -24,7 +24,7 @@ fn maturity_date() -> Date {
 }
 
 fn create_pool_with_balance(balance: f64) -> AssetPool {
-    let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
     if balance > 0.0 {
         pool.assets.push(PoolAsset::fixed_rate_bond(
             "A1",
@@ -59,10 +59,10 @@ fn test_apply_deal_defaults_sets_expected_assumptions() {
     let legal = maturity_date();
 
     let cases = [
-        (DealType::ABS, Tenor::monthly(), abs_auto_standard_cdr()),
-        (DealType::CLO, Tenor::quarterly(), clo_standard_cdr()),
-        (DealType::CMBS, Tenor::monthly(), cmbs_standard_cdr()),
-        (DealType::RMBS, Tenor::monthly(), rmbs_standard_cdr()),
+        (DealType::Abs, Tenor::monthly(), abs_auto_standard_cdr()),
+        (DealType::Clo, Tenor::quarterly(), clo_standard_cdr()),
+        (DealType::Cmbs, Tenor::monthly(), cmbs_standard_cdr()),
+        (DealType::Rmbs, Tenor::monthly(), rmbs_standard_cdr()),
     ];
 
     for (deal_type, expected_frequency, expected_cdr) in cases {

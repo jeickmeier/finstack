@@ -1,11 +1,14 @@
 //! Core identifiers and definitions used by the factor model.
 //!
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
 /// Unique identifier for a risk factor.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 pub struct FactorId(String);
 
 impl FactorId {
@@ -29,7 +32,8 @@ impl fmt::Display for FactorId {
 }
 
 /// Broad classification of a risk factor.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum FactorType {
     /// Interest-rate factor.
     Rates,
@@ -38,7 +42,7 @@ pub enum FactorType {
     /// Equity price factor.
     Equity,
     /// Foreign-exchange factor.
-    FX,
+    Fx,
     /// Volatility factor.
     Volatility,
     /// Commodity factor.
@@ -55,7 +59,7 @@ impl fmt::Display for FactorType {
             Self::Rates => write!(f, "rates"),
             Self::Credit => write!(f, "credit"),
             Self::Equity => write!(f, "equity"),
-            Self::FX => write!(f, "fx"),
+            Self::Fx => write!(f, "fx"),
             Self::Volatility => write!(f, "volatility"),
             Self::Commodity => write!(f, "commodity"),
             Self::Inflation => write!(f, "inflation"),
@@ -68,28 +72,20 @@ impl FromStr for FactorType {
     type Err = finstack_quant_core::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let n = crate::parse::normalize_label(s);
-        if n.starts_with("custom:") || n.starts_with("custom_") {
-            // Take the name from the original input after the separator so
-            // user casing is preserved; separators '-', '/', and ' ' were
-            // normalized to '_', so accept any of them in the raw input.
-            let name = s
-                .split_once([':', '_', '-', '/', ' '])
-                .map(|(_, v)| v.trim())
-                .unwrap_or("");
-            if name.is_empty() {
+        if let Some(name) = s.strip_prefix("custom:") {
+            if name.is_empty() || name != name.trim() {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "FactorType: custom factor label {s:?} has an empty name"
                 )));
             }
             return Ok(Self::Custom(name.to_string()));
         }
-        match n.as_str() {
-            "rates" | "rate" | "ir" => Ok(Self::Rates),
+        match s {
+            "rates" => Ok(Self::Rates),
             "credit" => Ok(Self::Credit),
             "equity" => Ok(Self::Equity),
-            "fx" => Ok(Self::FX),
-            "volatility" | "vol" => Ok(Self::Volatility),
+            "fx" => Ok(Self::Fx),
+            "volatility" => Ok(Self::Volatility),
             "commodity" => Ok(Self::Commodity),
             "inflation" => Ok(Self::Inflation),
             _ => Err(finstack_quant_core::Error::Validation(format!(
@@ -102,10 +98,6 @@ impl FromStr for FactorType {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn assert_parses_to(label: &str, expected: FactorType) {
-        assert!(matches!(label.parse::<FactorType>(), Ok(value) if value == expected));
-    }
 
     #[test]
     fn test_factor_id_from_string() {
@@ -182,18 +174,15 @@ mod tests {
     fn test_factor_type_fromstr_display_roundtrip() {
         for (input, expected) in [
             ("rates", FactorType::Rates),
-            ("rate", FactorType::Rates),
-            ("ir", FactorType::Rates),
             ("credit", FactorType::Credit),
             ("equity", FactorType::Equity),
-            ("fx", FactorType::FX),
+            ("fx", FactorType::Fx),
             ("volatility", FactorType::Volatility),
-            ("vol", FactorType::Volatility),
             ("commodity", FactorType::Commodity),
             ("inflation", FactorType::Inflation),
             ("custom:Weather", FactorType::Custom("Weather".into())),
         ] {
-            assert_parses_to(input, expected);
+            assert!(matches!(input.parse::<FactorType>(), Ok(value) if value == expected));
         }
 
         // Display -> FromStr roundtrip for non-Custom variants
@@ -201,7 +190,7 @@ mod tests {
             FactorType::Rates,
             FactorType::Credit,
             FactorType::Equity,
-            FactorType::FX,
+            FactorType::Fx,
             FactorType::Volatility,
             FactorType::Commodity,
             FactorType::Inflation,
@@ -219,6 +208,16 @@ mod tests {
 
     #[test]
     fn test_factor_type_fromstr_rejects_unknown() {
-        assert!("unknown".parse::<FactorType>().is_err());
+        for rejected in [
+            "rate",
+            "ir",
+            "vol",
+            "Rates",
+            "custom_Weather",
+            "custom: Weather",
+            "custom:",
+        ] {
+            assert!(rejected.parse::<FactorType>().is_err());
+        }
     }
 }

@@ -24,9 +24,9 @@ fn test_bond_with_custom_cashflows() {
 
     // Build a custom cashflow schedule with step-up coupons
     let schedule_params = ScheduleParams {
-        freq: Tenor::semi_annual(),
-        dc: DayCount::Act365F,
-        bdc: BusinessDayConvention::Following,
+        frequency: Tenor::semi_annual(),
+        day_count: DayCount::Act365F,
+        business_day_convention: BusinessDayConvention::Following,
         calendar_id: "weekends_only".to_string(),
         stub: StubKind::None,
         end_of_month: false,
@@ -89,7 +89,7 @@ fn test_bond_with_custom_cashflows() {
     let expected_flow_count = custom_schedule
         .get_flows()
         .iter()
-        .filter(|cf| cf.kind != crate::cashflow::primitives::CFKind::PIK)
+        .filter(|cf| cf.kind != crate::cashflow::primitives::CFKind::Pik)
         .count();
     assert_eq!(flows.len(), expected_flow_count);
 }
@@ -109,11 +109,11 @@ fn test_bond_builder_with_custom_cashflows() {
             },
             rate: Decimal::try_from(0.06).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::quarterly(),
+                frequency: Tenor::quarterly(),
 
-                dc: DayCount::Thirty360,
+                day_count: DayCount::Thirty360,
 
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -191,9 +191,9 @@ fn test_bond_with_cashflows_method() {
             rate: Decimal::try_from(0.055).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
                 // Different from default spec
-                freq: Tenor::quarterly(),
-                dc: DayCount::Act365F,
-                bdc: BusinessDayConvention::Following,
+                frequency: Tenor::quarterly(),
+                day_count: DayCount::Act365F,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,
@@ -245,10 +245,10 @@ fn test_custom_cashflows_override_regular_generation() {
             rate: Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
                 // Different rate
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
                 // Different frequency
-                dc: DayCount::Act365F,
-                bdc: BusinessDayConvention::Following,
+                day_count: DayCount::Act365F,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,

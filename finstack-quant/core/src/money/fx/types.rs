@@ -23,18 +23,6 @@ pub enum FxConversionPolicy {
     Custom,
 }
 
-impl crate::parse::NormalizedEnum for FxConversionPolicy {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("cashflow_date", Self::CashflowDate),
-        ("cashflow", Self::CashflowDate),
-        ("period_end", Self::PeriodEnd),
-        ("end", Self::PeriodEnd),
-        ("period_average", Self::PeriodAverage),
-        ("average", Self::PeriodAverage),
-        ("custom", Self::Custom),
-    ];
-}
-
 impl std::fmt::Display for FxConversionPolicy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -50,7 +38,13 @@ impl std::str::FromStr for FxConversionPolicy {
     type Err = crate::error::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s).map_err(|_| crate::error::InputError::Invalid.into())
+        match s {
+            "cashflow_date" => Ok(Self::CashflowDate),
+            "period_end" => Ok(Self::PeriodEnd),
+            "period_average" => Ok(Self::PeriodAverage),
+            "custom" => Ok(Self::Custom),
+            _ => Err(crate::error::InputError::Invalid.into()),
+        }
     }
 }
 
@@ -109,7 +103,7 @@ pub struct FxPolicyMeta {
     /// Strategy the provider actually applied or was instructed to apply.
     pub strategy: FxConversionPolicy,
     /// Optional target currency stamped onto the resulting valuation.
-    pub target_ccy: Option<Currency>,
+    pub target_currency: Option<Currency>,
     /// Free-form provenance or audit notes supplied by the provider.
     pub notes: String,
 }
@@ -118,7 +112,7 @@ impl Default for FxPolicyMeta {
     fn default() -> Self {
         Self {
             strategy: FxConversionPolicy::CashflowDate,
-            target_ccy: None,
+            target_currency: None,
             notes: String::new(),
         }
     }
@@ -128,7 +122,9 @@ impl Default for FxPolicyMeta {
 ///
 /// Controls triangulation and caching.
 ///
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(deny_unknown_fields)]
 #[serde(default)]
 pub struct FxConfig {
@@ -174,7 +170,7 @@ pub struct FxRateResult {
 
 /// Serializable state of an FxMatrix.
 /// Contains the configuration and cached quotes that can be persisted and restored.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FxMatrixState {
     /// Matrix configuration, including pivot and cache capacity.
@@ -188,5 +184,6 @@ pub struct FxMatrixState {
     /// those dates from the provider. The field is serde-additive
     /// (`default`), so older payloads without it still deserialize.
     #[serde(default)]
+    #[schemars(with = "Vec<(Currency, Currency, String, FxConversionPolicy, f64)>")]
     pub pinned_quotes: Vec<(Currency, Currency, Date, FxConversionPolicy, f64)>,
 }

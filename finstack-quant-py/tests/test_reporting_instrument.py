@@ -115,7 +115,9 @@ def test_definition_terms_bond() -> None:
             "notional": {"amount": "10000000", "currency": "USD"},
             "issue_date": "2024-03-15",
             "maturity": "2034-03-15",
-            "cashflow_spec": {"Fixed": {"rate": 0.0425, "freq": {"count": 6, "unit": "months"}, "dc": "Thirty360"}},
+            "cashflow_spec": {
+                "fixed": {"rate": "0.0425", "frequency": {"count": 6, "unit": "months"}, "day_count": "30_360"}
+            },
             "discount_curve_id": "USD-OIS",
         },
     }
@@ -125,6 +127,7 @@ def test_definition_terms_bond() -> None:
     assert "Notional" in keys
     assert "Maturity" in keys
     assert "Coupon" in keys
+    assert ("Coupon", "4.250% Fixed") in flat
 
 
 def test_definition_terms_generic_fallback() -> None:
@@ -164,7 +167,9 @@ def test_instrument_tearsheet_bond_with_definition_and_cashflows() -> None:
             "notional": {"amount": "10000000", "currency": "USD"},
             "issue_date": "2024-03-15",
             "maturity": "2034-03-15",
-            "cashflow_spec": {"Fixed": {"rate": 0.0425, "freq": {"count": 6, "unit": "months"}, "dc": "Thirty360"}},
+            "cashflow_spec": {
+                "fixed": {"rate": "0.0425", "frequency": {"count": 6, "unit": "months"}, "day_count": "30_360"}
+            },
             "discount_curve_id": "USD-OIS",
         },
     }
@@ -258,7 +263,9 @@ def _bond_definition() -> dict:
             "notional": {"amount": "10000000", "currency": "USD"},
             "issue_date": "2024-03-15",
             "maturity": "2034-03-15",
-            "cashflow_spec": {"Fixed": {"rate": 0.0425, "freq": {"count": 6, "unit": "months"}, "dc": "Thirty360"}},
+            "cashflow_spec": {
+                "fixed": {"rate": "0.0425", "frequency": {"count": 6, "unit": "months"}, "day_count": "30_360"}
+            },
             "discount_curve_id": "USD-OIS",
         },
     }
@@ -313,11 +320,11 @@ def test_instrument_cds_renders_credit_blocks() -> None:
         "spec": {
             "id": "ACME",
             "notional": {"amount": "10000000", "currency": "USD"},
-            "side": "Buy",
+            "side": "pay",
             "premium": {
                 "start": "2024-06-20",
                 "end": "2029-06-20",
-                "spread_bp": 100,
+                "spread_bp": "100",
                 "frequency": {"count": 3, "unit": "months"},
             },
             "protection": {"credit_curve_id": "ACME-SR", "recovery_rate": 0.4},
@@ -356,8 +363,8 @@ def test_instrument_option_renders_payoff() -> None:
             "id": "SPX-5000-C",
             "underlying_ticker": "SPX",
             "strike": 5000.0,
-            "option_type": "Call",
-            "exercise_style": "European",
+            "option_type": "call",
+            "exercise_style": "european",
             "expiry": "2026-12-18",
             "discount_curve_id": "USD-OIS",
             "vol_surface_id": "SPX-VOL",
@@ -399,29 +406,31 @@ def _disc_market(as_of_str: str = "2026-06-19") -> object:
 
 def _demo_bond_dict() -> dict:
     return {
-        "type": "bond",
-        "spec": {
-            "id": "ACME 4.25% 2034",
-            "notional": {"amount": "10000000", "currency": "USD"},
-            "issue_date": "2024-03-15",
-            "maturity": "2034-03-15",
-            "cashflow_spec": {
-                "Fixed": {
-                    "coupon_type": "Cash",
-                    "rate": 0.0425,
-                    "freq": {"count": 6, "unit": "months"},
-                    "dc": "Thirty360",
-                    "bdc": "following",
-                    "calendar_id": "weekends_only",
-                    "stub": "None",
-                    "end_of_month": False,
-                    "payment_lag_days": 0,
-                }
+        "schema": "finstack_quant.instrument/1",
+        "instrument": {
+            "type": "bond",
+            "spec": {
+                "id": "ACME 4.25% 2034",
+                "notional": {"amount": "10000000", "currency": "USD"},
+                "issue_date": "2024-03-15",
+                "maturity": "2034-03-15",
+                "cashflow_spec": {
+                    "fixed": {
+                        "coupon_type": "cash",
+                        "rate": "0.0425",
+                        "frequency": {"count": 6, "unit": "months"},
+                        "day_count": "30_360",
+                        "business_day_convention": "following",
+                        "calendar_id": "weekends_only",
+                        "stub": "none",
+                        "end_of_month": False,
+                        "payment_lag_days": 0,
+                    }
+                },
+                "discount_curve_id": "USD-OIS",
+                "call_put": None,
+                "attributes": {"tags": [], "meta": {}},
             },
-            "discount_curve_id": "USD-OIS",
-            "call_put": None,
-            "attributes": {"tags": [], "meta": {}},
-            "pricing_overrides": {},
         },
     }
 
@@ -470,7 +479,20 @@ def test_instrument_tearsheet_price_path_requires_market() -> None:
     from finstack_quant.reporting import instrument_tearsheet
 
     with pytest.raises(ValueError, match=r"market=.*as_of=|requires"):
-        instrument_tearsheet(_demo_bond_dict())  # instrument JSON but no market/as_of
+        instrument_tearsheet(_demo_bond_dict())  # instrument envelope but no market/as_of
+
+
+def test_instrument_tearsheet_rejects_bare_instrument() -> None:
+    import pytest
+
+    from finstack_quant.reporting import instrument_tearsheet
+
+    with pytest.raises(ValueError, match=r"canonical finstack_quant\.instrument/1 envelope"):
+        instrument_tearsheet(
+            _demo_bond_dict()["instrument"],
+            market=_disc_market(),
+            as_of="2026-06-19",
+        )
 
 
 def test_result_path_still_pure() -> None:

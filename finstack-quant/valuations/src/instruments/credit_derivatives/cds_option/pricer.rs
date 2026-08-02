@@ -274,7 +274,7 @@ pub(crate) struct BloombergCdsoPricer;
 impl crate::pricer::Pricer for BloombergCdsoPricer {
     fn key(&self) -> crate::pricer::PricerKey {
         crate::pricer::PricerKey::new(
-            crate::pricer::InstrumentType::CDSOption,
+            crate::pricer::InstrumentType::CdsOption,
             crate::pricer::ModelKey::BloombergCdso,
         )
     }
@@ -290,7 +290,7 @@ impl crate::pricer::Pricer for BloombergCdsoPricer {
             .downcast_ref::<CDSOption>()
             .ok_or_else(|| {
                 crate::pricer::PricingError::type_mismatch(
-                    crate::pricer::InstrumentType::CDSOption,
+                    crate::pricer::InstrumentType::CdsOption,
                     instrument.key(),
                 )
             })?;
@@ -306,7 +306,7 @@ impl crate::pricer::Pricer for BloombergCdsoPricer {
             crate::results::ValuationResult::stamped(option.id(), as_of, pv).with_details(
                 crate::results::ValuationDetails::CreditDerivative(
                     crate::results::CreditDerivativeValuationDetails {
-                        model_key: format!("{:?}", crate::pricer::ModelKey::BloombergCdso),
+                        model_key: crate::pricer::ModelKey::BloombergCdso,
                         integration_method: None,
                     },
                 ),

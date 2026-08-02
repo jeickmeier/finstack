@@ -49,7 +49,9 @@ use time::macros::date;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = EquityTotalReturnSwap::validate)]
 #[serde(deny_unknown_fields, try_from = "EquityTotalReturnSwapUnchecked")]
@@ -78,7 +80,8 @@ pub struct EquityTotalReturnSwap {
     /// Pricing errors when the current period's start level is unavailable.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub past_fixings: Vec<(Date, f64)>,
     /// Optional OTC margin specification for VM/IM.
     ///
@@ -109,17 +112,29 @@ pub struct EquityTotalReturnSwap {
     /// not add continuous-yield dividend return to avoid double counting.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[builder(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub discrete_dividends: Vec<(Date, f64)>,
     /// Attributes for scenario selection and tagging.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -138,14 +153,16 @@ struct EquityTotalReturnSwapUnchecked {
     side: TrsSide,
     initial_level: Option<f64>,
     #[serde(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     past_fixings: Vec<(Date, f64)>,
     #[serde(default)]
     margin_spec: Option<OtcMarginSpec>,
     #[serde(default)]
     dividend_tax_rate: f64,
     #[serde(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     discrete_dividends: Vec<(Date, f64)>,
     #[serde(default)]
     instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
@@ -208,9 +225,9 @@ impl EquityTotalReturnSwap {
                 date!(2024 - 01 - 01),
                 date!(2025 - 01 - 01),
                 ScheduleParams {
-                    freq: Tenor::quarterly(),
-                    dc: DayCount::Act360,
-                    bdc: BusinessDayConvention::Following,
+                    frequency: Tenor::quarterly(),
+                    day_count: DayCount::Act360,
+                    business_day_convention: BusinessDayConvention::Following,
                     calendar_id: "weekends_only".to_string(),
                     stub: StubKind::None,
                     end_of_month: false,
@@ -468,9 +485,9 @@ impl crate::instruments::common_impl::traits::Instrument for EquityTotalReturnSw
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.financing.discount_curve_id.clone());
         deps.add_forward_curve(self.financing.forward_curve_id.clone());
-        deps.add_spot_id(self.underlying.spot_id.as_str());
+        deps.add_market_scalar_id(self.underlying.spot_id.as_str());
         if let Some(dividend_yield) = &self.underlying.div_yield_id {
-            deps.add_spot_id(dividend_yield.as_str());
+            deps.add_market_scalar_id(dividend_yield.as_str());
         }
         Ok(deps)
     }
@@ -533,7 +550,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for EquityTotalReturnSwap 
                     all_in_floor_bp: None,
                     index_cap_bp: None,
                     overnight_index_constraints: Default::default(),
-                    reset_freq: self.schedule.params.freq,
+                    reset_frequency: self.schedule.params.frequency,
                     index_tenor: None,
                     reset_lag_days: 0,
                     fixing_calendar_id: None,
@@ -543,9 +560,9 @@ impl finstack_quant_cashflows::CashflowScheduleSource for EquityTotalReturnSwap 
                 },
                 coupon_type: crate::cashflow::builder::CouponType::Cash,
                 schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                    freq: self.schedule.params.freq,
-                    dc: self.financing.day_count,
-                    bdc: self.schedule.params.bdc,
+                    frequency: self.schedule.params.frequency,
+                    day_count: self.financing.day_count,
+                    business_day_convention: self.schedule.params.business_day_convention,
                     calendar_id: self.schedule.params.calendar_id.clone(),
                     stub: self.schedule.params.stub,
                     end_of_month: self.schedule.params.end_of_month,
@@ -595,7 +612,7 @@ mod validation_tests {
                 .iter()
                 .map(|id| id.as_str().to_string()),
         );
-        assert_eq!(deps.spot_ids, expected_spots);
+        assert_eq!(deps.market_scalar_ids, expected_spots);
         assert!(deps.series_ids.is_empty());
     }
 

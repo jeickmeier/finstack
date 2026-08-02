@@ -52,7 +52,7 @@ pub(crate) fn reprice_instrument(
 /// * `val_t0` - Opening mark-to-market amount, converted with the T₁ FX matrix
 ///   under this simple non-isolated convention.
 /// * `val_t1` - Closing mark-to-market amount to compare with `val_t0`.
-/// * `target_ccy` - Currency in which the returned P&L is reported.
+/// * `target_currency` - Currency in which the returned P&L is reported.
 /// * `market_t1` - Closing market context supplying the FX matrix used to
 ///   convert both marks.
 /// * `as_of_t1` - Closing valuation date supplied to the T₁ FX conversion.
@@ -67,12 +67,12 @@ pub(crate) fn reprice_instrument(
 pub fn compute_pnl(
     val_t0: Money,
     val_t1: Money,
-    target_ccy: Currency,
+    target_currency: Currency,
     market_t1: &MarketContext,
     as_of_t1: Date,
 ) -> Result<Money> {
-    let val_t0_converted = market_t1.convert_money(val_t0, target_ccy, as_of_t1)?;
-    let val_t1_converted = market_t1.convert_money(val_t1, target_ccy, as_of_t1)?;
+    let val_t0_converted = market_t1.convert_money(val_t0, target_currency, as_of_t1)?;
+    let val_t1_converted = market_t1.convert_money(val_t1, target_currency, as_of_t1)?;
 
     val_t1_converted.checked_sub(val_t0_converted)
 }
@@ -86,7 +86,7 @@ pub fn compute_pnl(
 ///
 /// * `val_t0` - Opening mark-to-market amount, converted with T₀ FX.
 /// * `val_t1` - Closing mark-to-market amount, converted with T₁ FX.
-/// * `target_ccy` - Currency in which the returned P&L is reported.
+/// * `target_currency` - Currency in which the returned P&L is reported.
 /// * `market_fx_t0` - Opening market context supplying the FX matrix for the
 ///   opening-value translation.
 /// * `market_fx_t1` - Closing market context supplying the FX matrix for the
@@ -129,14 +129,14 @@ pub fn compute_pnl(
 pub fn compute_pnl_with_fx(
     val_t0: Money,
     val_t1: Money,
-    target_ccy: Currency,
+    target_currency: Currency,
     market_fx_t0: &MarketContext,
     market_fx_t1: &MarketContext,
     as_of_t0: Date,
     as_of_t1: Date,
 ) -> Result<Money> {
-    let val_t0_converted = market_fx_t0.convert_money(val_t0, target_ccy, as_of_t0)?;
-    let val_t1_converted = market_fx_t1.convert_money(val_t1, target_ccy, as_of_t1)?;
+    let val_t0_converted = market_fx_t0.convert_money(val_t0, target_currency, as_of_t0)?;
+    let val_t1_converted = market_fx_t1.convert_money(val_t1, target_currency, as_of_t1)?;
 
     val_t1_converted.checked_sub(val_t0_converted)
 }
@@ -335,12 +335,12 @@ pub(crate) fn apply_total_return_carry(
 
 pub(crate) fn stamp_fx_policy(
     attribution: &mut PnlAttribution,
-    target_ccy: Currency,
+    target_currency: Currency,
     notes: impl Into<String>,
 ) {
     attribution.meta.fx_policy = Some(FxPolicyMeta {
         strategy: FxConversionPolicy::CashflowDate,
-        target_ccy: Some(target_ccy),
+        target_currency: Some(target_currency),
         notes: notes.into(),
     });
 }

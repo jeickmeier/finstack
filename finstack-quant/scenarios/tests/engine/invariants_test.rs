@@ -373,7 +373,7 @@ fn test_base_correlation_bounds_after_bucket_shock() {
         description: None,
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
-            detachment_bps: Some(vec![700, 1500]),
+            detachment_bp: Some(vec![700, 1500]),
             maturities: None,
             points: 0.25,
         }],
@@ -433,7 +433,7 @@ fn test_vol_surface_non_negative_after_parallel_shock() {
         description: None,
         operations: vec![OperationSpec::VolSurfaceParallelPct {
             surface_kind: finstack_quant_scenarios::VolSurfaceKind::Equity,
-            surface_id: "SPX_VOL".into(),
+            vol_surface_id: "SPX_VOL".into(),
             pct: 20.0,
         }],
         priority: 0,
@@ -499,7 +499,7 @@ fn test_vol_surface_non_negative_after_bucket_shock() {
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
             surface_kind: finstack_quant_scenarios::VolSurfaceKind::Equity,
-            surface_id: "SPX_VOL".into(),
+            vol_surface_id: "SPX_VOL".into(),
             tenors: Some(vec!["3M".into(), "1Y".into()]),
             strikes: Some(vec![95.0, 100.0]),
             pct: 30.0,

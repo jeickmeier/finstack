@@ -1,5 +1,15 @@
 {
   "$defs": {
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "OptionType": {
       "description": "Option type for pricing",
       "oneOf": [
@@ -14,12 +24,184 @@
           "type": "string"
         }
       ]
+    },
+    "QuantoOption": {
+      "additionalProperties": false,
+      "description": "Quanto option instrument.\n\nQuanto options have payoffs that depend on an underlying asset in one currency\nbut are settled in another currency, creating FX exposure.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and grouping."
+        },
+        "base_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency (equity denomination)."
+        },
+        "correlation": {
+          "description": "Correlation between equity price and FX rate.",
+          "format": "double",
+          "type": "number"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention."
+        },
+        "div_yield_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional dividend yield curve ID."
+        },
+        "domestic_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID (domestic currency)."
+        },
+        "equity_strike": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Strike price for equity option."
+        },
+        "expiry": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Option expiry date."
+        },
+        "foreign_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID (foreign currency)."
+        },
+        "fx_rate_id": {
+          "default": null,
+          "description": "Optional FX rate identifier.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fx_vol_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional FX volatility surface ID."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "default": {},
+          "description": "Pricing overrides (manual price, yield, spread)."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "default": {
+            "mc_seed_scenario": null,
+            "theta_period": null
+          }
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Strike-equivalent domestic reference notional."
+        },
+        "option_type": {
+          "$ref": "#/$defs/OptionType",
+          "description": "Option type (call or put)."
+        },
+        "payoff_fx_rate": {
+          "default": null,
+          "description": "Fixed payoff FX conversion rate from base-currency payoff into quote currency.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "quote_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Quote currency (payment/settlement currency)."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "default": {}
+        },
+        "spot_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Equity spot price identifier."
+        },
+        "underlying_quantity": {
+          "default": null,
+          "description": "Number of underlying units covered by the option payoff.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "underlying_ticker": {
+          "description": "Underlying equity ticker symbol.",
+          "type": "string"
+        },
+        "vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Equity volatility surface ID."
+        }
+      },
+      "required": [
+        "id",
+        "underlying_ticker",
+        "equity_strike",
+        "option_type",
+        "expiry",
+        "notional",
+        "base_currency",
+        "quote_currency",
+        "correlation",
+        "day_count",
+        "domestic_discount_curve_id",
+        "foreign_discount_curve_id",
+        "spot_id",
+        "vol_surface_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "quanto_option": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/QuantoOption"
+            },
+            "type": {
+              "const": "quanto_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/quanto_option.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Equity option with payout in a different currency (quanto adjustment)",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -27,14 +209,14 @@
           "attributes": {},
           "base_currency": "JPY",
           "correlation": -0.2,
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "div_yield_id": "NKY-DIV",
           "domestic_discount_curve_id": "USD-OIS",
           "equity_strike": {
             "amount": "35000",
             "currency": "JPY"
           },
-          "expiry": "2024-12-20",
+          "expiry": "2030-06-21",
           "foreign_discount_curve_id": "JPY-OIS",
           "fx_rate_id": "JPYUSD-SPOT",
           "fx_vol_id": "JPYUSD-VOL",
@@ -45,27 +227,6 @@
           },
           "option_type": "call",
           "payoff_fx_rate": 0.007142857142857143,
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quote_currency": "USD",
           "spot_id": "NKY-SPOT",
           "underlying_quantity": 4000.0,
@@ -79,185 +240,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Quanto Option instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and grouping"
-            },
-            "base_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency (equity denomination)"
-            },
-            "correlation": {
-              "description": "Correlation between equity price and FX rate",
-              "format": "double",
-              "type": "number"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention"
-            },
-            "div_yield_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional dividend yield curve ID"
-            },
-            "domestic_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID (domestic currency)"
-            },
-            "equity_strike": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Strike price for equity option"
-            },
-            "expiry": {
-              "description": "Option expiry date",
-              "format": "date",
-              "type": "string"
-            },
-            "foreign_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID (foreign currency)"
-            },
-            "fx_rate_id": {
-              "description": "Optional FX rate identifier.\n\nThe referenced scalar must be quoted as **quote currency per unit of\nbase currency** (e.g. for base JPY / quote USD, USD-per-JPY ≈ 0.0071,\nconventionally named `JPYUSD`). The pricer compounds it with\n`exp((r_quote − r_base)·t)` to obtain the ATM forward for the FX vol\nlookup, so an inverted quote (JPY-per-USD) silently mislocates the\nsmile. `validate()` rejects ids whose embedded pair name contradicts\nthis direction.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "fx_vol_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional FX volatility surface ID.\n\nMust be calibrated in the same **quote-per-base** direction as\n`fx_rate_id` so absolute-strike lookups at the CIRP forward land on\nthe correct smile. `validate()` rejects ids whose embedded pair name\ncontradicts this direction."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Strike-equivalent domestic reference notional.\n\nWhen `underlying_quantity` and `payoff_fx_rate` are supplied, this must\nequal `underlying_quantity * payoff_fx_rate * equity_strike.amount()`."
-            },
-            "option_type": {
-              "$ref": "#/$defs/OptionType",
-              "description": "Option type (call or put)"
-            },
-            "payoff_fx_rate": {
-              "description": "Fixed payoff FX conversion rate from base-currency payoff into quote currency.\n\nExample: for a JPY-underlying option settled in USD at a fixed 140 JPY/USD\nconversion, `payoff_fx_rate` is `1.0 / 140.0` USD per JPY.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides (manual price, yield, spread)\nInstrument-owned pricing inputs."
-            },
-            "quote_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Quote currency (payment/settlement currency)"
-            },
-            "spot_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Equity spot price identifier"
-            },
-            "underlying_quantity": {
-              "description": "Number of underlying units covered by the option payoff.\n\nQuanto pricing is performed per unit of the underlying in the base currency.\nThis quantity converts the per-unit price into contract-level exposure.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "underlying_ticker": {
-              "description": "Underlying equity ticker symbol",
-              "type": "string"
-            },
-            "vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Equity volatility surface ID"
-            }
-          },
-          "required": [
-            "id",
-            "underlying_ticker",
-            "equity_strike",
-            "option_type",
-            "expiry",
-            "notional",
-            "base_currency",
-            "quote_currency",
-            "correlation",
-            "day_count",
-            "domestic_discount_curve_id",
-            "foreign_discount_curve_id",
-            "spot_id",
-            "vol_surface_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "quanto_option",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/quanto_option"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Quanto Option",
+  "title": "quanto_option",
   "type": "object"
 }

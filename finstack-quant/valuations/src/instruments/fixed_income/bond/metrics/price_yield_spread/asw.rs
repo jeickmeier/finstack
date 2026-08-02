@@ -40,7 +40,7 @@ fn resolved_asw_forward_curve_id(bond: &Bond) -> Option<CurveId> {
 /// let config = AssetSwapConfig {
 ///     fixed_leg_day_count: Some(DayCount::Act365F),
 ///     fixed_leg_frequency: Some(Tenor::semi_annual()),
-///     fixed_leg_bdc: Some(BusinessDayConvention::ModifiedFollowing),
+///     fixed_leg_business_day_convention: Some(BusinessDayConvention::ModifiedFollowing),
 ///     fixed_leg_calendar_id: Some("USGS".to_string()),
 ///     fixed_leg_stub: Some(StubKind::ShortFront),
 /// };
@@ -52,7 +52,7 @@ pub struct AssetSwapConfig {
     /// Payment frequency for the ASW fixed leg.
     pub fixed_leg_frequency: Option<Tenor>,
     /// Business day convention for the ASW fixed-leg schedule.
-    pub fixed_leg_bdc: Option<BusinessDayConvention>,
+    pub fixed_leg_business_day_convention: Option<BusinessDayConvention>,
     /// Optional calendar identifier for business-day adjustment.
     pub fixed_leg_calendar_id: Option<String>,
     /// Stub convention for the ASW fixed-leg schedule.
@@ -173,7 +173,7 @@ fn build_asw_schedule(
     end: Date,
     frequency: Tenor,
     stub: StubKind,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     calendar_id: Option<&str>,
 ) -> finstack_quant_core::Result<Vec<Date>> {
     if start >= end {
@@ -184,7 +184,7 @@ fn build_asw_schedule(
     let calendar = calendar_id.and_then(finstack_quant_core::dates::calendar::calendar_by_id);
     let adjust_date = |date: Date| -> finstack_quant_core::Result<Date> {
         if let Some(cal) = calendar {
-            finstack_quant_core::dates::adjust(date, bdc, cal)
+            finstack_quant_core::dates::adjust(date, business_day_convention, cal)
         } else {
             Ok(date)
         }
@@ -217,7 +217,7 @@ fn asw_effective_date(
     end: Date,
     frequency: Tenor,
     _stub: StubKind,
-    _bdc: BusinessDayConvention,
+    _business_day_convention: BusinessDayConvention,
     _calendar_id: Option<&str>,
 ) -> finstack_quant_core::Result<Date> {
     let mut previous = issue_date;
@@ -263,10 +263,10 @@ struct AssetSwapForwardInputs<'a> {
     fwd: &'a ForwardCurve,
     market: &'a MarketContext,
     as_of: Date,
-    fixed_dc: DayCount,
+    fixed_day_count: DayCount,
     fixed_frequency: Option<Tenor>,
     fixed_schedule: &'a [Date],
-    float_dc: DayCount,
+    float_day_count: DayCount,
     float_schedule: &'a [Date],
     float_spread_bp: f64,
 }
@@ -276,7 +276,7 @@ fn asset_swap_forward_components_split(
 ) -> finstack_quant_core::Result<(f64, f64, f64)> {
     let fixed_ann = fixed_leg_annuity(
         inputs.disc,
-        inputs.fixed_dc,
+        inputs.fixed_day_count,
         inputs.fixed_frequency,
         inputs.fixed_schedule,
     )?;
@@ -292,7 +292,7 @@ fn asset_swap_forward_components_split(
     let mut prev = float_schedule[0];
     for &date in &float_schedule[1..] {
         let yf = inputs
-            .float_dc
+            .float_day_count
             .year_fraction(prev, date, DayCountContext::default())?;
         let df = inputs.disc.df_on_date_curve(date)?;
         let forward = if prev < inputs.as_of {
@@ -425,9 +425,9 @@ pub fn asw_par_with_forward_config(
         ));
     }
 
-    let fixed_dc = fixed_leg_day_count.unwrap_or_else(|| bond.cashflow_spec.day_count());
-    let fixed_freq = Some(bond.cashflow_spec.frequency());
-    let ann = fixed_leg_annuity(disc.as_ref(), fixed_dc, fixed_freq, &sched)?;
+    let fixed_day_count = fixed_leg_day_count.unwrap_or_else(|| bond.cashflow_spec.day_count());
+    let fixed_frequency = Some(bond.cashflow_spec.frequency());
+    let ann = fixed_leg_annuity(disc.as_ref(), fixed_day_count, fixed_frequency, &sched)?;
     // Use epsilon check to avoid unstable ratios when annuity is degenerate.
     if ann.abs() < 1e-12 {
         return Err(finstack_quant_core::Error::Validation(
@@ -437,8 +437,8 @@ pub fn asw_par_with_forward_config(
     let (float_pv, fixed_ann, float_ann) = asset_swap_forward_components(
         disc.as_ref(),
         fwd.as_ref(),
-        fixed_dc,
-        fixed_freq,
+        fixed_day_count,
+        fixed_frequency,
         &sched,
         float_spread_bp,
     )?;
@@ -467,7 +467,7 @@ pub fn asw_par_with_forward_config(
 ///
 /// Note:
 /// - This helper requires an explicit dirty market price in currency.
-///   Callers **must** pass `Some(dirty_price_ccy)` even when interpreting
+///   Callers **must** pass `Some(dirty_price_currency)` even when interpreting
 ///   ASW relative to par (in which case, pass `bond.notional.amount()`).
 /// - In many markets, the fixed leg follows swap fixed-leg conventions that
 ///   may differ from the bond's coupon convention.
@@ -488,7 +488,7 @@ pub fn asw_par_with_forward_config(
 ///   curve.
 /// * `float_spread_bp` - Floating-leg contractual spread in basis points,
 ///   added to projected forward coupons.
-/// * `dirty_price_ccy` - Required dirty market price in the bond currency.
+/// * `dirty_price_currency` - Required dirty market price in the bond currency.
 ///   Pass `Some(bond.notional.amount())` to value a par market price; `None`
 ///   is rejected rather than silently assuming par.
 pub fn asw_market_with_forward(
@@ -497,7 +497,7 @@ pub fn asw_market_with_forward(
     as_of: finstack_quant_core::dates::Date,
     fwd_curve_id: &str,
     float_spread_bp: f64,
-    dirty_price_ccy: Option<f64>,
+    dirty_price_currency: Option<f64>,
 ) -> finstack_quant_core::Result<f64> {
     asw_market_with_forward_config(
         bond,
@@ -505,7 +505,7 @@ pub fn asw_market_with_forward(
         as_of,
         fwd_curve_id,
         float_spread_bp,
-        dirty_price_ccy,
+        dirty_price_currency,
         None,
     )
 }
@@ -513,8 +513,8 @@ pub fn asw_market_with_forward(
 /// Compute Market ASW using forward-based methodology with explicit
 /// fixed-leg conventions.
 ///
-/// - `dirty_price_ccy`: dirty market price expressed in currency. When
-///   `None`, this returns `InputError::NotFound { id: "dirty_price_ccy" }`
+/// - `dirty_price_currency`: dirty market price expressed in currency. When
+///   `None`, this returns `InputError::NotFound { id: "dirty_price_currency" }`
 ///   instead of silently assuming par.
 /// - `fixed_leg_day_count`: when `Some`, this day-count is used to build
 ///   the fixed-leg annuity; otherwise the bond's coupon day-count is used.
@@ -531,7 +531,7 @@ pub fn asw_market_with_forward(
 ///   curve.
 /// * `float_spread_bp` - Floating-leg contractual spread in basis points,
 ///   added to projected forward coupons.
-/// * `dirty_price_ccy` - Dirty market price in the bond currency. `None`
+/// * `dirty_price_currency` - Dirty market price in the bond currency. `None`
 ///   returns `InputError::NotFound` instead of silently assuming par.
 /// * `fixed_leg_day_count` - Optional swap fixed-leg day-count convention for
 ///   the annuity. `None` uses the bond's coupon day count.
@@ -541,7 +541,7 @@ pub fn asw_market_with_forward_config(
     as_of: finstack_quant_core::dates::Date,
     fwd_curve_id: &str,
     float_spread_bp: f64,
-    dirty_price_ccy: Option<f64>,
+    dirty_price_currency: Option<f64>,
     fixed_leg_day_count: Option<DayCount>,
 ) -> finstack_quant_core::Result<f64> {
     let disc = curves.get_discount(&bond.discount_curve_id)?;
@@ -553,9 +553,9 @@ pub fn asw_market_with_forward_config(
                 .to_string(),
         ));
     }
-    let fixed_dc = fixed_leg_day_count.unwrap_or_else(|| bond.cashflow_spec.day_count());
-    let fixed_freq = Some(bond.cashflow_spec.frequency());
-    let ann = fixed_leg_annuity(disc.as_ref(), fixed_dc, fixed_freq, &sched)?;
+    let fixed_day_count = fixed_leg_day_count.unwrap_or_else(|| bond.cashflow_spec.day_count());
+    let fixed_frequency = Some(bond.cashflow_spec.frequency());
+    let ann = fixed_leg_annuity(disc.as_ref(), fixed_day_count, fixed_frequency, &sched)?;
     if ann.abs() < 1e-12 {
         return Err(finstack_quant_core::Error::Validation(
             "ASW forward market calculation is undefined for near-zero fixed-leg annuity"
@@ -570,8 +570,8 @@ pub fn asw_market_with_forward_config(
     let (float_pv, fixed_ann, float_ann) = asset_swap_forward_components(
         disc.as_ref(),
         fwd.as_ref(),
-        fixed_dc,
-        fixed_freq,
+        fixed_day_count,
+        fixed_frequency,
         &sched,
         float_spread_bp,
     )?;
@@ -582,9 +582,9 @@ pub fn asw_market_with_forward_config(
         ));
     }
     let notional = bond.notional.amount();
-    let Some(dirty) = dirty_price_ccy else {
+    let Some(dirty) = dirty_price_currency else {
         return Err(finstack_quant_core::InputError::NotFound {
-            id: "dirty_price_ccy".to_string(),
+            id: "dirty_price_currency".to_string(),
         }
         .into());
     };
@@ -634,58 +634,62 @@ impl MetricCalculator for AssetSwapParCalculator {
 
         let discount_curve_id = bond.discount_curve_id.to_owned();
         let maturity = bond.maturity;
-        let bond_dc = bond.cashflow_spec.day_count();
+        let bond_day_count = bond.cashflow_spec.day_count();
         let asw_forward_curve_id = resolved_asw_forward_curve_id(bond);
         let disc = context.curves.get_discount(&discount_curve_id)?;
 
         // Extract schedule params from cashflow_spec, allowing ASW config to
         // override fixed-leg conventions when provided.
-        let (bond_freq, bond_bdc, bond_calendar_id, bond_stub) = match &bond.cashflow_spec {
-            CashflowSpec::Fixed(spec) => (
-                spec.schedule.freq,
-                spec.schedule.bdc,
-                Some(spec.schedule.calendar_id.as_str()),
-                spec.schedule.stub,
-            ),
-            CashflowSpec::Floating(spec) => (
-                spec.schedule.freq,
-                spec.schedule.bdc,
-                Some(spec.schedule.calendar_id.as_str()),
-                spec.schedule.stub,
-            ),
-            CashflowSpec::StepUp(spec) => (
-                spec.schedule.freq,
-                spec.schedule.bdc,
-                Some(spec.schedule.calendar_id.as_str()),
-                spec.schedule.stub,
-            ),
-            CashflowSpec::Amortizing { base, .. } => match &**base {
+        let (bond_frequency, bond_business_day_convention, bond_calendar_id, bond_stub) =
+            match &bond.cashflow_spec {
                 CashflowSpec::Fixed(spec) => (
-                    spec.schedule.freq,
-                    spec.schedule.bdc,
+                    spec.schedule.frequency,
+                    spec.schedule.business_day_convention,
                     Some(spec.schedule.calendar_id.as_str()),
                     spec.schedule.stub,
                 ),
                 CashflowSpec::Floating(spec) => (
-                    spec.schedule.freq,
-                    spec.schedule.bdc,
+                    spec.schedule.frequency,
+                    spec.schedule.business_day_convention,
                     Some(spec.schedule.calendar_id.as_str()),
                     spec.schedule.stub,
                 ),
                 CashflowSpec::StepUp(spec) => (
-                    spec.schedule.freq,
-                    spec.schedule.bdc,
+                    spec.schedule.frequency,
+                    spec.schedule.business_day_convention,
                     Some(spec.schedule.calendar_id.as_str()),
                     spec.schedule.stub,
                 ),
-                CashflowSpec::Amortizing { .. } => {
-                    return Err(finstack_quant_core::InputError::Invalid.into())
-                }
-            },
-        };
+                CashflowSpec::Amortizing { base, .. } => match &**base {
+                    CashflowSpec::Fixed(spec) => (
+                        spec.schedule.frequency,
+                        spec.schedule.business_day_convention,
+                        Some(spec.schedule.calendar_id.as_str()),
+                        spec.schedule.stub,
+                    ),
+                    CashflowSpec::Floating(spec) => (
+                        spec.schedule.frequency,
+                        spec.schedule.business_day_convention,
+                        Some(spec.schedule.calendar_id.as_str()),
+                        spec.schedule.stub,
+                    ),
+                    CashflowSpec::StepUp(spec) => (
+                        spec.schedule.frequency,
+                        spec.schedule.business_day_convention,
+                        Some(spec.schedule.calendar_id.as_str()),
+                        spec.schedule.stub,
+                    ),
+                    CashflowSpec::Amortizing { .. } => {
+                        return Err(finstack_quant_core::InputError::Invalid.into())
+                    }
+                },
+            };
 
-        let freq = self.config.fixed_leg_frequency.unwrap_or(bond_freq);
-        let bdc = self.config.fixed_leg_bdc.unwrap_or(bond_bdc);
+        let frequency = self.config.fixed_leg_frequency.unwrap_or(bond_frequency);
+        let business_day_convention = self
+            .config
+            .fixed_leg_business_day_convention
+            .unwrap_or(bond_business_day_convention);
         let calendar_id = self
             .config
             .fixed_leg_calendar_id
@@ -704,12 +708,12 @@ impl MetricCalculator for AssetSwapParCalculator {
         let quote_ctx = QuoteDateContext::new(bond, &context.curves, context.as_of)?;
         let mut builder =
             finstack_quant_core::dates::ScheduleBuilder::new(quote_ctx.quote_date, maturity)?
-                .frequency(freq)
+                .frequency(frequency)
                 .stub_rule(stub);
 
         if let Some(id) = calendar_id {
             if let Some(cal) = finstack_quant_core::dates::calendar::calendar_by_id(id) {
-                builder = builder.adjust_with(bdc, cal);
+                builder = builder.adjust_with(business_day_convention, cal);
             }
         }
 
@@ -719,14 +723,14 @@ impl MetricCalculator for AssetSwapParCalculator {
                 "ASW par calculation requires at least two fixed-leg schedule dates".to_string(),
             ));
         }
-        let dc_fixed = self.config.fixed_leg_day_count.unwrap_or(bond_dc);
+        let dc_fixed = self.config.fixed_leg_day_count.unwrap_or(bond_day_count);
         let forward_components = if let Some(fwd_id) = asw_forward_curve_id {
             let fwd = context.curves.get_forward(&fwd_id)?;
             Some(asset_swap_forward_components(
                 disc.as_ref(),
                 fwd.as_ref(),
                 dc_fixed,
-                Some(freq),
+                Some(frequency),
                 &sched,
                 0.0,
             )?)
@@ -736,7 +740,7 @@ impl MetricCalculator for AssetSwapParCalculator {
         let ann = if let Some((_, _, float_ann)) = forward_components {
             float_ann
         } else {
-            par_rate_and_annuity_from_discount(disc.as_ref(), dc_fixed, Some(freq), &sched)?.1
+            par_rate_and_annuity_from_discount(disc.as_ref(), dc_fixed, Some(frequency), &sched)?.1
         };
         if ann.abs() < 1e-12 {
             return Err(finstack_quant_core::Error::Validation(
@@ -751,8 +755,12 @@ impl MetricCalculator for AssetSwapParCalculator {
         if let Some((float_pv, fixed_ann, float_ann)) = forward_components {
             Ok((coupon * fixed_ann - float_pv) / float_ann)
         } else {
-            let (par_rate, _) =
-                par_rate_and_annuity_from_discount(disc.as_ref(), dc_fixed, Some(freq), &sched)?;
+            let (par_rate, _) = par_rate_and_annuity_from_discount(
+                disc.as_ref(),
+                dc_fixed,
+                Some(frequency),
+                &sched,
+            )?;
             Ok(coupon - par_rate)
         }
     }
@@ -767,7 +775,7 @@ impl MetricCalculator for AssetSwapMarketCalculator {
         let (
             discount_curve_id,
             maturity,
-            dc,
+            day_count,
             notional_amt,
             quoted_clean,
             is_custom,
@@ -795,7 +803,7 @@ impl MetricCalculator for AssetSwapMarketCalculator {
         let disc = context.curves.get_discount(&discount_curve_id)?;
 
         // Dirty market value in currency
-        let dirty_ccy = if let Some(clean_px) = quoted_clean {
+        let dirty_currency = if let Some(clean_px) = quoted_clean {
             let accrued = context
                 .computed
                 .get(&MetricId::Accrued)
@@ -822,7 +830,7 @@ impl MetricCalculator for AssetSwapMarketCalculator {
                         context.as_of,
                         spec.rate_spec.index_id.as_str(),
                         spec.rate_spec.spread_bp.to_f64().unwrap_or_default(),
-                        Some(dirty_ccy),
+                        Some(dirty_currency),
                     );
                 }
                 _ => {
@@ -862,52 +870,56 @@ impl MetricCalculator for AssetSwapMarketCalculator {
         // Market standard: discount-ratio using ASW fixed-leg schedule (defaulting
         // to bond conventions but allowing overrides via AssetSwapConfig).
         let bond: &Bond = context.instrument_as()?;
-        let (bond_freq, bond_stub, bond_bdc, bond_calendar_id) = match &bond.cashflow_spec {
-            CashflowSpec::Fixed(spec) => (
-                spec.schedule.freq,
-                spec.schedule.stub,
-                spec.schedule.bdc,
-                Some(spec.schedule.calendar_id.as_str()),
-            ),
-            CashflowSpec::Floating(spec) => (
-                spec.schedule.freq,
-                spec.schedule.stub,
-                spec.schedule.bdc,
-                Some(spec.schedule.calendar_id.as_str()),
-            ),
-            CashflowSpec::StepUp(spec) => (
-                spec.schedule.freq,
-                spec.schedule.stub,
-                spec.schedule.bdc,
-                Some(spec.schedule.calendar_id.as_str()),
-            ),
-            CashflowSpec::Amortizing { base, .. } => match &**base {
+        let (bond_frequency, bond_stub, bond_business_day_convention, bond_calendar_id) =
+            match &bond.cashflow_spec {
                 CashflowSpec::Fixed(spec) => (
-                    spec.schedule.freq,
+                    spec.schedule.frequency,
                     spec.schedule.stub,
-                    spec.schedule.bdc,
+                    spec.schedule.business_day_convention,
                     Some(spec.schedule.calendar_id.as_str()),
                 ),
                 CashflowSpec::Floating(spec) => (
-                    spec.schedule.freq,
+                    spec.schedule.frequency,
                     spec.schedule.stub,
-                    spec.schedule.bdc,
+                    spec.schedule.business_day_convention,
                     Some(spec.schedule.calendar_id.as_str()),
                 ),
                 CashflowSpec::StepUp(spec) => (
-                    spec.schedule.freq,
+                    spec.schedule.frequency,
                     spec.schedule.stub,
-                    spec.schedule.bdc,
+                    spec.schedule.business_day_convention,
                     Some(spec.schedule.calendar_id.as_str()),
                 ),
-                CashflowSpec::Amortizing { .. } => {
-                    return Err(finstack_quant_core::InputError::Invalid.into())
-                }
-            },
-        };
-        let freq = self.config.fixed_leg_frequency.unwrap_or(bond_freq);
+                CashflowSpec::Amortizing { base, .. } => match &**base {
+                    CashflowSpec::Fixed(spec) => (
+                        spec.schedule.frequency,
+                        spec.schedule.stub,
+                        spec.schedule.business_day_convention,
+                        Some(spec.schedule.calendar_id.as_str()),
+                    ),
+                    CashflowSpec::Floating(spec) => (
+                        spec.schedule.frequency,
+                        spec.schedule.stub,
+                        spec.schedule.business_day_convention,
+                        Some(spec.schedule.calendar_id.as_str()),
+                    ),
+                    CashflowSpec::StepUp(spec) => (
+                        spec.schedule.frequency,
+                        spec.schedule.stub,
+                        spec.schedule.business_day_convention,
+                        Some(spec.schedule.calendar_id.as_str()),
+                    ),
+                    CashflowSpec::Amortizing { .. } => {
+                        return Err(finstack_quant_core::InputError::Invalid.into())
+                    }
+                },
+            };
+        let frequency = self.config.fixed_leg_frequency.unwrap_or(bond_frequency);
         let stub = self.config.fixed_leg_stub.unwrap_or(bond_stub);
-        let bdc = self.config.fixed_leg_bdc.unwrap_or(bond_bdc);
+        let business_day_convention = self
+            .config
+            .fixed_leg_business_day_convention
+            .unwrap_or(bond_business_day_convention);
         let calendar_id = self
             .config
             .fixed_leg_calendar_id
@@ -934,17 +946,17 @@ impl MetricCalculator for AssetSwapMarketCalculator {
                         bond.issue_date,
                         workout_quote_date,
                         workout_maturity,
-                        freq,
+                        frequency,
                         stub,
-                        bdc,
+                        business_day_convention,
                         calendar_id,
                     )?;
                     let fixed_schedule = build_asw_schedule(
                         effective_date,
                         workout_maturity,
-                        freq,
+                        frequency,
                         StubKind::None,
-                        bdc,
+                        business_day_convention,
                         calendar_id,
                     )?;
                     if fixed_schedule.len() < 2 {
@@ -953,16 +965,17 @@ impl MetricCalculator for AssetSwapMarketCalculator {
                                 .to_string(),
                         ));
                     }
-                    let dc_fixed = self.config.fixed_leg_day_count.unwrap_or(dc);
+                    let dc_fixed = self.config.fixed_leg_day_count.unwrap_or(day_count);
                     if let Some(fwd_id) = asw_forward_curve_id.as_ref() {
                         let fwd = context.curves.get_forward(fwd_id)?;
-                        let (float_dc, float_freq, float_bdc) = asw_float_leg_conventions(&fwd)?;
+                        let (float_day_count, float_frequency, float_business_day_convention) =
+                            asw_float_leg_conventions(&fwd)?;
                         let float_schedule = build_asw_schedule(
                             effective_date,
                             workout_maturity,
-                            float_freq,
+                            float_frequency,
                             StubKind::None,
-                            float_bdc,
+                            float_business_day_convention,
                             None,
                         )?;
                         let (float_pv, fixed_ann, float_ann) =
@@ -971,10 +984,10 @@ impl MetricCalculator for AssetSwapMarketCalculator {
                                 fwd: fwd.as_ref(),
                                 market: context.curves.as_ref(),
                                 as_of: context.as_of,
-                                fixed_dc: dc_fixed,
-                                fixed_frequency: Some(freq),
+                                fixed_day_count: dc_fixed,
+                                fixed_frequency: Some(frequency),
                                 fixed_schedule: &fixed_schedule,
-                                float_dc,
+                                float_day_count,
                                 float_schedule: &float_schedule,
                                 float_spread_bp: 0.0,
                             })?;
@@ -991,7 +1004,7 @@ impl MetricCalculator for AssetSwapMarketCalculator {
                         let (par_rate, ann) = par_rate_and_annuity_from_discount(
                             disc.as_ref(),
                             dc_fixed,
-                            Some(freq),
+                            Some(frequency),
                             &fixed_schedule,
                         )?;
                         if ann.abs() < 1e-12 {
@@ -1029,12 +1042,12 @@ impl MetricCalculator for AssetSwapMarketCalculator {
         }
         let mut builder =
             finstack_quant_core::dates::ScheduleBuilder::new(quote_ctx.quote_date, maturity)?
-                .frequency(freq)
+                .frequency(frequency)
                 .stub_rule(stub);
 
         if let Some(id) = calendar_id {
             if let Some(cal) = finstack_quant_core::dates::calendar::calendar_by_id(id) {
-                builder = builder.adjust_with(bdc, cal);
+                builder = builder.adjust_with(business_day_convention, cal);
             }
         }
 
@@ -1044,14 +1057,14 @@ impl MetricCalculator for AssetSwapMarketCalculator {
                 "ASW market calculation requires at least two fixed-leg schedule dates".to_string(),
             ));
         }
-        let dc_fixed = self.config.fixed_leg_day_count.unwrap_or(dc);
+        let dc_fixed = self.config.fixed_leg_day_count.unwrap_or(day_count);
         let forward_components = if let Some(fwd_id) = asw_forward_curve_id {
             let fwd = context.curves.get_forward(&fwd_id)?;
             Some(asset_swap_forward_components(
                 disc.as_ref(),
                 fwd.as_ref(),
                 dc_fixed,
-                Some(freq),
+                Some(frequency),
                 &sched,
                 0.0,
             )?)
@@ -1065,7 +1078,7 @@ impl MetricCalculator for AssetSwapMarketCalculator {
                 (float_pv / fixed_ann, float_ann)
             }
         } else {
-            par_rate_and_annuity_from_discount(disc.as_ref(), dc_fixed, Some(freq), &sched)?
+            par_rate_and_annuity_from_discount(disc.as_ref(), dc_fixed, Some(frequency), &sched)?
         };
         if ann.abs() < 1e-12 {
             return Err(finstack_quant_core::Error::Validation(
@@ -1082,7 +1095,7 @@ impl MetricCalculator for AssetSwapMarketCalculator {
         } else {
             coupon
         };
-        let price_pct = dirty_ccy / notional_amt;
+        let price_pct = dirty_currency / notional_amt;
         let asw_mkt = if let Some((float_pv, fixed_ann, float_ann)) = forward_components {
             (eq_coupon * fixed_ann + 1.0 - price_pct - float_pv) / float_ann
         } else {

@@ -562,7 +562,7 @@ pub(crate) fn curve_node_effects(
             let tenor_day_count = ctx
                 .market
                 .get_discount(discount_id.as_str())
-                .map(|dc| dc.day_count())
+                .map(|day_count| day_count.day_count())
                 .unwrap_or(DayCount::Act365F);
 
             let result = resolve_bump_targets(

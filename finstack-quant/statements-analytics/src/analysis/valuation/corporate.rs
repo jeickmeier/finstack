@@ -705,7 +705,7 @@ pub(crate) fn evaluate_dcf_from_results_impl(
                     name: "ufcf_period".to_string(),
                     description: "Unlevered free cash flow by period".to_string(),
                     metadata: Some(json!({
-                        "period_id": format!("{:?}", period.id),
+                        "period_id": period.id.to_string(),
                         "ufcf": ufcf_value,
                         "date": date.to_string(),
                     })),
@@ -913,7 +913,7 @@ pub(crate) fn evaluate_dcf_from_results_impl(
         None,
     );
 
-    // Sensitivity of EV to WACC (configurable bump, default +/- 100 bps).
+    // Sensitivity of EV to WACC (configurable bump, default +/- 100 bp).
     // Compute EV directly from PV components (not from equity + bridge) so that
     // the result is independent of valuation discounts (DLOM/DLOC).
     //

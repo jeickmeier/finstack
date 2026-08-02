@@ -11,16 +11,28 @@ use crate::ScenarioSpec;
 
 /// Persistence contract for [`ScenarioEnvelope`].
 pub const SCENARIO_CONTRACT: ContractDescriptor =
-    ContractDescriptor::new("finstack_quant.scenario", 1);
+    ContractDescriptor::new("finstack_quant.scenario");
+
+/// Exact schema marker accepted by [`ScenarioEnvelope`].
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub enum ScenarioSchema {
+    /// The sole supported scenario contract.
+    #[serde(rename = "finstack_quant.scenario/1")]
+    Scenario,
+}
+
+impl ScenarioSchema {
+    /// The exact marker required by every persisted scenario envelope.
+    pub const CURRENT: Self = Self::Scenario;
+}
 
 /// Versioned wrapper used when persisting a scenario specification.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScenarioEnvelope {
     /// Exact scenario contract marker.
-    pub schema: String,
+    pub schema: ScenarioSchema,
     /// Bare scenario specification used by in-process APIs.
-    #[schemars(with = "serde_json::Value")]
     pub scenario: ScenarioSpec,
 }
 
@@ -33,7 +45,7 @@ impl ScenarioEnvelope {
     #[must_use]
     pub fn new(scenario: ScenarioSpec) -> Self {
         Self {
-            schema: SCENARIO_CONTRACT.schema_string(),
+            schema: ScenarioSchema::CURRENT,
             scenario,
         }
     }

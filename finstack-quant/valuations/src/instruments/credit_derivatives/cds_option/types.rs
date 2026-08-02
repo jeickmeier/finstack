@@ -76,23 +76,29 @@ pub enum ProtectionStartConvention {
     Debug,
     Clone,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct CDSOption {
     /// Unique instrument identifier
     pub id: InstrumentId,
     /// Strike spread as a decimal rate (e.g., 0.01 = 100bp)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub strike: Decimal,
     /// Option type (Call = right to buy protection, Put = right to sell protection)
     pub option_type: OptionType,
     /// Exercise style
     pub exercise_style: ExerciseStyle,
     /// Option expiry date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Underlying CDS maturity date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub cds_maturity: Date,
     /// Notional amount
     pub notional: Money,
@@ -101,13 +107,15 @@ pub struct CDSOption {
     /// Cash premium settlement date for Black time-to-expiry, when the screen
     /// quotes option time from premium settlement rather than valuation date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     #[builder(default)]
     pub cash_settlement_date: Option<Date>,
     /// Exercise settlement date for Black time-to-expiry, when distinct from
     /// the legal option expiration date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     #[builder(default)]
     pub exercise_settlement_date: Option<Date>,
     /// Underlying CDS accrual-effective date used for forward spread and risky
@@ -115,7 +123,8 @@ pub struct CDSOption {
     /// option expiry; in that case premium accrues from this date while
     /// protection starts at expiry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     #[builder(default)]
     pub underlying_effective_date: Option<Date>,
     /// Convention used to select the synthetic underlying CDS accrual start
@@ -147,12 +156,24 @@ pub struct CDSOption {
     pub underlying_convention: crate::instruments::credit_derivatives::cds::CDSConvention,
     /// Instrument-owned pricing overrides (including implied volatility).
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Additional attributes
     #[serde(default)]
@@ -188,6 +209,8 @@ pub struct CDSOption {
     /// from the option strike, set this explicitly so the strike-adjustment
     /// term `H(K) = ξN(c − K)A(K)` (DOCS 2055833 Eq. 2.4) is populated.
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_decimal")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub underlying_cds_coupon: Option<Decimal>,
 }
 
@@ -569,7 +592,7 @@ pub(crate) fn prior_cds_roll_on_or_before(date: Date) -> Date {
 }
 
 impl crate::instruments::common_impl::traits::Instrument for CDSOption {
-    impl_instrument_base!(crate::pricer::InstrumentType::CDSOption);
+    impl_instrument_base!(crate::pricer::InstrumentType::CdsOption);
 
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
         self.validate()?;
@@ -669,7 +692,7 @@ mod tests {
     }
 
     #[test]
-    fn focused_overrides_preserve_legacy_wire_shape() {
+    fn focused_overrides_use_canonical_wire_shape() {
         let option_params = CDSOptionParams::call(
             Decimal::from_str_exact("0.0058395400").expect("valid strike"),
             date!(2026 - 06 - 26),
@@ -694,27 +717,22 @@ mod tests {
         option.scenario_pricing_overrides.scenario_spread_shock_bp = Some(8.0);
 
         let value = serde_json::to_value(&option).expect("serialize focused overrides");
-        assert!(value.get("instrument_pricing_overrides").is_none());
-        assert!(value.get("metric_pricing_overrides").is_none());
-        assert!(value.get("scenario_pricing_overrides").is_none());
-        let wire = value
-            .get("pricing_overrides")
-            .and_then(serde_json::Value::as_object)
-            .expect("legacy pricing_overrides object");
         assert_eq!(
-            wire.get("implied_volatility"),
+            value.pointer("/instrument_pricing_overrides/market_quotes/implied_volatility"),
             Some(&serde_json::json!(0.31))
         );
         assert_eq!(
-            wire.get("mc_seed_scenario"),
+            value.pointer("/metric_pricing_overrides/mc_seed_scenario"),
             Some(&serde_json::json!("vega_down"))
         );
         assert_eq!(
-            wire.get("scenario_spread_shock_bp"),
+            value.pointer("/scenario_pricing_overrides/scenario_spread_shock_bp"),
             Some(&serde_json::json!(8.0))
         );
+        assert!(value.get("pricing_overrides").is_none());
 
-        let roundtrip: CDSOption = serde_json::from_value(value).expect("deserialize legacy wire");
+        let roundtrip: CDSOption =
+            serde_json::from_value(value).expect("deserialize canonical wire");
         assert_eq!(
             roundtrip
                 .instrument_pricing_overrides

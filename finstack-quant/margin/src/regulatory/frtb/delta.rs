@@ -45,7 +45,7 @@ use finstack_quant_core::HashMap;
 /// };
 ///
 /// let mut sensitivities = FrtbSensitivities::new(Currency::USD);
-/// sensitivities.add_girr_delta(Currency::USD, "5y", 1_000_000.0);
+/// sensitivities.add_girr_delta(Currency::USD, "5Y", 1_000_000.0);
 ///
 /// let charge = delta_charge(
 ///     FrtbRiskClass::Girr,

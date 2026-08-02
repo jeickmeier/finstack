@@ -68,8 +68,8 @@
           ]
         },
         "model_key": {
-          "description": "Registered model key used by the pricer.",
-          "type": "string"
+          "$ref": "#/$defs/ModelKey",
+          "description": "Registered model key used by the pricer."
         }
       },
       "required": [
@@ -118,13 +118,241 @@
       },
       "type": "object"
     },
+    "ModelKey": {
+      "description": "Pricing model selection for the pricer registry.\n\nDetermines which mathematical model is used to price an instrument.\nEach model has different computational characteristics and accuracy\nprofiles for different instrument types.\n\n# Model Categories\n\n## Analytical Models\n- [`Discounting`](Self::Discounting): Simple present value discounting\n- [`Black76`](Self::Black76): Black-76 formula for options\n- [`Normal`](Self::Normal): Bachelier (normal) model for rate options\n\n## Tree Models\n- [`Tree`](Self::Tree): Binomial/trinomial lattice\n- [`HullWhite1F`](Self::HullWhite1F): Hull-White one-factor short rate\n\n## Monte Carlo Models\n- [`MonteCarloGBM`](Self::MonteCarloGBM): GBM simulation\n- [`MonteCarloHeston`](Self::MonteCarloHeston): Heston stochastic vol\n\n## Exotic Analytical\n- [`BarrierBSContinuous`](Self::BarrierBSContinuous): Reiner-Rubinstein barriers\n- [`AsianGeometricBS`](Self::AsianGeometricBS): Geometric Asian (exact)\n- [`AsianTurnbullWakeman`](Self::AsianTurnbullWakeman): Arithmetic Asian (approx)\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::pricer::ModelKey;\n\n// Select appropriate model for instrument type\nlet model = ModelKey::Discounting;  // For bonds\nlet model = ModelKey::Black76;      // For caps/floors\nlet model = ModelKey::MonteCarloGBM; // For path-dependent exotics\n\n// Parse from string\nlet model: ModelKey = \"black76\".parse().unwrap();\nassert_eq!(model, ModelKey::Black76);\n```",
+      "oneOf": [
+        {
+          "const": "discounting",
+          "description": "Present value discounting of projected cashflows.\n\nUsed for: bonds, swaps, deposits, repos, forwards.",
+          "type": "string"
+        },
+        {
+          "const": "tree",
+          "description": "Binomial or trinomial tree for callable/putable instruments.\n\nUsed for: callable bonds, Bermudan options.",
+          "type": "string"
+        },
+        {
+          "const": "black76",
+          "description": "Black-76 lognormal model for forward-based options.\n\nUsed for: caps, floors, swaptions, FX options, commodity options.",
+          "type": "string"
+        },
+        {
+          "const": "hull_white_1f",
+          "description": "Hull-White one-factor short rate model.\n\nUsed for: callable bonds with OAS, Bermudan swaptions.",
+          "type": "string"
+        },
+        {
+          "const": "hazard_rate",
+          "description": "Hazard rate model for credit instruments.\n\nUsed for: CDS, CDS indices, credit risky bonds.",
+          "type": "string"
+        },
+        {
+          "const": "normal",
+          "description": "Bachelier (normal) model for rate options.\n\nUsed for: inflation caps/floors, options on rates near zero.",
+          "type": "string"
+        },
+        {
+          "const": "monte_carlo_gbm",
+          "description": "Monte Carlo with Geometric Brownian Motion.\n\nUsed for: path-dependent options, exotics requiring simulation.",
+          "type": "string"
+        },
+        {
+          "const": "monte_carlo_heston",
+          "description": "Monte Carlo with Heston stochastic volatility.\n\nUsed for: options requiring volatility smile dynamics.",
+          "type": "string"
+        },
+        {
+          "const": "monte_carlo_hull_white_1f",
+          "description": "Monte Carlo with Hull-White 1F rates.\n\nUsed for: Bermudan swaptions, CMS options.",
+          "type": "string"
+        },
+        {
+          "const": "barrier_bs_continuous",
+          "description": "Reiner-Rubinstein continuous barrier formulas.\n\nUsed for: equity/FX barrier options with continuous monitoring.",
+          "type": "string"
+        },
+        {
+          "const": "asian_geometric_bs",
+          "description": "Kemna-Vorst exact geometric Asian formula.\n\nUsed for: geometric average Asian options.",
+          "type": "string"
+        },
+        {
+          "const": "asian_turnbull_wakeman",
+          "description": "Turnbull-Wakeman approximation for arithmetic Asians.\n\nUsed for: arithmetic average Asian options.",
+          "type": "string"
+        },
+        {
+          "const": "lookback_bs_continuous",
+          "description": "Conze-Viswanathan lookback option formulas.\n\nUsed for: lookback options with continuous monitoring.",
+          "type": "string"
+        },
+        {
+          "const": "quanto_bs",
+          "description": "Quanto BS with drift adjustment.\n\nUsed for: quanto options (cross-currency).",
+          "type": "string"
+        },
+        {
+          "const": "fx_barrier_bs_continuous",
+          "description": "FX barrier with Reiner-Rubinstein mapping.\n\nUsed for: FX barrier options.",
+          "type": "string"
+        },
+        {
+          "const": "heston_fourier",
+          "description": "Heston semi-analytical via Fourier transform.\n\nUsed for: European options requiring stochastic vol.",
+          "type": "string"
+        },
+        {
+          "const": "merton_mc",
+          "description": "Merton structural credit Monte Carlo with PIK support.\n\nUsed for: PIK bonds, credit-risky bonds with structural default model.",
+          "type": "string"
+        },
+        {
+          "const": "monte_carlo_schwartz_smith",
+          "description": "Monte Carlo with Schwartz-Smith two-factor commodity model.\n\nUsed for: commodity options requiring mean-reverting short-term dynamics.",
+          "type": "string"
+        },
+        {
+          "const": "static_replication",
+          "description": "Static replication via a portfolio of vanilla options.\n\nUsed for: CMS options (replicates the payoff with a smile-consistent\nswaption portfolio, capturing all convexity orders beyond Hagan's\nfirst-order approximation).",
+          "type": "string"
+        },
+        {
+          "const": "lmm_monte_carlo",
+          "description": "LMM/BGM Monte Carlo with predictor-corrector discretization.\n\nUsed for: Bermudan swaptions, exotic rate derivatives requiring\nmulti-factor forward rate dynamics.",
+          "type": "string"
+        },
+        {
+          "const": "structured_credit_stochastic",
+          "description": "Structured-credit stochastic scenario waterfall model.\n\nUsed for: ABS/CLO/RMBS/CMBS tranche PVs with path-level waterfall cashflows.",
+          "type": "string"
+        },
+        {
+          "const": "bond_future_clean_price_proxy",
+          "description": "Bond future clean-price proxy model.\n\nUsed for: bond futures when only the current CTD clean-price proxy is\navailable. This is intentionally separate from [`Discounting`](Self::Discounting)\nbecause it does not model delivery carry, invoice economics, or delivery\noptionality.",
+          "type": "string"
+        },
+        {
+          "const": "monte_carlo_rough_bergomi",
+          "description": "Monte Carlo with rough Bergomi (rBergomi) stochastic volatility.\n\nUsed for: European/exotic equity options requiring rough volatility\ndynamics with fractional Brownian motion.",
+          "type": "string"
+        },
+        {
+          "const": "monte_carlo_rough_heston",
+          "description": "Monte Carlo with rough Heston stochastic volatility.\n\nUsed for: European/exotic equity options requiring rough Heston\ndynamics with Volterra-driven variance.",
+          "type": "string"
+        },
+        {
+          "const": "rough_heston_fourier",
+          "description": "Rough Heston semi-analytical via fractional Riccati Fourier transform.\n\nUsed for: European equity options with rough Heston dynamics,\nusing Lewis (2000) single-integral Fourier inversion.",
+          "type": "string"
+        },
+        {
+          "const": "monte_carlo_cheyette_rough_vol",
+          "description": "Monte Carlo with Cheyette + rough volatility (hybrid rates model).\n\nUsed for: swaptions and exotic rate derivatives requiring\nrough vol dynamics in a short-rate framework.",
+          "type": "string"
+        },
+        {
+          "const": "pde_crank_nicolson_1d",
+          "description": "1D Crank-Nicolson finite difference PDE solver.\n\nUsed for: European/American equity options, barrier options,\nFX options. Names the scheme family: production pricers run\nRannacher-damped CN (implicit start-up steps, Rannacher 1984),\nwith a penalty method for early exercise.",
+          "type": "string"
+        },
+        {
+          "const": "pde_adi_2d",
+          "description": "2D ADI (Craig-Sneyd) finite difference PDE solver.\n\nUsed for: Heston stochastic volatility, local-stochastic vol,\nand other 2D pricing problems. Splits the 2D PDE into\ndirectional tridiagonal sweeps with explicit cross-derivative.",
+          "type": "string"
+        },
+        {
+          "const": "bloomberg_cdso",
+          "description": "Bloomberg CDSO numerical-quadrature model for credit-default-swap\noptions.\n\nReference: Bloomberg L.P. Quantitative Analytics, *Pricing Credit\nIndex Options*, March 2012 (DOCS 2055833 ⟨GO⟩). The model\npreserves the lognormal-spread assumption of the original\nBlack-on-spreads model but solves `O = P(t_e) · E[(V_te + H(K) +\nD)+]` by numerical integration over the lognormal density. The\nlognormal mean `m` is calibrated by Brent root finding so that\n`F_0 = E[V_te]` (the no-knockout clean forward value); `H(K)` is\nthe strike-adjustment term `ξN(c − K)A(K)`; `D` is the realized\nloss settlement. The closed-form Black-on-spreads model was\ndecommissioned on the Bloomberg CDSO terminal in 2010.\n\nUsed for: CDS options (`InstrumentType::CdsOption`).",
+          "type": "string"
+        }
+      ]
+    },
     "NumericMode": {
       "description": "Numeric engine mode compiled into the crate.\n\nCurrently single-variant (F64); exists as `#[non_exhaustive]` for forward-compatible extension.\n\n# What the stamp asserts (and what it does not)\n\n`F64` asserts that **curve, rate, and analytics arithmetic** (discounting,\ninterpolation, risk metrics, scenario math, FX rates as scalars) runs on\n64-bit IEEE 754 floating point. It does **not** describe the [`Money`]\nlayer: monetary amounts are stored and combined on a Decimal-backed\nrepresentation (`rust_decimal::Decimal`) regardless of this stamp, with\nf64 appearing only at ingest/accessor boundaries. Auditors reading\n`numeric_mode: F64` in [`ResultsMeta`] should therefore interpret it as\n\"non-monetary numerics are f64\", not \"monetary amounts were accumulated\nin floating point\". (Clarified .)\n\n[`Money`]: crate::money::Money",
       "oneOf": [
         {
-          "const": "F64",
+          "const": "f64",
           "description": "Floating-point f64 engine for curve/rate/analytics arithmetic.\nMonetary amounts remain Decimal-backed independent of this variant.",
           "type": "string"
+        }
+      ]
+    },
+    "PositiveF64Wire": {
+      "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
+      "exclusiveMinimum": 0.0,
+      "format": "double",
+      "type": "number"
+    },
+    "PricingMode": {
+      "description": "Pricing mode selection.\n\nChoose based on horizon × dimensionality: `Tree` for SHORT-horizon\nnon-recombining stochastic deals (deterministic, low variance),\n`MonteCarlo` for long-horizon or high-dimensional pools, `Hybrid` to\nfront-load tree precision and tail with MC.\n\n# Tree mode is bounded by construction — read this before selecting it\n\nSC-M25: path-preserving tree pricing keeps `3^n` terminal nodes for `n`\nperiods, checked against `max_tree_paths` (default 100,000). `3^11 =\n177,147`, so **Tree hard-errors for any deal with more than ten periods\nremaining** — which is essentially every real deal, since\n`build_scenario_tree_config` sets `num_periods` to months-to-maturity.\n\nThis type previously documented Tree as \"Default mode\" and all three modes\nas \"first-class supported pricers\". That was not true of Tree at any\nrealistic horizon, and it only escaped notice because the public\n`price_stochastic` entry point overrides the default to Monte Carlo before\nthe mode is ever used.\n\nThe default is therefore [`PricingMode::MonteCarlo`] — the mode that can\nactually price the deals this module is built for. Tree remains available\nand correct for genuinely short horizons; select it explicitly.\n\nTest coverage:\n- **Tree**: `tests/instruments/structured_credit/unit/{stochastic_pricing_tests,stochastic_tranche_pv_tests}`, at horizons within the node bound.\n- **MonteCarlo**: the same suites plus the convergence tests.\n- **Hybrid**: structured-credit pricer integration tests.",
+      "oneOf": [
+        {
+          "const": "tree",
+          "description": "Tree-based pricing (exact, non-recombining).\n\nBounded to roughly ten periods by the `3^n` node count — see the type\ndocs. Not the default for that reason.",
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Monte Carlo pricing with specified number of paths.\n\nThe default, because it is the only mode that can price a deal at a\nrealistic horizon.",
+          "properties": {
+            "monte_carlo": {
+              "additionalProperties": false,
+              "properties": {
+                "antithetic": {
+                  "description": "Use antithetic variates for variance reduction",
+                  "type": "boolean"
+                },
+                "num_paths": {
+                  "description": "Number of simulation paths",
+                  "format": "uint",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "num_paths",
+                "antithetic"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "monte_carlo"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Hybrid: tree for short horizons, MC for long",
+          "properties": {
+            "hybrid": {
+              "additionalProperties": false,
+              "properties": {
+                "mc_paths": {
+                  "description": "MC paths for tail",
+                  "format": "uint",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "tree_periods": {
+                  "description": "Tree periods before switching to MC",
+                  "format": "uint",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "tree_periods",
+                "mc_paths"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "hybrid"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -171,7 +399,7 @@
     "RoundingContext": {
       "description": "Snapshot of active rounding settings used for result stamping.\n\nInstances are typically produced via [`rounding_context_from`] and persisted\nalongside valuation results.",
       "properties": {
-        "ingest_scale_by_ccy": {
+        "ingest_scale_by_currency": {
           "additionalProperties": {
             "format": "uint32",
             "minimum": 0,
@@ -184,7 +412,7 @@
           "$ref": "#/$defs/RoundingMode",
           "description": "Active rounding mode."
         },
-        "output_scale_by_ccy": {
+        "output_scale_by_currency": {
           "additionalProperties": {
             "format": "uint32",
             "minimum": 0,
@@ -210,8 +438,8 @@
       },
       "required": [
         "mode",
-        "ingest_scale_by_ccy",
-        "output_scale_by_ccy",
+        "ingest_scale_by_currency",
+        "output_scale_by_currency",
         "version"
       ],
       "type": "object"
@@ -220,31 +448,38 @@
       "description": "Rounding modes supported by the library.\n\nThe variants mirror the most common conventions found in pricing engines.\n\n# Examples\n```rust\nuse finstack_quant_core::config::{FinstackConfig, RoundingMode};\n\nlet mut cfg = FinstackConfig::default();\ncfg.rounding.mode = RoundingMode::TowardZero;\nassert!(matches!(cfg.rounding.mode, RoundingMode::TowardZero));\n```",
       "oneOf": [
         {
-          "const": "Bankers",
+          "const": "bankers",
           "description": "Banker's rounding (ties to even).",
           "type": "string"
         },
         {
-          "const": "AwayFromZero",
+          "const": "away_from_zero",
           "description": "Round halves away from zero.",
           "type": "string"
         },
         {
-          "const": "TowardZero",
+          "const": "toward_zero",
           "description": "Round toward zero (truncate).",
           "type": "string"
         },
         {
-          "const": "Floor",
+          "const": "floor",
           "description": "Round toward negative infinity.",
           "type": "string"
         },
         {
-          "const": "Ceil",
+          "const": "ceil",
           "description": "Round toward positive infinity.",
           "type": "string"
         }
       ]
+    },
+    "SchemaVersion": {
+      "description": "Numeric schema revision for contracts whose sole supported revision is v1.",
+      "format": "uint32",
+      "maximum": 1,
+      "minimum": 1,
+      "type": "integer"
     },
     "StochasticPricingResult": {
       "description": "Stochastic pricing result for a structured credit deal.",
@@ -283,8 +518,8 @@
           "type": "integer"
         },
         "pricing_mode": {
-          "description": "Pricing mode used",
-          "type": "string"
+          "$ref": "#/$defs/PricingMode",
+          "description": "Pricing mode used."
         },
         "pv_confidence_interval": {
           "description": "95% confidence interval for the mean PV",
@@ -336,19 +571,18 @@
       "type": "object"
     },
     "ToleranceConfig": {
+      "additionalProperties": false,
       "description": "Numerical tolerance configuration for floating-point comparisons.\n\nProvides configurable epsilon values for zero-checks in rate calculations\nand generic floating-point comparisons. These defaults are chosen to balance\nnumerical stability with practical precision requirements.\n\n# Examples\n```rust\nuse finstack_quant_core::config::ToleranceConfig;\n\nlet mut tol = ToleranceConfig::default();\nassert_eq!(tol.rate_epsilon, 1e-12);\n\n// Customize for stricter rate comparisons\ntol.rate_epsilon = 1e-14;\n```",
       "properties": {
         "generic_epsilon": {
+          "$ref": "#/$defs/PositiveF64Wire",
           "default": 1e-10,
-          "description": "Epsilon for generic floating-point comparisons (default: 1e-10).\n\nUsed for general numerical comparisons where higher tolerance is acceptable.",
-          "format": "double",
-          "type": "number"
+          "description": "Epsilon for generic floating-point comparisons (default: 1e-10).\n\nUsed for general numerical comparisons where higher tolerance is acceptable."
         },
         "rate_epsilon": {
+          "$ref": "#/$defs/PositiveF64Wire",
           "default": 1e-12,
-          "description": "Epsilon for rate comparisons (default: 1e-12).\n\nUsed when comparing interest rates, yields, and other small ratios.",
-          "format": "double",
-          "type": "number"
+          "description": "Epsilon for rate comparisons (default: 1e-12).\n\nUsed when comparing interest rates, yields, and other small ratios."
         }
       },
       "type": "object"
@@ -357,6 +591,7 @@
       "description": "Domain-specific trace entry types.\n\nEach variant captures relevant details for different types of computations:\n- Calibration: iteration details, convergence status\n- Pricing: cashflow-level PV breakdowns\n- Waterfall: step-by-step payment allocations",
       "oneOf": [
         {
+          "additionalProperties": false,
           "description": "Calibration solver iteration details",
           "properties": {
             "converged": {
@@ -396,6 +631,7 @@
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Cashflow present value breakdown",
           "properties": {
             "cashflow_amount": {
@@ -412,9 +648,8 @@
               "type": "string"
             },
             "date": {
-              "description": "Cashflow payment date (ISO8601)",
-              "format": "date",
-              "type": "string"
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+              "description": "Cashflow payment date (ISO8601)"
             },
             "discount_factor": {
               "description": "Discount factor applied",
@@ -448,6 +683,7 @@
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Structured credit waterfall step",
           "properties": {
             "cash_in_amount": {
@@ -510,6 +746,7 @@
           "type": "object"
         },
         {
+          "additionalProperties": false,
           "description": "Generic computation step (extensible)",
           "properties": {
             "description": {
@@ -573,8 +810,8 @@
           "description": "Net present value"
         },
         "seniority": {
-          "description": "Tranche seniority level",
-          "type": "string"
+          "$ref": "#/$defs/TrancheSeniority",
+          "description": "Tranche seniority level."
         },
         "spread": {
           "description": "Weighted average spread to LIBOR/SOFR",
@@ -604,6 +841,31 @@
         "credit_duration"
       ],
       "type": "object"
+    },
+    "TrancheSeniority": {
+      "description": "Tranche seniority levels",
+      "oneOf": [
+        {
+          "const": "senior",
+          "description": "Most senior debt tranche",
+          "type": "string"
+        },
+        {
+          "const": "mezzanine",
+          "description": "Mezzanine debt tranches",
+          "type": "string"
+        },
+        {
+          "const": "subordinated",
+          "description": "Subordinated debt tranches",
+          "type": "string"
+        },
+        {
+          "const": "equity",
+          "description": "Equity/first loss piece",
+          "type": "string"
+        }
+      ]
     },
     "ValuationDetails": {
       "description": "Model-specific typed valuation details.\n\nThese details are for rich structured outputs that do not fit the scalar\n`measures` map while still belonging in the standard valuation envelope.",
@@ -662,12 +924,14 @@
       ]
     }
   },
+  "$id": "https://finstack_quant.dev/schemas/results/1/valuation_result.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Valuation result envelope with PV, metrics, metadata, covenants, and optional explanation trace.",
+  "additionalProperties": false,
+  "description": "Canonical valuation result containing PV and typed metrics.",
   "properties": {
     "as_of": {
-      "description": "Valuation date (T+0) for the calculation.",
-      "type": "string"
+      "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+      "description": "Valuation date (T+0) for the calculation."
     },
     "covenants": {
       "additionalProperties": {
@@ -718,11 +982,8 @@
       "description": "Calculation metadata and policy stamps.\n\nContains:\n- Numeric mode (Decimal vs f64)\n- Rounding context and precision\n- FX policy for cross-currency calculations\n- Calculation timing information"
     },
     "schema_version": {
-      "default": 1,
-      "description": "Wire-format schema version (see `VALUATION_RESULT_SCHEMA_VERSION`).\n\nWritten into every serialized payload so downstream consumers can\ndetect schema mismatches when reading persisted results. Defaults to\nthe current version on deserialization of pre-versioning payloads.",
-      "format": "uint32",
-      "minimum": 0,
-      "type": "integer"
+      "$ref": "#/$defs/SchemaVersion",
+      "description": "Required wire-format schema version. Only numeric `1` is accepted."
     },
     "value": {
       "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
@@ -730,12 +991,13 @@
     }
   },
   "required": [
+    "schema_version",
     "instrument_id",
     "as_of",
     "value",
     "measures",
     "meta"
   ],
-  "title": "ValuationResult",
+  "title": "Valuation Result",
   "type": "object"
 }

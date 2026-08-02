@@ -1,5 +1,158 @@
 {
   "$defs": {
+    "CmsSpreadOption": {
+      "additionalProperties": false,
+      "description": "CMS Spread Option.\n\nOption on the spread between two CMS rates of different tenors.\n\n```text\nPayoff = max(CMS_long - CMS_short - strike, 0) * notional    [for a call]\nPayoff = max(strike - (CMS_long - CMS_short), 0) * notional   [for a put]\n```\n\nTypically: long tenor = 10Y or 30Y CMS, short tenor = 2Y CMS.\n\n# Pricing Approach\n\n1. Each CMS rate has SABR marginal distribution (reuses CMS option SABR calibration)\n2. Joint distribution via Gaussian copula with rank correlation\n3. CMS convexity adjustment applied to each leg via static replication\n\n# References\n\n- Hagan, P. S. (2003). \"Convexity Conundrums.\" *Wilmott Magazine*.\n- Antonov, A., Konikov, M., & Spector, M. (2013). \"SABR Spreads.\" *Risk*.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes."
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID."
+        },
+        "expiry_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Option expiry date."
+        },
+        "forward_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Forward curve ID (for swap rate projection)."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides.\nInstrument-owned pricing inputs."
+        },
+        "long_cms_tenor": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
+          "description": "Long CMS tenor (e.g., 10Y)."
+        },
+        "long_vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Swaption volatility surface for long tenor."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount."
+        },
+        "option_type": {
+          "$ref": "#/$defs/CmsSpreadOptionType",
+          "description": "Call or put on the spread."
+        },
+        "payment_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Payment date (may differ from expiry)."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "short_cms_tenor": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
+          "description": "Short CMS tenor (e.g., 2Y)."
+        },
+        "short_vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Swaption volatility surface for short tenor."
+        },
+        "spread_correlation": {
+          "description": "Rank correlation between the two CMS rates.",
+          "format": "double",
+          "type": "number"
+        },
+        "strike": {
+          "description": "Strike spread (in decimal, e.g., 0.005 = 50bp).",
+          "format": "double",
+          "type": "number"
+        },
+        "swap_convention": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IRSConvention"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "IRS convention for the underlying CMS swaps (e.g. `EurEstr`).\n\nWhen set, provides default values for the fixed/float frequency and\nday count. Individual fields still override the convention when set."
+        },
+        "swap_day_count": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Fixed leg day count of the underlying CMS swaps (overrides convention)."
+        },
+        "swap_fixed_frequency": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Fixed leg frequency of the underlying CMS swaps (overrides convention)."
+        },
+        "swap_float_day_count": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Floating leg day count of the underlying CMS swaps (overrides convention)."
+        },
+        "swap_float_frequency": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Floating leg frequency of the underlying CMS swaps (overrides convention)."
+        }
+      },
+      "required": [
+        "id",
+        "long_cms_tenor",
+        "short_cms_tenor",
+        "strike",
+        "option_type",
+        "notional",
+        "expiry_date",
+        "payment_date",
+        "long_vol_surface_id",
+        "short_vol_surface_id",
+        "discount_curve_id",
+        "forward_curve_id",
+        "spread_correlation",
+        "day_count",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "CmsSpreadOptionType": {
       "description": "Call or put on a CMS spread.",
       "oneOf": [
@@ -19,29 +172,60 @@
       "description": "Standard interest rate swap conventions by region.\n\n# Market Standards Reference (Post-IBOR Transition)\n\n| Convention | Index | Fixed DC | Float DC | Fixed Freq | Float Freq | Reset Lag |\n|------------|-------|----------|----------|------------|------------|-----------|\n| USD OIS | SOFR | 30/360 | ACT/360 | Semi-annual | Annual | T-2 |\n| EUR OIS | ESTR | 30/360 | ACT/360 | Annual | Annual | T-2 |\n| EUR IBOR | EURIBOR | 30/360 | ACT/360 | Annual | Semi-annual | T-2 |\n| GBP OIS | SONIA | ACT/365F | ACT/365F | Annual | Annual | T-0 |\n| JPY OIS | TONAR | ACT/365F | ACT/365F | Semi-annual | Annual | T-2 |\n\n# OIS Compounding\n\nNote: OIS swaps (SOFR, ESTR, SONIA, TONAR) use **daily compounded** rates\nwith observation shift (typically 2 days lookback). The float frequency\nindicates the payment/reset frequency, not the compounding frequency.\nSee compounding method guidance below for details.\n\n# Sources\n\n- ISDA 2021 IBOR Fallbacks Protocol\n- Bloomberg SWDF function\n- QuantLib OvernightIndexedSwap conventions",
       "oneOf": [
         {
-          "const": "u_s_d_standard",
+          "const": "usd_sofr",
           "description": "USD SOFR OIS: Semi-annual fixed, annual float, ACT/360\n\nStandard post-LIBOR USD swap convention using SOFR compounded in arrears.",
           "type": "string"
         },
         {
-          "const": "e_u_r_standard",
-          "description": "EUR ESTR OIS: Annual fixed, annual float, ACT/360\n\nStandard EUR OIS convention using ESTR compounded in arrears.\nFor legacy EURIBOR swaps, use [`EURIborStandard`](Self::EURIborStandard).",
+          "const": "eur_estr",
+          "description": "EUR ESTR OIS: Annual fixed, annual float, ACT/360\n\nStandard EUR OIS convention using ESTR compounded in arrears.\nFor EURIBOR swaps, use [`EurEuribor`](Self::EurEuribor).",
           "type": "string"
         },
         {
-          "const": "e_u_r_ibor_standard",
+          "const": "eur_euribor",
           "description": "EUR EURIBOR: Annual fixed, semi-annual float, ACT/360\n\nLegacy EUR swap convention using EURIBOR 6M as the floating index.\nThis is a term rate (not compounded daily).",
           "type": "string"
         },
         {
-          "const": "g_b_p_standard",
+          "const": "gbp_sonia",
           "description": "GBP SONIA OIS: Annual fixed, annual float, ACT/365F\n\nStandard GBP swap convention using SONIA compounded in arrears.",
           "type": "string"
         },
         {
-          "const": "j_p_y_standard",
+          "const": "jpy_tonar",
           "description": "JPY TONAR OIS: Semi-annual fixed, annual float, ACT/365F\n\nStandard JPY swap convention using TONAR compounded in arrears.",
           "type": "string"
+        }
+      ]
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "cms_spread_option": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/CmsSpreadOption"
+            },
+            "type": {
+              "const": "cms_spread_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
         }
       ]
     }
@@ -49,200 +233,54 @@
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/cms_spread_option.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "CMS spread option instrument schema",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
+  "examples": [
+    {
+      "instrument": {
+        "spec": {
+          "attributes": {},
+          "day_count": "act_360",
+          "discount_curve_id": "USD-OIS",
+          "expiry_date": "2027-03-29",
+          "forward_curve_id": "USD-SOFR-3M",
+          "id": "CMS-SPREAD-10Y2Y",
+          "long_cms_tenor": {
+            "count": 10,
+            "unit": "years"
+          },
+          "long_vol_surface_id": "USD-SWAPTION-VOL-10Y",
+          "notional": {
+            "amount": "10000000",
+            "currency": "USD"
+          },
+          "option_type": "call",
+          "payment_date": "2027-03-31",
+          "short_cms_tenor": {
+            "count": 2,
+            "unit": "years"
+          },
+          "short_vol_surface_id": "USD-SWAPTION-VOL-2Y",
+          "spread_correlation": 0.85,
+          "strike": 0.005,
+          "swap_convention": "usd_sofr"
+        },
+        "type": "cms_spread_option"
+      },
+      "schema": "finstack_quant.instrument/1"
+    }
+  ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Cms Spread Option instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes."
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention."
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID."
-            },
-            "expiry_date": {
-              "description": "Option expiry date.",
-              "format": "date",
-              "type": "string"
-            },
-            "forward_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Forward curve ID (for swap rate projection)."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "long_cms_tenor": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-              "description": "Long CMS tenor (e.g., 10Y)."
-            },
-            "long_vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Swaption volatility surface for long tenor."
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount."
-            },
-            "option_type": {
-              "$ref": "#/$defs/CmsSpreadOptionType",
-              "description": "Call or put on the spread."
-            },
-            "payment_date": {
-              "description": "Payment date (may differ from expiry).",
-              "format": "date",
-              "type": "string"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides.\nInstrument-owned pricing inputs."
-            },
-            "short_cms_tenor": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-              "description": "Short CMS tenor (e.g., 2Y)."
-            },
-            "short_vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Swaption volatility surface for short tenor."
-            },
-            "spread_correlation": {
-              "description": "Rank correlation between the two CMS rates.",
-              "format": "double",
-              "type": "number"
-            },
-            "strike": {
-              "description": "Strike spread (in decimal, e.g., 0.005 = 50bp).",
-              "format": "double",
-              "type": "number"
-            },
-            "swap_convention": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/IRSConvention"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "IRS convention for the underlying CMS swaps (e.g. `EURStandard`).\n\nWhen set, provides default values for the fixed/float frequency and\nday count. Individual fields still override the convention when set."
-            },
-            "swap_day_count": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Fixed leg day count of the underlying CMS swaps (overrides convention)."
-            },
-            "swap_fixed_freq": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Fixed leg frequency of the underlying CMS swaps (overrides convention)."
-            },
-            "swap_float_day_count": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Floating leg day count of the underlying CMS swaps (overrides convention)."
-            },
-            "swap_float_freq": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Floating leg frequency of the underlying CMS swaps (overrides convention)."
-            }
-          },
-          "required": [
-            "id",
-            "long_cms_tenor",
-            "short_cms_tenor",
-            "strike",
-            "option_type",
-            "notional",
-            "expiry_date",
-            "payment_date",
-            "long_vol_surface_id",
-            "short_vol_surface_id",
-            "discount_curve_id",
-            "forward_curve_id",
-            "spread_correlation",
-            "day_count",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "cms_spread_option",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/cms_spread_option"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "CMS Spread Option",
+  "title": "cms_spread_option",
   "type": "object"
 }

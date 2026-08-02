@@ -43,6 +43,11 @@ from finstack_quant.valuations.instruments import (
     validate_instrument_json,
 )
 
+
+def _instrument_json(instrument: dict[str, object]) -> str:
+    return json.dumps({"schema": "finstack_quant.instrument/1", "instrument": instrument})
+
+
 # ---------------------------------------------------------------------------
 # B1 — Black-Scholes / Black-76 primitives
 # ---------------------------------------------------------------------------
@@ -160,15 +165,15 @@ def test_sabr_calibrate_auto_shift_negative_rates_uses_shift() -> None:
 
 
 def _build_deposit_market() -> tuple[str, MarketContext]:
-    inst_json = json.dumps({
+    inst_json = _instrument_json({
         "type": "deposit",
         "spec": {
             "id": "DEP-B4",
-            "notional": {"amount": 1_000_000.0, "currency": "USD"},
+            "notional": {"amount": "1000000", "currency": "USD"},
             "start_date": "2025-01-15",
             "maturity": "2025-06-15",
-            "day_count": "Act360",
-            "quote_rate": 0.05,
+            "day_count": "act_360",
+            "quote_rate": "0.05",
             "discount_curve_id": "USD-OIS",
             "attributes": {},
         },
@@ -217,7 +222,7 @@ def test_instrument_cashflows_unsupported_model_raises() -> None:
 
 
 def _revolving_credit_json(*, gearing: str | None = None, credit_curve: bool = False) -> str:
-    return json.dumps({
+    return _instrument_json({
         "type": "revolving_credit",
         "spec": {
             "id": "RC-PY-BINDING",
@@ -226,10 +231,10 @@ def _revolving_credit_json(*, gearing: str | None = None, credit_curve: bool = F
             "commitment_date": "2024-01-01",
             "maturity": "2027-01-01",
             "base_rate_spec": (
-                {"Fixed": {"rate": 0.05}}
+                {"fixed": {"rate": 0.05}}
                 if gearing is None
                 else {
-                    "Floating": {
+                    "floating": {
                         "index_id": "USD-SOFR-3M",
                         "spread_bp": "250",
                         "gearing": gearing,
@@ -239,20 +244,20 @@ def _revolving_credit_json(*, gearing: str | None = None, credit_curve: bool = F
                         "cap_bp": None,
                         "index_cap_bp": None,
                         "fixing_calendar_id": None,
-                        "reset_freq": {"count": 3, "unit": "months"},
+                        "reset_frequency": {"count": 3, "unit": "months"},
                         "reset_lag_days": 2,
                     }
                 }
             ),
-            "day_count": "Act360",
+            "day_count": "act_360",
             "frequency": {"count": 3, "unit": "months"},
             "fees": {
-                "commitment_fee_tiers": [{"threshold": "0", "bps": "25"}],
-                "usage_fee_tiers": [{"threshold": "0", "bps": "10"}],
+                "commitment_fee_tiers": [{"threshold": "0", "bp": "25"}],
+                "usage_fee_tiers": [{"threshold": "0", "bp": "10"}],
                 "facility_fee_bp": 5.0,
             },
             "draw_repay_spec": {
-                "Deterministic": [
+                "deterministic": [
                     {
                         "date": "2024-06-01",
                         "amount": {"amount": "5000000", "currency": "USD"},
@@ -263,9 +268,8 @@ def _revolving_credit_json(*, gearing: str | None = None, credit_curve: bool = F
             "discount_curve_id": "USD-OIS",
             "credit_curve_id": "USD-HZ" if credit_curve else None,
             "recovery_rate": 0.4 if credit_curve else 0.0,
-            "stub": "ShortFront",
+            "stub": "short_front",
             "attributes": {"tags": [], "meta": {}},
-            "pricing_overrides": {},
         },
     })
 

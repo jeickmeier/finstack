@@ -76,7 +76,7 @@ const MAX_TENOR_MONTHS: u32 = MAX_TENOR_YEARS * 12;
     serde::Deserialize,
     schemars::JsonSchema,
 )]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum TenorUnit {
     /// Days (D)
     Days,
@@ -537,7 +537,7 @@ impl Tenor {
     /// # Arguments
     /// * `date` - Starting date
     /// * `calendar` - Optional holiday calendar for business day adjustment
-    /// * `bdc` - Business day convention to apply if calendar is provided
+    /// * `business_day_convention` - Business day convention to apply if calendar is provided
     ///
     /// # Returns
     /// The resulting date after adding the tenor period.
@@ -567,7 +567,7 @@ impl Tenor {
         &self,
         date: Date,
         calendar: Option<&dyn HolidayCalendar>,
-        bdc: BusinessDayConvention,
+        business_day_convention: BusinessDayConvention,
     ) -> crate::Result<Date> {
         use crate::dates::date_extensions::DateExt;
 
@@ -604,7 +604,7 @@ impl Tenor {
 
         // Apply business day convention if calendar provided
         if let Some(cal) = calendar {
-            adjust(raw_date, bdc, cal)
+            adjust(raw_date, business_day_convention, cal)
         } else {
             Ok(raw_date)
         }
@@ -620,8 +620,8 @@ impl Tenor {
     /// # Arguments
     ///
     /// * `as_of` - Anchor calendar date from which the tenor is projected forward
-    /// * `calendar` - Optional holiday calendar used when applying `bdc` to the end date
-    /// * `bdc` - Business-day convention applied when a calendar is provided
+    /// * `calendar` - Optional holiday calendar used when applying `business_day_convention` to the end date
+    /// * `business_day_convention` - Business-day convention applied when a calendar is provided
     /// * `day_count` - Day-count convention used to convert the date span into a year fraction
     ///
     /// # Returns
@@ -657,10 +657,10 @@ impl Tenor {
         &self,
         as_of: Date,
         calendar: Option<&dyn HolidayCalendar>,
-        bdc: BusinessDayConvention,
+        business_day_convention: BusinessDayConvention,
         day_count: DayCount,
     ) -> crate::Result<f64> {
-        let end_date = self.add_to_date(as_of, calendar, bdc)?;
+        let end_date = self.add_to_date(as_of, calendar, business_day_convention)?;
 
         let ctx = DayCountContext {
             calendar,

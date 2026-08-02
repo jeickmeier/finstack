@@ -15,10 +15,8 @@ use std::path::Path;
 
 /// Load a golden suite from a JSON file.
 ///
-/// This function supports multiple JSON formats:
-/// - Canonical format: `{ "meta": {...}, "cases": [...] }`
-/// - Array format: `[...]` (cases only, no metadata)
-/// - Single object format: `{...}` (single case, no metadata)
+/// The file must use the canonical `{ "meta": {...}, "cases": [...] }`
+/// envelope and explicitly declare `meta.schema_version: 1`.
 ///
 /// # Arguments
 ///
@@ -63,45 +61,23 @@ where
 
 /// Load a golden suite from a JSON string.
 ///
-/// Supports the same formats as [`load_suite_from_path`].
+/// Requires the canonical v1 suite envelope used by [`load_suite_from_path`].
 ///
 /// # Arguments
 ///
-/// * `json` - UTF-8 JSON text containing a canonical suite, array of cases, or
-///   one case deserializable as `T`.
+/// * `json` - UTF-8 JSON text containing a canonical v1 golden suite.
 ///
 /// # Errors
 ///
 /// Returns [`Error::Validation`] when `json` is neither a serialized
-/// [`GoldenSuite`] nor a JSON array of cases deserializable as `T`.
+/// [`GoldenSuite`].
 pub fn load_suite_from_str<T>(json: &str) -> Result<GoldenSuite<T>, Error>
 where
     T: DeserializeOwned,
 {
-    // Try canonical format first
-    if let Ok(suite) = serde_json::from_str::<GoldenSuite<T>>(json) {
-        return Ok(suite);
-    }
-
-    // Try array format (just cases, no metadata)
-    if let Ok(cases) = serde_json::from_str::<Vec<T>>(json) {
-        return Ok(GoldenSuite {
-            meta: SuiteMeta::default(),
-            cases,
-        });
-    }
-
-    // Try single object format
-    if let Ok(case) = serde_json::from_str::<T>(json) {
-        return Ok(GoldenSuite {
-            meta: SuiteMeta::default(),
-            cases: vec![case],
-        });
-    }
-
-    Err(Error::Validation(
-        "Failed to parse JSON as any known golden suite format".to_string(),
-    ))
+    serde_json::from_str::<GoldenSuite<T>>(json).map_err(|error| {
+        Error::Validation(format!("Failed to parse canonical golden suite: {error}"))
+    })
 }
 
 /// Load test cases from a directory of JSON files.
@@ -220,12 +196,10 @@ where
 ///
 /// # Arguments
 ///
-/// * `meta` - Suite metadata whose status is compared case-insensitively with
-///   `"certified"`.
+/// * `meta` - Suite metadata whose status must equal canonical `"certified"`.
 /// * `label` - Human-readable suite label included in the skip log message.
 pub fn is_suite_ready(meta: &SuiteMeta, label: &str) -> bool {
-    let status = meta.status.to_ascii_lowercase();
-    if status == "certified" {
+    if meta.status == "certified" {
         true
     } else {
         tracing::info!(
@@ -379,29 +353,22 @@ mod tests {
     }
 
     #[test]
-    fn test_load_array_format() {
+    fn rejects_array_format() {
         let json = r#"[
             { "id": "case1", "value": 1.0 },
             { "id": "case2", "value": 2.0 }
         ]"#;
 
         let result = load_suite_from_str::<SimpleCase>(json);
-        assert!(result.is_ok(), "Should parse array format");
-        if let Ok(suite) = result {
-            assert_eq!(suite.cases.len(), 2);
-        }
+        assert!(result.is_err(), "array format must be rejected");
     }
 
     #[test]
-    fn test_load_single_object() {
+    fn rejects_single_object_format() {
         let json = r#"{ "id": "case1", "value": 1.0 }"#;
 
         let result = load_suite_from_str::<SimpleCase>(json);
-        assert!(result.is_ok(), "Should parse single object format");
-        if let Ok(suite) = result {
-            assert_eq!(suite.cases.len(), 1);
-            assert_eq!(suite.cases[0].id, "case1");
-        }
+        assert!(result.is_err(), "single-object format must be rejected");
     }
 
     #[test]

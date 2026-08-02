@@ -70,10 +70,10 @@ def _section_holdings(val: dict[str, Any], theme: Theme) -> Section | None:
     degraded = set(val.get("degraded_positions") or [])
     rows = []
     for pid, p in pvs.items():
-        base_amt, base_ccy = _money(p.get("value_base"))
-        nat_amt, nat_ccy = _money(p.get("value_native"))
+        base_amt, base_currency = _money(p.get("value_base"))
+        nat_amt, nat_currency = _money(p.get("value_native"))
         label = f"{pid} (PV only)" if pid in degraded else str(pid)
-        rows.append((base_amt, base_ccy, label, p.get("entity_id"), fmt.money(nat_amt, nat_ccy)))
+        rows.append((base_amt, base_currency, label, p.get("entity_id"), fmt.money(nat_amt, nat_currency)))
     rows.sort(key=lambda r: _abs_key(r[0]), reverse=True)
     shown = rows[:_HOLDINGS_TOP_N]
     table_rows = [{"Position": r[2], "Entity": r[3], "Native": r[4], "Base": r[0]} for r in shown]
@@ -154,14 +154,14 @@ def _section_buckets(metrics: dict[str, Any] | None, theme: Theme) -> Section | 
     return Section("Tenor Risk Profile", body)
 
 
-def _section_cashflows(cashflows: dict[str, Any] | None, base_ccy: str, theme: Theme) -> Section | None:
+def _section_cashflows(cashflows: dict[str, Any] | None, base_currency: str, theme: Theme) -> Section | None:
     by_date = (cashflows or {}).get("by_date") or {}
     if not by_date:
         return None
     dates = sorted(by_date.keys())
     values = []
     for d in dates:
-        ccy_map = by_date[d].get(base_ccy) or {}
+        ccy_map = by_date[d].get(base_currency) or {}
         total = 0.0
         for kind_money in ccy_map.values():
             amt, _ = _money(kind_money)
@@ -171,7 +171,7 @@ def _section_cashflows(cashflows: dict[str, Any] | None, base_ccy: str, theme: T
     return Section(
         "Cashflow Ladder",
         charts.bar_chart(dates, values, theme=theme),
-        subtitle=f"Net base-currency ({base_ccy}) cashflow by date.",
+        subtitle=f"Net base-currency ({base_currency}) cashflow by date.",
     )
 
 
@@ -190,12 +190,14 @@ def portfolio_tearsheet(
 
     Parameters
     ----------
-    valuation : dict | str
-        A ``value_portfolio`` result (dict or JSON string).
-    metrics : dict | str, optional
-        An ``aggregate_metrics`` result; enables the sensitivities & buckets sections.
-    cashflows : dict | str, optional
-        An ``aggregate_full_cashflows().to_json()`` result; enables the cashflow ladder.
+    valuation : PortfolioValuation | dict | str
+        A typed ``value_portfolio`` result, parsed dictionary, or canonical JSON string.
+    metrics : PortfolioMetrics | dict | str, optional
+        A typed ``aggregate_metrics`` result, parsed dictionary, or canonical JSON;
+        enables the sensitivities and buckets sections.
+    cashflows : object | dict | str, optional
+        A typed ``aggregate_full_cashflows`` result, parsed dictionary, or canonical
+        JSON; enables the cashflow ladder.
     title : str, optional
         Optional main report heading for the portfolio summary.
     subtitle : str, optional
@@ -212,7 +214,7 @@ def portfolio_tearsheet(
     ValueError
         If ``sections`` contains an unknown section name.
     TypeError
-        If ``valuation`` is neither a dict nor a JSON string.
+        If a contract argument is neither typed, a dictionary, nor a JSON string.
 
     Returns:
     -------
@@ -233,7 +235,7 @@ def portfolio_tearsheet(
     val = json_or_dict(valuation, noun="valuation")
     metrics_d = json_or_dict(metrics, noun="metrics") if metrics is not None else None
     cashflows_d = json_or_dict(cashflows, noun="cashflows") if cashflows is not None else None
-    base_amt, base_ccy = _money(val.get("total_base_ccy"))
+    base_amt, base_currency = _money(val.get("total_base_currency"))
 
     secs: list[Section] = []
     if "holdings" in wanted and (s := _section_holdings(val, theme)) is not None:
@@ -244,7 +246,7 @@ def portfolio_tearsheet(
         secs.append(s)
     if "buckets" in wanted and (s := _section_buckets(metrics_d, theme)) is not None:
         secs.append(s)
-    if "cashflows" in wanted and (s := _section_cashflows(cashflows_d, base_ccy, theme)) is not None:
+    if "cashflows" in wanted and (s := _section_cashflows(cashflows_d, base_currency, theme)) is not None:
         secs.append(s)
 
     pvs = val.get("position_values") or {}
@@ -255,7 +257,7 @@ def portfolio_tearsheet(
     else:
         top_kpi = "·"
     kpis = [
-        KPI("Total Value", fmt.money(base_amt, base_ccy), fmt.sign_class(base_amt)),
+        KPI("Total Value", fmt.money(base_amt, base_currency), fmt.sign_class(base_amt)),
         KPI("Positions", str(len(pvs)), ""),
         KPI("Entities", str(len(by_ent)), ""),
         KPI("Top Entity", top_kpi, ""),
@@ -267,7 +269,7 @@ def portfolio_tearsheet(
         eyebrow="Portfolio Summary",
         title=title or "Portfolio",
         subtitle=subtitle if subtitle is not None else (f"As of {val.get('as_of')}" if val.get("as_of") else None),
-        meta_lines=[f"Base {base_ccy} · FX: {fx}" if base_ccy else "Decimal mode"],
+        meta_lines=[f"Base {base_currency} · FX: {fx}" if base_currency else "Decimal mode"],
         kpis=kpis,
         sections=secs,
         generated=generated,

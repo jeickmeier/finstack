@@ -503,7 +503,7 @@ impl RevolvingCreditPricer {
                 if let Some(ref hazard_id) = facility.credit_curve_id {
                     (
                         CreditSpreadProcessSpec::MarketAnchored {
-                            hazard_curve_id: hazard_id.clone(),
+                            credit_curve_id: hazard_id.clone(),
                             kappa: 0.1,
                             implied_vol: DEFAULT_CREDIT_SPREAD_IMPLIED_VOL,
                             tenor_years: None,
@@ -643,8 +643,6 @@ impl RevolvingCreditPricer {
         day_count: DayCount,
     ) -> Result<Vec<f64>> {
         use finstack_quant_core::dates::DayCountContext;
-        // Use facility day count for consistency with path generation
-        let dc = day_count;
 
         // First, compute cumulative hazard at each payment date
         let mut cumulative_hazards = Vec::with_capacity(time_points.len());
@@ -662,7 +660,8 @@ impl RevolvingCreditPricer {
         let mut survival_probs = Vec::with_capacity(cashflow_dates.len());
         for &cf_date in cashflow_dates {
             // Find the interval containing cf_date
-            let t_cf = dc.year_fraction(commitment_date, cf_date, DayCountContext::default())?;
+            let t_cf =
+                day_count.year_fraction(commitment_date, cf_date, DayCountContext::default())?;
 
             // Find the bracketing payment dates
             let hazard_at_cf = if let Some(idx) = time_points.iter().position(|&t| t >= t_cf) {
@@ -1654,7 +1653,7 @@ mod tests {
             correlation_matrix: None,
             recovery_rate: 0.4,
             credit_spread_process: CreditSpreadProcessSpec::MarketAnchored {
-                hazard_curve_id: "BORROWER-HZ".into(),
+                credit_curve_id: "BORROWER-HZ".into(),
                 kappa: 0.1,
                 implied_vol: DEFAULT_CREDIT_SPREAD_IMPLIED_VOL,
                 tenor_years: None,

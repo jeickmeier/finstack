@@ -90,7 +90,7 @@ pub(crate) struct EmbeddedOptionValueCalculator;
 impl EmbeddedOptionValueCalculator {
     /// Create a calculator with default settings.
     ///
-    /// Uses 100 tree steps and 1% (100 bps) normal volatility.
+    /// Uses 100 tree steps and 1% (100 bp) normal volatility.
     pub(crate) fn new() -> Self {
         Self
     }
@@ -100,7 +100,7 @@ impl EmbeddedOptionValueCalculator {
     /// # Arguments
     ///
     /// * `tree_steps` - Number of steps in the short-rate tree (50-200 typical)
-    /// * `volatility` - Short rate volatility (normal vol in decimal, e.g., 0.01 = 100 bps)
+    /// * `volatility` - Short rate volatility (normal vol in decimal, e.g., 0.01 = 100 bp)
     ///
     /// # Examples
     ///

@@ -27,6 +27,7 @@ use finstack_quant_valuations::instruments::Attributes;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::InstrumentPricingOverrides;
 use finstack_quant_valuations::instruments::PayReceive;
+use finstack_quant_valuations::metrics::MetricId;
 use rust_decimal::Decimal;
 use std::hint::black_box;
 use time::Month;
@@ -107,6 +108,14 @@ fn create_inflation_market() -> MarketContext {
         .insert_surface(vol)
 }
 
+/// ILBs apply their own publication lag, so their market index must be lag-free.
+fn create_inflation_linked_bond_market() -> MarketContext {
+    create_inflation_market().insert_inflation_index(
+        "US-CPI-U",
+        bench_inflation_index().with_lag(InflationLag::None),
+    )
+}
+
 fn standard_notional() -> Money {
     Money::new(1_000_000.0, Currency::USD)
 }
@@ -143,7 +152,7 @@ fn inflation_cap_floor(
         .frequency(Tenor::new(1, TenorUnit::Years))
         .day_count(DayCount::Act365F)
         .stub(StubKind::None)
-        .bdc(BusinessDayConvention::Following)
+        .business_day_convention(BusinessDayConvention::Following)
         .calendar_id_opt(None)
         .inflation_index_id(CurveId::new("US-CPI-U"))
         .discount_curve_id(CurveId::new("USD-OIS"))
@@ -166,13 +175,14 @@ fn tips_benchmark(id: &str, maturity: Date) -> InflationLinkedBond {
         .maturity(maturity)
         .base_index(250.0)
         .base_date(Date::from_calendar_date(2019, Month::October, 1).unwrap())
-        .indexation_method(IndexationMethod::TIPS)
+        .indexation_method(IndexationMethod::Tips)
         .lag(InflationLag::Months(3))
         .deflation_protection(DeflationProtection::MaturityOnly)
-        .bdc(BusinessDayConvention::Following)
+        .business_day_convention(BusinessDayConvention::Following)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::new("USD-OIS"))
         .inflation_index_id(CurveId::new("US-CPI-U"))
+        .quoted_clean_opt(Some(100.0))
         .attributes(Attributes::new())
         .build()
         .expect("TIPS")
@@ -224,7 +234,7 @@ fn inflation_cap_floor_pv(c: &mut Criterion) {
 
 fn inflation_linked_bond_pv(c: &mut Criterion) {
     let mut group = c.benchmark_group("inflation_linked_bond_pv");
-    let market = create_inflation_market();
+    let market = create_inflation_linked_bond_market();
     let as_of = base_date();
 
     let tips_5y = tips_benchmark(
@@ -238,10 +248,64 @@ fn inflation_linked_bond_pv(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark the yield, duration, and combined analytics displaced from tests.
+fn inflation_linked_bond_analytics(c: &mut Criterion) {
+    let mut group = c.benchmark_group("inflation_linked_bond_analytics");
+    group.sample_size(30);
+    let market = create_inflation_linked_bond_market();
+    let as_of = base_date();
+    let tips_5y = tips_benchmark(
+        "TIPS-5Y-ANALYTICS-BENCH",
+        Date::from_calendar_date(2030, Month::January, 15).unwrap(),
+    );
+
+    group.bench_function(BenchmarkId::new("real_yield", "5Y"), |b| {
+        b.iter(|| {
+            let result = tips_5y
+                .real_yield(black_box(100.0), black_box(&market), black_box(as_of))
+                .expect("TIPS real yield should calculate successfully");
+            black_box(result)
+        });
+    });
+
+    group.bench_function(BenchmarkId::new("real_duration", "5Y"), |b| {
+        b.iter(|| {
+            let result = tips_5y
+                .real_duration(black_box(&market), black_box(as_of))
+                .expect("TIPS real duration should calculate successfully");
+            black_box(result)
+        });
+    });
+
+    let metrics = [
+        MetricId::RealYield,
+        MetricId::IndexRatio,
+        MetricId::RealDuration,
+        MetricId::BreakevenInflation,
+        MetricId::Dv01,
+    ];
+    group.bench_function(BenchmarkId::new("five_metrics", "5Y"), |b| {
+        b.iter(|| {
+            let result = tips_5y
+                .price_with_metrics(
+                    black_box(&market),
+                    black_box(as_of),
+                    black_box(&metrics),
+                    finstack_quant_valuations::instruments::PricingOptions::default(),
+                )
+                .expect("TIPS analytics should calculate successfully");
+            black_box(result)
+        });
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     inflation_swap_pv,
     inflation_cap_floor_pv,
-    inflation_linked_bond_pv
+    inflation_linked_bond_pv,
+    inflation_linked_bond_analytics
 );
 criterion_main!(benches);

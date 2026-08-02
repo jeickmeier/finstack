@@ -184,7 +184,7 @@ fn market_context_roundtrip_preserves_hierarchy() {
 }
 
 #[test]
-fn market_context_v1_snapshot_without_hierarchy_restores_with_none() {
+fn market_context_requires_hierarchy_key_and_accepts_explicit_null() {
     let discount = DiscountCurve::builder("USD-OIS")
         .base_date(test_date())
         .knots([(0.0, 1.0), (5.0, 0.9)])
@@ -196,34 +196,40 @@ fn market_context_v1_snapshot_without_hierarchy_restores_with_none() {
     let object = json
         .as_object_mut()
         .expect("MarketContextState should serialize to a JSON object");
-    object.insert("version".into(), serde_json::json!(1));
     object.remove("hierarchy");
 
+    assert!(
+        serde_json::from_value::<MarketContext>(json.clone()).is_err(),
+        "the v1 shape requires an explicit hierarchy key"
+    );
+    json["hierarchy"] = serde_json::Value::Null;
     let restored: MarketContext = serde_json::from_value(json).unwrap();
     assert!(restored.get_discount("USD-OIS").is_ok());
     assert!(restored.completeness_report().is_none());
 }
 
 #[test]
-fn market_context_missing_version_is_legacy_v1_but_strict_loading_rejects_it() {
+fn market_context_missing_schema_version_is_rejected_by_all_loaders() {
     let mut json = serde_json::to_value(MarketContextState::from(&MarketContext::new()))
         .expect("state serializes");
     json.as_object_mut()
         .expect("state is object")
-        .remove("version");
+        .remove("schema_version");
 
-    let compatibility_state: MarketContextState =
-        serde_json::from_value(json.clone()).expect("missing version uses legacy policy");
-    assert_eq!(compatibility_state.version, 1);
+    serde_json::from_value::<MarketContextState>(json.clone())
+        .expect_err("ordinary serde requires schema_version");
 
     let bytes = serde_json::to_vec(&json).expect("fixture serializes");
     let error = MarketContext::from_state_slice(&bytes, &LoadLimits::default())
-        .expect_err("strict loading requires an explicit version");
+        .expect_err("strict loading requires an explicit schema_version");
     let ContractError::Report(report) = error else {
         panic!("expected structured report");
     };
     assert_eq!(report.diagnostics[0].code, "contract/version-missing");
-    assert_eq!(report.diagnostics[0].pointer.as_deref(), Some("/version"));
+    assert_eq!(
+        report.diagnostics[0].pointer.as_deref(),
+        Some("/schema_version")
+    );
 }
 
 #[test]
@@ -236,7 +242,7 @@ fn market_context_strict_loader_reports_zero_future_and_malformed_json() {
             .expect("state serializes");
         json.as_object_mut()
             .expect("state is object")
-            .insert("version".into(), serde_json::json!(version));
+            .insert("schema_version".into(), serde_json::json!(version));
         let bytes = serde_json::to_vec(&json).expect("fixture serializes");
         let error = MarketContext::from_state_slice(&bytes, &LoadLimits::default())
             .expect_err("unsupported version must fail");
@@ -256,45 +262,6 @@ fn market_context_strict_loader_reports_zero_future_and_malformed_json() {
 }
 
 #[test]
-fn market_context_version_matrix_fixture_is_executable() {
-    let fixture: serde_json::Value =
-        serde_json::from_str(include_str!("../data/market_context_version_matrix.json"))
-            .expect("version matrix fixture parses");
-    let base = fixture["base"]
-        .as_object()
-        .expect("fixture contains a realistic base document");
-    let cases = fixture["cases"]
-        .as_array()
-        .expect("fixture contains version cases");
-
-    for case in cases {
-        let name = case["name"].as_str().expect("case name");
-        let mut document = serde_json::Value::Object(base.clone());
-        match case.get("version") {
-            Some(serde_json::Value::Null) | None => {
-                document
-                    .as_object_mut()
-                    .expect("state object")
-                    .remove("version");
-            }
-            Some(version) => document["version"] = version.clone(),
-        }
-        let bytes = serde_json::to_vec(&document).expect("case serializes");
-        let expected = case["expected"].as_str().expect("expected outcome");
-        match MarketContext::from_state_slice(&bytes, &LoadLimits::default()) {
-            Ok((_context, report)) => {
-                assert_eq!(expected, "ok", "{name} unexpectedly loaded");
-                assert!(report.diagnostics.is_empty(), "{name}");
-            }
-            Err(ContractError::Report(report)) => {
-                assert_eq!(report.diagnostics[0].code, expected, "{name}");
-            }
-            Err(error) => panic!("{name} returned unstructured error: {error}"),
-        }
-    }
-}
-
-#[test]
 fn market_context_state_rejects_unsupported_versions() {
     for version in [
         0,
@@ -304,19 +271,12 @@ fn market_context_state_rejects_unsupported_versions() {
             .expect("state serializes");
         json.as_object_mut()
             .expect("state is object")
-            .insert("version".into(), serde_json::json!(version));
+            .insert("schema_version".into(), serde_json::json!(version));
 
-        let state: MarketContextState =
-            serde_json::from_value(json.clone()).expect("version is syntactically valid state");
-        assert!(
-            MarketContext::try_from(state).is_err(),
-            "try_from should reject version {version}"
-        );
-
-        let restored: Result<MarketContext, _> = serde_json::from_value(json);
+        let restored: Result<MarketContextState, _> = serde_json::from_value(json);
         assert!(
             restored.is_err(),
-            "MarketContext serde restore should reject version {version}"
+            "MarketContextState serde should reject version {version}"
         );
     }
 }
@@ -380,7 +340,7 @@ fn semantic_restore_fixture() -> MarketContextState {
     .expect("vol cube");
 
     MarketContextState {
-        version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+        schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
         curves: vec![
             CurveState::Discount(discount),
             CurveState::Hazard(hazard),
@@ -634,8 +594,8 @@ fn market_context_state_is_deterministically_sorted_and_roundtrips_full_snapshot
         .curves
         .iter()
         .map(|c| match c {
-            finstack_quant_core::market_data::context::CurveState::Discount(dc) => {
-                dc.id().to_string()
+            finstack_quant_core::market_data::context::CurveState::Discount(day_count) => {
+                day_count.id().to_string()
             }
             finstack_quant_core::market_data::context::CurveState::Forward(fc) => {
                 fc.id().to_string()
@@ -710,7 +670,7 @@ fn curve_storage_roundtrip_and_market_context_state_error_branch() {
 
     // MarketContextState -> MarketContext error branch: credit index references missing curve IDs.
     let bad_state = MarketContextState {
-        version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+        schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
         curves: vec![],
         fx: None,
         surfaces: vec![],

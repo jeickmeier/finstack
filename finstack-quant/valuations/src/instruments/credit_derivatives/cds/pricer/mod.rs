@@ -39,7 +39,7 @@
 //!
 //! The difference is typically:
 //! - **< 1bp** for investment grade credits (hazard rate < 1%)
-//! - **2-5 bps** for high yield/distressed credits (hazard rate > 3%)
+//! - **2-5 bp** for high yield/distressed credits (hazard rate > 3%)
 //!
 //! To use Bloomberg CDSW-style calculations, set `par_spread_uses_full_premium = true`
 //! in the [`CDSPricerConfig`].
@@ -51,7 +51,7 @@
 //!
 //! | Calculation | Day Count Source | Rationale |
 //! |-------------|------------------|-----------|
-//! | **Accrual fraction** | Instrument premium leg (`premium.dc`) | ACT/360 for NA, ACT/365F for Asia |
+//! | **Accrual fraction** | Instrument premium leg (`premium.day_count`) | ACT/360 for NA, ACT/365F for Asia |
 //! | **Survival time axis** | Hazard curve (`surv.day_count()`) | Consistent with curve construction |
 //! | **Discount time axis** | Discount curve (`disc.day_count()`) | Consistent with yield curve |
 //!

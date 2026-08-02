@@ -5,9 +5,9 @@
       "id": "XCCY-USDEUR-5Y",
       "leg1": {
         "allow_calendar_fallback": true,
-        "bdc": "modified_following",
+        "business_day_convention": "modified_following",
         "currency": "USD",
-        "day_count": "Act360",
+        "day_count": "act_360",
         "discount_curve_id": "USD-OIS",
         "end": "2029-01-03",
         "forward_curve_id": "USD-SOFR-3M",
@@ -23,13 +23,13 @@
         "side": "receive",
         "spread_bp": "0",
         "start": "2024-01-03",
-        "stub": "ShortFront"
+        "stub": "short_front"
       },
       "leg2": {
         "allow_calendar_fallback": true,
-        "bdc": "modified_following",
+        "business_day_convention": "modified_following",
         "currency": "EUR",
-        "day_count": "Act360",
+        "day_count": "act_360",
         "discount_curve_id": "EUR-OIS",
         "end": "2029-01-03",
         "forward_curve_id": "EUR-EURIBOR-3M",
@@ -45,7 +45,7 @@
         "side": "pay",
         "spread_bp": "10",
         "start": "2024-01-03",
-        "stub": "ShortFront"
+        "stub": "short_front"
       },
       "notional_exchange": "initial_and_final",
       "reporting_currency": "USD"

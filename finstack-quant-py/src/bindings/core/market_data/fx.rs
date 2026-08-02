@@ -188,10 +188,10 @@ impl PyFxMatrix {
         quote: &Bound<'_, PyAny>,
         rate: f64,
     ) -> PyResult<()> {
-        let base_ccy = extract_currency(base)?;
-        let quote_ccy = extract_currency(quote)?;
+        let base_currency = extract_currency(base)?;
+        let quote_currency = extract_currency(quote)?;
         self.inner
-            .set_quote(base_ccy, quote_ccy, rate)
+            .set_quote(base_currency, quote_currency, rate)
             .map_err(core_to_py)?;
         Ok(())
     }
@@ -206,12 +206,12 @@ impl PyFxMatrix {
         policy: &Bound<'_, PyAny>,
         rate: f64,
     ) -> PyResult<()> {
-        let base_ccy = extract_currency(base)?;
-        let quote_ccy = extract_currency(quote)?;
+        let base_currency = extract_currency(base)?;
+        let quote_currency = extract_currency(quote)?;
         let date = py_to_date(date)?;
         let policy = extract_fx_policy(policy)?;
         self.inner
-            .set_quote_on(base_ccy, quote_ccy, date, policy, rate)
+            .set_quote_on(base_currency, quote_currency, date, policy, rate)
             .map_err(core_to_py)
     }
 
@@ -240,15 +240,15 @@ impl PyFxMatrix {
         date: &Bound<'_, PyAny>,
         policy: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyFxRateResult> {
-        let base_ccy = extract_currency(base)?;
-        let quote_ccy = extract_currency(quote)?;
+        let base_currency = extract_currency(base)?;
+        let quote_currency = extract_currency(quote)?;
         let d = py_to_date(date)?;
         let pol = match policy {
             Some(p) => extract_fx_policy(p)?,
             None => FxConversionPolicy::CashflowDate,
         };
 
-        let query = FxQuery::with_policy(base_ccy, quote_ccy, d, pol);
+        let query = FxQuery::with_policy(base_currency, quote_currency, d, pol);
 
         let result = self.inner.rate(query).map_err(core_to_py)?;
         Ok(PyFxRateResult { inner: result })

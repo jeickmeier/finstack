@@ -1,6 +1,7 @@
 {
   "$defs": {
     "FutureContractSpecs": {
+      "additionalProperties": false,
       "description": "Contract specifications for interest rate futures.\n\nEncapsulates exchange-defined contract parameters and optional convexity\nadjustment for pricing.",
       "properties": {
         "convexity_adjustment": {
@@ -42,6 +43,132 @@
       ],
       "type": "object"
     },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "InterestRateFuture": {
+      "additionalProperties": false,
+      "description": "Interest Rate Future instrument.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "contract_specs": {
+          "$ref": "#/$defs/FutureContractSpecs",
+          "description": "Contract specifications"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier"
+        },
+        "expiry": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Future expiry/delivery date"
+        },
+        "fixing_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Underlying rate fixing date.\n\nDefaults to `expiry` when omitted."
+        },
+        "forward_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Forward curve identifier"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique identifier"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Attributes\nInstrument-owned pricing inputs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Exposure size expressed in currency units. PV is scaled by\n`notional.amount() / contract_specs.face_value` to support\nmultiples of the standard contract."
+        },
+        "period_end": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Rate period end date.\n\nDefaults to `period_start + contract_specs.delivery_months` months when omitted."
+        },
+        "period_start": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Rate period start date.\n\nDefaults to 2 calendar days after fixing date when omitted."
+        },
+        "position": {
+          "$ref": "#/$defs/Position",
+          "description": "Position side (Long or Short)"
+        },
+        "quoted_price": {
+          "description": "Quoted future price (e.g., 99.25)",
+          "format": "double",
+          "type": "number"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "vol_surface_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional volatility surface identifier for convexity adjustment"
+        }
+      },
+      "required": [
+        "id",
+        "notional",
+        "expiry",
+        "quoted_price",
+        "day_count",
+        "position",
+        "contract_specs",
+        "discount_curve_id",
+        "forward_curve_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "Position": {
       "description": "Position direction for futures and forwards.",
       "oneOf": [
@@ -56,12 +183,33 @@
           "type": "string"
         }
       ]
+    },
+    "interest_rate_future": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/InterestRateFuture"
+            },
+            "type": {
+              "const": "interest_rate_future",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/interest_rate_future.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Exchange-traded interest rate future. `fixing_date`, `period_start`, and `period_end` are optional and may be derived from `expiry_date` and contract conventions.",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -74,37 +222,19 @@
             "tick_size": 0.0025,
             "tick_value": 6.25
           },
-          "day_count": "Act360",
+          "day_count": "act_360",
           "discount_curve_id": "USD-OIS",
           "expiry": "2025-03-17",
+          "fixing_date": "2025-03-17",
           "forward_curve_id": "USD-SOFR-3M",
           "id": "IRF-ED-3M-MAR25",
           "notional": {
             "amount": "1000000",
             "currency": "USD"
           },
+          "period_end": "2025-06-18",
+          "period_start": "2025-03-19",
           "position": "long",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quoted_price": 95.5,
           "vol_surface_id": null
         },
@@ -115,148 +245,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Interest Rate Future instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "contract_specs": {
-              "$ref": "#/$defs/FutureContractSpecs",
-              "description": "Contract specifications"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier"
-            },
-            "expiry": {
-              "description": "Future expiry/delivery date",
-              "format": "date",
-              "type": "string"
-            },
-            "fixing_date": {
-              "description": "Underlying rate fixing date.\n\nDefaults to `expiry` when omitted.",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "forward_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Forward curve identifier"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique identifier"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Exposure size expressed in currency units. PV is scaled by\n`notional.amount() / contract_specs.face_value` to support\nmultiples of the standard contract."
-            },
-            "period_end": {
-              "description": "Rate period end date.\n\nDefaults to `period_start + contract_specs.delivery_months` months when omitted.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "period_start": {
-              "description": "Rate period start date.\n\nDefaults to 2 calendar days after fixing date when omitted.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "position": {
-              "$ref": "#/$defs/Position",
-              "description": "Position side (Long or Short)"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes\nInstrument-owned pricing inputs."
-            },
-            "quoted_price": {
-              "description": "Quoted future price (e.g., 99.25)",
-              "format": "double",
-              "type": "number"
-            },
-            "vol_surface_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional volatility surface identifier for convexity adjustment"
-            }
-          },
-          "required": [
-            "id",
-            "notional",
-            "expiry",
-            "quoted_price",
-            "day_count",
-            "position",
-            "contract_specs",
-            "discount_curve_id",
-            "forward_curve_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "interest_rate_future",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/interest_rate_future"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Interest Rate Future",
+  "title": "interest_rate_future",
   "type": "object"
 }

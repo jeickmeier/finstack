@@ -45,7 +45,7 @@
 //!     rate: RateSpec::Fixed { rate_bp: 600 },
 //!     frequency: Tenor::quarterly(),
 //!     day_count: DayCount::Act360,
-//!     bdc: BusinessDayConvention::ModifiedFollowing,
+//!     business_day_convention: BusinessDayConvention::ModifiedFollowing,
 //!     calendar_id: None,
 //!     stub: StubKind::None,
 //!     amortization: AmortizationSpec::None,
@@ -90,7 +90,7 @@ use super::types::RateSpec;
 /// - Distressed refinancings
 /// - High-yield institutional term loans
 ///
-/// Typical OID ranges from 1-5% (100-500 bps) of par value.
+/// Typical OID ranges from 1-5% (100-500 bp) of par value.
 ///
 /// # Accounting Treatment
 ///
@@ -115,13 +115,13 @@ use super::types::RateSpec;
 /// use finstack_quant_core::currency::Currency;
 ///
 /// // 2% OID withheld from proceeds
-/// let oid = OidPolicy::WithheldPct(200);  // 200 bps = 2%
+/// let oid = OidPolicy::WithheldPct(200);  // 200 bp = 2%
 ///
 /// // $50,000 fixed OID
 /// let oid_fixed = OidPolicy::WithheldAmount(Money::new(50_000.0, Currency::USD));
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum OidPolicy {
     /// Discount as percentage (basis points) withheld from funded proceeds
@@ -136,13 +136,13 @@ pub enum OidPolicy {
 
 impl OidPolicy {
     /// Create a withheld OID percentage using typed basis points.
-    pub fn withheld_pct_bps(bps: Bps) -> Self {
-        Self::WithheldPct(bps.as_bps())
+    pub fn withheld_pct_bp(bp: Bps) -> Self {
+        Self::WithheldPct(bp.as_bp())
     }
 
     /// Create a separate OID percentage using typed basis points.
-    pub fn separate_pct_bps(bps: Bps) -> Self {
-        Self::SeparatePct(bps.as_bps())
+    pub fn separate_pct_bp(bp: Bps) -> Self {
+        Self::SeparatePct(bp.as_bp())
     }
 }
 
@@ -173,7 +173,8 @@ impl Default for OidEirSpec {
 #[serde(deny_unknown_fields)]
 pub struct DrawEvent {
     /// Date of the draw
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Amount drawn from available commitment
     pub amount: Money,
@@ -187,7 +188,8 @@ pub struct DrawEvent {
 #[serde(deny_unknown_fields)]
 pub struct CommitmentStepDown {
     /// Effective date of the step-down
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// New (lower) commitment limit after step-down
     pub new_limit: Money,
@@ -200,6 +202,7 @@ pub struct CommitmentStepDown {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum CommitmentFeeBase {
     /// Fee based on total undrawn amount only
     Undrawn,
@@ -221,8 +224,8 @@ pub enum CommitmentFeeBase {
 ///
 /// Typical features:
 /// - Commitment period: 6-24 months
-/// - Commitment fees: 25-50 bps on undrawn amounts
-/// - Usage fees: 0-25 bps on drawn amounts
+/// - Commitment fees: 25-50 bp on undrawn amounts
+/// - Usage fees: 0-25 bp on drawn amounts
 /// - Step-downs: Commitment reduces at milestones (e.g., construction completion)
 ///
 /// # Fee Conventions
@@ -247,8 +250,8 @@ pub enum CommitmentFeeBase {
 ///     availability_end: create_date(2026, Month::January, 1)?,
 ///     draws: vec![],
 ///     commitment_step_downs: vec![],
-///     usage_fee_bp: 50,        // 50 bps usage fee
-///     commitment_fee_bp: 25,   // 25 bps commitment fee
+///     usage_fee_bp: 50,        // 50 bp usage fee
+///     commitment_fee_bp: 25,   // 25 bp commitment fee
 ///     fee_base: CommitmentFeeBase::Undrawn,
 ///     oid_policy: None,
 /// };
@@ -261,10 +264,12 @@ pub struct DdtlSpec {
     /// Total commitment limit available for draws
     pub commitment_limit: Money,
     /// First date draws are permitted
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub availability_start: Date,
     /// Last date draws are permitted (commitment expiry)
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub availability_end: Date,
     /// Scheduled or actual draw events
     pub draws: Vec<DrawEvent>,
@@ -282,14 +287,14 @@ pub struct DdtlSpec {
 
 impl DdtlSpec {
     /// Set usage fee using typed basis points.
-    pub fn with_usage_fee_bps(mut self, usage_fee_bp: Bps) -> Self {
-        self.usage_fee_bp = usage_fee_bp.as_bps();
+    pub fn with_usage_fee_bp(mut self, usage_fee_bp: Bps) -> Self {
+        self.usage_fee_bp = usage_fee_bp.as_bp();
         self
     }
 
     /// Set commitment fee using typed basis points.
-    pub fn with_commitment_fee_bps(mut self, commitment_fee_bp: Bps) -> Self {
-        self.commitment_fee_bp = commitment_fee_bp.as_bps();
+    pub fn with_commitment_fee_bp(mut self, commitment_fee_bp: Bps) -> Self {
+        self.commitment_fee_bp = commitment_fee_bp.as_bp();
         self
     }
 }
@@ -302,7 +307,8 @@ impl DdtlSpec {
 #[serde(deny_unknown_fields)]
 pub struct MarginStepUp {
     /// Effective date of margin increase
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Increase in margin (basis points)
     pub delta_bp: i32,
@@ -310,10 +316,10 @@ pub struct MarginStepUp {
 
 impl MarginStepUp {
     /// Create a margin step-up using typed basis points.
-    pub fn new_bps(date: Date, delta_bp: Bps) -> Self {
+    pub fn new_bp(date: Date, delta_bp: Bps) -> Self {
         Self {
             date,
-            delta_bp: delta_bp.as_bps(),
+            delta_bp: delta_bp.as_bp(),
         }
     }
 }
@@ -326,7 +332,8 @@ impl MarginStepUp {
 #[serde(deny_unknown_fields)]
 pub struct PikToggle {
     /// Date PIK feature is toggled
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// True to enable PIK, false to disable
     pub enable_pik: bool,
@@ -340,7 +347,8 @@ pub struct PikToggle {
 #[serde(deny_unknown_fields)]
 pub struct CashSweepEvent {
     /// Date of cash sweep prepayment
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Amount of mandatory prepayment
     pub amount: Money,
@@ -361,7 +369,8 @@ pub struct TermLoanCovenantEvents {
     /// Cash sweep (mandatory prepayment) schedule
     pub cash_sweeps: Vec<CashSweepEvent>,
     /// Dates on which draws are prohibited (covenant breach or scheduled)
-    #[schemars(with = "Vec<String>")]
+    #[serde(with = "finstack_quant_core::wire::dates")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub draw_stop_dates: Vec<Date>,
 }
 
@@ -372,16 +381,19 @@ pub struct TermLoanCovenantEvents {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum AmortizationSpec {
     /// Bullet loan with no scheduled amortization
     None,
     /// Linear amortization between start and end dates
     Linear {
         /// Amortization start date
-        #[schemars(with = "String")]
+        #[serde(with = "finstack_quant_core::wire::date")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         start: Date,
         /// Amortization end date (full repayment)
-        #[schemars(with = "String")]
+        #[serde(with = "finstack_quant_core::wire::date")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         end: Date,
     },
     /// Percentage of current outstanding principal per period (geometric decay).
@@ -417,13 +429,15 @@ pub enum AmortizationSpec {
         bp: i32,
     },
     /// Custom amortization schedule with explicit principal payments
-    Custom(#[schemars(with = "Vec<(String, Money)>")] Vec<(Date, Money)>),
+    Custom(
+        #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")] Vec<(Date, Money)>,
+    ),
 }
 
 impl AmortizationSpec {
     /// Create a per-period amortization schedule using typed basis points.
-    pub fn percent_per_period_bps(bp: Bps) -> Self {
-        Self::PercentPerPeriod { bp: bp.as_bps() }
+    pub fn percent_per_period_bp(bp: Bps) -> Self {
+        Self::PercentPerPeriod { bp: bp.as_bp() }
     }
 }
 
@@ -454,7 +468,7 @@ impl AmortizationSpec {
 /// use time::Month;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// // Example: Floating-rate term loan with SOFR + 300 bps
+/// // Example: Floating-rate term loan with SOFR + 300 bp
 /// let floating_spec = FloatingRateSpec {
 ///     index_id: CurveId::new("USD-SOFR-3M"),
 ///     spread_bp: dec!(300),
@@ -465,7 +479,7 @@ impl AmortizationSpec {
 ///     all_in_cap_bp: None,
 ///     index_cap_bp: None,
 ///     overnight_index_constraints: Default::default(),
-///     reset_freq: Tenor::quarterly(),
+///     reset_frequency: Tenor::quarterly(),
 ///     index_tenor: None,
 ///     reset_lag_days: 2,
 ///     fixing_calendar_id: None,
@@ -484,7 +498,7 @@ impl AmortizationSpec {
 ///     rate: RateSpec::Floating(floating_spec),
 ///     frequency: Tenor::quarterly(),
 ///     day_count: DayCount::Act360,
-///     bdc: BusinessDayConvention::ModifiedFollowing,
+///     business_day_convention: BusinessDayConvention::ModifiedFollowing,
 ///     calendar_id: None,
 ///     stub: StubKind::None,
 ///     amortization: AmortizationSpec::None,  // Bullet loan
@@ -503,7 +517,7 @@ impl AmortizationSpec {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, finstack_quant_valuations_macros::FocusedPricingOverrides)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TermLoanSpec {
     /// Unique instrument identifier
@@ -522,10 +536,12 @@ pub struct TermLoanSpec {
     /// Required for non-DDTL term loans.
     pub notional_limit: Option<Money>,
     /// Loan issue/origination date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue: Date,
     /// Final maturity date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Interest rate specification (fixed or floating)
     pub rate: RateSpec,
@@ -535,7 +551,7 @@ pub struct TermLoanSpec {
     pub day_count: DayCount,
     /// Business day convention for schedule adjustment
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional holiday calendar ID (default: no holidays)
     pub calendar_id: Option<String>,
     /// Stub period treatment
@@ -557,12 +573,22 @@ pub struct TermLoanSpec {
     pub covenants: Option<TermLoanCovenantEvents>,
     /// Pricing overrides (yield, price, etc.)
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Optional EIR amortization settings for reporting schedules
     #[serde(default)]
@@ -601,6 +627,7 @@ fn default_settlement_days() -> u32 {
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 #[derive(Default)]
+#[serde(rename_all = "snake_case")]
 pub enum LoanCallType {
     /// Hard call: callable at the stated price on or after the call date.
     /// This is the default if no call type is specified.
@@ -637,7 +664,8 @@ pub enum LoanCallType {
 #[serde(deny_unknown_fields)]
 pub struct LoanCall {
     /// Call date (earliest prepayment date for this call provision)
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Redemption price as percentage of par (e.g., 102.0 = 102% of par).
     /// For make-whole calls, this is the minimum (floor) price.

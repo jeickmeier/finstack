@@ -353,6 +353,7 @@ pub fn moment_match(samples: &mut [f64], target_mean: f64, target_std: f64) {
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum RealizedVarMethod {
     /// Standard close-to-close returns (market standard default)
     #[default]
@@ -395,26 +396,18 @@ impl std::fmt::Display for RealizedVarMethod {
     }
 }
 
-impl crate::parse::NormalizedEnum for RealizedVarMethod {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("close_to_close", Self::CloseToClose),
-        ("close", Self::CloseToClose),
-        ("closetoclose", Self::CloseToClose),
-        ("parkinson", Self::Parkinson),
-        ("garman_klass", Self::GarmanKlass),
-        ("garmanklass", Self::GarmanKlass),
-        ("rogers_satchell", Self::RogersSatchell),
-        ("rogerssatchell", Self::RogersSatchell),
-        ("yang_zhang", Self::YangZhang),
-        ("yangzhang", Self::YangZhang),
-    ];
-}
-
 impl std::str::FromStr for RealizedVarMethod {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s)
+        match s {
+            "close_to_close" => Ok(Self::CloseToClose),
+            "parkinson" => Ok(Self::Parkinson),
+            "garman_klass" => Ok(Self::GarmanKlass),
+            "rogers_satchell" => Ok(Self::RogersSatchell),
+            "yang_zhang" => Ok(Self::YangZhang),
+            _ => Err(format!("unknown realized-variance method {s:?}")),
+        }
     }
 }
 
@@ -1105,10 +1098,6 @@ impl OnlineCovariance {
 mod tests {
     use super::*;
 
-    fn assert_parses_to(label: &str, expected: RealizedVarMethod) {
-        assert!(matches!(label.parse::<RealizedVarMethod>(), Ok(value) if value == expected));
-    }
-
     #[test]
     fn test_online_stats_basic() {
         let mut stats = OnlineStats::new();
@@ -1507,14 +1496,19 @@ mod tests {
     }
 
     #[test]
-    fn realized_var_method_from_str_aliases() {
+    fn realized_var_method_from_str_rejects_noncanonical_spellings() {
         use super::RealizedVarMethod;
 
-        assert_parses_to("close", RealizedVarMethod::CloseToClose);
-        assert_parses_to("closetoclose", RealizedVarMethod::CloseToClose);
-        assert_parses_to("garmanklass", RealizedVarMethod::GarmanKlass);
-        assert_parses_to("rogerssatchell", RealizedVarMethod::RogersSatchell);
-        assert_parses_to("yangzhang", RealizedVarMethod::YangZhang);
+        for rejected in [
+            "close",
+            "closetoclose",
+            "garmanklass",
+            "rogerssatchell",
+            "yangzhang",
+            "YangZhang",
+        ] {
+            assert!(rejected.parse::<RealizedVarMethod>().is_err());
+        }
     }
 
     #[test]

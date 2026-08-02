@@ -291,7 +291,8 @@ pub enum FundEventKind {
 #[serde(deny_unknown_fields)]
 pub struct FundEvent {
     /// Date of the event
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Amount (positive for all event types, sign determined by kind)
     pub amount: Money,
@@ -355,7 +356,8 @@ impl FundEvent {
 #[serde(deny_unknown_fields)]
 pub struct AllocationRow {
     /// Date of allocation
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub date: Date,
     /// Period key (for grouping)
     pub period_key: Option<Arc<str>>,
@@ -387,7 +389,8 @@ pub struct AllocationLedger {
     pub meta: ResultsMeta,
     /// LP contribution events stored as negative flows for cashflow reconstruction
     #[serde(default)]
-    #[schemars(with = "Vec<(String, Money)>")]
+    #[serde(with = "finstack_quant_core::wire::dated_money_values")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, Money)>")]
     contributions: Vec<(Date, Money)>,
 }
 

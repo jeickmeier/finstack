@@ -61,7 +61,7 @@ cf_kind_classattrs! {
     /// Principal exchange or notional flow.
     NOTIONAL => Notional,
     /// Payment-in-kind interest capitalization.
-    PIK => PIK,
+    PIK => Pik,
     /// Scheduled amortization (principal repayment).
     AMORTIZATION => Amortization,
     /// Prepayment of principal (unscheduled early repayment).

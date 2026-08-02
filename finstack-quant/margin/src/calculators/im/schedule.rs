@@ -21,6 +21,7 @@ use finstack_quant_core::math::neumaier_sum;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
+use std::borrow::Cow;
 
 /// Asset class for schedule-based IM calculation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -42,20 +43,16 @@ pub enum ScheduleAssetClass {
 }
 
 impl ScheduleAssetClass {
-    fn normalize(raw: &str) -> String {
-        raw.trim().to_ascii_lowercase().replace([' ', '-'], "_")
-    }
-
-    /// Normalized string identifier for this asset class.
-    pub fn as_str(&self) -> &str {
+    /// Canonical string identifier for this asset class.
+    pub fn as_str(&self) -> Cow<'_, str> {
         match self {
-            ScheduleAssetClass::InterestRate => "interest_rate",
-            ScheduleAssetClass::Credit => "credit",
-            ScheduleAssetClass::Equity => "equity",
-            ScheduleAssetClass::Commodity => "commodity",
-            ScheduleAssetClass::Fx => "fx",
-            ScheduleAssetClass::Other => "other",
-            ScheduleAssetClass::Custom(s) => s.as_str(),
+            ScheduleAssetClass::InterestRate => Cow::Borrowed("interest_rate"),
+            ScheduleAssetClass::Credit => Cow::Borrowed("credit"),
+            ScheduleAssetClass::Equity => Cow::Borrowed("equity"),
+            ScheduleAssetClass::Commodity => Cow::Borrowed("commodity"),
+            ScheduleAssetClass::Fx => Cow::Borrowed("fx"),
+            ScheduleAssetClass::Other => Cow::Borrowed("other"),
+            ScheduleAssetClass::Custom(name) => Cow::Owned(format!("custom_{name}")),
         }
     }
 }
@@ -65,7 +62,7 @@ impl serde::Serialize for ScheduleAssetClass {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(self.as_str())
+        serializer.serialize_str(self.as_str().as_ref())
     }
 }
 
@@ -89,15 +86,27 @@ impl std::str::FromStr for ScheduleAssetClass {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let norm = ScheduleAssetClass::normalize(s);
-        match norm.as_str() {
-            "interest_rate" | "ir" => Ok(ScheduleAssetClass::InterestRate),
+        match s {
+            "interest_rate" => Ok(ScheduleAssetClass::InterestRate),
             "credit" => Ok(ScheduleAssetClass::Credit),
             "equity" => Ok(ScheduleAssetClass::Equity),
             "commodity" => Ok(ScheduleAssetClass::Commodity),
             "fx" => Ok(ScheduleAssetClass::Fx),
             "other" => Ok(ScheduleAssetClass::Other),
-            other => Ok(ScheduleAssetClass::Custom(other.to_string())),
+            custom if custom.starts_with("custom_") => {
+                let name = &custom["custom_".len()..];
+                if name.is_empty()
+                    || !name.chars().all(|character| {
+                        character.is_ascii_lowercase()
+                            || character.is_ascii_digit()
+                            || character == '_'
+                    })
+                {
+                    return Err(format!("invalid custom schedule asset class {s:?}"));
+                }
+                Ok(ScheduleAssetClass::Custom(name.to_string()))
+            }
+            _ => Err(format!("unknown schedule asset class {s:?}")),
         }
     }
 }
@@ -462,9 +471,9 @@ impl ScheduleImCalculator {
             return None;
         }
         // Reporting currency must be consistent across the netting set.
-        let reporting_ccy = positions[0].0.currency();
+        let reporting_currency = positions[0].0.currency();
         if positions.iter().any(|(mtm, notional)| {
-            mtm.currency() != reporting_ccy || notional.currency() != reporting_ccy
+            mtm.currency() != reporting_currency || notional.currency() != reporting_currency
         }) {
             return None;
         }
@@ -501,7 +510,7 @@ impl ScheduleImCalculator {
         let rate = self.schedule.rate(asset_class, maturity_years);
         Some(Money::new(
             gross_notional_sum * rate * reduction,
-            reporting_ccy,
+            reporting_currency,
         ))
     }
 
@@ -891,8 +900,8 @@ mod tests {
     fn from_registry_id_matches_bcbs_iosco() {
         let via_named = RegulatorySchedule::from_registry_id(BCBS_IOSCO_SCHEDULE_ID)
             .expect("named schedule should load");
-        let via_legacy = RegulatorySchedule::bcbs_iosco().expect("bcbs_iosco should load");
-        assert_eq!(via_named.default_rate, via_legacy.default_rate);
-        assert_eq!(via_named.rates.len(), via_legacy.rates.len());
+        let via_default = RegulatorySchedule::bcbs_iosco().expect("bcbs_iosco should load");
+        assert_eq!(via_named.default_rate, via_default.default_rate);
+        assert_eq!(via_named.rates.len(), via_default.rates.len());
     }
 }

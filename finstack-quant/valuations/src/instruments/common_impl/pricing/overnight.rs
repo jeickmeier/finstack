@@ -123,12 +123,12 @@ pub(crate) fn resolve_overnight_fixing_calendar(
 pub(crate) fn adjust_overnight_accrual_boundaries(
     accrual_start: Date,
     accrual_end: Date,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     calendar: &dyn HolidayCalendar,
 ) -> Result<(Date, Date)> {
     Ok((
-        adjust(accrual_start, bdc, calendar)?,
-        adjust(accrual_end, bdc, calendar)?,
+        adjust(accrual_start, business_day_convention, calendar)?,
+        adjust(accrual_end, business_day_convention, calendar)?,
     ))
 }
 

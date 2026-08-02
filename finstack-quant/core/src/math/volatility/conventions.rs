@@ -9,6 +9,7 @@ use crate::Result;
 
 /// Volatility quoting convention.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum VolatilityConvention {
     /// Normal (absolute) volatility in basis points
     Normal,

@@ -38,7 +38,7 @@ pub fn sample_swap(side: PayReceive) -> VarianceSwap {
         .strike_variance(DEFAULT_STRIKE_VAR)
         .start_date(start)
         .maturity(end)
-        .observation_freq(Tenor::daily())
+        .observation_frequency(Tenor::daily())
         .observation_calendar_id("USNY".to_string())
         .realized_var_method(RealizedVarMethod::CloseToClose)
         .side(side)

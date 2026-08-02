@@ -5,6 +5,7 @@ use thiserror::Error;
 
 /// Errors from PD calibration and term structure construction.
 #[derive(Debug, Clone, PartialEq, Error, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PdCalibrationError {
     /// PD value is not in the valid range (0, 1).

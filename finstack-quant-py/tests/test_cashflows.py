@@ -20,7 +20,7 @@ def _cashflow_spec() -> str:
     return json.dumps({
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None",
+            "amort": "none",
         },
         "issue": "2024-08-31",
         "maturity": "2025-08-31",
@@ -28,13 +28,13 @@ def _cashflow_spec() -> str:
             {
                 "kind": "fixed",
                 "spec": {
-                    "coupon_type": "Cash",
+                    "coupon_type": "cash",
                     "rate": "0.06",
-                    "freq": {"count": 12, "unit": "months"},
-                    "dc": "Thirty360",
-                    "bdc": "following",
+                    "frequency": {"count": 12, "unit": "months"},
+                    "day_count": "30_360",
+                    "business_day_convention": "following",
                     "calendar_id": "weekends_only",
-                    "stub": "None",
+                    "stub": "none",
                     "end_of_month": False,
                     "payment_lag_days": 0,
                 },
@@ -45,13 +45,13 @@ def _cashflow_spec() -> str:
 
 def _market_json() -> str:
     return json.dumps({
-        "version": 2,
+        "schema_version": 1,
         "curves": [
             {
                 "type": "discount",
                 "id": "USD-OIS",
                 "base": "2024-01-01",
-                "day_count": "Act365F",
+                "day_count": "act_365f",
                 "knot_points": [[0.0, 1.0], [1.0, 0.95], [5.0, 0.80]],
                 "interp_style": "linear",
                 "extrapolation": "flat_forward",
@@ -70,6 +70,7 @@ def _market_json() -> str:
         "fx_delta_vol_surfaces": [],
         "vol_cubes": [],
         "collateral": {},
+        "hierarchy": None,
     })
 
 
@@ -77,7 +78,7 @@ def _floating_cashflow_spec() -> str:
     return json.dumps({
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None",
+            "amort": "none",
         },
         "issue": "2025-01-15",
         "maturity": "2026-01-15",
@@ -94,18 +95,18 @@ def _floating_cashflow_spec() -> str:
                         "all_in_floor_bp": None,
                         "all_in_cap_bp": None,
                         "index_cap_bp": None,
-                        "reset_freq": {"count": 3, "unit": "months"},
+                        "reset_frequency": {"count": 3, "unit": "months"},
                         "reset_lag_days": 0,
                         "fixing_calendar_id": None,
                         "overnight_compounding": None,
                         "overnight_basis": None,
                     },
-                    "coupon_type": "Cash",
-                    "freq": {"count": 3, "unit": "months"},
-                    "dc": "Act360",
-                    "bdc": "following",
+                    "coupon_type": "cash",
+                    "frequency": {"count": 3, "unit": "months"},
+                    "day_count": "act_360",
+                    "business_day_convention": "following",
                     "calendar_id": "weekends_only",
-                    "stub": "None",
+                    "stub": "none",
                     "end_of_month": False,
                     "payment_lag_days": 0,
                 },
@@ -121,7 +122,7 @@ def _floating_market_json() -> str:
         "id": "USD-SOFR-3M",
         "base": "2025-01-15",
         "reset_lag": 0,
-        "day_count": "Act360",
+        "day_count": "act_360",
         "tenor": 0.25,
         "knot_points": [[0.0, 0.03], [1.0, 0.04], [5.0, 0.05]],
         "interp_style": "linear",
@@ -142,7 +143,7 @@ def test_cashflows_namespace_build_validate_accrual_and_price_bond() -> None:
 
     instrument_json = bond_from_cashflows_json("CUSTOM-CF", schedule_json, "USD-OIS", 99.0)
     instrument = json.loads(instrument_json)
-    assert instrument["type"] == "bond"
+    assert instrument["instrument"]["type"] == "bond"
 
     result = json.loads(price_instrument(instrument_json, _market_json(), "2024-09-03", "discounting"))
     assert result["instrument_id"] == "CUSTOM-CF"
@@ -153,7 +154,7 @@ def test_cashflows_builds_floating_schedule_with_market_json() -> None:
     schedule_json = build_cashflow_schedule_json(_floating_cashflow_spec(), _floating_market_json())
     schedule = json.loads(schedule_json)
 
-    float_flows = [flow for flow in schedule["flows"] if flow["kind"] == "FloatReset"]
+    float_flows = [flow for flow in schedule["flows"] if flow["kind"] == "float_reset"]
     assert float_flows
     assert all(flow["rate"] > 0.015 for flow in float_flows)
 
@@ -178,26 +179,26 @@ def test_cashflows_builds_step_up_with_payment_program() -> None:
         {
             "kind": "program",
             "steps": [
-                {"date": "2025-01-01", "split": "PIK"},
-                {"date": "2026-01-01", "split": "Cash"},
+                {"date": "2025-01-01", "split": "pik"},
+                {"date": "2026-01-01", "split": "cash"},
             ],
         }
     ]
 
     schedule = json.loads(build_cashflow_schedule_json(json.dumps(spec)))
-    assert any(flow["kind"] == "PIK" for flow in schedule["flows"])
+    assert any(flow["kind"] == "pik" for flow in schedule["flows"])
 
 
 def test_cashflows_builds_fixed_to_float_and_explicit_windows() -> None:
     floating = json.loads(_floating_cashflow_spec())["coupon_program"][0]["spec"]
     floating["rate_spec"]["index_id"] = "TEST-INDEX"
-    floating["rate_spec"]["fallback"] = "SpreadOnly"
+    floating["rate_spec"]["fallback"] = "spread_only"
     schedule = {
         key: floating[key]
         for key in (
-            "freq",
-            "dc",
-            "bdc",
+            "frequency",
+            "day_count",
+            "business_day_convention",
             "calendar_id",
             "stub",
             "end_of_month",
@@ -207,7 +208,7 @@ def test_cashflows_builds_fixed_to_float_and_explicit_windows() -> None:
     base = {
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None",
+            "amort": "none",
         },
         "issue": "2025-01-01",
         "maturity": "2027-01-01",
@@ -221,12 +222,12 @@ def test_cashflows_builds_fixed_to_float_and_explicit_windows() -> None:
                 "switch": "2026-01-01",
                 "fixed": {"rate": "0.04", "schedule": schedule},
                 "floating": floating,
-                "fixed_split": "Cash",
+                "fixed_split": "cash",
             }
         ],
     }
     built = json.loads(build_cashflow_schedule_json(json.dumps(fixed_to_float)))
-    assert {flow["kind"] for flow in built["flows"]} >= {"Fixed", "FloatReset"}
+    assert {flow["kind"] for flow in built["flows"]} >= {"fixed", "float_reset"}
 
     explicit_windows = {
         **base,
@@ -235,7 +236,7 @@ def test_cashflows_builds_fixed_to_float_and_explicit_windows() -> None:
                 "kind": "fixed_window",
                 "start": "2025-01-01",
                 "end": "2026-01-01",
-                "spec": {"coupon_type": "Cash", "rate": "0.04", **schedule},
+                "spec": {"coupon_type": "cash", "rate": "0.04", **schedule},
             },
             {
                 "kind": "floating_window",
@@ -246,7 +247,7 @@ def test_cashflows_builds_fixed_to_float_and_explicit_windows() -> None:
         ],
     }
     built = json.loads(build_cashflow_schedule_json(json.dumps(explicit_windows)))
-    assert {flow["kind"] for flow in built["flows"]} >= {"Fixed", "FloatReset"}
+    assert {flow["kind"] for flow in built["flows"]} >= {"fixed", "float_reset"}
 
 
 def test_cashflows_reports_overlapping_payment_windows() -> None:
@@ -258,13 +259,13 @@ def test_cashflows_reports_overlapping_payment_windows() -> None:
             "kind": "window",
             "start": "2025-01-01",
             "end": "2026-06-01",
-            "split": "PIK",
+            "split": "pik",
         },
         {
             "kind": "window",
             "start": "2026-01-01",
             "end": "2027-01-01",
-            "split": "Cash",
+            "split": "cash",
         },
     ]
 
@@ -276,7 +277,7 @@ def test_cashflows_accrued_interest_accepts_config_json() -> None:
     schedule_json = build_cashflow_schedule_json(_cashflow_spec())
 
     config_json = json.dumps({
-        "method": "Linear",
+        "method": "linear",
         "include_pik": True,
         "frequency": {"count": 12, "unit": "months"},
     })
@@ -287,7 +288,7 @@ def test_cashflows_accrued_interest_accepts_config_json() -> None:
 def test_cashflows_accrued_interest_rejects_unknown_config_json_fields() -> None:
     schedule_json = build_cashflow_schedule_json(_cashflow_spec())
     config_json = json.dumps({
-        "method": "Linear",
+        "method": "linear",
         "include_pik": True,
         "strict_issue_date": True,
     })
@@ -301,8 +302,8 @@ def test_cashflows_bond_from_cashflows_allows_missing_quoted_clean() -> None:
     instrument_json = bond_from_cashflows_json("CUSTOM-CF-NO-QUOTE", schedule_json, "USD-OIS")
     instrument = json.loads(instrument_json)
 
-    assert instrument["type"] == "bond"
-    assert instrument["spec"]["id"] == "CUSTOM-CF-NO-QUOTE"
+    assert instrument["instrument"]["type"] == "bond"
+    assert instrument["instrument"]["spec"]["id"] == "CUSTOM-CF-NO-QUOTE"
 
 
 def test_cashflows_reject_malformed_json_and_invalid_dates() -> None:
@@ -355,7 +356,7 @@ def test_cashflows_reject_amortization_over_notional() -> None:
         "date": "2025-03-31",
         "reset_date": None,
         "amount": {"amount": "1000011", "currency": "USD"},
-        "kind": "Amortization",
+        "kind": "amortization",
         "accrual_factor": 0.0,
         "rate": None,
     })

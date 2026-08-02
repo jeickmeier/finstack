@@ -1,7 +1,49 @@
 {
   "$defs": {
     "CollateralAssetClass": {
-      "type": "string"
+      "description": "Collateral asset classes per BCBS-IOSCO standards.\n\nAsset classes determine baseline haircuts and eligibility criteria.\nThe BCBS-IOSCO framework specifies minimum haircuts by asset class.\n\n# Reference\n\nBCBS-IOSCO \"Margin requirements for non-centrally cleared derivatives\" (2020)\nAnnex A: Standardized haircut schedule",
+      "oneOf": [
+        {
+          "const": "cash",
+          "description": "Cash in eligible currency",
+          "type": "string"
+        },
+        {
+          "const": "government_bonds",
+          "description": "Sovereign government bonds accepted as collateral.",
+          "type": "string"
+        },
+        {
+          "const": "agency_bonds",
+          "description": "Debt issued or guaranteed by eligible agencies.",
+          "type": "string"
+        },
+        {
+          "const": "covered_bonds",
+          "description": "Covered bonds meeting the applicable eligibility criteria.",
+          "type": "string"
+        },
+        {
+          "const": "corporate_bonds",
+          "description": "Investment-grade corporate bonds accepted under the CSA.",
+          "type": "string"
+        },
+        {
+          "const": "equity",
+          "description": "Eligible listed equity collateral.",
+          "type": "string"
+        },
+        {
+          "const": "gold",
+          "description": "Eligible gold collateral.",
+          "type": "string"
+        },
+        {
+          "const": "mutual_funds",
+          "description": "Eligible mutual funds or exchange-traded funds.",
+          "type": "string"
+        }
+      ]
     },
     "CollateralEligibility": {
       "additionalProperties": false,
@@ -14,6 +56,8 @@
         "concentration_limit": {
           "description": "Concentration limit as fraction of total collateral (optional)\n\nE.g., 0.30 means max 30% of collateral can be this type.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
@@ -23,11 +67,15 @@
           "default": 0.0,
           "description": "Additional FX haircut for currency mismatch (decimal)\n\nApplied when collateral currency differs from settlement currency.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": "number"
         },
         "haircut": {
           "description": "Haircut as decimal (e.g., 0.02 = 2%)",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": "number"
         },
         "maturity_constraints": {
@@ -56,6 +104,7 @@
       "type": "object"
     },
     "CollateralSpec": {
+      "additionalProperties": false,
       "description": "Specification of collateral backing a repo.",
       "properties": {
         "collateral_type": {
@@ -88,7 +137,7 @@
       "description": "Classification of collateral for repos.",
       "oneOf": [
         {
-          "const": "General",
+          "const": "general",
           "description": "General collateral (standard market rates)",
           "type": "string"
         },
@@ -96,7 +145,7 @@
           "additionalProperties": false,
           "description": "Special collateral (specific securities in high demand, may trade at lower rates)",
           "properties": {
-            "Special": {
+            "special": {
               "properties": {
                 "rate_adjustment_bp": {
                   "description": "Optional special rate adjustment in basis points (negative = lower rate)",
@@ -118,7 +167,7 @@
             }
           },
           "required": [
-            "Special"
+            "special"
           ],
           "type": "object"
         }
@@ -131,6 +180,8 @@
         "default_haircut": {
           "description": "Default haircut for unlisted collateral (if accepted)\n\nIf None, only explicitly listed collateral types are accepted.",
           "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
@@ -154,26 +205,36 @@
       ],
       "type": "object"
     },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "MarginTenor": {
       "description": "Margin call frequency.\n\nDetermines how often margin calls are made and collateral is exchanged.\nIndustry standard for OTC derivatives is daily under BCBS-IOSCO rules.",
       "oneOf": [
         {
-          "const": "Daily",
+          "const": "daily",
           "description": "Daily margin calls (standard for OTC derivatives post-2016)",
           "type": "string"
         },
         {
-          "const": "Weekly",
+          "const": "weekly",
           "description": "Weekly margin calls (pre-regulatory period)",
           "type": "string"
         },
         {
-          "const": "Monthly",
+          "const": "monthly",
           "description": "Monthly margin calls (pre-regulatory period)",
           "type": "string"
         },
         {
-          "const": "OnDemand",
+          "const": "on_demand",
           "description": "On-demand margin calls (used for repos and some bilateral agreements)",
           "type": "string"
         }
@@ -184,22 +245,135 @@
       "description": "Maturity constraints for eligible collateral.\n\nSome CSAs restrict collateral based on remaining maturity to limit\nduration risk in the collateral portfolio.",
       "properties": {
         "max_remaining_years": {
+          "default": null,
           "description": "Maximum remaining years to maturity (if any)",
           "format": "double",
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
           ]
         },
         "min_remaining_years": {
+          "default": null,
           "description": "Minimum remaining years to maturity (if any)",
           "format": "double",
+          "minimum": 0.0,
           "type": [
             "number",
             "null"
           ]
         }
       },
+      "type": "object"
+    },
+    "Repo": {
+      "additionalProperties": false,
+      "description": "Repurchase Agreement instrument.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "business_day_convention": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
+          "default": "modified_following",
+          "description": "Business day convention"
+        },
+        "calendar_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional calendar for business day adjustments"
+        },
+        "cash_amount": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Cash amount being lent/borrowed"
+        },
+        "collateral": {
+          "$ref": "#/$defs/CollateralSpec",
+          "description": "Collateral specification"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention for interest calculations"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier for valuation"
+        },
+        "haircut": {
+          "description": "Haircut percentage (as decimal, e.g., 0.02 = 2%)",
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Attributes for scenario selection and tagging\nInstrument-owned pricing inputs."
+        },
+        "margin_spec": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RepoMarginSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional margin specification for mark-to-market margining.\n\nWhen present, enables margin call generation, collateral valuation,\nand margin interest calculations. See [`RepoMarginSpec`] for details."
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Maturity date of the repo"
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "repo_rate": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Repo rate (annual, as decimal)"
+        },
+        "repo_type": {
+          "$ref": "#/$defs/RepoType",
+          "description": "Type of repo"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "start_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of the repo"
+        },
+        "triparty": {
+          "description": "Whether this is a tri-party repo",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "cash_amount",
+        "collateral",
+        "repo_rate",
+        "start_date",
+        "maturity",
+        "haircut",
+        "repo_type",
+        "triparty",
+        "day_count",
+        "discount_curve_id",
+        "attributes"
+      ],
       "type": "object"
     },
     "RepoMarginSpec": {
@@ -273,22 +447,22 @@
       "description": "Repo margin type.\n\nDifferent margin mechanisms offer varying levels of protection\nand operational complexity.",
       "oneOf": [
         {
-          "const": "None",
+          "const": "none",
           "description": "No margining - fixed haircut only.\n\nSimplest approach where the haircut at inception is the only\nprotection mechanism. No margin calls during the life of the repo.",
           "type": "string"
         },
         {
-          "const": "MarkToMarket",
+          "const": "mark_to_market",
           "description": "Mark-to-market margining with daily/periodic calls.\n\nCollateral is revalued periodically and margin calls are made\nwhen the coverage ratio falls below the margin ratio.",
           "type": "string"
         },
         {
-          "const": "NetExposure",
+          "const": "net_exposure",
           "description": "Net exposure margining across a netting set.\n\nMultiple repos with the same counterparty are netted and\nmargin is calculated on the net position.",
           "type": "string"
         },
         {
-          "const": "Triparty",
+          "const": "triparty",
           "description": "Tri-party repo managed by a third-party agent.\n\nA tri-party agent (e.g., Bank of New York Mellon, J.P. Morgan)\nmanages collateral allocation, substitution, and margin calls.",
           "type": "string"
         }
@@ -298,19 +472,40 @@
       "description": "Type of repurchase agreement.",
       "oneOf": [
         {
-          "const": "Term",
+          "const": "term",
           "description": "Term repo with fixed maturity date",
           "type": "string"
         },
         {
-          "const": "Open",
+          "const": "open",
           "description": "Open repo that can be terminated with notice",
           "type": "string"
         },
         {
-          "const": "Overnight",
+          "const": "overnight",
           "description": "Overnight repo maturing next business day",
           "type": "string"
+        }
+      ]
+    },
+    "repo": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/Repo"
+            },
+            "type": {
+              "const": "repo",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
         }
       ]
     }
@@ -318,52 +513,31 @@
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/repo.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Short-term collateralized borrowing/lending",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
-          "bdc": "following",
+          "business_day_convention": "following",
           "calendar_id": "usny",
           "cash_amount": {
             "amount": "10000000",
             "currency": "USD"
           },
           "collateral": {
-            "collateral_type": "General",
+            "collateral_type": "general",
             "instrument_id": "UST-10Y",
             "market_value_id": "UST_10Y_PRICE",
             "quantity": 10000.0
           },
-          "day_count": "Act360",
+          "day_count": "act_360",
           "discount_curve_id": "USD-OIS",
           "haircut": 0.02,
           "id": "REPO-GC-7D",
           "maturity": "2024-01-09",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "repo_rate": "0.0525",
-          "repo_type": "Term",
+          "repo_type": "term",
           "start_date": "2024-01-02",
           "triparty": false
         },
@@ -374,157 +548,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Repo instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "bdc": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
-              "default": "modified_following",
-              "description": "Business day convention"
-            },
-            "calendar_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional calendar for business day adjustments"
-            },
-            "cash_amount": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Cash amount being lent/borrowed"
-            },
-            "collateral": {
-              "$ref": "#/$defs/CollateralSpec",
-              "description": "Collateral specification"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention for interest calculations"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier for valuation"
-            },
-            "haircut": {
-              "description": "Haircut percentage (as decimal, e.g., 0.02 = 2%)",
-              "format": "double",
-              "type": "number"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "margin_spec": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/RepoMarginSpec"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional margin specification for mark-to-market margining.\n\nWhen present, enables margin call generation, collateral valuation,\nand margin interest calculations. See [`RepoMarginSpec`] for details."
-            },
-            "maturity": {
-              "description": "Maturity date of the repo",
-              "format": "date",
-              "type": "string"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for scenario selection and tagging\nInstrument-owned pricing inputs."
-            },
-            "repo_rate": {
-              "description": "Repo rate (annual, as decimal)",
-              "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-              "type": [
-                "string",
-                "number"
-              ]
-            },
-            "repo_type": {
-              "$ref": "#/$defs/RepoType",
-              "description": "Type of repo"
-            },
-            "start_date": {
-              "description": "Start date of the repo",
-              "format": "date",
-              "type": "string"
-            },
-            "triparty": {
-              "description": "Whether this is a tri-party repo",
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "id",
-            "cash_amount",
-            "collateral",
-            "repo_rate",
-            "start_date",
-            "maturity",
-            "haircut",
-            "repo_type",
-            "triparty",
-            "day_count",
-            "discount_curve_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "repo",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/repo"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Repurchase Agreement (Repo)",
+  "title": "repo",
   "type": "object"
 }

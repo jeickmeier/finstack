@@ -200,11 +200,11 @@ fn test_time_mapping_with_quarterly_coupons() {
         coupon_type: CouponType::Cash,
         rate: rust_decimal::Decimal::try_from(0.06).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
+            frequency: Tenor::quarterly(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 

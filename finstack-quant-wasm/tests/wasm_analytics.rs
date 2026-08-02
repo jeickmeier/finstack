@@ -12,7 +12,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::*;
 
 const API_INVARIANTS_FIXTURE: &str =
-    include_str!("../../finstack-quant/analytics/src/api_invariants_data.json");
+    include_str!("../../finstack-quant/analytics/tests/data/api_invariants_data.json");
 
 #[derive(Deserialize)]
 struct AnalyticsFixture {
@@ -127,7 +127,7 @@ fn ticker_names_round_trip() {
     let names: Vec<String> = serde_wasm_bindgen::from_value(perf.ticker_names().unwrap()).unwrap();
     assert_eq!(names, vec!["TARGET", "BENCH"]);
     assert_eq!(perf.benchmark_idx(), 1);
-    assert_eq!(perf.freq(), "daily");
+    assert_eq!(perf.frequency(), "daily");
 }
 
 // ---- Scalar metrics ----

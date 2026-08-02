@@ -44,7 +44,7 @@ pub(crate) struct AllInRateCalculator;
 impl MetricCalculator for AllInRateCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
         // Snapshot scalar fields off the loan before borrowing the cached schedule.
-        let (dc, maturity) = {
+        let (day_count, maturity) = {
             let loan: &TermLoan = context.instrument_as()?;
             (loan.day_count, loan.maturity)
         };
@@ -98,7 +98,7 @@ impl MetricCalculator for AllInRateCalculator {
                 continue;
             }
             let target = (*d).min(maturity);
-            let yf = dc.year_fraction(prev_date, target, DayCountContext::default())?;
+            let yf = day_count.year_fraction(prev_date, target, DayCountContext::default())?;
             time_weighted_outstanding += prev_outstanding * yf;
             prev_date = target;
             prev_outstanding = amt.amount();
@@ -106,7 +106,7 @@ impl MetricCalculator for AllInRateCalculator {
 
         // Extend to maturity if the last outstanding entry is before maturity
         if prev_date < maturity {
-            let yf = dc.year_fraction(prev_date, maturity, DayCountContext::default())?;
+            let yf = day_count.year_fraction(prev_date, maturity, DayCountContext::default())?;
             time_weighted_outstanding += prev_outstanding * yf;
         }
 

@@ -33,6 +33,7 @@ impl fmt::Display for CompanyId {
 
 /// Time basis for computing a valuation multiple.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PeriodBasis {
     /// Last twelve months (trailing).
     Ltm,
@@ -48,6 +49,7 @@ pub enum PeriodBasis {
 /// use market capitalization or share price. Credit multiples use spread
 /// or yield as the numerator and a fundamental metric as denominator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Multiple {
     // ---- Enterprise value multiples ----
     /// EV / EBITDA
@@ -121,17 +123,17 @@ impl Multiple {
 impl FromStr for Multiple {
     type Err = String;
 
-    /// Parse a multiple identifier (case-insensitive).
+    /// Parse an exact snake_case multiple identifier.
     ///
     /// Canonical forms: `"ev_ebitda"`, `"ev_revenue"`, `"ev_ebit"`, `"ev_fcf"`,
     /// `"pe"`, `"pb"`, `"ptbv"`, `"p_fcf"`, `"dividend_yield"`,
     /// `"spread_per_turn"`, `"yield_per_coverage"`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.trim().to_ascii_lowercase().as_str() {
-            "ev_ebitda" | "evebitda" => Ok(Self::EvEbitda),
-            "ev_revenue" | "evrevenue" => Ok(Self::EvRevenue),
-            "ev_ebit" | "evebit" => Ok(Self::EvEbit),
-            "ev_fcf" | "evfcf" => Ok(Self::EvFcf),
+        match s {
+            "ev_ebitda" => Ok(Self::EvEbitda),
+            "ev_revenue" => Ok(Self::EvRevenue),
+            "ev_ebit" => Ok(Self::EvEbit),
+            "ev_fcf" => Ok(Self::EvFcf),
             "pe" => Ok(Self::Pe),
             "pb" => Ok(Self::Pb),
             "ptbv" => Ok(Self::Ptbv),
@@ -139,8 +141,8 @@ impl FromStr for Multiple {
             "dividend_yield" => Ok(Self::DividendYield),
             "spread_per_turn" => Ok(Self::SpreadPerTurn),
             "yield_per_coverage" => Ok(Self::YieldPerCoverage),
-            other => Err(format!(
-                "unknown multiple {other:?}; expected one of ev_ebitda, ev_revenue, ev_ebit, ev_fcf, pe, pb, ptbv, p_fcf, dividend_yield, spread_per_turn, yield_per_coverage"
+            _ => Err(format!(
+                "unknown multiple {s:?}; expected one of ev_ebitda, ev_revenue, ev_ebit, ev_fcf, pe, pb, ptbv, p_fcf, dividend_yield, spread_per_turn, yield_per_coverage"
             )),
         }
     }
@@ -168,7 +170,7 @@ pub struct CompanyMetrics {
     /// Share price.
     pub share_price: Option<f64>,
     /// Option-adjusted spread in basis points.
-    pub oas_bps: Option<f64>,
+    pub oas_bp: Option<f64>,
     /// Yield to worst / yield to maturity.
     pub yield_pct: Option<f64>,
 
@@ -217,7 +219,7 @@ impl CompanyMetrics {
             enterprise_value: None,
             market_cap: None,
             share_price: None,
-            oas_bps: None,
+            oas_bp: None,
             yield_pct: None,
             ebitda: None,
             revenue: None,

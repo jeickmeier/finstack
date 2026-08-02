@@ -1,7 +1,12 @@
 """Shared, example-only notebook paths, markets, and fixtures."""
 
 from .fixtures import load_instrument_fixture, load_portfolio_fixture
-from .instrument_fixtures import acme_bond
+from .instrument_fixtures import (
+    INSTRUMENT_SCHEMA,
+    acme_bond,
+    instrument_envelope,
+    instrument_envelope_json,
+)
 from .market import (
     DEMO_AS_OF,
     build_demo_market,
@@ -36,6 +41,7 @@ __all__ = [
     "DEMO_PL_PERIODS",
     "DEMO_PL_REVENUE",
     "FIXTURE_ROOT",
+    "INSTRUMENT_SCHEMA",
     "NOTEBOOKS_ROOT",
     "PYTHON_PACKAGE_ROOT",
     "REPOSITORY_ROOT",
@@ -46,6 +52,8 @@ __all__ = [
     "demo_pl_builder",
     "demo_pl_model",
     "fixture_path",
+    "instrument_envelope",
+    "instrument_envelope_json",
     "load_instrument_fixture",
     "load_portfolio_fixture",
     "print_metrics",

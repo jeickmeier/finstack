@@ -36,7 +36,7 @@ fn test_date() -> Date {
 }
 
 fn create_test_pool() -> AssetPool {
-    let mut pool = AssetPool::new("TEST_POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("TEST_POOL", DealType::Clo, Currency::USD);
     pool.assets.push(PoolAsset::floating_rate_loan(
         "LOAN_1",
         Money::new(50_000_000.0, Currency::USD),

@@ -255,11 +255,11 @@ impl MarketContext {
         })
     }
 
-    /// Convert a [`Money`] amount into `target_ccy` using the embedded FX matrix.
+    /// Convert a [`Money`] amount into `target_currency` using the embedded FX matrix.
     ///
     /// Centralizes the "same-ccy shortcut → FX matrix lookup → rate application"
     /// pattern used across valuations, portfolio, margin, and cashflow aggregation.
-    /// Returns the input unchanged when it is already denominated in `target_ccy`.
+    /// Returns the input unchanged when it is already denominated in `target_currency`.
     ///
     /// Callers that need a different error taxonomy (e.g. portfolio's
     /// `MissingMarketData` / `FxConversionFailed` split) should perform their own
@@ -270,7 +270,7 @@ impl MarketContext {
     /// # Arguments
     ///
     /// * `amount` - Monetary amount to convert.
-    /// * `target_ccy` - Destination currency.
+    /// * `target_currency` - Destination currency.
     /// * `as_of` - Date used for the FX rate lookup.
     ///
     /// # Errors
@@ -281,15 +281,15 @@ impl MarketContext {
     pub fn convert_money(
         &self,
         amount: Money,
-        target_ccy: Currency,
+        target_currency: Currency,
         as_of: Date,
     ) -> crate::Result<Money> {
-        if amount.currency() == target_ccy {
+        if amount.currency() == target_currency {
             return Ok(amount);
         }
         let fx = self.fx_required()?;
-        let rate = fx.rate(FxQuery::new(amount.currency(), target_ccy, as_of))?;
-        amount.convert_at_rate(target_ccy, rate.rate)
+        let rate = fx.rate(FxQuery::new(amount.currency(), target_currency, as_of))?;
+        amount.convert_at_rate(target_currency, rate.rate)
     }
 
     /// Snapshot (clone) all stored volatility surfaces.

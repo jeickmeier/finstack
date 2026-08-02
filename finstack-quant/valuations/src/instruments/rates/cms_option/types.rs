@@ -16,7 +16,9 @@ use rust_decimal::Decimal;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = CmsOption::validate)]
 #[serde(deny_unknown_fields)]
@@ -24,14 +26,18 @@ pub struct CmsOption {
     /// Unique instrument identifier
     pub id: InstrumentId,
     /// Strike (fixed rate for CMS option)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub strike: Decimal,
     /// Tenor of the CMS swap in years (e.g., 10.0 for 10Y)
     pub cms_tenor: f64,
     /// Observation/fixing dates for CMS rate
-    #[schemars(with = "Vec<String>")]
+    #[serde(with = "finstack_quant_core::wire::dates")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub fixing_dates: Vec<Date>,
     /// Payment dates for each period (usually fixing date + lag or period end)
-    #[schemars(with = "Vec<String>")]
+    #[serde(with = "finstack_quant_core::wire::dates")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub payment_dates: Vec<Date>,
     /// Accrual fractions for each period
     pub accrual_fractions: Vec<f64>,
@@ -43,9 +49,9 @@ pub struct CmsOption {
     pub day_count: DayCount,
 
     // --- Underlying Swap Conventions ---
-    /// IRS convention for the underlying swap (e.g., `USDStandard`).
+    /// IRS convention for the underlying swap (e.g., `UsdSofr`).
     ///
-    /// When set, provides default values for `swap_fixed_freq`, `swap_float_freq`,
+    /// When set, provides default values for `swap_fixed_frequency`, `swap_float_frequency`,
     /// `swap_day_count`, and `swap_float_day_count`. Individual fields still
     /// override the convention when explicitly set.
     #[builder(optional)]
@@ -54,11 +60,11 @@ pub struct CmsOption {
     /// Fixed leg frequency of the underlying swap (overrides convention if set)
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub swap_fixed_freq: Option<Tenor>,
+    pub swap_fixed_frequency: Option<Tenor>,
     /// Floating leg frequency of the underlying swap (overrides convention if set)
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub swap_float_freq: Option<Tenor>,
+    pub swap_float_frequency: Option<Tenor>,
     /// Day count convention of the underlying swap fixed leg (overrides convention if set)
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -75,17 +81,26 @@ pub struct CmsOption {
     /// Volatility surface ID for CMS rates
     pub vol_surface_id: CurveId,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping
     #[serde(default)]
@@ -101,10 +116,10 @@ impl CmsOption {
     ) -> finstack_quant_core::Result<Date> {
         let convention = match (self.swap_convention, self.notional.currency()) {
             (Some(convention), _) => convention,
-            (None, finstack_quant_core::currency::Currency::USD) => IRSConvention::USDStandard,
-            (None, finstack_quant_core::currency::Currency::EUR) => IRSConvention::EURStandard,
-            (None, finstack_quant_core::currency::Currency::GBP) => IRSConvention::GBPStandard,
-            (None, finstack_quant_core::currency::Currency::JPY) => IRSConvention::JPYStandard,
+            (None, finstack_quant_core::currency::Currency::USD) => IRSConvention::UsdSofr,
+            (None, finstack_quant_core::currency::Currency::EUR) => IRSConvention::EurEstr,
+            (None, finstack_quant_core::currency::Currency::GBP) => IRSConvention::GbpSonia,
+            (None, finstack_quant_core::currency::Currency::JPY) => IRSConvention::JpyTonar,
             (None, currency) => {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "CMS option '{}' requires swap_convention for currency {}",
@@ -149,39 +164,39 @@ impl CmsOption {
     }
 
     /// Override the fixed leg frequency of the underlying swap.
-    pub fn with_swap_fixed_freq(mut self, freq: Tenor) -> Self {
-        self.swap_fixed_freq = Some(freq);
+    pub fn with_swap_fixed_frequency(mut self, frequency: Tenor) -> Self {
+        self.swap_fixed_frequency = Some(frequency);
         self
     }
 
     /// Override the floating leg frequency of the underlying swap.
-    pub fn with_swap_float_freq(mut self, freq: Tenor) -> Self {
-        self.swap_float_freq = Some(freq);
+    pub fn with_swap_float_frequency(mut self, frequency: Tenor) -> Self {
+        self.swap_float_frequency = Some(frequency);
         self
     }
 
     /// Override the fixed leg day count of the underlying swap.
-    pub fn with_swap_day_count(mut self, dc: DayCount) -> Self {
-        self.swap_day_count = Some(dc);
+    pub fn with_swap_day_count(mut self, day_count: DayCount) -> Self {
+        self.swap_day_count = Some(day_count);
         self
     }
 
     /// Override the floating leg day count of the underlying swap.
-    pub fn with_swap_float_day_count(mut self, dc: DayCount) -> Self {
-        self.swap_float_day_count = Some(dc);
+    pub fn with_swap_float_day_count(mut self, day_count: DayCount) -> Self {
+        self.swap_float_day_count = Some(day_count);
         self
     }
 
     /// Resolved fixed leg frequency (explicit field > convention > default semi-annual).
-    pub fn resolved_swap_fixed_freq(&self) -> Tenor {
-        self.swap_fixed_freq
+    pub fn resolved_swap_fixed_frequency(&self) -> Tenor {
+        self.swap_fixed_frequency
             .or_else(|| self.swap_convention.map(|c| c.fixed_frequency()))
             .unwrap_or_else(Tenor::semi_annual)
     }
 
     /// Resolved float leg frequency (explicit field > convention > default quarterly).
-    pub fn resolved_swap_float_freq(&self) -> Tenor {
-        self.swap_float_freq
+    pub fn resolved_swap_float_frequency(&self) -> Tenor {
+        self.swap_float_frequency
             .or_else(|| self.swap_convention.map(|c| c.float_frequency()))
             .unwrap_or_else(Tenor::quarterly)
     }
@@ -206,7 +221,7 @@ impl CmsOption {
     /// using the calendar and reset lag from `swap_convention`.
     /// This is the preferred way to construct standard CMS cap/floor instruments.
     ///
-    /// Swap convention fields (`swap_fixed_freq`, `swap_float_freq`, `swap_day_count`)
+    /// Swap convention fields (`swap_fixed_frequency`, `swap_float_frequency`, `swap_day_count`)
     /// are provided via `swap_convention`. Set individual fields to override the convention.
     ///
     /// # Errors
@@ -243,7 +258,7 @@ impl CmsOption {
             end: maturity,
             frequency,
             stub: StubKind::ShortFront,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: &calendar_id,
             end_of_month: false,
             day_count,
@@ -314,7 +329,7 @@ impl CmsOption {
             .option_type(crate::instruments::OptionType::Call)
             .notional(Money::new(10_000_000.0, Currency::USD))
             .day_count(DayCount::Act365F)
-            .swap_convention_opt(Some(IRSConvention::USDStandard))
+            .swap_convention_opt(Some(IRSConvention::UsdSofr))
             .swap_float_day_count_opt(Some(DayCount::Act360))
             .discount_curve_id(CurveId::new("USD-OIS"))
             .forward_curve_id(CurveId::new("USD-LIBOR-3M"))

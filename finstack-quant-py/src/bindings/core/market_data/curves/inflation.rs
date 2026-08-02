@@ -50,13 +50,13 @@ impl PyInflationCurve {
         interp: &str,
     ) -> PyResult<Self> {
         let base = py_to_date(base_date)?;
-        let dc = parse_day_count(day_count)?;
+        let day_count = parse_day_count(day_count)?;
         let style = parse_interp_style(interp)?;
 
         let curve = InflationCurve::builder(id)
             .base_date(base)
             .base_cpi(base_cpi)
-            .day_count(dc)
+            .day_count(day_count)
             .indexation_lag_months(indexation_lag_months)
             .knots(knots)
             .interp(style)

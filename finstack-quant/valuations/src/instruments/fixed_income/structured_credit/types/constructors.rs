@@ -5,14 +5,14 @@
 
 use super::{
     AssetPool, CreditFactors, CreditModelConfig, DealType, DefaultModelSpec, MarketConditions,
-    Metadata, Overrides, PrepaymentModelSpec, RecoveryModelSpec, StructuredCredit, Tranche,
-    TrancheCoupon, TrancheSeniority, TrancheStructure,
+    Metadata, Overrides, PoolAsset, PrepaymentModelSpec, RecoveryModelSpec, StructuredCredit,
+    Tranche, TrancheCoupon, TrancheSeniority, TrancheStructure,
 };
 use crate::instruments::fixed_income::structured_credit::assumptions::{
     embedded_registry_or_panic, StructuredCreditAssumptionRegistry,
 };
 use crate::instruments::fixed_income::structured_credit::types::setup::DefaultAssumptions;
-use finstack_quant_core::dates::{Date, Tenor};
+use finstack_quant_core::dates::{Date, DayCount, Tenor};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_core::Result;
@@ -55,7 +55,7 @@ impl StructuredCredit {
     /// let base = StructuredCredit::example();
     /// let clo = StructuredCredit::apply_deal_defaults(
     ///     "MY_CLO",
-    ///     DealType::CLO,
+    ///     DealType::Clo,
     ///     base.pool.clone(),
     ///     base.tranches.clone(),
     ///     base.closing_date,
@@ -77,7 +77,7 @@ impl StructuredCredit {
         discount_curve_id: impl Into<String>,
     ) -> Self {
         match deal_type {
-            DealType::CLO => Self::new_clo(
+            DealType::Clo => Self::new_clo(
                 id,
                 pool,
                 tranches,
@@ -85,7 +85,7 @@ impl StructuredCredit {
                 maturity,
                 discount_curve_id,
             ),
-            DealType::CMBS => Self::new_cmbs(
+            DealType::Cmbs => Self::new_cmbs(
                 id,
                 pool,
                 tranches,
@@ -93,7 +93,7 @@ impl StructuredCredit {
                 maturity,
                 discount_curve_id,
             ),
-            DealType::RMBS => Self::new_rmbs(
+            DealType::Rmbs => Self::new_rmbs(
                 id,
                 pool,
                 tranches,
@@ -112,10 +112,11 @@ impl StructuredCredit {
         }
     }
 
-    /// Create a canonical example CLO structured credit deal with minimal components.
+    /// Create a canonical, priceable example CLO structured-credit deal.
     ///
     /// This method is intended for testing, documentation examples, and quick prototyping.
-    /// It creates a fully valid CLO deal with a single senior tranche and basic waterfall.
+    /// It creates a fully valid CLO deal with one fixed-rate collateral asset,
+    /// a matching senior tranche, and a basic waterfall.
     ///
     /// # Panics
     ///
@@ -126,9 +127,17 @@ impl StructuredCredit {
     pub fn example() -> Self {
         use finstack_quant_core::currency::Currency;
         use time::Month;
-        // Build a minimal pool (empty assets for example purposes)
-        let pool = AssetPool::new("POOL-1", DealType::CLO, Currency::USD);
-        // Build a simple tranche structure with single tranche 0-100%
+        let closing =
+            Date::from_calendar_date(2024, Month::January, 1).expect("Valid example date");
+        let legal = Date::from_calendar_date(2034, Month::January, 1).expect("Valid example date");
+        let mut pool = AssetPool::new("POOL-1", DealType::Clo, Currency::USD);
+        pool.assets.push(PoolAsset::fixed_rate_bond(
+            "COLLATERAL-1",
+            Money::new(100_000_000.0, Currency::USD),
+            0.07,
+            legal,
+            DayCount::Thirty360,
+        ));
         let tranche = Tranche::new(
             "CLONOTES-A",
             0.0,
@@ -136,13 +145,10 @@ impl StructuredCredit {
             TrancheSeniority::Senior,
             Money::new(100_000_000.0, Currency::USD),
             TrancheCoupon::Fixed { rate: 0.06 },
-            Date::from_calendar_date(2034, Month::January, 1).expect("Valid example date"),
+            legal,
         )
         .expect("Tranche build should not fail");
         let tranches = TrancheStructure::new(vec![tranche]).expect("TrancheStructure should build");
-        let closing =
-            Date::from_calendar_date(2024, Month::January, 1).expect("Valid example date");
-        let legal = Date::from_calendar_date(2034, Month::January, 1).expect("Valid example date");
         StructuredCredit::new_clo("CLO-EXAMPLE", pool, tranches, closing, legal, "USD-OIS")
             .with_payment_calendar("nyse")
     }
@@ -171,7 +177,7 @@ impl StructuredCredit {
             maturity: params.maturity,
             frequency: config.frequency,
             payment_calendar_id: None,
-            payment_bdc: None,
+            payment_business_day_convention: None,
             discount_curve_id: CurveId::new(params.discount_curve_id.to_string()),
             instrument_pricing_overrides: Default::default(),
             metric_pricing_overrides: Default::default(),
@@ -214,7 +220,7 @@ impl StructuredCredit {
         let disc_id_str = discount_curve_id.into();
         let mut inst = Self::new_with_deal_config(
             id,
-            DealType::ABS,
+            DealType::Abs,
             InstrumentParams {
                 pool,
                 tranches,
@@ -242,7 +248,7 @@ impl StructuredCredit {
         let disc_id_str = discount_curve_id.into();
         let mut inst = Self::new_with_deal_config(
             id,
-            DealType::CLO,
+            DealType::Clo,
             InstrumentParams {
                 pool,
                 tranches,
@@ -270,7 +276,7 @@ impl StructuredCredit {
         let disc_id_str = discount_curve_id.into();
         let mut inst = Self::new_with_deal_config(
             id,
-            DealType::CMBS,
+            DealType::Cmbs,
             InstrumentParams {
                 pool,
                 tranches,
@@ -298,7 +304,7 @@ impl StructuredCredit {
         let disc_id_str = discount_curve_id.into();
         let mut inst = Self::new_with_deal_config(
             id,
-            DealType::RMBS,
+            DealType::Rmbs,
             InstrumentParams {
                 pool,
                 tranches,

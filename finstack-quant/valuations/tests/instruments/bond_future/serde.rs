@@ -435,7 +435,7 @@ fn test_bond_future_deny_unknown_fields() {
     let json = r#"{
         "id": "TYH5",
         "notional": {
-            "amount": 1000000.0,
+            "amount": "1000000.0",
             "currency": "USD"
         },
         "expiry": "2025-03-20",
@@ -483,9 +483,7 @@ fn test_bond_future_deny_unknown_fields() {
 }
 
 #[test]
-fn test_bond_future_specs_unknown_field_allowed() {
-    // BondFutureSpecs does NOT have deny_unknown_fields,
-    // so unknown fields should be silently ignored
+fn test_bond_future_specs_rejects_unknown_field() {
     let json = r#"{
         "contract_size": 100000.0,
         "tick_size": 0.015625,
@@ -497,10 +495,9 @@ fn test_bond_future_specs_unknown_field_allowed() {
     }"#;
 
     let result: Result<BondFutureSpecs, _> = serde_json::from_str(json);
-    // Should succeed (unknown fields ignored for BondFutureSpecs)
     assert!(
-        result.is_ok(),
-        "BondFutureSpecs should allow unknown fields"
+        result.is_err(),
+        "BondFutureSpecs must reject unknown fields"
     );
 }
 
@@ -515,7 +512,7 @@ fn test_bond_future_minimal_json() {
     let json = r#"{
         "id": "TYH5",
         "notional": {
-            "amount": 1000000.0,
+            "amount": "1000000.0",
             "currency": "USD"
         },
         "expiry": "2025-03-20",
@@ -665,4 +662,39 @@ fn test_bond_future_empty_attributes() {
         deserialized.attributes.get_meta("any_key").is_none(),
         "Empty attributes should round-trip correctly"
     );
+}
+
+#[test]
+fn bond_future_wire_enforces_static_runtime_bounds() {
+    let mut future = create_test_bond_future();
+    future.quoted_price = -1.0;
+    assert!(serde_json::to_value(&future).is_err());
+
+    let mut future = create_test_bond_future();
+    future.deliverable_basket.clear();
+    assert!(serde_json::to_value(&future).is_err());
+
+    let invalid_deliverable = DeliverableBond {
+        bond_id: InstrumentId::new("INVALID"),
+        conversion_factor: -1.0,
+    };
+    assert!(serde_json::to_value(invalid_deliverable).is_err());
+    assert!(
+        serde_json::from_value::<DeliverableBond>(serde_json::json!({
+            "bond_id": "INVALID",
+            "conversion_factor": 0.8,
+            "typo_field": true
+        }))
+        .is_err()
+    );
+
+    let schema =
+        serde_json::to_value(schemars::schema_for!(BondFuture)).expect("bond future schema");
+    assert_eq!(schema["properties"]["deliverable_basket"]["minItems"], 1);
+    assert_eq!(
+        schema["$defs"]["DeliverableBond"]["additionalProperties"],
+        false
+    );
+    assert_eq!(schema["$defs"]["PositiveF64Wire"]["exclusiveMinimum"], 0.0);
+    assert_eq!(schema["$defs"]["NonNegativeF64Wire"]["minimum"], 0.0);
 }

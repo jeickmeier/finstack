@@ -240,18 +240,12 @@ impl core::str::FromStr for BusinessDayConvention {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Normalize: trim, lowercase, replace hyphens with underscores
-        let normalized = s.trim().to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
+        match s {
             "unadjusted" => Ok(BusinessDayConvention::Unadjusted),
             "following" => Ok(BusinessDayConvention::Following),
-            "modified_following" | "modifiedfollowing" => {
-                Ok(BusinessDayConvention::ModifiedFollowing)
-            }
+            "modified_following" => Ok(BusinessDayConvention::ModifiedFollowing),
             "preceding" => Ok(BusinessDayConvention::Preceding),
-            "modified_preceding" | "modifiedpreceding" => {
-                Ok(BusinessDayConvention::ModifiedPreceding)
-            }
+            "modified_preceding" => Ok(BusinessDayConvention::ModifiedPreceding),
             _ => Err(format!("Unknown business day convention: {}", s)),
         }
     }

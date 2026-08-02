@@ -26,6 +26,7 @@ use finstack_quant_core::Result;
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum ValidationError {
     /// Duplicate tier ID.

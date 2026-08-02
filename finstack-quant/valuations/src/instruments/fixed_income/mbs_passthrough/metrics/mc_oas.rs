@@ -92,7 +92,7 @@ impl Default for McOasConfig {
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) struct McOasResult {
-    /// Option-adjusted spread in decimal (e.g., 0.01 for 100 bps).
+    /// Option-adjusted spread in decimal (e.g., 0.01 for 100 bp).
     pub oas: f64,
     /// Average model price across all paths at the calculated OAS.
     pub model_price: f64,
@@ -407,7 +407,7 @@ fn price_on_path(
 /// let mbs = AgencyMbsPassthrough::example().unwrap();
 /// let config = McOasConfig { num_paths: 1024, ..Default::default() };
 /// let result = calculate_mc_oas(&mbs, 98.5, &market, as_of, &config)?;
-/// println!("MC OAS: {:.0} bps", result.oas * 10_000.0);
+/// println!("MC OAS: {:.0} bp", result.oas * 10_000.0);
 /// ```
 pub(crate) fn calculate_mc_oas(
     mbs: &AgencyMbsPassthrough,

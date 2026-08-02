@@ -75,11 +75,11 @@ fn test_all_flows_preserve_currency() {
         rate: Decimal::try_from(0.05).expect("valid"), // 5%
         coupon_type: CouponType::Cash,
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Thirty360,
+            day_count: DayCount::Thirty360,
 
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -168,7 +168,7 @@ fn contractual_accrual_boundaries_are_not_business_day_adjusted() {
         end: d(2025, 8, 31),
         frequency: Tenor::annual(),
         stub: StubKind::None,
-        bdc: BusinessDayConvention::Following,
+        business_day_convention: BusinessDayConvention::Following,
         calendar_id: "weekends_only",
         end_of_month: false,
         day_count: DayCount::Act365F,

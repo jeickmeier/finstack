@@ -71,7 +71,7 @@ mod tests {
             .strike_variance(0.04)
             .start_date(start)
             .maturity(maturity)
-            .observation_freq(Tenor::daily())
+            .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(finstack_quant_core::math::stats::RealizedVarMethod::CloseToClose)
             .side(PayReceive::Receive)

@@ -303,7 +303,7 @@ fn test_expired_swap_handling() {
             rate: rust_decimal::Decimal::try_from(0.05).expect("valid"),
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::None,
             par_method: None,
@@ -319,7 +319,7 @@ fn test_expired_swap_handling() {
             spread_bp: rust_decimal::Decimal::try_from(0.0).expect("valid"),
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             fixing_calendar_id: None,
             stub: StubKind::None,
@@ -374,7 +374,7 @@ fn test_very_short_swap_1_month() {
 
     let market = MarketContext::new().insert(disc_curve).insert(fwd_curve);
 
-    // Use manual construction for very short swap since quarterly freq won't work
+    // Use manual construction for very short swap since quarterly frequency won't work
     let swap = InterestRateSwap {
         id: InstrumentId::new("SHORT_SWAP"),
         notional: Money::new(1_000_000.0, Currency::USD),
@@ -384,7 +384,7 @@ fn test_very_short_swap_1_month() {
             rate: rust_decimal::Decimal::try_from(0.05).expect("valid"),
             frequency: Tenor::monthly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: StubKind::None,
             par_method: None,
@@ -400,7 +400,7 @@ fn test_very_short_swap_1_month() {
             spread_bp: rust_decimal::Decimal::try_from(0.0).expect("valid"),
             frequency: Tenor::monthly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             fixing_calendar_id: None,
             stub: StubKind::None,

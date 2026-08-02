@@ -1,9 +1,9 @@
 {
-  "$schema": "../../schemas/calibration/3/calibration.schema.json",
-  "schema": "finstack_quant.calibration",
+  "$schema": "../../schemas/calibration/1/calibration.schema.json",
+  "schema": "finstack_quant.calibration/1",
   "plan": {
     "id": "usd_ois_discount",
-    "description": "USD-OIS discount curve bootstrapped from deposit and IRS quotes. Demonstrates Track A \u2014 bootstrapping via plan.steps with no initial_market dependency.",
+    "description": "USD-OIS discount curve bootstrapped from deposit and IRS quotes. Demonstrates Track A \u2014 bootstrapping via plan.steps with no prior_market dependency.",
     "quote_sets": {
       "usd_quotes": [
         "USD-SOFR-DEP-1M",
@@ -22,7 +22,7 @@
         "curve_id": "USD-OIS",
         "currency": "USD",
         "base_date": "2026-05-08",
-        "method": "Bootstrap",
+        "method": "bootstrap",
         "interpolation": "linear",
         "extrapolation": "flat_forward",
         "pricing_discount_id": null,

@@ -191,14 +191,14 @@ fn bench_interp_comparison(c: &mut Criterion) {
 
     let test_times: Vec<f64> = (0..100).map(|i| (i as f64) * 0.05).collect();
 
-    group.bench_function("Linear", |b| {
+    group.bench_function("linear", |b| {
         b.iter(|| {
             let values: Vec<_> = test_times.iter().map(|&t| linear.interp(t)).collect();
             black_box(values);
         })
     });
 
-    group.bench_function("LogLinear", |b| {
+    group.bench_function("log_linear", |b| {
         b.iter(|| {
             let values: Vec<_> = test_times.iter().map(|&t| log_linear.interp(t)).collect();
             black_box(values);

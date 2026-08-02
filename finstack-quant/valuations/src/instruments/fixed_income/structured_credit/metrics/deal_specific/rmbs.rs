@@ -74,7 +74,7 @@ impl crate::metrics::MetricCalculator for RmbsWalCalculator {
             .downcast_ref::<StructuredCredit>()
             .ok_or(finstack_quant_core::InputError::Invalid)?;
 
-        if rmbs.deal_type != DealType::RMBS {
+        if rmbs.deal_type != DealType::Rmbs {
             return Err(finstack_quant_core::InputError::Invalid.into());
         }
 

@@ -41,7 +41,7 @@ pub fn compile(ast: &StmtExpr) -> Result<Expr> {
 
         // Capital structure references are encoded as special column names
         // Format: __cs__component__instrument_or_total
-        StmtExpr::CSRef {
+        StmtExpr::CsRef {
             component,
             instrument_or_total,
         } => {
@@ -133,7 +133,7 @@ fn infer_dimension(
             .get(name)
             .map(node_value_type_to_dimension)
             .unwrap_or(Dimension::Unknown)),
-        StmtExpr::CSRef { .. } => Ok(Dimension::Unknown),
+        StmtExpr::CsRef { .. } => Ok(Dimension::Unknown),
         StmtExpr::UnaryOp { op, operand } => {
             let dim = infer_dimension(operand, node_types)?;
             match op {

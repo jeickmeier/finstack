@@ -295,7 +295,9 @@ impl CreditModelConfig {
 #[derive(
     Clone,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct StructuredCredit {
@@ -313,16 +315,20 @@ pub struct StructuredCredit {
 
     /// Key dates.
     /// Deal closing date (issuance).
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub closing_date: Date,
     /// First payment date to tranches.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub first_payment_date: Date,
     /// End of reinvestment period (if applicable).
-    #[schemars(with = "Option<String>")]
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub reinvestment_end_date: Option<Date>,
     /// Legal final maturity date.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
 
     /// Payment frequency for the structure.
@@ -336,23 +342,32 @@ pub struct StructuredCredit {
     /// Business day convention for tranche payments (defaults to Following).
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub payment_bdc: Option<BusinessDayConvention>,
+    pub payment_business_day_convention: Option<BusinessDayConvention>,
 
     /// Discount curve for valuation.
     pub discount_curve_id: CurveId,
 
     /// Attributes for scenario selection.
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
 
     /// Attributes for scenario selection.
@@ -494,7 +509,7 @@ impl StructuredCredit {
     ///
     /// let clo = StructuredCredit::example()
     ///     .with_payment_calendar("nyse")
-    ///     .with_payment_bdc(BusinessDayConvention::ModifiedFollowing);
+    ///     .with_payment_business_day_convention(BusinessDayConvention::ModifiedFollowing);
     /// # let _ = clo;
     /// ```
     #[must_use]
@@ -507,8 +522,11 @@ impl StructuredCredit {
     ///
     /// If not specified, defaults to `BusinessDayConvention::Following`.
     #[must_use]
-    pub fn with_payment_bdc(mut self, convention: BusinessDayConvention) -> Self {
-        self.payment_bdc = Some(convention);
+    pub fn with_payment_business_day_convention(
+        mut self,
+        convention: BusinessDayConvention,
+    ) -> Self {
+        self.payment_business_day_convention = Some(convention);
         self
     }
 
@@ -546,13 +564,13 @@ impl StructuredCredit {
         let ccy = self.pool.base_currency();
         let mut recipients = Vec::new();
 
-        fn bps_recipient(id: &str, name: &str, bps: f64) -> Option<Recipient> {
-            (bps > 0.0 && bps.is_finite()).then(|| {
+        fn bp_recipient(id: &str, name: &str, bp: f64) -> Option<Recipient> {
+            (bp > 0.0 && bp.is_finite()).then(|| {
                 Recipient::new(
                     id,
                     RecipientType::ServiceProvider(name.to_string()),
                     PaymentCalculation::PercentageOfCollateral {
-                        rate: bps / 10_000.0,
+                        rate: bp / 10_000.0,
                         annualized: true,
                         day_count: None,
                         rounding: None,
@@ -576,25 +594,21 @@ impl StructuredCredit {
             ));
         }
 
-        recipients.extend(bps_recipient(
+        recipients.extend(bp_recipient(
             "senior_mgmt_fee",
             "Manager",
-            fees.senior_mgmt_fee_bps,
+            fees.senior_mgmt_fee_bp,
         ));
-        recipients.extend(bps_recipient(
+        recipients.extend(bp_recipient(
             "servicing_fee",
             "Servicer",
-            fees.servicing_fee_bps,
+            fees.servicing_fee_bp,
         ));
-        if let Some(bps) = fees.master_servicer_fee_bps {
-            recipients.extend(bps_recipient("master_servicer_fee", "MasterServicer", bps));
+        if let Some(bp) = fees.master_servicer_fee_bp {
+            recipients.extend(bp_recipient("master_servicer_fee", "MasterServicer", bp));
         }
-        if let Some(bps) = fees.special_servicer_fee_bps {
-            recipients.extend(bps_recipient(
-                "special_servicer_fee",
-                "SpecialServicer",
-                bps,
-            ));
+        if let Some(bp) = fees.special_servicer_fee_bp {
+            recipients.extend(bp_recipient("special_servicer_fee", "SpecialServicer", bp));
         }
         // Subordinated management fees require a junior fee tier; including
         // them here would incorrectly make them senior to the notes.
@@ -619,9 +633,9 @@ impl StructuredCredit {
     pub fn with_standard_fees(mut self) -> Self {
         let ccy = self.pool.base_currency();
         self.fees = Some(match self.deal_type {
-            DealType::CLO | DealType::CBO => DealFees::clo_standard(ccy),
-            DealType::CMBS => DealFees::cmbs_standard(ccy),
-            DealType::RMBS => DealFees::rmbs_standard(ccy),
+            DealType::Clo | DealType::Cbo => DealFees::clo_standard(ccy),
+            DealType::Cmbs => DealFees::cmbs_standard(ccy),
+            DealType::Rmbs => DealFees::rmbs_standard(ccy),
             _ => DealFees::abs_standard(ccy),
         });
         self
@@ -833,11 +847,11 @@ impl StructuredCredit {
             ));
         }
 
-        let pool_ccy = self.pool.base_currency();
-        if waterfall.base_currency != pool_ccy {
+        let pool_currency = self.pool.base_currency();
+        if waterfall.base_currency != pool_currency {
             return Err(invalid(format!(
                 "custom waterfall base_currency {} does not match pool currency {}",
-                waterfall.base_currency, pool_ccy
+                waterfall.base_currency, pool_currency
             )));
         }
 
@@ -1260,9 +1274,9 @@ impl StructuredCredit {
             .correlation_structure
             .clone()
             .unwrap_or_else(|| match self.deal_type {
-                DealType::RMBS => CorrelationStructure::rmbs_standard(),
-                DealType::CLO | DealType::CBO => CorrelationStructure::clo_standard(),
-                DealType::CMBS => CorrelationStructure::cmbs_standard(),
+                DealType::Rmbs => CorrelationStructure::rmbs_standard(),
+                DealType::Clo | DealType::Cbo => CorrelationStructure::clo_standard(),
+                DealType::Cmbs => CorrelationStructure::cmbs_standard(),
                 _ => CorrelationStructure::abs_auto_standard(),
             });
 
@@ -1322,7 +1336,7 @@ impl StructuredCredit {
         };
 
         // Solve for spread
-        // Initial guess: 100 bps (0.01)
+        // Initial guess: 100 bp (0.01)
         // Bracket: -10% to +50%?
         // BrentSolver finds bracket automatically if not provided.
         let solver = BrentSolver::new().tolerance(1e-6);
@@ -1395,13 +1409,13 @@ impl finstack_quant_cashflows::CashflowScheduleSource for StructuredCredit {
         // CLO/CBO: ACT/360 (standard for leveraged loan market)
         // RMBS/CMBS: 30/360 (standard for mortgage market)
         // ABS/Auto/Card: ACT/360
-        let dc = match self.deal_type {
-            DealType::RMBS | DealType::CMBS => finstack_quant_core::dates::DayCount::Thirty360,
+        let day_count = match self.deal_type {
+            DealType::Rmbs | DealType::Cmbs => finstack_quant_core::dates::DayCount::Thirty360,
             _ => finstack_quant_core::dates::DayCount::Act360,
         };
         Ok(schedule_from_classified_flows(
             detailed_flows,
-            dc,
+            day_count,
             ScheduleBuildOpts {
                 notional_hint: self.notional(),
                 meta: crate::cashflow::builder::CashFlowMeta {
@@ -1692,7 +1706,7 @@ impl StructuredCredit {
             accrued,
             wal,
             modified_duration,
-            z_spread_bps: z_spread,
+            z_spread_bp: z_spread,
             cs01,
             ytm,
             metrics: final_metrics,

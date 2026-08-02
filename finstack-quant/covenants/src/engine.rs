@@ -33,6 +33,7 @@ use std::collections::BTreeSet;
 // Covenant type definitions were previously under loan; re-introduce minimal versions locally
 /// Whether a covenant is tested periodically or only upon an action.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CovenantScope {
     /// Tested on a schedule (e.g., quarterly leverage tests).
     Maintenance,
@@ -165,10 +166,10 @@ impl Covenant {
 
 /// Type of financial or operational covenant
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum CovenantType {
     /// Maximum debt-to-EBITDA ratio
-    MaxDebtToEBITDA {
+    MaxDebtToEbitda {
         /// Maximum allowed ratio
         threshold: f64,
     },
@@ -222,12 +223,12 @@ pub enum CovenantType {
         limit: f64,
     },
     /// Minimum debt service coverage ratio (EBITDA / Debt Service)
-    MinDSCR {
+    MinDscr {
         /// Minimum required coverage
         threshold: f64,
     },
     /// Maximum net debt to EBITDA ratio (net of cash)
-    MaxNetDebtToEBITDA {
+    MaxNetDebtToEbitda {
         /// Maximum allowed ratio
         threshold: f64,
     },
@@ -246,7 +247,7 @@ pub enum CovenantType {
 impl std::fmt::Display for CovenantType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CovenantType::MaxDebtToEBITDA { threshold } => {
+            CovenantType::MaxDebtToEbitda { threshold } => {
                 write!(f, "Debt/EBITDA <= {:.2}x", threshold)
             }
             CovenantType::MinInterestCoverage { threshold } => {
@@ -275,10 +276,10 @@ impl std::fmt::Display for CovenantType {
             CovenantType::Basket { name, limit } => {
                 write!(f, "{} Utilization <= {:.2}", name, limit)
             }
-            CovenantType::MinDSCR { threshold } => {
+            CovenantType::MinDscr { threshold } => {
                 write!(f, "DSCR >= {:.2}x", threshold)
             }
-            CovenantType::MaxNetDebtToEBITDA { threshold } => {
+            CovenantType::MaxNetDebtToEbitda { threshold } => {
                 write!(f, "Net Debt/EBITDA <= {:.2}x", threshold)
             }
             CovenantType::MaxCapex { threshold } => {
@@ -293,7 +294,7 @@ impl std::fmt::Display for CovenantType {
 
 /// Threshold test type (maximum or minimum bound)
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ThresholdTest {
     /// Maximum allowed value
     Maximum(f64),
@@ -303,6 +304,7 @@ pub enum ThresholdTest {
 
 /// Direction of inequality for numeric covenants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BoundKind {
     /// Covenant passes when the metric is less than or equal to the threshold.
     AtMost,
@@ -313,14 +315,14 @@ pub enum BoundKind {
 impl CovenantType {
     fn validate(&self) -> finstack_quant_core::Result<()> {
         let value = match self {
-            CovenantType::MaxDebtToEBITDA { threshold }
+            CovenantType::MaxDebtToEbitda { threshold }
             | CovenantType::MinInterestCoverage { threshold }
             | CovenantType::MinFixedChargeCoverage { threshold }
             | CovenantType::MaxTotalLeverage { threshold }
             | CovenantType::MaxSeniorLeverage { threshold }
             | CovenantType::MinAssetCoverage { threshold }
-            | CovenantType::MinDSCR { threshold }
-            | CovenantType::MaxNetDebtToEBITDA { threshold }
+            | CovenantType::MinDscr { threshold }
+            | CovenantType::MaxNetDebtToEbitda { threshold }
             | CovenantType::MaxCapex { threshold }
             | CovenantType::MinLiquidity { threshold } => Some(*threshold),
             CovenantType::Custom { test, .. } => match test {
@@ -340,10 +342,10 @@ impl CovenantType {
     /// Returns the inequality direction required for numeric covenants.
     pub fn bound_kind(&self) -> Option<BoundKind> {
         match self {
-            CovenantType::MaxDebtToEBITDA { .. }
+            CovenantType::MaxDebtToEbitda { .. }
             | CovenantType::MaxTotalLeverage { .. }
             | CovenantType::MaxSeniorLeverage { .. }
-            | CovenantType::MaxNetDebtToEBITDA { .. }
+            | CovenantType::MaxNetDebtToEbitda { .. }
             | CovenantType::MaxCapex { .. }
             | CovenantType::Basket { .. }
             | CovenantType::Custom {
@@ -353,7 +355,7 @@ impl CovenantType {
             CovenantType::MinInterestCoverage { .. }
             | CovenantType::MinFixedChargeCoverage { .. }
             | CovenantType::MinAssetCoverage { .. }
-            | CovenantType::MinDSCR { .. }
+            | CovenantType::MinDscr { .. }
             | CovenantType::MinLiquidity { .. }
             | CovenantType::Custom {
                 test: ThresholdTest::Minimum(_),
@@ -366,14 +368,14 @@ impl CovenantType {
     /// Returns the scalar threshold (if any) associated with the covenant type.
     pub(crate) fn threshold_value(&self) -> Option<f64> {
         match self {
-            CovenantType::MaxDebtToEBITDA { threshold }
+            CovenantType::MaxDebtToEbitda { threshold }
             | CovenantType::MinInterestCoverage { threshold }
             | CovenantType::MinFixedChargeCoverage { threshold }
             | CovenantType::MaxTotalLeverage { threshold }
             | CovenantType::MaxSeniorLeverage { threshold }
             | CovenantType::MinAssetCoverage { threshold }
-            | CovenantType::MinDSCR { threshold }
-            | CovenantType::MaxNetDebtToEBITDA { threshold }
+            | CovenantType::MinDscr { threshold }
+            | CovenantType::MaxNetDebtToEbitda { threshold }
             | CovenantType::MaxCapex { threshold }
             | CovenantType::MinLiquidity { threshold } => Some(*threshold),
             CovenantType::Custom { test, .. } => match test {
@@ -387,14 +389,14 @@ impl CovenantType {
     /// Returns the canonical metric identifier for the covenant type when one exists.
     pub(crate) fn default_metric_name(&self) -> Option<&'static str> {
         match self {
-            CovenantType::MaxDebtToEBITDA { .. } => Some("debt_to_ebitda"),
+            CovenantType::MaxDebtToEbitda { .. } => Some("debt_to_ebitda"),
             CovenantType::MinInterestCoverage { .. } => Some("interest_coverage"),
             CovenantType::MinFixedChargeCoverage { .. } => Some("fixed_charge_coverage"),
             CovenantType::MaxTotalLeverage { .. } => Some("total_leverage"),
             CovenantType::MaxSeniorLeverage { .. } => Some("senior_leverage"),
             CovenantType::MinAssetCoverage { .. } => Some("asset_coverage"),
-            CovenantType::MinDSCR { .. } => Some("dscr"),
-            CovenantType::MaxNetDebtToEBITDA { .. } => Some("net_debt_to_ebitda"),
+            CovenantType::MinDscr { .. } => Some("dscr"),
+            CovenantType::MaxNetDebtToEbitda { .. } => Some("net_debt_to_ebitda"),
             CovenantType::MaxCapex { .. } => Some("capex"),
             CovenantType::MinLiquidity { .. } => Some("liquidity"),
             CovenantType::Custom { .. }
@@ -419,10 +421,10 @@ impl CovenantType {
     pub(crate) fn is_ratio_max(&self) -> bool {
         matches!(
             self,
-            CovenantType::MaxDebtToEBITDA { .. }
+            CovenantType::MaxDebtToEbitda { .. }
                 | CovenantType::MaxTotalLeverage { .. }
                 | CovenantType::MaxSeniorLeverage { .. }
-                | CovenantType::MaxNetDebtToEBITDA { .. }
+                | CovenantType::MaxNetDebtToEbitda { .. }
         )
     }
 
@@ -433,14 +435,14 @@ impl CovenantType {
     /// exist, callers should assign a disambiguating label externally.
     pub fn covenant_id(&self) -> &'static str {
         match self {
-            CovenantType::MaxDebtToEBITDA { .. } => "max_debt_ebitda",
+            CovenantType::MaxDebtToEbitda { .. } => "max_debt_ebitda",
             CovenantType::MinInterestCoverage { .. } => "min_interest_coverage",
             CovenantType::MinFixedChargeCoverage { .. } => "min_fcc",
             CovenantType::MaxTotalLeverage { .. } => "max_total_leverage",
             CovenantType::MaxSeniorLeverage { .. } => "max_senior_leverage",
             CovenantType::MinAssetCoverage { .. } => "min_asset_coverage",
-            CovenantType::MinDSCR { .. } => "min_dscr",
-            CovenantType::MaxNetDebtToEBITDA { .. } => "max_net_debt_ebitda",
+            CovenantType::MinDscr { .. } => "min_dscr",
+            CovenantType::MaxNetDebtToEbitda { .. } => "max_net_debt_ebitda",
             CovenantType::MaxCapex { .. } => "max_capex",
             CovenantType::MinLiquidity { .. } => "min_liquidity",
             CovenantType::Negative { .. } => "negative",
@@ -453,7 +455,7 @@ impl CovenantType {
 
 /// Consequence of covenant breach
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum CovenantConsequence {
     /// Event of default
     Default,
@@ -484,7 +486,7 @@ pub enum CovenantConsequence {
 /// Whether the covenant test is triggered by a scheduled maintenance check or
 /// a specific incurrence action. The engine uses this to filter specs by scope.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum EvaluationTrigger {
     /// Scheduled periodic test (e.g., quarterly compliance).
     Maintenance,
@@ -1389,7 +1391,7 @@ impl CovenantEngine {
             CovenantConsequence::Default => {
                 instrument.set_default_status(true, as_of)?;
                 Ok(ConsequenceApplication {
-                    consequence_type: "Default".to_string(),
+                    consequence_type: "default".to_string(),
                     applied_date: as_of,
                     details: "Loan in default".to_string(),
                 })
@@ -1397,15 +1399,15 @@ impl CovenantEngine {
             CovenantConsequence::RateIncrease { bp_increase } => {
                 instrument.increase_rate(*bp_increase / 10000.0)?;
                 Ok(ConsequenceApplication {
-                    consequence_type: "Rate Increase".to_string(),
+                    consequence_type: "rate_increase".to_string(),
                     applied_date: as_of,
-                    details: format!("Rate increased by {} bps", bp_increase),
+                    details: format!("Rate increased by {} bp", bp_increase),
                 })
             }
             CovenantConsequence::CashSweep { sweep_percentage } => {
                 instrument.set_cash_sweep(*sweep_percentage)?;
                 Ok(ConsequenceApplication {
-                    consequence_type: "Cash Sweep".to_string(),
+                    consequence_type: "cash_sweep".to_string(),
                     applied_date: as_of,
                     details: format!("{}% cash sweep activated", sweep_percentage * 100.0),
                 })
@@ -1413,20 +1415,20 @@ impl CovenantEngine {
             CovenantConsequence::BlockDistributions => {
                 instrument.set_distribution_block(true)?;
                 Ok(ConsequenceApplication {
-                    consequence_type: "Block Distributions".to_string(),
+                    consequence_type: "block_distributions".to_string(),
                     applied_date: as_of,
                     details: "Distributions blocked".to_string(),
                 })
             }
             CovenantConsequence::RequireCollateral { description } => Ok(ConsequenceApplication {
-                consequence_type: "Require Collateral".to_string(),
+                consequence_type: "require_collateral".to_string(),
                 applied_date: as_of,
                 details: description.clone(),
             }),
             CovenantConsequence::AccelerateMaturity { new_maturity } => {
                 instrument.set_maturity(*new_maturity)?;
                 Ok(ConsequenceApplication {
-                    consequence_type: "Accelerate Maturity".to_string(),
+                    consequence_type: "accelerate_maturity".to_string(),
                     applied_date: as_of,
                     details: format!("Maturity accelerated to {}", new_maturity),
                 })
@@ -1532,7 +1534,7 @@ mod tests {
     #[test]
     fn max_leverage_passes_when_below_threshold() {
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -1549,7 +1551,7 @@ mod tests {
     #[test]
     fn max_leverage_breaches_when_above_threshold() {
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -1565,7 +1567,7 @@ mod tests {
     #[test]
     fn negative_ratio_treated_as_breach() {
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -1610,7 +1612,7 @@ mod tests {
     #[test]
     fn inactive_covenant_auto_passes() {
         let mut covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         covenant.is_active = false;
@@ -1626,7 +1628,7 @@ mod tests {
     #[test]
     fn full_waiver_skips_evaluation() {
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -1648,7 +1650,7 @@ mod tests {
     #[test]
     fn amended_threshold_waiver_overrides_static() {
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -1671,7 +1673,7 @@ mod tests {
     #[test]
     fn headroom_positive_when_passing_max_covenant() {
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -1688,7 +1690,7 @@ mod tests {
     #[test]
     fn headroom_negative_when_breaching_max_covenant() {
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -1705,11 +1707,11 @@ mod tests {
     #[test]
     fn duplicate_instance_keys_rejected() {
         let cov1 = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         let cov2 = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 5.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 5.0 },
             Tenor::quarterly(),
         );
         let spec1 = CovenantSpec::with_metric(cov1, "debt_to_ebitda");
@@ -1725,12 +1727,12 @@ mod tests {
     #[test]
     fn labeled_covenants_coexist() {
         let cov1 = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         )
         .with_label("senior");
         let cov2 = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 6.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 6.0 },
             Tenor::quarterly(),
         )
         .with_label("total");
@@ -1749,13 +1751,13 @@ mod tests {
 
     #[test]
     fn is_covenant_breached_nan_is_breach() {
-        let ct = CovenantType::MaxDebtToEBITDA { threshold: 4.5 };
+        let ct = CovenantType::MaxDebtToEbitda { threshold: 4.5 };
         assert!(is_covenant_breached(&ct, f64::NAN, 4.5));
     }
 
     #[test]
     fn is_covenant_breached_at_most() {
-        let ct = CovenantType::MaxDebtToEBITDA { threshold: 4.5 };
+        let ct = CovenantType::MaxDebtToEbitda { threshold: 4.5 };
         assert!(!is_covenant_breached(&ct, 4.5, 4.5));
         assert!(is_covenant_breached(&ct, 4.51, 4.5));
         assert!(!is_covenant_breached(&ct, 4.49, 4.5));
@@ -1796,7 +1798,7 @@ mod tests {
     #[test]
     fn evaluate_and_track_records_breach() {
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -1815,7 +1817,7 @@ mod tests {
     #[test]
     fn evaluate_and_track_cures_on_recovery() {
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         )
         .with_cure_period(Some(90));
@@ -1838,7 +1840,7 @@ mod tests {
     #[test]
     fn validate_rejects_negative_cure_period() {
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         )
         .with_cure_period(Some(-1));
@@ -1851,7 +1853,7 @@ mod tests {
     #[test]
     fn validate_rejects_overlapping_windows() {
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         let spec = CovenantSpec::with_metric(covenant, "debt_to_ebitda");
@@ -1871,7 +1873,7 @@ mod tests {
 
     #[test]
     fn covenant_type_display_formats_correctly() {
-        let ct = CovenantType::MaxDebtToEBITDA { threshold: 4.5 };
+        let ct = CovenantType::MaxDebtToEbitda { threshold: 4.5 };
         assert_eq!(ct.to_string(), "Debt/EBITDA <= 4.50x");
         let ct = CovenantType::MinInterestCoverage { threshold: 2.0 };
         assert_eq!(ct.to_string(), "Interest Coverage >= 2.00x");
@@ -1879,7 +1881,7 @@ mod tests {
 
     #[test]
     fn covenant_type_covenant_id_is_stable() {
-        let ct = CovenantType::MaxDebtToEBITDA { threshold: 4.5 };
+        let ct = CovenantType::MaxDebtToEbitda { threshold: 4.5 };
         assert_eq!(ct.covenant_id(), "max_debt_ebitda");
         let ct = CovenantType::MinInterestCoverage { threshold: 2.0 };
         assert_eq!(ct.covenant_id(), "min_interest_coverage");
@@ -1888,7 +1890,7 @@ mod tests {
     #[test]
     fn covenant_type_bound_kind() {
         assert_eq!(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 }.bound_kind(),
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 }.bound_kind(),
             Some(BoundKind::AtMost)
         );
         assert_eq!(
@@ -1907,7 +1909,7 @@ mod tests {
     #[test]
     fn instance_key_uses_label_when_set() {
         let cov = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         )
         .with_label("senior");
@@ -1917,7 +1919,7 @@ mod tests {
     #[test]
     fn instance_key_falls_back_to_covenant_id() {
         let cov = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.5 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.5 },
             Tenor::quarterly(),
         );
         assert_eq!(cov.instance_key(), "max_debt_ebitda");

@@ -70,7 +70,7 @@ fn fixture_panel() -> CalibrationFixture {
 
     let mut spreads: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
     let mut tags: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
-    let mut asof_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
+    let mut as_of_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
 
     for (idx, (id, rating, region)) in issuer_specs.iter().enumerate() {
         let issuer_id = IssuerId::new(*id);
@@ -84,7 +84,7 @@ fn fixture_panel() -> CalibrationFixture {
                 Some(val)
             })
             .collect();
-        asof_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
+        as_of_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
         spreads.insert(issuer_id.clone(), series);
         tags.insert(issuer_id, tags_for(rating, region));
     }
@@ -100,7 +100,7 @@ fn fixture_panel() -> CalibrationFixture {
             values: generic_values,
         },
         as_of,
-        asof_spreads,
+        as_of_spreads,
     }
 }
 
@@ -109,7 +109,7 @@ struct CalibrationFixture {
     tags: IssuerTagPanel,
     generic: GenericFactorSeries,
     as_of: Date,
-    asof_spreads: BTreeMap<IssuerId, f64>,
+    as_of_spreads: BTreeMap<IssuerId, f64>,
 }
 
 impl CalibrationFixture {
@@ -119,7 +119,7 @@ impl CalibrationFixture {
             issuer_tags: self.tags,
             generic_factor: self.generic,
             as_of: self.as_of,
-            asof_spreads: self.asof_spreads,
+            as_of_spreads: self.as_of_spreads,
             idiosyncratic_overrides: BTreeMap::new(),
         }
     }
@@ -500,7 +500,7 @@ fn sparse_bucket_emits_none_for_empty_dates() {
     // IG is missing on date index 5.
     let mut spreads: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
     let mut issuer_tags_map: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
-    let mut asof_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
+    let mut as_of_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
 
     let ig_id = IssuerId::new("ISSUER-IG");
     let hy_id = IssuerId::new("ISSUER-HY");
@@ -515,7 +515,7 @@ fn sparse_bucket_emits_none_for_empty_dates() {
             }
         })
         .collect();
-    asof_spreads.insert(ig_id.clone(), ig_series[n - 1].unwrap());
+    as_of_spreads.insert(ig_id.clone(), ig_series[n - 1].unwrap());
     spreads.insert(ig_id.clone(), ig_series);
     let mut ig_tags_map = BTreeMap::new();
     ig_tags_map.insert("rating".to_owned(), "IG".to_owned());
@@ -525,7 +525,7 @@ fn sparse_bucket_emits_none_for_empty_dates() {
     let hy_series: Vec<Option<f64>> = (0..n)
         .map(|i| Some(200.0 + 1.2 * generic_values[i] + 0.03 * (i as f64).sin()))
         .collect();
-    asof_spreads.insert(hy_id.clone(), hy_series[n - 1].unwrap());
+    as_of_spreads.insert(hy_id.clone(), hy_series[n - 1].unwrap());
     spreads.insert(hy_id.clone(), hy_series);
     let mut hy_tags_map = BTreeMap::new();
     hy_tags_map.insert("rating".to_owned(), "HY".to_owned());
@@ -544,7 +544,7 @@ fn sparse_bucket_emits_none_for_empty_dates() {
             values: generic_values,
         },
         as_of,
-        asof_spreads,
+        as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
     };
 
@@ -1126,7 +1126,7 @@ fn bucket_only_uses_peer_proxy_at_deepest_level() {
 
     let mut spreads: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
     let mut issuer_tags_map: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
-    let mut asof_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
+    let mut as_of_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
 
     // 2 IssuerBeta peers in IG.EU bucket.
     for (idx, id) in ["PEER-1", "PEER-2"].iter().enumerate() {
@@ -1141,7 +1141,7 @@ fn bucket_only_uses_peer_proxy_at_deepest_level() {
                 )
             })
             .collect();
-        asof_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
+        as_of_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
         spreads.insert(issuer_id.clone(), series);
         issuer_tags_map.insert(issuer_id, tags_for("IG", "EU"));
     }
@@ -1157,7 +1157,7 @@ fn bucket_only_uses_peer_proxy_at_deepest_level() {
             (i >= n - 2).then(|| 150.0 + 0.9 * generic_values[i] + 0.05 * ((i as f64) * 0.7).cos())
         })
         .collect();
-    asof_spreads.insert(x_id.clone(), x_series[n - 1].unwrap());
+    as_of_spreads.insert(x_id.clone(), x_series[n - 1].unwrap());
     spreads.insert(x_id.clone(), x_series);
     issuer_tags_map.insert(x_id.clone(), tags_for("IG", "EU"));
 
@@ -1195,7 +1195,7 @@ fn bucket_only_uses_peer_proxy_at_deepest_level() {
             values: generic_values,
         },
         as_of,
-        asof_spreads,
+        as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
     };
 
@@ -1264,7 +1264,7 @@ fn bucket_peer_proxy_falls_back_to_parent() {
 
     let mut spreads: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
     let mut issuer_tags_map: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
-    let mut asof_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
+    let mut as_of_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
 
     // 2 IssuerBeta peers in IG.EU bucket (different region from X).
     for (idx, id) in ["PEER-EU-1", "PEER-EU-2"].iter().enumerate() {
@@ -1279,7 +1279,7 @@ fn bucket_peer_proxy_falls_back_to_parent() {
                 )
             })
             .collect();
-        asof_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
+        as_of_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
         spreads.insert(issuer_id.clone(), series);
         issuer_tags_map.insert(issuer_id, tags_for("IG", "EU"));
     }
@@ -1295,7 +1295,7 @@ fn bucket_peer_proxy_falls_back_to_parent() {
             (i >= n - 2).then(|| 150.0 + 0.9 * generic_values[i] + 0.05 * ((i as f64) * 0.7).cos())
         })
         .collect();
-    asof_spreads.insert(x_id.clone(), x_series[n - 1].unwrap());
+    as_of_spreads.insert(x_id.clone(), x_series[n - 1].unwrap());
     spreads.insert(x_id.clone(), x_series);
     issuer_tags_map.insert(x_id.clone(), tags_for("IG", "APAC"));
 
@@ -1337,7 +1337,7 @@ fn bucket_peer_proxy_falls_back_to_parent() {
             values: generic_values,
         },
         as_of,
-        asof_spreads,
+        as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
     };
 
@@ -1401,7 +1401,7 @@ fn peer_proxy_cascade_falls_back_to_global() {
 
     let mut spreads: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
     let mut issuer_tags_map: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
-    let mut asof_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
+    let mut as_of_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
 
     // 2 IssuerBeta peers in IG.EU bucket (different rating bucket from X).
     for (idx, id) in ["IG-PEER-1", "IG-PEER-2"].iter().enumerate() {
@@ -1416,7 +1416,7 @@ fn peer_proxy_cascade_falls_back_to_global() {
                 )
             })
             .collect();
-        asof_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
+        as_of_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
         spreads.insert(issuer_id.clone(), series);
         issuer_tags_map.insert(issuer_id, tags_for("IG", "EU"));
     }
@@ -1432,7 +1432,7 @@ fn peer_proxy_cascade_falls_back_to_global() {
             (i >= n - 2).then(|| 250.0 + 1.2 * generic_values[i] + 0.08 * ((i as f64) * 0.4).cos())
         })
         .collect();
-    asof_spreads.insert(x_id.clone(), x_series[n - 1].unwrap());
+    as_of_spreads.insert(x_id.clone(), x_series[n - 1].unwrap());
     spreads.insert(x_id.clone(), x_series);
     issuer_tags_map.insert(x_id.clone(), tags_for("HY", "APAC"));
 
@@ -1474,7 +1474,7 @@ fn peer_proxy_cascade_falls_back_to_global() {
             values: generic_values,
         },
         as_of,
-        asof_spreads,
+        as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
     };
 
@@ -1579,8 +1579,8 @@ fn adder_vol_defaults_to_zero_when_history_too_short_everywhere() {
     spreads.insert(issuer.clone(), vec![Some(120.0), Some(121.0)]);
     let mut tags: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
     tags.insert(issuer.clone(), tags_for("IG", "EU"));
-    let mut asof_spreads = BTreeMap::new();
-    asof_spreads.insert(issuer, 121.0);
+    let mut as_of_spreads = BTreeMap::new();
+    as_of_spreads.insert(issuer, 121.0);
 
     let cfg = CreditCalibrationConfig {
         min_bucket_size_per_level: BucketSizeThresholds {
@@ -1603,7 +1603,7 @@ fn adder_vol_defaults_to_zero_when_history_too_short_everywhere() {
             values: generic_values,
         },
         as_of,
-        asof_spreads,
+        as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
     };
 
@@ -1739,7 +1739,7 @@ fn full_sample_repaired_covariance_is_psd() {
 
     let mut spreads: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
     let mut tags: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
-    let mut asof_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
+    let mut as_of_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
 
     for (idx, (id, rating, region)) in issuer_specs.iter().enumerate() {
         let issuer_id = IssuerId::new(*id);
@@ -1754,7 +1754,7 @@ fn full_sample_repaired_covariance_is_psd() {
                 )
             })
             .collect();
-        asof_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
+        as_of_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
         spreads.insert(issuer_id.clone(), series);
         tags.insert(issuer_id, tags_for(rating, region));
     }
@@ -1770,7 +1770,7 @@ fn full_sample_repaired_covariance_is_psd() {
             values: generic_values,
         },
         as_of,
-        asof_spreads,
+        as_of_spreads,
         idiosyncratic_overrides: BTreeMap::new(),
     };
 
@@ -1892,11 +1892,11 @@ fn full_sample_repaired_preserves_determinism() {
 // PR-5b Test 5: Golden artifact regression test
 // ---------------------------------------------------------------------------
 
-const REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV: &str = "FINSTACK_REGEN_CREDIT_FACTOR_MODEL_GOLDEN";
+const REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV: &str = "FQ_UPDATE_CANONICAL_GOLDENS";
 
-/// Generate (or regenerate) the golden artifact file.
+/// Generate (or regenerate) the factor-model-owned canonical artifact and hash.
 /// Run manually with:
-/// `FINSTACK_REGEN_CREDIT_FACTOR_MODEL_GOLDEN=1 cargo test -p finstack-quant-valuations --test credit_calibration generate_golden_artifact -- --nocapture`
+/// `FQ_UPDATE_CANONICAL_GOLDENS=1 cargo test -p finstack-quant-valuations --test credit_calibration generate_golden_artifact -- --nocapture`
 #[test]
 fn generate_golden_artifact() {
     if std::env::var_os(REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV).is_none() {
@@ -1905,7 +1905,11 @@ fn generate_golden_artifact() {
 
     let golden_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/schema_fixtures/credit_factor_model_v1.json"
+        "/../factor-model/tests/data/canonical/credit_factor_model.json"
+    );
+    let hash_path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../factor-model/tests/data/canonical/credit_factor_model.sha256"
     );
 
     let cfg = CreditCalibrationConfig {
@@ -1927,16 +1931,20 @@ fn generate_golden_artifact() {
         .calibrate(fixture_panel().into_inputs())
         .expect("golden fixture calibration must succeed");
 
-    let json = serde_json::to_string_pretty(&model).expect("serialize to pretty JSON");
+    let json =
+        finstack_quant_core::to_canonical_bytes(&model).expect("serialize canonical model JSON");
+    let hash = finstack_quant_core::content_hash(&model).expect("hash canonical model JSON");
     std::fs::create_dir_all(std::path::Path::new(golden_path).parent().unwrap())
         .expect("create golden dir");
     std::fs::write(golden_path, &json).expect("write golden file");
-    println!("Golden file written to {golden_path}");
+    std::fs::write(hash_path, format!("{hash}\n")).expect("write golden hash");
+    println!("Canonical fixture written to {golden_path}");
 }
 
 /// Calibrate with the canonical fixture (Diagonal + Sample), serialize to
 /// pretty-printed JSON, and compare byte-for-byte against the checked-in
-/// schema fixture at `tests/schema_fixtures/credit_factor_model_v1.json`.
+/// factor-model fixture at
+/// `../factor-model/tests/data/canonical/credit_factor_model.json`.
 ///
 /// On first run after generating the golden file, this test confirms the
 /// file matches a fresh calibration. On subsequent runs it catches any
@@ -1945,7 +1953,7 @@ fn generate_golden_artifact() {
 fn golden_credit_factor_model_matches_checked_in_json() {
     let golden_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/schema_fixtures/credit_factor_model_v1.json"
+        "/../factor-model/tests/data/canonical/credit_factor_model.json"
     );
 
     let cfg = CreditCalibrationConfig {
@@ -2059,10 +2067,8 @@ fn calibration_config_round_trips_through_json() {
 /// `credit_calibration_config.schema.json`.
 #[test]
 fn calibration_config_serialization_matches_schema() {
-    let schema_content =
-        include_str!("../schemas/factor_model/1/credit_calibration_config.schema.json");
-    let schema: serde_json::Value =
-        serde_json::from_str(schema_content).expect("schema must be valid JSON");
+    let schema = finstack_quant_factor_model::schema::credit_calibration_config_schema()
+        .expect("embedded schema must be valid JSON");
 
     // Use a non-trivial config so validation exercises required fields.
     let cfg = CreditCalibrationConfig {
@@ -2082,7 +2088,7 @@ fn calibration_config_serialization_matches_schema() {
         serde_json::from_str(&serde_json::to_string(&cfg).expect("serialize config"))
             .expect("re-parse as Value");
 
-    let validator = jsonschema::validator_for(&schema).expect("schema must compile");
+    let validator = jsonschema::validator_for(schema).expect("schema must compile");
     let errors: Vec<String> = validator
         .iter_errors(&instance)
         .map(|e| {
@@ -2102,15 +2108,15 @@ fn calibration_config_serialization_matches_schema() {
 }
 
 // ---------------------------------------------------------------------------
-// asof_spreads must cover exactly the calibrated universe
+// as_of_spreads must cover exactly the calibrated universe
 // ---------------------------------------------------------------------------
 
-/// A history issuer missing from `asof_spreads` previously got a silent
+/// A history issuer missing from `as_of_spreads` previously got a silent
 /// `adder_at_anchor = 0.0` and shifted every bucket peer's anchor mean.
 #[test]
 fn calibration_rejects_asof_spreads_missing_a_history_issuer() {
     let mut inputs = fixture_panel().into_inputs();
-    inputs.asof_spreads.remove(&IssuerId::new("ISSUER-B"));
+    inputs.as_of_spreads.remove(&IssuerId::new("ISSUER-B"));
 
     let cfg = config_with(
         IssuerBetaPolicy::GloballyOff,
@@ -2121,7 +2127,7 @@ fn calibration_rejects_asof_spreads_missing_a_history_issuer() {
         .expect_err("missing as_of spread must be rejected");
     let msg = err.to_string();
     assert!(
-        msg.contains("ISSUER-B") && msg.contains("asof_spreads"),
+        msg.contains("ISSUER-B") && msg.contains("as_of_spreads"),
         "error must name the missing issuer: {msg}"
     );
 }
@@ -2132,7 +2138,7 @@ fn calibration_rejects_asof_spreads_missing_a_history_issuer() {
 fn calibration_rejects_asof_only_issuer() {
     let mut inputs = fixture_panel().into_inputs();
     inputs
-        .asof_spreads
+        .as_of_spreads
         .insert(IssuerId::new("ISSUER-GHOST"), 175.0);
 
     let cfg = config_with(

@@ -1,4 +1,4 @@
-//! Integration test for base correlation calibration (v2).
+//! Integration test for base correlation calibration (canonical).
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, Tenor};
@@ -99,7 +99,7 @@ fn tranche_upfront_frac(
         .running_coupon_bp(running_coupon_bp)
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::Following)
+        .business_day_convention(BusinessDayConvention::Following)
         .calendar_id_opt(None)
         .discount_curve_id(CurveId::from("USD-OIS"))
         .credit_index_id(CurveId::from("CDX"))
@@ -193,7 +193,7 @@ fn base_correlation_step_builds_curve_and_updates_credit_index_data() {
             .build()
             .expect("seed base correlation"),
     );
-    let initial_market = MarketContext::new()
+    let source_market = MarketContext::new()
         .insert(create_discount_curve(base_date))
         .insert(hazard.as_ref().clone())
         .insert(seed_corr.as_ref().clone())
@@ -232,7 +232,7 @@ fn base_correlation_step_builds_curve_and_updates_credit_index_data() {
         }),
     ];
 
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("tranches".to_string(), cal_utils::quote_set_ids(&quotes));
@@ -260,7 +260,7 @@ fn base_correlation_step_builds_curve_and_updates_credit_index_data() {
                 notional,
                 frequency: Some(Tenor::quarterly()),
                 day_count: Some(DayCount::Act360),
-                bdc: Some(BusinessDayConvention::Following),
+                business_day_convention: Some(BusinessDayConvention::Following),
                 calendar_id: None,
                 detachment_points: vec![0.03, 0.07],
                 use_imm_dates: true,
@@ -271,7 +271,7 @@ fn base_correlation_step_builds_curve_and_updates_credit_index_data() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,

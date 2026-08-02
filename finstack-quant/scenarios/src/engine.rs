@@ -124,7 +124,7 @@ pub enum ScenarioMarketTarget {
         /// Surface family from the expanded operation.
         surface_kind: VolSurfaceKind,
         /// Concrete volatility-surface identifier.
-        surface_id: CurveId,
+        vol_surface_id: CurveId,
     },
     /// An equity or other scalar price entry.
     EquityPrice {
@@ -142,45 +142,31 @@ pub enum ScenarioMarketTarget {
 
 /// Authoritative change manifest produced while applying a scenario.
 ///
-/// Empty/default manifests preserve the historical wire shape because the
-/// containing report omits this field. Newer readers can use the manifest to
-/// invalidate only the market factors and instruments that actually changed,
-/// while `all_dirty` provides a conservative escape hatch for changes that
-/// cannot be represented precisely.
+/// Readers use the manifest to invalidate only the market factors and
+/// instruments that actually changed, while `all_dirty` provides a
+/// conservative escape hatch for changes that cannot be represented precisely.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScenarioChangeManifest {
     /// Concrete market-data targets changed by applied effects.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub market_targets: Vec<ScenarioMarketTarget>,
     /// Zero-based indices of portfolio instruments mutated in place.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub changed_instrument_indices: Vec<usize>,
     /// Whether the execution context's effective valuation date changed.
-    #[serde(default, skip_serializing_if = "is_false")]
     pub as_of_changed: bool,
     /// Whether instruments were inserted, removed, or reordered.
     ///
     /// Current scenario operations do not change portfolio shape, so this is
     /// `false`; the field is reserved for future shape-changing effects.
-    #[serde(default, skip_serializing_if = "is_false")]
     pub portfolio_shape_changed: bool,
     /// Whether callers must conservatively treat every dependency as dirty.
     ///
     /// This is set for effective time rolls because date-sensitive values can
     /// change even when no explicit market or instrument target was mutated.
-    #[serde(default, skip_serializing_if = "is_false")]
     pub all_dirty: bool,
 }
 
 impl ScenarioChangeManifest {
-    fn is_empty(&self) -> bool {
-        self.market_targets.is_empty()
-            && self.changed_instrument_indices.is_empty()
-            && !self.as_of_changed
-            && !self.portfolio_shape_changed
-            && !self.all_dirty
-    }
-
     fn record_market_target(&mut self, target: ScenarioMarketTarget) {
         if !self.market_targets.contains(&target) {
             self.market_targets.push(target);
@@ -194,10 +180,6 @@ impl ScenarioChangeManifest {
             }
         }
     }
-}
-
-fn is_false(value: &bool) -> bool {
-    !*value
 }
 
 /// Report describing what happened during [`ScenarioEngine::apply`].
@@ -221,6 +203,7 @@ fn is_false(value: &bool) -> bool {
 /// assert_eq!(report.expanded_operations, 3);
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ApplicationReport {
     /// Number of effects successfully applied to the execution context.
     ///
@@ -241,7 +224,6 @@ pub struct ApplicationReport {
     pub expanded_operations: usize,
 
     /// Authoritative metadata describing the state changed by applied effects.
-    #[serde(default, skip_serializing_if = "ScenarioChangeManifest::is_empty")]
     pub changes: ScenarioChangeManifest,
 
     /// Structured warnings generated during application (non-fatal).
@@ -255,13 +237,14 @@ pub struct ApplicationReport {
     /// decomposition and the new valuation date; instruments whose valuation
     /// failed during the roll are also surfaced as
     /// [`Warning::TimeRollInstrumentFailed`] entries in `warnings`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub time_roll: Option<crate::adapters::RollForwardReport>,
 }
 
 /// JSON envelope returned after applying a scenario to market data and,
 /// optionally, a financial model.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ApplicationEnvelope {
     /// Serialized mutated market context.
     pub market_json: String,
@@ -275,15 +258,14 @@ pub struct ApplicationEnvelope {
     /// Number of expanded operations the engine attempted.
     pub expanded_operations: usize,
     /// Authoritative metadata describing the state changed by applied effects.
-    #[serde(default, skip_serializing_if = "ScenarioChangeManifest::is_empty")]
     pub changes: ScenarioChangeManifest,
     /// Structured warnings produced while applying the scenario.
     pub warnings: Vec<Warning>,
     /// Rounding context stamp from the report (active rounding mode).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rounding_context: Option<String>,
     /// Roll-forward report, when the scenario contained a time-roll operation.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub time_roll: Option<crate::adapters::RollForwardReport>,
 }
 
@@ -331,7 +313,7 @@ enum HierarchyExpansionKey {
     },
     VolSurface {
         surface_kind: VolSurfaceKind,
-        surface_id: CurveId,
+        vol_surface_id: CurveId,
     },
     EquityPrice {
         price_id: CurveId,
@@ -607,11 +589,11 @@ fn expand_hierarchy_operations<'a>(
                     (
                         HierarchyExpansionKey::VolSurface {
                             surface_kind: *surface_kind,
-                            surface_id: curve_id.clone(),
+                            vol_surface_id: curve_id.clone(),
                         },
                         OperationSpec::VolSurfaceParallelPct {
                             surface_kind: *surface_kind,
-                            surface_id: curve_id,
+                            vol_surface_id: curve_id,
                             pct: *pct,
                         },
                     )
@@ -774,27 +756,29 @@ fn generate_effects(op: &OperationSpec, ctx: &ExecutionContext) -> Result<Vec<Sc
         ),
         OperationSpec::BaseCorrBucketPts {
             surface_id,
-            detachment_bps,
+            detachment_bp,
             maturities,
             points,
         } => adapters::basecorr::base_corr_bucket_effects(
             surface_id,
-            detachment_bps.as_deref(),
+            detachment_bp.as_deref(),
             maturities.as_deref(),
             *points,
             ctx,
         ),
         OperationSpec::VolSurfaceParallelPct {
-            surface_id, pct, ..
-        } => adapters::vol::vol_parallel_effects(surface_id, *pct, ctx),
+            vol_surface_id,
+            pct,
+            ..
+        } => adapters::vol::vol_parallel_effects(vol_surface_id, *pct, ctx),
         OperationSpec::VolSurfaceBucketPct {
-            surface_id,
+            vol_surface_id,
             tenors,
             strikes,
             pct,
             ..
         } => adapters::vol::vol_bucket_effects(
-            surface_id,
+            vol_surface_id,
             tenors.as_deref(),
             strikes.as_deref(),
             *pct,
@@ -1323,7 +1307,7 @@ fn market_target_for_id(op: &OperationSpec, id: &CurveId) -> Option<ScenarioMark
         | OperationSpec::VolSurfaceBucketPct { surface_kind, .. } => {
             Some(ScenarioMarketTarget::VolSurface {
                 surface_kind: *surface_kind,
-                surface_id: id.clone(),
+                vol_surface_id: id.clone(),
             })
         }
         OperationSpec::MarketFxPct { .. }
@@ -1353,8 +1337,10 @@ fn market_target_for_bump(op: &OperationSpec, bump: &MarketBump) -> Option<Scena
             })
         }
         (_, MarketBump::Curve { id, .. }) => market_target_for_id(op, id),
-        (_, MarketBump::VolBucketPct { surface_id, .. })
-        | (_, MarketBump::BaseCorrBucketPts { surface_id, .. }) => {
+        (_, MarketBump::VolBucketPct { vol_surface_id, .. }) => {
+            market_target_for_id(op, vol_surface_id)
+        }
+        (_, MarketBump::BaseCorrBucketPts { surface_id, .. }) => {
             market_target_for_id(op, surface_id)
         }
         _ => None,
@@ -1505,8 +1491,14 @@ fn would_conflict_with_pending(pending: &[MarketBump], incoming: &MarketBump) ->
         ) => ba == bb && qa == qb,
         (MarketBump::Curve { id: a, .. }, MarketBump::Curve { id: b, .. })
         | (
-            MarketBump::VolBucketPct { surface_id: a, .. },
-            MarketBump::VolBucketPct { surface_id: b, .. },
+            MarketBump::VolBucketPct {
+                vol_surface_id: a,
+                ..
+            },
+            MarketBump::VolBucketPct {
+                vol_surface_id: b,
+                ..
+            },
         )
         | (
             MarketBump::BaseCorrBucketPts { surface_id: a, .. },
@@ -1514,8 +1506,20 @@ fn would_conflict_with_pending(pending: &[MarketBump], incoming: &MarketBump) ->
         ) => a == b,
         // A `Curve` bump on the same id as a `VolBucketPct` is also a logical
         // conflict (both target a vol surface) — flush to be safe.
-        (MarketBump::Curve { id: a, .. }, MarketBump::VolBucketPct { surface_id: b, .. })
-        | (MarketBump::VolBucketPct { surface_id: a, .. }, MarketBump::Curve { id: b, .. })
+        (
+            MarketBump::Curve { id: a, .. },
+            MarketBump::VolBucketPct {
+                vol_surface_id: b,
+                ..
+            },
+        )
+        | (
+            MarketBump::VolBucketPct {
+                vol_surface_id: a,
+                ..
+            },
+            MarketBump::Curve { id: b, .. },
+        )
         | (MarketBump::Curve { id: a, .. }, MarketBump::BaseCorrBucketPts { surface_id: b, .. })
         | (MarketBump::BaseCorrBucketPts { surface_id: a, .. }, MarketBump::Curve { id: b, .. }) => {
             a == b
@@ -1851,24 +1855,30 @@ mod tests {
     }
 
     #[test]
-    fn application_report_change_manifest_preserves_legacy_serde_defaults() {
-        let legacy_json = r#"{
+    fn application_report_requires_change_manifest() {
+        let incomplete_json = r#"{
             "operations_applied": 0,
             "user_operations": 0,
             "expanded_operations": 0,
             "warnings": [],
             "rounding_context": null
         }"#;
+        let error = serde_json::from_str::<ApplicationReport>(incomplete_json)
+            .expect_err("changes is required by the canonical report contract");
+        assert!(error.to_string().contains("changes"));
 
-        let report: ApplicationReport =
-            serde_json::from_str(legacy_json).expect("legacy report should deserialize");
-        assert_eq!(report.changes, ScenarioChangeManifest::default());
-
+        let report = ApplicationReport {
+            operations_applied: 0,
+            user_operations: 0,
+            expanded_operations: 0,
+            changes: ScenarioChangeManifest::default(),
+            warnings: vec![],
+            rounding_context: None,
+            time_roll: None,
+        };
         let encoded = serde_json::to_value(&report).expect("report should serialize");
-        assert!(
-            encoded.get("changes").is_none(),
-            "empty manifest must preserve the legacy serialized shape"
-        );
+        assert_eq!(encoded["changes"]["market_targets"], serde_json::json!([]));
+        assert_eq!(encoded["changes"]["all_dirty"], serde_json::json!(false));
     }
 
     #[test]

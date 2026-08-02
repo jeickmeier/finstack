@@ -59,6 +59,7 @@ use smallvec::SmallVec;
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum BarrierCrossing {
     /// Discrete monitoring: default if `V(t_i) < B(t_i)` at time steps.
     Discrete,
@@ -70,6 +71,7 @@ pub enum BarrierCrossing {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CalibrationParameter {
     /// Calibrate the debt barrier B.
     DebtBarrier,
@@ -83,6 +85,7 @@ pub enum CalibrationParameter {
 /// bisection to solve for a structural parameter so that the cash base-case
 /// MC price matches the target market quote, then re-prices with full paths.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct MertonMcCalibrationSpec {
     /// Target market quote to match (interpreted at quote/settlement date).
     pub target: crate::instruments::fixed_income::bond::pricing::quote_conversions::BondQuoteInput,
@@ -123,6 +126,7 @@ impl Default for MertonMcCalibrationSpec {
 #[derive(
     Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum PikMode {
     /// Coupon paid in cash.
     Cash,
@@ -160,6 +164,7 @@ pub enum PikMode {
 /// let toggle_window = PikSchedule::Stepped(vec![(0.0, PikMode::Toggle), (3.0, PikMode::Cash)]);
 /// ```
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum PikSchedule {
     /// Same mode for all coupon dates.
     Uniform(PikMode),
@@ -200,6 +205,7 @@ impl PikSchedule {
 
 /// Configuration for Monte Carlo PIK bond pricing.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct MertonMcConfig {
     /// Merton structural credit model.
     pub merton: MertonModel,
@@ -1080,7 +1086,7 @@ impl MertonMcEngine {
     /// coupon's accrual as a fraction of a full period (1.0 for regular
     /// coupons, < 1.0 for the stub). Anchoring at maturity keeps every coupon
     /// inside the simulated horizon and gives seasoned bonds the correct
-    /// remaining-coupon timing; `round(maturity·freq)` from the valuation
+    /// remaining-coupon timing; `round(maturity·frequency)` from the valuation
     /// date (the previous behavior) dropped stub coupons and could place the
     /// final coupon beyond the simulated horizon.
     ///
@@ -1328,11 +1334,11 @@ pub mod calibration {
         let quote_ctx = QuoteDateContext::new(bond, market, as_of)?;
         let quote_date = quote_ctx.quote_date;
 
-        let dirty_quote_ccy = match *target {
+        let dirty_quote_currency = match *target {
             BondQuoteInput::CleanPricePct(clean_pct) => {
                 quote_ctx.dirty_from_clean_pct(clean_pct, bond.notional.amount())
             }
-            BondQuoteInput::DirtyPriceCcy(dirty_ccy) => dirty_ccy,
+            BondQuoteInput::DirtyPriceCurrency(dirty_currency) => dirty_currency,
             BondQuoteInput::Ytm(ytm) | BondQuoteInput::Ytw(ytm) => {
                 // YTW inversion uses maturity flows (same convention as
                 // `Bond::base_value`'s `quoted_ytw` path); for callable bonds,
@@ -1355,7 +1361,7 @@ pub mod calibration {
         } else {
             1.0
         };
-        Ok(dirty_quote_ccy * df_settle)
+        Ok(dirty_quote_currency * df_settle)
     }
 
     fn mc_cash_pv(
@@ -1975,7 +1981,7 @@ mod tests {
     /// barrier, negligible vol) the MC price of a stub-maturity bond must
     /// reproduce the risk-free PV — i.e. every coupon in the risk-free leg is
     /// reachable on the simulation grid and the grid ends exactly at
-    /// maturity. Before the fix, `round(maturity·freq)` and a fixed
+    /// maturity. Before the fix, `round(maturity·frequency)` and a fixed
     /// `dt = 1/steps_per_year` let the legs disagree on stub maturities.
     #[test]
     fn stub_maturity_mc_matches_risk_free_pv_without_default_risk() {
@@ -2536,8 +2542,7 @@ mod tests {
 
     #[test]
     fn merton_mc_config_roundtrips_via_pricing_overrides_json() {
-        // Ensures the notebook path (instrument JSON with a flat
-        // pricing_overrides.merton_mc_config key) can deserialize and be accepted.
+        // Ensures the canonical nested model configuration can deserialize.
         use crate::instruments::InstrumentPricingOverrides;
         let cfg = MertonMcConfig::new(test_merton())
             .num_paths(64)
@@ -2559,23 +2564,25 @@ mod tests {
         assert_eq!(restored.seed, 7);
 
         let notebook_shape = serde_json::json!({
-            "merton_mc_config": {
-                "merton": {
-                    "asset_value": 200.0,
-                    "asset_vol": 0.25,
-                    "debt_barrier": 100.0,
-                    "risk_free_rate": 0.04,
-                    "payout_rate": 0.0,
-                    "barrier_type": {"FirstPassage": {"barrier_growth_rate": 0.0}},
-                    "dynamics": "GeometricBrownian"
-                },
-                "pik_schedule": {"Uniform": "Pik"},
-                "num_paths": 2000,
-                "seed": 42,
-                "antithetic": true,
-                "time_steps_per_year": 50,
-                "default_recovery_rate": 0.40,
-                "barrier_crossing": "BrownianBridge"
+            "model_config": {
+                "merton_mc_config": {
+                    "merton": {
+                        "asset_value": 200.0,
+                        "asset_vol": 0.25,
+                        "debt_barrier": 100.0,
+                        "risk_free_rate": 0.04,
+                        "payout_rate": 0.0,
+                        "barrier_type": {"first_passage": {"barrier_growth_rate": 0.0}},
+                        "dynamics": "geometric_brownian"
+                    },
+                    "pik_schedule": {"uniform": "pik"},
+                    "num_paths": 2000,
+                    "seed": 42,
+                    "antithetic": true,
+                    "time_steps_per_year": 50,
+                    "default_recovery_rate": 0.40,
+                    "barrier_crossing": "brownian_bridge"
+                }
             }
         });
         let from_notebook: InstrumentPricingOverrides =

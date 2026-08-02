@@ -76,11 +76,11 @@ pub(crate) fn date_from_hazard_time(surv: &HazardCurve, t: f64) -> Date {
     if t == 0.0 {
         return surv.base_date();
     }
-    let dc = surv.day_count();
+    let day_count = surv.day_count();
     let base = surv.base_date();
 
     // Fast paths: Act/360 and Act/365F have exact closed-form inverses.
-    match dc {
+    match day_count {
         DayCount::Act360 => return base + Duration::days((t * 360.0).round() as i64),
         DayCount::Act365F => return base + Duration::days((t * 365.0).round() as i64),
         _ => {}
@@ -93,7 +93,7 @@ pub(crate) fn date_from_hazard_time(surv: &HazardCurve, t: f64) -> Date {
     let mut date = base + Duration::days((t * 365.25).round() as i64);
     let ctx = finstack_quant_core::dates::DayCountContext::default();
     for _ in 0..30 {
-        let Ok(yf) = dc.year_fraction(base, date, ctx) else {
+        let Ok(yf) = day_count.year_fraction(base, date, ctx) else {
             return date;
         };
         let err_days = ((t - yf) * 365.25).round() as i64;

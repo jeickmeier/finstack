@@ -130,7 +130,7 @@ pub fn create_standard_fra() -> ForwardRateAgreement {
         day_count: DayCount::Act360,
         reset_lag: 2,
         fixing_calendar_id: None,
-        fixing_bdc: None,
+        fixing_business_day_convention: None,
         observed_fixing: None,
         discount_curve_id: "USD_OIS".into(),
         forward_curve_id: "USD_LIBOR_3M".into(),
@@ -204,8 +204,8 @@ impl TestFraBuilder {
         self
     }
 
-    pub fn day_count(mut self, dc: DayCount) -> Self {
-        self.day_count = dc;
+    pub fn day_count(mut self, day_count: DayCount) -> Self {
+        self.day_count = day_count;
         self
     }
 
@@ -236,7 +236,7 @@ impl TestFraBuilder {
             day_count: self.day_count,
             reset_lag: self.reset_lag,
             fixing_calendar_id: None,
-            fixing_bdc: None,
+            fixing_business_day_convention: None,
             observed_fixing: None,
             discount_curve_id: self.discount_curve_id.into(),
             forward_curve_id: self.forward_curve_id.into(),

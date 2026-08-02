@@ -1208,7 +1208,7 @@ mod tests {
         };
 
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .position(position)
             .build()
@@ -1276,7 +1276,7 @@ mod tests {
         };
 
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .build()
             .expect("test should succeed");
@@ -1355,7 +1355,7 @@ mod tests {
         };
 
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .position(position)
             .build()
@@ -1451,7 +1451,9 @@ mod tests {
                 .curves
                 .discount_curves
                 .push(self.discount_curve.clone());
-            dependencies.spot_ids.extend(self.spots.iter().cloned());
+            dependencies
+                .market_scalar_ids
+                .extend(self.spots.iter().cloned());
             Ok(dependencies)
         }
     }
@@ -1569,7 +1571,7 @@ mod tests {
         .expect("percentage position should build");
 
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .position(position)
             .build()
@@ -1636,7 +1638,7 @@ mod tests {
         };
 
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .position(position)
             .build()
@@ -1729,7 +1731,7 @@ mod tests {
         };
 
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .position(position)
             .build()
@@ -1945,7 +1947,7 @@ mod tests {
         )
         .unwrap();
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .position(position)
             .build()
@@ -2047,7 +2049,7 @@ mod tests {
         )
         .unwrap();
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .position(position)
             .build()

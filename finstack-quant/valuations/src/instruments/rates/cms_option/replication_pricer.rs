@@ -53,7 +53,7 @@
 //! The Hagan first-order approximation replaces `g(k)` with `g(F) + g'(F)·(k-F)`,
 //! dropping higher-order terms. This replication pricer computes the exact integral,
 //! capturing smile-driven convexity at all orders. For CMS tenors > 10Y or
-//! high-volatility environments, the difference is 5–10 bps.
+//! high-volatility environments, the difference is 5–10 bp.
 //!
 //! # References
 //!
@@ -136,12 +136,12 @@ fn par_annuity(rate: f64, tenor_years: f64, m: f64) -> f64 {
 ///
 /// Examples: 6M → 2, 3M → 4, 1Y → 1, 1W → 52.
 #[inline]
-fn tenor_to_m(freq: Tenor) -> f64 {
-    match freq.unit() {
-        TenorUnit::Years => 1.0 / freq.count() as f64,
-        TenorUnit::Months => 12.0 / freq.count() as f64,
-        TenorUnit::Weeks => 52.0 / freq.count() as f64,
-        TenorUnit::Days => 360.0 / freq.count() as f64,
+fn tenor_to_m(frequency: Tenor) -> f64 {
+    match frequency.unit() {
+        TenorUnit::Years => 1.0 / frequency.count() as f64,
+        TenorUnit::Months => 12.0 / frequency.count() as f64,
+        TenorUnit::Weeks => 52.0 / frequency.count() as f64,
+        TenorUnit::Days => 360.0 / frequency.count() as f64,
     }
 }
 
@@ -352,7 +352,7 @@ impl CmsReplicationPricer {
 
         // Payments-per-year for the par annuity closed form.
         // Matches the fixed-leg payment frequency of the underlying CMS swap.
-        let m = tenor_to_m(inst.resolved_swap_fixed_freq());
+        let m = tenor_to_m(inst.resolved_swap_fixed_frequency());
 
         for (i, &fixing_date) in inst.fixing_dates.iter().enumerate() {
             let payment_date = inst.payment_dates[i];
@@ -462,9 +462,9 @@ impl CmsReplicationPricer {
                 as_of,
                 start,
                 end,
-                fixed_freq: inst.resolved_swap_fixed_freq(),
+                fixed_frequency: inst.resolved_swap_fixed_frequency(),
                 fixed_day_count: inst.resolved_swap_day_count(),
-                float_freq: inst.resolved_swap_float_freq(),
+                float_frequency: inst.resolved_swap_float_frequency(),
                 float_day_count: inst.resolved_swap_float_day_count(),
                 calendar_id: &calendar_id,
                 business_day_convention: convention.business_day_convention(),

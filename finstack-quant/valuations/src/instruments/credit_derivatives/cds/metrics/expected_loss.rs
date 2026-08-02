@@ -32,11 +32,11 @@ impl MetricCalculator for ExpectedLossCalculator {
         }
 
         // Use hazard curve's day-count for the survival time axis.
-        let dc = hazard.day_count();
+        let day_count = hazard.day_count();
         let base_date = hazard.base_date();
-        let t_asof = dc.year_fraction(base_date, as_of, DayCountContext::default())?;
+        let t_asof = day_count.year_fraction(base_date, as_of, DayCountContext::default())?;
         let t_maturity =
-            dc.year_fraction(base_date, cds.premium.end, DayCountContext::default())?;
+            day_count.year_fraction(base_date, cds.premium.end, DayCountContext::default())?;
 
         // Conditional survival to maturity given survival to as_of.
         let sp_asof = hazard.sp(t_asof);

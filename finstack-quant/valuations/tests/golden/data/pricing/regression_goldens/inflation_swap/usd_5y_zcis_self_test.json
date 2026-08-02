@@ -1,9 +1,9 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "usd_5y_zcis_self_test",
     "domain": "rates.inflation_swap",
-    "description": "Self-test fixture for zero-coupon inflation swap pricing with two-step calibration. Receive-fixed at 2.20% against US-CPI ZCIS for 5Y, 10MM USD notional. Exercises both the discount step (USD-OIS, with ois_compounding override) and the inflation step (US-CPI from 6 ZCIS quotes, against the calibrated discount curve). Closes the inflation calibration step coverage gap (plan \u00a718 follow-up #1).",
+    "description": "Self-test fixture for zero-coupon inflation swap pricing with two-step calibration. Receive-fixed at 2.20% against US-CPI ZCIS for 5Y, 10MM USD notional. Exercises both the discount step (USD-OIS, with ois_compounding override) and the inflation step (US-CPI from 6 ZCIS quotes, against the calibrated discount curve). Closes the inflation calibration step coverage gap (plan §18 follow-up #1).",
     "valuation_date": "2026-04-30",
     "source": "formula",
     "source_detail": "Self-test fixture: 6 ZCIS quotes (1Y-10Y, ~2.0-2.4% rising) calibrate the US-CPI inflation curve against a SOFR OIS-bootstrapped discount curve. Expected outputs captured from Finstack Quant's own calibration + pricing pipeline. Round-trip stability: re-running calibrate + price_instrument_with_metrics must reproduce these values within solver tolerance. Guards regressions in the inflation-step bootstrap, the inflation-swap pricing kernel, and the new `inflation` step kind's plumbing through engine::execute_with_diagnostics. Re-baselined 2026-07-11 after deterministic bootstrap refinements; no external benchmark source is asserted.",
@@ -20,7 +20,7 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
         "id": "usd_5y_zcis_self_test_market",
         "description": "Two-step plan: USD-OIS discount step (12 SOFR OIS quotes with rate-cutoff override) followed by US-CPI inflation step (6 ZCIS quotes against the calibrated discount). Sequential dependency exercises the engine's plan ordering for the inflation step kind.",
@@ -56,15 +56,15 @@
             "curve_id": "USD-OIS",
             "currency": "USD",
             "base_date": "2026-04-30",
-            "method": "Bootstrap",
+            "method": "bootstrap",
             "interpolation": "log_linear",
             "extrapolation": "flat_forward",
             "pricing_discount_id": null,
             "pricing_forward_id": null,
             "conventions": {
-              "curve_day_count": "Act365F",
+              "curve_day_count": "act_365f",
               "ois_compounding": {
-                "CompoundedWithRateCutoff": {
+                "compounded_with_rate_cutoff": {
                   "cutoff_days": 1
                 }
               }
@@ -81,7 +81,7 @@
             "index": "US-CPI",
             "observation_lag": "3M",
             "base_cpi": 300.0,
-            "method": "Bootstrap",
+            "method": "bootstrap",
             "interpolation": "linear"
           }
         ],
@@ -309,28 +309,31 @@
     }
   },
   "instrument": {
-    "type": "inflation_swap",
-    "spec": {
-      "id": "USD-5Y-ZCIS-SELF-TEST",
-      "notional": {
-        "amount": "10000000",
-        "currency": "USD"
-      },
-      "start_date": "2026-04-30",
-      "maturity": "2031-04-30",
-      "fixed_rate": 0.022,
-      "inflation_index_id": "US-CPI",
-      "discount_curve_id": "USD-OIS",
-      "side": "receive",
-      "attributes": {
-        "tags": [
-          "golden",
-          "self_test",
-          "inflation_calibration"
-        ],
-        "meta": {}
-      },
-      "day_count": "Act365F"
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "type": "inflation_swap",
+      "spec": {
+        "id": "USD-5Y-ZCIS-SELF-TEST",
+        "notional": {
+          "amount": "10000000",
+          "currency": "USD"
+        },
+        "start_date": "2026-04-30",
+        "maturity": "2031-04-30",
+        "fixed_rate": "0.022",
+        "inflation_index_id": "US-CPI",
+        "discount_curve_id": "USD-OIS",
+        "side": "receive",
+        "attributes": {
+          "tags": [
+            "golden",
+            "self_test",
+            "inflation_calibration"
+          ],
+          "meta": {}
+        },
+        "day_count": "act_365f"
+      }
     }
   },
   "expected": {

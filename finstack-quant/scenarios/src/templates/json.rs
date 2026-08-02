@@ -4,8 +4,8 @@
 //! by both the embedded built-in registry and runtime JSON registration paths.
 
 use crate::{Error, Result, ScenarioSpec, TemplateMetadata};
-use finstack_quant_core::contract::ContractDescriptor;
 use indexmap::{IndexMap, IndexSet};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 const EMBEDDED_TEMPLATE_JSONS: [(&str, &str); 5] = [
@@ -31,15 +31,12 @@ const EMBEDDED_TEMPLATE_JSONS: [(&str, &str); 5] = [
     ),
 ];
 
-pub(crate) const SCENARIO_TEMPLATE_CONTRACT: ContractDescriptor = ContractDescriptor {
-    id: "finstack_quant.scenario_template",
-    current: 1,
-    supported: 1..=1,
-    legacy_missing: Some(1),
-};
-
-fn legacy_scenario_template_schema() -> String {
-    SCENARIO_TEMPLATE_CONTRACT.schema_string()
+/// Exact persistence marker for scenario-template documents.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub(crate) enum ScenarioTemplateSchema {
+    /// The sole supported scenario-template contract.
+    #[serde(rename = "finstack_quant.scenario_template/1")]
+    ScenarioTemplate,
 }
 
 /// Return the embedded built-in template JSON payloads.
@@ -111,12 +108,11 @@ fn parse_embedded_document(name: &str, json: &str) -> Result<JsonTemplateDocumen
 /// Serde-facing JSON document for a composable stress template.
 ///
 /// Drives both the embedded built-in loader and runtime JSON registration paths.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct JsonTemplateDocument {
     /// Scenario-template schema marker.
-    #[serde(default = "legacy_scenario_template_schema")]
-    pub(crate) schema: String,
+    pub(crate) schema: ScenarioTemplateSchema,
     /// Template metadata shared with the runtime registry layer.
     pub(crate) metadata: TemplateMetadata,
     /// Component scenarios keyed by deterministic component identifier.
@@ -128,9 +124,6 @@ pub(crate) struct JsonTemplateDocument {
 impl JsonTemplateDocument {
     /// Validate document-level consistency across metadata, components, and composite.
     pub(crate) fn validate(&self) -> Result<()> {
-        SCENARIO_TEMPLATE_CONTRACT
-            .parse_schema(&self.schema)
-            .map_err(|error| Error::validation(error.to_string()))?;
         self.composite.validate()?;
 
         if self.metadata.id != self.composite.id {
@@ -190,7 +183,7 @@ impl JsonTemplateDocument {
 }
 
 /// Composite scenario identity plus ordered component references.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct JsonCompositeTemplate {
     id: String,
@@ -517,10 +510,7 @@ mod loader_tests {
 mod tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
-    use super::{
-        parse_template_document, JsonCompositeTemplate, JsonTemplateDocument,
-        SCENARIO_TEMPLATE_CONTRACT,
-    };
+    use super::{parse_template_document, JsonCompositeTemplate, JsonTemplateDocument};
     use crate::{CurveKind, OperationSpec, ScenarioSpec, TemplateMetadata};
     use indexmap::{indexmap, IndexMap};
     use time::macros::date;
@@ -566,7 +556,7 @@ mod tests {
 
     fn valid_document() -> JsonTemplateDocument {
         JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: metadata(vec!["rates", "credit"]),
             components: indexmap! {
                 "rates".into() => component_spec("rates"),
@@ -594,8 +584,10 @@ mod tests {
             .as_object_mut()
             .expect("document object")
             .remove("schema");
-        parse_template_document("legacy", &value.to_string())
-            .expect("missing schema maps to legacy version 1");
+        assert!(
+            parse_template_document("missing", &value.to_string()).is_err(),
+            "missing schema must fail"
+        );
 
         for schema in [
             "finstack_quant.scenario_template/0",
@@ -607,41 +599,6 @@ mod tests {
                 parse_template_document("invalid", &value.to_string()).is_err(),
                 "{schema} must fail"
             );
-        }
-    }
-
-    #[test]
-    fn template_version_matrix_fixture_drives_compatibility_loader() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../tests/data/contract_version_matrix.json"
-        ))
-        .expect("version matrix fixture parses");
-        let matrix = &fixture["template"];
-        let base = matrix["base"].clone();
-        let cases = matrix["cases"]
-            .as_array()
-            .expect("matrix contains schema cases");
-
-        for case in cases {
-            let name = case["name"].as_str().expect("case name");
-            let mut document = base.clone();
-            match case.get("schema") {
-                Some(serde_json::Value::Null) | None => {
-                    document
-                        .as_object_mut()
-                        .expect("template object")
-                        .remove("schema");
-                }
-                Some(schema) => document["schema"] = schema.clone(),
-            }
-            let expected = case["expected"].as_str().expect("expected outcome");
-            match parse_template_document(name, &document.to_string()) {
-                Ok(_) => assert_eq!(expected, "ok", "{name} unexpectedly loaded"),
-                Err(error) => assert!(
-                    error.to_string().contains(expected),
-                    "{name}: expected {expected} in {error}"
-                ),
-            }
         }
     }
 
@@ -661,7 +618,7 @@ mod tests {
     #[test]
     fn rejects_missing_referenced_component() {
         let document = JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: metadata(vec!["rates", "credit"]),
             components: indexmap! {
                 "rates".into() => component_spec("rates"),
@@ -678,7 +635,7 @@ mod tests {
     #[test]
     fn rejects_mismatched_metadata_components() {
         let document = JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: metadata(vec!["rates", "vol"]),
             components: indexmap! {
                 "rates".into() => component_spec("rates"),
@@ -698,7 +655,7 @@ mod tests {
     #[test]
     fn rejects_empty_composite_component_ids() {
         let document = JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: metadata(vec![]),
             components: IndexMap::new(),
             composite: composite(vec![]),
@@ -713,7 +670,7 @@ mod tests {
     #[test]
     fn rejects_duplicate_component_ids() {
         let document = JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: metadata(vec!["rates", "rates"]),
             components: indexmap! {
                 "rates".into() => component_spec("rates"),
@@ -730,7 +687,7 @@ mod tests {
     #[test]
     fn validates_component_specs() {
         let document = JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: metadata(vec!["rates"]),
             components: indexmap! {
                 "rates".into() => ScenarioSpec {
@@ -761,7 +718,7 @@ mod tests {
     #[test]
     fn rejects_component_key_spec_id_mismatch() {
         let document = JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: metadata(vec!["rates"]),
             components: indexmap! {
                 "rates".into() => component_spec("other_rates"),
@@ -780,7 +737,7 @@ mod tests {
     #[test]
     fn component_membership_validation_is_independent_of_map_insertion_order() {
         let document = JsonTemplateDocument {
-            schema: SCENARIO_TEMPLATE_CONTRACT.schema_string(),
+            schema: crate::templates::json::ScenarioTemplateSchema::ScenarioTemplate,
             metadata: metadata(vec!["rates", "credit"]),
             components: indexmap! {
                 "credit".into() => component_spec("credit"),

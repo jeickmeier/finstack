@@ -46,7 +46,7 @@ fn bond_position_from_json_spec_matches_typed_pricing() {
     .expect("position from spec");
 
     let portfolio = PortfolioBuilder::new("PF")
-        .base_ccy(finstack_quant_core::currency::Currency::USD)
+        .base_currency(finstack_quant_core::currency::Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E1"))
         .position(pos)
@@ -96,7 +96,7 @@ fn portfolio_valuation_stamps_caller_config() {
     )
     .expect("position");
     let portfolio = PortfolioBuilder::new("PF_CONFIG")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E_CONFIG"))
         .position(position)
@@ -125,7 +125,7 @@ fn portfolio_valuation_stamps_caller_config() {
         result
             .meta
             .rounding
-            .output_scale_by_ccy
+            .output_scale_by_currency
             .get(&Currency::USD)
             .copied(),
         Some(4),

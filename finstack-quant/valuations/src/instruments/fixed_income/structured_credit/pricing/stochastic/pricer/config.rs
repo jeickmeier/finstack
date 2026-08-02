@@ -39,6 +39,7 @@ use std::sync::Arc;
 #[derive(
     Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum PricingMode {
     /// Tree-based pricing (exact, non-recombining).

@@ -22,8 +22,7 @@ impl MetricCalculator for Dv01Calculator {
         let market = context.curves.as_ref();
         let discount = market.get_discount(cap_floor.discount_curve_id.as_str())?;
 
-        let discount_has_replay =
-            discount.rate_calibration().is_some() || discount.rate_calibration_recipe().is_some();
+        let discount_has_replay = discount.rate_calibration().is_some();
         let single_curve_ois = cap_floor.overnight_coupon.is_some()
             && cap_floor.discount_curve_id == cap_floor.forward_curve_id
             && market
@@ -51,8 +50,7 @@ impl MetricCalculator for Dv01Calculator {
         }
 
         let forward = market.get_forward(cap_floor.forward_curve_id.as_str())?;
-        let forward_has_replay =
-            forward.rate_calibration().is_some() || forward.rate_calibration_recipe().is_some();
+        let forward_has_replay = forward.rate_calibration().is_some();
         if !discount_has_replay || !forward_has_replay {
             return UnifiedDv01Calculator::<CapFloor>::new(
                 Dv01CalculatorConfig::parallel_combined(),

@@ -53,7 +53,7 @@ fn resolved_asw_forward_curve_id(bond: &Bond) -> Option<CurveId> {
 ///
 /// # Arguments
 ///
-/// * `freq` - Payment frequency (e.g., `Tenor::semi_annual()`)
+/// * `frequency` - Payment frequency (e.g., `Tenor::semi_annual()`)
 ///
 /// # Returns
 ///
@@ -83,35 +83,35 @@ fn resolved_asw_forward_curve_id(bond: &Bond) -> Option<CurveId> {
 /// the Actual/365 day count convention used in accrual and discount factor calculations.
 #[inline]
 pub fn periods_per_year(
-    freq: finstack_quant_core::dates::Tenor,
+    frequency: finstack_quant_core::dates::Tenor,
 ) -> finstack_quant_core::Result<f64> {
-    match freq.unit() {
+    match frequency.unit() {
         finstack_quant_core::dates::TenorUnit::Months => {
-            if freq.count() == 0 {
+            if frequency.count() == 0 {
                 return Err(finstack_quant_core::InputError::Invalid.into());
             }
-            Ok(12.0 / (freq.count() as f64))
+            Ok(12.0 / (frequency.count() as f64))
         }
         finstack_quant_core::dates::TenorUnit::Days => {
-            if freq.count() == 0 {
+            if frequency.count() == 0 {
                 return Err(finstack_quant_core::InputError::Invalid.into());
             }
             // Use 365 as approximate annual basis for frequency calculations
             // Note: This is NOT a day count convention - actual day count is handled
             // via the DayCount enum (Actual/360, Actual/365, Actual/Actual, etc.)
-            Ok(365.0 / (freq.count() as f64))
+            Ok(365.0 / (frequency.count() as f64))
         }
         finstack_quant_core::dates::TenorUnit::Years => {
-            if freq.count() == 0 {
+            if frequency.count() == 0 {
                 return Err(finstack_quant_core::InputError::Invalid.into());
             }
-            Ok(1.0 / (freq.count() as f64))
+            Ok(1.0 / (frequency.count() as f64))
         }
         finstack_quant_core::dates::TenorUnit::Weeks => {
-            if freq.count() == 0 {
+            if frequency.count() == 0 {
                 return Err(finstack_quant_core::InputError::Invalid.into());
             }
-            Ok(52.0 / (freq.count() as f64))
+            Ok(52.0 / (frequency.count() as f64))
         }
     }
 }
@@ -122,7 +122,7 @@ pub fn periods_per_year(
 /// ```text
 /// Annuity = Σ (α_i · P(as_of, T_i))
 /// ```
-/// where `α_i` is the year fraction between consecutive schedule dates under `dc`,
+/// where `α_i` is the year fraction between consecutive schedule dates under `day_count`,
 /// and `P(as_of, T_i)` is the discount factor from `as_of` to date `T_i`.
 ///
 /// The `schedule` is expected to start at the valuation date (`as_of`) and
@@ -131,7 +131,7 @@ pub fn periods_per_year(
 /// # Arguments
 ///
 /// * `disc` - Discount curve supplying date-based fixed-leg discount factors.
-/// * `dc` - Fixed-leg accrual day-count convention.
+/// * `day_count` - Fixed-leg accrual day-count convention.
 /// * `frequency` - Optional coupon frequency required by conventions such as
 ///   ACT/ACT (ICMA); `None` is valid for conventions without it.
 /// * `schedule` - Ordered coupon boundary/payment dates; adjacent pairs form
@@ -159,7 +159,7 @@ pub fn periods_per_year(
 /// ```
 pub fn fixed_leg_annuity(
     disc: &finstack_quant_core::market_data::term_structures::DiscountCurve,
-    dc: finstack_quant_core::dates::DayCount,
+    day_count: finstack_quant_core::dates::DayCount,
     frequency: Option<finstack_quant_core::dates::Tenor>,
     schedule: &[Date],
 ) -> finstack_quant_core::Result<f64> {
@@ -176,7 +176,7 @@ pub fn fixed_leg_annuity(
     let mut ann = 0.0;
     let mut prev = schedule[0];
     for &d in &schedule[1..] {
-        let alpha = dc.year_fraction(prev, d, dc_ctx)?;
+        let alpha = day_count.year_fraction(prev, d, dc_ctx)?;
         let p = disc.df_on_date_curve(d)?;
         ann += alpha * p;
         prev = d;
@@ -190,7 +190,7 @@ pub fn fixed_leg_annuity(
 /// ```text
 /// par_rate = (P(as_of, T₀) - P(as_of, Tₙ)) / Annuity
 /// ```
-/// where the denominator is the fixed-leg annuity computed with `dc`.
+/// where the denominator is the fixed-leg annuity computed with `day_count`.
 ///
 /// Returns both the par rate and the annuity so callers can reuse the latter
 /// in asset-swap formulas and related analytics.
@@ -198,7 +198,7 @@ pub fn fixed_leg_annuity(
 /// # Arguments
 ///
 /// * `disc` - Discount curve supplying date-based fixed-leg discount factors.
-/// * `dc` - Fixed-leg accrual day-count convention.
+/// * `day_count` - Fixed-leg accrual day-count convention.
 /// * `frequency` - Optional coupon frequency required by conventions such as
 ///   ACT/ACT (ICMA); `None` is valid for conventions without it.
 /// * `schedule` - Ordered coupon boundary/payment dates; the first and last
@@ -228,7 +228,7 @@ pub fn fixed_leg_annuity(
 /// ```
 pub fn par_rate_and_annuity_from_discount(
     disc: &finstack_quant_core::market_data::term_structures::DiscountCurve,
-    dc: finstack_quant_core::dates::DayCount,
+    day_count: finstack_quant_core::dates::DayCount,
     frequency: Option<finstack_quant_core::dates::Tenor>,
     schedule: &[Date],
 ) -> finstack_quant_core::Result<(f64, f64)> {
@@ -236,7 +236,7 @@ pub fn par_rate_and_annuity_from_discount(
         return Ok((0.0, 0.0));
     }
 
-    let ann = fixed_leg_annuity(disc, dc, frequency, schedule)?;
+    let ann = fixed_leg_annuity(disc, day_count, frequency, schedule)?;
     // Use epsilon check to avoid division by near-zero values that could amplify numerical noise
     if ann.abs() < 1e-12 {
         return Ok((0.0, 0.0));
@@ -257,7 +257,7 @@ pub fn par_rate_and_annuity_from_discount(
 /// * `disc` - Discount curve supplying fixed-leg and projected floating-coupon
 ///   present-value discount factors.
 /// * `fwd` - Forward curve supplying date-based floating reference rates.
-/// * `fixed_dc` - Fixed-leg accrual day-count convention.
+/// * `fixed_day_count` - Fixed-leg accrual day-count convention.
 /// * `fixed_frequency` - Optional fixed coupon frequency required by
 ///   ACT/ACT-style accrual calculations.
 /// * `schedule` - Ordered swap coupon boundary/payment dates shared by both
@@ -267,22 +267,22 @@ pub fn par_rate_and_annuity_from_discount(
 pub fn par_rate_and_annuity_from_forward(
     disc: &finstack_quant_core::market_data::term_structures::DiscountCurve,
     fwd: &finstack_quant_core::market_data::term_structures::ForwardCurve,
-    fixed_dc: finstack_quant_core::dates::DayCount,
+    fixed_day_count: finstack_quant_core::dates::DayCount,
     fixed_frequency: Option<finstack_quant_core::dates::Tenor>,
     schedule: &[Date],
     float_spread_bp: f64,
 ) -> finstack_quant_core::Result<(f64, f64)> {
-    let ann = fixed_leg_annuity(disc, fixed_dc, fixed_frequency, schedule)?;
+    let ann = fixed_leg_annuity(disc, fixed_day_count, fixed_frequency, schedule)?;
     if ann.abs() < 1e-12 {
         return Ok((0.0, 0.0));
     }
 
-    let f_dc = fwd.day_count();
+    let f_day_count = fwd.day_count();
     let spread = float_spread_bp * 1e-4;
     let mut pv_float = finstack_quant_core::math::summation::NeumaierAccumulator::new();
     let mut prev = schedule[0];
     for &d in &schedule[1..] {
-        let yf = f_dc.year_fraction(prev, d, DayCountContext::default())?;
+        let yf = f_day_count.year_fraction(prev, d, DayCountContext::default())?;
         let rate = asset_swap_projection_rate(fwd, prev, d)? + spread;
         let df = disc.df_on_date_curve(d)?;
         pv_float.add(rate * yf * df);
@@ -298,7 +298,7 @@ pub fn par_rate_and_annuity_from_forward(
 ///
 /// * `disc` - Discount curve supplying present-value factors for both legs.
 /// * `fwd` - Forward curve supplying date-based floating reference rates.
-/// * `fixed_dc` - Fixed-leg accrual day-count convention.
+/// * `fixed_day_count` - Fixed-leg accrual day-count convention.
 /// * `fixed_frequency` - Optional fixed coupon frequency required by
 ///   ACT/ACT-style accrual calculations.
 /// * `schedule` - Ordered swap coupon boundary/payment dates shared by both
@@ -308,23 +308,23 @@ pub fn par_rate_and_annuity_from_forward(
 pub fn asset_swap_forward_components(
     disc: &finstack_quant_core::market_data::term_structures::DiscountCurve,
     fwd: &finstack_quant_core::market_data::term_structures::ForwardCurve,
-    fixed_dc: finstack_quant_core::dates::DayCount,
+    fixed_day_count: finstack_quant_core::dates::DayCount,
     fixed_frequency: Option<finstack_quant_core::dates::Tenor>,
     schedule: &[Date],
     float_spread_bp: f64,
 ) -> finstack_quant_core::Result<(f64, f64, f64)> {
-    let fixed_ann = fixed_leg_annuity(disc, fixed_dc, fixed_frequency, schedule)?;
+    let fixed_ann = fixed_leg_annuity(disc, fixed_day_count, fixed_frequency, schedule)?;
     if schedule.len() < 2 {
         return Ok((0.0, fixed_ann, 0.0));
     }
 
-    let f_dc = fwd.day_count();
+    let f_day_count = fwd.day_count();
     let spread = float_spread_bp * 1e-4;
     let mut float_pv = finstack_quant_core::math::summation::NeumaierAccumulator::new();
     let mut float_ann = finstack_quant_core::math::summation::NeumaierAccumulator::new();
     let mut prev = schedule[0];
     for &d in &schedule[1..] {
-        let yf = f_dc.year_fraction(prev, d, DayCountContext::default())?;
+        let yf = f_day_count.year_fraction(prev, d, DayCountContext::default())?;
         let df = disc.df_on_date_curve(d)?;
         float_pv.add((asset_swap_projection_rate(fwd, prev, d)? + spread) * yf * df);
         float_ann.add(yf * df);
@@ -364,7 +364,7 @@ pub enum BondQuoteInput {
     /// Clean price quoted as percentage of par (e.g., 99.5 = 99.5% of par).
     CleanPricePct(f64),
     /// Dirty price in currency units.
-    DirtyPriceCcy(f64),
+    DirtyPriceCurrency(f64),
     /// Yield to maturity (decimal).
     Ytm(f64),
     /// Yield to worst (decimal).
@@ -393,11 +393,11 @@ pub enum BondQuoteInput {
 #[derive(Debug, Clone)]
 pub struct BondQuoteSet {
     /// Clean price in currency.
-    pub clean_price_ccy: f64,
+    pub clean_price_currency: f64,
     /// Clean price as percentage of par (quote convention).
     pub clean_price_pct: f64,
     /// Dirty price in currency.
-    pub dirty_price_ccy: f64,
+    pub dirty_price_currency: f64,
     /// Yield to maturity (decimal), if applicable.
     pub ytm: Option<f64>,
     /// Yield to worst (decimal), if applicable.
@@ -492,7 +492,7 @@ pub enum YieldCompounding {
 /// * `ytm` - Yield to maturity as decimal (e.g., 0.05 for 5%)
 /// * `t` - Time in years from valuation date to cashflow date
 /// * `comp` - Compounding convention (see [`YieldCompounding`])
-/// * `bond_freq` - Bond's coupon frequency (used for `Street` and `TreasuryActual`)
+/// * `bond_frequency` - Bond's coupon frequency (used for `Street` and `TreasuryActual`)
 ///
 /// # Compounding Formulas
 ///
@@ -524,7 +524,7 @@ pub fn df_from_yield(
     ytm: f64,
     t: f64,
     comp: YieldCompounding,
-    bond_freq: finstack_quant_core::dates::Tenor,
+    bond_frequency: finstack_quant_core::dates::Tenor,
 ) -> finstack_quant_core::Result<f64> {
     if t <= 0.0 {
         return Ok(1.0);
@@ -573,7 +573,7 @@ pub fn df_from_yield(
         }
         YieldCompounding::Continuous => (-ytm * t).exp(),
         YieldCompounding::Street => {
-            let m = periods_per_year(bond_freq)?.max(1.0);
+            let m = periods_per_year(bond_frequency)?.max(1.0);
             let base = 1.0 + ytm / m;
             if base <= 0.0 {
                 return Err(finstack_quant_core::Error::Validation(format!(
@@ -598,7 +598,7 @@ pub fn df_from_yield(
             // a semi-annual bond), this heuristic may misclassify the stub.
             // For exact ISDA compliance with non-standard structures, consider
             // passing actual stub information from the cashflow schedule.
-            let m = periods_per_year(bond_freq)?.max(1.0);
+            let m = periods_per_year(bond_frequency)?.max(1.0);
             let period_length = 1.0 / m;
 
             // Validate periodic compounding base for extreme negative yields
@@ -706,7 +706,7 @@ fn df_treasury_actual_with_first_period(
 ///
 /// * `day_count` - Bond coupon day-count convention used to measure settlement-
 ///   to-cashflow time.
-/// * `freq` - Contractual coupon frequency, including ACT/ACT reference-period
+/// * `frequency` - Contractual coupon frequency, including ACT/ACT reference-period
 ///   context and periodic compounding frequency.
 /// * `flows` - Dated signed bond cashflows in payment-date order; flows on or
 ///   before `as_of` are excluded.
@@ -717,7 +717,7 @@ fn df_treasury_actual_with_first_period(
 #[inline]
 pub fn price_from_ytm_compounded_params(
     day_count: finstack_quant_core::dates::DayCount,
-    freq: finstack_quant_core::dates::Tenor,
+    frequency: finstack_quant_core::dates::Tenor,
     flows: &[(
         finstack_quant_core::dates::Date,
         finstack_quant_core::money::Money,
@@ -731,7 +731,7 @@ pub fn price_from_ytm_compounded_params(
     // ACT/ACT (ICMA) requires the coupon frequency in the day-count context;
     // the default context hard-errors for that convention.
     let dc_ctx = DayCountContext {
-        frequency: Some(freq),
+        frequency: Some(frequency),
         ..DayCountContext::default()
     };
 
@@ -763,10 +763,10 @@ pub fn price_from_ytm_compounded_params(
         if t > 0.0 {
             let df = match (comp, treasury_first_period) {
                 (YieldCompounding::TreasuryActual, Some(first_period_len)) => {
-                    let m = periods_per_year(freq)?.max(1.0);
+                    let m = periods_per_year(frequency)?.max(1.0);
                     df_treasury_actual_with_first_period(ytm, t, m, first_period_len)?
                 }
-                _ => df_from_yield(ytm, t, comp, freq)?,
+                _ => df_from_yield(ytm, t, comp, frequency)?,
             };
             pv.add(amount.amount() * df);
         }
@@ -1272,7 +1272,7 @@ pub fn price_from_dm(
 pub(crate) fn clear_price_driving_overrides(bond: &mut Bond) {
     let quotes = &mut bond.instrument_pricing_overrides.market_quotes;
     quotes.quoted_clean_price = None;
-    quotes.quoted_dirty_price_ccy = None;
+    quotes.quoted_dirty_price_currency = None;
     quotes.quoted_ytm = None;
     quotes.quoted_ytw = None;
     quotes.quoted_z_spread = None;
@@ -1344,14 +1344,14 @@ pub fn compute_quotes(
 
     // Quote normalization (clean/dirty conversion) must use accrued at quote/settlement date.
     let quote_ctx = QuoteDateContext::new(&bond_for_metrics, curves, as_of)?;
-    let accrued_ccy = quote_ctx.accrued_at_quote_date;
+    let accrued_currency = quote_ctx.accrued_at_quote_date;
 
     let notional = bond_for_metrics.notional.amount();
     if notional.abs() < ZERO_TOLERANCE {
         return Ok(BondQuoteSet {
-            clean_price_ccy: 0.0,
+            clean_price_currency: 0.0,
             clean_price_pct: 0.0,
-            dirty_price_ccy: 0.0,
+            dirty_price_currency: 0.0,
             ytm: None,
             ytw: None,
             z_spread: None,
@@ -1373,7 +1373,7 @@ pub fn compute_quotes(
         let quotes = &mut bond_for_metrics.instrument_pricing_overrides.market_quotes;
         match quote_input {
             BondQuoteInput::CleanPricePct(v) => quotes.quoted_clean_price = Some(v),
-            BondQuoteInput::DirtyPriceCcy(v) => quotes.quoted_dirty_price_ccy = Some(v),
+            BondQuoteInput::DirtyPriceCurrency(v) => quotes.quoted_dirty_price_currency = Some(v),
             BondQuoteInput::Ytm(v) => quotes.quoted_ytm = Some(v),
             BondQuoteInput::Ytw(v) => quotes.quoted_ytw = Some(v),
             BondQuoteInput::ZSpread(v) => quotes.quoted_z_spread = Some(v),
@@ -1385,9 +1385,9 @@ pub fn compute_quotes(
     }
 
     let base_value = bond_for_metrics.value(curves, as_of)?;
-    let dirty_price_ccy = base_value.amount();
-    let clean_price_ccy = dirty_price_ccy - accrued_ccy;
-    let clean_price_pct = clean_price_ccy / notional * 100.0;
+    let dirty_price_currency = base_value.amount();
+    let clean_price_currency = dirty_price_currency - accrued_currency;
+    let clean_price_pct = clean_price_currency / notional * 100.0;
 
     // Stamp the canonical clean price quote into pricing_overrides so that all
     // existing metric calculators interpret this as the market price.
@@ -1415,7 +1415,7 @@ pub fn compute_quotes(
     ctx.notional = Some(bond_for_metrics.notional);
 
     // Pre-populate accrued since we've already computed it.
-    ctx.computed.insert(MetricId::Accrued, accrued_ccy);
+    ctx.computed.insert(MetricId::Accrued, accrued_currency);
 
     // Request the core price/yield/spread metrics.
     let metric_ids = [
@@ -1453,9 +1453,9 @@ pub fn compute_quotes(
     let i_spread = ctx.computed.get(&MetricId::ISpread).copied();
 
     Ok(BondQuoteSet {
-        clean_price_ccy,
+        clean_price_currency,
         clean_price_pct,
-        dirty_price_ccy,
+        dirty_price_currency,
         ytm,
         ytw,
         z_spread,
@@ -1471,7 +1471,7 @@ pub fn compute_quotes(
 ///
 /// Follows the precedence chain documented on [`MarketQuoteOverrides`]:
 ///
-/// 1. `quoted_dirty_price_ccy` → return directly
+/// 1. `quoted_dirty_price_currency` → return directly
 /// 2. `quoted_clean_price` → convert to dirty using quote-date accrued
 /// 3. `quoted_ytm` → [`price_from_ytm`]
 /// 4. `quoted_ytw` → [`price_from_ytw`]
@@ -1493,7 +1493,7 @@ pub(crate) fn price_from_quote_overrides(
     let quotes = &bond.instrument_pricing_overrides.market_quotes;
 
     // Fast path: no price-driving override is set.
-    if quotes.quoted_dirty_price_ccy.is_none()
+    if quotes.quoted_dirty_price_currency.is_none()
         && quotes.quoted_clean_price.is_none()
         && quotes.quoted_ytm.is_none()
         && quotes.quoted_ytw.is_none()
@@ -1507,13 +1507,13 @@ pub(crate) fn price_from_quote_overrides(
     }
 
     // Dirty-price override: short-circuit, no accrued-interest conversion needed.
-    if let Some(dirty) = quotes.quoted_dirty_price_ccy {
+    if let Some(dirty) = quotes.quoted_dirty_price_currency {
         return Ok(Some(dirty));
     }
 
     // All remaining inversions settle the quote at the bond's quote date.
     let quote_ctx = QuoteDateContext::new(bond, curves, as_of)?;
-    let accrued_ccy = quote_ctx.accrued_at_quote_date;
+    let accrued_currency = quote_ctx.accrued_at_quote_date;
     let notional = bond.notional.amount();
 
     if let Some(clean_pct) = quotes.quoted_clean_price {
@@ -1578,7 +1578,7 @@ pub(crate) fn price_from_quote_overrides(
     }
 
     // Unreachable: the early-return above guarantees at least one override is set.
-    let _ = accrued_ccy;
+    let _ = accrued_currency;
     Ok(None)
 }
 
@@ -1618,8 +1618,8 @@ fn par_swap_rate_from_discount(
         if let crate::instruments::fixed_income::bond::CashflowSpec::Fixed(spec) =
             &bond.cashflow_spec
         {
-            fixed_leg_day_count = spec.schedule.dc;
-            fixed_leg_frequency = spec.schedule.freq;
+            fixed_leg_day_count = spec.schedule.day_count;
+            fixed_leg_frequency = spec.schedule.frequency;
         }
     }
 
@@ -1677,12 +1677,13 @@ fn price_from_asw_market(
     if bond.custom_cashflows.is_some() {
         return Err(finstack_quant_core::InputError::Invalid.into());
     }
-    let (coupon, freq, stub, bdc, calendar_id) = match &bond.cashflow_spec {
+    let (coupon, frequency, stub, business_day_convention, calendar_id) = match &bond.cashflow_spec
+    {
         CashflowSpec::Fixed(spec) => (
             spec.rate.to_f64().unwrap_or(0.0),
-            spec.schedule.freq,
+            spec.schedule.frequency,
             spec.schedule.stub,
-            spec.schedule.bdc,
+            spec.schedule.business_day_convention,
             Some(spec.schedule.calendar_id.as_str()),
         ),
         _ => return Err(finstack_quant_core::InputError::Invalid.into()),
@@ -1698,12 +1699,12 @@ fn price_from_asw_market(
         ));
     }
     let mut builder = ScheduleBuilder::new(as_of, bond.maturity)?
-        .frequency(freq)
+        .frequency(frequency)
         .stub_rule(stub);
 
     if let Some(id) = calendar_id {
         if let Some(cal) = calendar_by_id(id) {
-            builder = builder.adjust_with(bdc, cal);
+            builder = builder.adjust_with(business_day_convention, cal);
         }
     }
 
@@ -1714,14 +1715,14 @@ fn price_from_asw_market(
         ));
     }
 
-    let dc = bond.cashflow_spec.day_count();
+    let day_count = bond.cashflow_spec.day_count();
     let forward_components = if let Some(fwd_id) = resolved_asw_forward_curve_id(bond) {
         let fwd = curves.get_forward(fwd_id.as_str())?;
         Some(asset_swap_forward_components(
             disc.as_ref(),
             fwd.as_ref(),
-            dc,
-            Some(freq),
+            day_count,
+            Some(frequency),
             &sched,
             0.0,
         )?)
@@ -1735,7 +1736,7 @@ fn price_from_asw_market(
             (float_pv / fixed_ann, float_ann)
         }
     } else {
-        par_rate_and_annuity_from_discount(disc.as_ref(), dc, Some(freq), &sched)?
+        par_rate_and_annuity_from_discount(disc.as_ref(), day_count, Some(frequency), &sched)?
     };
     if bond.notional.amount().abs() < 1e-12 {
         return Err(finstack_quant_core::Error::Validation(
@@ -1893,7 +1894,7 @@ mod tests {
 
         let as_of = date!(2025 - 01 - 01);
         let day_count = DayCount::Act365F;
-        let freq = Tenor::semi_annual();
+        let frequency = Tenor::semi_annual();
         let ytm = 0.05;
 
         // Long first coupon: ~8 months to first flow, then semi-annual.
@@ -1905,7 +1906,7 @@ mod tests {
 
         let price_actual = price_from_ytm_compounded_params(
             day_count,
-            freq,
+            frequency,
             &flows,
             as_of,
             ytm,
@@ -1921,7 +1922,7 @@ mod tests {
             first_period_len > 0.5,
             "test precondition: first coupon must be a LONG stub (>1 regular period), got {first_period_len}"
         );
-        let m = periods_per_year(freq).expect("m").max(1.0);
+        let m = periods_per_year(frequency).expect("m").max(1.0);
 
         // Schedule-aware reference: simple interest over the actual first period.
         let mut expected_schedule = 0.0;
@@ -1935,7 +1936,7 @@ mod tests {
                 * df_treasury_actual_with_first_period(ytm, t, m, first_period_len)
                     .expect("schedule df");
             buggy_time_based += amount.amount()
-                * df_from_yield(ytm, t, YieldCompounding::TreasuryActual, freq)
+                * df_from_yield(ytm, t, YieldCompounding::TreasuryActual, frequency)
                     .expect("time-based df");
         }
 
@@ -1975,9 +1976,9 @@ mod tests {
         )
         .expect("quote conversion");
 
-        assert_eq!(quotes.clean_price_ccy, 0.0);
+        assert_eq!(quotes.clean_price_currency, 0.0);
         assert_eq!(quotes.clean_price_pct, 0.0);
-        assert_eq!(quotes.dirty_price_ccy, 0.0);
+        assert_eq!(quotes.dirty_price_currency, 0.0);
         assert!(quotes.ytm.is_none());
     }
 }

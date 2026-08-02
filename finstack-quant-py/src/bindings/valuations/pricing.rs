@@ -1,4 +1,4 @@
-//! Instrument pricing pipeline: JSON instrument + market → ValuationResult.
+//! Instrument pricing pipeline: canonical instrument envelope + market → ValuationResult.
 
 use crate::bindings::extract::{extract_instrument_json, extract_market};
 use crate::errors::{core_to_py, display_to_py};
@@ -21,14 +21,14 @@ fn validate_pricing_instrument_json(
     })
 }
 
-/// Price an instrument from its tagged JSON and return a ``ValuationResult`` JSON.
+/// Price an instrument from its canonical envelope and return ``ValuationResult`` JSON.
 ///
 /// Parameters
 /// ----------
 /// instrument_json : str | Bond | TermLoan | InterestRateSwap | Swaption |
 ///     CapFloor | CreditDefaultSwap | CDSIndex | FxForward | FxOption |
 ///     CDSTranche | ConvertibleBond | EquityOption | StructuredCredit
-///     Tagged instrument JSON (``{"type": "bond", ...}``) or a typed
+///     A ``finstack_quant.instrument/1`` envelope or a typed
 ///     ``Bond`` / ``TermLoan`` / ``InterestRateSwap`` / ``Swaption`` /
 ///     ``CapFloor`` / ``CreditDefaultSwap`` / ``CDSIndex`` / ``FxForward`` /
 ///     ``FxOption`` / ``CDSTranche`` / ``ConvertibleBond`` / ``EquityOption`` /
@@ -80,7 +80,7 @@ fn price_instrument(
 /// instrument_json : str | Bond | TermLoan | InterestRateSwap | Swaption |
 ///     CapFloor | CreditDefaultSwap | CDSIndex | FxForward | FxOption |
 ///     CDSTranche | ConvertibleBond | EquityOption | StructuredCredit
-///     Tagged instrument JSON or a typed ``Bond`` / ``TermLoan`` /
+///     A ``finstack_quant.instrument/1`` envelope or a typed ``Bond`` / ``TermLoan`` /
 ///     ``InterestRateSwap`` / ``Swaption`` / ``CapFloor`` /
 ///     ``CreditDefaultSwap`` / ``CDSIndex`` / ``FxForward`` / ``FxOption`` /
 ///     ``CDSTranche`` / ``ConvertibleBond`` / ``EquityOption`` /
@@ -217,7 +217,7 @@ fn list_models_grouped() -> std::collections::BTreeMap<String, Vec<String>> {
 /// instrument_json : str | Bond | TermLoan | InterestRateSwap | Swaption |
 ///     CapFloor | CreditDefaultSwap | CDSIndex | FxForward | FxOption |
 ///     CDSTranche | ConvertibleBond | EquityOption | StructuredCredit
-///     Tagged instrument JSON or a typed ``Bond`` / ``TermLoan`` /
+///     A ``finstack_quant.instrument/1`` envelope or a typed ``Bond`` / ``TermLoan`` /
 ///     ``InterestRateSwap`` / ``Swaption`` / ``CapFloor`` /
 ///     ``CreditDefaultSwap`` / ``CDSIndex`` / ``FxForward`` / ``FxOption`` /
 ///     ``CDSTranche`` / ``ConvertibleBond`` / ``EquityOption`` /

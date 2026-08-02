@@ -13,7 +13,7 @@
         "2028-12-31"
       ],
       "coupon_floor": 0.0,
-      "day_count": "Act360",
+      "day_count": "act_360",
       "discount_curve_id": "USD-OIS",
       "fixed_rate": 0.05,
       "floating_index_id": "USD-SOFR-6M",
@@ -27,27 +27,6 @@
       "notional": {
         "amount": "1000000",
         "currency": "USD"
-      },
-      "pricing_overrides": {
-        "adaptive_bumps": false,
-        "call_friction_cents": null,
-        "cds_act360_include_last_day": false,
-        "cds_aod_half_day_bias": false,
-        "credit_spread_bump_bp": null,
-        "mc_seed_scenario": null,
-        "mean_reversion": null,
-        "oas_price_basis": "settlement_dirty",
-        "oas_quote_compounding": "continuous",
-        "rate_bump_bp": null,
-        "rho_bump_decimal": null,
-        "spot_bump_pct": null,
-        "theta_period": null,
-        "tree_steps": null,
-        "use_gobet_miri": false,
-        "vega_bump_decimal": null,
-        "vol_bump_pct": null,
-        "vol_surface_extrapolation": "error",
-        "ytm_bump_decimal": null
       },
       "variant": "snowball",
       "vol_surface_id": "USD-SOFR-HW-VOL"

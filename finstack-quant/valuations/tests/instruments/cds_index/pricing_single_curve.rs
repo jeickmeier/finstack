@@ -127,7 +127,7 @@ fn test_single_curve_par_spread() {
 
     assert_positive(par_spread, "Par spread");
     // Flat hazard approximation: spread ≈ hazard × (1 - recovery) × 10,000
-    let expected = flat_hazard_par_spread_bps(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
+    let expected = flat_hazard_par_spread_bp(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
     assert_in_range(
         par_spread,
         expected * 0.85,

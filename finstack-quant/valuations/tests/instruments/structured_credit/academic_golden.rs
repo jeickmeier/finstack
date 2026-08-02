@@ -295,7 +295,7 @@ fn test_wal_golden_uniform_amortization() {
     // WAL = (1 + 2 + 3 + 4) / 4 = 2.5 years
 
     let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    let pool = AssetPool::new("UNIFORM_POOL", DealType::ABS, Currency::USD);
+    let pool = AssetPool::new("UNIFORM_POOL", DealType::Abs, Currency::USD);
 
     let cashflows = vec![
         (
@@ -340,7 +340,7 @@ fn test_wal_golden_front_loaded() {
     // WAL = 0.70 × 1 + 0.20 × 2 + 0.10 × 3 = 0.70 + 0.40 + 0.30 = 1.4 years
 
     let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    let pool = AssetPool::new("FRONT_LOADED", DealType::ABS, Currency::USD);
+    let pool = AssetPool::new("FRONT_LOADED", DealType::Abs, Currency::USD);
 
     let total_principal = 100_000.0;
     let cashflows = vec![
@@ -382,7 +382,7 @@ fn test_wal_golden_back_loaded() {
     // WAL = 0.10 × 1 + 0.20 × 2 + 0.70 × 3 = 0.10 + 0.40 + 2.10 = 2.6 years
 
     let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    let pool = AssetPool::new("BACK_LOADED", DealType::ABS, Currency::USD);
+    let pool = AssetPool::new("BACK_LOADED", DealType::Abs, Currency::USD);
 
     let total_principal = 100_000.0;
     let cashflows = vec![
@@ -426,15 +426,15 @@ fn test_was_golden_calculation() {
     // Reference: Industry standard weighted average
     //
     // AssetPool composition:
-    // - $50M at SOFR + 400 bps
-    // - $30M at SOFR + 450 bps
-    // - $20M at SOFR + 500 bps
+    // - $50M at SOFR + 400 bp
+    // - $30M at SOFR + 450 bp
+    // - $20M at SOFR + 500 bp
     //
-    // Expected WAS = (50 × 400 + 30 × 450 + 20 × 500) / 100 = 43,500 / 100 = 435 bps
+    // Expected WAS = (50 × 400 + 30 × 450 + 20 × 500) / 100 = 43,500 / 100 = 435 bp
 
     let maturity = Date::from_calendar_date(2030, Month::December, 31).unwrap();
 
-    let mut pool = AssetPool::new("WAS_TEST", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("WAS_TEST", DealType::Clo, Currency::USD);
 
     pool.assets.push(
         PoolAsset::floating_rate_loan(
@@ -474,13 +474,13 @@ fn test_was_golden_calculation() {
 
     let was = pool.weighted_avg_spread();
 
-    // Expected WAS = (50×400 + 30×450 + 20×500) / 100 = 435 bps
+    // Expected WAS = (50×400 + 30×450 + 20×500) / 100 = 435 bp
     let expected_was =
         (50_000_000.0 * 400.0 + 30_000_000.0 * 450.0 + 20_000_000.0 * 500.0) / 100_000_000.0;
 
     assert!(
         (was - expected_was).abs() < METRIC_TOLERANCE,
-        "WAS should be {} bps, got {} bps",
+        "WAS should be {} bp, got {} bp",
         expected_was,
         was
     );
@@ -488,7 +488,7 @@ fn test_was_golden_calculation() {
     // Verify exact value
     assert!(
         (was - 435.0).abs() < METRIC_TOLERANCE,
-        "WAS should be 435 bps"
+        "WAS should be 435 bp"
     );
 }
 

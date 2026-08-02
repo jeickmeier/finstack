@@ -40,13 +40,12 @@ impl std::str::FromStr for VolatilityModel {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "black" | "lognormal" | "black76" => Ok(Self::Black),
-            "normal" | "bachelier" => Ok(Self::Normal),
-            other => Err(format!(
+        match s {
+            "black" => Ok(Self::Black),
+            "normal" => Ok(Self::Normal),
+            _ => Err(format!(
                 "Unknown volatility model: '{}'. Valid: black, normal",
-                other
+                s
             )),
         }
     }
@@ -171,14 +170,13 @@ impl std::str::FromStr for CashSettlementMethod {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "par_yield" | "paryield" => Ok(Self::ParYield),
-            "isda_par_par" | "isdaparpar" | "par_par" => Ok(Self::IsdaParPar),
-            "zero_coupon" | "zerocoupon" => Ok(Self::ZeroCoupon),
-            other => Err(format!(
+        match s {
+            "par_yield" => Ok(Self::ParYield),
+            "isda_par_par" => Ok(Self::IsdaParPar),
+            "zero_coupon" => Ok(Self::ZeroCoupon),
+            _ => Err(format!(
                 "Unknown cash settlement method: '{}'. Valid: par_yield, isda_par_par, zero_coupon",
-                other
+                s
             )),
         }
     }
@@ -197,11 +195,10 @@ impl std::str::FromStr for SwaptionSettlement {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
+        match s {
             "physical" => Ok(SwaptionSettlement::Physical),
             "cash" => Ok(SwaptionSettlement::Cash),
-            other => Err(format!("Unknown swaption settlement: {}", other)),
+            _ => Err(format!("Unknown swaption settlement: {s}")),
         }
     }
 }
@@ -244,12 +241,11 @@ impl std::str::FromStr for SwaptionExercise {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
+        match s {
             "european" => Ok(SwaptionExercise::European),
             "bermudan" => Ok(SwaptionExercise::Bermudan),
             "american" => Ok(SwaptionExercise::American),
-            other => Err(format!("Unknown swaption exercise: {}", other)),
+            _ => Err(format!("Unknown swaption exercise: {s}")),
         }
     }
 }
@@ -263,12 +259,15 @@ impl std::str::FromStr for SwaptionExercise {
 /// Defines the exercise dates and constraints for a Bermudan swaption.
 /// Exercise dates are typically aligned with swap coupon dates.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct BermudanSchedule {
     /// Exercise dates (must be sorted, typically on swap coupon dates)
-    #[schemars(with = "Vec<String>")]
+    #[serde(with = "finstack_quant_core::wire::dates")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub exercise_dates: Vec<Date>,
     /// Lockout period end (no exercise before this date)
-    #[schemars(with = "Option<String>")]
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub lockout_end: Option<Date>,
     /// Notice period in business days before exercise
     pub notice_days: u32,
@@ -308,19 +307,19 @@ impl BermudanSchedule {
     /// # Arguments
     /// * `first_exercise` - First allowed exercise date
     /// * `swap_end` - Swap maturity date
-    /// * `fixed_freq` - Fixed leg payment frequency
+    /// * `fixed_frequency` - Fixed leg payment frequency
     pub fn co_terminal(
         first_exercise: Date,
         swap_end: Date,
-        fixed_freq: Tenor,
+        fixed_frequency: Tenor,
     ) -> finstack_quant_core::Result<Self> {
         let periods = crate::cashflow::builder::periods::build_periods(
             crate::cashflow::builder::periods::BuildPeriodsParams {
                 start: first_exercise,
                 end: swap_end,
-                frequency: fixed_freq,
+                frequency: fixed_frequency,
                 stub: StubKind::None,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID,
                 end_of_month: false,
                 day_count: finstack_quant_core::dates::DayCount::Act365F,
@@ -391,6 +390,7 @@ impl BermudanSchedule {
     schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum BermudanType {
     /// All exercise dates lead to same swap end date (most common)
     #[default]
@@ -412,13 +412,12 @@ impl std::str::FromStr for BermudanType {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "co_terminal" | "coterminal" => Ok(Self::CoTerminal),
-            "non_co_terminal" | "noncoterminal" => Ok(Self::NonCoTerminal),
-            other => Err(format!(
+        match s {
+            "co_terminal" => Ok(Self::CoTerminal),
+            "non_co_terminal" => Ok(Self::NonCoTerminal),
+            _ => Err(format!(
                 "Unknown Bermudan type: '{}'. Valid: co_terminal, non_co_terminal",
-                other
+                s
             )),
         }
     }

@@ -38,6 +38,7 @@ use finstack_quant_core::math::random::{poisson_inverse_cdf, RandomNumberGenerat
 #[derive(
     Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum AssetDynamics {
     /// Standard geometric Brownian motion (lognormal diffusion).
     GeometricBrownian,
@@ -71,6 +72,7 @@ pub enum AssetDynamics {
 #[derive(
     Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum BarrierType {
     /// Default only assessed at maturity (classic Merton).
     Terminal,

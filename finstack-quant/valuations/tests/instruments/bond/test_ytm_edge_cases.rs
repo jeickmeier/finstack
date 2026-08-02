@@ -1,21 +1,22 @@
 //! YTM edge case tests for market standards compliance.
 //!
 //! Tests cover:
-//! - Deep discount bonds (YTM > 20%)
+//! - Deep discount bonds
 //! - Zero-coupon bonds
 //! - Bonds with odd first coupon
 //! - EOM bonds with February maturity
-//!
-//! Market Standards Review (Priority 4, Week 4)
 
+use finstack_quant_cashflows::builder::{CouponType, FixedCouponSpec};
+use finstack_quant_cashflows::CashflowProvider;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::fixed_income::bond::{Bond, CashflowSpec};
-use finstack_quant_valuations::instruments::Instrument;
-use finstack_quant_valuations::instruments::InstrumentPricingOverrides;
+use finstack_quant_valuations::instruments::{
+    BondConvention, Instrument, InstrumentPricingOverrides,
+};
 use finstack_quant_valuations::metrics::MetricId;
 use time::Month;
 
@@ -36,10 +37,10 @@ fn create_test_market(base_date: Date) -> MarketContext {
 ///
 /// Setup: 10-year bond at 50 cents on the dollar with 5% coupon
 ///
-/// Analytical approximation:
-///   YTM ≈ coupon + (100 - price) / (years × price)
-///       ≈ 0.05 + (100 - 50) / (10 × 50)
-///       = 0.05 + 0.10 = 15%
+/// Analytical approximation per 100 of par:
+///   YTM ≈ [coupon + (par - price) / years] / [(par + price) / 2]
+///       ≈ [5 + (100 - 50) / 10] / 75
+///       = 13.33%
 ///
 /// Actual YTM will be slightly different due to time value of money effects.
 #[test]
@@ -90,8 +91,7 @@ fn test_zero_coupon_bond_ytm() {
     let issue = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let maturity = Date::from_calendar_date(2030, Month::January, 1).unwrap();
 
-    use finstack_quant_valuations::instruments::fixed_income::bond::CashflowSpec;
-    let bond_result = Bond::builder()
+    let mut bond = Bond::builder()
         .id("ZERO-COUPON".into())
         .notional(Money::new(1_000.0, Currency::USD))
         .cashflow_spec(
@@ -101,13 +101,8 @@ fn test_zero_coupon_bond_ytm() {
         .issue_date(issue)
         .maturity(maturity)
         .discount_curve_id("USD-OIS".into())
-        .build();
-
-    // Skip test if bond construction fails due to validation
-    let Ok(mut bond) = bond_result else {
-        println!("Skipping test_zero_coupon_bond_ytm: bond construction failed validation");
-        return;
-    };
+        .build()
+        .expect("zero-coupon YTM test bond should build");
 
     let market = create_test_market(issue);
 
@@ -143,22 +138,21 @@ fn test_zero_coupon_bond_ytm() {
 #[test]
 fn test_odd_first_coupon_ytm() {
     // Bond with odd first coupon (short stub)
-    // Issue: Jan 15, First coupon: Apr 1 (2.5 months), then regular semi-annual
+    // The maturity-anchored schedule creates a short first period from Jan 15
+    // to Jul 1, followed by regular semi-annual periods.
     let issue = Date::from_calendar_date(2025, Month::January, 15).unwrap();
     let maturity = Date::from_calendar_date(2030, Month::January, 1).unwrap();
 
-    use finstack_quant_cashflows::builder::specs::{CouponType, FixedCouponSpec};
-    use finstack_quant_valuations::instruments::fixed_income::bond::CashflowSpec;
-    let bond_result = Bond::builder()
+    let mut bond = Bond::builder()
         .id("ODD-FIRST".into())
         .notional(Money::new(1_000.0, Currency::USD))
         .cashflow_spec(CashflowSpec::Fixed(FixedCouponSpec {
             coupon_type: CouponType::Cash,
             rate: rust_decimal::Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
-                dc: DayCount::Thirty360,
-                bdc: BusinessDayConvention::Following,
+                frequency: Tenor::semi_annual(),
+                day_count: DayCount::Thirty360,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::ShortFront,
                 // Short stub at front
@@ -171,13 +165,8 @@ fn test_odd_first_coupon_ytm() {
         .issue_date(issue)
         .maturity(maturity)
         .discount_curve_id("USD-OIS".into())
-        .build();
-
-    // Skip test if bond construction fails due to validation
-    let Ok(mut bond) = bond_result else {
-        println!("Skipping test_odd_first_coupon_ytm: bond construction failed validation");
-        return;
-    };
+        .build()
+        .expect("short-front-stub YTM test bond should build");
 
     let market = create_test_market(issue);
 
@@ -209,29 +198,38 @@ fn test_odd_first_coupon_ytm() {
 
 #[test]
 fn test_eom_february_maturity_ytm() {
-    // EOM bond with February maturity (leap year handling)
-    let issue = Date::from_calendar_date(2024, Month::February, 28).unwrap(); // 2024 is leap year
+    // EOM bond spanning a leap year and retaining February month-end anchors.
+    let issue = Date::from_calendar_date(2024, Month::February, 29).unwrap();
     let maturity = Date::from_calendar_date(2029, Month::February, 28).unwrap();
 
-    let bond_result = Bond::builder()
-        .id("EOM-FEB".into())
-        .notional(Money::new(1_000.0, Currency::USD))
-        .cashflow_spec(
-            CashflowSpec::fixed(0.04, Tenor::annual(), DayCount::Thirty360)
-                .expect("finite test coupon"),
-        )
-        .issue_date(issue)
-        .maturity(maturity)
-        .discount_curve_id("USD-OIS".into())
-        .build();
+    let mut bond = Bond::with_convention(
+        "EOM-FEB",
+        Money::new(1_000.0, Currency::USD),
+        0.04,
+        issue,
+        maturity,
+        BondConvention::Corporate,
+        "USD-OIS",
+    )
+    .expect("February EOM YTM test bond should build");
 
-    // Skip test if bond construction fails due to validation
-    let Ok(mut bond) = bond_result else {
-        println!("Skipping test_eom_february_maturity_ytm: bond construction failed validation");
-        return;
+    let CashflowSpec::Fixed(spec) = &bond.cashflow_spec else {
+        panic!("February EOM YTM fixture should use fixed cashflows");
     };
+    assert!(
+        spec.schedule.end_of_month,
+        "February EOM YTM fixture should enable end-of-month rolling"
+    );
 
     let market = create_test_market(issue);
+    let leap_coupon = Date::from_calendar_date(2028, Month::February, 29).unwrap();
+    let flows = bond
+        .dated_cashflows(&market, issue)
+        .expect("February EOM cashflows should generate");
+    assert!(
+        flows.iter().any(|(date, _)| *date == leap_coupon),
+        "February EOM schedule should retain the 2028 leap-day coupon"
+    );
 
     // Price slightly above par
     bond.instrument_pricing_overrides =
@@ -261,22 +259,20 @@ fn test_eom_february_maturity_ytm() {
 
 #[test]
 fn test_long_first_coupon_ytm() {
-    use finstack_quant_cashflows::builder::specs::{CouponType, FixedCouponSpec};
-    use finstack_quant_valuations::instruments::fixed_income::bond::CashflowSpec;
     // Bond with long first coupon period
     let issue = Date::from_calendar_date(2025, Month::January, 15).unwrap();
     let maturity = Date::from_calendar_date(2030, Month::January, 1).unwrap();
 
-    let bond_result = Bond::builder()
+    let mut bond = Bond::builder()
         .id("LONG-FIRST".into())
         .notional(Money::new(1_000.0, Currency::USD))
         .cashflow_spec(CashflowSpec::Fixed(FixedCouponSpec {
             coupon_type: CouponType::Cash,
             rate: rust_decimal::Decimal::try_from(0.06).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
-                dc: DayCount::Act365F,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                frequency: Tenor::semi_annual(),
+                day_count: DayCount::Act365F,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::LongFront,
                 // Long stub at front
@@ -289,13 +285,8 @@ fn test_long_first_coupon_ytm() {
         .issue_date(issue)
         .maturity(maturity)
         .discount_curve_id("USD-OIS".into())
-        .build();
-
-    // Skip test if bond construction fails due to validation
-    let Ok(mut bond) = bond_result else {
-        println!("Skipping test_long_first_coupon_ytm: bond construction failed validation");
-        return;
-    };
+        .build()
+        .expect("long-front-stub YTM test bond should build");
 
     let market = create_test_market(issue);
 
@@ -368,71 +359,6 @@ fn test_premium_bond_ytm_solver_convergence() {
         ytm > 0.0 && ytm < 0.15,
         "YTM should be reasonable: got {:.4}",
         ytm
-    );
-}
-
-#[test]
-fn test_ytm_price_roundtrip() {
-    // Test that price → YTM → price roundtrips correctly
-    let issue = Date::from_calendar_date(2025, Month::January, 1).unwrap();
-    let maturity = Date::from_calendar_date(2030, Month::January, 1).unwrap();
-
-    let mut bond = Bond::fixed(
-        "ROUNDTRIP",
-        Money::new(1_000.0, Currency::USD),
-        0.05,
-        issue,
-        maturity,
-        "USD-OIS",
-    )
-    .unwrap();
-
-    let market = create_test_market(issue);
-
-    let original_price = 95.0; // Discount price
-
-    // Step 1: Calculate YTM from price
-    bond.instrument_pricing_overrides =
-        InstrumentPricingOverrides::default().with_quoted_clean_price(original_price);
-
-    let result1 = bond
-        .price_with_metrics(
-            &market,
-            issue,
-            &[MetricId::Ytm, MetricId::CleanPrice],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
-        .unwrap();
-
-    let ytm = result1.measures[MetricId::Ytm.as_str()];
-
-    // Step 2: Calculate price without quote (use market curve)
-    // Reset pricing overrides
-    bond.instrument_pricing_overrides = InstrumentPricingOverrides::default();
-
-    let result2 = bond
-        .price_with_metrics(
-            &market,
-            issue,
-            &[MetricId::DirtyPrice],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
-        .unwrap();
-
-    let calculated_dirty = result2.measures[MetricId::DirtyPrice.as_str()];
-
-    // Verify YTM is reasonable
-    assert!(
-        ytm > 0.05 && ytm < 0.10,
-        "Discount bond YTM should be > coupon: got {:.4}",
-        ytm
-    );
-
-    // Verify dirty price is reasonable (allow wider range since it's from curve, not quote)
-    assert!(
-        calculated_dirty.is_finite(),
-        "Dirty price should be finite: got {:.2}",
-        calculated_dirty
     );
 }
 

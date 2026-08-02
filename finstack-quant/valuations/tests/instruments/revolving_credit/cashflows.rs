@@ -120,7 +120,7 @@ fn same_date_flows_use_the_canonical_cashflow_order() {
     };
     let flows = vec![
         flow(CFKind::Notional, 5.0),
-        flow(CFKind::PIK, 10.0),
+        flow(CFKind::Pik, 10.0),
         flow(CFKind::Fee, 1.0),
         flow(CFKind::Notional, -30.0),
         flow(CFKind::Amortization, 20.0),
@@ -146,7 +146,7 @@ fn same_date_flows_use_the_canonical_cashflow_order() {
         vec![
             CFKind::Fee,
             CFKind::Amortization,
-            CFKind::PIK,
+            CFKind::Pik,
             CFKind::Notional,
             CFKind::Notional,
         ]

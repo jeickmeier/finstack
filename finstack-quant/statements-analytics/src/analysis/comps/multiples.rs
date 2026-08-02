@@ -43,7 +43,7 @@ pub fn compute_multiple(metrics: &CompanyMetrics, multiple: Multiple) -> Option<
 
         // ---- Credit multiples ----
         Multiple::SpreadPerTurn => {
-            let spread = metrics.oas_bps?;
+            let spread = metrics.oas_bp?;
             let leverage = metrics.leverage?;
             if leverage <= 0.0 {
                 return None;

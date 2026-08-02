@@ -754,8 +754,8 @@ pub fn attribute_pnl_metrics_based(
     // curves.
     //
     // Iteration order is identical to the previous per-block loops:
-    //   - discount_curves / credit_curves / spot_ids in the order returned
-    //     by `market_deps.curves` / `market_deps.spot_ids`
+    //   - discount_curves / credit_curves / market_scalar_ids in the order returned
+    //     by `market_deps.curves` / `market_deps.market_scalar_ids`
     //     (preserve the existing HashMap/Vec iteration order — do NOT sort).
     //   - FX exposure / vol surface: single-valued, no ordering concern.
     //
@@ -822,7 +822,7 @@ pub fn attribute_pnl_metrics_based(
             .first()
             .and_then(|dependency| {
                 measure_vol_surface_shift(
-                    dependency.surface_id.as_str(),
+                    dependency.vol_surface_id.as_str(),
                     market_t0,
                     market_t1,
                     None,
@@ -831,17 +831,25 @@ pub fn attribute_pnl_metrics_based(
                 .ok()
             });
 
-    let fx_shift_pct: Option<f64> = instrument.fx_exposure().and_then(|(base_ccy, quote_ccy)| {
-        measure_fx_shift(
-            base_ccy, quote_ccy, market_t0, market_t1, as_of_t0, as_of_t1,
-        )
-        .ok()
-    });
+    let fx_shift_pct: Option<f64> =
+        instrument
+            .fx_exposure()
+            .and_then(|(base_currency, quote_currency)| {
+                measure_fx_shift(
+                    base_currency,
+                    quote_currency,
+                    market_t0,
+                    market_t1,
+                    as_of_t0,
+                    as_of_t1,
+                )
+                .ok()
+            });
 
     let avg_spot_shift_pct: Option<f64> = {
         let mut total = 0.0;
         let mut count = 0usize;
-        for spot_id in &market_deps.spot_ids {
+        for spot_id in &market_deps.market_scalar_ids {
             if let Ok(shift) = measure_scalar_shift(spot_id, market_t0, market_t1) {
                 total += shift;
                 count += 1;
@@ -1525,9 +1533,9 @@ pub fn attribute_pnl_metrics_based(
     //   spot move. Multiplying by a percentage shift would mis-scale the P&L
     //   by 100/S₀ (resp. (100/S₀)²), exact only when S₀ = 100.
     //
-    // Uses spot_ids from MarketDependencies to identify underlying spot prices.
+    // Uses market_scalar_ids from MarketDependencies to identify underlying spot prices.
     {
-        let spot_ids = &market_deps.spot_ids;
+        let market_scalar_ids = &market_deps.market_scalar_ids;
         let delta_opt = val_t0.measures.get(MetricId::Delta.as_str());
         let gamma_opt = val_t0.measures.get(MetricId::Gamma.as_str());
 
@@ -1549,7 +1557,7 @@ pub fn attribute_pnl_metrics_based(
             // moves are unattributed (they flow to the residual) and noted.
             let mut primary_shift: Option<f64> = None;
             let mut extra_spots: Vec<&String> = Vec::new();
-            for spot_id in spot_ids {
+            for spot_id in market_scalar_ids {
                 if let Ok(spot_abs_shift) =
                     measure_scalar_absolute_shift(spot_id, market_t0, market_t1)
                 {
@@ -2024,7 +2032,7 @@ mod tests {
         ) -> finstack_quant_core::Result<finstack_quant_valuations::instruments::MarketDependencies>
         {
             let mut deps = finstack_quant_valuations::instruments::MarketDependencies::new();
-            deps.add_spot_id("TEST-SPOT");
+            deps.add_market_scalar_id("TEST-SPOT");
             deps.add_volatility_dependency(
                 finstack_quant_valuations::instruments::VolatilityDependency::new(
                     finstack_quant_core::types::CurveId::new("TEST-VOL"),

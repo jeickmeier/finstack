@@ -209,7 +209,7 @@ impl BondValuator {
         let spread = call
             .make_whole
             .as_ref()
-            .map(|spec| spec.spread_bps / 10_000.0)
+            .map(|spec| spec.spread_bp / 10_000.0)
             .unwrap_or(0.0);
 
         let mut pv_remaining = 0.0;
@@ -868,8 +868,8 @@ mod tests {
             .expect("curve");
         let market = MarketContext::new().insert(curve);
         let discount_curve = market.get_discount("USD-OIS").expect("discount curve");
-        let dc = discount_curve.day_count();
-        let time_to_maturity = dc
+        let day_count = discount_curve.day_count();
+        let time_to_maturity = day_count
             .year_fraction(as_of, maturity, DayCountContext::default())
             .expect("time to maturity");
         let dt = time_to_maturity / tree_steps as f64;
@@ -882,7 +882,7 @@ mod tests {
             if *date <= as_of {
                 return false;
             }
-            let tf = dc
+            let tf = day_count
                 .year_fraction(as_of, *date, DayCountContext::default())
                 .unwrap_or(0.0);
             let raw = (tf / time_to_maturity) * tree_steps as f64;
@@ -905,7 +905,7 @@ mod tests {
             if *date <= as_of {
                 continue;
             }
-            let tf = dc
+            let tf = day_count
                 .year_fraction(as_of, *date, DayCountContext::default())
                 .expect("year fraction");
             pv_true += amount.amount() * discount_curve.df(tf);
@@ -961,8 +961,8 @@ mod tests {
             .expect("curve");
         let market = MarketContext::new().insert(curve);
         let discount_curve = market.get_discount("USD-OIS").expect("discount curve");
-        let dc = discount_curve.day_count();
-        let time_to_maturity = dc
+        let day_count = discount_curve.day_count();
+        let time_to_maturity = day_count
             .year_fraction(as_of, maturity, DayCountContext::default())
             .expect("time to maturity");
         let dt = time_to_maturity / tree_steps as f64;
@@ -975,7 +975,7 @@ mod tests {
             if *date <= as_of {
                 return false;
             }
-            let tf = dc
+            let tf = day_count
                 .year_fraction(as_of, *date, DayCountContext::default())
                 .unwrap_or(0.0);
             let raw = (tf / time_to_maturity) * tree_steps as f64;
@@ -1009,7 +1009,7 @@ mod tests {
             if *date <= as_of {
                 continue;
             }
-            let tf = dc
+            let tf = day_count
                 .year_fraction(as_of, *date, DayCountContext::default())
                 .expect("year fraction");
             pv_true += amount.amount() * discount_curve.df(tf);
@@ -1056,11 +1056,11 @@ mod tests {
             .expect("curve");
         let market = MarketContext::new().insert(curve);
         let discount_curve = market.get_discount("USD-OIS").expect("discount curve");
-        let dc = discount_curve.day_count();
-        let time_to_maturity = dc
+        let day_count = discount_curve.day_count();
+        let time_to_maturity = day_count
             .year_fraction(as_of, maturity, DayCountContext::default())
             .expect("time to maturity");
-        let event_time = dc
+        let event_time = day_count
             .year_fraction(as_of, call_date, DayCountContext::default())
             .expect("call time");
         let step = map_date_to_step(
@@ -1068,7 +1068,7 @@ mod tests {
             call_date,
             maturity,
             tree_steps,
-            dc,
+            day_count,
             DayCountContext::default(),
         )
         .expect("map call date")

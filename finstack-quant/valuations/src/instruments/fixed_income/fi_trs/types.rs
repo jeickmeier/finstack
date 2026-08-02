@@ -48,7 +48,9 @@ use rust_decimal::Decimal;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct FIIndexTotalReturnSwap {
@@ -72,17 +74,26 @@ pub struct FIIndexTotalReturnSwap {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub margin_spec: Option<OtcMarginSpec>,
     /// Attributes for scenario selection and tagging.
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -133,9 +144,9 @@ impl FIIndexTotalReturnSwap {
             date!(2024 - 01 - 01),
             date!(2025 - 01 - 01),
             ScheduleParams {
-                freq: Tenor::quarterly(),
-                dc: DayCount::Act360,
-                bdc: BusinessDayConvention::Following,
+                frequency: Tenor::quarterly(),
+                day_count: DayCount::Act360,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,
@@ -272,7 +283,7 @@ impl FIIndexTotalReturnSwap {
 // ============================================================================
 
 impl crate::instruments::common_impl::traits::Instrument for FIIndexTotalReturnSwap {
-    impl_instrument_base!(crate::pricer::InstrumentType::FIIndexTotalReturnSwap);
+    impl_instrument_base!(crate::pricer::InstrumentType::FiIndexTotalReturnSwap);
 
     fn validate_invariants(&self) -> Result<()> {
         self.validate()
@@ -287,10 +298,10 @@ impl crate::instruments::common_impl::traits::Instrument for FIIndexTotalReturnS
         deps.add_discount_curve(self.financing.discount_curve_id.clone());
         deps.add_forward_curve(self.financing.forward_curve_id.clone());
         if let Some(yield_id) = &self.underlying.yield_id {
-            deps.add_spot_id(yield_id);
+            deps.add_market_scalar_id(yield_id);
         }
         if let Some(duration_id) = &self.underlying.duration_id {
-            deps.add_spot_id(duration_id);
+            deps.add_market_scalar_id(duration_id);
         }
         Ok(deps)
     }

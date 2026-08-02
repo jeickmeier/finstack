@@ -32,6 +32,7 @@ use crate::credit::hierarchy::{
 use crate::primitives::dependency::MarketDependency;
 use crate::primitives::factor_types::FactorId;
 use finstack_quant_core::types::{Attributes, IssuerId};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -58,7 +59,7 @@ pub const CREDIT_GENERIC_FACTOR_ID: &str = "credit::generic";
 /// looked up from `issuer_betas`. `issuer_betas` must be sorted by
 /// `issuer_id` (binary search is used). `hierarchy` defines the level
 /// ordering and dimension keys used to build factor IDs.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreditHierarchicalConfig {
     /// Dependency filter; defaults to "any credit-curve dependency".

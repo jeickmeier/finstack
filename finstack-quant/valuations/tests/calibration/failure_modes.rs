@@ -4,7 +4,7 @@ use crate::common::fixtures;
 use crate::finstack_quant_test_utils::calibration as cal_utils;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
-use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::market_data::context::{MarketContext, MarketContextState};
 use finstack_quant_core::market_data::scalars::{
     InflationIndex, InflationInterpolation, InflationLag,
 };
@@ -19,7 +19,7 @@ use finstack_quant_valuations::calibration::api::schema::{
     AtmStrikeConvention, BaseCorrelationParams, CalibrationEnvelope, CalibrationPlan,
     CalibrationStep, ForwardCurveParams, HazardCurveParams, InflationCurveParams,
     SabrInterpolationMethod, StepParams, SurfaceExtrapolationPolicy, SwaptionVolConvention,
-    SwaptionVolParams, VolSurfaceParams,
+    SwaptionVolParams, VolSurfaceModel, VolSurfaceParams,
 };
 use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
 use finstack_quant_valuations::market::quotes::cds::CdsQuote;
@@ -40,12 +40,25 @@ fn usd_discount_curve(base_date: Date) -> DiscountCurve {
     fixtures::usd_discount_curve_minimal(base_date, "USD-OIS")
 }
 
+#[test]
+fn market_context_split_rejects_malformed_collateral_currency() {
+    let mut state = MarketContextState::from(&MarketContext::new());
+    state
+        .collateral
+        .insert("NOT_A_CURRENCY".to_string(), "USD".to_string());
+
+    let err =
+        cal_utils::split_market_context_state(state).expect_err("invalid currency should error");
+    assert!(err.to_string().contains("Invalid collateral currency"));
+    assert!(err.to_string().contains("NOT_A_CURRENCY"));
+}
+
 fn envelope_for_step(
     step: CalibrationStep,
     quotes: Vec<MarketQuote>,
-    initial_market: MarketContext,
+    source_market: MarketContext,
 ) -> CalibrationEnvelope {
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert(step.quote_set.clone(), cal_utils::quote_set_ids(&quotes));
@@ -60,7 +73,7 @@ fn envelope_for_step(
     CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -71,7 +84,7 @@ fn envelope_for_step(
 fn hazard_preflight_rejects_entity_mismatch() {
     let base_date = base_date();
     let discount = usd_discount_curve(base_date);
-    let initial_market = MarketContext::new().insert(discount);
+    let source_market = MarketContext::new().insert(discount);
 
     let quote = MarketQuote::Cds(CdsQuote::CdsParSpread {
         id: QuoteId::new("CDS-ACME-5Y"),
@@ -105,7 +118,7 @@ fn hazard_preflight_rejects_entity_mismatch() {
         }),
     };
 
-    let envelope = envelope_for_step(step, vec![quote], initial_market);
+    let envelope = envelope_for_step(step, vec![quote], source_market);
     let err = engine::execute(&envelope).expect_err("entity mismatch should fail");
     let msg = err.to_string();
     assert!(msg.contains("entity mismatch"), "unexpected error: {msg}");
@@ -115,7 +128,7 @@ fn hazard_preflight_rejects_entity_mismatch() {
 fn inflation_preflight_rejects_invalid_observation_lag() {
     let base_date = base_date();
     let discount = usd_discount_curve(base_date);
-    let initial_market = MarketContext::new().insert(discount);
+    let source_market = MarketContext::new().insert(discount);
 
     let quote = MarketQuote::Inflation(InflationQuote::InflationSwap {
         id: QuoteId::new("USA-CPI-U-ZCIS-20300102"),
@@ -146,7 +159,7 @@ fn inflation_preflight_rejects_invalid_observation_lag() {
         }),
     };
 
-    let envelope = envelope_for_step(step, vec![quote], initial_market);
+    let envelope = envelope_for_step(step, vec![quote], source_market);
     let err = engine::execute(&envelope).expect_err("invalid lag should fail");
     let msg = err.to_string();
     assert!(
@@ -156,19 +169,17 @@ fn inflation_preflight_rejects_invalid_observation_lag() {
 }
 
 #[test]
-fn vol_surface_preflight_rejects_unknown_model() {
+fn vol_surface_deserialization_rejects_unknown_model() {
     let base_date = base_date();
-    let discount = usd_discount_curve(base_date);
-    let initial_market = MarketContext::new().insert(discount);
 
     let step = CalibrationStep {
         id: "vol".to_string(),
         quote_set: "vols".to_string(),
         params: StepParams::VolSurface(VolSurfaceParams {
-            surface_id: "USD-SWAPTION-SABR".to_string(),
+            vol_surface_id: "USD-SWAPTION-SABR".to_string(),
             base_date,
             underlying_ticker: "USD-SWAPTION".to_string(),
-            model: "heston".to_string(),
+            model: VolSurfaceModel::Sabr,
             discount_curve_id: Some("USD-OIS".into()),
             beta: 0.5,
             target_expiries: Vec::new(),
@@ -179,23 +190,25 @@ fn vol_surface_preflight_rejects_unknown_model() {
         }),
     };
 
-    let envelope = envelope_for_step(step, Vec::new(), initial_market);
-    let err = engine::execute(&envelope).expect_err("unsupported model should fail");
+    let mut encoded = serde_json::to_value(step).expect("calibration step must serialize");
+    encoded["model"] = serde_json::json!("heston");
+    let err = serde_json::from_value::<CalibrationStep>(encoded)
+        .expect_err("unknown model must fail at the serde boundary");
     let msg = err.to_string();
-    assert!(msg.contains("not supported"), "unexpected error: {msg}");
+    assert!(msg.contains("unknown variant"), "unexpected error: {msg}");
 }
 
 #[test]
 fn swaption_vol_preflight_rejects_invalid_shift() {
     let base_date = base_date();
     let discount = usd_discount_curve(base_date);
-    let initial_market = MarketContext::new().insert(discount);
+    let source_market = MarketContext::new().insert(discount);
 
     let step = CalibrationStep {
         id: "swaption".to_string(),
         quote_set: "swaption_quotes".to_string(),
         params: StepParams::SwaptionVol(SwaptionVolParams {
-            surface_id: "USD-SWAPTION-VOL".to_string(),
+            vol_surface_id: "USD-SWAPTION-VOL".to_string(),
             base_date,
             discount_curve_id: "USD-OIS".into(),
             forward_id: None,
@@ -216,7 +229,7 @@ fn swaption_vol_preflight_rejects_invalid_shift() {
         }),
     };
 
-    let envelope = envelope_for_step(step, Vec::new(), initial_market);
+    let envelope = envelope_for_step(step, Vec::new(), source_market);
     let err = engine::execute(&envelope).expect_err("invalid shift should fail");
     let msg = err.to_string();
     assert!(msg.contains("Shifted lognormal"), "unexpected error: {msg}");
@@ -247,7 +260,7 @@ fn base_correlation_preflight_rejects_invalid_attachment_detachment() {
         .build()
         .expect("credit index data");
 
-    let initial_market = MarketContext::new()
+    let source_market = MarketContext::new()
         .insert(hazard.as_ref().clone())
         .insert(base_corr.as_ref().clone())
         .insert_credit_index("CDX.NA.IG", index_data);
@@ -279,14 +292,14 @@ fn base_correlation_preflight_rejects_invalid_attachment_detachment() {
             notional: 1.0,
             frequency: None,
             day_count: None,
-            bdc: None,
+            business_day_convention: None,
             calendar_id: None,
             detachment_points: Vec::new(),
             use_imm_dates: false,
         }),
     };
 
-    let envelope = envelope_for_step(step, vec![tranche_quote], initial_market);
+    let envelope = envelope_for_step(step, vec![tranche_quote], source_market);
     let err = engine::execute(&envelope).expect_err("invalid tranche should fail");
     let msg = err.to_string();
     assert!(
@@ -299,7 +312,7 @@ fn base_correlation_preflight_rejects_invalid_attachment_detachment() {
 fn base_correlation_preflight_requires_credit_index_data() {
     let base_date = base_date();
     let discount = usd_discount_curve(base_date);
-    let initial_market = MarketContext::new().insert(discount);
+    let source_market = MarketContext::new().insert(discount);
 
     let tranche_quote = MarketQuote::CDSTranche(CDSTrancheQuote::CDSTranche {
         id: QuoteId::new("CDX-IG-0-3"),
@@ -328,14 +341,14 @@ fn base_correlation_preflight_requires_credit_index_data() {
             notional: 1.0,
             frequency: None,
             day_count: None,
-            bdc: None,
+            business_day_convention: None,
             calendar_id: None,
             detachment_points: vec![0.03],
             use_imm_dates: false,
         }),
     };
 
-    let envelope = envelope_for_step(step, vec![tranche_quote], initial_market);
+    let envelope = envelope_for_step(step, vec![tranche_quote], source_market);
     let err = engine::execute(&envelope).expect_err("missing credit index should fail");
     let msg = err.to_string();
     assert!(
@@ -372,7 +385,7 @@ fn base_correlation_preflight_rejects_non_monotone_tranche_points() {
         .build()
         .expect("credit index data");
 
-    let initial_market = MarketContext::new()
+    let source_market = MarketContext::new()
         .insert(hazard_clone)
         .insert(base_corr_clone)
         .insert_credit_index("CDX.NA.IG", index_data);
@@ -404,14 +417,14 @@ fn base_correlation_preflight_rejects_non_monotone_tranche_points() {
             notional: 1.0,
             frequency: None,
             day_count: None,
-            bdc: None,
+            business_day_convention: None,
             calendar_id: None,
             detachment_points: vec![0.03],
             use_imm_dates: false,
         }),
     };
 
-    let envelope = envelope_for_step(step, vec![tranche_quote], initial_market);
+    let envelope = envelope_for_step(step, vec![tranche_quote], source_market);
     let err = engine::execute(&envelope).expect_err("invalid tranche attachment should fail");
     let msg = err.to_string();
     assert!(
@@ -439,7 +452,7 @@ fn inflation_preflight_rejects_lag_mismatch_with_index() {
         .with_interpolation(InflationInterpolation::Linear)
         .with_lag(InflationLag::Months(3));
 
-    let initial_market = MarketContext::new()
+    let source_market = MarketContext::new()
         .insert(discount)
         .insert_inflation_index("USD-CPI", index);
 
@@ -472,7 +485,7 @@ fn inflation_preflight_rejects_lag_mismatch_with_index() {
         }),
     };
 
-    let envelope = envelope_for_step(step, vec![quote], initial_market);
+    let envelope = envelope_for_step(step, vec![quote], source_market);
     let err = engine::execute(&envelope).expect_err("lag mismatch should fail");
     let msg = err.to_string();
     assert!(msg.contains("lag mismatch"), "unexpected error: {msg}");
@@ -482,7 +495,7 @@ fn inflation_preflight_rejects_lag_mismatch_with_index() {
 fn forward_preflight_requires_quotes() {
     let base_date = base_date();
     let discount = usd_discount_curve(base_date);
-    let initial_market = MarketContext::new().insert(discount);
+    let source_market = MarketContext::new().insert(discount);
 
     let step = CalibrationStep {
         id: "fwd".to_string(),
@@ -499,7 +512,7 @@ fn forward_preflight_requires_quotes() {
         }),
     };
 
-    let envelope = envelope_for_step(step, Vec::new(), initial_market);
+    let envelope = envelope_for_step(step, Vec::new(), source_market);
     let err = engine::execute(&envelope).expect_err("missing forward quotes should fail");
     let msg = err.to_string().to_ascii_lowercase();
     assert!(
@@ -512,16 +525,16 @@ fn forward_preflight_requires_quotes() {
 fn vol_surface_requires_quotes_even_when_params_valid() {
     let base_date = base_date();
     let discount = usd_discount_curve(base_date);
-    let initial_market = MarketContext::new().insert(discount);
+    let source_market = MarketContext::new().insert(discount);
 
     let step = CalibrationStep {
         id: "vol".to_string(),
         quote_set: "vols".to_string(),
         params: StepParams::VolSurface(VolSurfaceParams {
-            surface_id: "EQ-VOL".to_string(),
+            vol_surface_id: "EQ-VOL".to_string(),
             base_date,
             underlying_ticker: "SPX".to_string(),
-            model: "sabr".to_string(),
+            model: VolSurfaceModel::Sabr,
             discount_curve_id: Some("USD-OIS".into()),
             beta: 0.5,
             target_expiries: vec![1.0], // year fraction (validated by VolSurfaceTarget)
@@ -532,7 +545,7 @@ fn vol_surface_requires_quotes_even_when_params_valid() {
         }),
     };
 
-    let envelope = envelope_for_step(step, Vec::new(), initial_market);
+    let envelope = envelope_for_step(step, Vec::new(), source_market);
     let err = engine::execute(&envelope).expect_err("missing vol quotes should fail");
     let msg = err.to_string().to_ascii_lowercase();
     assert!(

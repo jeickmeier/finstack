@@ -30,14 +30,14 @@ fn test_pik_bond() {
     let schedule = CashFlowSchedule::builder()
         .principal(Money::new(1000.0, Currency::USD), issue, maturity)
         .fixed_cf(FixedCouponSpec {
-            coupon_type: CouponType::PIK,
+            coupon_type: CouponType::Pik,
             rate: rust_decimal::Decimal::try_from(0.08).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -69,9 +69,9 @@ fn test_step_up_bond() {
     let step2 = date!(2027 - 01 - 01);
 
     let params = ScheduleParams {
-        freq: Tenor::semi_annual(),
-        dc: DayCount::Act365F,
-        bdc: BusinessDayConvention::Following,
+        frequency: Tenor::semi_annual(),
+        day_count: DayCount::Act365F,
+        business_day_convention: BusinessDayConvention::Following,
         calendar_id: "weekends_only".to_string(),
         stub: StubKind::None,
         end_of_month: false,

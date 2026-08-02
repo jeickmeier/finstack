@@ -2,12 +2,14 @@
 //!
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::types::CurveId;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
 /// Classification of a curve dependency's role.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum CurveType {
     /// Discounting curve.
     Discount,
@@ -33,29 +35,24 @@ impl fmt::Display for CurveType {
     }
 }
 
-impl crate::parse::NormalizedEnum for CurveType {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("discount", Self::Discount),
-        ("forward", Self::Forward),
-        ("hazard", Self::Hazard),
-        ("credit", Self::Hazard),
-        ("inflation", Self::Inflation),
-        ("base_correlation", Self::BaseCorrelation),
-        ("basecorrelation", Self::BaseCorrelation),
-    ];
-}
-
 impl FromStr for CurveType {
     type Err = finstack_quant_core::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s)
-            .map_err(|_| finstack_quant_core::InputError::Invalid.into())
+        match s {
+            "discount" => Ok(Self::Discount),
+            "forward" => Ok(Self::Forward),
+            "hazard" => Ok(Self::Hazard),
+            "inflation" => Ok(Self::Inflation),
+            "base_correlation" => Ok(Self::BaseCorrelation),
+            _ => Err(finstack_quant_core::InputError::Invalid.into()),
+        }
     }
 }
 
 /// Classification used by dependency filters and declarative matching config.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum DependencyType {
     /// Discounting curve dependency.
     Discount,
@@ -87,36 +84,26 @@ impl fmt::Display for DependencyType {
     }
 }
 
-impl crate::parse::NormalizedEnum for DependencyType {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("discount", Self::Discount),
-        ("forward", Self::Forward),
-        ("credit", Self::Credit),
-        ("spot", Self::Spot),
-        ("price", Self::Spot),
-        ("scalar", Self::Spot),
-        ("vol", Self::Vol),
-        ("volsurface", Self::Vol),
-        ("vol_surface", Self::Vol),
-        ("volatility", Self::Vol),
-        ("fx", Self::Fx),
-        ("series", Self::Series),
-        ("dividend", Self::Series),
-        ("div", Self::Series),
-    ];
-}
-
 impl FromStr for DependencyType {
     type Err = finstack_quant_core::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s)
-            .map_err(|_| finstack_quant_core::InputError::Invalid.into())
+        match s {
+            "discount" => Ok(Self::Discount),
+            "forward" => Ok(Self::Forward),
+            "credit" => Ok(Self::Credit),
+            "spot" => Ok(Self::Spot),
+            "vol" => Ok(Self::Vol),
+            "fx" => Ok(Self::Fx),
+            "series" => Ok(Self::Series),
+            _ => Err(finstack_quant_core::InputError::Invalid.into()),
+        }
     }
 }
 
 /// A single market dependency extracted from an instrument.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum MarketDependency {
     /// Discount, forward, or other rate curve.
     Curve {
@@ -399,10 +386,8 @@ mod tests {
             ("discount", CurveType::Discount),
             ("forward", CurveType::Forward),
             ("hazard", CurveType::Hazard),
-            ("credit", CurveType::Hazard),
             ("inflation", CurveType::Inflation),
             ("base_correlation", CurveType::BaseCorrelation),
-            ("basecorrelation", CurveType::BaseCorrelation),
         ] {
             assert_curve_type(input, expected);
         }
@@ -421,7 +406,14 @@ mod tests {
 
     #[test]
     fn test_curve_type_fromstr_rejects_unknown() {
-        assert!("unknown".parse::<CurveType>().is_err());
+        for rejected in [
+            "credit",
+            "basecorrelation",
+            "BaseCorrelation",
+            "base-correlation",
+        ] {
+            assert!(rejected.parse::<CurveType>().is_err());
+        }
     }
 
     #[test]
@@ -431,16 +423,9 @@ mod tests {
             ("forward", DependencyType::Forward),
             ("credit", DependencyType::Credit),
             ("spot", DependencyType::Spot),
-            ("price", DependencyType::Spot),
-            ("scalar", DependencyType::Spot),
             ("vol", DependencyType::Vol),
-            ("volsurface", DependencyType::Vol),
-            ("vol_surface", DependencyType::Vol),
-            ("volatility", DependencyType::Vol),
             ("fx", DependencyType::Fx),
             ("series", DependencyType::Series),
-            ("dividend", DependencyType::Series),
-            ("div", DependencyType::Series),
         ] {
             assert_dependency_type(input, expected);
         }
@@ -461,6 +446,17 @@ mod tests {
 
     #[test]
     fn test_dependency_type_fromstr_rejects_unknown() {
-        assert!("unknown".parse::<DependencyType>().is_err());
+        for rejected in [
+            "price",
+            "scalar",
+            "volsurface",
+            "vol_surface",
+            "volatility",
+            "dividend",
+            "div",
+            "Spot",
+        ] {
+            assert!(rejected.parse::<DependencyType>().is_err());
+        }
     }
 }

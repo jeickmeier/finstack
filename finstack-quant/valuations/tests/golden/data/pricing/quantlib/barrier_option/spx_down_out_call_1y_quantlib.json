@@ -3,37 +3,40 @@
     "npv": 9.22509769221584
   },
   "instrument": {
-    "spec": {
-      "attributes": {
-        "meta": {},
-        "tags": [
-          "golden",
-          "quantlib"
-        ]
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "spec": {
+        "attributes": {
+          "meta": {},
+          "tags": [
+            "golden",
+            "quantlib"
+          ]
+        },
+        "barrier": {
+          "amount": "80.0",
+          "currency": "USD"
+        },
+        "barrier_type": "down_and_out",
+        "day_count": "act_365f",
+        "discount_curve_id": "USD-OIS",
+        "div_yield_id": "SPX-DIVYIELD",
+        "expiry": "2027-04-30",
+        "id": "SPX-DOWN-OUT-CALL-1Y-QUANTLIB",
+        "notional": {
+          "amount": "1",
+          "currency": "USD"
+        },
+        "option_type": "call",
+        "rebate": null,
+        "spot_id": "SPX-SPOT",
+        "strike": 100.0,
+        "underlying_ticker": "SPX",
+        "use_gobet_miri": false,
+        "vol_surface_id": "SPX-BARRIER-VOL-QL"
       },
-      "barrier": {
-        "amount": "80.0",
-        "currency": "USD"
-      },
-      "barrier_type": "down_and_out",
-      "day_count": "Act365F",
-      "discount_curve_id": "USD-OIS",
-      "div_yield_id": "SPX-DIVYIELD",
-      "expiry": "2027-04-30",
-      "id": "SPX-DOWN-OUT-CALL-1Y-QUANTLIB",
-      "notional": {
-        "amount": "1",
-        "currency": "USD"
-      },
-      "option_type": "call",
-      "rebate": null,
-      "spot_id": "SPX-SPOT",
-      "strike": 100.0,
-      "underlying_ticker": "SPX",
-      "use_gobet_miri": false,
-      "vol_surface_id": "SPX-BARRIER-VOL-QL"
-    },
-    "type": "barrier_option"
+      "type": "barrier_option"
+    }
   },
   "kind": "pricing",
   "market": {
@@ -44,7 +47,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "extrapolation": "flat_forward",
           "id": "USD-OIS",
           "interp_style": "log_linear",
@@ -67,6 +70,7 @@
       "dividends": [],
       "fx": null,
       "fx_delta_vol_surfaces": [],
+      "hierarchy": null,
       "inflation_indices": [],
       "prices": {
         "SPX-DIVYIELD": {
@@ -79,6 +83,7 @@
           }
         }
       },
+      "schema_version": 1,
       "series": [],
       "surfaces": [
         {
@@ -109,7 +114,6 @@
           ]
         }
       ],
-      "version": 2,
       "vol_cubes": []
     },
     "kind": "snapshot"
@@ -126,11 +130,11 @@
     "review_interval_months": 6,
     "screenshots": [],
     "source": "quantlib",
-    "source_detail": "QuantLib 1.42.1; deterministic flat-curve native instrument benchmark.",
+    "source_detail": "QuantLib 1.43; deterministic flat-curve native instrument benchmark.",
     "valuation_date": "2026-04-30"
   },
   "model": "barrier_bs_continuous",
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "tolerances": {
     "npv": {
       "abs": 1e-07,

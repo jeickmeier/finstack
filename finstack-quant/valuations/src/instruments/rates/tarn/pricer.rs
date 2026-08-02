@@ -248,8 +248,8 @@ impl TarnPricer {
         let surface =
             inst.vol_surface_id
                 .as_ref()
-                .map(|surface_id| Hw1fSurfaceCalibration::CapFloor {
-                    surface_id: surface_id.as_str(),
+                .map(|vol_surface_id| Hw1fSurfaceCalibration::CapFloor {
+                    vol_surface_id: vol_surface_id.as_str(),
                     points: surface_points.as_slice(),
                 });
         let context_label = format!("TARN {}", inst.id);
@@ -308,7 +308,6 @@ impl TarnPricer {
                 percentile_75: None,
                 min: Some(0.0),
                 max: Some(0.0),
-                num_skipped: 0,
             });
         }
         if as_of > first_coupon_date {
@@ -525,7 +524,7 @@ fn tarn_surface_points(inst: &Tarn, as_of: Date) -> Result<Vec<Hw1fCapletSurface
                 forward: inst.fixed_rate,
                 strike: inst.fixed_rate,
                 is_cap: true,
-                weight: accrual * inst.notional.amount().abs(),
+                annuity: accrual * inst.notional.amount().abs(),
                 normal_vol_per_unit_sigma: None,
             });
         }
@@ -562,7 +561,6 @@ fn deterministic_estimate(inst: &Tarn, events: &[CouponEvent], num_paths: usize)
         percentile_75: None,
         min: Some(pv.amount()),
         max: Some(pv.amount()),
-        num_skipped: 0,
     }
 }
 
@@ -771,7 +769,7 @@ mod tests {
         let projection = market
             .get_forward(tarn.floating_index_id.as_ref())
             .expect("projection");
-        let dc = tarn.day_count;
+        let day_count = tarn.day_count;
         let ctx = DayCountContext::default();
         let mut tracker = CumulativeCouponTracker::with_target(tarn.target_coupon);
         let mut pv = 0.0;
@@ -783,7 +781,7 @@ mod tests {
             if end <= as_of {
                 continue;
             }
-            let accrual = dc.year_fraction(start, end, ctx).expect("accrual");
+            let accrual = day_count.year_fraction(start, end, ctx).expect("accrual");
             let p_end = relative_df_discount_curve(disc.as_ref(), as_of, end).expect("p_end");
             let projection_time = projection
                 .day_count()

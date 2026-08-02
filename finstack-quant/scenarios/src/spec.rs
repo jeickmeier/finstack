@@ -25,9 +25,11 @@
 //!   so that "points" semantics never collide with "basis points" semantics on
 //!   rate curves.
 
+use finstack_quant_core::dates::DayCount;
 use finstack_quant_core::market_data::hierarchy::ResolutionMode;
 use finstack_quant_core::types::CurveId;
 use indexmap::IndexMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Re-export [`HierarchyTarget`] for hierarchy-targeted operations.
@@ -74,7 +76,7 @@ pub use finstack_quant_statements::types::NodeId;
 ///     resolution_mode: ResolutionMode::default(),
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScenarioSpec {
     /// Unique identifier for this scenario.
@@ -157,7 +159,7 @@ impl ScenarioSpec {
 /// Hierarchy-targeted variants are resolved into direct identifiers during
 /// [`crate::engine::ScenarioEngine::apply`] using the market hierarchy attached
 /// to the execution context.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OperationSpec {
     /// FX rate percent shift.
@@ -382,7 +384,7 @@ pub enum OperationSpec {
     ///
     /// let op = OperationSpec::BaseCorrBucketPts {
     ///     surface_id: "CDX_IG".into(),
-    ///     detachment_bps: Some(vec![300, 700]), // 3% and 7% detachment
+    ///     detachment_bp: Some(vec![300, 700]), // 3% and 7% detachment
     ///     maturities: None, // required today: base correlation is detachment-only
     ///     points: 0.03,
     /// };
@@ -391,7 +393,7 @@ pub enum OperationSpec {
         /// Surface identifier.
         surface_id: CurveId,
         /// Optional detachment points in basis points (e.g., 300 for 3%).
-        detachment_bps: Option<Vec<i32>>,
+        detachment_bp: Option<Vec<i32>>,
         /// Reserved maturity filters for future term-structured base correlation.
         ///
         /// Use `None` or an empty vector today. Non-empty maturity filters are
@@ -412,15 +414,15 @@ pub enum OperationSpec {
     ///
     /// let op = OperationSpec::VolSurfaceParallelPct {
     ///     surface_kind: VolSurfaceKind::Equity,
-    ///     surface_id: "SPX".into(),
+    ///     vol_surface_id: "SPX".into(),
     ///     pct: 10.0, // +10% volatility increase
     /// };
     /// ```
     VolSurfaceParallelPct {
         /// Type of volatility surface (Equity, FX, IR, etc.).
         surface_kind: VolSurfaceKind,
-        /// Surface identifier.
-        surface_id: CurveId,
+        /// Volatility-surface identifier.
+        vol_surface_id: CurveId,
         /// Percentage change in volatility.
         pct: f64,
     },
@@ -433,7 +435,7 @@ pub enum OperationSpec {
     ///
     /// let op = OperationSpec::VolSurfaceBucketPct {
     ///     surface_kind: VolSurfaceKind::Equity,
-    ///     surface_id: "SPX".into(),
+    ///     vol_surface_id: "SPX".into(),
     ///     tenors: Some(vec!["1M".into(), "3M".into()]),
     ///     strikes: Some(vec![90.0, 95.0, 100.0]),
     ///     pct: 15.0,
@@ -442,8 +444,8 @@ pub enum OperationSpec {
     VolSurfaceBucketPct {
         /// Type of volatility surface (Equity, FX, IR, etc.).
         surface_kind: VolSurfaceKind,
-        /// Surface identifier.
-        surface_id: CurveId,
+        /// Volatility-surface identifier.
+        vol_surface_id: CurveId,
         /// Optional tenor strings (e.g., "1M", "3M").
         tenors: Option<Vec<String>>,
         /// Optional strike levels.
@@ -577,7 +579,7 @@ pub enum OperationSpec {
     /// use finstack_quant_scenarios::{OperationSpec, InstrumentType};
     ///
     /// let op = OperationSpec::InstrumentSpreadBpByType {
-    ///     instrument_types: vec![InstrumentType::CDS],
+    ///     instrument_types: vec![InstrumentType::Cds],
     ///     bp: 100.0,
     /// };
     /// ```
@@ -788,7 +790,7 @@ fn default_true() -> bool {
 /// let kind = CurveKind::Discount;
 /// assert_eq!(format!("{:?}", kind), "Discount");
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CurveKind {
     /// Discount factor curve.
@@ -808,7 +810,7 @@ pub enum CurveKind {
 /// Labels which category of volatility surface an operation represents.
 ///
 /// The current market context stores volatility surfaces in a single collection,
-/// so scenario adapters look up surfaces by `surface_id`; `VolSurfaceKind` is
+/// so scenario adapters look up surfaces by `vol_surface_id`; `VolSurfaceKind` is
 /// retained as explicit metadata for serde contracts, template discovery, and
 /// future validation.
 ///
@@ -818,7 +820,7 @@ pub enum CurveKind {
 ///
 /// assert!(matches!(VolSurfaceKind::Swaption, VolSurfaceKind::Swaption));
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum VolSurfaceKind {
     /// Equity volatility surface.
@@ -849,7 +851,7 @@ pub enum VolSurfaceKind {
 /// let mode = TenorMatchMode::Interpolate;
 /// assert_eq!(format!("{:?}", mode), "Interpolate");
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TenorMatchMode {
     /// Match exact pillar only (errors if not found).
@@ -887,7 +889,7 @@ pub enum TenorMatchMode {
 /// [`TimeRollMode::BusinessDays`] or [`TimeRollMode::CalendarDays`], which
 /// both resolve the target date via [`finstack_quant_core::dates::Tenor`] and are
 /// additive modulo the chosen business-day convention.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TimeRollMode {
     /// Business-day-adjusted roll (ModifiedFollowing).
@@ -937,7 +939,7 @@ pub enum TimeRollMode {
 ///     day_count: None, // Use curve's day count
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RateBindingSpec {
     /// Statement node ID to receive the rate.
@@ -953,13 +955,13 @@ pub struct RateBindingSpec {
     #[serde(default)]
     pub compounding: Compounding,
 
-    /// Day count convention override. If None, uses curve's convention.
+    /// Day-count convention override. If `None`, uses the curve's convention.
     #[serde(default)]
-    pub day_count: Option<String>,
+    pub day_count: Option<DayCount>,
 }
 
 impl RateBindingSpec {
-    /// Validate identifiers and eagerly parse persisted rate conventions.
+    /// Validate identifiers and eagerly parse the tenor.
     ///
     /// This standalone check is also used by [`OperationSpec::validate`] so
     /// callers validating a binding before embedding it receive identical
@@ -969,8 +971,8 @@ impl RateBindingSpec {
     ///
     /// Returns [`crate::error::Error::Validation`] when `node_id` or
     /// `curve_id` is blank, `tenor` is not accepted by
-    /// [`finstack_quant_core::dates::Tenor::parse`], or `day_count` contains an
-    /// unsupported override alias.
+    /// [`finstack_quant_core::dates::Tenor::parse`]. Invalid persisted
+    /// `day_count` values are rejected directly by serde.
     pub fn validate(&self) -> crate::error::Result<()> {
         check_id(self.node_id.as_str(), "node_id")?;
         check_id(self.curve_id.as_str(), "curve_id")?;
@@ -981,9 +983,6 @@ impl RateBindingSpec {
         }
         finstack_quant_core::dates::Tenor::parse(self.tenor.trim())
             .map_err(|error| crate::error::Error::InvalidTenor(error.to_string()))?;
-        if let Some(day_count) = &self.day_count {
-            crate::utils::parse_day_count_override(day_count)?;
-        }
         Ok(())
     }
 }
@@ -994,7 +993,7 @@ impl RateBindingSpec {
 /// different quoting conventions (for example from continuous zeros to annual
 /// or simple statement rates). The output remains a decimal annualized rate;
 /// only the compounding basis changes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Compounding {
     /// Simple interest (no compounding).
@@ -1150,12 +1149,16 @@ impl OperationSpec {
                 check_corr_delta(*points, "points")?;
             }
             OperationSpec::VolSurfaceParallelPct {
-                surface_id, pct, ..
+                vol_surface_id,
+                pct,
+                ..
             }
             | OperationSpec::VolSurfaceBucketPct {
-                surface_id, pct, ..
+                vol_surface_id,
+                pct,
+                ..
             } => {
-                check_id(surface_id.as_str(), "surface_id")?;
+                check_id(vol_surface_id.as_str(), "vol_surface_id")?;
                 check_finite(*pct, "pct")?;
             }
             OperationSpec::StmtForecastPercent { node_id, pct } => {

@@ -180,5 +180,7 @@ def test_transform_panel_json_entrypoint() -> None:
     }
 
     result = json.loads(transform_panel(json.dumps(spec)))
-    assert result["columns"]["ret1"][1] == pytest.approx(0.2)
-    assert result["columns"]["rank"][2] == 1.0
+    assert result["columns"][0]["name"] == "ret1"
+    assert result["columns"][0]["values"][1] == pytest.approx(0.2)
+    assert result["columns"][1]["name"] == "rank"
+    assert result["columns"][1]["values"][2] == 1.0

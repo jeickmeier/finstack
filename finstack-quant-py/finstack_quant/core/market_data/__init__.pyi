@@ -109,14 +109,14 @@ class DiscountCurve:
     --------
     >>> import datetime
     >>> from finstack_quant.core.market_data import DiscountCurve
-    >>> dc = DiscountCurve(
+    >>> day_count = DiscountCurve(
     ...     id="USD-OIS",
     ...     base_date=datetime.date(2024, 1, 1),
     ...     knots=[(0.0, 1.0), (1.0, 0.96), (5.0, 0.82)],
     ... )
-    >>> dc.df(1.0)
+    >>> day_count.df(1.0)
     0.96
-    >>> dc.zero(1.0)  # continuously-compounded zero rate
+    >>> day_count.zero(1.0)  # continuously-compounded zero rate
     0.040821994520255166
     """
 

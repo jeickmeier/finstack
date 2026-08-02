@@ -4,7 +4,7 @@
       "description": "Standard commodity market conventions by product type.\n\nEach variant provides market-standard defaults for settlement days,\nbusiness day convention, and calendar. Use when constructing commodity\nforwards, options, or swaps without explicitly specifying these parameters.\n\n# Market Standards Reference\n\n| Convention | Settlement | BDC | Calendar | Exchange |\n|------------|------------|-----|----------|----------|\n| WTI Crude | T+2 | Following | NYMEX | NYMEX/CME |\n| Brent Crude | T+2 | Following | ICE | ICE |\n| Natural Gas | T+2 | Following | NYMEX | NYMEX/CME |\n| Gold | T+2 | Modified Following | COMEX | CME |\n| Silver | T+2 | Modified Following | COMEX | CME |\n| Copper | T+2 | Following | LME | LME |\n| Corn/Wheat | T+2 | Following | CBOT | CME |\n| Power | T+1 | Modified Following | NERC | Various |\n\n# Sources\n\n- CME Group rulebooks\n- ICE Futures exchange rules\n- LME trading procedures",
       "oneOf": [
         {
-          "const": "w_t_i_crude",
+          "const": "wti_crude",
           "description": "WTI Crude Oil: T+2, Following, NYMEX calendar",
           "type": "string"
         },
@@ -45,6 +45,177 @@
         }
       ]
     },
+    "CommodityForward": {
+      "additionalProperties": false,
+      "description": "Commodity forward or futures contract.\n\nRepresents a commitment to buy or sell a commodity at a specified future\ndate at a predetermined price. Can be physically settled (delivery) or\ncash settled (price difference).\n\n# Pricing\n\nForward value is calculated as:\n```text\nNPV = sign(position) × (F - K) × Q × M × DF(T)\n```\nwhere:\n- sign = +1.0 for Long, -1.0 for Short\n- F = Forward price from price curve (or quoted_price if provided)\n- K = Contract price (entry price). If None, treated as at-market (K = F)\n- Q = Quantity\n- M = Contract multiplier\n- DF(T) = Discount factor to settlement date\n\n# At-Market vs Off-Market\n\n- **At-market**: `contract_price = None` → NPV ≈ 0 (like entering a new futures position)\n- **Off-market**: `contract_price = Some(K)` → NPV reflects mark-to-market vs K\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::commodity::commodity_forward::CommodityForward;\nuse finstack_quant_valuations::instruments::Position;\nuse finstack_quant_valuations::instruments::CommodityUnderlyingParams;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::Date;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\n// At-market long forward (NPV ≈ 0)\nlet at_market = CommodityForward::builder()\n    .id(InstrumentId::new(\"WTI-FWD-2025M03\"))\n    .underlying(CommodityUnderlyingParams::new(\"Energy\", \"CL\", \"BBL\", Currency::USD))\n    .quantity(1000.0)\n    .multiplier(1.0)\n    .maturity(Date::from_calendar_date(2025, Month::March, 15).unwrap())\n    .position(Position::Long)\n    .forward_curve_id(CurveId::new(\"WTI-FORWARD\"))\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .build()\n    .expect(\"Valid forward\");\n\n// Off-market forward with specific contract price\nlet off_market = CommodityForward::builder()\n    .id(InstrumentId::new(\"WTI-FWD-2025M03-TRADE\"))\n    .underlying(CommodityUnderlyingParams::new(\"Energy\", \"CL\", \"BBL\", Currency::USD))\n    .quantity(1000.0)\n    .multiplier(1.0)\n    .maturity(Date::from_calendar_date(2025, Month::March, 15).unwrap())\n    .position(Position::Long)\n    .contract_price_opt(Some(72.0)) // Entry price\n    .forward_curve_id(CurveId::new(\"WTI-FORWARD\"))\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .build()\n    .expect(\"Valid forward\");\n```",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "commodity_type": {
+          "description": "Commodity type (e.g., \"Energy\", \"Metal\", \"Agricultural\")",
+          "type": "string"
+        },
+        "contract_month": {
+          "description": "Optional contract month (e.g., \"2025M03\" for March 2025).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contract_price": {
+          "description": "Contract price (entry/trade price K).\n\nIf `None`, the forward is treated as **at-market** (K = F), meaning\nNPV ≈ 0 at inception (like a newly opened futures position).\n\nIf `Some(K)`, the forward is **off-market** and NPV reflects the\nmark-to-market difference: sign × (F - K) × Q × M × DF.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "convention": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommodityConvention"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional market convention for this commodity.\n\nWhen set, provides default settlement days and calendar if not\nexplicitly specified. See `CommodityConvention` for available options."
+        },
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency for pricing"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID."
+        },
+        "exchange": {
+          "description": "Optional exchange identifier (e.g., \"NYMEX\", \"ICE\").",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "forward_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Forward/futures price curve ID for price interpolation.\n\nShould reference a `PriceCurve` in the `MarketContext`."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs."
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Settlement/delivery date."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "multiplier": {
+          "$ref": "#/$defs/PositiveF64Wire",
+          "default": 1.0,
+          "description": "Contract multiplier (typically 1.0 for OTC forwards, defaults to 1.0)."
+        },
+        "position": {
+          "$ref": "#/$defs/Position",
+          "default": "long",
+          "description": "Position direction (long or short).\n\n- Long: buyer of the commodity at settlement\n- Short: seller of the commodity at settlement"
+        },
+        "quantity": {
+          "$ref": "#/$defs/PositiveF64Wire",
+          "description": "Contract quantity in units."
+        },
+        "quoted_price": {
+          "description": "Optional quoted forward price (overrides curve lookup for F).\n\nThis is a market price override, not the contract entry price.\nUse `contract_price` for the trade entry price K.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only valuation adjustments."
+        },
+        "settlement": {
+          "$ref": "#/$defs/SettlementType",
+          "default": "cash",
+          "description": "Settlement type (physical or cash).\n\nDefaults to cash settlement when omitted in serialized payloads."
+        },
+        "settlement_business_day_convention": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Business day convention for settlement date adjustment.\n\nDefaults to `Following` for energy commodities, `ModifiedFollowing`\nfor precious metals."
+        },
+        "settlement_calendar_id": {
+          "description": "Calendar ID for settlement date adjustments.\n\nUsed for business day adjustment of the settlement date. If `convention`\nis set, uses the convention's calendar unless explicitly overridden.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "settlement_lag_days": {
+          "description": "Settlement lag in business days (T+N).\n\nDefaults to 2 for most commodity markets (T+2). If `convention` is set,\nuses the convention's default unless explicitly overridden here.\n\n# Market Standards\n\n| Market | Settlement |\n|--------|------------|\n| Energy (WTI, Brent, NG) | T+2 |\n| Precious metals | T+2 |\n| Base metals (LME) | T+2 |\n| Power | T+1 |",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "spot_id": {
+          "description": "Optional spot price ID (for delta calculations).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ticker": {
+          "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
+          "type": "string"
+        },
+        "unit": {
+          "description": "Unit of measurement (e.g., \"BBL\", \"OZ\", \"MT\", \"MMBTU\")",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "commodity_type",
+        "ticker",
+        "unit",
+        "currency",
+        "quantity",
+        "maturity",
+        "forward_curve_id",
+        "discount_curve_id"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "Position": {
       "description": "Position direction for futures and forwards.",
       "oneOf": [
@@ -60,6 +231,12 @@
         }
       ]
     },
+    "PositiveF64Wire": {
+      "description": "Finite JSON number that is strictly greater than zero.\n\nThis type is used by serde field adapters so runtime deserialization and\ngenerated schemas enforce the same positive-number contract.",
+      "exclusiveMinimum": 0.0,
+      "format": "double",
+      "type": "number"
+    },
     "SettlementType": {
       "description": "Settlement type for options",
       "oneOf": [
@@ -74,12 +251,33 @@
           "type": "string"
         }
       ]
+    },
+    "commodity_forward": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/CommodityForward"
+            },
+            "type": {
+              "const": "commodity_forward",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/commodity/commodity_forward.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Commodity forward or futures contract for physical or cash settlement",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -94,7 +292,7 @@
           },
           "commodity_type": "Energy",
           "contract_month": "2025M03",
-          "convention": "w_t_i_crude",
+          "convention": "wti_crude",
           "currency": "USD",
           "discount_curve_id": "USD-OIS",
           "exchange": "NYMEX",
@@ -103,27 +301,6 @@
           "maturity": "2025-03-15",
           "multiplier": 1.0,
           "position": "long",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quantity": 1000.0,
           "settlement": "cash",
           "ticker": "CL",
@@ -136,205 +313,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Commodity Forward instrument definition",
-      "properties": {
-        "spec": {
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "default": {},
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "commodity_type": {
-              "description": "Commodity type (e.g., \"Energy\", \"Metal\", \"Agricultural\")",
-              "type": "string"
-            },
-            "contract_month": {
-              "description": "Optional contract month (e.g., \"2025M03\" for March 2025).",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "contract_price": {
-              "description": "Contract price (entry/trade price K).\n\nIf `None`, the forward is treated as **at-market** (K = F), meaning\nNPV ≈ 0 at inception (like a newly opened futures position).\n\nIf `Some(K)`, the forward is **off-market** and NPV reflects the\nmark-to-market difference: sign × (F - K) × Q × M × DF.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "convention": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/CommodityConvention"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional market convention for this commodity.\n\nWhen set, provides default settlement days and calendar if not\nexplicitly specified. See `CommodityConvention` for available options."
-            },
-            "currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency for pricing"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID."
-            },
-            "exchange": {
-              "description": "Optional exchange identifier (e.g., \"NYMEX\", \"ICE\").",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "forward_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Forward/futures price curve ID for price interpolation.\n\nShould reference a `PriceCurve` in the `MarketContext`."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "maturity": {
-              "description": "Settlement/delivery date.",
-              "format": "date",
-              "type": "string"
-            },
-            "multiplier": {
-              "default": 1.0,
-              "description": "Contract multiplier (typically 1.0 for OTC forwards, defaults to 1.0).",
-              "format": "double",
-              "type": "number"
-            },
-            "position": {
-              "$ref": "#/$defs/Position",
-              "default": "long",
-              "description": "Position direction (long or short).\n\n- Long: buyer of the commodity at settlement\n- Short: seller of the commodity at settlement"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Instrument-owned pricing inputs."
-            },
-            "quantity": {
-              "description": "Contract quantity in units.",
-              "format": "double",
-              "type": "number"
-            },
-            "quoted_price": {
-              "description": "Optional quoted forward price (overrides curve lookup for F).\n\nThis is a market price override, not the contract entry price.\nUse `contract_price` for the trade entry price K.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "settlement": {
-              "$ref": "#/$defs/SettlementType",
-              "default": "cash",
-              "description": "Settlement type (physical or cash).\n\nDefaults to cash settlement when omitted in serialized payloads."
-            },
-            "settlement_bdc": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Business day convention for settlement date adjustment.\n\nDefaults to `Following` for energy commodities, `ModifiedFollowing`\nfor precious metals."
-            },
-            "settlement_calendar_id": {
-              "description": "Calendar ID for settlement date adjustments.\n\nUsed for business day adjustment of the settlement date. If `convention`\nis set, uses the convention's calendar unless explicitly overridden.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "settlement_lag_days": {
-              "description": "Settlement lag in business days (T+N).\n\nDefaults to 2 for most commodity markets (T+2). If `convention` is set,\nuses the convention's default unless explicitly overridden here.\n\n# Market Standards\n\n| Market | Settlement |\n|--------|------------|\n| Energy (WTI, Brent, NG) | T+2 |\n| Precious metals | T+2 |\n| Base metals (LME) | T+2 |\n| Power | T+1 |",
-              "format": "uint32",
-              "minimum": 0,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "spot_id": {
-              "description": "Optional spot price ID (for delta calculations).",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "ticker": {
-              "description": "Ticker/identifier for market data lookup (e.g., \"CL\", \"GC\", \"NG\")",
-              "type": "string"
-            },
-            "unit": {
-              "description": "Unit of measurement (e.g., \"BBL\", \"OZ\", \"MT\", \"MMBTU\")",
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "commodity_type",
-            "ticker",
-            "unit",
-            "currency",
-            "quantity",
-            "maturity",
-            "forward_curve_id",
-            "discount_curve_id"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "commodity_forward",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/commodity_forward"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Commodity Forward",
+  "title": "commodity_forward",
   "type": "object"
 }

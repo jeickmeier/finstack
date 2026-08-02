@@ -41,7 +41,7 @@ fn test_observation_dates_are_monotonically_increasing() {
 fn test_observation_dates_daily_frequency_generates_many_dates() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::daily();
+    swap.observation_frequency = Tenor::daily();
 
     // Act
     let dates = swap.observation_dates().expect("observation schedule");
@@ -58,7 +58,7 @@ fn test_observation_dates_daily_frequency_generates_many_dates() {
 fn test_observation_dates_weekly_frequency() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
 
     // Act
     let dates = swap.observation_dates().expect("observation schedule");
@@ -72,7 +72,7 @@ fn test_observation_dates_weekly_frequency() {
 fn test_observation_dates_monthly_frequency() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::monthly();
+    swap.observation_frequency = Tenor::monthly();
 
     // Act
     let dates = swap.observation_dates().expect("observation schedule");
@@ -86,7 +86,7 @@ fn test_observation_dates_monthly_frequency() {
 fn test_observation_dates_quarterly_frequency() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::quarterly();
+    swap.observation_frequency = Tenor::quarterly();
 
     // Act
     let dates = swap.observation_dates().expect("observation schedule");
@@ -117,7 +117,7 @@ fn test_realized_variance_rejects_missing_exact_observation() {
 fn test_annualization_factor_daily_equals_252() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::daily();
+    swap.observation_frequency = Tenor::daily();
 
     // Act
     let factor = swap.annualization_factor();
@@ -133,7 +133,7 @@ fn test_annualization_factor_weekly_uses_calendar_weeks() {
     // basis with a calendar-day step and understates realized variance.
     // Matches the FX variance-swap convention.
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
 
     // Act
     let factor = swap.annualization_factor();
@@ -146,7 +146,7 @@ fn test_annualization_factor_weekly_uses_calendar_weeks() {
 fn test_annualization_factor_monthly_equals_12() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::monthly();
+    swap.observation_frequency = Tenor::monthly();
 
     // Act
     let factor = swap.annualization_factor();
@@ -159,7 +159,7 @@ fn test_annualization_factor_monthly_equals_12() {
 fn test_annualization_factor_quarterly_equals_4() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::quarterly();
+    swap.observation_frequency = Tenor::quarterly();
 
     // Act
     let factor = swap.annualization_factor();
@@ -172,7 +172,7 @@ fn test_annualization_factor_quarterly_equals_4() {
 fn test_annualization_factor_semi_annual_equals_2() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::semi_annual();
+    swap.observation_frequency = Tenor::semi_annual();
 
     // Act
     let factor = swap.annualization_factor();
@@ -233,53 +233,21 @@ fn test_annualization_factor_specific_override_takes_precedence_over_global() {
 // ============================================================================
 
 #[test]
-fn test_time_elapsed_fraction_before_start_is_zero() {
-    // Arrange
+fn test_time_elapsed_fraction_boundaries() {
     let swap = sample_swap(PayReceive::Receive);
-    let as_of = date(2024, 12, 1);
+    let day = time::Duration::days(1);
 
-    // Act
-    let fraction = swap.time_elapsed_fraction(as_of);
+    assert_eq!(swap.time_elapsed_fraction(swap.start_date - day), 0.0);
+    assert_eq!(swap.time_elapsed_fraction(swap.start_date), 0.0);
 
-    // Assert
-    assert_eq!(fraction, 0.0);
-}
+    let just_after_start = swap.time_elapsed_fraction(swap.start_date + day);
+    assert!(just_after_start > 0.0 && just_after_start < 1.0);
 
-#[test]
-fn test_time_elapsed_fraction_at_start_is_zero() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
+    let just_before_maturity = swap.time_elapsed_fraction(swap.maturity - day);
+    assert!(just_before_maturity > 0.0 && just_before_maturity < 1.0);
 
-    // Act
-    let fraction = swap.time_elapsed_fraction(swap.start_date);
-
-    // Assert
-    assert_eq!(fraction, 0.0);
-}
-
-#[test]
-fn test_time_elapsed_fraction_at_maturity_is_one() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
-
-    // Act
-    let fraction = swap.time_elapsed_fraction(swap.maturity);
-
-    // Assert
-    assert_eq!(fraction, 1.0);
-}
-
-#[test]
-fn test_time_elapsed_fraction_after_maturity_is_one() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
-    let as_of = date(2025, 5, 1);
-
-    // Act
-    let fraction = swap.time_elapsed_fraction(as_of);
-
-    // Assert
-    assert_eq!(fraction, 1.0);
+    assert_eq!(swap.time_elapsed_fraction(swap.maturity), 1.0);
+    assert_eq!(swap.time_elapsed_fraction(swap.maturity + day), 1.0);
 }
 
 #[test]
@@ -306,16 +274,18 @@ fn test_time_elapsed_fraction_respects_day_count_convention() {
 
     // Act with different day counts
     swap.day_count = finstack_quant_core::dates::DayCount::Act365F;
-    let frac_365 = swap.time_elapsed_fraction(as_of);
+    let frac_actual = swap.time_elapsed_fraction(as_of);
 
-    swap.day_count = finstack_quant_core::dates::DayCount::Act360;
-    let frac_360 = swap.time_elapsed_fraction(as_of);
+    swap.day_count = finstack_quant_core::dates::DayCount::Thirty360;
+    let frac_30_360 = swap.time_elapsed_fraction(as_of);
 
     // Assert
-    assert!(frac_365 > 0.0 && frac_365 < 1.0);
-    assert!(frac_360 > 0.0 && frac_360 < 1.0);
-    // Different conventions yield different fractions (though difference may be small)
-    assert!(frac_365 != frac_360 || (frac_365 - frac_360).abs() < 1e-8);
+    assert!(frac_actual > 0.0 && frac_actual < 1.0);
+    assert!(frac_30_360 > 0.0 && frac_30_360 < 1.0);
+    assert!(
+        (frac_actual - frac_30_360).abs() > 1e-4,
+        "actual and 30/360 conventions should produce distinct elapsed fractions"
+    );
 }
 
 #[test]
@@ -352,43 +322,44 @@ fn test_time_elapsed_fraction_is_monotonic() {
 // ============================================================================
 
 #[test]
-fn test_realized_fraction_by_observations_before_start_is_zero() {
-    // Arrange
+fn test_realized_fraction_by_observations_boundaries() {
     let swap = sample_swap(PayReceive::Receive);
-    let as_of = date(2024, 12, 1);
+    let day = time::Duration::days(1);
 
-    // Act
-    let fraction = observation_weight(&swap, as_of);
+    let cases = [
+        (swap.start_date - day, 0.0),
+        (swap.start_date, 0.0),
+        (swap.maturity, 1.0),
+        (swap.maturity + day, 1.0),
+    ];
 
-    // Assert
-    assert_eq!(fraction, 0.0);
-}
-
-#[test]
-fn test_realized_fraction_by_observations_at_maturity_is_one() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
-
-    // Act
-    let fraction = observation_weight(&swap, swap.maturity);
-
-    // Assert
-    assert_eq!(fraction, 1.0);
+    for (as_of, expected) in cases {
+        let fraction = swap
+            .realized_fraction_by_observations(as_of)
+            .expect("observation fraction");
+        assert_eq!(fraction, expected, "unexpected fraction at {as_of}");
+    }
 }
 
 #[test]
 fn test_realized_fraction_by_observations_increases_with_time() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
     let dates = swap.observation_dates().expect("observation schedule");
     let mid_idx = dates.len() / 2;
     let mid_date = dates[mid_idx];
 
     // Act
-    let frac_start = observation_weight(&swap, swap.start_date);
-    let frac_mid = observation_weight(&swap, mid_date);
-    let frac_end = observation_weight(&swap, swap.maturity);
+    let frac_start = swap
+        .realized_fraction_by_observations(swap.start_date)
+        .expect("start fraction");
+    let frac_mid = swap
+        .realized_fraction_by_observations(mid_date)
+        .expect("mid fraction");
+    let frac_end = swap
+        .realized_fraction_by_observations(swap.maturity)
+        .expect("maturity fraction");
 
     // Assert
     assert!(frac_start < frac_mid);
@@ -399,12 +370,14 @@ fn test_realized_fraction_by_observations_increases_with_time() {
 fn test_realized_fraction_by_observations_matches_observation_count() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::weekly();
+    swap.observation_frequency = Tenor::weekly();
     let dates = swap.observation_dates().expect("observation schedule");
     let as_of = dates[dates.len() / 2];
 
     // Act
-    let fraction = observation_weight(&swap, as_of);
+    let fraction = swap
+        .realized_fraction_by_observations(as_of)
+        .expect("observation fraction");
     let manual_frac = dates.iter().filter(|&&d| d <= as_of).count() as f64 / dates.len() as f64;
 
     // Assert

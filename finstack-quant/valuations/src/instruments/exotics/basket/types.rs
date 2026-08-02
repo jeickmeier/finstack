@@ -27,6 +27,7 @@ pub enum AssetType {
     /// Fixed income security
     Bond,
     /// Exchange-traded fund
+    #[serde(rename = "etf")]
     ETF,
     /// Cash or cash equivalent
     Cash,
@@ -37,7 +38,13 @@ pub enum AssetType {
 }
 
 /// Reference to a constituent asset in the basket
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(
+    tag = "kind",
+    content = "value",
+    rename_all = "snake_case",
+    deny_unknown_fields
+)]
 pub enum ConstituentReference {
     /// Direct reference to an existing instrument (serializable via InstrumentJson)
     Instrument(Box<InstrumentJson>),
@@ -50,91 +57,9 @@ pub enum ConstituentReference {
     },
 }
 
-// Debug is now derived automatically on ConstituentReference
-
-impl schemars::JsonSchema for ConstituentReference {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("ConstituentReference")
-    }
-
-    fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        schemars::json_schema!({
-            "type": "object"
-        })
-    }
-}
-
-impl Serialize for ConstituentReference {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            ConstituentReference::Instrument(instr_json) => {
-                // Serialize as { "instrument": <InstrumentJson> }
-                #[derive(Serialize)]
-                struct InstrumentWrapper<'a> {
-                    instrument: &'a InstrumentJson,
-                }
-                let wrapper = InstrumentWrapper {
-                    instrument: instr_json,
-                };
-                wrapper.serialize(serializer)
-            }
-            ConstituentReference::MarketData {
-                price_id,
-                asset_type,
-            } => {
-                // Serialize as { "price_id": "...", "asset_type": "..." }
-                #[derive(Serialize)]
-                struct MarketDataRef<'a> {
-                    price_id: &'a str,
-                    asset_type: &'a AssetType,
-                }
-                let market_ref = MarketDataRef {
-                    price_id: price_id.as_str(),
-                    asset_type,
-                };
-                market_ref.serialize(serializer)
-            }
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for ConstituentReference {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        // Use an untagged helper enum to disambiguate between the two shapes
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Helper {
-            Instrument {
-                instrument: Box<InstrumentJson>,
-            },
-            MarketData {
-                price_id: PriceId,
-                asset_type: AssetType,
-            },
-        }
-
-        let helper = Helper::deserialize(deserializer)?;
-        match helper {
-            Helper::Instrument { instrument } => Ok(ConstituentReference::Instrument(instrument)),
-            Helper::MarketData {
-                price_id,
-                asset_type,
-            } => Ok(ConstituentReference::MarketData {
-                price_id,
-                asset_type,
-            }),
-        }
-    }
-}
-
 /// Individual constituent in a basket
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct BasketConstituent {
     /// Unique identifier for the constituent
     pub id: String,
@@ -150,6 +75,7 @@ pub struct BasketConstituent {
 
 /// Configuration for basket pricing behaviour.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct BasketPricingConfig {
     /// Day basis used for fee accrual (e.g., 365.0 or 365.25). Avoid hardcoding in logic.
     pub days_in_year: f64,
@@ -175,7 +101,9 @@ impl Default for BasketPricingConfig {
     Debug,
     Clone,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct Basket {
@@ -193,14 +121,25 @@ pub struct Basket {
     /// Discount curve identifier for present value calculations
     pub discount_curve_id: finstack_quant_core::types::CurveId,
     /// Attributes for scenario selection and tagging
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -370,7 +309,7 @@ impl Instrument for Basket {
                     )?,
                 ),
                 ConstituentReference::MarketData { price_id, .. } => {
-                    deps.add_spot_id(price_id.as_str());
+                    deps.add_market_scalar_id(price_id.as_str());
                 }
             }
         }
@@ -488,7 +427,7 @@ mod tests {
             &[basket.discount_curve_id]
         );
         assert_eq!(
-            deps.spot_ids,
+            deps.market_scalar_ids,
             vec!["AAPL-SPOT".to_string(), "UST10Y-PRICE".to_string()]
         );
     }

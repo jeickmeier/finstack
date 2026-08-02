@@ -1,5 +1,133 @@
 {
   "$defs": {
+    "ForwardRateAgreement": {
+      "additionalProperties": false,
+      "description": "Forward Rate Agreement instrument.\n\nA FRA is a forward contract on an interest rate. The holder receives\nthe difference between the realized rate and the fixed rate, paid at\nthe start of the interest period (FRA convention).\n\n# Direction Convention\n\n- `side = PayReceive::Receive`: Receive fixed rate, pay floating rate.\n  When forward rate > fixed rate, PV is negative (you're paying more than receiving).\n- `side = PayReceive::Pay`: Pay fixed rate, receive floating rate.\n  When forward rate > fixed rate, PV is positive (you're receiving more than paying).\n\n# Side field\n\nUse `side` to indicate the fixed leg direction. If omitted in JSON,\ndeserialization defaults to `Pay`.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention for interest accrual"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier"
+        },
+        "fixed_rate": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Fixed rate (decimal, e.g., 0.05 for 5%)"
+        },
+        "fixing_business_day_convention": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional business day convention for fixing date adjustment (default: ModifiedFollowing)"
+        },
+        "fixing_calendar_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional fixing calendar identifier for business day adjustment"
+        },
+        "fixing_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Rate fixing date. If `None`, inferred from `start_date - reset_lag` business days."
+        },
+        "forward_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Forward curve identifier"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique identifier"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Instrument-owned pricing inputs."
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Interest period end date"
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount"
+        },
+        "observed_fixing": {
+          "description": "Optional observed fixing (locked rate) when known",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reset_lag": {
+          "description": "Reset lag in business days (fixing to value date)",
+          "format": "int32",
+          "type": "integer"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "side": {
+          "$ref": "#/$defs/PayReceive",
+          "default": "pay",
+          "description": "Direction of the FRA: Pay means paying the fixed rate (receiving floating),\nReceive means receiving the fixed rate (paying floating)."
+        },
+        "start_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Interest period start date"
+        }
+      },
+      "required": [
+        "id",
+        "notional",
+        "start_date",
+        "maturity",
+        "fixed_rate",
+        "day_count",
+        "reset_lag",
+        "discount_curve_id",
+        "forward_curve_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "PayReceive": {
       "description": "Direction for instrument legs (universal for IRS, CDS, variance swaps, etc.)\n\nFor interest rate swaps: Pay = pay fixed/receive floating, Receive = receive fixed/pay floating\nFor credit default swaps: Pay = buy protection (pay premium), Receive = sell protection (receive premium)\nFor variance swaps: Pay = short variance, Receive = long variance",
       "oneOf": [
@@ -14,18 +142,39 @@
           "type": "string"
         }
       ]
+    },
+    "forward_rate_agreement": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/ForwardRateAgreement"
+            },
+            "type": {
+              "const": "forward_rate_agreement",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/forward_rate_agreement.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Forward contract on an interest rate (FRA)",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
-          "day_count": "Act360",
+          "day_count": "act_360",
           "discount_curve_id": "USD-OIS",
           "fixed_rate": "0.045",
           "fixing_date": "2024-04-01",
@@ -35,27 +184,6 @@
           "notional": {
             "amount": "10000000",
             "currency": "USD"
-          },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
           },
           "reset_lag": 2,
           "side": "receive",
@@ -68,163 +196,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Forward Rate Agreement instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention for interest accrual"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier"
-            },
-            "fixed_rate": {
-              "description": "Fixed rate (decimal, e.g., 0.05 for 5%)",
-              "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-              "type": [
-                "string",
-                "number"
-              ]
-            },
-            "fixing_bdc": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional business day convention for fixing date adjustment (default: ModifiedFollowing)"
-            },
-            "fixing_calendar_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional fixing calendar identifier for business day adjustment"
-            },
-            "fixing_date": {
-              "description": "Rate fixing date. If `None`, inferred from `start_date - reset_lag` business days.",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "forward_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Forward curve identifier"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique identifier"
-            },
-            "maturity": {
-              "description": "Interest period end date",
-              "format": "date",
-              "type": "string"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount"
-            },
-            "observed_fixing": {
-              "description": "Optional observed fixing (locked rate) when known",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Instrument-owned pricing inputs."
-            },
-            "reset_lag": {
-              "description": "Reset lag in business days (fixing to value date)",
-              "format": "int32",
-              "type": "integer"
-            },
-            "side": {
-              "$ref": "#/$defs/PayReceive",
-              "default": "pay",
-              "description": "Direction of the FRA: Pay means paying the fixed rate (receiving floating),\nReceive means receiving the fixed rate (paying floating)."
-            },
-            "start_date": {
-              "description": "Interest period start date",
-              "format": "date",
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "notional",
-            "start_date",
-            "maturity",
-            "fixed_rate",
-            "day_count",
-            "reset_lag",
-            "discount_curve_id",
-            "forward_curve_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "forward_rate_agreement",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/forward_rate_agreement"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Forward Rate Agreement",
+  "title": "forward_rate_agreement",
   "type": "object"
 }

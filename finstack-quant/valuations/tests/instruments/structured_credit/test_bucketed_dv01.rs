@@ -29,7 +29,7 @@ fn flat_discount_curve(rate: f64, base: Date) -> DiscountCurve {
 }
 
 fn create_simple_pool() -> AssetPool {
-    let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "A1",
         Money::new(5_000_000.0, Currency::USD),

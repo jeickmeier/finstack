@@ -49,7 +49,7 @@ fn step_tenor(date: Date, tenor: Tenor, sign: i32) -> Option<Date> {
 }
 
 /// Returns `true` when the accrual span `[accrual_start, accrual_end)` is a
-/// regular period of length `freq`.
+/// regular period of length `frequency`.
 ///
 /// A period is regular when stepping one tenor forward from `accrual_start`
 /// lands exactly on `accrual_end`, or stepping one tenor backward from
@@ -57,12 +57,12 @@ fn step_tenor(date: Date, tenor: Tenor, sign: i32) -> Option<Date> {
 /// backward-generated schedules whose month-end anchors clamp on the forward
 /// step). Used to label genuine stub coupons (`CFKind::Stub`) and to decide
 /// whether the period itself can serve as the ACT/ACT ICMA reference period.
-pub(crate) fn is_regular_period(accrual_start: Date, accrual_end: Date, freq: Tenor) -> bool {
+pub(crate) fn is_regular_period(accrual_start: Date, accrual_end: Date, frequency: Tenor) -> bool {
     if accrual_start >= accrual_end {
         return false;
     }
-    step_tenor(accrual_start, freq, 1) == Some(accrual_end)
-        || step_tenor(accrual_end, freq, -1) == Some(accrual_start)
+    step_tenor(accrual_start, frequency, 1) == Some(accrual_end)
+        || step_tenor(accrual_end, frequency, -1) == Some(accrual_start)
 }
 
 /// Build one skeletal schedule period from raw accrual bounds and payment lag.
@@ -74,19 +74,19 @@ pub(crate) fn is_regular_period(accrual_start: Date, accrual_end: Date, freq: Te
 pub(crate) fn build_schedule_period(
     accrual_start: Date,
     accrual_end: Date,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     payment_lag_days: i32,
     cal: &dyn HolidayCalendar,
     adjust_accrual_dates: bool,
 ) -> finstack_quant_core::Result<SchedulePeriod> {
-    let adjusted_end = adjust(accrual_end, bdc, cal)?;
+    let adjusted_end = adjust(accrual_end, business_day_convention, cal)?;
     let payment_date = if payment_lag_days == 0 {
         adjusted_end
     } else {
         adjusted_end.add_business_days(payment_lag_days, cal)?
     };
     let (acc_start, acc_end) = if adjust_accrual_dates {
-        let adj_start = adjust(accrual_start, bdc, cal)?;
+        let adj_start = adjust(accrual_start, business_day_convention, cal)?;
         if adj_start >= adjusted_end {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "accrual adjustment collapsed period [{accrual_start}, {accrual_end}) to zero \
@@ -193,9 +193,9 @@ fn duplicate_payment_date_error(
 pub(crate) fn generate_periods(
     start: Date,
     end: Date,
-    freq: Tenor,
+    frequency: Tenor,
     stub: StubKind,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     end_of_month: bool,
     payment_lag_days: i32,
     calendar_id: &str,
@@ -203,9 +203,9 @@ pub(crate) fn generate_periods(
     generate_periods_with_adjustment(
         start,
         end,
-        freq,
+        frequency,
         stub,
-        bdc,
+        business_day_convention,
         end_of_month,
         payment_lag_days,
         calendar_id,
@@ -222,7 +222,7 @@ pub(crate) fn generate_periods(
 /// periods for coupon-specific metadata.
 ///
 /// `roll_rule` selects the core `ScheduleBuilder` anchor mode: the IMM modes
-/// force a quarterly grid (overriding `freq`/`stub` with quarterly /
+/// force a quarterly grid (overriding `frequency`/`stub` with quarterly /
 /// short-back), and `RollRule::CdsImm` anchors the first period at the CDS
 /// roll date preceding `start` (post-Big-Bang front accrual), so the first
 /// accrual start may lie before `start`.
@@ -230,9 +230,9 @@ pub(crate) fn generate_periods(
 pub(crate) fn generate_periods_with_adjustment(
     start: Date,
     end: Date,
-    freq: Tenor,
+    frequency: Tenor,
     stub: StubKind,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     end_of_month: bool,
     payment_lag_days: i32,
     calendar_id: &str,
@@ -245,7 +245,7 @@ pub(crate) fn generate_periods_with_adjustment(
         )));
     }
     let builder = ScheduleBuilder::new(start, end)?
-        .frequency(freq)
+        .frequency(frequency)
         .stub_rule(stub)
         .end_of_month(end_of_month);
     let builder = match roll_rule {
@@ -271,7 +271,7 @@ pub(crate) fn generate_periods_with_adjustment(
         if index == 0 && !adjust_accrual_dates {
             adjusted.push(anchor);
         } else {
-            adjusted.push(adjust(anchor, bdc, cal)?);
+            adjusted.push(adjust(anchor, business_day_convention, cal)?);
         }
     }
 
@@ -354,12 +354,13 @@ mod tests {
         let mut date = d(2025, 1, 1);
         let end = d(2026, 1, 1);
         while date < end {
-            for bdc in conventions {
-                let once = adjust(date, bdc, cal).expect("adjustment succeeds");
-                let twice = adjust(once, bdc, cal).expect("adjustment succeeds");
+            for business_day_convention in conventions {
+                let once = adjust(date, business_day_convention, cal).expect("adjustment succeeds");
+                let twice =
+                    adjust(once, business_day_convention, cal).expect("adjustment succeeds");
                 assert_eq!(
                     once, twice,
-                    "adjust must be idempotent for {bdc:?} at {date}"
+                    "adjust must be idempotent for {business_day_convention:?} at {date}"
                 );
             }
             date += time::Duration::days(1);

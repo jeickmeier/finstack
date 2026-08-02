@@ -23,19 +23,24 @@ use super::schedule::ScheduleParams;
     schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum CouponType {
     /// Cash variant.
     #[default]
     Cash,
     /// PIK variant.
-    PIK,
+    Pik,
     /// Split variant.
     Split {
         /// Fraction of the coupon paid in cash, expressed as a decimal share in
         /// `[0, 1]`.
+        #[serde(with = "finstack_quant_core::wire::decimal")]
+        #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
         cash_pct: Decimal,
         /// Fraction of the coupon capitalized as PIK, expressed as a decimal
         /// share in `[0, 1]`.
+        #[serde(with = "finstack_quant_core::wire::decimal")]
+        #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
         pik_pct: Decimal,
     },
 }
@@ -45,7 +50,7 @@ impl CouponType {
     pub(crate) fn split_parts(self) -> finstack_quant_core::Result<(Decimal, Decimal)> {
         match self {
             CouponType::Cash => Ok((Decimal::ONE, Decimal::ZERO)),
-            CouponType::PIK => Ok((Decimal::ZERO, Decimal::ONE)),
+            CouponType::Pik => Ok((Decimal::ZERO, Decimal::ONE)),
             CouponType::Split { cash_pct, pik_pct } => {
                 // Validate within [0,1]
                 if cash_pct < Decimal::ZERO
@@ -86,6 +91,8 @@ pub struct FixedCouponSpec {
     #[serde(default)]
     pub coupon_type: CouponType,
     /// Coupon rate as a decimal (e.g., 0.05 for 5%). Uses Decimal for exact representation.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub rate: Decimal,
     /// Accrual and payment schedule conventions.
     #[serde(flatten)]
@@ -152,6 +159,7 @@ impl From<RawFixedCouponSpec> for FixedCouponSpec {
     schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum OvernightCompoundingMethod {
     /// Arithmetic (non-compounded) average of daily overnight fixings,
     /// weighted by accrual days: `Rate = (Σ rᵢ·dᵢ) / D`.
@@ -227,6 +235,7 @@ fn default_reset_lag() -> i32 {
     Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum FloatingRateFallback {
     /// Return an error with curve ID and reset date (strictest, safest).
     #[default]
@@ -241,7 +250,11 @@ pub enum FloatingRateFallback {
     /// means 4.5%. This differs from the bp-denominated spread/floor/cap
     /// fields on [`FloatingRateSpec`] because it substitutes directly for
     /// the projected index rate.
-    FixedRate(rust_decimal::Decimal),
+    FixedRate(
+        #[serde(with = "finstack_quant_core::wire::decimal")]
+        #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+        rust_decimal::Decimal,
+    ),
 }
 
 impl FloatingRateFallback {
@@ -267,6 +280,7 @@ impl FloatingRateFallback {
     schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum OvernightIndexConstraintApplication {
     /// Apply index floors/caps to each sampled daily fixing before compounding.
     ///
@@ -362,7 +376,7 @@ impl OvernightIndexConstraintApplication {
 ///     all_in_cap_bp: None,
 ///     index_cap_bp: None,
 ///     overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-///     reset_freq: Tenor::quarterly(),
+///     reset_frequency: Tenor::quarterly(),
 ///     index_tenor: None,
 ///     reset_lag_days: 2,
 ///     fixing_calendar_id: None,
@@ -378,6 +392,8 @@ pub struct FloatingRateSpec {
     pub index_id: CurveId,
 
     /// Spread/margin over index in basis points. Uses Decimal for exact representation.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub spread_bp: Decimal,
 
     /// Gearing/leverage multiplier applied to the all-in rate (default: 1.0).
@@ -388,6 +404,8 @@ pub struct FloatingRateSpec {
     /// projection rejects zero or negative gearing, so inverse floaters
     /// (negative gearing) are not currently expressible with this field.
     #[serde(default = "default_gearing")]
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub gearing: Decimal,
 
     /// Whether gearing includes the spread (default: true).
@@ -400,23 +418,31 @@ pub struct FloatingRateSpec {
     /// Floor on index rate in basis points (applied to index component).
     ///
     /// Example: index_floor_bp = Some(0.0) ensures index rate >= 0%.
-    #[serde(default, alias = "floor_bp")]
+    #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_decimal")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub index_floor_bp: Option<Decimal>,
 
     /// Floor on all-in rate in basis points (Min Coupon).
     ///
     /// Applied to the final calculated rate after gearing and spread.
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_decimal")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub all_in_floor_bp: Option<Decimal>,
 
     /// Cap on all-in rate in basis points (applied after spread and gearing).
     ///
     /// Example: all_in_cap_bp = Some(1000.0) ensures all-in rate <= 10%.
-    #[serde(default, alias = "cap_bp")]
+    #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_decimal")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub all_in_cap_bp: Option<Decimal>,
 
     /// Cap on index rate in basis points (applied to index component).
     #[serde(default)]
+    #[serde(with = "finstack_quant_core::wire::optional_decimal")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub index_cap_bp: Option<Decimal>,
 
     /// Index floor/cap application policy for overnight-compounded coupons.
@@ -430,13 +456,13 @@ pub struct FloatingRateSpec {
     ///
     /// This is the cadence at which the rate refixes; it also serves as the
     /// default index tenor when [`Self::index_tenor`] is `None`.
-    pub reset_freq: Tenor,
+    pub reset_frequency: Tenor,
 
     /// Underlying index tenor used to project the forward rate (term rates).
     ///
     /// The forward rate is projected over
     /// `[accrual_start, accrual_start + index_tenor]`. When `None` (the serde
-    /// default), the index tenor falls back to [`Self::reset_freq`]. Set this
+    /// default), the index tenor falls back to [`Self::reset_frequency`]. Set this
     /// explicitly when the reset cadence differs from the index's underlying
     /// deposit period (e.g. a monthly-paying leg referencing a 3M index).
     /// Ignored for overnight-compounded legs.
@@ -467,7 +493,7 @@ pub struct FloatingRateSpec {
     ///
     /// This controls the annualization factor used when compounding daily
     /// overnight fixings (e.g., 360 for SOFR/ESTR/TONA, 365 for SONIA).
-    /// It is independent of the leg's accrual day count (`dc`), which
+    /// It is independent of the leg's accrual day count (`day_count`), which
     /// governs the coupon year fraction.
     ///
     /// Defaults to `Act/360` when `None`, matching SOFR/ESTR/TONA
@@ -607,9 +633,9 @@ impl From<RawFloatingCouponSpec> for FloatingCouponSpec {
 ///         (Date::from_calendar_date(2029, Month::January, 1).unwrap(), dec!(0.05)),
 ///     ],
 ///     schedule: ScheduleParams {
-///         freq: Tenor::semi_annual(),
-///         dc: DayCount::Thirty360,
-///         bdc: BusinessDayConvention::Following,
+///         frequency: Tenor::semi_annual(),
+///         day_count: DayCount::Thirty360,
+///         business_day_convention: BusinessDayConvention::Following,
 ///         calendar_id: "weekends_only".to_string(),
 ///         stub: StubKind::None,
 ///         end_of_month: false,
@@ -628,6 +654,8 @@ pub struct StepUpCouponSpec {
     #[serde(default)]
     pub coupon_type: CouponType,
     /// Initial coupon rate (annual, decimal). Used until the first step date.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub initial_rate: Decimal,
     /// Step schedule: (effective_date, new_rate). Must be sorted by date.
     /// Each entry sets the rate from that date forward until the next step.
@@ -635,10 +663,12 @@ pub struct StepUpCouponSpec {
     /// **Date convention:** `effective_date` is compared against each
     /// accrual period's *unadjusted* `accrual_start`. Specify dates as
     /// unadjusted accrual-period boundaries (typically the issue date plus
-    /// integer multiples of `freq`); business-day adjustment is not
+    /// integer multiples of `frequency`); business-day adjustment is not
     /// applied here. The rate is set at accrual start (per market
     /// convention for step-up bonds).
-    #[schemars(with = "Vec<(String, Decimal)>")]
+    #[schemars(
+        with = "Vec<(finstack_quant_core::wire::DateWire, finstack_quant_core::wire::DecimalWire)>"
+    )]
     pub step_schedule: Vec<(Date, Decimal)>,
     /// Accrual and payment schedule conventions.
     #[serde(flatten)]

@@ -115,12 +115,16 @@ pub(crate) fn zero_rate_from_df(
 /// Compute year fraction between two dates using the given day-count convention.
 ///
 /// This is the canonical helper for all instrument code that needs a plain
-/// `(start, end, dc) → year_fraction` call without extra context.
-/// Avoids duplicating `dc.year_fraction(start, end, DayCountContext::default())`
+/// `(start, end, day_count) → year_fraction` call without extra context.
+/// Avoids duplicating `day_count.year_fraction(start, end, DayCountContext::default())`
 /// in every pricer / calculator module.
 #[inline]
-pub fn year_fraction(dc: DayCount, start: Date, end: Date) -> finstack_quant_core::Result<f64> {
-    dc.year_fraction(start, end, DayCountContext::default())
+pub fn year_fraction(
+    day_count: DayCount,
+    start: Date,
+    end: Date,
+) -> finstack_quant_core::Result<f64> {
+    day_count.year_fraction(start, end, DayCountContext::default())
 }
 
 /// Schedule → PV helper that uses the curve's own day count convention.
@@ -816,7 +820,7 @@ mod tests {
         let usd_scale = result
             .meta
             .rounding
-            .output_scale_by_ccy
+            .output_scale_by_currency
             .get(&Currency::USD)
             .copied();
         assert_eq!(usd_scale, Some(4), "meta should reflect provided config");

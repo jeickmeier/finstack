@@ -106,7 +106,7 @@ use crate::{
 /// # Thread Safety
 ///
 /// Immutable after construction; safe to share via `Arc<HazardCurve>`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "RawHazardCurve", into = "RawHazardCurve")]
 pub struct HazardCurve {
     id: CurveId,
@@ -141,12 +141,14 @@ pub struct HazardCurve {
 }
 
 /// Raw serializable state of a HazardCurve
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawHazardCurve {
     /// Curve identifier
     pub id: String,
     /// Base date
+    #[serde(with = "crate::wire::date")]
+    #[schemars(with = "crate::wire::DateWire")]
     pub base: Date,
     /// Time/value pairs used to construct the curve
     pub knot_points: Vec<(f64, f64)>,
@@ -402,11 +404,11 @@ impl HazardCurve {
     #[must_use = "computed survival probabilities should not be discarded"]
     pub fn survival_at_dates(&self, dates: &[Date]) -> crate::Result<Vec<f64>> {
         let base = self.base_date();
-        let dc = self.day_count();
+        let day_count = self.day_count();
         let mut survival = Vec::with_capacity(dates.len());
 
         for &date in dates {
-            let t = dc.year_fraction(base, date, DayCountContext::default())?;
+            let t = day_count.year_fraction(base, date, DayCountContext::default())?;
             let sp = self.sp(t).clamp(0.0, 1.0);
             survival.push(sp);
         }
@@ -888,8 +890,8 @@ impl HazardCurveBuilder {
         self
     }
     /// Set day-count convention for the curve time axis.
-    pub fn day_count(mut self, dc: DayCount) -> Self {
-        self.day_count = dc;
+    pub fn day_count(mut self, day_count: DayCount) -> Self {
+        self.day_count = day_count;
         self
     }
     /// Set recovery rate metadata.
@@ -1548,21 +1550,17 @@ impl core::fmt::Display for Seniority {
     }
 }
 
-impl crate::parse::NormalizedEnum for Seniority {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("senior_secured", Self::SeniorSecured),
-        ("senior", Self::Senior),
-        ("subordinated", Self::Subordinated),
-        ("sub", Self::Subordinated),
-        ("junior", Self::Junior),
-    ];
-}
-
 impl core::str::FromStr for Seniority {
     type Err = crate::error::Error;
 
     fn from_str(s: &str) -> core::result::Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s).map_err(|_| crate::error::InputError::Invalid.into())
+        match s {
+            "senior_secured" => Ok(Self::SeniorSecured),
+            "senior" => Ok(Self::Senior),
+            "subordinated" => Ok(Self::Subordinated),
+            "junior" => Ok(Self::Junior),
+            _ => Err(crate::error::InputError::Invalid.into()),
+        }
     }
 }
 
@@ -1584,6 +1582,7 @@ impl core::str::FromStr for Seniority {
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum ParInterp {
     /// Linear interpolation in spread space
     #[default]
@@ -1596,20 +1595,15 @@ pub enum ParInterp {
 mod seniority_tests {
     use super::Seniority;
 
-    fn assert_parses_to(label: &str, expected: Seniority) {
-        assert!(matches!(label.parse::<Seniority>(), Ok(value) if value == expected));
-    }
-
     #[test]
     fn test_seniority_fromstr_display_roundtrip() {
         for (input, expected) in [
             ("senior_secured", Seniority::SeniorSecured),
             ("senior", Seniority::Senior),
             ("subordinated", Seniority::Subordinated),
-            ("sub", Seniority::Subordinated),
             ("junior", Seniority::Junior),
         ] {
-            assert_parses_to(input, expected);
+            assert!(matches!(input.parse::<Seniority>(), Ok(value) if value == expected));
         }
 
         for variant in [
@@ -1625,6 +1619,8 @@ mod seniority_tests {
 
     #[test]
     fn test_seniority_fromstr_rejects_unknown() {
-        assert!("unknown".parse::<Seniority>().is_err());
+        for rejected in ["sub", "Senior", "senior-secured", " senior"] {
+            assert!(rejected.parse::<Seniority>().is_err());
+        }
     }
 }

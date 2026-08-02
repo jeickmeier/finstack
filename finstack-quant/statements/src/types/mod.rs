@@ -5,7 +5,7 @@ mod node;
 mod value;
 
 pub use model::{
-    upgrade_v1_to_v2, CapitalStructureSpec, DebtInstrumentSpec, FinancialModelSpec,
+    CapitalStructureSpec, DebtInstrumentSpec, FinancialModelSpec, FinancialStatementInstrument,
     FINANCIAL_MODEL_CONTRACT,
 };
 pub use node::{

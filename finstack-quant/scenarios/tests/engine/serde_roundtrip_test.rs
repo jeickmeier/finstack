@@ -126,44 +126,6 @@ fn scenario_envelope_strict_loader_enforces_schema_and_semantics() {
 }
 
 #[test]
-fn scenario_version_matrix_fixture_drives_strict_loader() {
-    let fixture: serde_json::Value =
-        serde_json::from_str(include_str!("../data/contract_version_matrix.json"))
-            .expect("version matrix fixture parses");
-    let matrix = &fixture["scenario"];
-    let base = matrix["base"].clone();
-    let cases = matrix["cases"]
-        .as_array()
-        .expect("matrix contains schema cases");
-
-    for case in cases {
-        let name = case["name"].as_str().expect("case name");
-        let mut document = base.clone();
-        match case.get("schema") {
-            Some(serde_json::Value::Null) | None => {
-                document
-                    .as_object_mut()
-                    .expect("envelope object")
-                    .remove("schema");
-            }
-            Some(schema) => document["schema"] = schema.clone(),
-        }
-        let bytes = serde_json::to_vec(&document).expect("case serializes");
-        let expected = case["expected"].as_str().expect("expected outcome");
-        match ScenarioEnvelope::from_slice_strict(&bytes, &LoadLimits::default()) {
-            Ok((_loaded, report)) => {
-                assert_eq!(expected, "ok", "{name} unexpectedly loaded");
-                assert!(report.diagnostics.is_empty(), "{name}");
-            }
-            Err(ContractError::Report(report)) => {
-                assert_eq!(report.diagnostics[0].code, expected, "{name}");
-            }
-            Err(error) => panic!("{name} returned unstructured error: {error}"),
-        }
-    }
-}
-
-#[test]
 fn test_all_operation_types_serialize() {
     let operations = vec![
         OperationSpec::MarketFxPct {
@@ -194,7 +156,7 @@ fn test_all_operation_types_serialize() {
         },
         OperationSpec::VolSurfaceParallelPct {
             surface_kind: VolSurfaceKind::Equity,
-            surface_id: "SPX".into(),
+            vol_surface_id: "SPX".into(),
             pct: 20.0,
         },
         OperationSpec::StmtForecastPercent {
@@ -322,7 +284,7 @@ fn test_instrument_type_operations_serde() {
 
     let ops = vec![
         OperationSpec::InstrumentPricePctByType {
-            instrument_types: vec![InstrumentType::Bond, InstrumentType::CDS],
+            instrument_types: vec![InstrumentType::Bond, InstrumentType::Cds],
             pct: -5.0,
         },
         OperationSpec::InstrumentSpreadBpByType {
@@ -376,13 +338,13 @@ fn test_optional_fields_serialize() {
         operations: vec![
             OperationSpec::BaseCorrBucketPts {
                 surface_id: "CDX".into(),
-                detachment_bps: None,
+                detachment_bp: None,
                 maturities: None,
                 points: 0.05,
             },
             OperationSpec::VolSurfaceBucketPct {
                 surface_kind: VolSurfaceKind::Equity,
-                surface_id: "SPX".into(),
+                vol_surface_id: "SPX".into(),
                 tenors: None,
                 strikes: Some(vec![100.0, 110.0]),
                 pct: 10.0,

@@ -21,6 +21,7 @@ use finstack_quant_valuations::instruments::RatesCurveKind;
 /// alone so the index can route spot, vol, FX, and series changes without
 /// a second abstraction layer.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum MarketFactorKey {
     /// A curve-like factor identified by ID and kind.
     Curve {
@@ -106,7 +107,7 @@ pub fn flatten_dependencies(deps: &MarketDependencies) -> HashSet<MarketFactorKe
     for (curve_id, kind) in deps.curves.all_with_kind() {
         keys.insert(MarketFactorKey::curve(curve_id, kind));
     }
-    for spot_id in &deps.spot_ids {
+    for spot_id in &deps.market_scalar_ids {
         keys.insert(MarketFactorKey::Spot(spot_id.clone()));
     }
     for vol_id in deps.unique_vol_surface_ids() {
@@ -369,8 +370,8 @@ mod tests {
         deps.add_forward_curve("USD");
         deps.add_discount_curve("USD");
         deps.add_forward_curve("USD");
-        deps.add_spot_id("SPX");
-        deps.add_spot_id("SPX");
+        deps.add_market_scalar_id("SPX");
+        deps.add_market_scalar_id("SPX");
 
         let keys = flatten_dependencies(&deps);
         let curve_count = keys

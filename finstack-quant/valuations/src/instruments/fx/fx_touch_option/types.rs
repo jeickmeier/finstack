@@ -34,13 +34,12 @@ impl std::str::FromStr for TouchType {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
-            "one_touch" | "onetouch" => Ok(Self::OneTouch),
-            "no_touch" | "notouch" => Ok(Self::NoTouch),
-            other => Err(format!(
+        match s {
+            "one_touch" => Ok(Self::OneTouch),
+            "no_touch" => Ok(Self::NoTouch),
+            _ => Err(format!(
                 "Unknown touch type: '{}'. Valid: one_touch, no_touch",
-                other
+                s
             )),
         }
     }
@@ -72,13 +71,12 @@ impl std::str::FromStr for BarrierDirection {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
+        match s {
             "up" => Ok(Self::Up),
             "down" => Ok(Self::Down),
-            other => Err(format!(
+            _ => Err(format!(
                 "Unknown barrier direction: '{}'. Valid: up, down",
-                other
+                s
             )),
         }
     }
@@ -110,13 +108,12 @@ impl std::str::FromStr for PayoutTiming {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
-            "at_hit" | "athit" => Ok(Self::AtHit),
-            "at_expiry" | "atexpiry" => Ok(Self::AtExpiry),
-            other => Err(format!(
+        match s {
+            "at_hit" => Ok(Self::AtHit),
+            "at_expiry" => Ok(Self::AtExpiry),
+            _ => Err(format!(
                 "Unknown payout timing: '{}'. Valid: at_hit, at_expiry",
-                other
+                s
             )),
         }
     }
@@ -157,7 +154,9 @@ impl std::str::FromStr for PayoutTiming {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = FxTouchOption::validate)]
 #[serde(deny_unknown_fields)]
@@ -179,13 +178,15 @@ pub struct FxTouchOption {
     /// Payout timing (at hit or at expiry)
     pub payout_timing: PayoutTiming,
     /// Option expiry date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// First date on which barrier monitoring is active. When set, a live
     /// valuation after this date requires `observed_touch`.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub monitoring_start_date: Option<Date>,
     /// Day count convention
     pub day_count: DayCount,
@@ -208,17 +209,26 @@ pub struct FxTouchOption {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observed_touch: Option<bool>,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping
     pub attributes: Attributes,
@@ -554,19 +564,14 @@ mod tests {
 
     #[test]
     fn touch_type_fromstr_display_roundtrip() {
-        fn assert_touch_type(label: &str, expected: TouchType) {
-            assert!(matches!(TouchType::from_str(label), Ok(value) if value == expected));
-        }
-
         let variants = [TouchType::OneTouch, TouchType::NoTouch];
         for v in variants {
             let s = v.to_string();
             let parsed = TouchType::from_str(&s).expect("roundtrip parse should succeed");
             assert_eq!(v, parsed, "roundtrip failed for {s}");
         }
-        // Test aliases
-        assert_touch_type("onetouch", TouchType::OneTouch);
-        assert_touch_type("notouch", TouchType::NoTouch);
+        assert!(TouchType::from_str("onetouch").is_err());
+        assert!(TouchType::from_str("notouch").is_err());
         assert!(TouchType::from_str("invalid").is_err());
     }
 
@@ -583,19 +588,14 @@ mod tests {
 
     #[test]
     fn payout_timing_fromstr_display_roundtrip() {
-        fn assert_payout_timing(label: &str, expected: PayoutTiming) {
-            assert!(matches!(PayoutTiming::from_str(label), Ok(value) if value == expected));
-        }
-
         let variants = [PayoutTiming::AtHit, PayoutTiming::AtExpiry];
         for v in variants {
             let s = v.to_string();
             let parsed = PayoutTiming::from_str(&s).expect("roundtrip parse should succeed");
             assert_eq!(v, parsed, "roundtrip failed for {s}");
         }
-        // Test aliases
-        assert_payout_timing("athit", PayoutTiming::AtHit);
-        assert_payout_timing("atexpiry", PayoutTiming::AtExpiry);
+        assert!(PayoutTiming::from_str("athit").is_err());
+        assert!(PayoutTiming::from_str("atexpiry").is_err());
         assert!(PayoutTiming::from_str("invalid").is_err());
     }
 

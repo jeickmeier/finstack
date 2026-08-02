@@ -9,7 +9,7 @@ use finstack_quant_core::{ContractDescriptor, Error, Result};
 
 const LIQUIDITY_DEFAULTS: &str = include_str!("../data/defaults/liquidity_defaults.v1.json");
 pub(crate) const LIQUIDITY_DEFAULTS_CONTRACT: ContractDescriptor =
-    ContractDescriptor::new("finstack_quant.portfolio.liquidity_defaults", 1);
+    ContractDescriptor::new("finstack_quant.portfolio.liquidity_defaults");
 
 static EMBEDDED_LIQUIDITY_DEFAULTS: OnceLock<Result<LiquidityDefaults>> = OnceLock::new();
 
@@ -179,43 +179,6 @@ mod tests {
             let mut value = base.clone();
             value["schema"] = serde_json::json!(schema);
             assert!(load_value(value).is_err(), "schema {schema} must fail");
-        }
-    }
-
-    #[test]
-    fn liquidity_defaults_version_matrix_fixture_drives_loader() {
-        let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../tests/data/liquidity_defaults_version_matrix.json"
-        ))
-        .expect("version matrix fixture parses");
-        let base = fixture["base"].clone();
-        let cases = fixture["cases"]
-            .as_array()
-            .expect("fixture contains contract cases");
-
-        for case in cases {
-            let name = case["name"].as_str().expect("case name");
-            let mut document = base.clone();
-            for field in ["schema", "version"] {
-                match case.get(field) {
-                    Some(serde_json::Value::Null) => {
-                        document
-                            .as_object_mut()
-                            .expect("defaults object")
-                            .remove(field);
-                    }
-                    Some(value) => document[field] = value.clone(),
-                    None => {}
-                }
-            }
-            let expected = case["expected"].as_str().expect("expected outcome");
-            match load_value(document) {
-                Ok(_) => assert_eq!(expected, "ok", "{name} unexpectedly loaded"),
-                Err(error) => assert!(
-                    error.to_string().contains(expected),
-                    "{name}: expected {expected} in {error}"
-                ),
-            }
         }
     }
 }

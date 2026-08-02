@@ -22,7 +22,7 @@ fn test_compensated_summation_large_portfolio() {
     let end_date = as_of + Duration::days(30);
 
     let mut builder = PortfolioBuilder::new("LARGE_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENTITY_A"));
 
@@ -74,7 +74,7 @@ fn test_compensated_summation_large_portfolio() {
 
     // With alternating ±1e12, the total should be close to zero
     // Compensated summation should maintain accuracy
-    let total = valuation.total_base_ccy.amount();
+    let total = valuation.total_base_currency.amount();
 
     // Verify that compensated summation produces a reasonable result
     // The exact value depends on discounting, but should be finite and not NaN/Inf
@@ -122,7 +122,7 @@ fn test_aggregated_metrics_are_finite() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("TEST")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENTITY_A"))
         .position(position)

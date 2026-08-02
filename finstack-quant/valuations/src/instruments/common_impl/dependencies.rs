@@ -10,6 +10,7 @@ use crate::instruments::json_loader::InstrumentJson;
 #[derive(
     Default, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(deny_unknown_fields)]
 pub struct InstrumentCurves {
     /// Discount curves used by the instrument (including primary and foreign).
     #[schemars(with = "Vec<CurveId>")]
@@ -82,6 +83,7 @@ impl InstrumentCurves {
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum RatesCurveKind {
     /// Discount curve used for present-value discounting.
     Discount,
@@ -108,14 +110,13 @@ impl core::str::FromStr for RatesCurveKind {
     type Err = String;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let normalized = value.trim().to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
+        match value {
             "discount" => Ok(Self::Discount),
             "forward" => Ok(Self::Forward),
             "credit" => Ok(Self::Credit),
             "inflation" => Ok(Self::Inflation),
-            other => Err(format!(
-                "Unknown curve kind: '{other}'. Valid: discount, forward, credit, inflation"
+            _ => Err(format!(
+                "Unknown curve kind: '{value}'. Valid: discount, forward, credit, inflation"
             )),
         }
     }
@@ -133,6 +134,7 @@ impl core::str::FromStr for RatesCurveKind {
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(deny_unknown_fields)]
 pub struct FxPair {
     /// Base currency (numerator).
     pub base: Currency,
@@ -149,9 +151,10 @@ impl FxPair {
 
 /// A volatility-surface dependency with the context needed for diagnostics.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct VolatilityDependency {
     /// Volatility surface identifier.
-    pub surface_id: CurveId,
+    pub vol_surface_id: CurveId,
     /// Optional underlying price identifier paired with the surface.
     pub underlying_id: Option<PriceId>,
     /// Optional contractual strike used by local volatility diagnostics.
@@ -161,12 +164,12 @@ pub struct VolatilityDependency {
 impl VolatilityDependency {
     /// Create a volatility dependency descriptor.
     pub fn new(
-        surface_id: impl Into<CurveId>,
+        vol_surface_id: impl Into<CurveId>,
         underlying_id: Option<PriceId>,
         reference_strike: Option<f64>,
     ) -> Self {
         Self {
-            surface_id: surface_id.into(),
+            vol_surface_id: vol_surface_id.into(),
             underlying_id,
             reference_strike,
         }
@@ -175,7 +178,7 @@ impl VolatilityDependency {
 
 impl PartialEq for VolatilityDependency {
     fn eq(&self, other: &Self) -> bool {
-        self.surface_id == other.surface_id
+        self.vol_surface_id == other.vol_surface_id
             && self.underlying_id == other.underlying_id
             && self.reference_strike.map(f64::to_bits) == other.reference_strike.map(f64::to_bits)
     }
@@ -187,16 +190,16 @@ impl Eq for VolatilityDependency {}
 #[derive(
     Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(deny_unknown_fields)]
 pub struct MarketDependencies {
     /// Curve dependencies grouped by type.
     pub curves: InstrumentCurves,
     /// Scalar market-value identifiers resolved through `MarketContext::get_price`.
     ///
     /// This includes tradable spots and non-price unitless scalars such as
-    /// continuous dividend yields. The historical field name is retained for
-    /// source compatibility; [`Self::series_ids`] is reserved for
+    /// continuous dividend yields. [`Self::series_ids`] is reserved for
     /// `MarketContext::get_series` dependencies.
-    pub spot_ids: Vec<String>,
+    pub market_scalar_ids: Vec<String>,
     /// Typed volatility dependencies in deterministic insertion order.
     pub volatility_dependencies: Vec<VolatilityDependency>,
     /// FX pairs required for pricing (spot matrices).
@@ -247,9 +250,9 @@ impl MarketDependencies {
         push_unique_curve(&mut self.curves.inflation_curves, id.into());
     }
 
-    /// Add a spot identifier.
-    pub fn add_spot_id(&mut self, id: impl Into<String>) {
-        push_unique_string(&mut self.spot_ids, id.into());
+    /// Add an identifier resolved through `MarketContext::get_price`.
+    pub fn add_market_scalar_id(&mut self, id: impl Into<String>) {
+        push_unique_string(&mut self.market_scalar_ids, id.into());
     }
 
     /// Add a typed volatility dependency.
@@ -263,8 +266,8 @@ impl MarketDependencies {
     pub fn unique_vol_surface_ids(&self) -> Vec<CurveId> {
         let mut ids = Vec::new();
         for dependency in &self.volatility_dependencies {
-            if !ids.contains(&dependency.surface_id) {
-                ids.push(dependency.surface_id.clone());
+            if !ids.contains(&dependency.vol_surface_id) {
+                ids.push(dependency.vol_surface_id.clone());
             }
         }
         ids
@@ -283,8 +286,8 @@ impl MarketDependencies {
     /// Merge another dependency set into this one.
     pub fn merge(&mut self, other: MarketDependencies) {
         self.add_curves(other.curves);
-        for id in other.spot_ids {
-            self.add_spot_id(id);
+        for id in other.market_scalar_ids {
+            self.add_market_scalar_id(id);
         }
         for dependency in other.volatility_dependencies {
             self.add_volatility_dependency(dependency);
@@ -336,7 +339,7 @@ mod tests {
     #[test]
     fn typed_volatility_dependency_preserves_underlying_surface_and_strike() {
         let mut dependencies = MarketDependencies::new();
-        dependencies.add_spot_id("SPX-SPOT");
+        dependencies.add_market_scalar_id("SPX-SPOT");
         dependencies.add_volatility_dependency(VolatilityDependency::new(
             CurveId::new("SPX-VOL"),
             Some(PriceId::new("SPX-SPOT")),
@@ -351,7 +354,7 @@ mod tests {
                 Some(4_500.0),
             )]
         );
-        assert_eq!(dependencies.spot_ids, vec!["SPX-SPOT"]);
+        assert_eq!(dependencies.market_scalar_ids, vec!["SPX-SPOT"]);
     }
 
     #[test]
@@ -412,7 +415,7 @@ mod tests {
         dependencies.add_forward_curve("USD-SOFR-3M");
         dependencies.add_credit_curve("ACME-HAZARD");
         dependencies.add_inflation_curve("USD-CPI");
-        dependencies.add_spot_id("SPX");
+        dependencies.add_market_scalar_id("SPX");
         dependencies.add_volatility_dependency(VolatilityDependency::new(
             CurveId::new("SPX-VOL"),
             Some(PriceId::new("SPX")),

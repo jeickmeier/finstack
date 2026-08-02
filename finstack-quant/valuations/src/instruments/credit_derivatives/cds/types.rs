@@ -258,7 +258,7 @@ impl CDSConvention {
     /// the next month.
     #[must_use]
     pub fn business_day_convention(&self) -> BusinessDayConvention {
-        self.registry().bdc
+        self.registry().business_day_convention
     }
 
     /// Get the standard stub convention.
@@ -362,11 +362,10 @@ impl std::str::FromStr for CDSConvention {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "isda_na" | "isdana" | "na" => Ok(Self::IsdaNa),
-            "isda_eu" | "isdaeu" | "eu" => Ok(Self::IsdaEu),
-            "isda_as" | "isdaas" | "as" | "asia" => Ok(Self::IsdaAs),
+        match s {
+            "isda_na" => Ok(Self::IsdaNa),
+            "isda_eu" => Ok(Self::IsdaEu),
+            "isda_as" => Ok(Self::IsdaAs),
             "custom" => Ok(Self::Custom),
             _ => Err(format!(
                 "Unknown CDS convention: '{}'. Expected one of: isda_na, isda_eu, isda_as, custom",
@@ -382,25 +381,10 @@ pub(crate) fn resolve_market_conventions(
 ) -> finstack_quant_core::Result<&'static CdsConventionResolved> {
     let ccy = currency.to_string();
 
-    let normalize_clause = |s: &str| {
-        let t = s.trim();
-        if t.eq_ignore_ascii_case("default") {
-            return "DEFAULT".to_string();
-        }
-        let canon = t.to_ascii_lowercase().replace('-', "_");
-        match canon.as_str() {
-            "isdana" | "isda_na" => "isda_na".to_string(),
-            "isdaeu" | "isda_eu" => "isda_eu".to_string(),
-            "isdaas" | "isda_as" => "isda_as".to_string(),
-            "custom" => "custom".to_string(),
-            _ => t.to_string(),
-        }
-    };
-
     let key = if let Some(clause) = doc_clause {
-        format!("{}:{}", ccy, normalize_clause(clause))
+        format!("{ccy}:{clause}")
     } else {
-        format!("{}:DEFAULT", ccy)
+        format!("{ccy}:DEFAULT")
     };
 
     // If caller specified a doc clause, do not silently change it. Fall back only for the
@@ -431,7 +415,7 @@ pub(crate) struct CdsConventionResolved {
     pub doc_clause: CDSConvention,
     pub day_count: DayCount,
     pub frequency: Tenor,
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     pub stub_convention: StubKind,
     pub settlement_delay_days: u16,
     pub default_calendar_id: String,
@@ -443,7 +427,7 @@ struct CdsConventionRecord {
     doc_clause: CDSConvention,
     day_count: DayCount,
     payment_frequency: String,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     stub_convention: StubKind,
     settlement_days: u16,
     calendar_id: String,
@@ -461,7 +445,7 @@ impl CdsConventionRecord {
             doc_clause: self.doc_clause,
             day_count: self.day_count,
             frequency,
-            bdc: self.bdc,
+            business_day_convention: self.business_day_convention,
             stub_convention: self.stub_convention,
             settlement_delay_days: self.settlement_days,
             default_calendar_id: self.calendar_id,
@@ -568,7 +552,9 @@ fn resolve_doc_clause(clause: CdsDocClause) -> CdsDocClause {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 // Note: JsonSchema derive requires finstack-quant-core types to implement JsonSchema
@@ -588,12 +574,24 @@ pub struct CreditDefaultSwap {
     pub protection: ProtectionLegSpec,
     /// Instrument-owned pricing overrides (including upfront payment).
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Valuation presentation convention.
     #[serde(default)]
@@ -605,7 +603,8 @@ pub struct CreditDefaultSwap {
     /// - If positive: Buyer pays Seller.
     /// - If negative: Seller pays Buyer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<(String, Money)>")]
+    #[serde(with = "finstack_quant_core::wire::optional_dated_money")]
+    #[schemars(with = "Option<(finstack_quant_core::wire::DateWire, Money)>")]
     pub upfront: Option<(Date, Money)>,
     /// ISDA documentation clause for restructuring credit events.
     ///
@@ -634,7 +633,8 @@ pub struct CreditDefaultSwap {
     ///
     /// When `None`, protection starts on the premium leg start date (standard CDS).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub protection_effective_date: Option<Date>,
     /// Optional OTC margin specification for VM/IM.
     ///
@@ -656,9 +656,9 @@ impl CreditDefaultSwap {
     #[allow(clippy::expect_used)] // Example uses hardcoded valid values
     pub fn example() -> Self {
         let convention = CDSConvention::IsdaNa;
-        let dc = convention.day_count();
-        let freq = convention.frequency();
-        let bdc = convention.business_day_convention();
+        let day_count = convention.day_count();
+        let frequency = convention.frequency();
+        let business_day_convention = convention.business_day_convention();
         let stub = convention.stub_convention();
 
         let spread_bp_decimal = Decimal::try_from(100.0)
@@ -672,11 +672,11 @@ impl CreditDefaultSwap {
             .premium(PremiumLegSpec {
                 start: date!(2024 - 03 - 20),
                 end: date!(2029 - 03 - 20),
-                frequency: freq,
+                frequency,
                 stub,
-                bdc,
+                business_day_convention,
                 calendar_id: Some(convention.default_calendar().to_string()),
-                day_count: dc,
+                day_count,
                 spread_bp: spread_bp_decimal,
                 discount_curve_id: finstack_quant_core::types::CurveId::new("USD-OIS"),
             })
@@ -704,9 +704,9 @@ impl CreditDefaultSwap {
     #[allow(clippy::expect_used)] // Example uses hardcoded valid values
     pub fn example_forward_start() -> Self {
         let convention = CDSConvention::IsdaEu;
-        let dc = convention.day_count();
-        let freq = convention.frequency();
-        let bdc = convention.business_day_convention();
+        let day_count = convention.day_count();
+        let frequency = convention.frequency();
+        let business_day_convention = convention.business_day_convention();
         let stub = convention.stub_convention();
 
         let premium_start = date!(2024 - 06 - 20);
@@ -728,11 +728,11 @@ impl CreditDefaultSwap {
             .premium(PremiumLegSpec {
                 start: premium_start,
                 end: premium_end,
-                frequency: freq,
+                frequency,
                 stub,
-                bdc,
+                business_day_convention,
                 calendar_id: Some(convention.default_calendar().to_string()),
-                day_count: dc,
+                day_count,
                 spread_bp: spread_bp_decimal,
                 discount_curve_id: finstack_quant_core::types::CurveId::new("EUR-OIS"),
             })
@@ -779,9 +779,9 @@ impl CreditDefaultSwap {
         discount_curve_id: impl Into<finstack_quant_core::types::CurveId>,
         credit_id: impl Into<finstack_quant_core::types::CurveId>,
     ) -> finstack_quant_core::Result<Self> {
-        let dc = convention.day_count();
-        let freq = convention.frequency();
-        let bdc = convention.business_day_convention();
+        let day_count = convention.day_count();
+        let frequency = convention.frequency();
+        let business_day_convention = convention.business_day_convention();
         let stub = convention.stub_convention();
 
         let cds = Self {
@@ -792,11 +792,11 @@ impl CreditDefaultSwap {
             premium: PremiumLegSpec {
                 start,
                 end,
-                frequency: freq,
+                frequency,
                 stub,
-                bdc,
+                business_day_convention,
                 calendar_id: Some(convention.default_calendar().to_string()),
-                day_count: dc,
+                day_count,
                 spread_bp,
                 discount_curve_id: discount_curve_id.into(),
             },
@@ -845,12 +845,12 @@ impl CreditDefaultSwap {
     ///     .premium(PremiumLegSpec {
     ///         start: date!(2024 - 03 - 20),
     ///         end: date!(2029 - 03 - 20),
-    ///         freq: CDSConvention::IsdaNa.frequency(),
+    ///         frequency: CDSConvention::IsdaNa.frequency(),
     ///         stub: CDSConvention::IsdaNa.stub_convention(),
-    ///         bdc: CDSConvention::IsdaNa.business_day_convention(),
+    ///         business_day_convention: CDSConvention::IsdaNa.business_day_convention(),
     ///         calendar_id: Some(CDSConvention::IsdaNa.default_calendar().to_string()),
-    ///         dc: CDSConvention::IsdaNa.day_count(),
-    ///         spread_bp: Decimal::try_from(100.0).expect("valid bps"),
+    ///         day_count: CDSConvention::IsdaNa.day_count(),
+    ///         spread_bp: Decimal::try_from(100.0).expect("valid bp"),
     ///         discount_curve_id: CurveId::new("USD-OIS"),
     ///     })
     ///     .protection(ProtectionLegSpec {
@@ -1052,7 +1052,7 @@ impl CreditDefaultSwap {
 }
 
 impl crate::instruments::common_impl::traits::Instrument for CreditDefaultSwap {
-    impl_instrument_base!(crate::pricer::InstrumentType::CDS);
+    impl_instrument_base!(crate::pricer::InstrumentType::Cds);
 
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
         CreditDefaultSwap::validate(self)
@@ -1188,7 +1188,7 @@ mod tests {
         assert_eq!(cds.premium.day_count, CDSConvention::IsdaNa.day_count());
         assert_eq!(cds.premium.frequency, CDSConvention::IsdaNa.frequency());
         assert_eq!(
-            cds.premium.bdc,
+            cds.premium.business_day_convention,
             CDSConvention::IsdaNa.business_day_convention()
         );
         assert_eq!(

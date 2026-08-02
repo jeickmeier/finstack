@@ -169,7 +169,7 @@ fn test_reinvestment_manager_selects_cheapest_first() {
     // Arrange
     let manager =
         ReinvestmentManager::new(Date::from_calendar_date(2027, Month::January, 1).unwrap());
-    let pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     let maturity = Date::from_calendar_date(2030, Month::January, 1).unwrap();
     let base_asset = PoolAsset {
@@ -178,7 +178,7 @@ fn test_reinvestment_manager_selects_cheapest_first() {
         asset_type: AssetType::FirstLienLoan { industry: None },
         balance: Money::new(100.0, Currency::USD),
         rate: 0.07,
-        spread_bps: Some(400.0),
+        spread_bp: Some(400.0),
         index_id: Some("SOFR-3M".to_string()),
         maturity,
         credit_quality: Some(CreditRating::BB),
@@ -234,7 +234,7 @@ fn test_reinvestment_manager_respects_budget() {
     // Arrange
     let manager =
         ReinvestmentManager::new(Date::from_calendar_date(2027, Month::January, 1).unwrap());
-    let pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+    let pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
     let maturity = Date::from_calendar_date(2030, Month::January, 1).unwrap();
     let asset = PoolAsset::floating_rate_loan(

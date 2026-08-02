@@ -11,13 +11,14 @@ use finstack_quant_core::money::Money;
 use finstack_quant_valuations::metrics::MetricId;
 use finstack_quant_valuations::results::ValuationResult;
 use indexmap::IndexMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Result of valuing a single position.
 ///
 /// Holds both native-currency and base-currency valuations along with
 /// the underlying [`ValuationResult`].
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PositionValue {
     /// Position identifier
     pub position_id: PositionId,
@@ -53,16 +54,18 @@ pub struct PositionValue {
 /// Complete portfolio valuation results.
 ///
 /// Provides per-position valuations, totals by entity, and the grand total.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PortfolioValuation {
     /// Valuation date carried through from the portfolio.
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of: finstack_quant_core::dates::Date,
 
     /// Values for each position
     pub position_values: IndexMap<PositionId, PositionValue>,
 
     /// Total portfolio value in base currency
-    pub total_base_ccy: Money,
+    pub total_base_currency: Money,
 
     /// Aggregated values by entity
     pub by_entity: IndexMap<EntityId, Money>,
@@ -241,7 +244,7 @@ pub struct PortfolioValuationOptions {
 ///     &PortfolioValuationOptions::default(),
 /// )?;
 ///
-/// println!("Total base PV: {}", valuation.total_base_ccy);
+/// println!("Total base PV: {}", valuation.total_base_currency);
 /// # Ok(())
 /// # }
 /// ```
@@ -436,7 +439,7 @@ mod tests {
         .expect("test should succeed");
 
         let portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .position(position)
             .build()
@@ -450,7 +453,7 @@ mod tests {
 
         assert_eq!(valuation.position_values.len(), 1);
         // Note: With flat curve, deposit PV is small but should be present
-        assert!(valuation.total_base_ccy.amount().abs() >= 0.0);
+        assert!(valuation.total_base_currency.amount().abs() >= 0.0);
         assert_eq!(valuation.by_entity.len(), 1);
     }
 
@@ -505,7 +508,7 @@ mod tests {
         .expect("test should succeed");
 
         let portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .entity(Entity::new("ENTITY_B"))

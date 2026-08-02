@@ -70,6 +70,7 @@ pub enum TerminalValueSpec {
 /// When attached to a [`DiscountedCashFlow`], this takes precedence over the
 /// flat `net_debt` scalar.
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EquityBridge {
     /// Total interest-bearing debt.
     #[serde(default)]
@@ -116,6 +117,7 @@ impl EquityBridge {
 /// are present, `enterprise_value - net_debt` reconciles to pre-discount
 /// equity value, not to the discounted fair-market equity value.
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ValuationDiscounts {
     /// Discount for Lack of Marketability (0.0–1.0, e.g., 0.25 for 25%).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -171,6 +173,7 @@ impl ValuationDiscounts {
 /// Used to compute diluted shares outstanding from options, warrants,
 /// RSUs, or convertible instruments.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DilutionSecurity {
     /// Descriptive name (e.g., "Employee Stock Options").
     pub name: String,
@@ -210,7 +213,9 @@ pub struct DilutionSecurity {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = DiscountedCashFlow::validate)]
 #[serde(deny_unknown_fields, try_from = "DiscountedCashFlowUnchecked")]
@@ -220,7 +225,8 @@ pub struct DiscountedCashFlow {
     /// Currency for all cashflows.
     pub currency: Currency,
     /// Explicit period free cash flows (date, amount pairs).
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub flows: Vec<(Date, f64)>,
     /// Weighted Average Cost of Capital (discount rate).
     pub wacc: f64,
@@ -231,7 +237,8 @@ pub struct DiscountedCashFlow {
     /// Ignored when [`equity_bridge`](Self::equity_bridge) is `Some`.
     pub net_debt: f64,
     /// Valuation date (as-of date for the DCF).
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub valuation_date: Date,
     /// Discount curve identifier, used for risk attribution only.
     ///
@@ -285,14 +292,25 @@ pub struct DiscountedCashFlow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub valuation_discounts: Option<ValuationDiscounts>,
     /// Attributes for tagging and scenarios.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -305,12 +323,14 @@ pub struct DiscountedCashFlow {
 struct DiscountedCashFlowUnchecked {
     id: InstrumentId,
     currency: Currency,
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     flows: Vec<(Date, f64)>,
     wacc: f64,
     terminal_value: TerminalValueSpec,
     net_debt: f64,
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     valuation_date: Date,
     discount_curve_id: CurveId,
     #[serde(default)]
@@ -875,7 +895,7 @@ impl DiscountedCashFlow {
 }
 
 impl Instrument for DiscountedCashFlow {
-    impl_instrument_base!(InstrumentType::DCF);
+    impl_instrument_base!(InstrumentType::Dcf);
 
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
         self.validate()

@@ -2,7 +2,7 @@
 Type stubs for ``finstack_quant.valuations.credit_derivatives``.
 
 Canonical example payloads for CDS-family instruments (CDS, index, tranche,
-option). Each factory returns tagged instrument JSON accepted by
+option). Each factory returns a canonical v1 instrument envelope accepted by
 ``finstack_quant.valuations.instruments.validate_instrument_json`` and
 ``price_instrument``.
 
@@ -23,64 +23,64 @@ __all__ = [
 ]
 
 def cds_index_example_json() -> str:
-    """Example tagged ``CDSIndex`` instrument JSON.
+    """Example ``CDSIndex`` canonical instrument envelope.
 
     Returns
     -------
     str
-        Tagged instrument JSON (``{"type": "cds_index", ...}``) accepted by
+        ``finstack_quant.instrument/1`` envelope accepted by
         ``validate_instrument_json`` and ``price_instrument``.
 
     Examples
     --------
     >>> import json
     >>> from finstack_quant.valuations.credit_derivatives import cds_index_example_json
-    >>> json.loads(cds_index_example_json())["type"]
+    >>> json.loads(cds_index_example_json())["instrument"]["type"]
     'cds_index'
     """
 
 def cds_option_example_json() -> str:
-    """Example tagged ``CDSOption`` instrument JSON.
+    """Example ``CDSOption`` canonical instrument envelope.
 
     Returns
     -------
     str
-        Tagged instrument JSON (``{"type": "cds_option", ...}``) accepted by
+        ``finstack_quant.instrument/1`` envelope accepted by
         ``validate_instrument_json`` and ``price_instrument``.
 
     Examples
     --------
     >>> import json
     >>> from finstack_quant.valuations.credit_derivatives import cds_option_example_json
-    >>> json.loads(cds_option_example_json())["type"]
+    >>> json.loads(cds_option_example_json())["instrument"]["type"]
     'cds_option'
     """
 
 def cds_tranche_example_json() -> str:
-    """Example tagged ``CDSTranche`` instrument JSON.
+    """Example ``CDSTranche`` canonical instrument envelope.
 
     Returns
     -------
     str
-        Tagged instrument JSON (``{"type": "cds_tranche", ...}``) accepted by
+        ``finstack_quant.instrument/1`` envelope accepted by
         ``validate_instrument_json`` and ``price_instrument``.
 
     Examples
     --------
     >>> import json
     >>> from finstack_quant.valuations.credit_derivatives import cds_tranche_example_json
-    >>> json.loads(cds_tranche_example_json())["type"]
+    >>> json.loads(cds_tranche_example_json())["instrument"]["type"]
     'cds_tranche'
     """
 
 def credit_default_swap_example_json() -> str:
-    """Example tagged ``CreditDefaultSwap`` instrument JSON.
+    """Example ``CreditDefaultSwap`` canonical instrument envelope.
 
     Returns
     -------
     str
-        Tagged instrument JSON (``{"type": "credit_default_swap", ...}``)
-        accepted by ``validate_instrument_json`` and ``price_instrument``.
+        ``finstack_quant.instrument/1`` envelope accepted by
+        ``validate_instrument_json`` and ``price_instrument``.
 
     Examples
     --------
@@ -88,6 +88,6 @@ def credit_default_swap_example_json() -> str:
     >>> from finstack_quant.valuations.credit_derivatives import (
     ...     credit_default_swap_example_json,
     ... )
-    >>> json.loads(credit_default_swap_example_json())["type"]
+    >>> json.loads(credit_default_swap_example_json())["instrument"]["type"]
     'credit_default_swap'
     """

@@ -164,11 +164,11 @@ pub fn create_convertible_with_policy(policy: ConversionPolicy) -> ConvertibleBo
         coupon_type: CouponType::Cash,
         rate: rust_decimal::Decimal::from_f64_retain(bond_params::COUPON_RATE).unwrap_or_default(),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -223,11 +223,11 @@ pub fn create_convertible_with_conversion_price() -> ConvertibleBond {
         coupon_type: CouponType::Cash,
         rate: rust_decimal::Decimal::from_f64_retain(bond_params::COUPON_RATE).unwrap_or_default(),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -289,7 +289,7 @@ pub fn create_floating_convertible() -> ConvertibleBond {
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 2,
             fixing_calendar_id: None,
@@ -299,9 +299,9 @@ pub fn create_floating_convertible() -> ConvertibleBond {
         },
         coupon_type: CouponType::Cash,
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,
@@ -458,10 +458,10 @@ pub fn theoretical_parity(spot: f64, conversion_ratio: f64, notional: f64) -> f6
 /// The credit curve is constructed with a spread above the risk-free curve to
 /// exercise the TZ credit/equity decomposition path, which is skipped when
 /// `credit_curve_id` is `None`.
-pub fn create_market_context_with_credit(credit_spread_bps: f64) -> MarketContext {
+pub fn create_market_context_with_credit(credit_spread_bp: f64) -> MarketContext {
     let base_date = dates::base_date();
     let rf_rate = market_params::RISK_FREE_RATE;
-    let credit_rate = rf_rate + credit_spread_bps / 10_000.0;
+    let credit_rate = rf_rate + credit_spread_bp / 10_000.0;
 
     let rf_curve = DiscountCurve::builder("USD-OIS")
         .base_date(base_date)

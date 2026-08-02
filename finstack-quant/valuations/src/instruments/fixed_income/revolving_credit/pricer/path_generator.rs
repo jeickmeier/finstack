@@ -555,7 +555,7 @@ fn build_credit_spread_params(
             CreditSpreadParams::new(0.01, stable_spread, 0.001, stable_spread)
         }
         CreditSpreadProcessSpec::MarketAnchored {
-            hazard_curve_id,
+            credit_curve_id,
             kappa,
             implied_vol,
             tenor_years,
@@ -563,18 +563,21 @@ fn build_credit_spread_params(
             // Anchor both the initial state and the target average hazard at
             // the simulation date. Using the curve's first segment here would
             // reintroduce elapsed credit history for seasoned facilities.
-            let hazard = market.get_hazard(hazard_curve_id.as_str())?;
-            let dc = hazard.day_count();
+            let hazard = market.get_hazard(credit_curve_id.as_str())?;
+            let day_count = hazard.day_count();
             let base_date = hazard.base_date();
-            let t_anchor =
-                dc.signed_year_fraction(base_date, simulation_anchor, DayCountContext::default())?;
+            let t_anchor = day_count.signed_year_fraction(
+                base_date,
+                simulation_anchor,
+                DayCountContext::default(),
+            )?;
             if t_anchor < 0.0 {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "hazard curve '{}' has base date {} after revolving-credit simulation anchor {}",
-                    hazard_curve_id, base_date, simulation_anchor
+                    credit_curve_id, base_date, simulation_anchor
                 )));
             }
-            let remaining = dc
+            let remaining = day_count
                 .year_fraction(
                     simulation_anchor,
                     facility.maturity,
@@ -765,7 +768,7 @@ mod tests {
         let config = McConfig {
             recovery_rate: 0.4,
             credit_spread_process: CreditSpreadProcessSpec::MarketAnchored {
-                hazard_curve_id: "RC-HZ".into(),
+                credit_curve_id: "RC-HZ".into(),
                 kappa: 0.5,
                 implied_vol: 0.2,
                 tenor_years: None,

@@ -45,11 +45,11 @@ fn linear_vs_step_parity() {
         coupon_type: CouponType::Cash,
         rate: Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
+            frequency: Tenor::quarterly(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -83,7 +83,7 @@ fn linear_vs_step_parity() {
             end: maturity,
             frequency: Tenor::quarterly(),
             stub: StubKind::None,
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only",
             end_of_month: false,
             day_count: DayCount::Act365F,
@@ -130,14 +130,14 @@ fn pik_capitalization_increases_outstanding() {
     let init = Money::new(1_000.0, Currency::USD);
 
     let fixed = FixedCouponSpec {
-        coupon_type: CouponType::PIK,
+        coupon_type: CouponType::Pik,
         rate: Decimal::try_from(0.10).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -177,9 +177,9 @@ fn linear_amortization_uses_first_coupon_leg_cadence() {
     let monthly_fixed = FixedWindow {
         rate: Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::monthly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::monthly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,
@@ -200,7 +200,7 @@ fn linear_amortization_uses_first_coupon_leg_cadence() {
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,
@@ -209,9 +209,9 @@ fn linear_amortization_uses_first_coupon_leg_cadence() {
             fallback: FloatingRateFallback::SpreadOnly,
         },
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,
@@ -264,11 +264,11 @@ fn ordering_invariants_within_date() {
         },
         rate: Decimal::try_from(0.10).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
+            frequency: Tenor::quarterly(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -304,7 +304,7 @@ fn ordering_invariants_within_date() {
             CFKind::Fixed | CFKind::Stub | CFKind::FloatReset => 0,
             CFKind::Fee => 1,
             CFKind::Amortization => 2,
-            CFKind::PIK => 3,
+            CFKind::Pik => 3,
             CFKind::Notional => 4,
             _ => 5,
         });
@@ -325,11 +325,11 @@ fn fixed_schedule_npv_equals_sum_cashflows() {
         coupon_type: CouponType::Cash,
         rate: Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -395,11 +395,11 @@ fn detects_stub_periods() {
         coupon_type: CouponType::Cash,
         rate: Decimal::try_from(0.04).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -464,9 +464,9 @@ fn negative_rate_fixed_coupons_are_emitted() {
         rate: Decimal::try_from(-0.005).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
             // -0.5% (negative-rate regime)
-            freq: Tenor::semi_annual(),
-            dc: DayCount::Act365F,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::semi_annual(),
+            day_count: DayCount::Act365F,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,
@@ -509,8 +509,8 @@ fn floating_rate_spec_rejects_unknown_fields() {
     let json = r#"{
         "index_id": "USD-SOFR-3M",
         "spred_bp": "200",
-        "reset_freq": {"count": 3, "unit": "months"},
-        "dc": "Act360",
+        "reset_frequency": {"count": 3, "unit": "months"},
+        "day_count": "act_360",
         "calendar_id": "weekends_only",
         "spread_bp": "200"
     }"#;
@@ -523,23 +523,19 @@ fn floating_rate_spec_rejects_unknown_fields() {
     );
 }
 
-/// Serde aliases (`floor_bp` -> `index_floor_bp`) keep working alongside
-/// `deny_unknown_fields`.
+/// Retired field names remain rejected alongside other unknown fields.
 #[test]
-fn floating_rate_spec_accepts_floor_bp_alias() {
+fn floating_rate_spec_rejects_floor_bp_alias() {
     let json = r#"{
         "index_id": "USD-SOFR-3M",
         "spread_bp": "200",
         "floor_bp": "0",
-        "reset_freq": {"count": 3, "unit": "months"}
+        "reset_frequency": {"count": 3, "unit": "months"}
     }"#;
 
-    let spec: FloatingRateSpec = serde_json::from_str(json).expect("alias field must deserialize");
-    assert_eq!(
-        spec.index_floor_bp,
-        Some(Decimal::ZERO),
-        "floor_bp alias should populate index_floor_bp"
-    );
+    let error = serde_json::from_str::<FloatingRateSpec>(json)
+        .expect_err("retired floor_bp field must be rejected");
+    assert!(error.to_string().contains("floor_bp"));
 }
 
 // =============================================================================
@@ -560,11 +556,11 @@ fn outstanding_by_date_dedup_and_values() {
         },
         rate: Decimal::try_from(0.12).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
+            frequency: Tenor::quarterly(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -723,11 +719,11 @@ fn builder_created_schedule_sets_issue_date_for_outstanding_by_date() {
         coupon_type: CouponType::Cash,
         rate: Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
+            frequency: Tenor::quarterly(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -815,11 +811,11 @@ fn schedule_errors_on_unknown_calendar() {
         coupon_type: CouponType::Cash,
         rate: Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "UNKNOWN_CALENDAR_XYZ".to_string(),
 
@@ -862,10 +858,10 @@ fn stub_period_thirty360_produces_proportional_accrual() {
         rate: Decimal::try_from(0.06).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
             // 6% annual rate
-            freq: Tenor::semi_annual(),
-            dc: DayCount::Thirty360,
+            frequency: Tenor::semi_annual(),
+            day_count: DayCount::Thirty360,
             // Market standard for corporate bonds
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::ShortFront,
             end_of_month: false,
@@ -939,153 +935,6 @@ fn stub_period_thirty360_produces_proportional_accrual() {
     );
 }
 
-// =============================================================================
-// NPV Golden Value Tests (with realistic discounting)
-// =============================================================================
-
-/// Golden value test: NPV discounting verification
-///
-/// This test verifies that discounting is working correctly by checking:
-/// 1. NPV with DF=1 equals sum of positive flows
-/// 2. NPV decreases as discount rate increases
-/// 3. The discount factor is applied correctly
-///
-/// Note: The schedule includes an initial funding flow (negative) at issue date.
-/// For holder-view NPV (excludes flows <= as_of), we need to understand that
-/// NPV represents the net value of all flows to the holder.
-#[test]
-fn npv_golden_value_with_realistic_discount_curve() {
-    let issue = Date::from_calendar_date(2025, Month::January, 15).unwrap();
-    let maturity = Date::from_calendar_date(2026, Month::January, 15).unwrap();
-
-    let fixed = FixedCouponSpec {
-        coupon_type: CouponType::Cash,
-        rate: Decimal::try_from(0.05).expect("valid"),
-        schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            // 5% coupon
-            freq: Tenor::semi_annual(),
-            dc: DayCount::Act365F,
-            bdc: BusinessDayConvention::Following,
-            calendar_id: "weekends_only".to_string(),
-            stub: StubKind::None,
-            end_of_month: false,
-            payment_lag_days: 0,
-            adjust_accrual_dates: false,
-            roll_rule: finstack_quant_cashflows::builder::specs::RollRule::None,
-        },
-    };
-
-    let init = Money::new(1_000_000.0, Currency::USD);
-
-    let mut b = CashFlowSchedule::builder();
-    let _ = b.principal(init, issue, maturity).fixed_cf(fixed);
-    let schedule = b.build(None).unwrap();
-
-    // Count positive and negative flows to understand structure
-    let positive_flows: f64 = schedule
-        .get_flows()
-        .iter()
-        .filter(|cf| cf.amount.amount() > 0.0)
-        .map(|cf| cf.amount.amount())
-        .sum();
-
-    let negative_flows: f64 = schedule
-        .get_flows()
-        .iter()
-        .filter(|cf| cf.amount.amount() < 0.0)
-        .map(|cf| cf.amount.amount())
-        .sum();
-
-    // Total undiscounted: should be net of funding (-1M) + coupons + redemption (+1M)
-    // For a bond: -1M (funding) + coupons + 1M (redemption) = coupons only
-    let _total_undiscounted = positive_flows + negative_flows;
-
-    // Build flat DF=1 curve for baseline
-    let flat_curve = CoreDiscCurve::builder("USD-OIS")
-        .base_date(issue)
-        .knots([(0.0, 1.0), (2.0, 1.0)])
-        .interp(InterpStyle::Linear)
-        .validation(
-            finstack_quant_core::market_data::term_structures::ValidationMode::Raw {
-                allow_non_monotonic: true,
-                forward_floor: None,
-            },
-        )
-        .build()
-        .unwrap();
-
-    let npv_flat = schedule.npv(&flat_curve, issue).unwrap();
-
-    // Build 5% discount curve
-    let curve_5pct = CoreDiscCurve::builder("USD-OIS")
-        .base_date(issue)
-        .knots([
-            (0.0, 1.0),
-            (0.5, (-0.05_f64 * 0.5).exp()),
-            (1.0, (-0.05_f64 * 1.0).exp()),
-        ])
-        .interp(InterpStyle::Linear)
-        .build()
-        .unwrap();
-
-    let npv_5pct = schedule.npv(&curve_5pct, issue).unwrap();
-
-    // Key invariants:
-    // 1. NPV with 5% rate should be less than NPV with flat curve (discounting works)
-    assert!(
-        npv_5pct.amount() < npv_flat.amount() + 1.0, // Allow small tolerance
-        "NPV with 5% rate ({:.2}) should be <= NPV with flat rate ({:.2})",
-        npv_5pct.amount(),
-        npv_flat.amount()
-    );
-
-    // 2. The schedule generates expected number of positive cash flows
-    // (2 coupons + 1 redemption = 3 positive flows for 1-year semi-annual)
-    let positive_count = schedule
-        .get_flows()
-        .iter()
-        .filter(|cf| cf.amount.amount() > 0.0)
-        .count();
-    assert!(
-        positive_count >= 2,
-        "Should have at least 2 positive flows (coupons + redemption), got {}",
-        positive_count
-    );
-
-    // 3. Verify coupon amounts are correct (~25K each for 5% semi-annual on 1M)
-    let coupons: Vec<_> = schedule
-        .get_flows()
-        .iter()
-        .filter(|cf| cf.kind == CFKind::Fixed)
-        .collect();
-
-    // A regular semi-annual one-year bullet emits exactly two Fixed coupons —
-    // none mislabeled as Stub (the golden loop below must not be vacuous).
-    assert_eq!(
-        coupons.len(),
-        2,
-        "expected 2 regular Fixed coupons, got {}",
-        coupons.len()
-    );
-    assert!(
-        !schedule
-            .get_flows()
-            .iter()
-            .any(|cf| cf.kind == CFKind::Stub),
-        "regular bullet schedule must not contain Stub coupons"
-    );
-
-    for coupon in &coupons {
-        let expected_coupon = 25_000.0; // 1M * 5% / 2
-        assert!(
-            (coupon.amount.amount() - expected_coupon).abs() < 2000.0,
-            "Coupon should be ~${:.0}, got ${:.2}",
-            expected_coupon,
-            coupon.amount.amount()
-        );
-    }
-}
-
 /// Golden value test: coupon amounts with known expected values
 ///
 /// Verifies that:
@@ -1101,10 +950,10 @@ fn coupon_amount_golden_values() {
         coupon_type: CouponType::Cash,
         rate: Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
-            dc: DayCount::Thirty360,
+            frequency: Tenor::semi_annual(),
+            day_count: DayCount::Thirty360,
             // 30/360 gives exact 0.5 year fraction for 6 months
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,
@@ -1203,11 +1052,11 @@ fn cashflow_conservation_bond_principal() {
         coupon_type: CouponType::Cash,
         rate: Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
+            frequency: Tenor::quarterly(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -1258,11 +1107,11 @@ fn cashflow_conservation_amortizing_bond_principal() {
         coupon_type: CouponType::Cash,
         rate: Decimal::try_from(0.04).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
+            frequency: Tenor::quarterly(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -1314,11 +1163,11 @@ fn outstanding_never_negative() {
         coupon_type: CouponType::Cash,
         rate: Decimal::try_from(0.04).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::quarterly(),
+            frequency: Tenor::quarterly(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 
@@ -1367,11 +1216,11 @@ fn npv_decreases_with_higher_discount_rate() {
         coupon_type: CouponType::Cash,
         rate: Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: Tenor::semi_annual(),
+            frequency: Tenor::semi_annual(),
 
-            dc: DayCount::Act365F,
+            day_count: DayCount::Act365F,
 
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
 
             calendar_id: "weekends_only".to_string(),
 

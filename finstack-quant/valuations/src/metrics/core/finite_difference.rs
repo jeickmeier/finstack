@@ -45,7 +45,7 @@ pub(crate) const VOL_POINTS_PER_ABSOLUTE_VOL: f64 = 100.0;
 /// the error is returned.
 pub(crate) fn apply_parallel_surface_bumps_in_place(
     context: &mut finstack_quant_core::market_data::context::MarketContext,
-    surface_ids: &[finstack_quant_core::types::CurveId],
+    vol_surface_ids: &[finstack_quant_core::types::CurveId],
     bump_abs: f64,
 ) -> finstack_quant_core::Result<Vec<finstack_quant_core::market_data::context::ContextScratchBump>>
 {
@@ -57,9 +57,9 @@ pub(crate) fn apply_parallel_surface_bumps_in_place(
         value: bump_abs,
         bump_type: BumpType::Parallel,
     };
-    let mut tokens = Vec::with_capacity(surface_ids.len());
-    for surface_id in surface_ids {
-        match context.apply_surface_bump_in_place(surface_id.as_str(), spec) {
+    let mut tokens = Vec::with_capacity(vol_surface_ids.len());
+    for vol_surface_id in vol_surface_ids {
+        match context.apply_surface_bump_in_place(vol_surface_id.as_str(), spec) {
             Ok(token) => tokens.push(token),
             Err(error) => {
                 revert_scratch_bumps(context, tokens)?;

@@ -43,7 +43,7 @@ fn cross_currency_conversion_uses_fx_matrix() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .position(position)
         .build()
@@ -52,7 +52,7 @@ fn cross_currency_conversion_uses_fx_matrix() {
     // Market with EUR curve and FX
     let market = market_with_eur_and_fx(1.10);
     // Sanity: base currency is USD
-    assert_eq!(portfolio.base_ccy, Currency::USD);
+    assert_eq!(portfolio.base_currency, Currency::USD);
 
     let config = FinstackConfig::default();
     let valuation = finstack_quant_portfolio::valuation::value_portfolio(
@@ -111,7 +111,7 @@ fn missing_fx_matrix_errors_for_cross_currency() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .position(position)
         .build()
@@ -162,7 +162,7 @@ fn quantity_scaling_and_entity_totals() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("P")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E1"))
         .position(position)

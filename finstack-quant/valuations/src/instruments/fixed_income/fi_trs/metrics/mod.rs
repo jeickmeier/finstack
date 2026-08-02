@@ -25,7 +25,7 @@ pub(crate) fn register_fi_trs_metrics(registry: &mut MetricRegistry) {
     use crate::metrics::MetricId;
     use std::sync::Arc;
 
-    let instruments = [InstrumentType::FIIndexTotalReturnSwap];
+    let instruments = [InstrumentType::FiIndexTotalReturnSwap];
 
     // FI TRS specific metrics
     //

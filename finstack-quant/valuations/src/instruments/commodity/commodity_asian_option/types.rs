@@ -54,8 +54,11 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
+#[schemars(deny_unknown_fields)]
 pub struct CommodityAsianOption {
     /// Unique instrument identifier.
     pub id: InstrumentId,
@@ -63,6 +66,11 @@ pub struct CommodityAsianOption {
     #[serde(flatten)]
     pub underlying: CommodityUnderlyingParams,
     /// Strike price per unit.
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub strike: f64,
     /// Option type (call or put).
     pub option_type: OptionType,
@@ -71,17 +79,25 @@ pub struct CommodityAsianOption {
     /// Dates on which the commodity price is observed for averaging.
     ///
     /// **Note**: These dates should be pre-adjusted for business day conventions.
-    #[schemars(with = "Vec<String>")]
+    #[serde(with = "finstack_quant_core::wire::dates")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub fixing_dates: Vec<Date>,
     /// Already observed fixings for seasoned options (ex-date, price pairs).
     #[builder(default)]
     #[serde(default)]
-    #[schemars(with = "Vec<(String, f64)>")]
+    #[serde(with = "finstack_quant_core::wire::dated_f64_values")]
+    #[schemars(with = "Vec<(finstack_quant_core::wire::DateWire, f64)>")]
     pub realized_fixings: Vec<(Date, f64)>,
     /// Contract quantity in commodity units.
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub quantity: f64,
     /// Option expiry/settlement date for the payoff.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Forward/futures price curve ID.
     pub forward_curve_id: CurveId,
@@ -95,12 +111,24 @@ pub struct CommodityAsianOption {
     pub day_count: DayCount,
     /// Instrument-owned pricing inputs.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping.
     #[builder(default)]
@@ -112,7 +140,7 @@ pub struct CommodityAsianOption {
     #[serde(flatten)]
     #[schemars(skip)]
     #[builder(default)]
-    pub(crate) unknown_fields: crate::instruments::common_impl::serde_guard::UnknownFieldGuard,
+    pub(crate) unknown_fields: finstack_quant_core::serde_guard::UnknownFieldGuard,
 }
 
 impl CommodityAsianOption {

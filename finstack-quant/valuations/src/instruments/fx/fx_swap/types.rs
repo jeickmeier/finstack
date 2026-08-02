@@ -22,7 +22,9 @@ use crate::impl_instrument_base;
     Debug,
     PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = FxSwap::validate)]
 #[serde(deny_unknown_fields, try_from = "FxSwapUnchecked")]
@@ -34,10 +36,12 @@ pub struct FxSwap {
     /// Quote currency (domestic)
     pub quote_currency: Currency,
     /// Near leg settlement date (spot leg)
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub near_date: Date,
     /// Far leg settlement date (forward leg)
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub far_date: Date,
     /// Notional amount in base currency (exchanged on near, reversed on far)
     pub base_notional: Money,
@@ -60,17 +64,26 @@ pub struct FxSwap {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quote_calendar_id: Option<String>,
     /// Attributes for tagging and selection
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -86,10 +99,12 @@ struct FxSwapUnchecked {
     /// Quote currency (domestic).
     quote_currency: Currency,
     /// Near leg settlement date (spot leg).
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     near_date: Date,
     /// Far leg settlement date (forward leg).
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     far_date: Date,
     /// Notional amount in base currency (exchanged on near, reversed on far).
     base_notional: Money,
@@ -232,7 +247,7 @@ impl FxSwap {
         base_calendar_id: Option<String>,
         quote_calendar_id: Option<String>,
         spot_lag_days: u32,
-        bdc: finstack_quant_core::dates::BusinessDayConvention,
+        business_day_convention: finstack_quant_core::dates::BusinessDayConvention,
     ) -> finstack_quant_core::Result<Self> {
         use crate::instruments::common_impl::fx_dates::{
             adjust_joint_calendar, fx_spot_date_for_pair,
@@ -251,7 +266,7 @@ impl FxSwap {
         let far_unadjusted = near_date + time::Duration::days(far_tenor_days);
         let far_date = adjust_joint_calendar(
             far_unadjusted,
-            bdc,
+            business_day_convention,
             base_calendar_id.as_deref(),
             quote_calendar_id.as_deref(),
         )?;

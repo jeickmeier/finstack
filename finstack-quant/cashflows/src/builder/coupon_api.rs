@@ -205,7 +205,7 @@ impl CashFlowBuilder {
     ///             all_in_cap_bp: None,
     ///             index_cap_bp: None,
     ///             overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-    ///             reset_freq: Tenor::quarterly(),
+    ///             reset_frequency: Tenor::quarterly(),
     ///             index_tenor: None,
     ///             reset_lag_days: 2,
     ///             fixing_calendar_id: None,
@@ -265,12 +265,12 @@ impl CashFlowBuilder {
     ///
     /// let _ = builder
     ///     .principal(Money::new(1_000_000.0, Currency::USD), issue, maturity)
-    ///     .fee(FeeSpec::PeriodicBps {
+    ///     .fee(FeeSpec::PeriodicBp {
     ///         base: FeeBase::Drawn,
-    ///         bps: dec!(25),
-    ///         freq: Tenor::quarterly(),
-    ///         dc: DayCount::Act360,
-    ///         bdc: BusinessDayConvention::ModifiedFollowing,
+    ///         bp: dec!(25),
+    ///         frequency: Tenor::quarterly(),
+    ///         day_count: DayCount::Act360,
+    ///         business_day_convention: BusinessDayConvention::ModifiedFollowing,
     ///         calendar_id: "weekends_only".to_string(),
     ///         stub: StubKind::None,
     ///         accrual_basis: Default::default(),
@@ -343,7 +343,7 @@ impl CashFlowBuilder {
     ///
     /// // PIK toggle: 100% PIK for first 2 years, 50/50 split for next 2 years, then all cash
     /// let payment_steps = [
-    ///     (Date::from_calendar_date(2027, Month::January, 1)?, CouponType::PIK),
+    ///     (Date::from_calendar_date(2027, Month::January, 1)?, CouponType::Pik),
     ///     (Date::from_calendar_date(2029, Month::January, 1)?, CouponType::Split {
     ///         cash_pct: dec!(0.5),
     ///         pik_pct: dec!(0.5)
@@ -563,7 +563,7 @@ impl CashFlowBuilder {
     ///         all_in_floor_bp: None,
     ///         index_cap_bp: None,
     ///         overnight_index_constraints: OvernightIndexConstraintApplication::Daily,
-    ///         reset_freq: Tenor::quarterly(),
+    ///         reset_frequency: Tenor::quarterly(),
     ///         index_tenor: None,
     ///         reset_lag_days: 2,
     ///         fixing_calendar_id: None,

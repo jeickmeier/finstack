@@ -16,12 +16,12 @@ use time::macros::date;
 #[test]
 fn test_swaption_settlement_and_exercise_from_str() {
     let physical: SwaptionSettlement = "physical".parse().unwrap();
-    let cash: SwaptionSettlement = "CASH".parse().unwrap();
+    let cash: SwaptionSettlement = "cash".parse().unwrap();
     assert_eq!(physical.to_string(), "physical");
     assert_eq!(cash.to_string(), "cash");
 
     let european: SwaptionExercise = "european".parse().unwrap();
-    let bermudan: SwaptionExercise = "BERMUDAN".parse().unwrap();
+    let bermudan: SwaptionExercise = "bermudan".parse().unwrap();
     let american: SwaptionExercise = "american".parse().unwrap();
     assert_eq!(european.to_string(), "european");
     assert_eq!(bermudan.to_string(), "bermudan");
@@ -29,22 +29,22 @@ fn test_swaption_settlement_and_exercise_from_str() {
 
     assert!("unknown".parse::<SwaptionSettlement>().is_err());
     assert!("invalid".parse::<SwaptionExercise>().is_err());
+    assert!("CASH".parse::<SwaptionSettlement>().is_err());
+    assert!("BERMUDAN".parse::<SwaptionExercise>().is_err());
 }
 
 #[test]
-fn test_vol_model_and_cash_settlement_method_aliases() {
+fn test_vol_model_and_cash_settlement_method_canonical_names() {
     assert_eq!(
         "black".parse::<VolatilityModel>().unwrap(),
         VolatilityModel::Black
     );
     assert_eq!(
-        "black76".parse::<VolatilityModel>().unwrap(),
-        VolatilityModel::Black
-    );
-    assert_eq!(
-        "bachelier".parse::<VolatilityModel>().unwrap(),
+        "normal".parse::<VolatilityModel>().unwrap(),
         VolatilityModel::Normal
     );
+    assert!("black76".parse::<VolatilityModel>().is_err());
+    assert!("bachelier".parse::<VolatilityModel>().is_err());
     assert!("mystery".parse::<VolatilityModel>().is_err());
 
     assert_eq!(
@@ -93,7 +93,7 @@ fn test_bermudan_schedule_co_terminal_excludes_maturity() {
 }
 
 #[test]
-fn test_swaption_cash_annuity_zero_forward_and_invalid_freq() {
+fn test_swaption_cash_annuity_zero_forward_and_invalid_frequency() {
     let (_, expiry, swap_start, swap_end) = standard_dates();
     let mut swaption = create_standard_payer_swaption(expiry, swap_start, swap_end, 0.05);
     swaption.settlement = SwaptionSettlement::Cash;
@@ -270,8 +270,8 @@ fn test_bermudan_builder_helpers_and_time_accessors() {
         "USD-SWPNVOL",
     )
     .unwrap()
-    .with_fixed_freq(Tenor::annual())
-    .with_float_freq(Tenor::semi_annual())
+    .with_fixed_frequency(Tenor::annual())
+    .with_float_frequency(Tenor::semi_annual())
     .with_day_count(finstack_quant_core::dates::DayCount::Act365F)
     .with_settlement(SwaptionSettlement::Cash)
     .with_calendar("nyse");
@@ -287,6 +287,6 @@ fn test_bermudan_builder_helpers_and_time_accessors() {
     assert!(berm.time_to_first_exercise(as_of).unwrap() > 0.0);
     assert!(berm.time_to_maturity(as_of).unwrap() > berm.time_to_first_exercise(as_of).unwrap());
     assert_eq!(berm.settlement, SwaptionSettlement::Cash);
-    assert_eq!(berm.get_fixed_freq(), Tenor::annual());
-    assert_eq!(berm.get_float_freq(), Tenor::semi_annual());
+    assert_eq!(berm.get_fixed_frequency(), Tenor::annual());
+    assert_eq!(berm.get_float_frequency(), Tenor::semi_annual());
 }

@@ -8,7 +8,7 @@ from typing import Any
 import QuantLib as ql  # type: ignore[import-not-found]  # noqa: N813
 
 from .common import (
-    SCHEMA_VERSION,
+    SCHEMA,
     VALUATION_DATE,
     central_difference,
     flat_discount_curve,
@@ -88,7 +88,7 @@ def build_fra() -> dict[str, Any]:
     }
     reason = "QuantLib native FRA benchmark; tolerance allows only cross-engine floating-point residual."
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="usd_fra_3x6_quantlib",
             domain="rates.fra",
@@ -116,10 +116,10 @@ def build_fra() -> dict[str, Any]:
                     "start_date": "2026-08-03",
                     "maturity": "2026-11-03",
                     "fixed_rate": "0.0425",
-                    "day_count": "Act360",
+                    "day_count": "act_360",
                     "reset_lag": 2,
                     "fixing_calendar_id": "usny",
-                    "fixing_bdc": "modified_following",
+                    "fixing_business_day_convention": "modified_following",
                     "discount_curve_id": "USD-OIS",
                     "forward_curve_id": "USD-SOFR-3M",
                     "side": "receive",
@@ -211,7 +211,7 @@ def build_irs() -> dict[str, Any]:
     }
     reason = "QuantLib native VanillaSwap benchmark; tolerance allows only cross-engine floating-point residual."
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="usd_sofr_5y_quantlib",
             domain="rates.irs",
@@ -236,9 +236,9 @@ def build_irs() -> dict[str, Any]:
                         "discount_curve_id": "USD-OIS",
                         "rate": "0.0425",
                         "frequency": {"count": 6, "unit": "months"},
-                        "day_count": "Thirty360",
+                        "day_count": "30_360",
                         "calendar_id": "usny",
-                        "stub": "None",
+                        "stub": "none",
                         "start": "2026-05-04",
                         "end": "2031-05-04",
                         "par_method": None,
@@ -250,15 +250,15 @@ def build_irs() -> dict[str, Any]:
                         "forward_curve_id": "USD-SOFR-3M",
                         "spread_bp": "0",
                         "frequency": {"count": 3, "unit": "months"},
-                        "day_count": "Act360",
+                        "day_count": "act_360",
                         "calendar_id": "usny",
-                        "stub": "None",
+                        "stub": "none",
                         "reset_lag_days": 2,
                         "payment_lag_days": 0,
                         "fixing_calendar_id": "usny",
                         "start": "2026-05-04",
                         "end": "2031-05-04",
-                        "compounding": "Simple",
+                        "compounding": "simple",
                     },
                     "attributes": {"tags": ["golden", "quantlib"], "meta": {}},
                 },
@@ -285,7 +285,7 @@ def build_sofr_future() -> dict[str, Any]:
     }
     zero_reason = "At-market QuantLib SofrFutureRateHelper quote with explicit zero convexity adjustment."
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="sofr_3m_quarterly_quantlib",
             domain="rates.ir_future",
@@ -314,7 +314,7 @@ def build_sofr_future() -> dict[str, Any]:
                     "period_start": "2026-06-19",
                     "period_end": "2026-09-18",
                     "quoted_price": quoted_price,
-                    "day_count": "Act360",
+                    "day_count": "act_360",
                     "position": "long",
                     "contract_specs": {
                         "face_value": 1000000.0,

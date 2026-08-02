@@ -68,9 +68,10 @@ impl crate::instruments::common_impl::traits::Instrument for Bond {
                 .quoted_z_spread
                 .unwrap_or(0.0)
                 + shock_bp * 1e-4;
-            let dirty_ccy = quote_conversions::price_from_z_spread(self, curves, as_of, z_eff)?;
+            let dirty_currency =
+                quote_conversions::price_from_z_spread(self, curves, as_of, z_eff)?;
             return Ok(finstack_quant_core::money::Money::new(
-                dirty_ccy,
+                dirty_currency,
                 self.notional.currency(),
             ));
         }
@@ -78,10 +79,11 @@ impl crate::instruments::common_impl::traits::Instrument for Bond {
         // Honor any bond price-from-quote override (clean, dirty, YTM, YTW,
         // Z-spread, OAS, DM, I-spread, ASW). Mutual exclusivity is enforced by
         // `MarketQuoteOverrides::validate`.
-        if let Some(dirty_ccy) = quote_conversions::price_from_quote_overrides(self, curves, as_of)?
+        if let Some(dirty_currency) =
+            quote_conversions::price_from_quote_overrides(self, curves, as_of)?
         {
             return Ok(finstack_quant_core::money::Money::new(
-                dirty_ccy,
+                dirty_currency,
                 self.notional.currency(),
             ));
         }
@@ -237,7 +239,7 @@ impl Bond {
     /// If the config's `pik_schedule` is `Uniform(Cash)` (the default),
     /// this method overrides it based on the bond's `CouponType`:
     /// - `CouponType::Cash` → `Uniform(Cash)`
-    /// - `CouponType::PIK` → `Uniform(Pik)`
+    /// - `CouponType::Pik` → `Uniform(Pik)`
     /// - `CouponType::Split{c, p}` → `Uniform(Split{c, p})`
     ///
     /// If the config already has a non-default `pik_schedule`, it is used
@@ -261,8 +263,8 @@ impl Bond {
         let (coupon_rate, coupon_type, coupon_frequency) = match &self.cashflow_spec {
             CashflowSpec::Fixed(spec) => {
                 let rate = spec.rate.to_f64().unwrap_or(0.0);
-                let freq = (1.0 / spec.schedule.freq.to_years_simple()).round() as usize;
-                (rate, spec.coupon_type, freq)
+                let frequency = (1.0 / spec.schedule.frequency.to_years_simple()).round() as usize;
+                (rate, spec.coupon_type, frequency)
             }
             CashflowSpec::Floating(_) => {
                 return Err(finstack_quant_core::InputError::Invalid.into());
@@ -270,8 +272,8 @@ impl Bond {
             CashflowSpec::StepUp(spec) => {
                 // Use initial_rate for Merton MC calibration
                 let rate = spec.initial_rate.to_f64().unwrap_or(0.0);
-                let freq = (1.0 / spec.schedule.freq.to_years_simple()).round() as usize;
-                (rate, spec.coupon_type, freq)
+                let frequency = (1.0 / spec.schedule.frequency.to_years_simple()).round() as usize;
+                (rate, spec.coupon_type, frequency)
             }
             // The Merton MC engine simulates a constant notional with full
             // bullet redemption at maturity; silently extracting the base
@@ -297,7 +299,7 @@ impl Bond {
         let config_ref = if matches!(config.pik_schedule, PikSchedule::Uniform(PikMode::Cash)) {
             let bond_mode = match coupon_type {
                 CouponType::Cash => PikMode::Cash,
-                CouponType::PIK => PikMode::Pik,
+                CouponType::Pik => PikMode::Pik,
                 CouponType::Split { cash_pct, pik_pct } => PikMode::Split {
                     cash_fraction: cash_pct.to_f64().unwrap_or(1.0),
                     pik_fraction: pik_pct.to_f64().unwrap_or(0.0),

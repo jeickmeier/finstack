@@ -1,0 +1,8 @@
+[package]
+name = "module-graph-fixture"
+version = "0.0.0"
+
+[features]
+default = ["enabled"]
+enabled = []
+optional = []

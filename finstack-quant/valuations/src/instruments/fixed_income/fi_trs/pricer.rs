@@ -137,7 +137,7 @@ impl TrsReturnModel for FiIndexReturnModel<'_> {
             .trs
             .schedule
             .params
-            .dc
+            .day_count
             .year_fraction(period_start, period_end, ctx)?;
 
         // Multiplicative income return: e^{y * dt} - 1

@@ -29,7 +29,7 @@
   "$id": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "A parsed financial tenor.",
+  "description": "Parsed financial tenor.",
   "properties": {
     "count": {
       "format": "uint32",

@@ -8,9 +8,10 @@ use std::fmt;
 
 use crate::registry::margin_registry_from_config;
 use crate::registry::{embedded_registry, embedded_registry_or_panic, AssetClassDefault};
+use crate::types::serde_validation;
 use finstack_quant_core::config::FinstackConfig;
-use serde::de::Error as DeError;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 /// Collateral asset classes per BCBS-IOSCO standards.
 ///
@@ -21,7 +22,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 ///
 /// BCBS-IOSCO "Margin requirements for non-centrally cleared derivatives" (2020)
 /// Annex A: Standardized haircut schedule
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CollateralAssetClass {
     /// Cash in eligible currency
@@ -41,8 +43,6 @@ pub enum CollateralAssetClass {
     Gold,
     /// Eligible mutual funds or exchange-traded funds.
     MutualFunds,
-    /// Custom / user-defined asset class (from JSON)
-    Custom(String),
 }
 
 impl CollateralAssetClass {
@@ -65,10 +65,6 @@ impl CollateralAssetClass {
             })
     }
 
-    fn normalize(raw: &str) -> String {
-        raw.trim().to_ascii_lowercase().replace([' ', '-'], "_")
-    }
-
     /// Normalized string identifier for this asset class.
     pub fn as_str(&self) -> &str {
         match self {
@@ -80,39 +76,7 @@ impl CollateralAssetClass {
             CollateralAssetClass::Equity => "equity",
             CollateralAssetClass::Gold => "gold",
             CollateralAssetClass::MutualFunds => "mutual_funds",
-            CollateralAssetClass::Custom(s) => s.as_str(),
         }
-    }
-}
-
-impl schemars::JsonSchema for CollateralAssetClass {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("CollateralAssetClass")
-    }
-
-    fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
-        schemars::json_schema!({
-            "type": "string"
-        })
-    }
-}
-
-impl Serialize for CollateralAssetClass {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for CollateralAssetClass {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        s.parse().map_err(D::Error::custom)
     }
 }
 
@@ -126,23 +90,16 @@ impl std::str::FromStr for CollateralAssetClass {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let norm = Self::normalize(s);
-        match norm.as_str() {
+        match s {
             "cash" => Ok(CollateralAssetClass::Cash),
-            "government_bonds" | "governmentbonds" | "govies" | "sovereign" => {
-                Ok(CollateralAssetClass::GovernmentBonds)
-            }
-            "agency_bonds" | "agencybonds" | "agency" => Ok(CollateralAssetClass::AgencyBonds),
-            "covered_bonds" | "coveredbonds" => Ok(CollateralAssetClass::CoveredBonds),
-            "corporate_bonds" | "corporatebonds" | "corporate" => {
-                Ok(CollateralAssetClass::CorporateBonds)
-            }
-            "equity" | "equities" | "stock" => Ok(CollateralAssetClass::Equity),
+            "government_bonds" => Ok(CollateralAssetClass::GovernmentBonds),
+            "agency_bonds" => Ok(CollateralAssetClass::AgencyBonds),
+            "covered_bonds" => Ok(CollateralAssetClass::CoveredBonds),
+            "corporate_bonds" => Ok(CollateralAssetClass::CorporateBonds),
+            "equity" => Ok(CollateralAssetClass::Equity),
             "gold" => Ok(CollateralAssetClass::Gold),
-            "mutual_funds" | "mutualfunds" | "etf" | "funds" => {
-                Ok(CollateralAssetClass::MutualFunds)
-            }
-            other => Ok(CollateralAssetClass::Custom(other.to_string())),
+            "mutual_funds" => Ok(CollateralAssetClass::MutualFunds),
+            other => Err(format!("Unknown collateral asset class: {other}")),
         }
     }
 }
@@ -164,7 +121,7 @@ impl CollateralAssetClass {
     /// # Errors
     ///
     /// Returns an error if the embedded margin registry cannot load a default
-    /// entry for this asset class (in particular, an unregistered custom class).
+    /// entry for this asset class.
     pub fn standard_haircut(&self) -> finstack_quant_core::Result<f64> {
         Ok(self.default_entry("standard haircut")?.standard_haircut)
     }
@@ -197,8 +154,20 @@ impl CollateralAssetClass {
 #[serde(deny_unknown_fields)]
 pub struct MaturityConstraints {
     /// Minimum remaining years to maturity (if any)
+    #[serde(
+        default,
+        deserialize_with = "serde_validation::min_remaining_years::deserialize",
+        serialize_with = "serde_validation::min_remaining_years::serialize"
+    )]
+    #[schemars(range(min = 0.0))]
     pub min_remaining_years: Option<f64>,
     /// Maximum remaining years to maturity (if any)
+    #[serde(
+        default,
+        deserialize_with = "serde_validation::max_remaining_years::deserialize",
+        serialize_with = "serde_validation::max_remaining_years::serialize"
+    )]
+    #[schemars(range(min = 0.0))]
     pub max_remaining_years: Option<f64>,
 }
 
@@ -260,18 +229,34 @@ pub struct CollateralEligibility {
     pub maturity_constraints: Option<MaturityConstraints>,
 
     /// Haircut as decimal (e.g., 0.02 = 2%)
+    #[serde(
+        deserialize_with = "serde_validation::haircut::deserialize",
+        serialize_with = "serde_validation::haircut::serialize"
+    )]
+    #[schemars(range(min = 0.0, max = 1.0))]
     pub haircut: f64,
 
     /// Additional FX haircut for currency mismatch (decimal)
     ///
     /// Applied when collateral currency differs from settlement currency.
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "serde_validation::fx_haircut_addon::deserialize",
+        serialize_with = "serde_validation::fx_haircut_addon::serialize"
+    )]
+    #[schemars(range(min = 0.0, max = 1.0))]
     pub fx_haircut_addon: f64,
 
     /// Concentration limit as fraction of total collateral (optional)
     ///
     /// E.g., 0.30 means max 30% of collateral can be this type.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "serde_validation::concentration_limit::deserialize",
+        serialize_with = "serde_validation::concentration_limit::serialize"
+    )]
+    #[schemars(range(min = 0.0, max = 1.0))]
     pub concentration_limit: Option<f64>,
 }
 
@@ -377,7 +362,13 @@ pub struct EligibleCollateralSchedule {
     /// Default haircut for unlisted collateral (if accepted)
     ///
     /// If None, only explicitly listed collateral types are accepted.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "serde_validation::default_haircut::deserialize",
+        serialize_with = "serde_validation::default_haircut::serialize"
+    )]
+    #[schemars(range(min = 0.0, max = 1.0))]
     pub default_haircut: Option<f64>,
 
     /// Whether rehypothecation of posted collateral is permitted
@@ -580,18 +571,6 @@ mod tests {
                 .standard_haircut()
                 .expect("standard class should have haircut"),
             0.15
-        );
-    }
-
-    #[test]
-    fn custom_asset_class_returns_error() {
-        let custom = CollateralAssetClass::Custom("crypto".to_string());
-        let err = custom
-            .standard_haircut()
-            .expect_err("custom class should require explicit configuration");
-        assert!(
-            err.to_string().contains("No standard haircut configured"),
-            "error should explain missing defaults: {err}"
         );
     }
 

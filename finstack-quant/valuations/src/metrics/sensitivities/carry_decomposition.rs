@@ -55,11 +55,11 @@ impl MetricCalculator for CarryDecompositionCalculator {
         }
 
         let base_pv = context.base_value.amount();
-        let base_ccy = context.base_value.currency();
+        let base_currency = context.base_value.currency();
 
         let start_date = context.as_of;
         let coupon_income =
-            collect_cashflows_in_period_cached(context, start_date, rolled_date, base_ccy)?;
+            collect_cashflows_in_period_cached(context, start_date, rolled_date, base_currency)?;
 
         let curved_pv = context
             .instrument_value_with_scenario(context.curves.as_ref(), rolled_date)?

@@ -15,7 +15,7 @@
           ]
         },
         "calendar_id": null,
-        "day_count": "Act360",
+        "day_count": "act_360",
         "discount_curve_id": "USD-OIS",
         "id": "USD-DEP-3M-GOLDEN",
         "maturity": "2026-07-30",
@@ -52,7 +52,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "extrapolation": "flat_forward",
           "id": "USD-OIS",
           "interp_style": "log_linear",
@@ -85,10 +85,12 @@
           ],
           "min_forward_rate": null,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null
+          "rate_calibration": null,
+          "calibration_ois_cutoff_days": null,
+          "fx_policy": null
         }
       ],
-      "schema": "finstack_quant.calibration"
+      "schema": "finstack_quant.calibration/1"
     },
     "kind": "envelope"
   },
@@ -104,11 +106,11 @@
     "review_interval_months": 6,
     "screenshots": [],
     "source": "quantlib",
-    "source_detail": "QuantLib 1.42.1; Actual/365F log-linear discount interpolation, Actual/360 deposit accrual, and holder-view settlement-date flow exclusion.",
+    "source_detail": "QuantLib 1.43; Actual/365F log-linear discount interpolation, Actual/360 deposit accrual, and holder-view settlement-date flow exclusion.",
     "valuation_date": "2026-04-30"
   },
   "model": "discounting",
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "tolerances": {
     "deposit_par_rate": {
       "abs": 1e-12,

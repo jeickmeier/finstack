@@ -178,11 +178,11 @@ impl ConvertibleBondValuator {
         let day_count_frequency = bond
             .fixed_coupon
             .as_ref()
-            .map(|coupon| coupon.schedule.freq)
+            .map(|coupon| coupon.schedule.frequency)
             .or_else(|| {
                 bond.floating_coupon
                     .as_ref()
-                    .map(|coupon| coupon.schedule.freq)
+                    .map(|coupon| coupon.schedule.frequency)
             });
         let day_count_ctx = DayCountContext {
             frequency: day_count_frequency,
@@ -250,7 +250,7 @@ impl ConvertibleBondValuator {
                     let reference_curve = if let Some(spec) = &call.make_whole {
                         Some((
                             market_context.get_discount(&spec.reference_curve_id)?,
-                            spec.spread_bps / 10_000.0,
+                            spec.spread_bp / 10_000.0,
                         ))
                     } else {
                         None
@@ -1025,8 +1025,8 @@ fn extract_equity_state(
     // Use Act/365F for process time (tree steps, vol lookups, curve DF queries).
     // This is standard for equity option models and ensures consistency with
     // discount curve time axis (which defaults to Act/365F).
-    let process_dc = DayCount::Act365F;
-    let time_to_maturity = process_dc.year_fraction(
+    let process_day_count = DayCount::Act365F;
+    let time_to_maturity = process_day_count.year_fraction(
         as_of,
         bond.maturity,
         finstack_quant_core::dates::DayCountContext::default(),
@@ -1041,7 +1041,7 @@ fn extract_equity_state(
     // Falls back to zero rate to maturity when TTM is very short.
     let risk_free_rate = if time_to_maturity > 0.0 {
         let next_day = as_of + time::Duration::days(1);
-        let epsilon = process_dc.year_fraction(
+        let epsilon = process_day_count.year_fraction(
             as_of,
             next_day,
             finstack_quant_core::dates::DayCountContext::default(),
@@ -1549,8 +1549,8 @@ pub fn calculate_accrued_interest(bond: &ConvertibleBond, as_of: Date) -> Result
     let frequency = bond
         .fixed_coupon
         .as_ref()
-        .map(|c| c.schedule.freq)
-        .or_else(|| bond.floating_coupon.as_ref().map(|c| c.schedule.freq));
+        .map(|c| c.schedule.frequency)
+        .or_else(|| bond.floating_coupon.as_ref().map(|c| c.schedule.frequency));
 
     let mut period_start = bond.issue_date;
     for cf in &coupons {
@@ -1684,11 +1684,11 @@ mod tests {
             coupon_type: CouponType::Cash,
             rate: rust_decimal::Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -2199,10 +2199,10 @@ mod tests {
             coupon_type: CouponType::Cash,
             rate: rust_decimal::Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
-                dc: DayCount::Thirty360,
+                frequency: Tenor::semi_annual(),
+                day_count: DayCount::Thirty360,
                 // US corporate convention
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,

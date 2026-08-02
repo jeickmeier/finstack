@@ -62,7 +62,7 @@ pub fn group_by_attribute<'a>(
 /// * `valuation` - Pre-computed valuation results providing per-position values.
 /// * `positions` - Positions that correspond to the valuation results.
 /// * `attr_key` - Tag to aggregate by.
-/// * `base_ccy` - Currency used when adding monetary amounts.
+/// * `base_currency` - Currency used when adding monetary amounts.
 ///
 /// # Returns
 ///
@@ -71,13 +71,13 @@ pub fn group_by_attribute<'a>(
 /// # Errors
 ///
 /// Returns an error when a requested position has no corresponding valuation
-/// or its base-currency amount cannot be added to `base_ccy` (including a
+/// or its base-currency amount cannot be added to `base_currency` (including a
 /// currency mismatch or monetary overflow).
 pub fn aggregate_by_attribute(
     valuation: &PortfolioValuation,
     positions: &[Position],
     attr_key: &str,
-    base_ccy: Currency,
+    base_currency: Currency,
 ) -> Result<IndexMap<String, Money>> {
     let mut aggregated: IndexMap<String, Money> = IndexMap::new();
 
@@ -95,7 +95,7 @@ pub fn aggregate_by_attribute(
             })?;
         let total = aggregated
             .entry(attr_value)
-            .or_insert_with(|| Money::new(0.0, base_ccy));
+            .or_insert_with(|| Money::new(0.0, base_currency));
         *total = total.checked_add(position_value.value_base)?;
     }
 
@@ -112,7 +112,7 @@ pub fn aggregate_by_attribute(
 /// * `valuation` - Portfolio valuation providing per-position values.
 /// * `positions` - Positions being grouped.
 /// * `attr_keys` - Ordered set of attribute keys used to build the composite key.
-/// * `base_ccy` - Currency used for aggregation.
+/// * `base_currency` - Currency used for aggregation.
 ///
 /// # Returns
 ///
@@ -122,12 +122,12 @@ pub fn aggregate_by_attribute(
 /// # Errors
 ///
 /// Returns an error when a requested position has no corresponding valuation
-/// or its base-currency amount cannot be added to `base_ccy`.
+/// or its base-currency amount cannot be added to `base_currency`.
 pub fn aggregate_by_multiple_attributes(
     valuation: &PortfolioValuation,
     positions: &[Position],
     attr_keys: &[&str],
-    base_ccy: Currency,
+    base_currency: Currency,
 ) -> Result<IndexMap<Vec<String>, Money>> {
     let mut aggregated: IndexMap<Vec<String>, Money> = IndexMap::new();
 
@@ -149,7 +149,7 @@ pub fn aggregate_by_multiple_attributes(
             })?;
         let total = aggregated
             .entry(key)
-            .or_insert_with(|| Money::new(0.0, base_ccy));
+            .or_insert_with(|| Money::new(0.0, base_currency));
         *total = total.checked_add(position_value.value_base)?;
     }
 
@@ -171,7 +171,7 @@ pub fn aggregate_by_multiple_attributes(
 ///
 /// * `valuation` - Pre-computed valuation results providing per-position values.
 /// * `books` - Book hierarchy definition.
-/// * `base_ccy` - Currency used when adding monetary amounts.
+/// * `base_currency` - Currency used when adding monetary amounts.
 ///
 /// # Returns
 ///
@@ -209,7 +209,7 @@ pub fn aggregate_by_multiple_attributes(
 pub fn aggregate_by_book(
     valuation: &PortfolioValuation,
     books: &IndexMap<BookId, Book>,
-    base_ccy: Currency,
+    base_currency: Currency,
 ) -> Result<IndexMap<BookId, Money>> {
     let mut book_totals: IndexMap<BookId, Money> = IndexMap::new();
 
@@ -225,7 +225,7 @@ pub fn aggregate_by_book(
         book_id: &BookId,
         books: &IndexMap<BookId, Book>,
         position_values: &HashMap<&crate::types::PositionId, &Money>,
-        base_ccy: Currency,
+        base_currency: Currency,
         memo: &mut HashMap<BookId, Money>,
         visiting: &mut HashSet<BookId>,
         depth: usize,
@@ -250,7 +250,7 @@ pub fn aggregate_by_book(
         })?;
 
         // Start with zero
-        let mut total = Money::new(0.0, base_ccy);
+        let mut total = Money::new(0.0, base_currency);
 
         // Add direct position values
         for pos_id in &book.position_ids {
@@ -268,7 +268,7 @@ pub fn aggregate_by_book(
                 child_id,
                 books,
                 position_values,
-                base_ccy,
+                base_currency,
                 memo,
                 visiting,
                 depth + 1,
@@ -291,7 +291,7 @@ pub fn aggregate_by_book(
             book_id,
             books,
             &position_values,
-            base_ccy,
+            base_currency,
             &mut memo,
             &mut visiting,
             0,
@@ -492,7 +492,7 @@ mod tests {
         .with_text_attribute("rating", "AAA");
 
         let portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(pos1)
@@ -548,7 +548,7 @@ mod tests {
         PortfolioValuation {
             as_of: date!(2024 - 01 - 01),
             position_values: IndexMap::new(),
-            total_base_ccy: Money::new(0.0, Currency::USD),
+            total_base_currency: Money::new(0.0, Currency::USD),
             by_entity: IndexMap::new(),
             degraded_positions: Vec::new(),
             fx_collapse_policy: finstack_quant_core::money::fx::FxConversionPolicy::CashflowDate,

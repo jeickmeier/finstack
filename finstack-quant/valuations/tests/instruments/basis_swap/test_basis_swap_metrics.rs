@@ -70,7 +70,7 @@ fn swap() -> BasisSwap {
             end: d(2026, 1, 2),
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: Some(CALENDAR_ID.to_string()),
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
@@ -84,7 +84,7 @@ fn swap() -> BasisSwap {
             end: d(2026, 1, 2),
             frequency: Tenor::quarterly(),
             day_count: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: Some(CALENDAR_ID.to_string()),
             stub: StubKind::ShortFront,
             spread_bp: Decimal::ZERO,
@@ -125,17 +125,17 @@ fn dv01_metrics() {
         .measures
         .get("bucketed_dv01::USD_x2dOIS")
         .copied()
-        .unwrap_or(0.0);
+        .expect("discount-curve bucketed DV01 must be present");
     let dv01_primary_fwd = res
         .measures
         .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
         .copied()
-        .unwrap_or(0.0);
+        .expect("primary-forward bucketed DV01 must be present");
     let dv01_reference_fwd = res
         .measures
         .get("bucketed_dv01::USD_x2dSOFR_x2d1M")
         .copied()
-        .unwrap_or(0.0);
+        .expect("reference-forward bucketed DV01 must be present");
 
     // Total DV01 should equal sum of individual curve sensitivities
     assert!((dv01 - (dv01_discount + dv01_primary_fwd + dv01_reference_fwd)).abs() < 1e-6);

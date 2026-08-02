@@ -13,9 +13,7 @@ artifact_id: string,
  */
 content_hash?: string | null,
 /**
- * Full strict [`finstack_quant_valuations::instruments::InstrumentEnvelope`]
- * JSON retained without constructing a duplicate generic JSON tree during
- * the outer bundle parse.
+ * Full typed, strict instrument envelope.
  */
 envelope: unknown,
 /**

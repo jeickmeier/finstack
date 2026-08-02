@@ -39,7 +39,7 @@ fn empty_factor_model_config() -> FactorModelConfig {
 
 fn base_model(levels: Vec<HierarchyDimension>) -> CreditFactorModel {
     CreditFactorModel {
-        schema_version: CreditFactorModel::SCHEMA_VERSION.to_owned(),
+        schema: finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
         as_of: create_date(2024, Month::March, 29).unwrap(),
         calibration_window: DateRange {
             start: create_date(2022, Month::March, 29).unwrap(),

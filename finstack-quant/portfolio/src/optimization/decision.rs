@@ -204,7 +204,7 @@ pub(crate) fn build_decision_space(
     // Batch price candidates using a temporary portfolio
     let candidate_valuation = if !problem.trade_universe.candidates.is_empty() {
         let mut builder = crate::builder::PortfolioBuilder::new("CANDIDATES")
-            .base_ccy(problem.portfolio.base_ccy)
+            .base_currency(problem.portfolio.base_currency)
             .as_of(problem.portfolio.as_of);
 
         // Use a dummy entity for all candidates

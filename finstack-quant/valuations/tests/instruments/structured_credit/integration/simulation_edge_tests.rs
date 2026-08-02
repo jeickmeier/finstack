@@ -43,7 +43,7 @@ fn make_asset(id: &str, balance: f64, rate: f64, maturity: Date, is_defaulted: b
         },
         balance: Money::new(balance, Currency::USD),
         rate,
-        spread_bps: None,
+        spread_bp: None,
         index_id: None,
         maturity,
         credit_quality: Some(CreditRating::BB),
@@ -142,12 +142,12 @@ fn test_mid_period_maturity_caps_interest_accrual() {
     let far_maturity = Date::from_calendar_date(2028, Month::January, 1).unwrap();
     let mid_maturity = Date::from_calendar_date(2025, Month::February, 15).unwrap();
 
-    let mut pool_far = AssetPool::new("POOL_FAR", DealType::CLO, Currency::USD);
+    let mut pool_far = AssetPool::new("POOL_FAR", DealType::Clo, Currency::USD);
     pool_far
         .assets
         .push(make_asset("A_FAR", balance, rate, far_maturity, false));
 
-    let mut pool_mid = AssetPool::new("POOL_MID", DealType::CLO, Currency::USD);
+    let mut pool_mid = AssetPool::new("POOL_MID", DealType::Clo, Currency::USD);
     pool_mid
         .assets
         .push(make_asset("A_MID", balance, rate, mid_maturity, false));
@@ -222,7 +222,7 @@ fn test_pre_defaulted_asset_generates_zero_pool_interest() {
     let rate = 0.08;
     let maturity = legal_maturity();
 
-    let mut pool = AssetPool::new("POOL_DEFAULT", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL_DEFAULT", DealType::Clo, Currency::USD);
     pool.assets
         .push(make_asset("DEFAULTED", balance, rate, maturity, true));
 
@@ -272,12 +272,12 @@ fn test_pre_defaulted_asset_does_not_affect_performing_pool_flows() {
     let rate = 0.08;
     let maturity = legal_maturity();
 
-    let mut pool_perf = AssetPool::new("POOL_PERF", DealType::CLO, Currency::USD);
+    let mut pool_perf = AssetPool::new("POOL_PERF", DealType::Clo, Currency::USD);
     pool_perf
         .assets
         .push(make_asset("PERFORMING", balance, rate, maturity, false));
 
-    let mut pool_mixed = AssetPool::new("POOL_MIXED", DealType::CLO, Currency::USD);
+    let mut pool_mixed = AssetPool::new("POOL_MIXED", DealType::Clo, Currency::USD);
     pool_mixed
         .assets
         .push(make_asset("PERFORMING", balance, rate, maturity, false));
@@ -348,7 +348,7 @@ fn test_reinvestment_end_reconciles_pool_outstanding() {
     let rate = 0.06;
     let maturity = legal_maturity();
 
-    let mut pool = AssetPool::new("POOL_REINVEST", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("POOL_REINVEST", DealType::Clo, Currency::USD);
     pool.assets
         .push(make_asset("LOAN_1", balance, rate, maturity, false));
     pool.assets
@@ -440,7 +440,7 @@ fn test_reinvestment_vs_no_reinvestment_produces_consistent_results() {
     let maturity = legal_maturity();
 
     // Deal WITH reinvestment
-    let mut pool_reinvest = AssetPool::new("POOL_REINVEST", DealType::CLO, Currency::USD);
+    let mut pool_reinvest = AssetPool::new("POOL_REINVEST", DealType::Clo, Currency::USD);
     pool_reinvest
         .assets
         .push(make_asset("LOAN_1", balance, rate, maturity, false));
@@ -466,7 +466,7 @@ fn test_reinvestment_vs_no_reinvestment_produces_consistent_results() {
     .with_payment_calendar("nyse");
 
     // Deal WITHOUT reinvestment (same pool, no reinvestment period)
-    let mut pool_no_reinvest = AssetPool::new("POOL_NO_REINVEST", DealType::CLO, Currency::USD);
+    let mut pool_no_reinvest = AssetPool::new("POOL_NO_REINVEST", DealType::Clo, Currency::USD);
     pool_no_reinvest
         .assets
         .push(make_asset("LOAN_1", balance, rate, maturity, false));

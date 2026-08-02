@@ -37,7 +37,7 @@ pub(in crate::builder) fn add_pik_flow_if_nonzero(
             date,
             None,
             Money::new(pik_amt, ccy),
-            CFKind::PIK,
+            CFKind::Pik,
             accrual_factor,
             rate,
         ));
@@ -62,7 +62,7 @@ pub(in crate::builder) fn add_pik_flow_if_nonzero(
 pub(in crate::builder) fn compute_reset_date(
     accrual_start: Date,
     reset_lag_days: i32,
-    bdc: finstack_quant_core::dates::BusinessDayConvention,
+    business_day_convention: finstack_quant_core::dates::BusinessDayConvention,
     cal: &dyn HolidayCalendar,
 ) -> finstack_quant_core::Result<Date> {
     if reset_lag_days == 0 {
@@ -72,6 +72,6 @@ pub(in crate::builder) fn compute_reset_date(
     // Business-day subtraction avoids weekend/holiday traps where calendar-day subtraction
     // plus ModifiedFollowing could accidentally roll past the accrual start/end.
     let mut reset_date = accrual_start.add_business_days(-reset_lag_days, cal)?;
-    reset_date = adjust(reset_date, bdc, cal)?;
+    reset_date = adjust(reset_date, business_day_convention, cal)?;
     Ok(reset_date)
 }

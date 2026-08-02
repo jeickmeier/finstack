@@ -477,15 +477,15 @@ fn test_forward_curve_day_count_variations() {
     // Test with different day count conventions
     let day_counts = [DayCount::Act360, DayCount::Act365F, DayCount::Thirty360];
 
-    for dc in day_counts {
+    for day_count in day_counts {
         let curve = ForwardCurve::builder("TEST", 0.25)
             .base_date(test_date())
-            .day_count(dc)
+            .day_count(day_count)
             .knots([(0.0, 0.03), (1.0, 0.04)])
             .build()
             .unwrap();
 
-        assert_eq!(curve.day_count(), dc);
+        assert_eq!(curve.day_count(), day_count);
     }
 }
 

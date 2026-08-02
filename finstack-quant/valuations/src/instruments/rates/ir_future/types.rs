@@ -47,7 +47,9 @@ use crate::instruments::Position;
     Debug,
     PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = InterestRateFuture::validate)]
 #[serde(deny_unknown_fields)]
@@ -59,28 +61,32 @@ pub struct InterestRateFuture {
     /// multiples of the standard contract.
     pub notional: Money,
     /// Future expiry/delivery date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Underlying rate fixing date.
     ///
     /// Defaults to `expiry` when omitted.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub fixing_date: Option<Date>,
     /// Rate period start date.
     ///
     /// Defaults to 2 calendar days after fixing date when omitted.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub period_start: Option<Date>,
     /// Rate period end date.
     ///
     /// Defaults to `period_start + contract_specs.delivery_months` months when omitted.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub period_end: Option<Date>,
     /// Quoted future price (e.g., 99.25)
     pub quoted_price: f64,
@@ -97,17 +103,26 @@ pub struct InterestRateFuture {
     /// Optional volatility surface identifier for convexity adjustment
     pub vol_surface_id: Option<CurveId>,
     /// Attributes
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -118,6 +133,7 @@ pub struct InterestRateFuture {
 /// Encapsulates exchange-defined contract parameters and optional convexity
 /// adjustment for pricing.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct FutureContractSpecs {
     /// Face value of contract (e.g., $1,000,000 for Eurodollar/SOFR futures)
     pub face_value: f64,
@@ -326,14 +342,14 @@ impl InterestRateFuture {
         }
         let (fixing_date, period_start, period_end) = self.resolve_dates()?;
         let fwd = context.get_forward(&self.forward_curve_id)?;
-        let fwd_dc = fwd.day_count();
-        let t_fixing = fwd_dc
+        let fwd_day_count = fwd.day_count();
+        let t_fixing = fwd_day_count
             .year_fraction(as_of, fixing_date, DayCountContext::default())?
             .max(0.0);
-        let t_start = fwd_dc
+        let t_start = fwd_day_count
             .year_fraction(as_of, period_start, DayCountContext::default())?
             .max(0.0);
-        let t_end = fwd_dc
+        let t_end = fwd_day_count
             .year_fraction(as_of, period_end, DayCountContext::default())?
             .max(t_start);
         let forward_rate = crate::instruments::common_impl::pricing::time::rate_between_on_dates(
@@ -392,14 +408,14 @@ impl InterestRateFuture {
 
         // Time to fixing and rate period for forward rate calculation use the forward
         // curve's day-count basis for consistency with curve construction.
-        let fwd_dc = fwd.day_count();
-        let t_fixing = fwd_dc
+        let fwd_day_count = fwd.day_count();
+        let t_fixing = fwd_day_count
             .year_fraction(as_of, fixing_date, DayCountContext::default())?
             .max(0.0);
-        let t_start_remaining = fwd_dc
+        let t_start_remaining = fwd_day_count
             .year_fraction(as_of, period_start, DayCountContext::default())?
             .max(0.0);
-        let t_end_remaining = fwd_dc
+        let t_end_remaining = fwd_day_count
             .year_fraction(as_of, period_end, DayCountContext::default())?
             .max(t_start_remaining);
         // Forward rate over the period
@@ -587,10 +603,10 @@ impl crate::instruments::common_impl::traits::Instrument for InterestRateFuture 
         let mut deps = MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
         deps.add_forward_curve(self.forward_curve_id.clone());
-        if let Some(surface_id) = &self.vol_surface_id {
+        if let Some(vol_surface_id) = &self.vol_surface_id {
             deps.add_volatility_dependency(
                 crate::instruments::common_impl::dependencies::VolatilityDependency::new(
-                    surface_id.clone(),
+                    vol_surface_id.clone(),
                     None,
                     None,
                 ),
@@ -674,14 +690,14 @@ mod tests {
     #[test]
     fn market_dependencies_include_optional_convexity_volatility() {
         let mut future = InterestRateFuture::example().expect("example future");
-        let surface_id = CurveId::new("USD-SR3-NORMAL-VOL");
-        future.vol_surface_id = Some(surface_id.clone());
+        let vol_surface_id = CurveId::new("USD-SR3-NORMAL-VOL");
+        future.vol_surface_id = Some(vol_surface_id.clone());
 
         let deps =
             crate::instruments::Instrument::market_dependencies(&future).expect("dependencies");
         assert_eq!(deps.volatility_dependencies.len(), 1);
         let dependency = &deps.volatility_dependencies[0];
-        assert_eq!(dependency.surface_id, surface_id);
+        assert_eq!(dependency.vol_surface_id, vol_surface_id);
         assert_eq!(dependency.underlying_id, None);
         assert_eq!(dependency.reference_strike, None);
     }

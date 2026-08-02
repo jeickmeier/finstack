@@ -133,11 +133,12 @@ pub mod math;
 /// Currency-tagged monetary amounts with safe arithmetic
 pub mod money;
 /// Label normalization for human-entered identifiers.
-pub(crate) mod parse;
 /// Convenient re-exports of commonly used types
 pub mod prelude;
 /// Shared credit rating-scale registry.
 pub mod rating_scales;
+/// Deterministic JSON Schema assembly helpers.
+pub mod schema;
 /// `deny_unknown_fields` enforcement for structs that use `#[serde(flatten)]`.
 pub mod serde_guard;
 /// Serializable columnar table envelope for host-language bindings.
@@ -148,6 +149,8 @@ pub mod types;
 pub mod validation;
 /// Canonical model-version strings for calibration reports.
 pub mod versions;
+/// Canonical serde representations used by generated JSON contracts.
+pub mod wire;
 
 /// Hash map type alias used across Finstack.
 ///

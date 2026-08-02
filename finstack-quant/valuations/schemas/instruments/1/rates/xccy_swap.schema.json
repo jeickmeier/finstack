@@ -1,5 +1,15 @@
 {
   "$defs": {
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "LegSide": {
       "description": "Whether the holder pays or receives a leg.",
       "oneOf": [
@@ -76,31 +86,70 @@
       "description": "Stub period handling when start/end dates don't align with payment frequency.\n\nControls how schedules are generated when the start and end dates don't\ndivide evenly by the payment frequency, resulting in an irregular period\n(stub) at the beginning or end of the schedule.\n\n# Variants\n\n- **`None`**: No stub allowed (default). Generates regular periods from\n  start to end and returns an error\n  ([`InputError::NonIntegerScheduleTenor`]) when the dates don't divide\n  evenly by the frequency. Use a stub variant for misaligned schedules.\n\n[`InputError::NonIntegerScheduleTenor`]: crate::error::InputError::NonIntegerScheduleTenor\n- **`ShortFront`**: Short stub period at the start. Schedule is built\n  backward from the end date, creating a short first period.\n- **`ShortBack`**: Short stub period at the end. Schedule is built forward\n  from the start date, creating a short final period.\n- **`LongFront`**: Long stub period at the start. Combines the first two\n  periods into a single longer period.\n- **`LongBack`**: Long stub period at the end. Combines the last two periods\n  into a single longer period.\n\n# Financial Context\n\nStub conventions are important for:\n- Interest accrual calculations (short/long first coupons)\n- Cash flow present value computations\n- Matching market conventions for specific instruments\n\n# Examples\n\n```rust\nuse finstack_quant_core::dates::{ScheduleBuilder, Tenor, StubKind};\nuse time::{Date, Month};\n\nlet start = Date::from_calendar_date(2025, Month::January, 10)?;\nlet end = Date::from_calendar_date(2025, Month::December, 15)?;\n\n// Short stub at front\nlet sched = ScheduleBuilder::new(start, end)?\n    .frequency(Tenor::quarterly())\n    .stub_rule(StubKind::ShortFront)\n    .build()?;\n# Ok::<(), Box<dyn std::error::Error>>(())\n```\n\n# See Also\n\n- [`ScheduleBuilder::stub_rule`] to configure stub behavior",
       "oneOf": [
         {
-          "const": "None",
+          "const": "none",
           "description": "No stub allowed: start/end must align exactly with the frequency,\notherwise schedule generation returns an error.",
           "type": "string"
         },
         {
-          "const": "ShortFront",
+          "const": "short_front",
           "description": "Short stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "ShortBack",
+          "const": "short_back",
           "description": "Short stub period at the end of the schedule (final step truncated to maturity).",
           "type": "string"
         },
         {
-          "const": "LongFront",
+          "const": "long_front",
           "description": "Long stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "LongBack",
+          "const": "long_back",
           "description": "Long stub period at the end of the schedule (merges final two periods).",
           "type": "string"
         }
       ]
+    },
+    "XccySwap": {
+      "additionalProperties": false,
+      "description": "Cross-currency floating-for-floating swap.\n\nEach leg owns its own dates, stub conventions, and calendar. The parent struct\nonly holds the instrument identity, notional exchange mode, and reporting currency.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for instrument selection and tagging."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique identifier for this instrument."
+        },
+        "leg1": {
+          "$ref": "#/$defs/XccySwapLeg",
+          "description": "First leg."
+        },
+        "leg2": {
+          "$ref": "#/$defs/XccySwapLeg",
+          "description": "Second leg."
+        },
+        "notional_exchange": {
+          "$ref": "#/$defs/NotionalExchange",
+          "default": "initial_and_final",
+          "description": "Whether and when principal is exchanged."
+        },
+        "reporting_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "PV reporting currency (output currency of `value`/`npv`)."
+        }
+      },
+      "required": [
+        "id",
+        "leg1",
+        "leg2",
+        "reporting_currency",
+        "attributes"
+      ],
+      "type": "object"
     },
     "XccySwapLeg": {
       "additionalProperties": false,
@@ -111,7 +160,7 @@
           "description": "Allow calendar-day fallback when the calendar cannot be resolved.\n\nWhen `false` (default), missing calendars are treated as input errors.",
           "type": "boolean"
         },
-        "bdc": {
+        "business_day_convention": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
           "default": "modified_following",
           "description": "Business day convention for schedule dates."
@@ -136,8 +185,8 @@
           "description": "Discount curve for PV in leg currency."
         },
         "end": {
-          "description": "End date of the leg.",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "End date of the leg."
         },
         "forward_curve_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
@@ -170,21 +219,17 @@
           "description": "Pay/receive direction for this leg."
         },
         "spread_bp": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
           "default": "0",
-          "description": "Spread in basis points (e.g. `Decimal::from(5)` = 5bp).",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "description": "Spread in basis points (e.g. `Decimal::from(5)` = 5bp)."
         },
         "start": {
-          "description": "Start date of the leg.",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Start date of the leg."
         },
         "stub": {
           "$ref": "#/$defs/StubKind",
-          "default": "ShortFront",
+          "default": "short_front",
           "description": "Stub period handling rule."
         }
       },
@@ -200,12 +245,33 @@
         "day_count"
       ],
       "type": "object"
+    },
+    "xccy_swap": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/XccySwap"
+            },
+            "type": {
+              "const": "xccy_swap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/rates/xccy_swap.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Cross-currency floating-for-floating swap with principal exchange",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -214,9 +280,9 @@
           "id": "XCCY-USDEUR-5Y",
           "leg1": {
             "allow_calendar_fallback": true,
-            "bdc": "modified_following",
+            "business_day_convention": "modified_following",
             "currency": "USD",
-            "day_count": "Act360",
+            "day_count": "act_360",
             "discount_curve_id": "USD-OIS",
             "end": "2029-01-03",
             "forward_curve_id": "USD-SOFR-3M",
@@ -232,13 +298,13 @@
             "side": "receive",
             "spread_bp": "0",
             "start": "2024-01-03",
-            "stub": "ShortFront"
+            "stub": "short_front"
           },
           "leg2": {
             "allow_calendar_fallback": true,
-            "bdc": "modified_following",
+            "business_day_convention": "modified_following",
             "currency": "EUR",
-            "day_count": "Act360",
+            "day_count": "act_360",
             "discount_curve_id": "EUR-OIS",
             "end": "2029-01-03",
             "forward_curve_id": "EUR-EURIBOR-3M",
@@ -254,7 +320,7 @@
             "side": "pay",
             "spread_bp": "10",
             "start": "2024-01-03",
-            "stub": "ShortFront"
+            "stub": "short_front"
           },
           "notional_exchange": "initial_and_final",
           "reporting_currency": "USD"
@@ -266,68 +332,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Xccy Swap instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for instrument selection and tagging."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique identifier for this instrument."
-            },
-            "leg1": {
-              "$ref": "#/$defs/XccySwapLeg",
-              "description": "First leg."
-            },
-            "leg2": {
-              "$ref": "#/$defs/XccySwapLeg",
-              "description": "Second leg."
-            },
-            "notional_exchange": {
-              "$ref": "#/$defs/NotionalExchange",
-              "default": "initial_and_final",
-              "description": "Whether and when principal is exchanged."
-            },
-            "reporting_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "PV reporting currency (output currency of `value`/`npv`)."
-            }
-          },
-          "required": [
-            "id",
-            "leg1",
-            "leg2",
-            "reporting_currency",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "xccy_swap",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/xccy_swap"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Cross-Currency Swap",
+  "title": "xccy_swap",
   "type": "object"
 }

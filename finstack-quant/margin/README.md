@@ -29,7 +29,7 @@ pulling the full instrument stack.
 | `xva` | Deterministic exposure, netting, CVA/DVA/FVA/MVA, and shared XVA types |
 
 Registry JSON is embedded at build time. Overlays use the Finstack config
-extension key `valuations.margin_registry.v1`; the name is legacy-compatible,
+extension key `margin.registry.v1`;
 but the registry and embedded data are owned by `finstack-quant-margin`. Factory
 methods such as `CsaSpec::usd_regulatory()` and `OtcMarginSpec::usd_bilateral()`
 resolve defaults from that registry.
@@ -152,7 +152,7 @@ assert!(im.amount.amount() >= 0.0);
 ## Conventions
 
 - Rates, spreads, and haircuts are decimal fractions unless a field name says
-  otherwise (for example `funding_spread_bps` in XVA config).
+  otherwise (for example `funding_spread_bp` in XVA config).
 - VM/IM thresholds, MTAs, and independent amounts are `Money`.
 - `Marginable::simm_sensitivities` expects currency-denominated risk measures
   (DV01/CS01-style), not raw quote moves.
@@ -175,12 +175,12 @@ assert!(im.amount.amount() >= 0.0);
 | `data/margin/xva_defaults.v1.json` | XVA horizons and stochastic exposure defaults |
 | `schemas/margin/1/margin.schema.json` | External margin-spec JSON schema |
 
-Config overlay shape (legacy-compatible extension key `valuations.margin_registry.v1`):
+Config overlay shape (extension key `margin.registry.v1`):
 
 ```json
 {
   "extensions": {
-    "valuations.margin_registry.v1": {
+    "margin.registry.v1": {
       "defaults": {
         "vm": {
           "threshold": 0.0,

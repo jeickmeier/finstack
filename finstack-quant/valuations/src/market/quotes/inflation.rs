@@ -68,7 +68,8 @@ pub enum InflationQuote {
         id: QuoteId,
         /// Swap maturity
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-        #[schemars(with = "String")]
+        #[serde(with = "finstack_quant_core::wire::date")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         maturity: Date,
         /// Fixed rate (decimal)
         rate: f64,
@@ -79,13 +80,16 @@ pub enum InflationQuote {
         convention: InflationSwapConventionId,
     },
     /// Year-on-year (YoY) inflation swap quote.
+    #[serde(rename = "yoy_inflation_swap")]
+    #[cfg_attr(feature = "ts_export", ts(rename = "yoy_inflation_swap"))]
     YoYInflationSwap {
         /// Unique identifier for the quote.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
         id: QuoteId,
         /// Swap maturity
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-        #[schemars(with = "String")]
+        #[serde(with = "finstack_quant_core::wire::date")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         maturity: Date,
         /// Fixed rate (decimal)
         rate: f64,
@@ -200,5 +204,38 @@ impl InflationQuote {
                 convention: convention.clone(),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::macros::date;
+
+    #[test]
+    fn yoy_quote_uses_canonical_acronym_spelling() {
+        let quote = InflationQuote::YoYInflationSwap {
+            id: QuoteId::new("USA-CPI-U-YOY-5Y"),
+            maturity: date!(2029 - 06 - 20),
+            rate: 0.025,
+            index: "US-CPI-U".to_string(),
+            frequency: Tenor::new(1, finstack_quant_core::dates::TenorUnit::Years),
+            convention: InflationSwapConventionId::new("USD-CPI"),
+        };
+        let value = serde_json::to_value(quote).expect("serialize YoY quote");
+        assert!(value.get("yoy_inflation_swap").is_some());
+
+        // schema-rejection-test
+        assert!(serde_json::from_value::<InflationQuote>(serde_json::json!({
+            "yo_y_inflation_swap": {
+                "id": "USA-CPI-U-YOY-5Y",
+                "maturity": "2029-06-20",
+                "rate": 0.025,
+                "index": "US-CPI-U",
+                "frequency": "1Y",
+                "convention": "USD-CPI"
+            }
+        }))
+        .is_err());
     }
 }

@@ -246,7 +246,7 @@ pub fn schedule_from_dated_flows(
 /// let date = Date::from_calendar_date(2025, Month::June, 15).expect("valid date");
 /// let flows = vec![
 ///     CashFlow::new(date, None, Money::new(50_000.0, Currency::USD), CFKind::Fixed, 0.5, Some(0.05)),
-///     CashFlow::new(date, None, Money::new(10_000.0, Currency::USD), CFKind::PIK, 0.5, Some(0.01)),
+///     CashFlow::new(date, None, Money::new(10_000.0, Currency::USD), CFKind::Pik, 0.5, Some(0.01)),
 /// ];
 /// let schedule = schedule_from_classified_flows(
 ///     flows,
@@ -259,7 +259,7 @@ pub fn schedule_from_dated_flows(
 /// assert_eq!(schedule.get_flows().len(), 2);
 /// // Original CFKind values are preserved.
 /// assert_eq!(schedule.get_flows()[0].kind, CFKind::Fixed);
-/// assert_eq!(schedule.get_flows()[1].kind, CFKind::PIK);
+/// assert_eq!(schedule.get_flows()[1].kind, CFKind::Pik);
 /// ```
 pub fn schedule_from_classified_flows(
     flows: Vec<CashFlow>,
@@ -350,7 +350,7 @@ mod tests {
                     future,
                     None,
                     Money::new(40.0, Currency::USD),
-                    CFKind::PIK,
+                    CFKind::Pik,
                     0.0,
                     None,
                 ),
@@ -410,7 +410,7 @@ mod tests {
         assert_eq!(schedule.flows[0].date, as_of);
         assert_eq!(schedule.flows[1].date, as_of + time::Duration::days(31));
         assert_eq!(schedule.flows[2].date, as_of + time::Duration::days(31));
-        assert!(schedule.flows.iter().all(|flow| flow.kind != CFKind::PIK));
+        assert!(schedule.flows.iter().all(|flow| flow.kind != CFKind::Pik));
 
         let dated = instrument
             .dated_cashflows(&curves, as_of)

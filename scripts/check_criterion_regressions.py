@@ -70,7 +70,7 @@ def materialization_comparison(
         comparison[case] = {
             "benchmark_id": f"portfolio_materialization/{case}",
             "paths": {
-                "baseline": "docs/benchmarks/materialization-rust-baseline.json",
+                "baseline": "benchmarks/materialization/materialization-rust-baseline.json",
                 "current": relative_path.as_posix(),
             },
             "baseline_median_ms": baseline_estimate,

@@ -56,6 +56,7 @@ use std::collections::BTreeMap;
     Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum RoundingMode {
     /// Banker's rounding (ties to even).
     #[default]
@@ -89,25 +90,18 @@ impl std::fmt::Display for RoundingMode {
     }
 }
 
-impl crate::parse::NormalizedEnum for RoundingMode {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("bankers", Self::Bankers),
-        ("banker", Self::Bankers),
-        ("away_from_zero", Self::AwayFromZero),
-        ("awayfromzero", Self::AwayFromZero),
-        ("toward_zero", Self::TowardZero),
-        ("towards_zero", Self::TowardZero),
-        ("floor", Self::Floor),
-        ("ceil", Self::Ceil),
-        ("ceiling", Self::Ceil),
-    ];
-}
-
 impl std::str::FromStr for RoundingMode {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s)
+        match s {
+            "bankers" => Ok(Self::Bankers),
+            "away_from_zero" => Ok(Self::AwayFromZero),
+            "toward_zero" => Ok(Self::TowardZero),
+            "floor" => Ok(Self::Floor),
+            "ceil" => Ok(Self::Ceil),
+            _ => Err(format!("unknown rounding mode {s:?}")),
+        }
     }
 }
 
@@ -137,7 +131,7 @@ pub struct FinstackConfig {
     pub tolerances: ToleranceConfig,
     /// Optional module-specific configuration sections (versioned, namespaced keys).
     ///
-    /// Keys follow `{crate}.{domain}.v{N}`, e.g., `valuations.calibration.v2`.
+    /// Keys follow `{crate}.{domain}.v{N}`, e.g., `valuations.calibration.v1`.
     /// Values are validated by the owning crate's strict serde schema.
     #[serde(default, skip_serializing_if = "ConfigExtensions::is_empty")]
     pub extensions: ConfigExtensions,
@@ -148,7 +142,7 @@ pub struct FinstackConfig {
 ///
 /// Keys must match the `{crate}.{domain}.v{N}` pattern (one or more
 /// dot-separated `snake_case` segments followed by a `v{N}` version segment,
-/// e.g. `valuations.calibration.v2` or
+/// e.g. `valuations.calibration.v1` or
 /// `valuations.structured_credit.ytm.v1`). Deserialization rejects keys that
 /// do not match, so obvious typos fail loudly instead of being silently
 /// carried along .
@@ -188,7 +182,7 @@ impl<'de> Deserialize<'de> for ConfigExtensions {
         let inner = BTreeMap::<String, JsonValue>::deserialize(deserializer)?;
         if let Some(bad) = inner.keys().find(|k| !is_valid_extension_key(k)) {
             return Err(serde::de::Error::custom(format!(
-                "invalid config extension key '{bad}': keys must match '{{crate}}.{{domain}}.v{{N}}' (e.g. 'valuations.calibration.v2')"
+                "invalid config extension key '{bad}': keys must match '{{crate}}.{{domain}}.v{{N}}' (e.g. 'valuations.calibration.v1')"
             )));
         }
         Ok(Self { inner })
@@ -217,7 +211,7 @@ impl ConfigExtensions {
     /// Insert or replace a section by key.
     ///
     /// Extension keys must use a versioned namespace such as
-    /// `valuations.calibration.v2`. The stored JSON is intentionally opaque to
+    /// `valuations.calibration.v1`. The stored JSON is intentionally opaque to
     /// core; the crate that owns the namespace validates its schema when it
     /// consumes the section. The prior value, if any, is returned so a caller
     /// can implement an explicit configuration update policy.
@@ -303,17 +297,29 @@ pub struct RoundingPolicy {
 /// // Customize for stricter rate comparisons
 /// tol.rate_epsilon = 1e-14;
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, schemars::JsonSchema)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+#[schemars(deny_unknown_fields)]
 pub struct ToleranceConfig {
     /// Epsilon for rate comparisons (default: 1e-12).
     ///
     /// Used when comparing interest rates, yields, and other small ratios.
-    #[serde(default = "default_rate_epsilon")]
+    #[serde(
+        default = "default_rate_epsilon",
+        serialize_with = "serialize_positive_f64",
+        deserialize_with = "deserialize_positive_f64"
+    )]
+    #[schemars(with = "crate::wire::PositiveF64Wire")]
     pub rate_epsilon: f64,
     /// Epsilon for generic floating-point comparisons (default: 1e-10).
     ///
     /// Used for general numerical comparisons where higher tolerance is acceptable.
-    #[serde(default = "default_generic_epsilon")]
+    #[serde(
+        default = "default_generic_epsilon",
+        serialize_with = "serialize_positive_f64",
+        deserialize_with = "deserialize_positive_f64"
+    )]
+    #[schemars(with = "crate::wire::PositiveF64Wire")]
     pub generic_epsilon: f64,
 }
 
@@ -350,25 +356,21 @@ impl ToleranceConfig {
     }
 }
 
-impl<'de> Deserialize<'de> for ToleranceConfig {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        // Strictness belongs on this raw mirror because ToleranceConfig has a
-        // manual Deserialize implementation and a committed JSON schema.
-        #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct RawToleranceConfig {
-            #[serde(default = "default_rate_epsilon")]
-            rate_epsilon: f64,
-            #[serde(default = "default_generic_epsilon")]
-            generic_epsilon: f64,
-        }
+fn serialize_positive_f64<S>(value: &f64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    crate::wire::PositiveF64Wire::try_from(*value)
+        .map_err(serde::ser::Error::custom)?
+        .serialize(serializer)
+}
 
-        let raw = RawToleranceConfig::deserialize(deserializer)?;
-        Self::new(raw.rate_epsilon, raw.generic_epsilon).map_err(serde::de::Error::custom)
-    }
+fn deserialize_positive_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    crate::wire::PositiveF64Wire::deserialize(deserializer)
+        .map(crate::wire::PositiveF64Wire::into_inner)
 }
 
 /// Default epsilon for rate comparisons: 1e-12.
@@ -422,9 +424,9 @@ pub struct RoundingContext {
     /// Active rounding mode.
     pub mode: RoundingMode,
     /// Ingest scale map snapshot by currency code.
-    pub ingest_scale_by_ccy: BTreeMap<crate::currency::Currency, u32>,
+    pub ingest_scale_by_currency: BTreeMap<crate::currency::Currency, u32>,
     /// Output scale map snapshot by currency code.
-    pub output_scale_by_ccy: BTreeMap<crate::currency::Currency, u32>,
+    pub output_scale_by_currency: BTreeMap<crate::currency::Currency, u32>,
     /// Tolerance settings snapshot for floating-point comparisons.
     #[serde(default)]
     pub tolerances: ToleranceConfig,
@@ -434,6 +436,7 @@ pub struct RoundingContext {
 
 /// Zero-kind classification for tolerance checks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum ZeroKind {
     /// Money-like magnitudes (use currency scale).
@@ -454,7 +457,7 @@ impl RoundingContext {
     /// Effective output scale for the provided currency within this context.
     #[inline]
     pub fn output_scale(&self, ccy: crate::currency::Currency) -> u32 {
-        if let Some(&s) = self.output_scale_by_ccy.get(&ccy) {
+        if let Some(&s) = self.output_scale_by_currency.get(&ccy) {
             return s;
         }
         ccy.decimals() as u32
@@ -513,6 +516,7 @@ impl RoundingContext {
 /// [`Money`]: crate::money::Money
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum NumericMode {
     /// Floating-point f64 engine for curve/rate/analytics arithmetic.
     /// Monetary amounts remain Decimal-backed independent of this variant.
@@ -600,8 +604,8 @@ impl FinstackConfig {
 pub fn rounding_context_from(cfg: &FinstackConfig) -> RoundingContext {
     RoundingContext {
         mode: cfg.rounding.mode,
-        ingest_scale_by_ccy: cfg.rounding.ingest_scale.overrides.clone(),
-        output_scale_by_ccy: cfg.rounding.output_scale.overrides.clone(),
+        ingest_scale_by_currency: cfg.rounding.ingest_scale.overrides.clone(),
+        output_scale_by_currency: cfg.rounding.output_scale.overrides.clone(),
         tolerances: cfg.tolerances,
         version: 1,
     }
@@ -721,12 +725,12 @@ mod tests {
         // ): extension keys are validated
         // against `{crate}.{domain}.v{N}` at deserialization.
         for key in [
-            "valuations.calibration.v2",
+            "valuations.calibration.v1",
             "core.dummy_registry.v1",
             "valuations.structured_credit.ytm.v1",
         ] {
             let json = format!(
-                r#"{{"rounding":{{"mode":"Bankers","ingest_scale":{{"overrides":{{}}}},"output_scale":{{"overrides":{{}}}}}},"extensions":{{"{key}":{{}}}}}}"#
+                r#"{{"rounding":{{"mode":"bankers","ingest_scale":{{"overrides":{{}}}},"output_scale":{{"overrides":{{}}}}}},"extensions":{{"{key}":{{}}}}}}"#
             );
             let cfg: super::FinstackConfig =
                 serde_json::from_str(&json).unwrap_or_else(|e| panic!("{key} rejected: {e}"));
@@ -745,7 +749,7 @@ mod tests {
             "Valuations.Calibration.v1", // not snake_case
         ] {
             let json = format!(
-                r#"{{"rounding":{{"mode":"Bankers","ingest_scale":{{"overrides":{{}}}},"output_scale":{{"overrides":{{}}}}}},"extensions":{{"{key}":{{}}}}}}"#
+                r#"{{"rounding":{{"mode":"bankers","ingest_scale":{{"overrides":{{}}}},"output_scale":{{"overrides":{{}}}}}},"extensions":{{"{key}":{{}}}}}}"#
             );
             assert!(
                 serde_json::from_str::<super::FinstackConfig>(&json).is_err(),
@@ -758,7 +762,7 @@ mod tests {
     fn config_extensions_validate_programmatic_insertion() {
         let mut extensions = ConfigExtensions::default();
         assert!(extensions
-            .insert("valuations.calibration.v2", serde_json::json!({}))
+            .insert("valuations.calibration.v1", serde_json::json!({}))
             .is_ok());
         assert!(extensions
             .insert("not namespaced", serde_json::json!({}))
@@ -775,9 +779,15 @@ mod tests {
         for json in [
             r#"{"rate_epsilon":0.0,"generic_epsilon":1e-10}"#,
             r#"{"rate_epsilon":1e-12,"generic_epsilon":-1.0}"#,
+            r#"{"rate_epsilon":1e-12,"generic_epsilon":1e-10,"extra":true}"#,
         ] {
             assert!(serde_json::from_str::<ToleranceConfig>(json).is_err());
         }
+
+        let schema =
+            serde_json::to_value(schemars::schema_for!(ToleranceConfig)).expect("tolerance schema");
+        assert_eq!(schema["additionalProperties"], false);
+        assert_eq!(schema["$defs"]["PositiveF64Wire"]["exclusiveMinimum"], 0.0);
 
         let valid = ToleranceConfig::new(1e-12, 1e-10).unwrap();
         let json = serde_json::to_string(&valid).unwrap();
@@ -785,10 +795,12 @@ mod tests {
             serde_json::from_str::<ToleranceConfig>(&json).unwrap(),
             valid
         );
-    }
 
-    fn assert_parses_to(label: &str, expected: RoundingMode) {
-        assert!(matches!(label.parse::<RoundingMode>(), Ok(value) if value == expected));
+        let invalid_in_memory = ToleranceConfig {
+            rate_epsilon: 0.0,
+            generic_epsilon: 1e-10,
+        };
+        assert!(serde_json::to_value(invalid_in_memory).is_err());
     }
 
     #[test]
@@ -811,11 +823,16 @@ mod tests {
     }
 
     #[test]
-    fn rounding_mode_from_str_aliases() {
-        assert_parses_to("banker", RoundingMode::Bankers);
-        assert_parses_to("awayfromzero", RoundingMode::AwayFromZero);
-        assert_parses_to("towards_zero", RoundingMode::TowardZero);
-        assert_parses_to("ceiling", RoundingMode::Ceil);
+    fn rounding_mode_from_str_rejects_noncanonical_spellings() {
+        for rejected in [
+            "banker",
+            "awayfromzero",
+            "towards_zero",
+            "ceiling",
+            "Bankers",
+        ] {
+            assert!(rejected.parse::<RoundingMode>().is_err());
+        }
     }
 
     #[test]

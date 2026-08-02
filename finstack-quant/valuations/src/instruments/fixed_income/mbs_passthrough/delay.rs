@@ -110,7 +110,7 @@ pub fn actual_payment_date(
 /// * `accrual_start` - Start (first day) of the accrual period
 /// * `agency` - Agency program (determines delay)
 /// * `calendar_id` - Calendar identifier for business day adjustment
-/// * `bdc` - Business day convention
+/// * `business_day_convention` - Business day convention
 ///
 /// # Returns
 ///
@@ -119,7 +119,7 @@ pub fn payment_date_with_calendar(
     accrual_start: Date,
     agency: AgencyProgram,
     calendar_id: Option<&str>,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
 ) -> Result<Date> {
     use time::Duration;
 
@@ -129,12 +129,12 @@ pub fn payment_date_with_calendar(
     // Use holiday calendar when provided; fall back to weekend-only adjustment.
     if let Some(cal_id) = calendar_id {
         if let Some(cal) = calendar_by_id(cal_id) {
-            return finstack_quant_core::dates::adjust(raw_payment, bdc, cal);
+            return finstack_quant_core::dates::adjust(raw_payment, business_day_convention, cal);
         }
     }
 
     // Weekend-only fallback
-    match bdc {
+    match business_day_convention {
         BusinessDayConvention::Following => {
             let weekday = raw_payment.weekday();
             let adjustment = match weekday {

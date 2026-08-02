@@ -7,7 +7,7 @@ from raw market quotes is :func:`calibrate`:
     >>> import json
     >>> from finstack_quant.valuations import calibrate
     >>> envelope = {
-    ...     "schema": "finstack_quant.calibration",
+    ...     "schema": "finstack_quant.calibration/1",
     ...     "plan": {
     ...         "id": "usd_curves",
     ...         "quote_sets": {"usd_quotes": ["USD-SOFR-DEP-1M", "USD-OIS-SWAP-1Y"]},
@@ -410,48 +410,48 @@ def instrument_cashflows(
     model: str,
 ) -> tuple[dict[str, Any], pd.DataFrame]:
     """
-    DataFrame-friendly wrapper around :func:`instrument_cashflows_json`.
+        DataFrame-friendly wrapper around :func:`instrument_cashflows_json`.
 
-    Parses the JSON envelope returned by the low-level binding and constructs
-    a per-flow ``pandas.DataFrame`` with ``date`` / ``reset_date`` parsed as
-    ``datetime64``. See :func:`instrument_cashflows_json` for argument and
-    error semantics.
+        Parses the JSON envelope returned by the low-level binding and constructs
+        a per-flow ``pandas.DataFrame`` with ``date`` / ``reset_date`` parsed as
+        ``datetime64``. See :func:`instrument_cashflows_json` for argument and
+        error semantics.
 
-    Parameters
-    ----------
-    instrument_json : str
-        Canonical tagged instrument JSON accepted by the valuation bindings.
-    market : MarketContext or str
-        Market context object or canonical market JSON containing the curves,
-        fixings, and scalar data required by the requested pricing model.
-    as_of : str
-        ISO-8601 valuation date used to exclude settled flows and calculate
-        schedule-relative discount factors.
-    model : str
-        Registered pricing model key, such as ``"discounting"``, for the
-        instrument cashflow projection.
+        Parameters
+        ----------
+        instrument_json : str
+    Canonical ``finstack_quant.instrument/1`` envelopes accepted by the valuation bindings.
+        market : MarketContext or str
+            Market context object or canonical market JSON containing the curves,
+            fixings, and scalar data required by the requested pricing model.
+        as_of : str
+            ISO-8601 valuation date used to exclude settled flows and calculate
+            schedule-relative discount factors.
+        model : str
+            Registered pricing model key, such as ``"discounting"``, for the
+            instrument cashflow projection.
 
-    Returns
-    -------
-    tuple[dict[str, Any], pd.DataFrame]
-        ``(envelope, df)`` where ``envelope`` is the parsed dict and ``df``
-        carries one row per flow with columns ``date``, ``amount``,
-        ``currency``, ``kind``, ``accrual_factor``, ``year_fraction``,
-        ``rate``, ``reset_date``, ``discount_factor``, ``discount_curve_id``,
-        ``survival_probability``, ``conditional_default_prob``, ``inflation_index_ratio``,
-        ``prepayment_smm``, ``beginning_balance``, ``ending_balance``, and
-        ``pv``.
+        Returns
+        -------
+        tuple[dict[str, Any], pd.DataFrame]
+            ``(envelope, df)`` where ``envelope`` is the parsed dict and ``df``
+            carries one row per flow with columns ``date``, ``amount``,
+            ``currency``, ``kind``, ``accrual_factor``, ``year_fraction``,
+            ``rate``, ``reset_date``, ``discount_factor``, ``discount_curve_id``,
+            ``survival_probability``, ``conditional_default_prob``, ``inflation_index_ratio``,
+            ``prepayment_smm``, ``beginning_balance``, ``ending_balance``, and
+            ``pv``.
 
-    Raises
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        Raises
+        ------
+        ValueError
+            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
-    Examples
-    --------
-    >>> from finstack_quant.valuations import instrument_cashflows
-    >>> callable(instrument_cashflows)
-    True
+        Examples
+        --------
+        >>> from finstack_quant.valuations import instrument_cashflows
+        >>> callable(instrument_cashflows)
+        True
     """
     ...
 
@@ -798,7 +798,7 @@ def calibrate(json: str) -> CalibrationResult:
     ----------
     json : str
         JSON-serialized ``CalibrationEnvelope`` (schema string is
-        ``"finstack_quant.calibration"``).
+        ``"finstack_quant.calibration/1"``).
 
     Returns
     -------

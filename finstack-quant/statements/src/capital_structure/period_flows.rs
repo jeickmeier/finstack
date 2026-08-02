@@ -18,7 +18,7 @@
 
 use crate::capital_structure::cashflows::CashflowBreakdown;
 use crate::error::Result;
-use crate::evaluator::EvalWarning;
+use crate::evaluator::{CapitalStructureWarning, EvalWarning};
 use finstack_quant_cashflows::primitives::CFKind;
 use finstack_quant_cashflows::CashflowProvider;
 use finstack_quant_cashflows::{accrued_interest_amount, AccrualConfig};
@@ -228,10 +228,12 @@ pub fn calculate_period_flows(
                  clamping to {SCALE_CLAMP_MAX} to prevent cashflow amplification. \
                  This typically indicates an unscheduled paydown / re-draw mismatch — verify the model."
             );
-            warnings.push(EvalWarning::CapitalStructureCashflowIgnored {
+            warnings.push(EvalWarning::CapitalStructure {
                 period: period.id,
-                kind: format!("scale_clamped(raw={adjusted_ratio:.4}, clamped={clamped:.4})"),
-                cashflow_date: period.start.to_string(),
+                warning: CapitalStructureWarning::ScaleClamped {
+                    raw_ratio: adjusted_ratio,
+                    clamped_ratio: clamped,
+                },
             });
         }
         adjusted_ratio.clamp(0.0, SCALE_CLAMP_MAX) + pik_part
@@ -301,7 +303,7 @@ pub fn calculate_period_flows(
                     // the stateful/scheduled balance ratio like interest.
                     breakdown.fees += scaled_abs_value;
                 }
-                CFKind::PIK => {
+                CFKind::Pik => {
                     breakdown.interest_expense_pik += scaled_abs_value;
                 }
                 CFKind::Notional | CFKind::RevolvingDraw => {
@@ -309,10 +311,12 @@ pub fn calculate_period_flows(
                 }
                 CFKind::DefaultedNotional | CFKind::Recovery => {
                     // Credit events are not modeled as part of standard debt service in statements.
-                    warnings.push(EvalWarning::CapitalStructureCashflowIgnored {
+                    warnings.push(EvalWarning::CapitalStructure {
                         period: period.id,
-                        kind: format!("{:?}", cf.kind),
-                        cashflow_date: cf.date.to_string(),
+                        warning: CapitalStructureWarning::CashflowIgnored {
+                            cashflow_kind: cf.kind,
+                            cashflow_date: cf.date,
+                        },
                     });
                     tracing::warn!(
                         "Ignoring credit-event CFKind={:?} for period flow calc (date={:?})",
@@ -322,10 +326,12 @@ pub fn calculate_period_flows(
                 }
                 _ => {
                     // CFKind is non-exhaustive; ignore unknown variants to avoid misclassification.
-                    warnings.push(EvalWarning::CapitalStructureCashflowIgnored {
+                    warnings.push(EvalWarning::CapitalStructure {
                         period: period.id,
-                        kind: format!("{:?}", cf.kind),
-                        cashflow_date: cf.date.to_string(),
+                        warning: CapitalStructureWarning::CashflowIgnored {
+                            cashflow_kind: cf.kind,
+                            cashflow_date: cf.date,
+                        },
                     });
                     tracing::warn!(
                         "Unhandled CFKind={:?} for period flow calc (date={:?}); ignoring",
@@ -1327,8 +1333,10 @@ mod tests {
             .filter(|w| {
                 matches!(
                     w,
-                    EvalWarning::CapitalStructureCashflowIgnored { kind, .. }
-                        if kind.starts_with("scale_clamped(")
+                    EvalWarning::CapitalStructure {
+                        warning: CapitalStructureWarning::ScaleClamped { .. },
+                        ..
+                    }
                 )
             })
             .collect();

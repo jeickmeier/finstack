@@ -61,19 +61,14 @@ fn exchange_offer_rejects_negative_and_non_finite_amounts() {
 }
 
 #[test]
-fn exchange_type_parsing_accepts_market_shorthand() {
+fn exchange_type_parsing_is_exact() {
     assert_eq!(
-        "par".parse::<ExchangeType>().expect("alias"),
+        "par_for_par".parse::<ExchangeType>().expect("canonical"),
         ExchangeType::ParForPar
     );
-    assert_eq!(
-        " Par-For-Par ".parse::<ExchangeType>().expect("normalized"),
-        ExchangeType::ParForPar
-    );
-    assert_eq!(
-        "UPTIER".parse::<ExchangeType>().expect("case insensitive"),
-        ExchangeType::Uptier
-    );
+    for retired in ["par", " Par-For-Par ", "UPTIER"] {
+        assert!(retired.parse::<ExchangeType>().is_err());
+    }
     assert_eq!(ExchangeType::Downtier.to_string(), "downtier");
     assert!("mystery".parse::<ExchangeType>().is_err());
 }
@@ -158,22 +153,31 @@ fn lme_rejects_out_of_range_inputs_per_structure() {
 }
 
 #[test]
-fn lme_type_parsing_accepts_market_shorthand() {
-    for alias in ["open_market", "OMR", "open-market-repurchase"] {
-        assert_eq!(
-            alias.parse::<LmeType>().expect("alias"),
-            LmeType::OpenMarketRepurchase
-        );
-    }
+fn lme_type_parsing_is_exact() {
     assert_eq!(
-        "tender".parse::<LmeType>().expect("alias"),
+        "open_market_repurchase"
+            .parse::<LmeType>()
+            .expect("canonical"),
+        LmeType::OpenMarketRepurchase
+    );
+    assert_eq!(
+        "tender_offer".parse::<LmeType>().expect("canonical"),
         LmeType::TenderOffer
     );
-    for alias in ["A&E", "ae", "amend-and-extend"] {
-        assert_eq!(
-            alias.parse::<LmeType>().expect("alias"),
-            LmeType::AmendAndExtend
-        );
+    assert_eq!(
+        "amend_and_extend".parse::<LmeType>().expect("canonical"),
+        LmeType::AmendAndExtend
+    );
+    for retired in [
+        "open_market",
+        "OMR",
+        "open-market-repurchase",
+        "tender",
+        "A&E",
+        "ae",
+        "amend-and-extend",
+    ] {
+        assert!(retired.parse::<LmeType>().is_err());
     }
     assert_eq!(
         LmeType::OpenMarketRepurchase.to_string(),

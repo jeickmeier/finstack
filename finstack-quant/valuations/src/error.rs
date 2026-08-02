@@ -68,6 +68,7 @@ pub use finstack_quant_factor_model::credit::decomposition::DecompositionError;
 /// Each variant uses `#[error(transparent)]` to delegate `Display` to the
 /// inner error and `#[from]` for ergonomic `?` conversion.
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Error {
     /// Core library error, enabling `?` propagation from [`finstack_quant_core`] calls.

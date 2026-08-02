@@ -53,7 +53,7 @@ def test_build_stress_attribution_rejects_bad_shape() -> None:
 def test_build_credit_vol_report_from_typed_inputs() -> None:
     model = CreditFactorModel.from_json(
         json.dumps({
-            "schema_version": "finstack_quant.credit_factor_model/1",
+            "schema": "finstack_quant.credit_factor_model/1",
             "as_of": "2024-03-29",
             "calibration_window": {"start": "2022-03-29", "end": "2024-03-29"},
             "policy": "globally_off",
@@ -62,7 +62,7 @@ def test_build_credit_vol_report_from_typed_inputs() -> None:
             "config": {
                 "factors": [],
                 "covariance": {"n": 0, "factor_ids": [], "data": []},
-                "matching": {"MappingTable": []},
+                "matching": {"mapping_table": []},
                 "pricing_mode": "delta_based",
             },
             "issuer_betas": [],

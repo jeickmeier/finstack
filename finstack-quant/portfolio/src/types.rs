@@ -25,7 +25,8 @@ pub const DUMMY_ENTITY_ID: &str = "_standalone";
 /// Entities represent companies, funds, or other legal entities that
 /// own instruments. For standalone instruments (derivatives, FX), use
 /// the dummy entity.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Entity {
     /// Unique identifier for the entity
     pub id: EntityId,
@@ -157,7 +158,7 @@ impl Entity {
 /// optimization constraints.  Text values represent categorical data
 /// (rating, sector), while numeric values represent continuous data
 /// (credit score, ESG score) usable in metric expressions.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(untagged)]
 pub enum AttributeValue {
     /// Categorical / string attribute (e.g., rating = "CCC", sector = "Energy").
@@ -218,6 +219,7 @@ impl From<f64> for AttributeValue {
 /// `false`.  For [`AttributeValue::Number`] attributes, all six operators
 /// apply.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ComparisonOp {
     /// Equal.
     Eq,
@@ -238,6 +240,7 @@ pub enum ComparisonOp {
 /// Reusable building block for [`crate::optimization::PositionFilter::ByAttribute`]
 /// and [`crate::optimization::PerPositionMetric::AttributeIndicator`].
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AttributeTest {
     /// Attribute key to test.
     pub key: String,

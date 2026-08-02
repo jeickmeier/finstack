@@ -4,9 +4,8 @@
 //!
 //! 1. **Typed fast path** — cast to the corresponding `#[pyclass]` wrapper
 //!    and borrow the inner Rust type (no clone, no JSON parse).
-//! 2. **JSON fallback** — extract a Python `str`, then `serde_json::from_str`.
-//!    This keeps backward compatibility with callers that pass pre-serialized
-//!    JSON strings.
+//! 2. **Canonical JSON path** — extract a Python `str`, then deserialize the
+//!    same serde contract used by Rust.
 //!
 //! The `*Access` enums wrap both paths behind a `Deref<Target = T>` impl so
 //! pipeline functions can accept `T | str` without branching.
@@ -28,22 +27,22 @@ use crate::bindings::valuations::typed_structured_credit::PyStructuredCredit;
 use crate::errors::{display_to_py as to_py, portfolio_to_py};
 
 // ---------------------------------------------------------------------------
-// Instrument — typed-or-JSON extraction to tagged instrument JSON
+// Instrument — typed-or-JSON extraction to a canonical instrument envelope
 // ---------------------------------------------------------------------------
 
-/// Extract tagged instrument JSON from a typed instrument object (fast path)
-/// or a pre-serialized JSON string (fallback).
+/// Extract a canonical instrument envelope from a typed instrument object
+/// (fast path) or a pre-serialized envelope string (fallback).
 ///
-/// Typed instances serialize through the same tagged union
-/// (`InstrumentJson`) the JSON loader parses, so downstream pricing observes
-/// identical payloads for both input forms.
+/// Typed instances serialize through the same `InstrumentEnvelope` the JSON
+/// loader parses, so downstream pricing observes identical payloads for both
+/// input forms.
 ///
 /// # Extending this function
 ///
 /// Every typed instrument class added to
 /// `finstack-quant-py/src/bindings/valuations/instruments.rs` is wired in
 /// here by adding exactly **one** cast arm (`obj.cast::<PyNewType>()` ->
-/// `.tagged_json()`), ordered before the final `str` fallback. Nothing else
+/// `.envelope_json()`), ordered before the final `str` fallback. Nothing else
 /// in the pricing pipeline (`pricing.rs`, `price_instrument`, etc.) needs to
 /// change — callers already accept `instrument_json: &Bound<'_, PyAny>` and
 /// funnel through this one function. Update the fallback error message
@@ -54,47 +53,47 @@ use crate::errors::{display_to_py as to_py, portfolio_to_py};
 /// `CDSTranche`, `ConvertibleBond`, `EquityOption`, `StructuredCredit`.
 pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     if let Ok(bond) = obj.cast::<PyBond>() {
-        return bond.borrow().tagged_json();
+        return bond.borrow().envelope_json();
     }
     if let Ok(loan) = obj.cast::<PyTermLoan>() {
-        return loan.borrow().tagged_json();
+        return loan.borrow().envelope_json();
     }
     if let Ok(swap) = obj.cast::<PyInterestRateSwap>() {
-        return swap.borrow().tagged_json();
+        return swap.borrow().envelope_json();
     }
     if let Ok(swaption) = obj.cast::<PySwaption>() {
-        return swaption.borrow().tagged_json();
+        return swaption.borrow().envelope_json();
     }
     if let Ok(cap_floor) = obj.cast::<PyCapFloor>() {
-        return cap_floor.borrow().tagged_json();
+        return cap_floor.borrow().envelope_json();
     }
     if let Ok(cds) = obj.cast::<PyCreditDefaultSwap>() {
-        return cds.borrow().tagged_json();
+        return cds.borrow().envelope_json();
     }
     if let Ok(cds_index) = obj.cast::<PyCDSIndex>() {
-        return cds_index.borrow().tagged_json();
+        return cds_index.borrow().envelope_json();
     }
     if let Ok(fx_forward) = obj.cast::<PyFxForward>() {
-        return fx_forward.borrow().tagged_json();
+        return fx_forward.borrow().envelope_json();
     }
     if let Ok(fx_option) = obj.cast::<PyFxOption>() {
-        return fx_option.borrow().tagged_json();
+        return fx_option.borrow().envelope_json();
     }
     if let Ok(cds_tranche) = obj.cast::<PyCDSTranche>() {
-        return cds_tranche.borrow().tagged_json();
+        return cds_tranche.borrow().envelope_json();
     }
     if let Ok(convertible) = obj.cast::<PyConvertibleBond>() {
-        return convertible.borrow().tagged_json();
+        return convertible.borrow().envelope_json();
     }
     if let Ok(equity_option) = obj.cast::<PyEquityOption>() {
-        return equity_option.borrow().tagged_json();
+        return equity_option.borrow().envelope_json();
     }
     if let Ok(structured_credit) = obj.cast::<PyStructuredCredit>() {
-        return structured_credit.borrow().tagged_json();
+        return structured_credit.borrow().envelope_json();
     }
     obj.extract::<String>().map_err(|_| {
         pyo3::exceptions::PyTypeError::new_err(
-            "expected tagged instrument JSON (str) or a typed instrument instance",
+            "expected a canonical instrument-envelope JSON string or a typed instrument instance",
         )
     })
 }

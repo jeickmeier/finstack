@@ -35,7 +35,7 @@ impl crate::metrics::MetricCalculator for AbsSpeedCalculator {
             .ok_or(finstack_quant_core::InputError::Invalid)?;
 
         // Only applicable to ABS deals
-        if sc.deal_type != DealType::ABS {
+        if sc.deal_type != DealType::Abs {
             return Err(finstack_quant_core::Error::from(
                 finstack_quant_core::InputError::Invalid,
             ));

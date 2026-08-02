@@ -121,16 +121,16 @@ fn build_periods_with_meta(
     let periods = generate_periods_with_adjustment(
         window.start,
         window.end,
-        params.freq,
+        params.frequency,
         params.stub,
-        params.bdc,
+        params.business_day_convention,
         params.end_of_month,
         params.payment_lag_days,
         &params.calendar_id,
         params.adjust_accrual_dates,
         params.roll_rule,
     )?;
-    index_period_schedule(periods, params.freq)
+    index_period_schedule(periods, params.frequency)
 }
 
 /// Latest accrual end in a compiled period map.
@@ -167,23 +167,23 @@ pub(crate) struct FloatSchedule {
 
 /// Periodic fee schedule prepared from fee specs.
 ///
-/// Represents a normalized, per‑period fee defined by a base, annualized bps,
+/// Represents a normalized, per‑period fee defined by a base, annualized bp,
 /// a day‑count, and the concrete schedule over which it accrues.
 ///
 /// Fields:
 /// - `base` (`FeeBase`): Notional/cash‑based fee base.
-/// - `bps` (`Decimal`): Annualized basis points applied to the base. Uses Decimal for exact representation.
-/// - `dc` (`DayCount`): Day‑count convention for accrual.
-/// - `freq` (`Tenor`): Payment frequency (needed for Act/Act ISMA day count context).
+/// - `bp` (`Decimal`): Annualized basis points applied to the base. Uses Decimal for exact representation.
+/// - `day_count` (`DayCount`): Day‑count convention for accrual.
+/// - `frequency` (`Tenor`): Payment frequency (needed for Act/Act ISMA day count context).
 /// - `calendar` (`HolidayCalendar`): Resolved calendar used for Bus/252 and Act/Act ISMA contexts.
 /// - `dates` (`Vec<Date>`): Inclusive/exclusive boundary dates for accrual periods.
 /// - `prev` (`HashMap<Date, SchedulePeriod>`): Period details keyed by payment date.
 #[derive(Clone)]
 pub(super) struct PeriodicFee {
     pub(super) base: FeeBase,
-    pub(super) bps: Decimal,
-    pub(super) dc: DayCount,
-    pub(super) freq: Tenor,
+    pub(super) bp: Decimal,
+    pub(super) day_count: DayCount,
+    pub(super) frequency: Tenor,
     pub(super) calendar: &'static dyn HolidayCalendar,
     pub(super) dates: Vec<Date>,
     pub(super) prev: PeriodMap,
@@ -211,7 +211,7 @@ pub(super) fn build_fee_schedules(
     //!
     //! Returns:
     //! - `Ok((PeriodicFees, FixedFees))` where `PeriodicFees` contains
-    //!   normalized periodic fee programs (bps/day‑count/schedule), and
+    //!   normalized periodic fee programs (bp/day‑count/schedule), and
     //!   `FixedFees` contains explicit (`Date`, `Money`) pairs.
     //!
     //! Errors:
@@ -231,12 +231,12 @@ pub(super) fn build_fee_schedules(
     //! let issue = Date::from_calendar_date(2024, Month::January, 1).expect("valid date");
     //! let maturity = Date::from_calendar_date(2025, Month::January, 1).expect("valid date");
     //! let fees = vec![
-    //!     FeeSpec::PeriodicBps {
+    //!     FeeSpec::PeriodicBp {
     //!         base: FeeBase::Drawn,
-    //!         bps: dec!(50),
-    //!         freq: Tenor::quarterly(),
-    //!         dc: DayCount::Act360,
-    //!         bdc: BusinessDayConvention::Following,
+    //!         bp: dec!(50),
+    //!         frequency: Tenor::quarterly(),
+    //!         day_count: DayCount::Act360,
+    //!         business_day_convention: BusinessDayConvention::Following,
     //!         calendar_id: "weekends_only".to_string(),
     //!         stub: StubKind::None,
     //!         accrual_basis: Default::default(),
@@ -264,20 +264,20 @@ pub(super) fn build_fee_schedules(
                     fixed_fees.push((*date, *amount))
                 }
             }
-            FeeSpec::PeriodicBps {
+            FeeSpec::PeriodicBp {
                 base,
-                bps,
-                freq,
-                dc,
-                bdc,
+                bp,
+                frequency,
+                day_count,
+                business_day_convention,
                 calendar_id,
                 stub,
                 accrual_basis,
             } => {
                 let schedule = ScheduleParams {
-                    freq: *freq,
-                    dc: *dc,
-                    bdc: *bdc,
+                    frequency: *frequency,
+                    day_count: *day_count,
+                    business_day_convention: *business_day_convention,
                     calendar_id: calendar_id.clone(),
                     stub: *stub,
                     end_of_month: false,
@@ -289,7 +289,7 @@ pub(super) fn build_fee_schedules(
                     build_periods_with_meta(DateWindow::new(issue, maturity), &schedule)?;
                 if dates.is_empty() {
                     return Err(finstack_quant_core::Error::Validation(format!(
-                        "periodic fee ({bps} bps, {freq} on '{calendar_id}') produced an empty \
+                        "periodic fee ({bp} bp, {frequency} on '{calendar_id}') produced an empty \
                          schedule over [{issue}, {maturity}]"
                     )));
                 }
@@ -297,9 +297,9 @@ pub(super) fn build_fee_schedules(
                 let terminal = terminal_accrual_end(&prev);
                 periodic_fees.push(PeriodicFee {
                     base: base.clone(),
-                    bps: *bps,
-                    dc: *dc,
-                    freq: *freq,
+                    bp: *bp,
+                    day_count: *day_count,
+                    frequency: *frequency,
                     calendar,
                     dates,
                     prev,
@@ -819,9 +819,9 @@ mod tests {
             coupon_type: CouponType::Cash,
             rate: rust_decimal_macros::dec!(0.05),
             schedule: ScheduleParams {
-                freq: Tenor::annual(),
-                dc: DayCount::Act365F,
-                bdc: BusinessDayConvention::Following,
+                frequency: Tenor::annual(),
+                day_count: DayCount::Act365F,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,
@@ -866,7 +866,7 @@ mod tests {
         let issue = d(2025, 1, 1);
         let maturity = d(2029, 1, 1);
         let mut builder = builder_with_full_horizon_fixed(issue, maturity);
-        let _ = builder.add_payment_window(d(2026, 1, 1), d(2028, 1, 1), CouponType::PIK);
+        let _ = builder.add_payment_window(d(2026, 1, 1), d(2028, 1, 1), CouponType::Pik);
 
         let compiled =
             compute_coupon_schedules(&builder, issue, maturity).expect("nested window compiles");
@@ -881,7 +881,7 @@ mod tests {
             .collect();
         assert_eq!(
             splits,
-            vec![CouponType::Cash, CouponType::PIK, CouponType::Cash]
+            vec![CouponType::Cash, CouponType::Pik, CouponType::Cash]
         );
     }
 
@@ -892,7 +892,7 @@ mod tests {
         let issue = d(2025, 1, 1);
         let maturity = d(2029, 1, 1);
         let mut builder = builder_with_full_horizon_fixed(issue, maturity);
-        let _ = builder.add_payment_window(issue, d(2027, 1, 1), CouponType::PIK);
+        let _ = builder.add_payment_window(issue, d(2027, 1, 1), CouponType::Pik);
         let _ = builder.add_payment_window(d(2026, 1, 1), maturity, CouponType::Cash);
 
         let Err(err) = compute_coupon_schedules(&builder, issue, maturity) else {
@@ -910,7 +910,7 @@ mod tests {
         let maturity = d(2029, 1, 1);
         let mut builder = builder_with_full_horizon_fixed(issue, maturity);
         // Window extends one year past maturity.
-        let _ = builder.add_payment_window(issue, d(2030, 1, 1), CouponType::PIK);
+        let _ = builder.add_payment_window(issue, d(2030, 1, 1), CouponType::Pik);
 
         let Err(err) = compute_coupon_schedules(&builder, issue, maturity) else {
             panic!("payment window beyond maturity must be rejected");

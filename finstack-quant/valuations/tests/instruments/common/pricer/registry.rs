@@ -19,6 +19,7 @@ use finstack_quant_valuations::metrics::MetricId;
 use finstack_quant_valuations::pricer::*;
 use finstack_quant_valuations::results::ValuationResult;
 use std::str::FromStr;
+use strum::IntoEnumIterator;
 use time::macros::date;
 
 fn test_market(as_of: Date) -> MarketContext {
@@ -49,248 +50,48 @@ fn assert_pricing_result_eq(
 
 #[test]
 fn test_instrument_type_from_str_all_variants() {
-    // Basic variants
-    assert_eq!(
-        InstrumentType::from_str("bond").unwrap(),
-        InstrumentType::Bond
-    );
-    assert_eq!(
-        InstrumentType::from_str("loan").unwrap(),
-        InstrumentType::Loan
-    );
-    assert_eq!(
-        InstrumentType::from_str("cds").unwrap(),
-        InstrumentType::CDS
-    );
-    assert_eq!(
-        InstrumentType::from_str("deposit").unwrap(),
-        InstrumentType::Deposit
-    );
-    assert_eq!(
-        InstrumentType::from_str("equity").unwrap(),
-        InstrumentType::Equity
-    );
-    assert_eq!(
-        InstrumentType::from_str("repo").unwrap(),
-        InstrumentType::Repo
-    );
-    assert_eq!(
-        InstrumentType::from_str("fra").unwrap(),
-        InstrumentType::FRA
-    );
-    assert_eq!(
-        InstrumentType::from_str("basket").unwrap(),
-        InstrumentType::Basket
-    );
+    for instrument_type in InstrumentType::iter() {
+        let canonical = instrument_type.as_str();
+        assert_eq!(InstrumentType::from_str(canonical), Ok(instrument_type));
+        assert_eq!(instrument_type.to_string(), canonical);
 
-    // CDS variants with multiple aliases
-    assert_eq!(
-        InstrumentType::from_str("cds_index").unwrap(),
-        InstrumentType::CDSIndex
-    );
-    assert_eq!(
-        InstrumentType::from_str("cdsindex").unwrap(),
-        InstrumentType::CDSIndex
-    );
-    assert_eq!(
-        InstrumentType::from_str("cds_tranche").unwrap(),
-        InstrumentType::CDSTranche
-    );
-    assert_eq!(
-        InstrumentType::from_str("cdstranche").unwrap(),
-        InstrumentType::CDSTranche
-    );
-    assert_eq!(
-        InstrumentType::from_str("cds_option").unwrap(),
-        InstrumentType::CDSOption
-    );
-    assert_eq!(
-        InstrumentType::from_str("cdsoption").unwrap(),
-        InstrumentType::CDSOption
-    );
+        let json = serde_json::to_string(&instrument_type).expect("serialize instrument type");
+        assert_eq!(json, format!("\"{canonical}\""));
+        assert_eq!(
+            serde_json::from_str::<InstrumentType>(&json).expect("deserialize instrument type"),
+            instrument_type
+        );
+    }
 
-    // IRS with multiple aliases
-    assert_eq!(
-        InstrumentType::from_str("irs").unwrap(),
-        InstrumentType::IRS
-    );
-    assert_eq!(
-        InstrumentType::from_str("swap").unwrap(),
-        InstrumentType::IRS
-    );
-    assert_eq!(
-        InstrumentType::from_str("interest_rate_swap").unwrap(),
-        InstrumentType::IRS
-    );
-
-    // CapFloor with aliases
-    assert_eq!(
-        InstrumentType::from_str("cap_floor").unwrap(),
-        InstrumentType::CapFloor
-    );
-    assert_eq!(
-        InstrumentType::from_str("capfloor").unwrap(),
-        InstrumentType::CapFloor
-    );
-    assert_eq!(
-        InstrumentType::from_str("interest_rate_option").unwrap(),
-        InstrumentType::CapFloor
-    );
-
-    // Swaption
-    assert_eq!(
-        InstrumentType::from_str("swaption").unwrap(),
-        InstrumentType::Swaption
-    );
-
-    // Basis Swap
-    assert_eq!(
-        InstrumentType::from_str("basis_swap").unwrap(),
-        InstrumentType::BasisSwap
-    );
-    assert_eq!(
-        InstrumentType::from_str("basisswap").unwrap(),
-        InstrumentType::BasisSwap
-    );
-
-    // Convertible with alias
-    assert_eq!(
-        InstrumentType::from_str("convertible").unwrap(),
-        InstrumentType::Convertible
-    );
-    assert_eq!(
-        InstrumentType::from_str("convertible_bond").unwrap(),
-        InstrumentType::Convertible
-    );
-
-    // Options
-    assert_eq!(
-        InstrumentType::from_str("equity_option").unwrap(),
-        InstrumentType::EquityOption
-    );
-    assert_eq!(
-        InstrumentType::from_str("equityoption").unwrap(),
-        InstrumentType::EquityOption
-    );
-    assert_eq!(
-        InstrumentType::from_str("fx_option").unwrap(),
-        InstrumentType::FxOption
-    );
-    assert_eq!(
-        InstrumentType::from_str("fxoption").unwrap(),
-        InstrumentType::FxOption
-    );
-
-    // FX instruments
-    assert_eq!(
-        InstrumentType::from_str("fx_spot").unwrap(),
-        InstrumentType::FxSpot
-    );
-    assert_eq!(
-        InstrumentType::from_str("fxspot").unwrap(),
-        InstrumentType::FxSpot
-    );
-    assert_eq!(
-        InstrumentType::from_str("fx_swap").unwrap(),
-        InstrumentType::FxSwap
-    );
-    assert_eq!(
-        InstrumentType::from_str("fxswap").unwrap(),
-        InstrumentType::FxSwap
-    );
-
-    // Inflation
-    assert_eq!(
-        InstrumentType::from_str("inflation_linked_bond").unwrap(),
-        InstrumentType::InflationLinkedBond
-    );
-    assert_eq!(
-        InstrumentType::from_str("ilb").unwrap(),
-        InstrumentType::InflationLinkedBond
-    );
-    assert_eq!(
-        InstrumentType::from_str("inflation_swap").unwrap(),
-        InstrumentType::InflationSwap
-    );
-
-    // IR Future with aliases
-    assert_eq!(
-        InstrumentType::from_str("interest_rate_future").unwrap(),
-        InstrumentType::InterestRateFuture
-    );
-    assert_eq!(
-        InstrumentType::from_str("ir_future").unwrap(),
-        InstrumentType::InterestRateFuture
-    );
-    assert_eq!(
-        InstrumentType::from_str("irfuture").unwrap(),
-        InstrumentType::InterestRateFuture
-    );
-
-    // Variance Swap
-    assert_eq!(
-        InstrumentType::from_str("variance_swap").unwrap(),
-        InstrumentType::VarianceSwap
-    );
-    assert_eq!(
-        InstrumentType::from_str("varianceswap").unwrap(),
-        InstrumentType::VarianceSwap
-    );
-
-    assert_eq!(
-        InstrumentType::from_str("structured_credit").unwrap(),
-        InstrumentType::StructuredCredit
-    );
-    assert_eq!(
-        InstrumentType::from_str("clo").unwrap(),
-        InstrumentType::StructuredCredit
-    );
-    assert_eq!(
-        InstrumentType::from_str("abs").unwrap(),
-        InstrumentType::StructuredCredit
-    );
-    assert_eq!(
-        InstrumentType::from_str("rmbs").unwrap(),
-        InstrumentType::StructuredCredit
-    );
-    assert_eq!(
-        InstrumentType::from_str("cmbs").unwrap(),
-        InstrumentType::StructuredCredit
-    );
-
-    // Private Markets Fund
-    assert_eq!(
-        InstrumentType::from_str("private_markets_fund").unwrap(),
-        InstrumentType::PrivateMarketsFund
-    );
-    assert_eq!(
-        InstrumentType::from_str("pmf").unwrap(),
-        InstrumentType::PrivateMarketsFund
-    );
-
-    // Case insensitivity
-    assert_eq!(
-        InstrumentType::from_str("BOND").unwrap(),
-        InstrumentType::Bond
-    );
-    assert_eq!(
-        InstrumentType::from_str("Bond").unwrap(),
-        InstrumentType::Bond
-    );
-    assert_eq!(
-        InstrumentType::from_str("BaSKeT").unwrap(),
-        InstrumentType::Basket
-    );
-
-    // Dash handling
-    assert_eq!(
-        InstrumentType::from_str("cds-index").unwrap(),
-        InstrumentType::CDSIndex
-    );
-    assert_eq!(
-        InstrumentType::from_str("fx-option").unwrap(),
-        InstrumentType::FxOption
-    );
+    for retired in [
+        "cdsindex",
+        "cdstranche",
+        "cdsoption",
+        "swap",
+        "capfloor",
+        "interest_rate_option",
+        "basisswap",
+        "equityoption",
+        "fxoption",
+        "fxspot",
+        "fxswap",
+        "ilb",
+        "ir_future",
+        "irfuture",
+        "varianceswap",
+        "clo",
+        "abs",
+        "rmbs",
+        "cmbs",
+        "pmf",
+        "BOND",
+        "Bond",
+        "BaSKeT",
+        "cds-index",
+        "fx-option",
+    ] {
+        assert!(InstrumentType::from_str(retired).is_err());
+    }
 }
 
 #[test]
@@ -307,9 +108,9 @@ fn test_instrument_type_from_str_errors() {
 #[test]
 fn test_instrument_type_display() {
     assert_eq!(InstrumentType::Bond.to_string(), "bond");
-    assert_eq!(InstrumentType::IRS.to_string(), "irs");
+    assert_eq!(InstrumentType::Irs.to_string(), "interest_rate_swap");
     assert_eq!(InstrumentType::CapFloor.to_string(), "cap_floor");
-    assert_eq!(InstrumentType::CDSIndex.to_string(), "cds_index");
+    assert_eq!(InstrumentType::CdsIndex.to_string(), "cds_index");
     assert_eq!(InstrumentType::EquityOption.to_string(), "equity_option");
     assert_eq!(
         InstrumentType::InflationLinkedBond.to_string(),
@@ -327,53 +128,33 @@ fn test_instrument_type_display() {
 
 #[test]
 fn test_model_key_from_str_all_variants() {
-    // Basic variants
-    assert_eq!(
-        ModelKey::from_str("discounting").unwrap(),
-        ModelKey::Discounting
-    );
-    assert_eq!(ModelKey::from_str("tree").unwrap(), ModelKey::Tree);
-    assert_eq!(ModelKey::from_str("lattice").unwrap(), ModelKey::Tree);
+    for model in ModelKey::iter() {
+        let canonical = model.as_str();
+        assert_eq!(ModelKey::from_str(canonical), Ok(model));
+        assert_eq!(model.to_string(), canonical);
 
-    // Black76 with aliases
-    assert_eq!(ModelKey::from_str("black76").unwrap(), ModelKey::Black76);
-    assert_eq!(ModelKey::from_str("black").unwrap(), ModelKey::Black76);
-    assert_eq!(ModelKey::from_str("black_76").unwrap(), ModelKey::Black76);
+        let json = serde_json::to_string(&model).expect("serialize model key");
+        assert_eq!(json, format!("\"{canonical}\""));
+        assert_eq!(
+            serde_json::from_str::<ModelKey>(&json).expect("deserialize model key"),
+            model
+        );
+    }
 
-    // Hull-White with aliases
-    assert_eq!(
-        ModelKey::from_str("hull_white_1f").unwrap(),
-        ModelKey::HullWhite1F
-    );
-    assert_eq!(
-        ModelKey::from_str("hullwhite1f").unwrap(),
-        ModelKey::HullWhite1F
-    );
-    assert_eq!(ModelKey::from_str("hw1f").unwrap(), ModelKey::HullWhite1F);
-
-    // Hazard Rate
-    assert_eq!(
-        ModelKey::from_str("hazard_rate").unwrap(),
-        ModelKey::HazardRate
-    );
-    assert_eq!(ModelKey::from_str("hazard").unwrap(), ModelKey::HazardRate);
-
-    // Case insensitivity
-    assert_eq!(
-        ModelKey::from_str("DISCOUNTING").unwrap(),
-        ModelKey::Discounting
-    );
-    assert_eq!(ModelKey::from_str("Black76").unwrap(), ModelKey::Black76);
-
-    // Dash handling
-    assert_eq!(
-        ModelKey::from_str("hull-white-1f").unwrap(),
-        ModelKey::HullWhite1F
-    );
-    assert_eq!(
-        ModelKey::from_str("hazard-rate").unwrap(),
-        ModelKey::HazardRate
-    );
+    for retired in [
+        "lattice",
+        "black",
+        "black_76",
+        "hullwhite1f",
+        "hw1f",
+        "hazard",
+        "DISCOUNTING",
+        "Black76",
+        "hull-white-1f",
+        "hazard-rate",
+    ] {
+        assert!(ModelKey::from_str(retired).is_err());
+    }
 }
 
 #[test]
@@ -412,7 +193,7 @@ fn test_pricer_key_equality() {
     let key1 = PricerKey::new(InstrumentType::Bond, ModelKey::Discounting);
     let key2 = PricerKey::new(InstrumentType::Bond, ModelKey::Discounting);
     let key3 = PricerKey::new(InstrumentType::Bond, ModelKey::Tree);
-    let key4 = PricerKey::new(InstrumentType::IRS, ModelKey::Discounting);
+    let key4 = PricerKey::new(InstrumentType::Irs, ModelKey::Discounting);
 
     assert_eq!(key1, key2);
     assert_ne!(key1, key3);
@@ -444,12 +225,12 @@ fn test_pricing_error_display() {
 
     let err2 = PricingError::TypeMismatch {
         expected: InstrumentType::Bond,
-        got: InstrumentType::IRS,
+        got: InstrumentType::Irs,
     };
     let msg2 = err2.to_string();
     assert!(msg2.contains("Type mismatch"));
     assert!(msg2.contains("bond"));
-    assert!(msg2.contains("irs"));
+    assert!(msg2.contains("interest_rate_swap"));
 
     let err3 =
         PricingError::model_failure_with_context("test error", PricingErrorContext::default());
@@ -541,12 +322,12 @@ fn test_standard_registry_has_all_rates_pricers() {
 
     // IRS
     assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::IRS, ModelKey::Discounting))
+        .get_pricer(PricerKey::new(InstrumentType::Irs, ModelKey::Discounting))
         .is_some());
 
     // FRA
     assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::FRA, ModelKey::Discounting))
+        .get_pricer(PricerKey::new(InstrumentType::Fra, ModelKey::Discounting))
         .is_some());
 
     // Basis Swap
@@ -802,16 +583,16 @@ fn test_standard_registry_has_all_options_pricers() {
     // decommissioned and the Discounting alias removed.
     assert!(registry
         .get_pricer(PricerKey::new(
-            InstrumentType::CDSOption,
+            InstrumentType::CdsOption,
             ModelKey::BloombergCdso
         ))
         .is_some());
     assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::CDSOption, ModelKey::Black76))
+        .get_pricer(PricerKey::new(InstrumentType::CdsOption, ModelKey::Black76))
         .is_none());
     assert!(registry
         .get_pricer(PricerKey::new(
-            InstrumentType::CDSOption,
+            InstrumentType::CdsOption,
             ModelKey::Discounting
         ))
         .is_none());
@@ -827,22 +608,22 @@ fn test_standard_registry_has_all_credit_pricers() {
 
     // CDS
     assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::CDS, ModelKey::HazardRate))
+        .get_pricer(PricerKey::new(InstrumentType::Cds, ModelKey::HazardRate))
         .is_some());
     assert!(registry
-        .get_pricer(PricerKey::new(InstrumentType::CDS, ModelKey::Discounting))
+        .get_pricer(PricerKey::new(InstrumentType::Cds, ModelKey::Discounting))
         .is_none());
 
     // CDS Index
     assert!(registry
         .get_pricer(PricerKey::new(
-            InstrumentType::CDSIndex,
+            InstrumentType::CdsIndex,
             ModelKey::HazardRate
         ))
         .is_some());
     assert!(registry
         .get_pricer(PricerKey::new(
-            InstrumentType::CDSIndex,
+            InstrumentType::CdsIndex,
             ModelKey::Discounting
         ))
         .is_none());
@@ -850,13 +631,13 @@ fn test_standard_registry_has_all_credit_pricers() {
     // CDS Tranche
     assert!(registry
         .get_pricer(PricerKey::new(
-            InstrumentType::CDSTranche,
+            InstrumentType::CdsTranche,
             ModelKey::HazardRate
         ))
         .is_some());
     assert!(registry
         .get_pricer(PricerKey::new(
-            InstrumentType::CDSTranche,
+            InstrumentType::CdsTranche,
             ModelKey::Discounting
         ))
         .is_none());
@@ -901,7 +682,7 @@ fn test_standard_registry_has_other_pricers() {
         .is_some());
     assert!(registry
         .get_pricer(PricerKey::new(
-            InstrumentType::FIIndexTotalReturnSwap,
+            InstrumentType::FiIndexTotalReturnSwap,
             ModelKey::Discounting
         ))
         .is_some());
@@ -982,12 +763,12 @@ fn test_expect_inst_type_mismatch() {
     let instrument: &dyn Instrument = &bond;
 
     // This should fail with TypeMismatch
-    let result = expect_inst::<Bond>(instrument, InstrumentType::IRS);
+    let result = expect_inst::<Bond>(instrument, InstrumentType::Irs);
 
     assert!(result.is_err());
     match result.unwrap_err() {
         PricingError::TypeMismatch { expected, got } => {
-            assert_eq!(expected, InstrumentType::IRS);
+            assert_eq!(expected, InstrumentType::Irs);
             assert_eq!(got, InstrumentType::Bond);
         }
         _ => panic!("Expected TypeMismatch error"),
@@ -1029,7 +810,7 @@ fn test_instrument_type_repr_values() {
     // Verify repr values for ABI stability
     assert_eq!(InstrumentType::Bond as u16, 1);
     assert_eq!(InstrumentType::Loan as u16, 2);
-    assert_eq!(InstrumentType::CDS as u16, 3);
+    assert_eq!(InstrumentType::Cds as u16, 3);
     assert_eq!(InstrumentType::StructuredCredit as u16, 26);
     assert_eq!(InstrumentType::PrivateMarketsFund as u16, 30);
 }

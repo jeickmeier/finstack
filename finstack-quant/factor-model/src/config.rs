@@ -11,13 +11,14 @@ use super::matching::MatchingConfig;
 use super::primitives::definition::FactorDefinition;
 use super::primitives::factor_types::{FactorId, FactorType};
 use super::UnmatchedPolicy;
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
 /// Strategy used when extracting factor sensitivities.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PricingMode {
@@ -43,26 +44,22 @@ impl fmt::Display for PricingMode {
     }
 }
 
-impl crate::parse::NormalizedEnum for PricingMode {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("delta_based", Self::DeltaBased),
-        ("deltabased", Self::DeltaBased),
-        ("full_repricing", Self::FullRepricing),
-        ("fullrepricing", Self::FullRepricing),
-    ];
-}
-
 impl FromStr for PricingMode {
     type Err = finstack_quant_core::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s)
-            .map_err(|e| finstack_quant_core::Error::Validation(format!("PricingMode: {e}")))
+        match s {
+            "delta_based" => Ok(Self::DeltaBased),
+            "full_repricing" => Ok(Self::FullRepricing),
+            _ => Err(finstack_quant_core::Error::Validation(format!(
+                "PricingMode: unknown label {s:?}"
+            ))),
+        }
     }
 }
 
 /// Risk measure used when aggregating factor exposures.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 #[non_exhaustive]
@@ -87,6 +84,7 @@ pub enum RiskMeasure {
     #[serde(rename = "var")]
     VaR {
         /// Confidence level in the open interval `(0.5, 1)`.
+        #[schemars(extend("exclusiveMinimum" = 0.5, "exclusiveMaximum" = 1.0))]
         confidence: f64,
     },
     /// Aggregate exposures using expected shortfall at a fixed one-sided loss confidence level.
@@ -96,6 +94,7 @@ pub enum RiskMeasure {
     /// **negative** number using the P&L sign convention.
     ExpectedShortfall {
         /// Confidence level in the open interval `(0.5, 1)`.
+        #[schemars(extend("exclusiveMinimum" = 0.5, "exclusiveMaximum" = 1.0))]
         confidence: f64,
     },
 }
@@ -168,9 +167,9 @@ impl<'de> Deserialize<'de> for RiskMeasure {
 /// Per-factor-type bump magnitudes for finite-difference sensitivity engines.
 ///
 /// Unknown fields are rejected on deserialization: every field here has a
-/// serde default, so a typo'd key (e.g. `"credit_bps"`) would otherwise be
+/// serde default, so a typo'd key (e.g. `"credit_bp"`) would otherwise be
 /// silently dropped and the bump would silently revert to 1.0.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BumpSizeConfig {
     /// Default rates bump in basis points.
@@ -230,7 +229,7 @@ impl BumpSizeConfig {
             FactorType::Rates | FactorType::Inflation | FactorType::Custom(_) => self.rates_bp,
             FactorType::Credit => self.credit_bp,
             FactorType::Equity | FactorType::Commodity => self.equity_pct,
-            FactorType::FX => self.fx_pct,
+            FactorType::Fx => self.fx_pct,
             FactorType::Volatility => self.vol_points,
         }
     }
@@ -278,7 +277,7 @@ impl BumpSizeConfig {
 ///
 /// The variants intentionally mirror [`finstack_quant_core::market_data::bumps::BumpUnits`]
 /// plus `VolPoint` and `Absolute`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum FactorBumpUnit {
@@ -318,7 +317,7 @@ impl FactorBumpUnit {
             | FactorType::Credit
             | FactorType::Inflation
             | FactorType::Custom(_) => FactorBumpUnit::BasisPoint,
-            FactorType::Equity | FactorType::Commodity | FactorType::FX => FactorBumpUnit::Percent,
+            FactorType::Equity | FactorType::Commodity | FactorType::Fx => FactorBumpUnit::Percent,
             FactorType::Volatility => FactorBumpUnit::VolPoint,
         }
     }
@@ -355,7 +354,7 @@ impl FactorBumpUnit {
 /// The `factors` vector defines the canonical factor ordering. The covariance
 /// matrix must use the same factor IDs and ordering, and the matching
 /// configuration is expected to emit exposures against that same universe.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FactorModelConfig {
     /// Factor definitions spanning the model universe.
@@ -414,9 +413,6 @@ impl FactorModelConfig {
 mod tests {
     use super::*;
 
-    fn assert_parses_to(label: &str, expected: PricingMode) {
-        assert!(matches!(label.parse::<PricingMode>(), Ok(value) if value == expected));
-    }
     use crate::{
         FactorCovarianceMatrix, FactorDefinition, FactorType, MarketMapping, MatchingConfig,
         UnmatchedPolicy,
@@ -611,11 +607,6 @@ mod tests {
     }
 
     #[test]
-    fn test_bump_size_config_remains_equality_comparable() {
-        assert_eq!(BumpSizeConfig::default(), BumpSizeConfig::default());
-    }
-
-    #[test]
     fn test_factor_model_config_deserialize_uses_defaults_for_omitted_optionals() {
         let original = FactorModelConfig {
             factors: vec![FactorDefinition {
@@ -671,11 +662,9 @@ mod tests {
     fn test_pricing_mode_fromstr_display_roundtrip() {
         for (input, expected) in [
             ("delta_based", PricingMode::DeltaBased),
-            ("deltabased", PricingMode::DeltaBased),
             ("full_repricing", PricingMode::FullRepricing),
-            ("fullrepricing", PricingMode::FullRepricing),
         ] {
-            assert_parses_to(input, expected);
+            assert!(matches!(input.parse::<PricingMode>(), Ok(value) if value == expected));
         }
 
         for variant in [PricingMode::DeltaBased, PricingMode::FullRepricing] {
@@ -686,7 +675,14 @@ mod tests {
 
     #[test]
     fn test_pricing_mode_fromstr_rejects_unknown() {
-        assert!("unknown".parse::<PricingMode>().is_err());
+        for rejected in [
+            "deltabased",
+            "fullrepricing",
+            "DeltaBased",
+            "full-repricing",
+        ] {
+            assert!(rejected.parse::<PricingMode>().is_err());
+        }
     }
 
     // a vol bump of 1.0 vol point must convert to 0.01
@@ -705,7 +701,7 @@ mod tests {
 
     #[test]
     fn bump_size_config_rejects_unknown_fields() {
-        let json = r#"{"credit_bps": 5.0}"#; // typo'd key must not silently revert to 1.0
+        let json = r#"{"credit_bps": 5.0}"#; // schema-rejection-test
         let result: Result<BumpSizeConfig, _> = serde_json::from_str(json);
         assert!(result.is_err());
     }

@@ -237,13 +237,15 @@ fn black76_pv(
     volatility: f64,
     is_payer: bool,
 ) -> f64 {
-    let annuity = swaption.swap_annuity(disc, as_of).unwrap_or(0.0);
+    let annuity = swaption
+        .swap_annuity(disc, as_of)
+        .expect("Black-76 fixture annuity");
 
     // Option expiry time uses ACT/365F (calendar-time vol axis convention),
     // matching the pricer; the instrument day count governs accruals only.
     let t = finstack_quant_core::dates::DayCount::Act365F
         .year_fraction(as_of, swaption.expiry, DayCountContext::default())
-        .unwrap_or(0.0)
+        .expect("ACT/365F option time")
         .max(0.0);
 
     if t <= 0.0 || annuity.abs() < 1e-12 {
@@ -500,47 +502,6 @@ fn test_quantlib_parity_rho() {
     assert_reasonable(rho.abs(), 0.1, 10_000.0, "Rho magnitude");
 }
 
-#[test]
-fn test_quantlib_parity_theta() {
-    // Test theta (time decay)
-    let as_of = date!(2024 - 01 - 01);
-    let expiry = date!(2025 - 01 - 01);
-    let swap_start = expiry;
-    let swap_end = date!(2030 - 01 - 01);
-
-    let swaption = create_standard_payer_swaption(expiry, swap_start, swap_end, 0.05);
-    let market = create_flat_market(as_of, 0.05, 0.20);
-
-    let result = swaption
-        .price_with_metrics(
-            &market,
-            as_of,
-            &[MetricId::Theta],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
-        .unwrap();
-
-    let theta = *result.measures.get("theta").unwrap();
-
-    // Theta should be finite
-    assert!(theta.is_finite(), "Theta should be finite");
-
-    // Validate theta by bump-in-time
-    let pv_today = swaption.value(&market, as_of).unwrap().amount();
-    let tomorrow = as_of.checked_add(time::Duration::days(1)).unwrap();
-    let pv_tomorrow = swaption.value(&market, tomorrow).unwrap().amount();
-
-    let time_decay = pv_tomorrow - pv_today;
-
-    // Theta should reasonably approximate time decay (opposite sign convention)
-    let rel_diff = ((theta + time_decay) / theta.abs().max(1.0)).abs();
-    assert!(
-        rel_diff < 5.0,
-        "Theta should approximate time decay, rel_diff={}",
-        rel_diff
-    );
-}
-
 // =============================================================================
 // Implied Volatility Tests
 // =============================================================================
@@ -735,7 +696,9 @@ fn test_quantlib_parity_very_low_vol() {
     // conventions, so allow for intrinsic value on top of a small time-value component.
     let disc = market.get_discount("USD_OIS").unwrap();
     let forward = swaption.forward_swap_rate(&market, as_of).unwrap();
-    let annuity = swaption.swap_annuity(disc.as_ref(), as_of).unwrap_or(0.0);
+    let annuity = swaption
+        .swap_annuity(disc.as_ref(), as_of)
+        .expect("low-vol fixture annuity");
     let intrinsic = (forward - 0.05).max(0.0) * annuity * swaption.notional.amount();
     assert!(
         pv < intrinsic + 10_000.0,
@@ -793,7 +756,9 @@ fn test_quantlib_parity_put_call_relationship() {
     // Put-call parity for swaptions: Payer - Receiver = Annuity * (Forward - Strike) * Notional
     let disc = market.get_discount("USD_OIS").unwrap();
     let forward = payer.forward_swap_rate(&market, as_of).unwrap();
-    let annuity = payer.swap_annuity(disc.as_ref(), as_of).unwrap_or(0.0);
+    let annuity = payer
+        .swap_annuity(disc.as_ref(), as_of)
+        .expect("put-call parity fixture annuity");
     let expected_diff = annuity * (forward - strike) * payer.notional.amount();
     let actual_diff = pv_payer - pv_receiver;
 

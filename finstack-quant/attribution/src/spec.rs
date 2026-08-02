@@ -13,14 +13,27 @@ use finstack_quant_core::{
 };
 use finstack_quant_factor_model::credit::hierarchy::CreditFactorModel;
 use finstack_quant_valuations::instruments::model_params::ModelParamsSnapshot;
-use finstack_quant_valuations::instruments::InstrumentJson;
+use finstack_quant_valuations::instruments::{InstrumentEnvelope, InstrumentJson};
 use finstack_quant_valuations::metrics::MetricId;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-/// Schema version for attribution serialization.
-pub const ATTRIBUTION_SCHEMA_V1: &str = "finstack_quant.attribution/1";
+/// Schema marker for attribution serialization.
+pub const ATTRIBUTION_SCHEMA: &str = "finstack_quant.attribution/1";
+
+/// Exact schema marker accepted by attribution envelopes.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+pub enum AttributionSchema {
+    /// The sole supported attribution contract.
+    #[serde(rename = "finstack_quant.attribution/1")]
+    Attribution,
+}
+
+impl AttributionSchema {
+    /// The exact marker required by every persisted attribution envelope.
+    pub const CURRENT: Self = Self::Attribution;
+}
 
 /// Top-level envelope for attribution specifications.
 ///
@@ -30,16 +43,21 @@ pub const ATTRIBUTION_SCHEMA_V1: &str = "finstack_quant.attribution/1";
 #[serde(deny_unknown_fields)]
 pub struct AttributionEnvelope {
     /// Schema version identifier (currently "finstack_quant.attribution/1")
-    pub schema: String,
+    pub schema: AttributionSchema,
     /// The attribution specification
     pub attribution: AttributionSpec,
 }
 
 impl AttributionEnvelope {
     /// Create a new attribution envelope with the current schema version.
+    ///
+    /// # Arguments
+    ///
+    /// * `attribution` - Complete single-run attribution specification to wrap
+    ///   in the current persistence envelope.
     pub fn new(attribution: AttributionSpec) -> Self {
         Self {
-            schema: ATTRIBUTION_SCHEMA_V1.to_string(),
+            schema: AttributionSchema::CURRENT,
             attribution,
         }
     }
@@ -48,16 +66,10 @@ impl AttributionEnvelope {
     ///
     /// # Errors
     ///
-    /// Returns a validation error for an unsupported envelope schema and
-    /// propagates all instrument, market-data, pricing, and method-specific
-    /// errors from [`AttributionSpec::execute`].
+    /// Propagates all instrument, market-data, pricing, and method-specific
+    /// errors from [`AttributionSpec::execute`]. Unsupported schema markers
+    /// are rejected during deserialization.
     pub fn execute(&self) -> Result<AttributionResultEnvelope> {
-        if self.schema != ATTRIBUTION_SCHEMA_V1 {
-            return Err(finstack_quant_core::Error::Validation(format!(
-                "Unsupported attribution schema '{}'; supported schemas: {}",
-                self.schema, ATTRIBUTION_SCHEMA_V1
-            )));
-        }
         let result = self.attribution.execute()?;
         Ok(AttributionResultEnvelope::new(result))
     }
@@ -73,16 +85,16 @@ pub struct AttributionSpec {
     /// Instrument to attribute (as JSON envelope)
     pub instrument: InstrumentJson,
     /// Market context at T₀
-    #[schemars(with = "serde_json::Value")]
     pub market_t0: MarketContextState,
     /// Market context at T₁
-    #[schemars(with = "serde_json::Value")]
     pub market_t1: MarketContextState,
     /// Valuation date at T₀
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of_t0: Date,
     /// Valuation date at T₁
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of_t1: Date,
     /// Attribution methodology
     pub method: AttributionMethod,
@@ -98,7 +110,6 @@ pub struct AttributionSpec {
     /// generic / per-level / adder P&L additively decomposing
     /// `credit_curves_pnl`. PR-7 wires metrics-based and Taylor methods.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(skip)]
     pub credit_factor_model: Option<Box<CreditFactorModel>>,
     /// Detail/payload options for `credit_factor_detail`. Inert when
     /// `credit_factor_model` is `None`.
@@ -138,19 +149,19 @@ pub struct AttributionConfig {
     ///
     /// When supplied and different from the instrument's native pricing
     /// currency, the per-instrument attribution is computed in native
-    /// currency and then translated to `target_ccy` via
-    /// [`crate::translate_to_target_ccy`]. The translation:
+    /// currency and then translated to `target_currency` via
+    /// [`crate::translate_to_target_currency`]. The translation:
     ///
     /// - converts every aggregate factor amount at `market_t1`'s FX,
     /// - emits a new `fx_translation_pnl` field that captures the FX move
     ///   applied to the opening position (`val_t0 × ΔFX`),
-    /// - stamps `meta.fx_policy.target_ccy` so downstream consumers know the
+    /// - stamps `meta.fx_policy.target_currency` so downstream consumers know the
     ///   report is in a non-native currency.
     ///
     /// When `None` (the default), the attribution stays in
     /// `val_t1.currency()`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub target_ccy: Option<Currency>,
+    pub target_currency: Option<Currency>,
     /// Controls whether attribution's per-factor repricings run in parallel.
     ///
     /// Defaults to [`ExecutionPolicy::Parallel`] when omitted. Portfolio-level
@@ -167,6 +178,19 @@ impl AttributionSpec {
     /// present, `config_json` supplies the complete serialized attribution
     /// configuration; it is not merged with caller state.
     ///
+    /// # Arguments
+    ///
+    /// * `instrument_json` - Canonical v1 instrument envelope containing the
+    ///   instrument to attribute.
+    /// * `market_t0_json` - Canonical market-context state at the beginning of
+    ///   the attribution interval.
+    /// * `market_t1_json` - Canonical market-context state at the end of the
+    ///   attribution interval.
+    /// * `as_of_t0` - ISO-8601 valuation date for `market_t0_json`.
+    /// * `as_of_t1` - ISO-8601 valuation date for `market_t1_json`.
+    /// * `method_json` - Snake-case serialized [`AttributionMethod`].
+    /// * `config_json` - Optional complete serialized attribution config.
+    ///
     /// # Errors
     ///
     /// Returns [`finstack_quant_core::Error::Validation`] when any JSON payload
@@ -180,8 +204,10 @@ impl AttributionSpec {
         method_json: &str,
         config_json: Option<&str>,
     ) -> Result<Self> {
+        let instrument_envelope: InstrumentEnvelope =
+            parse_input_json("instrument envelope", instrument_json)?;
         Ok(Self {
-            instrument: parse_input_json("instrument", instrument_json)?,
+            instrument: instrument_envelope.instrument,
             market_t0: parse_input_json("market_t0", market_t0_json)?,
             market_t1: parse_input_json("market_t1", market_t1_json)?,
             as_of_t0: parse_iso_date("as_of_t0", as_of_t0)?,
@@ -216,13 +242,13 @@ fn parse_iso_date(label: &str, value: &str) -> Result<Date> {
 impl AttributionSpec {
     pub(crate) fn build_finstack_config(
         &self,
-        instrument_ccy: Option<Currency>,
+        instrument_currency: Option<Currency>,
     ) -> Result<FinstackConfig> {
         let mut config = FinstackConfig::default();
 
         if let Some(ref cfg) = self.config {
             if let Some(scale) = cfg.rounding_scale {
-                if let Some(ccy) = instrument_ccy {
+                if let Some(ccy) = instrument_currency {
                     config.rounding.output_scale.overrides.insert(ccy, scale);
                     config.rounding.ingest_scale.overrides.insert(ccy, scale);
                 }
@@ -256,38 +282,29 @@ pub struct AttributionResult {
     pub results_meta: ResultsMeta,
 }
 
-/// Deserialization gate for [`AttributionResultEnvelope::schema`].
-fn validate_result_schema<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::de::Error as _;
-    let schema = String::deserialize(deserializer)?;
-    if schema != ATTRIBUTION_SCHEMA_V1 {
-        return Err(D::Error::custom(format!(
-            "unsupported attribution result schema {schema:?}; expected {ATTRIBUTION_SCHEMA_V1:?}"
-        )));
-    }
-    Ok(schema)
-}
-
 /// Top-level envelope for attribution results.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttributionResultEnvelope {
-    /// Schema version identifier. Validated on DESERIALIZE (    /// minor): a result envelope read back from storage with an unknown
-    /// schema version is rejected instead of silently re-interpreted.
-    #[serde(deserialize_with = "validate_result_schema")]
-    pub schema: String,
+    /// Schema version identifier.
+    ///
+    /// Deserialization rejects unknown versions instead of silently
+    /// re-interpreting them as the current result contract.
+    pub schema: AttributionSchema,
     /// The attribution result
     pub result: AttributionResult,
 }
 
 impl AttributionResultEnvelope {
     /// Create a new result envelope with the current schema version.
+    ///
+    /// # Arguments
+    ///
+    /// * `result` - Completed attribution result and execution metadata to
+    ///   wrap in the current persistence envelope.
     pub fn new(result: AttributionResult) -> Self {
         Self {
-            schema: ATTRIBUTION_SCHEMA_V1.to_string(),
+            schema: AttributionSchema::Attribution,
             result,
         }
     }
@@ -318,7 +335,7 @@ mod tests {
         let spec = AttributionSpec {
             instrument: InstrumentJson::Bond(bond),
             market_t0: MarketContextState {
-                version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+                schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
                 curves: vec![],
                 fx: None,
                 surfaces: vec![],
@@ -333,7 +350,7 @@ mod tests {
                 hierarchy: None,
             },
             market_t1: MarketContextState {
-                version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+                schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
                 curves: vec![],
                 fx: None,
                 surfaces: vec![],
@@ -363,7 +380,7 @@ mod tests {
         let parsed: AttributionEnvelope =
             serde_json::from_str(&json).expect("JSON deserialization should succeed in test");
 
-        assert_eq!(parsed.schema, ATTRIBUTION_SCHEMA_V1);
+        assert_eq!(parsed.schema, AttributionSchema::Attribution);
         assert_eq!(parsed.attribution.as_of_t0, envelope.attribution.as_of_t0);
         assert_eq!(parsed.attribution.as_of_t1, envelope.attribution.as_of_t1);
     }
@@ -377,7 +394,7 @@ mod tests {
             strict_validation: Some(true),
             rounding_scale: None,
             rate_bump_bp: None,
-            target_ccy: None,
+            target_currency: None,
             execution_policy: None,
         };
 
@@ -405,7 +422,7 @@ mod tests {
         .expect("Bond::fixed should succeed with valid parameters");
 
         let market_state = MarketContextState {
-            version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+            schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
             curves: vec![],
             fx: None,
             surfaces: vec![],
@@ -426,12 +443,12 @@ mod tests {
             strict_validation: Some(true),
             rounding_scale: Some(6),
             rate_bump_bp: None,
-            target_ccy: None,
+            target_currency: None,
             execution_policy: None,
         };
 
         let spec = AttributionSpec::from_json_inputs(
-            &serde_json::to_string(&InstrumentJson::Bond(bond))
+            &serde_json::to_string(&InstrumentEnvelope::new(InstrumentJson::Bond(bond)))
                 .expect("instrument JSON should serialize"),
             &serde_json::to_string(&market_state).expect("market_t0 JSON should serialize"),
             &serde_json::to_string(&market_state).expect("market_t1 JSON should serialize"),
@@ -460,6 +477,29 @@ mod tests {
     }
 
     #[test]
+    fn attribution_json_inputs_reject_bare_instruments() {
+        use finstack_quant_valuations::instruments::Bond;
+
+        let bond = Bond::example().expect("bond example should build");
+        // schema-rejection-test: standalone attribution requires an envelope.
+        let raw = serde_json::to_string(&InstrumentJson::Bond(bond))
+            .expect("instrument JSON should serialize");
+
+        let error = AttributionSpec::from_json_inputs(
+            &raw,
+            "{}",
+            "{}",
+            "2025-01-01",
+            "2025-01-02",
+            "\"parallel\"",
+            None,
+        )
+        .expect_err("bare instrument JSON must be rejected before market parsing");
+
+        assert!(error.to_string().contains("instrument envelope"));
+    }
+
+    #[test]
     fn test_attribution_envelope_json_envelope_trait() {
         use finstack_quant_valuations::instruments::Bond;
 
@@ -476,7 +516,7 @@ mod tests {
         let spec = AttributionSpec {
             instrument: InstrumentJson::Bond(bond),
             market_t0: MarketContextState {
-                version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+                schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
                 curves: vec![],
                 fx: None,
                 surfaces: vec![],
@@ -491,7 +531,7 @@ mod tests {
                 hierarchy: None,
             },
             market_t1: MarketContextState {
-                version: finstack_quant_core::market_data::context::MARKET_CONTEXT_STATE_VERSION,
+                schema_version: finstack_quant_core::wire::SchemaVersion::CURRENT,
                 curves: vec![],
                 fx: None,
                 surfaces: vec![],
@@ -523,13 +563,13 @@ mod tests {
 
         let parsed =
             serde_json::from_str::<AttributionEnvelope>(&json).expect("from_json should succeed");
-        assert_eq!(parsed.schema, ATTRIBUTION_SCHEMA_V1);
+        assert_eq!(parsed.schema, AttributionSchema::Attribution);
         assert_eq!(parsed.attribution.as_of_t0, envelope.attribution.as_of_t0);
 
         let reader = std::io::Cursor::new(json.as_bytes());
         let parsed_from_reader = serde_json::from_reader::<_, AttributionEnvelope>(reader)
             .expect("from_reader should succeed");
-        assert_eq!(parsed_from_reader.schema, ATTRIBUTION_SCHEMA_V1);
+        assert_eq!(parsed_from_reader.schema, AttributionSchema::Attribution);
     }
 
     #[test]
@@ -558,7 +598,7 @@ mod tests {
 
         let parsed = serde_json::from_str::<AttributionResultEnvelope>(&json)
             .expect("from_json should succeed");
-        assert_eq!(parsed.schema, ATTRIBUTION_SCHEMA_V1);
+        assert_eq!(parsed.schema, AttributionSchema::Attribution);
         assert_eq!(
             parsed.result.attribution.total_pnl,
             envelope.result.attribution.total_pnl
@@ -567,6 +607,6 @@ mod tests {
         let reader = std::io::Cursor::new(json.as_bytes());
         let parsed_from_reader = serde_json::from_reader::<_, AttributionResultEnvelope>(reader)
             .expect("from_reader should succeed");
-        assert_eq!(parsed_from_reader.schema, ATTRIBUTION_SCHEMA_V1);
+        assert_eq!(parsed_from_reader.schema, AttributionSchema::Attribution);
     }
 }

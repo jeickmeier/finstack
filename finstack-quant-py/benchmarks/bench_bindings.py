@@ -66,14 +66,13 @@ from finstack_quant.portfolio import (
     attribute_portfolio_pnl,
     build_portfolio_from_spec,
     build_stress_attribution,
-    historical_var_decomposition_typed,
-    parametric_var_decomposition_typed,
+    historical_var_decomposition,
+    parametric_var_decomposition,
     parse_portfolio_spec,
     replay_portfolio,
     scenario_pnl,
     scenario_pnl_batch,
     value_portfolio,
-    value_portfolio_typed,
 )
 from finstack_quant.scenarios import (
     build_from_template,
@@ -235,23 +234,26 @@ CORR_5X5_FLAT: list[float] = [
 ]
 
 DEPOSIT_INSTRUMENT_JSON = json.dumps({
-    "type": "deposit",
-    "spec": {
-        "id": "DEP-1",
-        "notional": {"amount": 1000000.0, "currency": "USD"},
-        "start_date": "2025-01-15",
-        "maturity": "2025-06-15",
-        "day_count": "Act360",
-        "quote_rate": 0.05,
-        "discount_curve_id": "USD-OIS",
-        "attributes": {},
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+        "type": "deposit",
+        "spec": {
+            "id": "DEP-1",
+            "notional": {"amount": "1000000", "currency": "USD"},
+            "start_date": "2025-01-15",
+            "maturity": "2025-06-15",
+            "day_count": "act_360",
+            "quote_rate": "0.05",
+            "discount_curve_id": "USD-OIS",
+            "attributes": {},
+        },
     },
 })
 
 PORTFOLIO_SPEC_JSON = json.dumps({
     "id": "bench-portfolio",
     "as_of": "2025-01-15",
-    "base_ccy": "USD",
+    "base_currency": "USD",
     "entities": {"ENTITY-1": {"id": "ENTITY-1"}},
     "positions": [
         {
@@ -259,16 +261,19 @@ PORTFOLIO_SPEC_JSON = json.dumps({
             "entity_id": "ENTITY-1",
             "instrument_id": "DEP-1",
             "instrument_spec": {
-                "type": "deposit",
-                "spec": {
-                    "id": "DEP-1",
-                    "notional": {"amount": 1000000.0, "currency": "USD"},
-                    "start_date": "2025-01-15",
-                    "maturity": "2025-06-15",
-                    "day_count": "Act360",
-                    "quote_rate": 0.05,
-                    "discount_curve_id": "USD-OIS",
-                    "attributes": {},
+                "schema": "finstack_quant.instrument/1",
+                "instrument": {
+                    "type": "deposit",
+                    "spec": {
+                        "id": "DEP-1",
+                        "notional": {"amount": "1000000", "currency": "USD"},
+                        "start_date": "2025-01-15",
+                        "maturity": "2025-06-15",
+                        "day_count": "act_360",
+                        "quote_rate": "0.05",
+                        "discount_curve_id": "USD-OIS",
+                        "attributes": {},
+                    },
                 },
             },
             "quantity": 1.0,
@@ -292,11 +297,11 @@ def _build_portfolio_spec_json(n_positions: int) -> str:
                 "type": "deposit",
                 "spec": {
                     "id": instr,
-                    "notional": {"amount": 1_000_000.0 + i, "currency": "USD"},
+                    "notional": {"amount": str(1_000_000 + i), "currency": "USD"},
                     "start_date": "2025-01-15",
                     "maturity": "2025-06-15",
-                    "day_count": "Act360",
-                    "quote_rate": 0.05,
+                    "day_count": "act_360",
+                    "quote_rate": "0.05",
                     "discount_curve_id": "USD-OIS",
                     "attributes": {},
                 },
@@ -307,7 +312,7 @@ def _build_portfolio_spec_json(n_positions: int) -> str:
     return json.dumps({
         "id": f"bench-portfolio-{n_positions}",
         "as_of": "2025-01-15",
-        "base_ccy": "USD",
+        "base_currency": "USD",
         "entities": {"ENTITY-1": {"id": "ENTITY-1"}},
         "positions": positions,
     })
@@ -464,10 +469,10 @@ class TestCoreBenchmarks:
         benchmark(_add_sub)
 
     def test_daycount_year_fraction(self, benchmark) -> None:
-        dc = DayCount.ACT_360
+        day_count = DayCount.ACT_360
         start = date(2024, 1, 1)
         end = date(2025, 1, 1)
-        benchmark(dc.year_fraction, start, end)
+        benchmark(day_count.year_fraction, start, end)
 
     def test_discount_curve_df(self, benchmark) -> None:
         curve = DiscountCurve(
@@ -511,9 +516,9 @@ class TestCoreBenchmarks:
         def _round_trip():
             r = Rate(0.05)
             p = r.as_percent
-            b = r.as_bps
+            b = r.as_bp
             r2 = Rate.from_percent(p)
-            r3 = Rate.from_bps(b)
+            r3 = Rate.from_bp(b)
             return r2, r3
 
         benchmark(_round_trip)
@@ -988,8 +993,8 @@ class TestPortfolioCompoundWorkflow:
     """Compound workflows — each function used to rebuild the portfolio.
 
     These measure the realistic calling pattern (value + metrics + cashflows)
-    and compare the JSON-string path (old behavior) against the typed
-    :class:`Portfolio` / :class:`MarketContext` fast path.
+    with JSON inputs and with the typed :class:`Portfolio` /
+    :class:`MarketContext` fast path.
     """
 
     def test_json_path_value_metrics_cashflows(self, benchmark) -> None:
@@ -1008,7 +1013,7 @@ class TestPortfolioCompoundWorkflow:
         portfolio = Portfolio.from_spec(_BENCH_SPEC_JSON_500)
 
         def _run():
-            val = value_portfolio_typed(portfolio, _BENCH_MARKET)
+            val = value_portfolio(portfolio, _BENCH_MARKET)
             agg = aggregate_metrics(val, "USD", _BENCH_MARKET, "2025-01-15")
             cf = aggregate_full_cashflows(portfolio, _BENCH_MARKET)
             return val, agg, cf
@@ -1019,15 +1024,10 @@ class TestPortfolioCompoundWorkflow:
         """One-time cost of building a typed Portfolio from a 500-position spec."""
         benchmark(Portfolio.from_spec, _BENCH_SPEC_JSON_500)
 
-    def test_value_portfolio_typed_inputs_json_result_500(self, benchmark) -> None:
-        """Typed inputs with the backward-compatible JSON result, 500 positions."""
-        portfolio = Portfolio.from_spec(_BENCH_SPEC_JSON_500)
-        benchmark(value_portfolio, portfolio, _BENCH_MARKET)
-
-    def test_value_portfolio_typed_result_500(self, benchmark) -> None:
+    def test_value_portfolio_prebuilt_inputs_500(self, benchmark) -> None:
         """Typed input and output path, avoiding valuation JSON serialization."""
         portfolio = Portfolio.from_spec(_BENCH_SPEC_JSON_500)
-        benchmark(value_portfolio_typed, portfolio, _BENCH_MARKET)
+        benchmark(value_portfolio, portfolio, _BENCH_MARKET)
 
     def test_value_portfolio_json_500(self, benchmark) -> None:
         """Pure value_portfolio on the JSON path, 500 positions."""
@@ -1054,7 +1054,7 @@ class TestPortfolioReleaseControls:
                 _BENCH_MARKET_T1,
                 "2025-01-15",
                 "2025-01-16",
-                "MetricsBased",
+                "metrics_based",
             ),
             rounds=1,
             warmup_rounds=0,
@@ -1101,7 +1101,7 @@ class TestPortfolioReleaseControls:
             args=(
                 portfolio,
                 snapshots_json,
-                ('{"mode":"PvOnly","valuation_options":{"strict_risk":false,"metrics":{"mode":"only","metrics":[]}}}'),
+                ('{"mode":"pv_only","valuation_options":{"strict_risk":false,"metrics":{"mode":"only","metrics":[]}}}'),
             ),
             rounds=1,
             warmup_rounds=0,
@@ -1112,7 +1112,7 @@ class TestPortfolioReleaseControls:
         """Default standard-risk valuation for a typed 3,000-position portfolio."""
         portfolio = Portfolio.from_spec(_build_portfolio_spec_json(3_000))
         benchmark.pedantic(
-            value_portfolio_typed,
+            value_portfolio,
             args=(portfolio, _BENCH_MARKET),
             rounds=1,
             warmup_rounds=0,
@@ -1127,7 +1127,7 @@ class TestPortfolioReleaseControls:
         """PV-only valuation control with typed inputs and typed output."""
         portfolio = Portfolio.from_spec(_build_portfolio_spec_json(n_positions))
         benchmark.pedantic(
-            value_portfolio_typed,
+            value_portfolio,
             args=(portfolio, _BENCH_MARKET),
             kwargs={"metrics": []},
             rounds=1,
@@ -1139,32 +1139,32 @@ class TestPortfolioReleaseControls:
 class TestPortfolioRiskInputBenchmarks:
     """Portfolio risk bindings across list and contiguous NumPy inputs."""
 
-    def test_parametric_typed_list_256x256(self, benchmark) -> None:
+    def test_parametric_list_256x256(self, benchmark) -> None:
         benchmark(
-            parametric_var_decomposition_typed,
+            parametric_var_decomposition,
             _RISK_POSITION_IDS,
             _RISK_WEIGHTS,
             _RISK_COVARIANCE_LIST,
         )
 
-    def test_parametric_typed_numpy_256x256(self, benchmark) -> None:
+    def test_parametric_numpy_256x256(self, benchmark) -> None:
         benchmark(
-            parametric_var_decomposition_typed,
+            parametric_var_decomposition,
             _RISK_POSITION_IDS,
             _RISK_WEIGHTS,
             _RISK_COVARIANCE_NUMPY,
         )
 
-    def test_historical_typed_list_200x1000(self, benchmark) -> None:
+    def test_historical_list_200x1000(self, benchmark) -> None:
         benchmark(
-            historical_var_decomposition_typed,
+            historical_var_decomposition,
             _HISTORICAL_POSITION_IDS,
             _HISTORICAL_PNLS_LIST,
         )
 
-    def test_historical_typed_numpy_200x1000(self, benchmark) -> None:
+    def test_historical_numpy_200x1000(self, benchmark) -> None:
         benchmark(
-            historical_var_decomposition_typed,
+            historical_var_decomposition,
             _HISTORICAL_POSITION_IDS,
             _HISTORICAL_PNLS_NUMPY,
         )

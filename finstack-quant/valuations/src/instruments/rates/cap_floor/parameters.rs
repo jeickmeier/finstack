@@ -29,7 +29,7 @@ pub struct CapFloorParams {
     /// Stub convention for schedule generation
     pub stub: StubKind,
     /// Business day convention for schedule generation
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional holiday calendar identifier for schedule generation
     pub calendar_id: Option<&'static str>,
 }
@@ -57,7 +57,7 @@ impl CapFloorParams {
             frequency,
             day_count,
             stub: StubKind::ShortFront,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
         })
     }
@@ -76,7 +76,7 @@ impl CapFloorParams {
             frequency,
             day_count,
             stub: StubKind::ShortFront,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
         })
     }
@@ -95,7 +95,7 @@ impl CapFloorParams {
             frequency,
             day_count,
             stub: StubKind::ShortFront,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
         })
     }
@@ -114,7 +114,7 @@ impl CapFloorParams {
             frequency,
             day_count,
             stub: StubKind::ShortFront,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
         })
     }

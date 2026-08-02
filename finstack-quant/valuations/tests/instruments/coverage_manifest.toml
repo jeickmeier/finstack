@@ -1,13 +1,5 @@
 schema_version = 1
 
-[[auxiliary_fixture]]
-fixture = "json_examples/basket_with_instruments.json"
-rationale = "Exercises nested tagged instruments inside a basket in addition to the canonical single-tag basket fixture."
-
-[[auxiliary_fixture]]
-fixture = "json_examples/structured_credit_full.json"
-rationale = "Retains the full structured-credit authoring example alongside the minimal canonical registry fixture."
-
 [[non_persistable]]
 tag = "structured_credit"
 case = "stochastic_default_hazard_curve_based"

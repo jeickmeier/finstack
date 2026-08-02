@@ -86,7 +86,7 @@ def run_notebook(
         lines = str(e).split("\n")
         for i in range(len(lines) - 1, -1, -1):
             line = lines[i]
-            if "Error" in line or "Exception" in line:
+            if "error" in line or "Exception" in line:
                 start_idx = max(0, i - 2)
                 end_idx = min(len(lines), i + 5)
                 return False, "\n".join(lines[start_idx:end_idx]), elapsed

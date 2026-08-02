@@ -3,7 +3,7 @@
     "business_day_convention": "Following",
     "calendar": "UnitedStates::GovernmentBond",
     "date_generation": "Backward",
-    "day_count": "Thirty360::BondBasis",
+    "day_count": "30_360",
     "end_of_month": false,
     "frequency": "Semiannual",
     "settlement_days": 2

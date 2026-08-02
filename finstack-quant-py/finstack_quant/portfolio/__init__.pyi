@@ -84,7 +84,6 @@ __all__ = [
     "twrr_modified_dietz",
     "validate_allocation_json",
     "value_portfolio",
-    "value_portfolio_typed",
     # factor_model typed result classes
     "FactorContribution",
     "PositionFactorContribution",
@@ -115,9 +114,6 @@ __all__ = [
     "CreditVolReport",
     "VolHorizon",
     "DecompositionConfig",
-    "parametric_var_decomposition_typed",
-    "historical_var_decomposition_typed",
-    "evaluate_risk_budget_typed",
     "position_component_var",
     # optimization spec/result classes
     "WeightingScheme",
@@ -136,7 +132,6 @@ __all__ = [
     "TradeSpec",
     "PortfolioOptimizationSpec",
     "PortfolioOptimizationResult",
-    "optimize_portfolio_typed",
 ]
 
 class PortfolioError(ValueError):
@@ -504,7 +499,7 @@ class Portfolio:
         >>> from finstack_quant.portfolio import Portfolio
         >>> bundle = {
         ...     "schema": "finstack_quant.portfolio_materialization/1",
-        ...     "portfolio": {"id": "empty", "base_ccy": "USD", "as_of": "2025-01-01", "entities": {}},
+        ...     "portfolio": {"id": "empty", "base_currency": "USD", "as_of": "2025-01-01", "entities": {}},
         ...     "instruments": [],
         ...     "positions": [],
         ... }
@@ -537,7 +532,7 @@ class Portfolio:
         ...
 
     @property
-    def base_ccy(self) -> str:
+    def base_currency(self) -> str:
         """
         Base currency code used for valuation and aggregation.
         Returns
@@ -854,7 +849,7 @@ class PortfolioValuation:
     @property
     def total_value(self) -> float:
         """
-        Total portfolio value in ``base_ccy``.
+        Total portfolio value in ``base_currency``.
         Returns
         -------
         float
@@ -863,7 +858,7 @@ class PortfolioValuation:
         ...
 
     @property
-    def base_ccy(self) -> str:
+    def base_currency(self) -> str:
         """
         Base currency code for this valuation.
         Returns
@@ -1022,7 +1017,7 @@ class PortfolioCashflows:
     def collapse_to_base_by_date_kind(
         self,
         market: MarketContext | str,
-        base_ccy: str,
+        base_currency: str,
         as_of: str,
     ) -> str:
         """
@@ -1036,7 +1031,7 @@ class PortfolioCashflows:
         market : MarketContext or str
             Market context object or JSON providing FX data for payment-date
             base-currency conversion.
-        base_ccy : str
+        base_currency : str
             ISO currency code into which each classified cashflow is converted.
         as_of : str
             ISO-8601 valuation date used for conversion diagnostics and limits.
@@ -1383,7 +1378,7 @@ def portfolio_result_get_metric(result: PortfolioResult | str, metric_id: str) -
 
 def aggregate_metrics(
     valuation: PortfolioValuation | str,
-    base_ccy: str,
+    base_currency: str,
     market: MarketContext | str,
     as_of: str,
 ) -> str:
@@ -1396,7 +1391,7 @@ def aggregate_metrics(
     ----------
     valuation : PortfolioValuation or str
         Typed valuation or canonical valuation JSON to aggregate.
-    base_ccy : str
+    base_currency : str
         ISO base-currency code in which aggregate values and metrics are stated.
     market : MarketContext or str
         Market context object or JSON supplying conversion and market inputs.
@@ -1426,59 +1421,12 @@ def value_portfolio(
     market: MarketContext | str,
     strict_risk: bool = False,
     metrics: list[str] | None = None,
-) -> str:
-    """
-    Value a portfolio.
-
-    Accepts either a typed :class:`Portfolio` (no rebuild) or a JSON
-    ``PortfolioSpec`` string, and either a typed ``MarketContext`` or a JSON
-    string. Returns JSON for backwards compatibility — wrap with
-    :meth:`PortfolioValuation.from_json` once to enable the fast downstream
-    path into ``aggregate_metrics``.
-
-    Parameters
-    ----------
-    portfolio : Portfolio or str
-        Built portfolio or canonical ``PortfolioSpec`` JSON to value.
-    market : MarketContext or str
-        Market context object or JSON supplying curves, quotes, and FX data.
-    strict_risk : bool
-        Whether absent or failed risk calculations are treated as errors rather
-        than diagnostic output; defaults to ``False``.
-    metrics : list[str] or None, default None
-        Exact metric identifiers to compute. ``None`` requests the standard
-        portfolio risk set; an empty list performs PV-only valuation.
-
-    Returns
-    -------
-    str
-        Result of value portfolio for the binding in the annotated representation.
-
-    Raises
-    ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import value_portfolio
-    >>> callable(value_portfolio)
-    True
-    """
-    ...
-
-def value_portfolio_typed(
-    portfolio: Portfolio | str,
-    market: MarketContext | str,
-    strict_risk: bool = False,
-    metrics: list[str] | None = None,
 ) -> PortfolioValuation:
     """
-    Value a portfolio and return a typed result without JSON serialization.
+    Value a portfolio and return its typed result.
 
-    This is the preferred entry point for in-process Python pipelines. Typed
-    ``Portfolio`` and ``MarketContext`` inputs avoid rebuilding runtime state,
-    while the typed result can be passed directly to :func:`aggregate_metrics`.
+    Typed ``Portfolio`` and ``MarketContext`` inputs avoid rebuilding runtime
+    state, while the result can be passed directly to :func:`aggregate_metrics`.
 
     Parameters
     ----------
@@ -1506,8 +1454,8 @@ def value_portfolio_typed(
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import value_portfolio_typed
-    >>> callable(value_portfolio_typed)
+    >>> from finstack_quant.portfolio import value_portfolio
+    >>> callable(value_portfolio)
     True
     """
     ...
@@ -1788,42 +1736,6 @@ def validate_allocation_json(spec_json: str) -> None:
     """
     ...
 
-def optimize_portfolio(spec_json: str, market: MarketContext | str) -> str:
-    """
-    Optimize portfolio weights using the LP-based optimizer.
-
-    Parameters
-    ----------
-    spec_json : str
-        JSON-encoded ``PortfolioOptimizationSpec`` combining the portfolio
-        definition, objective, constraints, weighting scheme, and optional trade
-        universe.
-    market : MarketContext or str
-        Typed market context or serialized JSON with curves and scalars required
-        by metric expressions in the spec.
-
-    Returns
-    -------
-    str
-        Compact JSON-encoded ``PortfolioOptimizationResult``. Use
-        ``json.dumps(json.loads(...), indent=2)`` to pretty-print.
-
-    Raises
-    ------
-    FinstackOptimizationError
-        If the spec is infeasible, unbounded, or the solver fails.
-    FinstackValuationError
-        If a required metric cannot be valued for a candidate position.
-    ValueError
-        If ``spec_json`` or market JSON is malformed.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import optimize_portfolio
-    >>> result_json = optimize_portfolio(spec_json, market)  # doctest: +SKIP
-    """
-    ...
-
 def replay_portfolio(
     portfolio: Portfolio | str,
     snapshots_json: str,
@@ -1866,7 +1778,8 @@ def parametric_var_decomposition(
     weights: list[float],
     covariance: list[list[float]] | npt.NDArray[np.float64],
     confidence: float = 0.95,
-) -> dict[str, object]:
+    compute_incremental: bool = False,
+) -> PositionRiskDecomposition:
     """
     Decompose portfolio parametric VaR across positions.
 
@@ -1881,12 +1794,13 @@ def parametric_var_decomposition(
         ``float64`` arrays use the direct buffer path.
     confidence : float, default 0.95
         VaR confidence level in ``(0, 1)``.
+    compute_incremental : bool, default False
+        Whether to calculate leave-one-out incremental VaR for each position.
 
     Returns
     -------
-    dict[str, object]
-        Dict containing portfolio VaR and per-position component, marginal, and
-        relative VaR contributions.
+    PositionRiskDecomposition
+        Typed portfolio VaR/ES totals and per-position contributions.
 
     Raises
     ------
@@ -1907,7 +1821,7 @@ def parametric_es_decomposition(
     weights: list[float],
     covariance: list[list[float]] | npt.NDArray[np.float64],
     confidence: float = 0.95,
-) -> dict[str, object]:
+) -> PositionRiskDecomposition:
     """
     Decompose portfolio parametric expected shortfall across positions.
 
@@ -1925,9 +1839,8 @@ def parametric_es_decomposition(
 
     Returns
     -------
-    dict[str, object]
-        Dict containing portfolio ES and per-position component, marginal, and
-        relative ES contributions.
+    PositionRiskDecomposition
+        Typed portfolio VaR/ES totals and per-position contributions.
 
     Raises
     ------
@@ -1947,7 +1860,7 @@ def historical_var_decomposition(
     position_ids: list[str],
     position_pnls: list[list[float]] | npt.NDArray[np.float64],
     confidence: float = 0.95,
-) -> dict[str, object]:
+) -> PositionRiskDecomposition:
     """
     Decompose historical VaR from scenario or realized position P&Ls.
 
@@ -1964,9 +1877,8 @@ def historical_var_decomposition(
 
     Returns
     -------
-    dict[str, object]
-        Dict containing portfolio historical VaR and per-position contribution
-        estimates.
+    PositionRiskDecomposition
+        Typed historical VaR/ES totals and per-position contributions.
 
     Raises
     ------
@@ -1988,7 +1900,7 @@ def evaluate_risk_budget(
     target_var_pct: list[float],
     portfolio_var: float,
     utilization_threshold: float = 1.20,
-) -> dict[str, object]:
+) -> RiskBudgetResult:
     """
     Compare actual position VaR against target risk-budget shares.
 
@@ -2009,9 +1921,8 @@ def evaluate_risk_budget(
 
     Returns
     -------
-    dict[str, object]
-        Dict with per-position utilization, excess VaR, total over-budget risk,
-        and breach flag.
+    RiskBudgetResult
+        Typed per-position utilization, excess VaR, and breach diagnostics.
 
     Raises
     ------
@@ -5328,126 +5239,6 @@ class DecompositionConfig:
         """
         ...
 
-def parametric_var_decomposition_typed(
-    position_ids: list[str],
-    weights: list[float],
-    covariance: list[list[float]] | npt.NDArray[np.float64],
-    confidence: float = 0.95,
-    compute_incremental: bool = False,
-) -> PositionRiskDecomposition:
-    """
-    Return a typed parametric VaR decomposition.
-
-    Parameters
-    ----------
-    position_ids : list[str]
-        Position identifiers aligned with weights and covariance rows/columns.
-    weights : list[float]
-        Decimal portfolio weights aligned one-for-one with ``position_ids``.
-    covariance : list[list[float]] or numpy.ndarray
-        Square covariance matrix aligned to ``position_ids`` in row and column
-        order, using returns at the selected risk horizon. C-contiguous
-        ``float64`` arrays use the direct buffer path.
-    confidence : float
-        VaR confidence as a decimal probability; defaults to ``0.95``.
-    compute_incremental : bool
-        Whether to include incremental VaR estimates for each position.
-
-    Returns
-    -------
-    PositionRiskDecomposition
-        Result of parametric var decomposition typed for the binding in the annotated representation.
-
-    Raises
-    ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import parametric_var_decomposition_typed
-    >>> callable(parametric_var_decomposition_typed)
-    True
-    """
-    ...
-
-def historical_var_decomposition_typed(
-    position_ids: list[str],
-    position_pnls: list[list[float]] | npt.NDArray[np.float64],
-    confidence: float = 0.95,
-) -> PositionRiskDecomposition:
-    """
-    Return a typed historical VaR decomposition.
-
-    Parameters
-    ----------
-    position_ids : list[str]
-        Position identifiers aligned with the P&L matrix columns.
-    position_pnls : list[list[float]] or numpy.ndarray
-        Position-major matrix shaped ``len(position_ids) x n_scenarios``.
-        C-contiguous ``float64`` arrays use the direct buffer path.
-    confidence : float
-        VaR confidence as a decimal probability; defaults to ``0.95``.
-
-    Returns
-    -------
-    PositionRiskDecomposition
-        Result of historical var decomposition typed for the binding in the annotated representation.
-
-    Raises
-    ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import historical_var_decomposition_typed
-    >>> callable(historical_var_decomposition_typed)
-    True
-    """
-    ...
-
-def evaluate_risk_budget_typed(
-    position_ids: list[str],
-    actual_var: list[float],
-    target_var_pct: list[float],
-    portfolio_var: float,
-    utilization_threshold: float = 1.20,
-) -> RiskBudgetResult:
-    """
-    Return a typed comparison of actual and target risk budgets.
-
-    Parameters
-    ----------
-    position_ids : list[str]
-        Position identifiers aligned with all per-position risk vectors.
-    actual_var : list[float]
-        Actual component VaR amounts aligned with ``position_ids``.
-    target_var_pct : list[float]
-        Target decimal shares of total portfolio VaR for each position.
-    portfolio_var : float
-        Total portfolio VaR used to convert target shares into amounts.
-    utilization_threshold : float
-        Actual-to-target ratio that flags a budget breach; defaults to ``1.20``.
-
-    Returns
-    -------
-    RiskBudgetResult
-        Result of evaluate risk budget typed for the binding in the annotated representation.
-
-    Raises
-    ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import evaluate_risk_budget_typed
-    >>> callable(evaluate_risk_budget_typed)
-    True
-    """
-    ...
-
 def factor_stress(
     portfolio: Portfolio | str,
     market: MarketContext | str,
@@ -8123,17 +7914,6 @@ class PortfolioOptimizationResult:
         ...
 
     @property
-    def dual_values(self) -> dict[str, float]:
-        """
-        Dual values by constraint label when available.
-        Returns
-        -------
-        dict[str, float]
-            The dual values exposed by this `PortfolioOptimizationResult`.
-        """
-        ...
-
-    @property
     def constraint_slacks(self) -> dict[str, float]:
         """
         Constraint slack values by constraint label.
@@ -8192,15 +7972,12 @@ class PortfolioOptimizationResult:
         """
         ...
 
-def optimize_portfolio_typed(
+def optimize_portfolio(
     spec: PortfolioOptimizationSpec,
     market: MarketContext | str,
 ) -> PortfolioOptimizationResult:
     """
-    Typed sibling of :func:`optimize_portfolio`.
-
-    Accepts a typed :class:`PortfolioOptimizationSpec` and returns a typed
-    :class:`PortfolioOptimizationResult` rather than JSON strings.
+    Optimize portfolio weights using the LP-based optimizer.
 
     Parameters
     ----------
@@ -8212,7 +7989,7 @@ def optimize_portfolio_typed(
     Returns
     -------
     PortfolioOptimizationResult
-        Result of optimize portfolio typed for the binding in the annotated representation.
+        Typed optimal weights, trades, constraint values, and diagnostics.
 
     Raises
     ------
@@ -8221,8 +7998,8 @@ def optimize_portfolio_typed(
 
     Examples
     --------
-    >>> from finstack_quant.portfolio import optimize_portfolio_typed
-    >>> callable(optimize_portfolio_typed)
+    >>> from finstack_quant.portfolio import optimize_portfolio
+    >>> callable(optimize_portfolio)
     True
     """
     ...
@@ -8461,38 +8238,38 @@ def compute_factor_sensitivities(
     bump_config_json: str | None = None,
 ) -> SensitivityMatrix:
     """
-    Compute first-order factor sensitivities using central finite differences.
+        Compute first-order factor sensitivities using central finite differences.
 
-    Parameters
-    ----------
-    positions_json : str
-        JSON array of position objects, each with ``id`` (str),
-        ``instrument`` (tagged instrument JSON), and ``weight`` (float).
-    factors_json : str
-        JSON array of ``FactorDefinition`` objects.
-    market : MarketContext or str
-        ``MarketContext`` instance or JSON string.
-    as_of : str
-        Valuation date in ISO 8601 format.
-    bump_config_json : str, optional
-        Optional JSON-serialized ``BumpSizeConfig``.
-        Defaults to 1 bp / 1 % per factor type.
+        Parameters
+        ----------
+        positions_json : str
+            JSON array of position objects, each with ``id`` (str),
+    ``instrument`` (canonical v1 instrument envelope), and ``weight`` (float).
+        factors_json : str
+            JSON array of ``FactorDefinition`` objects.
+        market : MarketContext or str
+            ``MarketContext`` instance or JSON string.
+        as_of : str
+            Valuation date in ISO 8601 format.
+        bump_config_json : str, optional
+            Optional JSON-serialized ``BumpSizeConfig``.
+            Defaults to 1 bp / 1 % per factor type.
 
-    Returns
-    -------
-    SensitivityMatrix
-        Positions-by-factors delta matrix.
+        Returns
+        -------
+        SensitivityMatrix
+            Positions-by-factors delta matrix.
 
-    Examples
-    --------
-    >>> from finstack_quant.portfolio import compute_factor_sensitivities
-    >>> matrix = compute_factor_sensitivities(pos_json, fac_json, mkt_json, "2025-01-15")  # doctest: +SKIP
-    >>> matrix.to_dataframe()  # doctest: +SKIP
+        Examples
+        --------
+        >>> from finstack_quant.portfolio import compute_factor_sensitivities
+        >>> matrix = compute_factor_sensitivities(pos_json, fac_json, mkt_json, "2025-01-15")  # doctest: +SKIP
+        >>> matrix.to_dataframe()  # doctest: +SKIP
 
-    Raises
-    ------
-    PortfolioError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        Raises
+        ------
+        PortfolioError
+            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
     """
     ...
 

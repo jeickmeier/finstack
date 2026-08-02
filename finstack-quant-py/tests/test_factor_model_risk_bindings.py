@@ -35,19 +35,19 @@ def _market_and_positions() -> tuple[MarketContext, str]:
         "type": "bond",
         "spec": {
             "id": "BOND-5Y",
-            "notional": {"amount": 1_000_000.0, "currency": "USD"},
+            "notional": {"amount": "1000000", "currency": "USD"},
             "issue_date": "2025-01-15",
             "maturity": "2030-01-15",
             "discount_curve_id": "USD-OIS",
             "cashflow_spec": {
-                "Fixed": {
-                    "coupon_type": "Cash",
-                    "rate": 0.05,
-                    "freq": {"count": 6, "unit": "months"},
-                    "dc": "Thirty360",
-                    "bdc": "following",
+                "fixed": {
+                    "coupon_type": "cash",
+                    "rate": "0.05",
+                    "frequency": {"count": 6, "unit": "months"},
+                    "day_count": "30_360",
+                    "business_day_convention": "following",
                     "calendar_id": "weekends_only",
-                    "stub": "None",
+                    "stub": "none",
                     "end_of_month": False,
                     "payment_lag_days": 0,
                 }
@@ -55,7 +55,16 @@ def _market_and_positions() -> tuple[MarketContext, str]:
             "attributes": {},
         },
     }
-    positions_json = json.dumps([{"id": "bond_5y", "instrument": bond, "weight": 1.0}])
+    positions_json = json.dumps([
+        {
+            "id": "bond_5y",
+            "instrument": {
+                "schema": "finstack_quant.instrument/1",
+                "instrument": bond,
+            },
+            "weight": 1.0,
+        }
+    ])
     return mc, positions_json
 
 

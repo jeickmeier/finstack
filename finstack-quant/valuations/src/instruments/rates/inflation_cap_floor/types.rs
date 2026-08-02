@@ -87,12 +87,12 @@ impl std::str::FromStr for InflationCapFloorType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
+        match s {
             "cap" => Ok(InflationCapFloorType::Cap),
             "floor" => Ok(InflationCapFloorType::Floor),
             "caplet" => Ok(InflationCapFloorType::Caplet),
             "floorlet" => Ok(InflationCapFloorType::Floorlet),
-            other => Err(format!("Unknown inflation option type: {}", other)),
+            _ => Err(format!("Unknown inflation option type: {s}")),
         }
     }
 }
@@ -103,7 +103,9 @@ impl std::str::FromStr for InflationCapFloorType {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct InflationCapFloor {
@@ -114,12 +116,16 @@ pub struct InflationCapFloor {
     /// Notional amount in quote currency.
     pub notional: Money,
     /// Strike (annualized, decimal).
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub strike: Decimal,
     /// Start date of the first inflation period.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// End date of the final inflation period.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Payment frequency (ignored for caplet/floorlet).
     pub frequency: Tenor,
@@ -132,7 +138,7 @@ pub struct InflationCapFloor {
     /// Business day convention for schedule and payments.
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional holiday calendar identifier.
     #[builder(optional)]
     pub calendar_id: Option<String>,
@@ -143,17 +149,26 @@ pub struct InflationCapFloor {
     /// Volatility surface identifier.
     pub vol_surface_id: CurveId,
     /// Pricing overrides (implied volatility, surface extrapolation).
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Optional contract-level lag override.
     #[builder(optional)]
@@ -210,7 +225,7 @@ impl InflationCapFloor {
             .frequency(Tenor::annual())
             .day_count(DayCount::Act365F)
             .stub(StubKind::ShortFront)
-            .bdc(BusinessDayConvention::ModifiedFollowing)
+            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
             .inflation_index_id(CurveId::new("US-CPI"))
             .discount_curve_id(CurveId::new("USD-OIS"))
             .vol_surface_id(CurveId::new("USD-INFL-VOL"))
@@ -323,7 +338,7 @@ impl InflationCapFloor {
         ) {
             let pay = crate::cashflow::builder::calendar::adjust_date(
                 self.maturity,
-                self.bdc,
+                self.business_day_convention,
                 self.calendar_id
                     .as_deref()
                     .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),
@@ -337,7 +352,7 @@ impl InflationCapFloor {
                 end: self.maturity,
                 frequency: self.frequency,
                 stub: self.stub,
-                bdc: self.bdc,
+                business_day_convention: self.business_day_convention,
                 calendar_id: self
                     .calendar_id
                     .as_deref()
@@ -407,9 +422,7 @@ impl InflationCapFloor {
             let accrual = self
                 .day_count
                 .year_fraction(start, end, DayCountContext::default())?;
-            if accrual <= 0.0 {
-                continue;
-            }
+            validation::validate_f64_positive(accrual, "YoY inflation accrual year fraction")?;
 
             // CPI values are validated inside cpi_value()
             let cpi_start = self.cpi_value(curves, as_of, start)?;
@@ -487,7 +500,7 @@ impl InflationCapFloor {
                     atm_sigma,
                     self.inflation_nominal_correlation,
                     self.nominal_rate_volatility,
-                )
+                )?
             } else {
                 deterministic_rate
             };
@@ -597,8 +610,15 @@ impl InflationCapFloorBuilder {
 ///
 /// # Returns
 ///
-/// The convexity/timing-adjusted **annualized** YoY rate, ready for Black-76 /
-/// Bachelier: `(deterministic_ratio · exp(C) − 1) / accrual`.
+/// Returns the convexity/timing-adjusted **annualized** YoY rate, ready for
+/// Black-76 / Bachelier:
+/// `(deterministic_ratio · exp(C) − 1) / accrual`.
+///
+/// # Errors
+///
+/// Returns an error when `accrual` or `deterministic_ratio` is non-finite or
+/// non-positive. Annualizing by such an accrual is undefined, and a forward
+/// CPI ratio must be strictly positive.
 ///
 /// # References
 ///
@@ -612,10 +632,10 @@ pub fn yoy_convexity_adjusted_rate(
     inflation_vol: f64,
     nominal_correlation: Option<f64>,
     nominal_rate_vol: Option<f64>,
-) -> f64 {
-    if accrual <= 0.0 || !deterministic_ratio.is_finite() {
-        return (deterministic_ratio - 1.0) / accrual.max(f64::MIN_POSITIVE);
-    }
+) -> finstack_quant_core::Result<f64> {
+    validation::validate_f64_positive(accrual, "YoY inflation accrual year fraction")?;
+    validation::validate_f64_positive(deterministic_ratio, "YoY deterministic CPI ratio")?;
+
     let sigma_i = inflation_vol.max(0.0);
     // Timing term coefficient ρ·σ_n; absent unless both parameters supplied.
     let rho_sigma_n = match (nominal_correlation, nominal_rate_vol) {
@@ -625,7 +645,7 @@ pub fn yoy_convexity_adjusted_rate(
     // Leading-order JY correction C = σ_I·(σ_I − ρ·σ_n)·τ.
     let correction = sigma_i * (sigma_i - rho_sigma_n) * accrual;
     let adjusted_ratio = deterministic_ratio * correction.exp();
-    (adjusted_ratio - 1.0) / accrual
+    Ok((adjusted_ratio - 1.0) / accrual)
 }
 
 impl crate::instruments::common_impl::traits::Instrument for InflationCapFloor {
@@ -712,7 +732,8 @@ mod yoy_convexity_tests {
 
         let deterministic = (ratio - 1.0) / accrual;
         // No correlation/nominal vol -> pure Jensen convexity σ_I²·τ.
-        let adjusted = yoy_convexity_adjusted_rate(ratio, accrual, sigma_i, None, None);
+        let adjusted = yoy_convexity_adjusted_rate(ratio, accrual, sigma_i, None, None)
+            .expect("positive finite YoY inputs");
 
         assert!(
             adjusted > deterministic,
@@ -737,9 +758,11 @@ mod yoy_convexity_tests {
         let accrual = 1.0_f64;
         let sigma_i = 0.015_f64;
 
-        let jensen_only = yoy_convexity_adjusted_rate(ratio, accrual, sigma_i, None, None);
+        let jensen_only = yoy_convexity_adjusted_rate(ratio, accrual, sigma_i, None, None)
+            .expect("positive finite YoY inputs");
         let with_timing =
-            yoy_convexity_adjusted_rate(ratio, accrual, sigma_i, Some(0.40), Some(0.010));
+            yoy_convexity_adjusted_rate(ratio, accrual, sigma_i, Some(0.40), Some(0.010))
+                .expect("positive finite YoY inputs");
 
         assert!(
             with_timing < jensen_only,
@@ -752,13 +775,29 @@ mod yoy_convexity_tests {
         assert!(with_timing > deterministic);
     }
 
-    /// Degenerate guard: a non-positive accrual must not panic.
     #[test]
-    fn zero_accrual_is_handled() {
-        let r = yoy_convexity_adjusted_rate(1.02, 0.0, 0.015, None, None);
-        assert!(
-            r.is_finite() || r.is_infinite(),
-            "must not panic on zero accrual"
-        );
+    fn non_positive_and_non_finite_accruals_are_rejected() {
+        for (label, accrual) in [("zero", 0.0), ("negative", -0.25), ("NaN", f64::NAN)] {
+            let error = yoy_convexity_adjusted_rate(1.02, accrual, 0.015, None, None)
+                .expect_err("invalid accrual must fail");
+            assert!(
+                error
+                    .to_string()
+                    .contains("YoY inflation accrual year fraction"),
+                "{label} accrual returned the wrong error: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn non_positive_and_non_finite_cpi_ratios_are_rejected() {
+        for (label, ratio) in [("zero", 0.0), ("negative", -1.0), ("NaN", f64::NAN)] {
+            let error = yoy_convexity_adjusted_rate(ratio, 1.0, 0.015, None, None)
+                .expect_err("invalid deterministic CPI ratio must fail");
+            assert!(
+                error.to_string().contains("YoY deterministic CPI ratio"),
+                "{label} ratio returned the wrong error: {error}"
+            );
+        }
     }
 }

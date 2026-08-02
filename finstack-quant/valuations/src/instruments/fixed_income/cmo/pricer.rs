@@ -554,10 +554,10 @@ mod tests {
         let curve = market
             .get_discount(&cmo.discount_curve_id)
             .expect("discount curve");
-        let dc = curve.day_count();
+        let day_count = curve.day_count();
         let mut collateral_pv = 0.0;
         for cf in &collateral_cfs {
-            let years = dc
+            let years = day_count
                 .year_fraction(as_of, cf.payment_date, DayCountContext::default())
                 .expect("year fraction");
             let total = cf.interest + cf.scheduled_principal + cf.prepayment;

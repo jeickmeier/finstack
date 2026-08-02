@@ -10,7 +10,7 @@ Example::
     >>> r = Rate(0.05)
     >>> r.as_percent
     5.0
-    >>> r.as_bps
+    >>> r.as_bp
     500
     >>> Bps(250).as_decimal
     0.025
@@ -61,7 +61,7 @@ class Rate:
     >>> r = Rate(0.05)
     >>> r.as_percent
     5.0
-    >>> r.as_bps
+    >>> r.as_bp
     500
     >>> Rate.from_percent(5.0) == r
     True
@@ -115,19 +115,19 @@ class Rate:
         ...
 
     @classmethod
-    def from_bps(cls, bps: int) -> Rate:
+    def from_bp(cls, bp: int) -> Rate:
         """
         Build from an integer basis-point amount.
 
         Parameters
         ----------
-        bps : int
+        bp : int
             Basis points (e.g. ``500`` for 5%).
 
         Returns
         -------
         Rate
-            Result of from bps for this `Rate` in the annotated representation.
+            Result of from bp for this `Rate` in the annotated representation.
 
         Raises
         ------
@@ -137,7 +137,7 @@ class Rate:
         Examples
         --------
         >>> from finstack_quant.core.types import Rate
-        >>> callable(Rate.from_bps)
+        >>> callable(Rate.from_bp)
         True
         """
         ...
@@ -167,14 +167,14 @@ class Rate:
         ...
 
     @property
-    def as_bps(self) -> int:
+    def as_bp(self) -> int:
         """
         Rate rounded to the nearest basis point.
 
         Returns
         -------
         int
-            The as bps exposed by this `Rate`.
+            The as bp exposed by this `Rate`.
         """
         ...
 
@@ -202,13 +202,13 @@ class Bps:
 
     Parameters
     ----------
-    bps : float
+    bp : float
         Whole basis-point value.
 
     Raises
     ------
     ValueError
-        If *bps* is not finite or not a whole number of basis points. Use a
+        If *bp* is not finite or not a whole number of basis points. Use a
         decimal ``Rate`` or the JSON instrument path for sub-bp precision.
 
     Examples
@@ -216,26 +216,26 @@ class Bps:
     >>> from finstack_quant.core.types import Bps
     >>> Bps(250).as_decimal
     0.025
-    >>> Bps(100).as_bps
+    >>> Bps(100).as_bp
     100
     """
 
     ZERO: Bps
     """Zero basis points."""
 
-    def __init__(self, bps: float) -> None:
+    def __init__(self, bp: float) -> None:
         """
         Construct from a whole basis-point value.
 
         Parameters
         ----------
-        bps : float
+        bp : float
             Whole basis-point value.
 
         Raises
         ------
         ValueError
-            If *bps* is not finite or not a whole number of basis points.
+            If *bp* is not finite or not a whole number of basis points.
 
         Examples
         --------
@@ -263,7 +263,7 @@ class Bps:
         ...
 
     @property
-    def as_bps(self) -> int:
+    def as_bp(self) -> int:
         """
         Value as whole basis points.
 
@@ -271,10 +271,10 @@ class Bps:
         -------
         int
 
-            The as bps exposed by this `Bps`.
+            The as bp exposed by this `Bps`.
         Examples
         --------
-        >>> Bps(250).as_bps
+        >>> Bps(250).as_bp
         250
         """
         ...

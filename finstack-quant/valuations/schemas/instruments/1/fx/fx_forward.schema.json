@@ -1,8 +1,140 @@
 {
+  "$defs": {
+    "FxForward": {
+      "additionalProperties": false,
+      "description": "FX forward (outright forward) instrument.\n\nRepresents a commitment to exchange one currency for another at a specified\nfuture date at a predetermined rate. The position is long base currency\n(foreign) and short quote currency (domestic).\n\n# Pricing\n\nForward value is calculated using covered interest rate parity:\n```text\nF_market = S × DF_foreign(T) / DF_domestic(T)\nPV = notional × (F_market - F_contract) × DF_domestic(T)\n```\nwhere:\n- S = spot FX rate (from FxMatrix or spot_rate_override)\n- DF_foreign(T) = discount factor in base currency to maturity\n- DF_domestic(T) = discount factor in quote currency to maturity\n- F_contract = contract_rate (if provided, else F_market for at-market forward)\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::fx::fx_forward::FxForward;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::Date;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\nlet forward = FxForward::builder()\n    .id(InstrumentId::new(\"EURUSD-FWD-6M\"))\n    .base_currency(Currency::EUR)\n    .quote_currency(Currency::USD)\n    .maturity(Date::from_calendar_date(2025, Month::June, 15).unwrap())\n    .notional(Money::new(1_000_000.0, Currency::EUR))\n    .domestic_discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .foreign_discount_curve_id(CurveId::new(\"EUR-OIS\"))\n    .build()\n    .expect(\"Valid forward\");\n```",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging."
+        },
+        "base_calendar_id": {
+          "default": null,
+          "description": "Optional base currency calendar for business day adjustment.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "base_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency (foreign currency, numerator of the pair)."
+        },
+        "contract_rate": {
+          "default": null,
+          "description": "Contract forward rate (quote per base). If None, valued at-market.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "domestic_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Domestic (quote currency) discount curve ID."
+        },
+        "foreign_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Foreign (base currency) discount curve ID."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "default": {},
+          "description": "Per-instrument pricing/sensitivity override knobs."
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Maturity/settlement date."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "default": {
+            "mc_seed_scenario": null,
+            "theta_period": null
+          }
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount in base currency."
+        },
+        "quote_calendar_id": {
+          "default": null,
+          "description": "Optional quote currency calendar for business day adjustment.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quote_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Quote currency (domestic currency, denominator of the pair, PV currency)."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "default": {}
+        },
+        "spot_rate_override": {
+          "default": null,
+          "description": "Optional spot rate override (quote per base). If None, source from FxMatrix.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "base_currency",
+        "quote_currency",
+        "maturity",
+        "notional",
+        "domestic_discount_curve_id",
+        "foreign_discount_curve_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "fx_forward": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/FxForward"
+            },
+            "type": {
+              "const": "fx_forward",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_forward.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "FX forward (outright forward) using covered interest rate parity pricing",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -25,27 +157,6 @@
             "amount": "1000000",
             "currency": "EUR"
           },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quote_currency": "USD"
         },
         "type": "fx_forward"
@@ -55,134 +166,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Fx Forward instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "base_calendar_id": {
-              "description": "Optional base currency calendar for business day adjustment.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "base_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency (foreign currency, numerator of the pair)."
-            },
-            "contract_rate": {
-              "description": "Contract forward rate (quote per base). If None, valued at-market.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "domestic_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Domestic (quote currency) discount curve ID."
-            },
-            "foreign_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Foreign (base currency) discount curve ID."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "maturity": {
-              "description": "Maturity/settlement date.",
-              "format": "date",
-              "type": "string"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount in base currency."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for tagging and selection.\nInstrument-owned pricing inputs."
-            },
-            "quote_calendar_id": {
-              "description": "Optional quote currency calendar for business day adjustment.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "quote_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Quote currency (domestic currency, denominator of the pair, PV currency)."
-            },
-            "spot_rate_override": {
-              "description": "Optional spot rate override (quote per base). If None, source from FxMatrix.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "id",
-            "base_currency",
-            "quote_currency",
-            "maturity",
-            "notional",
-            "domestic_discount_curve_id",
-            "foreign_discount_curve_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "fx_forward",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/fx_forward"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "FX Forward",
+  "title": "fx_forward",
   "type": "object"
 }

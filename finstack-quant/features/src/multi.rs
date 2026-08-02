@@ -1,4 +1,8 @@
 //! Multi-input feature transforms.
+//!
+//! Grouped cross-sectional ops, pairwise rolling statistics, OLS
+//! neutralization / residualization, and signal-to-weight helpers that operate
+//! on more than one aligned column.
 
 use crate::types::{bool_param, finite, usize_param, validate_lengths, ZERO_TOLERANCE};
 use crate::{transform_cross_sectional, CrossSectionalOp};
@@ -319,9 +323,6 @@ pub fn rolling_regression_residual(
 ///   cross-sections.
 /// * `volatility` - Row-aligned risk estimates; zero, missing, or non-finite
 ///   values produce missing output weights.
-/// * `_params` - Reserved JSON parameter object; it is accepted for pipeline
-///   compatibility and currently has no effect.
-///
 /// # Errors
 ///
 /// Returns a validation error when input lengths differ.
@@ -329,7 +330,6 @@ pub fn risk_scaled_weights(
     values: &[Option<f64>],
     time_key: &[String],
     volatility: &[Option<f64>],
-    _params: Option<&Value>,
 ) -> Result<Vec<Option<f64>>> {
     validate_lengths(
         values.len(),
@@ -426,17 +426,10 @@ pub fn normalize_signal(
 ///   normalization.
 /// * `time_key` - Row-aligned labels defining independently normalized
 ///   cross-sections.
-/// * `_params` - Reserved JSON parameter object; it is accepted for pipeline
-///   compatibility and currently has no effect.
-///
 /// # Errors
 ///
 /// Returns a validation error when input lengths differ.
-pub fn rank_to_weights(
-    values: &[Option<f64>],
-    time_key: &[String],
-    _params: Option<&Value>,
-) -> Result<Vec<Option<f64>>> {
+pub fn rank_to_weights(values: &[Option<f64>], time_key: &[String]) -> Result<Vec<Option<f64>>> {
     let ranks = transform_cross_sectional(values, time_key, "rank", None)?;
     demean_and_gross_normalize(&ranks, time_key)
 }

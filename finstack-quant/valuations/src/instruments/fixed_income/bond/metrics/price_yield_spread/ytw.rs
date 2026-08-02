@@ -68,7 +68,7 @@ impl MetricCalculator for YtwCalculator {
         let flows = if let Some(ref flows) = context.cashflows {
             flows
         } else {
-            let (discount_curve_id, dc, built) = {
+            let (discount_curve_id, day_count, built) = {
                 let bond: &Bond = context.instrument_as()?;
                 (
                     bond.discount_curve_id.to_owned(),
@@ -78,7 +78,7 @@ impl MetricCalculator for YtwCalculator {
             };
             context.cashflows = Some(built);
             context.discount_curve_id = Some(discount_curve_id);
-            context.day_count = Some(dc);
+            context.day_count = Some(day_count);
             context.cashflows.as_ref().ok_or_else(|| {
                 finstack_quant_core::Error::from(finstack_quant_core::InputError::NotFound {
                     id: "cashflows".to_string(),

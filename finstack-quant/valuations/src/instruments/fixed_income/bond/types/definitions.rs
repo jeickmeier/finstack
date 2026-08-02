@@ -42,19 +42,22 @@ pub struct BondSettlementConvention {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    schemars::JsonSchema,
 )]
-#[pricing_overrides(skip_deserialize)]
+#[schemars(deny_unknown_fields)]
 pub struct Bond {
     /// Unique identifier for the bond.
     pub id: InstrumentId,
     /// Principal amount of the bond.
     pub notional: Money,
     /// Issue date of the bond.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue_date: Date,
     /// Maturity date of the bond.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Cashflow specification (fixed, floating, or amortizing).
     pub cashflow_spec: CashflowSpec,
@@ -72,16 +75,25 @@ pub struct Bond {
     #[builder(default)]
     pub funding_curve_id: Option<CurveId>,
     /// Instrument-owned pricing inputs.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Optional call/put schedule (dates and redemption prices as % of par amount).
     pub call_put: Option<CallPutSchedule>,
@@ -106,7 +118,7 @@ pub struct Bond {
     /// For inflation-linked bonds (TIPS, UK Linkers), use the dedicated
     /// `InflationLinkedBond` instrument which handles index-ratio accrual.
     #[serde(default, skip_serializing_if = "is_linear_accrual_method")]
-    #[schemars(extend("default" = "Linear"))]
+    #[schemars(extend("default" = "linear"))]
     #[builder(default)]
     pub accrual_method: crate::cashflow::accrual::AccrualMethod,
     /// Attributes for scenario selection and tagging.
@@ -135,11 +147,12 @@ impl<'de> serde::Deserialize<'de> for Bond {
             credit_curve_id: Option<CurveId>,
             #[serde(default)]
             funding_curve_id: Option<CurveId>,
-            #[serde(
-                default,
-                deserialize_with = "crate::instruments::common_impl::parameters::deserialize_null_default"
-            )]
-            pricing_overrides: crate::instruments::pricing_overrides::PricingOverridesWire,
+            #[serde(default)]
+            instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
+            #[serde(default)]
+            metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
+            #[serde(default)]
+            scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
             call_put: Option<CallPutSchedule>,
             #[serde(default)]
             return_floor: Option<super::return_floor::ReturnFloorSpec>,
@@ -194,9 +207,9 @@ impl<'de> serde::Deserialize<'de> for Bond {
             forward_curve_id: helper.forward_curve_id,
             credit_curve_id: helper.credit_curve_id,
             funding_curve_id: helper.funding_curve_id,
-            instrument_pricing_overrides: helper.pricing_overrides.instrument,
-            metric_pricing_overrides: helper.pricing_overrides.metrics,
-            scenario_pricing_overrides: helper.pricing_overrides.scenario,
+            instrument_pricing_overrides: helper.instrument_pricing_overrides,
+            metric_pricing_overrides: helper.metric_pricing_overrides,
+            scenario_pricing_overrides: helper.scenario_pricing_overrides,
             call_put: helper.call_put,
             return_floor: helper.return_floor,
             custom_cashflows: helper.custom_cashflows,
@@ -228,14 +241,17 @@ impl<'de> serde::Deserialize<'de> for Bond {
 /// };
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CallPut {
     /// First date when the option can be exercised.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Last date when the option can be exercised, inclusive.
     ///
     /// Use the same value as `start_date` for one-day/discrete exercise.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end_date: Date,
     /// Redemption price as percentage of par amount.
     pub price_pct_of_par: f64,
@@ -258,15 +274,16 @@ pub struct CallPut {
 ///
 /// # Industry Practice
 ///
-/// - Investment-grade corporates: typically Treasury + 25-50 bps
-/// - High-yield: typically Treasury + 50-100 bps
-/// - Convertibles: typically Treasury + 50 bps
+/// - Investment-grade corporates: typically Treasury + 25-50 bp
+/// - High-yield: typically Treasury + 50-100 bp
+/// - Convertibles: typically Treasury + 50 bp
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct MakeWholeSpec {
     /// Reference curve identifier (e.g., "USD-TREASURY").
     pub reference_curve_id: CurveId,
     /// Spread over the reference curve in basis points (e.g., 50.0 = T+50bps).
-    pub spread_bps: f64,
+    pub spread_bp: f64,
 }
 
 /// Schedule of call and put options for a bond.
@@ -290,6 +307,7 @@ pub struct MakeWholeSpec {
 /// });
 /// ```
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CallPutSchedule {
     /// Call options (issuer can redeem early).
     pub calls: Vec<CallPut>,
@@ -361,10 +379,10 @@ fn validate_call_put_entries(
             )));
         }
         if let Some(make_whole) = &entry.make_whole {
-            if !make_whole.spread_bps.is_finite() {
+            if !make_whole.spread_bp.is_finite() {
                 return Err(finstack_quant_core::Error::Validation(format!(
                     "{instrument_name} {side} make-whole spread must be finite, got {} for period [{}, {}]",
-                    make_whole.spread_bps, entry.start_date, entry.end_date
+                    make_whole.spread_bp, entry.start_date, entry.end_date
                 )));
             }
         }
@@ -396,32 +414,29 @@ mod return_floor_field_tests {
     }
 
     #[test]
-    fn focused_overrides_preserve_legacy_wire_shape() {
+    fn focused_overrides_use_canonical_wire_shape() {
         let mut bond = crate::instruments::fixed_income::bond::Bond::example().unwrap();
         bond.instrument_pricing_overrides.model_config.tree_steps = Some(321);
         bond.metric_pricing_overrides.mc_seed_scenario = Some("dv01_up".to_string());
         bond.scenario_pricing_overrides.scenario_spread_shock_bp = Some(12.5);
 
         let value = serde_json::to_value(&bond).expect("serialize focused overrides");
-        assert!(value.get("instrument_pricing_overrides").is_none());
-        assert!(value.get("metric_pricing_overrides").is_none());
-        assert!(value.get("scenario_pricing_overrides").is_none());
-        let wire = value
-            .get("pricing_overrides")
-            .and_then(serde_json::Value::as_object)
-            .expect("legacy pricing_overrides object");
-        assert_eq!(wire.get("tree_steps"), Some(&serde_json::json!(321)));
         assert_eq!(
-            wire.get("mc_seed_scenario"),
+            value.pointer("/instrument_pricing_overrides/model_config/tree_steps"),
+            Some(&serde_json::json!(321))
+        );
+        assert_eq!(
+            value.pointer("/metric_pricing_overrides/mc_seed_scenario"),
             Some(&serde_json::json!("dv01_up"))
         );
         assert_eq!(
-            wire.get("scenario_spread_shock_bp"),
+            value.pointer("/scenario_pricing_overrides/scenario_spread_shock_bp"),
             Some(&serde_json::json!(12.5))
         );
+        assert!(value.get("pricing_overrides").is_none());
 
         let roundtrip: crate::instruments::fixed_income::bond::Bond =
-            serde_json::from_value(value).expect("deserialize legacy wire");
+            serde_json::from_value(value).expect("deserialize canonical wire");
         assert_eq!(
             roundtrip
                 .instrument_pricing_overrides

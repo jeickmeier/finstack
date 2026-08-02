@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 /// Filters for selecting which positions are included in a rule.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum PositionFilter {
     /// All positions in the portfolio.
     All,

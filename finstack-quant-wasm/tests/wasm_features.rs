@@ -137,7 +137,7 @@ fn finance_specific_feature_ops_return_js_arrays() {
     let time_key =
         serde_wasm_bindgen::to_value(&vec!["2026-01-01", "2026-01-01"]).expect("time key");
     let volatility = serde_wasm_bindgen::to_value(&vec![Some(1.0), Some(2.0)]).expect("volatility");
-    let weights = risk_scaled_weights(values, time_key, volatility, None).expect("weights");
+    let weights = risk_scaled_weights(values, time_key, volatility).expect("weights");
     let weights: Vec<Option<f64>> = serde_wasm_bindgen::from_value(weights).expect("weights vec");
     assert_eq!(weights, vec![Some(0.5), Some(0.5)]);
 }
@@ -168,7 +168,7 @@ fn pipeline_helper_feature_ops_return_js_arrays() {
         serde_wasm_bindgen::to_value(&vec![Some(1.0), Some(2.0), Some(100.0)]).expect("values");
     let time_key = serde_wasm_bindgen::to_value(&vec!["2026-01-01", "2026-01-01", "2026-01-01"])
         .expect("time key");
-    let weights = rank_to_weights(values, time_key, None).expect("weights");
+    let weights = rank_to_weights(values, time_key).expect("weights");
     let weights: Vec<Option<f64>> = serde_wasm_bindgen::from_value(weights).expect("weights vec");
     assert_eq!(weights, vec![Some(-0.5), Some(0.0), Some(0.5)]);
 
@@ -205,6 +205,8 @@ fn transform_panel_returns_json_result() {
 
     let out = transform_panel(&spec.to_string()).expect("panel");
     let result: serde_json::Value = serde_json::from_str(&out).expect("panel JSON");
-    assert!((result["columns"]["ret1"][1].as_f64().expect("ret1") - 0.2).abs() < 1e-12);
-    assert_eq!(result["columns"]["rank"][2], 1.0);
+    assert_eq!(result["columns"][0]["name"], "ret1");
+    assert!((result["columns"][0]["values"][1].as_f64().expect("ret1") - 0.2).abs() < 1e-12);
+    assert_eq!(result["columns"][1]["name"], "rank");
+    assert_eq!(result["columns"][1]["values"][2], 1.0);
 }

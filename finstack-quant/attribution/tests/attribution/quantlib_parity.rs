@@ -335,7 +335,7 @@ fn build_irs(
         rate: f64_to_decimal(fixed_rate).expect("fixed rate decimal"),
         frequency: Tenor::semi_annual(),
         day_count: DC::Thirty360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: Some("usny".to_string()),
         stub: StubKind::None,
         start,
@@ -351,7 +351,7 @@ fn build_irs(
         spread_bp: Decimal::ZERO,
         frequency: Tenor::quarterly(),
         day_count: DC::Act360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: Some("usny".to_string()),
         stub: StubKind::None,
         reset_lag_days: 0,
@@ -504,9 +504,9 @@ struct FxForwardFixture {
 
 #[derive(Debug, Deserialize)]
 struct FxForwardSpec {
-    base_ccy: String,
-    quote_ccy: String,
-    notional_base_ccy: f64,
+    base_currency: String,
+    quote_currency: String,
+    notional_base_currency: f64,
     maturity_date: String,
     strike: f64,
 }
@@ -584,8 +584,8 @@ fn quantlib_parity_metrics_based_fx_forward_attribution() {
     let fixture: FxForwardFixture = load_fixture("fx_forward_1y_eurusd.json");
     assert_eq!(fixture.instrument, "FxForward");
     assert_eq!(fixture.currency, "USD");
-    assert_eq!(fixture.spec.base_ccy, "EUR");
-    assert_eq!(fixture.spec.quote_ccy, "USD");
+    assert_eq!(fixture.spec.base_currency, "EUR");
+    assert_eq!(fixture.spec.quote_currency, "USD");
 
     let t0 = parse_iso_date(&fixture.scenario.t0);
     let t1 = parse_iso_date(&fixture.scenario.t1);
@@ -598,7 +598,10 @@ fn quantlib_parity_metrics_based_fx_forward_attribution() {
         .base_currency(Currency::EUR)
         .quote_currency(Currency::USD)
         .maturity(maturity)
-        .notional(Money::new(fixture.spec.notional_base_ccy, Currency::EUR))
+        .notional(Money::new(
+            fixture.spec.notional_base_currency,
+            Currency::EUR,
+        ))
         .domestic_discount_curve_id(finstack_quant_core::types::CurveId::new("USD-OIS"))
         .foreign_discount_curve_id(finstack_quant_core::types::CurveId::new("EUR-OIS"))
         .contract_rate_opt(Some(fixture.spec.strike))

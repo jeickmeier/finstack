@@ -76,7 +76,8 @@ fn create_monthly_swap(tenor_years: i32) -> InterestRateSwap {
             rate: dec!(0.04),
             frequency: Tenor::new(1, TenorUnit::Months), // Monthly fixed
             day_count: finstack_quant_core::dates::DayCount::Act360,
-            bdc: finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+            business_day_convention:
+                finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: finstack_quant_core::dates::StubKind::None,
             start,
@@ -92,7 +93,8 @@ fn create_monthly_swap(tenor_years: i32) -> InterestRateSwap {
             spread_bp: dec!(0.0),
             frequency: Tenor::new(1, TenorUnit::Months), // Monthly float
             day_count: finstack_quant_core::dates::DayCount::Act360,
-            bdc: finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+            business_day_convention:
+                finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: finstack_quant_core::dates::StubKind::None,
             reset_lag_days: 2,
@@ -124,7 +126,8 @@ fn create_ois_swap(tenor_years: i32) -> InterestRateSwap {
             rate: dec!(0.04),
             frequency: Tenor::new(1, TenorUnit::Years), // Annual fixed
             day_count: finstack_quant_core::dates::DayCount::Act360,
-            bdc: finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+            business_day_convention:
+                finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: finstack_quant_core::dates::StubKind::None,
             start,
@@ -140,7 +143,8 @@ fn create_ois_swap(tenor_years: i32) -> InterestRateSwap {
             spread_bp: dec!(0.0),
             frequency: Tenor::new(1, TenorUnit::Years), // Annual payment with daily compounding
             day_count: finstack_quant_core::dates::DayCount::Act360,
-            bdc: finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+            business_day_convention:
+                finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
             calendar_id: None,
             stub: finstack_quant_core::dates::StubKind::None,
             reset_lag_days: 0,
@@ -323,12 +327,44 @@ fn bench_swap_par_rate(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark the combined market-standard metric request used by IRS callers.
+fn swap_standard_metrics(c: &mut Criterion) {
+    let mut group = c.benchmark_group("swap_standard_metrics");
+    group.sample_size(30);
+    let market = create_market();
+    let as_of = Date::from_calendar_date(2025, Month::January, 1).unwrap();
+    let swap = create_swap(5);
+    let metrics = [
+        MetricId::PvFixed,
+        MetricId::PvFloat,
+        MetricId::ParRate,
+        MetricId::Dv01,
+    ];
+
+    group.bench_function("5Y", |b| {
+        b.iter(|| {
+            let result = swap
+                .price_with_metrics(
+                    black_box(&market),
+                    black_box(as_of),
+                    black_box(&metrics),
+                    finstack_quant_valuations::instruments::PricingOptions::default(),
+                )
+                .expect("standard IRS metrics should price successfully");
+            black_box(result)
+        });
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_swap_pv,
     bench_swap_pv_kahan_stress,
     bench_ois_pv,
     bench_swap_dv01,
-    bench_swap_par_rate
+    bench_swap_par_rate,
+    swap_standard_metrics
 );
 criterion_main!(benches);

@@ -5,11 +5,11 @@
     "spread_bp": "200.0",
     "gearing": "1.0",
     "gearing_includes_spread": true,
-    "floor_bp": "0.0",
+    "index_floor_bp": "0.0",
     "all_in_floor_bp": null,
-    "cap_bp": null,
+    "all_in_cap_bp": null,
     "index_cap_bp": null,
-    "reset_freq": {
+    "reset_frequency": {
       "count": 3,
       "unit": "months"
     },

@@ -22,6 +22,7 @@ use std::fmt;
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum MarginCallType {
     /// Initial margin posting requirement
@@ -54,8 +55,8 @@ impl fmt::Display for MarginCallType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MarginCallType::InitialMargin => write!(f, "initial_margin"),
-            MarginCallType::VariationMarginDelivery => write!(f, "vm_delivery"),
-            MarginCallType::VariationMarginReturn => write!(f, "vm_return"),
+            MarginCallType::VariationMarginDelivery => write!(f, "variation_margin_delivery"),
+            MarginCallType::VariationMarginReturn => write!(f, "variation_margin_return"),
             MarginCallType::TopUp => write!(f, "top_up"),
             MarginCallType::Substitution => write!(f, "substitution"),
         }
@@ -66,16 +67,12 @@ impl std::str::FromStr for MarginCallType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().replace('-', "_").as_str() {
-            "initial_margin" | "im" => Ok(MarginCallType::InitialMargin),
-            "vm_delivery" | "vmdelivery" | "variation_margin_delivery" => {
-                Ok(MarginCallType::VariationMarginDelivery)
-            }
-            "vm_return" | "vmreturn" | "variation_margin_return" => {
-                Ok(MarginCallType::VariationMarginReturn)
-            }
-            "top_up" | "topup" => Ok(MarginCallType::TopUp),
-            "substitution" | "sub" => Ok(MarginCallType::Substitution),
+        match s {
+            "initial_margin" => Ok(MarginCallType::InitialMargin),
+            "variation_margin_delivery" => Ok(MarginCallType::VariationMarginDelivery),
+            "variation_margin_return" => Ok(MarginCallType::VariationMarginReturn),
+            "top_up" => Ok(MarginCallType::TopUp),
+            "substitution" => Ok(MarginCallType::Substitution),
             other => Err(format!("Unknown margin call type: {}", other)),
         }
     }
@@ -89,11 +86,11 @@ impl std::str::FromStr for MarginCallType {
 #[serde(deny_unknown_fields)]
 pub struct MarginCall {
     /// Date the margin call is issued
-    #[schemars(with = "String")]
+    #[schemars(with = "String", extend("format" = "date"))]
     pub call_date: Date,
 
     /// Settlement date for the margin transfer
-    #[schemars(with = "String")]
+    #[schemars(with = "String", extend("format" = "date"))]
     pub settlement_date: Date,
 
     /// Type of margin call
@@ -222,8 +219,17 @@ mod tests {
         assert_eq!(MarginCallType::InitialMargin.to_string(), "initial_margin");
         assert_eq!(
             MarginCallType::VariationMarginDelivery.to_string(),
-            "vm_delivery"
+            "variation_margin_delivery"
         );
+        assert_eq!(
+            "variation_margin_return"
+                .parse::<MarginCallType>()
+                .expect("canonical margin call type"),
+            MarginCallType::VariationMarginReturn
+        );
+        for noncanonical in ["vm_delivery", "IM", "topup", "variation-margin-return"] {
+            assert!(noncanonical.parse::<MarginCallType>().is_err());
+        }
     }
 
     #[test]

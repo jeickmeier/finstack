@@ -31,10 +31,10 @@ impl std::str::FromStr for OptionType {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "call" | "buy" | "buy_protection" => Ok(OptionType::Call),
-            "put" | "sell" | "sell_protection" => Ok(OptionType::Put),
-            other => Err(format!("Unknown option type: {}", other)),
+        match s {
+            "call" => Ok(OptionType::Call),
+            "put" => Ok(OptionType::Put),
+            _ => Err(format!("Unknown option type: {s}")),
         }
     }
 }
@@ -68,11 +68,11 @@ impl std::str::FromStr for ExerciseStyle {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
+        match s {
             "european" => Ok(ExerciseStyle::European),
             "american" => Ok(ExerciseStyle::American),
             "bermudan" => Ok(ExerciseStyle::Bermudan),
-            other => Err(format!("Unknown exercise style: {}", other)),
+            _ => Err(format!("Unknown exercise style: {s}")),
         }
     }
 }
@@ -100,16 +100,17 @@ impl std::str::FromStr for SettlementType {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
+        match s {
             "physical" => Ok(SettlementType::Physical),
             "cash" => Ok(SettlementType::Cash),
-            other => Err(format!("Unknown settlement type: {}", other)),
+            _ => Err(format!("Unknown settlement type: {s}")),
         }
     }
 }
 
 /// Credit parameters for CDS instruments
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CreditParams {
     /// Reference entity (issuer being protected)
     pub reference_entity: String,
@@ -192,10 +193,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn enum_parsing_display_and_position_sign_cover_aliases() {
+    fn enum_parsing_and_display_use_canonical_values() {
         assert_eq!(OptionType::Call.to_string(), "call");
-        assert_eq!("buy".parse::<OptionType>(), Ok(OptionType::Call));
-        assert_eq!("sell_protection".parse::<OptionType>(), Ok(OptionType::Put));
+        assert_eq!("call".parse::<OptionType>(), Ok(OptionType::Call));
+        assert_eq!("put".parse::<OptionType>(), Ok(OptionType::Put));
+        assert!("buy".parse::<OptionType>().is_err());
+        assert!("sell_protection".parse::<OptionType>().is_err());
         assert!("weird".parse::<OptionType>().is_err());
 
         assert_eq!(ExerciseStyle::default(), ExerciseStyle::European);

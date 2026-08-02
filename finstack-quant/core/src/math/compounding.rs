@@ -66,7 +66,8 @@ use std::num::NonZeroU32;
 ///
 /// For positive rates and t > 0: `r_simple > r_annual > r_continuous`
 /// (less frequent compounding requires a higher quoted rate for the same DF).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum Compounding {
     /// Continuous compounding: r = -ln(DF) / t
     ///
@@ -317,23 +318,19 @@ impl Compounding {
     }
 }
 
-impl crate::parse::NormalizedEnum for Compounding {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("continuous", Self::Continuous),
-        ("simple", Self::Simple),
-        ("annual", Self::Annual),
-        ("semi_annual", Self::SEMI_ANNUAL),
-        ("semiannual", Self::SEMI_ANNUAL),
-        ("quarterly", Self::QUARTERLY),
-        ("monthly", Self::MONTHLY),
-    ];
-}
-
 impl std::str::FromStr for Compounding {
     type Err = crate::error::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s).map_err(|_| crate::error::InputError::Invalid.into())
+        match s {
+            "continuous" => Ok(Self::Continuous),
+            "simple" => Ok(Self::Simple),
+            "annual" => Ok(Self::Annual),
+            "semi_annual" => Ok(Self::SEMI_ANNUAL),
+            "quarterly" => Ok(Self::QUARTERLY),
+            "monthly" => Ok(Self::MONTHLY),
+            _ => Err(crate::error::InputError::Invalid.into()),
+        }
     }
 }
 
@@ -759,10 +756,6 @@ mod tests {
     fn compounding_fromstr_display_roundtrip() {
         use std::str::FromStr;
 
-        fn assert_parses_to(label: &str, expected: Compounding) {
-            assert!(matches!(Compounding::from_str(label), Ok(value) if value == expected));
-        }
-
         let variants = [
             Compounding::Continuous,
             Compounding::Simple,
@@ -776,9 +769,9 @@ mod tests {
             let parsed = Compounding::from_str(&s).expect("roundtrip parse should succeed");
             assert_eq!(v, parsed, "roundtrip failed for {s}");
         }
-        // Test aliases
-        assert_parses_to("semiannual", Compounding::SEMI_ANNUAL);
-        assert_parses_to("Semi-Annual", Compounding::SEMI_ANNUAL);
+        for rejected in ["semiannual", "Semi-Annual", " semi_annual", "SEMI_ANNUAL"] {
+            assert!(Compounding::from_str(rejected).is_err());
+        }
         assert!(Compounding::from_str("invalid").is_err());
     }
 }

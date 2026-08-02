@@ -46,9 +46,9 @@ fn test_schedule_discountable_simple() {
     let issue = dates::TODAY;
     let maturity = Date::from_calendar_date(2025, Month::July, 1).unwrap();
     let params = ScheduleParams {
-        freq: Tenor::quarterly(),
-        dc: DayCount::Act365F,
-        bdc: BusinessDayConvention::Following,
+        frequency: Tenor::quarterly(),
+        day_count: DayCount::Act365F,
+        business_day_convention: BusinessDayConvention::Following,
         calendar_id: "weekends_only".to_string(),
         stub: StubKind::None,
         end_of_month: false,
@@ -60,11 +60,11 @@ fn test_schedule_discountable_simple() {
         coupon_type: CouponType::Cash,
         rate: dec!(0.05),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: params.freq,
+            frequency: params.frequency,
 
-            dc: params.dc,
+            day_count: params.day_count,
 
-            bdc: params.bdc,
+            business_day_convention: params.business_day_convention,
 
             calendar_id: params.calendar_id.clone(),
 
@@ -111,9 +111,9 @@ fn test_npv_zero_rate() {
     let issue = dates::TODAY;
     let maturity = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let params = ScheduleParams {
-        freq: Tenor::annual(),
-        dc: DayCount::Act365F,
-        bdc: BusinessDayConvention::Following,
+        frequency: Tenor::annual(),
+        day_count: DayCount::Act365F,
+        business_day_convention: BusinessDayConvention::Following,
         calendar_id: "weekends_only".to_string(),
         stub: StubKind::None,
         end_of_month: false,
@@ -125,11 +125,11 @@ fn test_npv_zero_rate() {
         coupon_type: CouponType::Cash,
         rate: dec!(0.05),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
-            freq: params.freq,
+            frequency: params.frequency,
 
-            dc: params.dc,
+            day_count: params.day_count,
 
-            bdc: params.bdc,
+            business_day_convention: params.business_day_convention,
 
             calendar_id: params.calendar_id.clone(),
 

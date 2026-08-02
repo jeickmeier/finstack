@@ -342,7 +342,12 @@ impl BermudanSwaptionCheyetteRoughPricer {
             })?;
         let period = fixed
             .frequency
-            .to_years_with_context(fixed.start, Some(calendar), fixed.bdc, fixed.day_count)
+            .to_years_with_context(
+                fixed.start,
+                Some(calendar),
+                fixed.business_day_convention,
+                fixed.day_count,
+            )
             .map_err(|e| {
                 PricingError::model_failure_with_context(
                     e.to_string(),

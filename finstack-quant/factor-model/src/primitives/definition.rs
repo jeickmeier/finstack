@@ -4,10 +4,12 @@ use super::{FactorId, FactorType};
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::bumps::BumpUnits;
 use finstack_quant_core::types::CurveId;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// How a factor movement translates to market-data perturbations.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum MarketMapping {
     /// Parallel shift to one or more curves.
     CurveParallel {
@@ -40,14 +42,14 @@ pub enum MarketMapping {
     /// Volatility shift.
     VolShift {
         /// Volatility surfaces moved by the factor.
-        surface_ids: Vec<String>,
+        vol_surface_ids: Vec<String>,
         /// Units used for the bump magnitude.
         units: BumpUnits,
     },
 }
 
 /// Complete definition of a risk factor.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FactorDefinition {
     /// Unique factor identifier.

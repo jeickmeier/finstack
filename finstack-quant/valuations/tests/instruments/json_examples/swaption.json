@@ -2,53 +2,55 @@
   "instrument": {
     "spec": {
       "attributes": {},
-      "calendar_id": null,
       "cash_settlement_method": "isda_par_par",
-      "day_count": "Thirty360",
-      "discount_curve_id": "USD-OIS",
       "exercise_style": "european",
       "expiry": "2027-01-15",
-      "fixed_freq": {
-        "count": 6,
-        "unit": "months"
-      },
-      "float_freq": {
-        "count": 3,
-        "unit": "months"
-      },
-      "forward_curve_id": "USD-OIS",
       "id": "SWPN-1Yx5Y-USD",
       "notional": {
         "amount": "10000000",
         "currency": "USD"
       },
       "option_type": "call",
-      "pricing_overrides": {
-        "adaptive_bumps": false,
-        "call_friction_cents": null,
-        "cds_quote_bp": null,
-        "credit_spread_bump_bp": null,
-        "implied_volatility": null,
-        "mc_seed_scenario": null,
-        "mean_reversion": null,
-        "quoted_clean_price": null,
-        "rate_bump_bp": null,
-        "rho_bump_decimal": null,
-        "spot_bump_pct": null,
-        "theta_period": null,
-        "tree_steps": null,
-        "upfront_payment": null,
-        "use_gobet_miri": false,
-        "vega_bump_decimal": null,
-        "vol_bump_pct": null,
-        "vol_surface_extrapolation": "error",
-        "ytm_bump_decimal": null
-      },
       "sabr_params": null,
       "settlement": "cash",
-      "strike": "0.03",
-      "swap_end": "2032-01-17",
-      "swap_start": "2027-01-17",
+      "underlying_fixed_leg": {
+        "business_day_convention": "modified_following",
+        "calendar_id": null,
+        "compounding_simple": true,
+        "day_count": "30_360",
+        "discount_curve_id": "USD-OIS",
+        "end": "2032-01-17",
+        "end_of_month": false,
+        "frequency": {
+          "count": 6,
+          "unit": "months"
+        },
+        "par_method": null,
+        "payment_lag_days": 0,
+        "rate": "0.03",
+        "start": "2027-01-17",
+        "stub": "none"
+      },
+      "underlying_float_leg": {
+        "business_day_convention": "modified_following",
+        "calendar_id": null,
+        "compounding": "simple",
+        "day_count": "act_360",
+        "discount_curve_id": "USD-OIS",
+        "end": "2032-01-17",
+        "end_of_month": false,
+        "fixing_calendar_id": null,
+        "forward_curve_id": "USD-OIS",
+        "frequency": {
+          "count": 3,
+          "unit": "months"
+        },
+        "payment_lag_days": 0,
+        "reset_lag_days": 0,
+        "spread_bp": "0",
+        "start": "2027-01-17",
+        "stub": "none"
+      },
       "vol_model": "black",
       "vol_surface_id": "USD-SWPNVOL"
     },

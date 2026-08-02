@@ -56,9 +56,14 @@ pub enum VarMethod {
 /// Controls statistical properties such as confidence level and pricing method.
 /// The historical window/observation count is derived from [`MarketHistory`].
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct VarConfig {
     /// Confidence level (e.g., 0.95 for 95% VaR, 0.99 for 99% VaR)
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_open_unit_interval_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_open_unit_interval_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::OpenUnitIntervalF64Wire")]
     pub confidence_level: f64,
 
     /// VaR calculation method
@@ -1292,6 +1297,34 @@ mod tests {
     };
     use time::macros::date;
 
+    #[test]
+    fn var_config_wire_contract_is_strict_and_bounded() {
+        for confidence_level in [0.0, 1.0, -0.01, 1.01] {
+            let value = serde_json::json!({ "confidence_level": confidence_level });
+            assert!(
+                serde_json::from_value::<VarConfig>(value).is_err(),
+                "confidence level {confidence_level} must be rejected"
+            );
+        }
+        assert!(serde_json::from_value::<VarConfig>(serde_json::json!({
+            "confidence_level": 0.95,
+            "unexpected": true
+        }))
+        .is_err());
+
+        let schema =
+            serde_json::to_value(schemars::schema_for!(VarConfig)).expect("VaR config schema");
+        assert_eq!(schema["additionalProperties"], false);
+        assert_eq!(
+            schema["$defs"]["OpenUnitIntervalF64Wire"]["exclusiveMinimum"],
+            0.0
+        );
+        assert_eq!(
+            schema["$defs"]["OpenUnitIntervalF64Wire"]["exclusiveMaximum"],
+            1.0
+        );
+    }
+
     #[derive(Clone, Debug)]
     struct CurrencyScalarInstrument {
         id: String,
@@ -1705,7 +1738,7 @@ mod tests {
             as_of,
             vec![RiskFactorShift {
                 factor: RiskFactorType::ImpliedVol {
-                    surface_id: CurveId::new("EQ-VOL"),
+                    vol_surface_id: CurveId::new("EQ-VOL"),
                     expiry_years: 1.0,
                     strike: 100.0,
                 },
@@ -1918,7 +1951,7 @@ mod tests {
             as_of,
             vec![crate::metrics::risk::RiskFactorShift {
                 factor: crate::metrics::risk::RiskFactorType::ImpliedVol {
-                    surface_id: CurveId::new("EURUSD-VOL"),
+                    vol_surface_id: CurveId::new("EURUSD-VOL"),
                     expiry_years: 0.5,
                     strike: 1.15,
                 },

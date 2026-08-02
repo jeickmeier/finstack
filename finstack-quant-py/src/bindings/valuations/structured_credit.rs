@@ -471,7 +471,6 @@ impl PyTrancheMetrics {
     }
 
     /// ISO-4217 code of the currency ``pv`` and ``cs01`` are denominated in.
-    /// Empty when decoded from a legacy payload that predates this field.
     #[getter]
     fn currency(&self) -> &str {
         &self.inner.currency

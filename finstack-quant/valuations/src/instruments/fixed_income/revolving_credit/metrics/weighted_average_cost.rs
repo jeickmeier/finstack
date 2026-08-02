@@ -64,10 +64,10 @@ impl MetricCalculator for ApproxWeightedAverageCostCalculator {
         } else {
             0.0
         };
-        let commitment_cost = undrawn_amt * (facility.fees.commitment_fee_bps(utilization) * 1e-4);
+        let commitment_cost = undrawn_amt * (facility.fees.commitment_fee_bp(utilization) * 1e-4);
 
         // Usage fee on drawn (evaluating tiers at current utilization)
-        let usage_cost = drawn_amt * (facility.fees.usage_fee_bps(utilization) * 1e-4);
+        let usage_cost = drawn_amt * (facility.fees.usage_fee_bp(utilization) * 1e-4);
 
         // Facility fee on total commitment
         let facility_cost = commitment_amount * (facility.fees.facility_fee_bp * 1e-4);

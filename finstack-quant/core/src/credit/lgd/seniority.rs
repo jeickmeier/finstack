@@ -30,12 +30,13 @@ use crate::Result;
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum SeniorityClass {
     /// First-lien secured debt with explicit collateral priority.
-    #[serde(rename = "1st_lien_secured", alias = "first_lien_secured")]
+    #[serde(rename = "1st_lien_secured")]
     FirstLienSecured,
     /// Second-lien secured debt, junior to first-lien secured claims.
-    #[serde(rename = "2nd_lien_secured", alias = "second_lien_secured")]
+    #[serde(rename = "2nd_lien_secured")]
     SecondLienSecured,
     /// First-lien secured debt (bank loans, secured bonds).
     SeniorSecured,
@@ -51,22 +52,15 @@ impl std::str::FromStr for SeniorityClass {
     type Err = crate::Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        let norm = s.trim().to_ascii_lowercase().replace(['-', ' '], "_");
-        match norm.as_str() {
-            "1st_lien_secured" | "first_lien_secured" | "firstliensecured" => {
-                Ok(Self::FirstLienSecured)
-            }
-            "2nd_lien_secured" | "second_lien_secured" | "secondliensecured" => {
-                Ok(Self::SecondLienSecured)
-            }
-            "senior_secured" | "seniorsecured" => Ok(Self::SeniorSecured),
-            "senior_unsecured" | "seniorunsecured" => Ok(Self::SeniorUnsecured),
-            "subordinated" | "sub" => Ok(Self::Subordinated),
-            "junior_subordinated" | "juniorsubordinated" | "junior" => {
-                Ok(Self::JuniorSubordinated)
-            }
+        match s {
+            "1st_lien_secured" => Ok(Self::FirstLienSecured),
+            "2nd_lien_secured" => Ok(Self::SecondLienSecured),
+            "senior_secured" => Ok(Self::SeniorSecured),
+            "senior_unsecured" => Ok(Self::SeniorUnsecured),
+            "subordinated" => Ok(Self::Subordinated),
+            "junior_subordinated" => Ok(Self::JuniorSubordinated),
             _ => Err(crate::Error::Validation(format!(
-                "unknown seniority class: '{s}' (expected first_lien_secured, second_lien_secured, senior_secured, senior_unsecured, subordinated, junior_subordinated)"
+                "unknown seniority class: '{s}' (expected 1st_lien_secured, 2nd_lien_secured, senior_secured, senior_unsecured, subordinated, junior_subordinated)"
             ))),
         }
     }
@@ -451,26 +445,18 @@ mod tests {
     }
 
     #[test]
-    fn seniority_class_from_str_accepts_aliases_and_rejects_unknown() {
-        assert_eq!(
-            SeniorityClass::from_str("first-lien secured").expect("alias"),
-            SeniorityClass::FirstLienSecured
-        );
-        assert_eq!(
-            SeniorityClass::from_str("2nd lien secured").expect("alias"),
-            SeniorityClass::SecondLienSecured
-        );
-        assert_eq!(
-            SeniorityClass::from_str("sub").expect("alias"),
-            SeniorityClass::Subordinated
-        );
-
-        let err = SeniorityClass::from_str("super senior")
-            .expect_err("unknown seniority should be rejected");
-        assert!(
-            err.to_string().contains("unknown seniority class"),
-            "unexpected error: {err}"
-        );
+    fn seniority_class_from_str_rejects_noncanonical_spellings() {
+        for rejected in [
+            "first-lien secured",
+            "first_lien_secured",
+            "2nd lien secured",
+            "sub",
+            "SeniorSecured",
+        ] {
+            let error = SeniorityClass::from_str(rejected)
+                .expect_err("noncanonical seniority should be rejected");
+            assert!(error.to_string().contains("unknown seniority class"));
+        }
     }
 
     #[test]

@@ -95,6 +95,8 @@ pub mod envelope;
 pub mod error;
 /// Horizon total return analysis.
 pub mod horizon;
+/// JSON Schema generation helpers for scenario contracts.
+pub mod schema;
 /// Scenario specification types and enums.
 pub mod spec;
 /// Historical stress test template types and builders.
@@ -108,7 +110,7 @@ pub use adapters::time_roll::apply_time_roll_forward;
 pub use adapters::time_roll::RollForwardReport;
 pub use adapters::vol::ArbitrageViolation;
 pub use engine::{ApplicationEnvelope, ApplicationReport, ExecutionContext, ScenarioEngine};
-pub use envelope::{ScenarioEnvelope, SCENARIO_CONTRACT};
+pub use envelope::{ScenarioEnvelope, ScenarioSchema, SCENARIO_CONTRACT};
 pub use error::{Error, Result};
 pub use horizon::{HorizonAnalysis, HorizonResult};
 pub use spec::{

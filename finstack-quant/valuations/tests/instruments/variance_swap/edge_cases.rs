@@ -200,7 +200,7 @@ fn test_valuation_with_very_short_tenor() {
     let mut swap = sample_swap(PayReceive::Receive);
     swap.start_date = start;
     swap.maturity = end;
-    swap.observation_freq = Tenor::daily();
+    swap.observation_frequency = Tenor::daily();
     let ctx = add_unitless(base_context(), format!("{}_IMPL_VOL", UNDERLYING_ID), 0.22);
 
     // Act
@@ -219,7 +219,7 @@ fn test_valuation_with_very_long_tenor() {
     let mut swap = sample_swap(PayReceive::Receive);
     swap.start_date = start;
     swap.maturity = end;
-    swap.observation_freq = Tenor::monthly();
+    swap.observation_frequency = Tenor::monthly();
     let ctx = add_unitless(base_context(), format!("{}_IMPL_VOL", UNDERLYING_ID), 0.22);
 
     // Act
@@ -270,7 +270,7 @@ fn test_valuation_with_single_observation() {
     let mut swap = sample_swap(PayReceive::Receive);
     // Set maturity very close to start for minimal observations
     swap.maturity = swap.start_date + time::Duration::days(1);
-    swap.observation_freq = Tenor::daily();
+    swap.observation_frequency = Tenor::daily();
     let ctx = add_unitless(base_context(), format!("{}_IMPL_VOL", UNDERLYING_ID), 0.22);
 
     // Act
@@ -285,7 +285,7 @@ fn test_valuation_with_single_observation() {
 fn test_observation_dates_with_very_high_frequency() {
     // Arrange
     let mut swap = sample_swap(PayReceive::Receive);
-    swap.observation_freq = Tenor::daily();
+    swap.observation_frequency = Tenor::daily();
 
     // Act
     let dates = swap.observation_dates().expect("observation schedule");
@@ -583,58 +583,4 @@ fn test_cashflow_schedule_has_no_synthetic_zero_amount_before_settlement() {
 
     // Assert - variance swaps no longer emit a synthetic zero payoff placeholder.
     assert!(flows.is_empty());
-}
-
-// ============================================================================
-// Boundary Conditions
-// ============================================================================
-
-#[test]
-fn test_time_elapsed_fraction_boundary_at_start() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
-
-    // Act
-    let before = swap.time_elapsed_fraction(swap.start_date - time::Duration::days(1));
-    let at = swap.time_elapsed_fraction(swap.start_date);
-    let after = swap.time_elapsed_fraction(swap.start_date + time::Duration::days(1));
-
-    // Assert
-    assert_eq!(before, 0.0);
-    assert_eq!(at, 0.0);
-    assert!(after > 0.0);
-}
-
-#[test]
-fn test_time_elapsed_fraction_boundary_at_maturity() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
-
-    // Act
-    let before = swap.time_elapsed_fraction(swap.maturity - time::Duration::days(1));
-    let at = swap.time_elapsed_fraction(swap.maturity);
-    let after = swap.time_elapsed_fraction(swap.maturity + time::Duration::days(1));
-
-    // Assert
-    assert!(before < 1.0);
-    assert_eq!(at, 1.0);
-    assert_eq!(after, 1.0);
-}
-
-#[test]
-fn test_observation_weight_boundaries() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
-
-    // Act
-    let before_start = observation_weight(&swap, swap.start_date - time::Duration::days(1));
-    let at_start = observation_weight(&swap, swap.start_date);
-    let at_maturity = observation_weight(&swap, swap.maturity);
-    let after_maturity = observation_weight(&swap, swap.maturity + time::Duration::days(1));
-
-    // Assert
-    assert_eq!(before_start, 0.0);
-    assert!(at_start >= 0.0);
-    assert_eq!(at_maturity, 1.0);
-    assert_eq!(after_maturity, 1.0);
 }

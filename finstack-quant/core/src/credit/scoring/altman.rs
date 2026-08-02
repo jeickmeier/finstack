@@ -15,14 +15,13 @@ use serde::{Deserialize, Serialize};
 
 use super::types::{check_finite, CreditScoringError, ScoringResult, ScoringZone};
 
-/// Explicit, versioned mappings from an Altman score to a PD-like heuristic.
+/// Mapping from an Altman score to a PD-like heuristic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum AltmanPdCalibration {
-    /// Legacy piecewise mapping retained for compatibility.
-    ///
-    /// This is an uncalibrated house heuristic, not an empirical Altman
+    /// Uncalibrated house heuristic, not an empirical Altman
     /// bankruptcy-probability calibration.
-    HeuristicV1,
+    Heuristic,
 }
 
 // ---------------------------------------------------------------------------
@@ -494,13 +493,13 @@ fn z_score_zone(z: f64, safe_threshold: f64, distress_threshold: f64) -> Scoring
 impl AltmanPdCalibration {
     fn map(self, z: f64, safe_threshold: f64, distress_threshold: f64) -> f64 {
         match self {
-            Self::HeuristicV1 => z_score_heuristic_v1(z, safe_threshold, distress_threshold),
+            Self::Heuristic => z_score_heuristic(z, safe_threshold, distress_threshold),
         }
     }
 }
 
-/// Legacy uncalibrated house heuristic. It is not an empirical Altman mapping.
-fn z_score_heuristic_v1(z: f64, safe_threshold: f64, distress_threshold: f64) -> f64 {
+/// Uncalibrated house heuristic. It is not an empirical Altman mapping.
+fn z_score_heuristic(z: f64, safe_threshold: f64, distress_threshold: f64) -> f64 {
     const PD_SAFE: f64 = 0.01;
     const PD_DISTRESS: f64 = 0.50;
 

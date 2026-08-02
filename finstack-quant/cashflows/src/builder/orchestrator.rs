@@ -439,13 +439,13 @@ impl CashFlowBuilder {
         principal_events.sort_by_key(|ev| ev.date);
 
         // Reject principal events with currency different from notional.
-        let expected_ccy = notional.initial.currency();
+        let expected_currency = notional.initial.currency();
         if let Some(ev) = principal_events
             .iter()
-            .find(|ev| ev.delta.currency() != expected_ccy)
+            .find(|ev| ev.delta.currency() != expected_currency)
         {
             return Err(finstack_quant_core::Error::CurrencyMismatch {
-                expected: expected_ccy,
+                expected: expected_currency,
                 actual: ev.delta.currency(),
             });
         }
@@ -524,13 +524,13 @@ impl CompiledCashFlowPlan {
         let redemption_date = if let Some(schedule) = self.fixed_schedules.first() {
             finstack_quant_core::dates::adjust(
                 self.maturity,
-                schedule.spec.schedule.bdc,
+                schedule.spec.schedule.business_day_convention,
                 schedule.calendar,
             )?
         } else if let Some(schedule) = self.float_schedules.first() {
             finstack_quant_core::dates::adjust(
                 self.maturity,
-                schedule.spec.schedule.bdc,
+                schedule.spec.schedule.business_day_convention,
                 schedule.calendar,
             )?
         } else {
@@ -612,7 +612,7 @@ impl CompiledCashFlowPlan {
                         initial = initial_amount,
                         final_outstanding,
                         relative_residual = relative_residual_f64,
-                        threshold_bps = 1.0,
+                        threshold_bp = 1.0,
                         "cashflow schedule: final outstanding balance deviates from zero; \
                          check amortization schedule or instrument terminal flow"
                     );
@@ -620,7 +620,7 @@ impl CompiledCashFlowPlan {
             }
         }
 
-        let (flows, meta, out_dc) = finalize_flows(
+        let (flows, meta, out_day_count) = finalize_flows(
             state.flows,
             &self.fixed_schedules,
             &self.float_schedules,
@@ -631,7 +631,7 @@ impl CompiledCashFlowPlan {
         Ok(CashFlowSchedule::from_parts(
             flows,
             self.notional.clone(),
-            out_dc,
+            out_day_count,
             meta,
         ))
     }

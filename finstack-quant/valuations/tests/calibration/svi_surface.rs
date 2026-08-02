@@ -1,4 +1,4 @@
-//! Integration tests for SVI volatility-surface calibration (v2 engine).
+//! Integration tests for SVI volatility-surface calibration (canonical engine).
 //!
 //! ## What these tests guard
 //!
@@ -164,8 +164,8 @@ fn svi_surface_grid_is_calendar_monotone_under_nonflat_curve() {
     );
 
     let discount = nonflat_discount_curve(base_date);
-    let initial_market = MarketContext::new().insert(discount);
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let source_market = MarketContext::new().insert(discount);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
 
     let quotes = svi_option_quotes(base_date);
     cal_utils::extend_market_data(&mut market_data, &quotes);
@@ -188,7 +188,7 @@ fn svi_surface_grid_is_calendar_monotone_under_nonflat_curve() {
             id: "svi_step".to_string(),
             quote_set: "svi_quotes".to_string(),
             params: StepParams::SviSurface(SviSurfaceParams {
-                surface_id: "SPX-SVI".to_string(),
+                vol_surface_id: "SPX-SVI".to_string(),
                 base_date,
                 underlying_ticker: UNDERLYING.to_string(),
                 discount_curve_id: Some(DISCOUNT_ID.into()),
@@ -202,7 +202,7 @@ fn svi_surface_grid_is_calendar_monotone_under_nonflat_curve() {
 
     let envelope = CalibrationEnvelope {
         schema_url: None,
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,

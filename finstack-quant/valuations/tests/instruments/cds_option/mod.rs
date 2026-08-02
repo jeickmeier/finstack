@@ -33,7 +33,6 @@ mod test_option_bounds;
 mod test_metrics_registry;
 
 // Bloomberg reconciliation: spot 5Y CDX.NA.IG.46 against Bloomberg's
-// CDSW screen values, isolating the CDS-pricer layer from the CDSO
-// option-pricer layer.
+// CDSW screen values, plus CDSO quadrature and supplied-curve regressions.
 mod test_bloomberg_cdsw_parity;
-mod test_cdx_ig_46_cdso_diagnostics;
+mod test_cdx_ig_46_cdso_regressions;

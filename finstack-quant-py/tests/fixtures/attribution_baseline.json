@@ -31,6 +31,10 @@
     "amount": "0",
     "currency": "USD"
   },
+  "fx_translation_pnl": {
+    "amount": "0",
+    "currency": "USD"
+  },
   "vol_pnl": {
     "amount": "0",
     "currency": "USD"
@@ -62,7 +66,7 @@
   "model_params_detail": null,
   "scalars_detail": null,
   "meta": {
-    "method": "Parallel",
+    "method":"parallel",
     "t0": "2025-01-15",
     "t1": "2025-01-16",
     "instrument_id": "FIXTURE-BOND",
@@ -71,9 +75,9 @@
     "tolerance_pct": 0.01,
     "residual_pct": 100.0,
     "rounding": {
-      "mode": "Bankers",
-      "ingest_scale_by_ccy": {},
-      "output_scale_by_ccy": {},
+      "mode":"bankers",
+      "ingest_scale_by_currency": {},
+      "output_scale_by_currency": {},
       "tolerances": {
         "rate_epsilon": 1e-12,
         "generic_epsilon": 1e-10

@@ -15,7 +15,7 @@ pub(crate) struct PoolState {
     /// Interest rates (decimal)
     pub(crate) rates: Vec<f64>,
     /// Spread over index (basis points)
-    pub(crate) spread_bps: Vec<Option<f64>>,
+    pub(crate) spread_bp: Vec<Option<f64>>,
     /// Index identifiers for floating rate assets
     pub(crate) index_ids: Vec<Option<String>>,
     /// Maturity dates
@@ -55,7 +55,7 @@ impl PoolState {
         let mut ids = Vec::with_capacity(n);
         let mut balances = Vec::with_capacity(n);
         let mut rates = Vec::with_capacity(n);
-        let mut spread_bps = Vec::with_capacity(n);
+        let mut spread_bp = Vec::with_capacity(n);
         let mut index_ids = Vec::with_capacity(n);
         let mut maturities = Vec::with_capacity(n);
         let mut day_counts: Vec<Option<DayCount>> = Vec::with_capacity(n);
@@ -71,7 +71,7 @@ impl PoolState {
             ids.push(asset.id.to_string());
             balances.push(asset.balance.amount());
             rates.push(asset.rate);
-            spread_bps.push(asset.spread_bps);
+            spread_bp.push(asset.spread_bp);
             index_ids.push(asset.index_id.clone());
             maturities.push(asset.maturity);
             day_counts.push(Some(asset.day_count));
@@ -104,7 +104,7 @@ impl PoolState {
             ids,
             balances,
             rates,
-            spread_bps,
+            spread_bp,
             index_ids,
             maturities,
             day_counts,

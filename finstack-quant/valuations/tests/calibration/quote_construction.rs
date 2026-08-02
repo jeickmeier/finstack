@@ -17,7 +17,7 @@ use finstack_quant_valuations::market::quotes::rates::RateQuote;
 use finstack_quant_valuations::market::{build_cds_tranche_instrument, CDSTrancheBuildOverrides};
 use time::Month;
 
-// Comprehensive quote-to-instrument construction test for V2 calibration engine.
+// Comprehensive quote-to-instrument construction test for canonical calibration engine.
 // Verifies that all quote types can be successfully converted to calibration instruments.
 
 use finstack_quant_core::currency::Currency;

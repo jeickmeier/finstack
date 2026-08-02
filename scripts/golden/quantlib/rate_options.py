@@ -9,7 +9,7 @@ from typing import Any
 import QuantLib as ql  # type: ignore[import-not-found]  # noqa: N813
 
 from .common import (
-    SCHEMA_VERSION,
+    SCHEMA,
     VALUATION_DATE,
     central_difference,
     constant_vol_surface,
@@ -136,7 +136,7 @@ def _build_optionlet_fixture(
     vol_type = "normal" if normal else "lognormal"
     vol_quote_type = "normal" if normal else "black_lognormal"
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name=name,
             domain="rates.cap_floor",
@@ -173,7 +173,7 @@ def _build_optionlet_fixture(
                 "start_date": "2026-07-30",
                 "maturity": "2026-10-30",
                 "frequency": {"count": 3, "unit": "months"},
-                "day_count": "Act360",
+                "day_count": "act_360",
                 "calendar_id": "weekends_only",
                 "discount_curve_id": "USD-OIS",
                 "forward_curve_id": "USD-TERM-3M",
@@ -319,7 +319,7 @@ def build_black_cap() -> dict[str, Any]:
         "exactly aligned quarterly periods with flat simple forwards."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="usd_black_cap_1y_quantlib",
             domain="rates.cap_floor",
@@ -362,7 +362,7 @@ def build_black_cap() -> dict[str, Any]:
                 "start_date": "2026-07-30",
                 "maturity": "2027-07-30",
                 "frequency": {"count": 3, "unit": "months"},
-                "day_count": "Act360",
+                "day_count": "act_360",
                 "calendar_id": "weekends_only",
                 "discount_curve_id": "USD-OIS",
                 "forward_curve_id": "USD-TERM-3M",
@@ -494,7 +494,7 @@ def _build_swaption_fixture(
     vol_model = "normal" if normal else "black"
     quote_type = "normal" if normal else "black_lognormal"
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name=name,
             domain="rates.swaption",
@@ -530,9 +530,9 @@ def _build_swaption_fixture(
                 "expiry": "2027-04-30",
                 "swap_start": "2027-04-30",
                 "swap_end": "2028-04-30",
-                "fixed_freq": {"count": 12, "unit": "months"},
-                "float_freq": {"count": 12, "unit": "months"},
-                "day_count": "Act365F",
+                "fixed_frequency": {"count": 12, "unit": "months"},
+                "float_frequency": {"count": 12, "unit": "months"},
+                "day_count": "act_365f",
                 "settlement": "physical",
                 "vol_model": vol_model,
                 "discount_curve_id": "USD-OIS",
@@ -543,9 +543,9 @@ def _build_swaption_fixture(
                     "discount_curve_id": "USD-OIS",
                     "rate": str(strike),
                     "frequency": {"count": 12, "unit": "months"},
-                    "day_count": "Act365F",
+                    "day_count": "act_365f",
                     "calendar_id": "weekends_only",
-                    "stub": "None",
+                    "stub": "none",
                     "start": "2027-04-30",
                     "end": "2028-04-30",
                     "par_method": None,
@@ -557,14 +557,14 @@ def _build_swaption_fixture(
                     "forward_curve_id": "USD-TERM-1Y",
                     "spread_bp": "0",
                     "frequency": {"count": 12, "unit": "months"},
-                    "day_count": "Act365F",
+                    "day_count": "act_365f",
                     "calendar_id": "weekends_only",
-                    "stub": "None",
+                    "stub": "none",
                     "reset_lag_days": 0,
                     "fixing_calendar_id": "weekends_only",
                     "start": "2027-04-30",
                     "end": "2028-04-30",
-                    "compounding": "Simple",
+                    "compounding": "simple",
                     "payment_lag_days": 0,
                 },
                 "sabr_params": None,

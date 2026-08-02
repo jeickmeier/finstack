@@ -43,8 +43,6 @@ struct McResultJs {
     num_paths: usize,
     /// Total number of simulated sample paths driving the estimator.
     num_simulated_paths: usize,
-    /// Legacy skipped-path count; current engines reject non-finite payoffs.
-    num_skipped: usize,
     /// Median of captured discounted path values (if captured).
     median: Option<f64>,
     /// 25th percentile of captured discounted path values (if captured).
@@ -71,7 +69,6 @@ impl McResultJs {
             ci_upper: est.ci_95.1.amount(),
             num_paths: est.num_paths,
             num_simulated_paths: est.num_simulated_paths,
-            num_skipped: est.num_skipped,
             median: est.median,
             percentile_25: est.percentile_25,
             percentile_75: est.percentile_75,
@@ -102,7 +99,7 @@ fn binding_defaults(
 /// Price a European call option via Monte Carlo under GBM dynamics.
 ///
 /// Returns a JSON object with `mean`, `currency`, `stderr`, `std_dev`,
-/// `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`, `num_skipped`,
+/// `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`,
 /// `median`, `percentile_25`, `percentile_75`, `min`, `max`, and
 /// `relative_stderr`.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
@@ -137,7 +134,7 @@ pub fn price_european_call(
 /// Price a European put option via Monte Carlo under GBM dynamics.
 ///
 /// Returns a JSON object with `mean`, `currency`, `stderr`, `std_dev`,
-/// `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`, `num_skipped`,
+/// `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`,
 /// `median`, `percentile_25`, `percentile_75`, `min`, `max`, and
 /// `relative_stderr`.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
@@ -794,11 +791,8 @@ fn prepare_lsmc_gbm(
     let process = GbmProcess::with_params(rate, div_yield, vol).map_err(to_js_err)?;
 
     let degree = basis_degree.unwrap_or(defaults.basis_degree);
-    let basis_name = basis
-        .as_deref()
-        .unwrap_or(defaults.basis.as_str())
-        .to_ascii_lowercase();
-    let basis = build_lsmc_basis_from_name(&basis_name, degree, strike).map_err(to_js_err)?;
+    let basis_name = basis.as_deref().unwrap_or(defaults.basis.as_str());
+    let basis = build_lsmc_basis_from_name(basis_name, degree, strike).map_err(to_js_err)?;
 
     Ok(LsmcGbmRun {
         pricer: LsmcPricer::new(config),
@@ -935,7 +929,6 @@ mod tests {
             percentile_75: None,
             min: None,
             max: None,
-            num_skipped: 0,
         };
         let js = McResultJs::from_estimate(&est);
         assert!((js.mean - 10.0).abs() < 1e-12);

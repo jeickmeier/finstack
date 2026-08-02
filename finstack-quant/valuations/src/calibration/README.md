@@ -30,18 +30,20 @@ The module is organized into several key areas:
 ```rust
 use finstack_quant_valuations::calibration::api::engine;
 use finstack_quant_valuations::calibration::api::schema::{
-    CalibrationEnvelope, CalibrationPlan, CALIBRATION_SCHEMA,
+    CalibrationEnvelope, CalibrationPlan, CalibrationSchema,
 };
 
 fn run_calibration(plan: CalibrationPlan) -> finstack_quant_core::Result<()> {
     let envelope = CalibrationEnvelope {
-        schema: CALIBRATION_SCHEMA.to_string(),
+        schema_url: None,
+        schema: CalibrationSchema::CURRENT,
         plan,
-        initial_market: None,
+        market_data: Vec::new(),
+        prior_market: Vec::new(),
     };
 
     let result = engine::execute(&envelope)?;
-    println!("Calibrated {} structures", result.calibrated_structures.len());
+    println!("Executed {} calibration steps", result.result.step_reports.len());
     Ok(())
 }
 ```

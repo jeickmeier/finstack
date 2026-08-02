@@ -26,8 +26,8 @@ def test_periodic_annual_single_year() -> None:
     assert len(df) == 1  # all observations are in 2021
 
 
-def test_periodic_rejects_unknown_freq() -> None:
-    with pytest.raises(Exception, match=r"freq|monthly|annual"):
+def test_periodic_rejects_unknown_frequency() -> None:
+    with pytest.raises(Exception, match=r"frequency|monthly|annual"):
         _two_month_perf().periodic_returns_to_dataframe("hourly")
 
 

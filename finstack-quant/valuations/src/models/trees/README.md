@@ -98,7 +98,7 @@ Curve-calibrated short-rate trees for pricing bonds with embedded options and ca
 
 | Model | Dynamics | Vol Convention | Negative Rates | Mean Reversion |
 |-------|----------|----------------|----------------|----------------|
-| **Ho-Lee** | `dr = θ(t)dt + σdW` | Normal (bps/yr) | Yes | No |
+| **Ho-Lee** | `dr = θ(t)dt + σdW` | Normal (bp/yr) | Yes | No |
 | **BDT / BK** | `d(ln r) = [θ(t) − κ·ln(r)]dt + σdW` | Lognormal (%) | No | Yes (κ ≠ 0) |
 
 Calibration is performed via Arrow-Debreu forward induction to exactly reproduce the input discount curve at every tree step. For the lognormal model, `κ = 0` calibrates a standard binomial BDT lattice; `κ ≠ 0` calibrates a genuine trinomial Black-Karasinski lattice in `x = ln r` reusing the Hull-White trinomial geometry (spacing `σ√(3dt)`, width cap with edge branch switching, per-node mean-reverting probabilities) with a Brent solve on the per-step additive shift in `x`.
@@ -107,7 +107,7 @@ Calibration is performed via Arrow-Debreu forward induction to exactly reproduce
 let config = ShortRateTreeConfig {
     steps: 100,
     model: ShortRateModel::HoLee,
-    volatility: 0.01,           // 100 bps/yr normal vol
+    volatility: 0.01,           // 100 bp/yr normal vol
     mean_reversion: 0.0,        // Ho-Lee has no mean reversion
     branching: TreeBranching::Trinomial,
 };
@@ -120,7 +120,7 @@ let price = tree.price(initial_vars, time_to_maturity, &market_context, &valuato
 
 | Model | Type | Parameter | Typical Range |
 |-------|------|-----------|---------------|
-| Ho-Lee | Normal/Absolute | σ (bps/yr) | 50–150 bps (0.005–0.015) |
+| Ho-Lee | Normal/Absolute | σ (bp/yr) | 50–150 bp (0.005–0.015) |
 | BDT | Lognormal/Relative | σ (%) | 15–30% (0.15–0.30) |
 
 Use `finstack_quant_core::math::volatility::convert_atm_volatility` to convert between conventions.
@@ -148,7 +148,7 @@ dx(t) = −κx(t)dt + σdW(t)        (auxiliary variable)
 ```rust
 let config = HullWhiteTreeConfig {
     kappa: 0.03,    // 3% mean reversion
-    sigma: 0.01,    // 100 bps vol
+    sigma: 0.01,    // 100 bp vol
     steps: 100,
     max_nodes: None,
 };
@@ -159,7 +159,7 @@ let price = tree.backward_induction(&exercise_dates, &swap_values)?;
 | Parameter | Typical Range | Description |
 |-----------|---------------|-------------|
 | `kappa` | 0.01–0.10 | Mean reversion speed |
-| `sigma` | 0.005–0.015 | Normal short-rate volatility (50–150 bps) |
+| `sigma` | 0.005–0.015 | Normal short-rate volatility (50–150 bp) |
 | `steps` | 50–200 | Tree steps; cost is O(n²) |
 
 ### Two-Factor Rates + Credit Tree (`RatesCreditTree`)
@@ -345,7 +345,7 @@ Tree models are used throughout the instrument pricing layer:
 | Term loans | `ShortRateTree`, `RatesCreditTree` | `term_loan/pricing/` |
 | Bermudan swaptions | `HullWhiteTree` | `rates/swaption/pricer.rs` |
 | Convertible bonds | `BinomialTree`, `TrinomialTree` | `fixed_income/convertible/` |
-| Barrier options | `BinomialTree` with `BarrierSpec` | `tests/support/tree_barrier.rs` |
+| Barrier options | `BinomialTree` with `BarrierSpec` | `models/trees/binomial_tree.rs` |
 
 ## Serialization Policy
 

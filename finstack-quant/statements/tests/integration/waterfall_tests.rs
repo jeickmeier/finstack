@@ -450,7 +450,6 @@ mod period_flow_waterfall_integration {
         let periods: Vec<Period> = (1..=4).map(|q| quarter_period(2025, q)).collect();
         let spec = CapitalStructureSpec {
             debt_instruments: vec![],
-            equity_instruments: vec![],
             meta: IndexMap::new(),
             reporting_currency: None,
             fx_policy: None,

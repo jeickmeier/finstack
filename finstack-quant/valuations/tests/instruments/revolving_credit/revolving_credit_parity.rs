@@ -62,10 +62,10 @@ mod tests {
             .base_date(base_date)
             .day_count(DayCount::Act360)
             .knots([
-                (0.0, 0.01),  // 100 bps
-                (1.0, 0.012), // 120 bps
-                (2.0, 0.015), // 150 bps
-                (5.0, 0.02),  // 200 bps
+                (0.0, 0.01),  // 100 bp
+                (1.0, 0.012), // 120 bp
+                (2.0, 0.015), // 150 bp
+                (5.0, 0.02),  // 200 bp
             ])
             .build()
             .unwrap();
@@ -187,7 +187,7 @@ mod tests {
                     all_in_cap_bp: None,
                     index_cap_bp: None,
                     overnight_index_constraints: Default::default(),
-                    reset_freq: Tenor::quarterly(),
+                    reset_frequency: Tenor::quarterly(),
                     index_tenor: None,
                     reset_lag_days: 2,
                     fixing_calendar_id: None,
@@ -222,7 +222,7 @@ mod tests {
                     all_in_cap_bp: None,
                     index_cap_bp: None,
                     overnight_index_constraints: Default::default(),
-                    reset_freq: Tenor::quarterly(),
+                    reset_frequency: Tenor::quarterly(),
                     index_tenor: None,
                     reset_lag_days: 2,
                     fixing_calendar_id: None,
@@ -338,33 +338,33 @@ mod tests {
             commitment_fee_tiers: vec![
                 FeeTier {
                     threshold: rust_decimal::Decimal::try_from(0.0).expect("valid"),
-                    bps: rust_decimal::Decimal::try_from(50.0).expect("valid"),
+                    bp: rust_decimal::Decimal::try_from(50.0).expect("valid"),
                 },
                 FeeTier {
                     threshold: rust_decimal::Decimal::try_from(0.25).expect("valid"),
-                    bps: rust_decimal::Decimal::try_from(40.0).expect("valid"),
+                    bp: rust_decimal::Decimal::try_from(40.0).expect("valid"),
                 },
                 FeeTier {
                     threshold: rust_decimal::Decimal::try_from(0.5).expect("valid"),
-                    bps: rust_decimal::Decimal::try_from(30.0).expect("valid"),
+                    bp: rust_decimal::Decimal::try_from(30.0).expect("valid"),
                 },
                 FeeTier {
                     threshold: rust_decimal::Decimal::try_from(0.75).expect("valid"),
-                    bps: rust_decimal::Decimal::try_from(20.0).expect("valid"),
+                    bp: rust_decimal::Decimal::try_from(20.0).expect("valid"),
                 },
             ],
             usage_fee_tiers: vec![
                 FeeTier {
                     threshold: rust_decimal::Decimal::try_from(0.0).expect("valid"),
-                    bps: rust_decimal::Decimal::try_from(10.0).expect("valid"),
+                    bp: rust_decimal::Decimal::try_from(10.0).expect("valid"),
                 },
                 FeeTier {
                     threshold: rust_decimal::Decimal::try_from(0.5).expect("valid"),
-                    bps: rust_decimal::Decimal::try_from(15.0).expect("valid"),
+                    bp: rust_decimal::Decimal::try_from(15.0).expect("valid"),
                 },
                 FeeTier {
                     threshold: rust_decimal::Decimal::try_from(0.75).expect("valid"),
-                    bps: rust_decimal::Decimal::try_from(20.0).expect("valid"),
+                    bp: rust_decimal::Decimal::try_from(20.0).expect("valid"),
                 },
             ],
             facility_fee_bp: 5.0,
@@ -528,16 +528,16 @@ mod tests {
             ), // Annual
         ];
 
-        for freq in frequencies {
+        for frequency in frequencies {
             let facility_det = RevolvingCredit::builder()
-                .id(format!("RC-DET-FREQ-{:?}", freq).into())
+                .id(format!("RC-DET-FREQ-{:?}", frequency).into())
                 .commitment_amount(Money::new(10_000_000.0, Currency::USD))
                 .drawn_amount(Money::new(5_000_000.0, Currency::USD))
                 .commitment_date(start)
                 .maturity(end)
                 .base_rate_spec(BaseRateSpec::Fixed { rate: 0.05 })
                 .day_count(DayCount::Act360)
-                .frequency(freq)
+                .frequency(frequency)
                 .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0))
                 .draw_repay_spec(DrawRepaySpec::Deterministic(vec![]))
                 .discount_curve_id("USD-OIS".into())
@@ -545,14 +545,14 @@ mod tests {
                 .unwrap();
 
             let facility_stoch = RevolvingCredit::builder()
-                .id(format!("RC-STOCH-FREQ-{:?}", freq).into())
+                .id(format!("RC-STOCH-FREQ-{:?}", frequency).into())
                 .commitment_amount(Money::new(10_000_000.0, Currency::USD))
                 .drawn_amount(Money::new(5_000_000.0, Currency::USD))
                 .commitment_date(start)
                 .maturity(end)
                 .base_rate_spec(BaseRateSpec::Fixed { rate: 0.05 })
                 .day_count(DayCount::Act360)
-                .frequency(freq)
+                .frequency(frequency)
                 .fees(RevolvingCreditFees::flat(25.0, 10.0, 5.0))
                 .draw_repay_spec(DrawRepaySpec::Stochastic(create_zero_vol_stochastic(0.5)))
                 .discount_curve_id("USD-OIS".into())
@@ -573,7 +573,7 @@ mod tests {
             assert!(
                 relative_error < 1e-4,
                 "Payment frequency parity failed for {:?}: det={}, stoch={}, diff={}, rel_err={:.6}",
-                freq,
+                frequency,
                 pv_det.amount(),
                 pv_stoch.amount(),
                 diff,

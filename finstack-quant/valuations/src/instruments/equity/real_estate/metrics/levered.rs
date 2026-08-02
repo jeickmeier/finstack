@@ -133,7 +133,7 @@ impl MetricCalculator for DscrMin {
                             return false;
                         }
                         // Exclude PIK.
-                        !matches!(cf.kind, finstack_quant_core::cashflow::CFKind::PIK)
+                        !matches!(cf.kind, finstack_quant_core::cashflow::CFKind::Pik)
                     })
                     // Borrower debt service is negative of lender inflows. We want a positive service amount.
                     .map(|cf| cf.amount.amount().abs())
@@ -193,7 +193,7 @@ impl MetricCalculator for DscrMinInterestOnly {
                     .iter()
                     .filter(|cf| cf.date > prev && cf.date <= d)
                     .filter(|cf| {
-                        if matches!(cf.kind, finstack_quant_core::cashflow::CFKind::PIK) {
+                        if matches!(cf.kind, finstack_quant_core::cashflow::CFKind::Pik) {
                             return false;
                         }
                         !matches!(

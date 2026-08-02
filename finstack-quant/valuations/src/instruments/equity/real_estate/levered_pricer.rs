@@ -150,7 +150,7 @@ pub(crate) fn equity_cashflows(
             if cf.date < as_of || cf.date > exit {
                 continue;
             }
-            if matches!(cf.kind, finstack_quant_core::cashflow::CFKind::PIK) {
+            if matches!(cf.kind, finstack_quant_core::cashflow::CFKind::Pik) {
                 continue;
             }
             let is_principal = matches!(

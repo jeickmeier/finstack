@@ -73,7 +73,7 @@ pub struct AlmgrenChrissImpactView {
     /// Total expected impact cost.
     pub total_impact: f64,
     /// Expected impact cost in basis points of notional.
-    pub expected_cost_bps: f64,
+    pub expected_cost_bp: f64,
 }
 
 /// Build and evaluate a uniform Almgren-Chriss market-impact estimate.
@@ -147,6 +147,6 @@ pub fn almgren_chriss_uniform_impact(
         permanent_impact: est.permanent_impact,
         temporary_impact: est.temporary_impact,
         total_impact: est.total_cost,
-        expected_cost_bps: est.cost_bps,
+        expected_cost_bp: est.cost_bp,
     })
 }

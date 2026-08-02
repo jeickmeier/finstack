@@ -39,15 +39,15 @@ pub use crate::instruments::common_impl::parameters::legs::FloatLegSpec;
 #[derive(Debug, Clone)]
 pub struct IrsLegConventions {
     /// Fixed leg payment frequency.
-    pub fixed_freq: Tenor,
+    pub fixed_frequency: Tenor,
     /// Float leg payment frequency.
-    pub float_freq: Tenor,
+    pub float_frequency: Tenor,
     /// Fixed leg accrual day-count.
-    pub fixed_dc: DayCount,
+    pub fixed_day_count: DayCount,
     /// Float leg accrual day-count.
-    pub float_dc: DayCount,
+    pub float_day_count: DayCount,
     /// Payment date business day convention.
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Calendar id used for payment date adjustment on both legs.
     pub payment_calendar_id: Option<String>,
     /// Calendar id used for fixing/reset date adjustment.
@@ -70,11 +70,11 @@ impl IrsLegConventions {
         let conv = registry.require_rate_index(&idx)?;
 
         Ok(Self {
-            fixed_freq: conv.default_fixed_leg_frequency,
-            float_freq: conv.default_payment_frequency,
-            fixed_dc: conv.default_fixed_leg_day_count,
-            float_dc: conv.day_count,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            fixed_frequency: conv.default_fixed_leg_frequency,
+            float_frequency: conv.default_payment_frequency,
+            fixed_day_count: conv.default_fixed_leg_day_count,
+            float_day_count: conv.day_count,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             payment_calendar_id: Some(conv.market_calendar_id.clone()),
             fixing_calendar_id: Some(conv.market_calendar_id.clone()),
             stub: StubKind::ShortFront,
@@ -133,7 +133,9 @@ impl IrsLegConventions {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct InterestRateSwap {
@@ -155,17 +157,26 @@ pub struct InterestRateSwap {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub margin_spec: Option<OtcMarginSpec>,
     /// Attributes for scenario selection and tagging.
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -236,9 +247,9 @@ impl InterestRateSwap {
             .fixed(FixedLegSpec {
                 discount_curve_id: CurveId::new(discount_curve_id),
                 rate: finstack_quant_core::decimal::f64_to_decimal(fixed_rate)?,
-                frequency: conv.fixed_freq,
-                day_count: conv.fixed_dc,
-                bdc: conv.bdc,
+                frequency: conv.fixed_frequency,
+                day_count: conv.fixed_day_count,
+                business_day_convention: conv.business_day_convention,
                 calendar_id: conv.payment_calendar_id.clone(),
                 stub: conv.stub,
                 start,
@@ -252,9 +263,9 @@ impl InterestRateSwap {
                 discount_curve_id: CurveId::new(discount_curve_id),
                 forward_curve_id: CurveId::new(forward_curve_id),
                 spread_bp: Decimal::ZERO,
-                frequency: conv.float_freq,
-                day_count: conv.float_dc,
-                bdc: conv.bdc,
+                frequency: conv.float_frequency,
+                day_count: conv.float_day_count,
+                business_day_convention: conv.business_day_convention,
                 calendar_id: conv.payment_calendar_id.clone(),
                 stub: conv.stub,
                 reset_lag_days: conv.reset_lag_days,
@@ -577,7 +588,7 @@ impl InterestRateSwap {
                 rate: Decimal::try_from(0.04_f64).expect("valid literal"),
                 frequency: Tenor::semi_annual(),
                 day_count: DayCount::Thirty360,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: Some("usny".to_string()),
                 stub: StubKind::ShortFront,
                 start,
@@ -593,7 +604,7 @@ impl InterestRateSwap {
                 spread_bp: Decimal::ZERO,
                 frequency: Tenor::quarterly(),
                 day_count: DayCount::Act360,
-                bdc: BusinessDayConvention::ModifiedFollowing,
+                business_day_convention: BusinessDayConvention::ModifiedFollowing,
                 calendar_id: Some("usny".to_string()),
                 stub: StubKind::ShortFront,
                 reset_lag_days: 2,
@@ -615,7 +626,7 @@ impl InterestRateSwap {
 // Attributable implementation is provided by the impl_instrument! macro
 
 impl crate::instruments::common_impl::traits::Instrument for InterestRateSwap {
-    impl_instrument_base!(crate::pricer::InstrumentType::IRS);
+    impl_instrument_base!(crate::pricer::InstrumentType::Irs);
 
     fn validate_invariants(&self) -> finstack_quant_core::Result<()> {
         self.validate()

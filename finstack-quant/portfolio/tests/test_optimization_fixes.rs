@@ -202,7 +202,7 @@ fn test_notional_weighting() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let portfolio = PortfolioBuilder::new("HEDGED_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENT_A"))
         .position(p1)
@@ -247,7 +247,7 @@ fn test_candidate_batching() -> Result<(), Box<dyn std::error::Error>> {
     let as_of = create_date(2024, Month::January, 1)?;
 
     let portfolio = PortfolioBuilder::new("EMPTY_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .build()?;
 
@@ -334,7 +334,7 @@ fn test_missing_metric_exclude_freezes_position_at_current_weight() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENT_A"))
         .position(missing_metric)
@@ -395,7 +395,7 @@ fn test_pv_native_objective_rejected_in_aggregated_expression() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("MULTI_CCY_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENT_A"))
         .position(usd_position)
@@ -430,7 +430,7 @@ fn test_pv_native_objective_rejected_in_aggregated_expression() {
 #[test]
 fn test_short_candidates_can_take_negative_weights() {
     let portfolio = PortfolioBuilder::new("EMPTY_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(create_date(2024, Month::January, 1).unwrap())
         .build()
         .unwrap();
@@ -547,7 +547,7 @@ fn m7_existing_short_accepts_negative_weight_bounds() -> Result<(), Box<dyn std:
         PositionUnit::Units,
     )?;
     let portfolio = PortfolioBuilder::new("SHORT_BOOK")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENT_A"))
         .position(long)
@@ -601,7 +601,7 @@ fn m8_candidate_entity_filters_apply_to_metric_constraints(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let as_of = create_date(2024, Month::January, 1)?;
     let portfolio = PortfolioBuilder::new("EMPTY")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .build()?;
     let non_target = CandidatePosition::new(
@@ -697,7 +697,7 @@ fn m9_turnover_slack_uses_actual_turnover() -> Result<(), Box<dyn std::error::Er
         PositionUnit::Units,
     )?;
     let portfolio = PortfolioBuilder::new("TURNOVER_BOOK")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENT_A"))
         .position(low)
@@ -770,7 +770,7 @@ fn m9_duplicate_turnover_constraints_are_rejected() -> Result<(), Box<dyn std::e
         PositionUnit::Units,
     )?;
     let portfolio = PortfolioBuilder::new("DUPLICATE_TURNOVER_BOOK")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENT_A"))
         .position(first)
@@ -839,7 +839,7 @@ fn mo6_filtered_value_weighted_average_metric_bound_uses_filtered_denominator(
         PositionUnit::Units,
     )?;
     let portfolio = PortfolioBuilder::new("FILTERED_AVG")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENT_A"))
         .position(low)
@@ -906,7 +906,7 @@ fn mo8_value_weight_existing_zero_pv_position_errors() -> Result<(), Box<dyn std
         PositionUnit::Units,
     )?;
     let portfolio = PortfolioBuilder::new("ZERO_PV")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENT_A"))
         .position(zero_pv)
@@ -956,7 +956,7 @@ fn minor14_notional_weight_uses_unit_aware_scale_factor() -> Result<(), Box<dyn 
         PositionUnit::Units,
     )?;
     let portfolio = PortfolioBuilder::new("NOTIONAL_SCALE")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENT_A"))
         .position(percentage)
@@ -1014,7 +1014,7 @@ fn test_notional_weighting_implied_quantities_use_notional_denominator() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("NOTIONAL_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENT_A"))
         .position(pos1)
@@ -1079,7 +1079,7 @@ fn mo9_unit_scaling_without_budget_does_not_synthesize_sum_multiplier_budget() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("UNIT_SCALING_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENT_A"))
         .position(position)

@@ -4,26 +4,17 @@ use crate::metrics::PortfolioMetrics;
 use crate::valuation::PortfolioValuation;
 use finstack_quant_core::config::ResultsMeta;
 use finstack_quant_core::money::Money;
+use finstack_quant_core::wire::SchemaVersion;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-/// Wire-format schema version for [`PortfolioResult`].
-///
-/// Bump on breaking changes not covered by `#[serde(default)]`. Document every
-/// bump in the workspace `CHANGELOG.md` and `docs/SERDE_STABILITY.md`.
-pub const PORTFOLIO_RESULT_SCHEMA_VERSION: u32 = 1;
-
-fn default_portfolio_result_schema_version() -> u32 {
-    PORTFOLIO_RESULT_SCHEMA_VERSION
-}
 
 /// Complete results from portfolio evaluation.
 ///
 /// Contains valuation, metrics, and metadata about the calculation.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PortfolioResult {
-    /// Wire-format schema version (see [`PORTFOLIO_RESULT_SCHEMA_VERSION`]).
-    #[serde(default = "default_portfolio_result_schema_version")]
-    pub schema_version: u32,
+    /// Required wire-format schema version. Only numeric `1` is accepted.
+    pub schema_version: SchemaVersion,
 
     /// Portfolio valuation results
     pub valuation: PortfolioValuation,
@@ -53,7 +44,7 @@ impl PortfolioResult {
         meta: ResultsMeta,
     ) -> Self {
         Self {
-            schema_version: PORTFOLIO_RESULT_SCHEMA_VERSION,
+            schema_version: SchemaVersion::CURRENT,
             valuation,
             metrics,
             meta,
@@ -66,7 +57,7 @@ impl PortfolioResult {
     ///
     /// Borrowed reference to the base-currency portfolio total.
     pub fn total_value(&self) -> &Money {
-        &self.valuation.total_base_ccy
+        &self.valuation.total_base_currency
     }
 
     /// Get a specific aggregated metric.
@@ -126,7 +117,7 @@ mod tests {
         .expect("test should succeed");
 
         let portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)

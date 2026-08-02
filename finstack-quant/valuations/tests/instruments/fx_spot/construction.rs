@@ -17,7 +17,10 @@ fn test_basic_construction() {
     assert!(fx.spot_rate.is_none());
     assert_eq!(fx.notional, Money::new(1.0, Currency::EUR));
     // Default BDC is ModifiedFollowing per ISDA FX settlement standard
-    assert_eq!(fx.bdc, BusinessDayConvention::ModifiedFollowing);
+    assert_eq!(
+        fx.business_day_convention,
+        BusinessDayConvention::ModifiedFollowing
+    );
 }
 
 #[test]
@@ -74,7 +77,7 @@ fn test_construction_full_builder() {
         .with_rate(1.32)
         .expect("test rate")
         .with_settlement(d(2025, 1, 17))
-        .with_bdc(BusinessDayConvention::ModifiedFollowing)
+        .with_business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .with_base_calendar_id("London")
         .with_quote_calendar_id("USNY");
 
@@ -84,7 +87,10 @@ fn test_construction_full_builder() {
     assert_eq!(fx.notional.amount(), 5_000_000.0);
     assert_eq!(fx.spot_rate, Some(1.32));
     assert_eq!(fx.settlement, Some(d(2025, 1, 17)));
-    assert_eq!(fx.bdc, BusinessDayConvention::ModifiedFollowing);
+    assert_eq!(
+        fx.business_day_convention,
+        BusinessDayConvention::ModifiedFollowing
+    );
     assert_eq!(fx.base_calendar_id.as_deref(), Some("London"));
     assert_eq!(fx.quote_calendar_id.as_deref(), Some("USNY"));
 }

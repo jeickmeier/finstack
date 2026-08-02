@@ -14,7 +14,7 @@
 //!
 //! The whole PV reduces to a Neumaier-accumulated sum of reporting-currency-converted
 //! discounted cashflows, requiring no additional FX surface beyond what
-//! `pv_leg_in_reporting_ccy` already needs for fixed-notional XCCY.
+//! `pv_leg_in_reporting_currency` already needs for fixed-notional XCCY.
 //!
 //! See `docs/superpowers/specs/2026-05-10-xccy-mtm-reset-design.md` for the spec.
 
@@ -53,7 +53,7 @@ fn build_xccy_mtm_periods(
         end: leg.end,
         frequency: leg.frequency,
         stub: leg.stub,
-        bdc: leg.bdc,
+        business_day_convention: leg.business_day_convention,
         calendar_id: cal_id,
         end_of_month: false,
         day_count: leg.day_count,
@@ -127,7 +127,7 @@ pub(crate) fn pv_mtm_reset(
     })?;
 
     let n_c = constant_leg.notional.amount();
-    let reporting_ccy = swap.reporting_currency;
+    let reporting_currency = swap.reporting_currency;
 
     // FX rate (resetting -> constant) at the valuation date. The forward FX at any
     // curve-time T is derived as `spot_x_at_as_of * P_R(T) / P_C(T)` via CIP; the
@@ -147,7 +147,7 @@ pub(crate) fn pv_mtm_reset(
     let resetting_periods = build_xccy_mtm_periods(resetting_leg)?;
 
     if constant_periods.is_empty() && resetting_periods.is_empty() {
-        return Ok(Money::new(0.0, reporting_ccy));
+        return Ok(Money::new(0.0, reporting_currency));
     }
 
     let mut pv = NeumaierAccumulator::new();
@@ -156,13 +156,16 @@ pub(crate) fn pv_mtm_reset(
     // curve, so convert the resulting PV at valuation-date spot. Forward FX
     // belongs to the equivalent route where the undiscounted cashflow is
     // converted first and then discounted on the reporting-currency curve.
-    let convert = |amount: f64, from_ccy: finstack_quant_core::currency::Currency| -> Result<f64> {
-        if from_ccy == reporting_ccy {
-            return Ok(amount);
-        }
-        let rate = fx.rate(FxQuery::new(from_ccy, reporting_ccy, as_of))?.rate;
-        Ok(amount * rate)
-    };
+    let convert =
+        |amount: f64, from_currency: finstack_quant_core::currency::Currency| -> Result<f64> {
+            if from_currency == reporting_currency {
+                return Ok(amount);
+            }
+            let rate = fx
+                .rate(FxQuery::new(from_currency, reporting_currency, as_of))?
+                .rate;
+            Ok(amount * rate)
+        };
 
     // Compute the per-period notional at T_start (the swap's start date). This is the
     // resetting-leg principal amount exchanged at initial exchange AND seeded into the
@@ -205,7 +208,7 @@ pub(crate) fn pv_mtm_reset(
     let fixings_r = context.get_series(&fixing_id_r).ok();
 
     // Initial principal exchange at start. We use `initial_principal_sign` exactly as the
-    // existing fixed-notional path does (`pv_leg_in_reporting_ccy`): a `Receive` leg's
+    // existing fixed-notional path does (`pv_leg_in_reporting_currency`): a `Receive` leg's
     // initial sign is -1, which yields a negative-PV cashflow (the leg "pays out" notional
     // at start). The resetting-leg notional at start is `N_0^R = N_C / X_0`.
     if constant_leg.start > as_of {
@@ -367,7 +370,7 @@ pub(crate) fn pv_mtm_reset(
         pv.add(convert(cf_r_final, resetting_leg.currency)?);
     }
 
-    Ok(Money::new(pv.total(), reporting_ccy))
+    Ok(Money::new(pv.total(), reporting_currency))
 }
 
 /// Enumerate the complete MtM-resetting cashflow stream for `cashflow_schedule`.

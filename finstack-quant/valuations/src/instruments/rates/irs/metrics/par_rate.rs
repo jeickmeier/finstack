@@ -120,7 +120,7 @@ impl MetricCalculator for ParRateCalculator {
                         end: fixed.end,
                         frequency: fixed.frequency,
                         stub: fixed.stub,
-                        bdc: fixed.bdc,
+                        business_day_convention: fixed.business_day_convention,
                         calendar_id: fixed
                             .calendar_id
                             .as_deref()
@@ -232,7 +232,7 @@ mod tests {
                     rate: rust_decimal::Decimal::try_from(0.03).expect("valid"),
                     frequency: Tenor::semi_annual(),
                     day_count: DayCount::Thirty360,
-                    bdc: BusinessDayConvention::ModifiedFollowing,
+                    business_day_convention: BusinessDayConvention::ModifiedFollowing,
                     calendar_id: None,
                     stub: StubKind::None,
                     start,
@@ -250,7 +250,7 @@ mod tests {
                     spread_bp: rust_decimal::Decimal::ZERO,
                     frequency: Tenor::quarterly(),
                     day_count: DayCount::Act360,
-                    bdc: BusinessDayConvention::ModifiedFollowing,
+                    business_day_convention: BusinessDayConvention::ModifiedFollowing,
                     calendar_id: None,
                     stub: StubKind::None,
                     reset_lag_days: 2,

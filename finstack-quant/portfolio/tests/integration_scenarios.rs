@@ -44,7 +44,7 @@ fn apply_and_revalue_succeeds() {
 
     let pos = Position::new("P", "E", "D", Arc::new(dep), 1.0, PositionUnit::Units).unwrap();
     let portfolio = PortfolioBuilder::new("PF")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E"))
         .position(pos)
@@ -85,8 +85,8 @@ fn apply_and_revalue_succeeds() {
 
     // Verify the shocked valuation differs from base
     // +10bp shift should change deposit value slightly
-    let base_total = base_valuation.total_base_ccy.amount();
-    let shocked_total = shocked_valuation.total_base_ccy.amount();
+    let base_total = base_valuation.total_base_currency.amount();
+    let shocked_total = shocked_valuation.total_base_currency.amount();
 
     // For a 30-day deposit, +10bp should have a small but measurable impact
     // Don't assert sign as deposits may behave differently than bonds
@@ -140,7 +140,7 @@ fn scenario_pnl_reconciles_end_to_end() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("PF")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E_A"))
         .entity(Entity::new("E_B"))
@@ -194,7 +194,7 @@ fn scenario_pnl_reconciles_end_to_end() {
         &portfolio, &scenario, &market, &config,
     )
     .unwrap();
-    let expected = stressed.total_base_ccy.amount() - base.total_base_ccy.amount();
+    let expected = stressed.total_base_currency.amount() - base.total_base_currency.amount();
     assert!(
         (pnl.total.amount() - expected).abs() < 1e-6,
         "total {} must equal stressed-minus-base {expected}",
@@ -226,7 +226,7 @@ fn scenario_pnl_no_op_scenario_is_flat() {
 
     let pos = Position::new("P", "E", "D", Arc::new(dep), 1.0, PositionUnit::Units).unwrap();
     let portfolio = PortfolioBuilder::new("PF")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("E"))
         .position(pos)
@@ -379,7 +379,7 @@ impl Instrument for ScenarioFailureInstrument {
 
     fn market_dependencies(&self) -> finstack_quant_core::Result<MarketDependencies> {
         let mut dependencies = MarketDependencies::new();
-        dependencies.add_spot_id("SCENARIO_FAILURE_FLAG");
+        dependencies.add_market_scalar_id("SCENARIO_FAILURE_FLAG");
         Ok(dependencies)
     }
 }
@@ -387,7 +387,7 @@ impl Instrument for ScenarioFailureInstrument {
 #[test]
 fn scenario_batch_reports_earliest_error_across_application_and_valuation_phases() {
     let portfolio = PortfolioBuilder::new("ERROR_ORDER_PORTFOLIO")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("ENTITY"))
         .position(

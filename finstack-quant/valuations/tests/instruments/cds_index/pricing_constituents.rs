@@ -113,7 +113,7 @@ fn test_constituents_par_spread() {
     let par_spread = metric_value(&idx, &ctx, as_of, MetricId::ParSpread);
 
     assert_positive(par_spread, "Par spread");
-    let expected = flat_hazard_par_spread_bps(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
+    let expected = flat_hazard_par_spread_bp(STANDARD_HAZARD_RATE, STANDARD_RECOVERY_SENIOR);
     assert_in_range(
         par_spread,
         expected * 0.85,

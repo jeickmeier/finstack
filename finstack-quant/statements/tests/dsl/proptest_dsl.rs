@@ -120,10 +120,3 @@ proptest! {
     }
 
 }
-
-#[test]
-fn test_proptest_infrastructure_works() {
-    // Smoke test to ensure proptest is properly configured
-    let result = dsl::parser::parse_formula("a + b");
-    assert!(result.is_ok());
-}

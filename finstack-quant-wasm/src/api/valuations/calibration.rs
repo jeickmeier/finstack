@@ -141,9 +141,7 @@ fn execute_error_to_js(err: ExecuteError) -> JsValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use finstack_quant_valuations::calibration::api::schema::{
-        CalibrationPlan, CALIBRATION_SCHEMA,
-    };
+    use finstack_quant_valuations::calibration::api::schema::{CalibrationPlan, CalibrationSchema};
 
     fn empty_envelope_json() -> String {
         let plan = CalibrationPlan {
@@ -155,7 +153,7 @@ mod tests {
         };
         let envelope = CalibrationEnvelope {
             schema_url: None,
-            schema: CALIBRATION_SCHEMA.to_string(),
+            schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
             plan,
             market_data: Vec::new(),
             prior_market: Vec::new(),
@@ -282,7 +280,7 @@ mod tests {
         // The canonical form must itself parse back into a `CalibrationEnvelope`.
         let reparsed: CalibrationEnvelope =
             serde_json::from_str(&canonical).expect("canonical JSON must round-trip");
-        assert_eq!(reparsed.schema, CALIBRATION_SCHEMA);
+        assert_eq!(reparsed.schema, CalibrationSchema::Calibration);
     }
 
     #[test]

@@ -18,7 +18,8 @@ use pyo3::prelude::*;
 /// Parameters
 /// ----------
 /// instrument_json : str
-///     Tagged instrument JSON (``{"type": "bond", "spec": {...}}``).
+///     Canonical v1 instrument envelope
+///     (``{"schema": "finstack_quant.instrument/1", "instrument": {...}}``).
 /// market_t0_json : str
 ///     JSON-serialized ``MarketContext`` at T₀.
 /// market_t1_json : str
@@ -32,10 +33,10 @@ use pyo3::prelude::*;
 /// method : str | dict
 ///     Attribution method. One of:
 ///
-///     * ``"Parallel"``
-///     * ``{"Waterfall": ["Carry", "RatesCurves", ...]}``
-///     * ``"MetricsBased"``
-///     * ``{"Taylor": {"include_gamma": true, ...}}``
+///     * ``"parallel"``
+///     * ``{"waterfall": ["carry", "rates_curves", ...]}``
+///     * ``"metrics_based"``
+///     * ``{"taylor": {"include_gamma": true, ...}}``
 /// config : dict, optional
 ///     Optional attribution config overrides (tolerance, metrics, bump sizes).
 /// full_cross_attribution : bool, optional
@@ -50,7 +51,7 @@ use pyo3::prelude::*;
 ///
 /// Examples
 /// --------
-/// >>> attr_json = attribute_pnl(inst, mkt_t0, mkt_t1, "2025-01-15", "2025-01-16", "Parallel")
+/// >>> attr_json = attribute_pnl(inst, mkt_t0, mkt_t1, "2025-01-15", "2025-01-16", "parallel")
 /// >>> attr = PnlAttribution.from_json(attr_json)
 /// >>> print(attr.explain())
 /// >>> attr.to_dataframe()
@@ -169,13 +170,6 @@ pub(crate) fn attribute_return_contribution(spec_json: &str) -> PyResult<String>
 pub(crate) fn validate_attribution_json(json: &str) -> PyResult<String> {
     let envelope: finstack_quant_attribution::AttributionEnvelope =
         serde_json::from_str(json).map_err(|e| serde_json_to_py(e, "invalid attribution JSON"))?;
-    if envelope.schema != finstack_quant_attribution::ATTRIBUTION_SCHEMA_V1 {
-        return Err(crate::errors::value_error(format!(
-            "unsupported attribution schema {:?}; expected {:?}",
-            envelope.schema,
-            finstack_quant_attribution::ATTRIBUTION_SCHEMA_V1
-        )));
-    }
     serde_json::to_string(&envelope).map_err(display_to_py)
 }
 
@@ -195,12 +189,12 @@ pub(crate) fn validate_return_contribution_json(spec_json: &str) -> PyResult<()>
 /// Returns
 /// -------
 /// list[str]
-///     Factor names in the default waterfall order.
+///     Canonical snake-case factor names in the default waterfall order.
 #[pyfunction]
 pub(crate) fn default_waterfall_order() -> Vec<String> {
     finstack_quant_attribution::default_waterfall_order()
         .into_iter()
-        .map(|f| f.to_string())
+        .map(|factor| factor.as_str().to_owned())
         .collect()
 }
 

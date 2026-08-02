@@ -101,7 +101,7 @@ pub(crate) fn base_corr_parallel_effects(
 /// Generate effects for a bucketed base-correlation shock.
 pub(crate) fn base_corr_bucket_effects(
     surface_id: &CurveId,
-    detachment_bps: Option<&[i32]>,
+    detachment_bp: Option<&[i32]>,
     maturities: Option<&[String]>,
     points: f64,
     ctx: &ExecutionContext,
@@ -111,13 +111,13 @@ pub(crate) fn base_corr_bucket_effects(
             return Err(Error::Validation(
                 "BaseCorrBucketPts maturity filtering is not supported: \
                  BaseCorrelationCurve is 1D (detachment only, no term structure). \
-                 Remove the maturities field or use detachment_bps alone."
+                 Remove the maturities field or use detachment_bp alone."
                     .to_string(),
             ));
         }
     }
 
-    let dets = detachment_bps.map(crate::utils::bps_to_fractions);
+    let dets = detachment_bp.map(crate::utils::bp_to_fractions);
 
     let bump = MarketBump::BaseCorrBucketPts {
         surface_id: surface_id.clone(),

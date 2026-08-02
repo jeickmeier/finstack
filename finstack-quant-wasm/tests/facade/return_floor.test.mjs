@@ -43,13 +43,13 @@ await init({ module_or_path: readFileSync(WASM_BG) });
 
 /** Minimal 5-year flat discount market context for bond pricing. */
 const MARKET_JSON = JSON.stringify({
-  version: 2,
+  schema_version: 1,
   curves: [
     {
       type: 'discount',
       id: 'USD-OIS',
       base: '2024-01-01',
-      day_count: 'Act365F',
+      day_count: 'act_365f',
       knot_points: [
         [0.0, 1.0],
         [5.0, 0.85],
@@ -71,6 +71,7 @@ const MARKET_JSON = JSON.stringify({
   fx_delta_vol_surfaces: [],
   vol_cubes: [],
   collateral: {},
+  hierarchy: null,
 });
 
 /**
@@ -78,7 +79,7 @@ const MARKET_JSON = JSON.stringify({
  * Mirrors `_plain_bond_spec()` in `finstack-quant-py/tests/test_return_floor.py`.
  *
  * @param {object|null} returnFloor  Optional return_floor sub-object.
- * @returns {string}  Tagged InstrumentJson string.
+ * @returns {string}  Canonical instrument-envelope JSON.
  */
 function bondInstrumentJson(returnFloor = null) {
   const spec = {
@@ -87,11 +88,11 @@ function bondInstrumentJson(returnFloor = null) {
     issue_date: '2024-01-01',
     maturity: '2029-01-01',
     cashflow_spec: {
-      Fixed: {
+      fixed: {
         rate: '0.10',
-        freq: { count: 12, unit: 'months' },
-        dc: 'Thirty360',
-        bdc: 'following',
+        frequency: { count: 12, unit: 'months' },
+        day_count: '30_360',
+        business_day_convention: 'following',
         calendar_id: 'weekends_only',
       },
     },
@@ -103,7 +104,10 @@ function bondInstrumentJson(returnFloor = null) {
   if (returnFloor !== null) {
     spec.return_floor = returnFloor;
   }
-  return JSON.stringify({ type: 'bond', spec });
+  return JSON.stringify({
+    schema: 'finstack_quant.instrument/1',
+    instrument: { type: 'bond', spec },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +117,7 @@ function bondInstrumentJson(returnFloor = null) {
 /**
  * Price a bond and return the parsed ValuationResult.
  *
- * @param {string} instrumentJson  Tagged InstrumentJson string.
+ * @param {string} instrumentJson  Canonical instrument-envelope JSON.
  * @param {string[]} metrics  Metric IDs to compute.
  * @returns {object}  Parsed ValuationResult.
  */
@@ -151,30 +155,30 @@ test('return-floor metrics appear in listStandardMetrics', () => {
 // Tests: JSON round-trip with return_floor
 // ---------------------------------------------------------------------------
 
-test('validateInstrumentJson accepts bond with Moic return_floor', () => {
+test('validateInstrumentJson accepts bond with MOIC return_floor', () => {
   const inst = bondInstrumentJson({
-    kind: { Moic: 1.25 },
-    issue_price: 'Par',
-    window: 'Full',
+    kind: { moic: 1.25 },
+    issue_price: 'par',
+    window: 'full',
   });
   const canonical = valuations.instruments.validateInstrumentJson(inst);
   assert.ok(typeof canonical === 'string' && canonical.length > 0);
   const parsed = JSON.parse(canonical);
-  assert.equal(parsed.type, 'bond');
-  assert.ok(parsed.spec.return_floor != null, 'return_floor survives round-trip');
-  assert.deepEqual(parsed.spec.return_floor.kind, { Moic: 1.25 });
+  assert.equal(parsed.instrument.type, 'bond');
+  assert.ok(parsed.instrument.spec.return_floor != null, 'return_floor survives round-trip');
+  assert.deepEqual(parsed.instrument.spec.return_floor.kind, { moic: 1.25 });
 });
 
-test('validateInstrumentJson accepts bond with Xirr return_floor and PctOfPar issue_price', () => {
+test('validateInstrumentJson accepts bond with XIRR return_floor and pct_of_par issue_price', () => {
   const inst = bondInstrumentJson({
-    kind: { Xirr: 0.12 },
-    issue_price: { PctOfPar: 98.0 },
-    window: { From: '2026-01-01' },
+    kind: { xirr: 0.12 },
+    issue_price: { pct_of_par: 98.0 },
+    window: { from: '2026-01-01' },
   });
   const canonical = valuations.instruments.validateInstrumentJson(inst);
   const parsed = JSON.parse(canonical);
-  assert.ok(parsed.spec.return_floor != null, 'return_floor survives round-trip');
-  assert.deepEqual(parsed.spec.return_floor.kind, { Xirr: 0.12 });
+  assert.ok(parsed.instrument.spec.return_floor != null, 'return_floor survives round-trip');
+  assert.deepEqual(parsed.instrument.spec.return_floor.kind, { xirr: 0.12 });
 });
 
 // ---------------------------------------------------------------------------
@@ -208,7 +212,7 @@ test('plain bullet: moic_to_worst == moic (single exit path, no calls)', () => {
 
 test('floored bond (1.25× MOIC): prices successfully and moic_to_worst ≤ moic', () => {
   const result = priceWithMetrics(
-    bondInstrumentJson({ kind: { Moic: 1.25 }, issue_price: 'Par', window: 'Full' }),
+    bondInstrumentJson({ kind: { moic: 1.25 }, issue_price: 'par', window: 'full' }),
     ['moic', 'moic_to_worst', 'xirr', 'xirr_to_worst']
   );
   // Price > 0
@@ -226,7 +230,7 @@ test('floored bond (1.25× MOIC): prices successfully and moic_to_worst ≤ moic
 
 test('floored bond (12% XIRR): prices successfully and xirr metric is positive', () => {
   const result = priceWithMetrics(
-    bondInstrumentJson({ kind: { Xirr: 0.12 }, issue_price: 'Par', window: 'Full' }),
+    bondInstrumentJson({ kind: { xirr: 0.12 }, issue_price: 'par', window: 'full' }),
     ['xirr', 'xirr_to_worst']
   );
   assert.ok(numericAmount(result) > 0, 'xirr-floored bond price must be positive');
@@ -238,7 +242,7 @@ test('floored bond: MOIC metric matches unfloored bullet (floor only affects ear
   // held-to-maturity MOIC: the floor only governs EARLY redemption pricing.
   const unfloored = priceWithMetrics(bondInstrumentJson(), ['moic']);
   const floored = priceWithMetrics(
-    bondInstrumentJson({ kind: { Moic: 1.25 }, issue_price: 'Par', window: 'Full' }),
+    bondInstrumentJson({ kind: { moic: 1.25 }, issue_price: 'par', window: 'full' }),
     ['moic']
   );
   assert.ok(

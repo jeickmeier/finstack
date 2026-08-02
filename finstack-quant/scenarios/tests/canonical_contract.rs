@@ -5,18 +5,11 @@ use finstack_quant_core::to_canonical_bytes;
 use finstack_quant_scenarios::ScenarioEnvelope;
 
 fn scenario_bytes(attrs: &str) -> Vec<u8> {
-    let matrix: serde_json::Value =
-        serde_json::from_str(include_str!("data/contract_version_matrix.json"))
-            .expect("contract matrix parses");
-    let mut base = matrix["scenario"]["base"].clone();
-    base["scenario"]["operations"] = serde_json::json!([{
-        "kind": "instrument_price_pct_by_attr",
-        "attrs": {},
-        "pct": -3.0,
-    }]);
-    serde_json::to_string(&base)
-        .expect("scenario fixture serializes")
-        .replace(r#""attrs":{}"#, &format!(r#""attrs":{attrs}"#))
+    include_str!("data/canonical/scenario.json")
+        .replace(
+            r#""attrs":{"desk":"rates","region":"us"}"#,
+            &format!(r#""attrs":{attrs}"#),
+        )
         .into_bytes()
 }
 

@@ -89,7 +89,7 @@ fn scenario_validate_prefixes_invalid_operation_index() {
 
 #[test]
 fn operation_validate_rejects_invalid_inputs() {
-    let same_ccy = OperationSpec::MarketFxPct {
+    let same_currency = OperationSpec::MarketFxPct {
         base: Currency::USD,
         quote: Currency::USD,
         pct: 5.0,
@@ -112,7 +112,7 @@ fn operation_validate_rejects_invalid_inputs() {
         discount_curve_id: None,
     };
 
-    assert!(same_ccy
+    assert!(same_currency
         .validate()
         .expect_err("same-currency FX pair should fail")
         .to_string()
@@ -235,7 +235,7 @@ fn operation_validate_rejects_non_finite_and_fx_floor_violation() {
     // FX retains the strict floor.
     let vol_floor_relaxed = OperationSpec::VolSurfaceBucketPct {
         surface_kind: VolSurfaceKind::Equity,
-        surface_id: "SPX".into(),
+        vol_surface_id: "SPX".into(),
         tenors: None,
         strikes: Some(vec![100.0]),
         pct: -100.0,
@@ -284,13 +284,13 @@ fn scenario_validate_accepts_mixed_valid_operations() {
             },
             OperationSpec::BaseCorrBucketPts {
                 surface_id: "CDX_IG".into(),
-                detachment_bps: Some(vec![300, 700]),
+                detachment_bp: Some(vec![300, 700]),
                 maturities: Some(vec!["5Y".into()]),
                 points: 0.02,
             },
             OperationSpec::VolSurfaceBucketPct {
                 surface_kind: VolSurfaceKind::Equity,
-                surface_id: "SPX".into(),
+                vol_surface_id: "SPX".into(),
                 tenors: Some(vec!["1Y".into()]),
                 strikes: Some(vec![95.0, 105.0]),
                 pct: 10.0,
@@ -390,7 +390,7 @@ fn operation_spec_rejects_unknown_variant_fields() {
 }
 
 #[test]
-fn rate_binding_validate_eagerly_parses_tenor_and_day_count() {
+fn rate_binding_validate_eagerly_parses_tenor() {
     let invalid_tenor = RateBindingSpec {
         node_id: "InterestExpense".into(),
         curve_id: "USD-SOFR".into(),
@@ -400,13 +400,12 @@ fn rate_binding_validate_eagerly_parses_tenor_and_day_count() {
     };
     assert!(invalid_tenor.validate().is_err());
 
-    let invalid_day_count = RateBindingSpec {
-        tenor: "1Y".into(),
-        day_count: Some("actual/made-up".into()),
-        ..invalid_tenor
-    };
-    let error = invalid_day_count
-        .validate()
-        .expect_err("unsupported day count must fail");
-    assert!(error.to_string().contains("day count"), "{error}");
+    let invalid_day_count = r#"{
+        "node_id": "InterestExpense",
+        "curve_id": "USD-SOFR",
+        "tenor": "1Y",
+        "compounding": "continuous",
+        "day_count": "actual/made-up"
+    }"#;
+    assert!(serde_json::from_str::<RateBindingSpec>(invalid_day_count).is_err());
 }

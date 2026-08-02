@@ -91,7 +91,9 @@ use finstack_quant_core::Result;
     Debug,
     PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = FxSpot::validate_economics)]
 #[serde(deny_unknown_fields, try_from = "FxSpotUnchecked")]
@@ -104,7 +106,8 @@ pub struct FxSpot {
     pub quote_currency: Currency,
     /// Optional settlement date (T+2 typically for spot)
     #[builder(optional)]
-    #[schemars(with = "Option<String>")]
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub settlement: Option<Date>,
     /// Optional settlement lag in business days when `settlement` is not provided (default: 2)
     #[builder(optional)]
@@ -121,17 +124,26 @@ pub struct FxSpot {
     /// Notional amount in base currency.
     pub notional: Money,
     /// Per-instrument pricing/sensitivity override knobs.
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Business day convention to apply when adjusting settlement (default: ModifiedFollowing)
     ///
@@ -139,7 +151,7 @@ pub struct FxSpot {
     /// with ISDA standard FX settlement conventions.
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional base currency calendar for joint calendar settlement adjustment.
     ///
     /// Per market convention, FX settlement uses the joint calendar of both currencies.
@@ -162,7 +174,8 @@ struct FxSpotUnchecked {
     id: InstrumentId,
     base_currency: Currency,
     quote_currency: Currency,
-    #[schemars(with = "Option<String>")]
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     settlement: Option<Date>,
     settlement_lag_days: Option<i32>,
     spot_rate: Option<f64>,
@@ -170,7 +183,7 @@ struct FxSpotUnchecked {
     discount_curve_id: Option<finstack_quant_core::types::CurveId>,
     notional: Money,
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     base_calendar_id: Option<String>,
     quote_calendar_id: Option<String>,
     #[serde(default)]
@@ -198,7 +211,7 @@ impl TryFrom<FxSpotUnchecked> for FxSpot {
             instrument_pricing_overrides: value.instrument_pricing_overrides,
             metric_pricing_overrides: value.metric_pricing_overrides,
             scenario_pricing_overrides: value.scenario_pricing_overrides,
-            bdc: value.bdc,
+            business_day_convention: value.business_day_convention,
             base_calendar_id: value.base_calendar_id,
             quote_calendar_id: value.quote_calendar_id,
             attributes: value.attributes,
@@ -225,7 +238,7 @@ impl FxSpot {
             instrument_pricing_overrides: Default::default(),
             metric_pricing_overrides: Default::default(),
             scenario_pricing_overrides: Default::default(),
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             base_calendar_id: None,
             quote_calendar_id: None,
             attributes: Attributes::new(),
@@ -257,7 +270,7 @@ impl FxSpot {
             if use_joint_calendar {
                 adjust_joint_calendar(
                     date,
-                    self.bdc,
+                    self.business_day_convention,
                     self.base_calendar_id.as_deref(),
                     self.quote_calendar_id.as_deref(),
                 )
@@ -350,8 +363,11 @@ impl FxSpot {
     }
 
     /// Set the business day convention
-    pub fn with_bdc(mut self, bdc: BusinessDayConvention) -> Self {
-        self.bdc = bdc;
+    pub fn with_business_day_convention(
+        mut self,
+        business_day_convention: BusinessDayConvention,
+    ) -> Self {
+        self.business_day_convention = business_day_convention;
         self
     }
 

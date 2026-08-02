@@ -30,40 +30,57 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 /// Current schema version identifier for the calibration API.
-pub const CALIBRATION_SCHEMA: &str = "finstack_quant.calibration/3";
-/// Deprecated unversioned calibration marker accepted for compatibility.
-pub const LEGACY_CALIBRATION_SCHEMA: &str = "finstack_quant.calibration";
+pub const CALIBRATION_SCHEMA: &str = "finstack_quant.calibration/1";
 /// Persistence contract for calibration request and result envelopes.
 pub const CALIBRATION_CONTRACT: ContractDescriptor =
-    ContractDescriptor::new("finstack_quant.calibration", 3);
+    ContractDescriptor::new("finstack_quant.calibration");
 const FINAL_MARKET_POINTER: &str = "/result/final_market";
 
-fn calibration_schema_marker(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    schemars::json_schema!({
-        "type": "string",
-        "enum": [CALIBRATION_SCHEMA, LEGACY_CALIBRATION_SCHEMA],
-    })
+/// Exact schema marker accepted by calibration envelopes.
+#[cfg_attr(feature = "ts_export", derive(TS))]
+#[cfg_attr(feature = "ts_export", ts(export))]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub enum CalibrationSchema {
+    /// The sole supported calibration contract.
+    #[serde(rename = "finstack_quant.calibration/1")]
+    Calibration,
 }
 
-pub(crate) fn legacy_calibration_schema_report(limits: &LoadLimits) -> ContractValidationReport {
-    let mut report = ContractValidationReport::default();
-    report.push_bounded(
-        limits,
-        Diagnostic::new(
-            "contract/version-legacy",
-            LoadPhase::Version,
-            Severity::Warning,
-            format!(
-                "deprecated calibration schema {LEGACY_CALIBRATION_SCHEMA:?} maps to \
-                 {CALIBRATION_SCHEMA:?}"
-            ),
-        )
-        .with_pointer("/schema")
-        .with_contract(CALIBRATION_CONTRACT.id)
-        .with_expected_version(CALIBRATION_CONTRACT.current)
-        .with_actual_version(CALIBRATION_CONTRACT.current),
-    );
-    report
+impl CalibrationSchema {
+    /// The exact marker required by every persisted calibration envelope.
+    pub const CURRENT: Self = Self::Calibration;
+}
+
+fn validate_schema_marker(
+    value: &serde_json::Value,
+    limits: &LoadLimits,
+) -> Result<(), ContractError> {
+    match value.get("schema") {
+        Some(serde_json::Value::String(schema)) => {
+            CALIBRATION_CONTRACT.parse_schema_strict(Some(schema), "/schema", limits)?;
+            Ok(())
+        }
+        Some(found) => {
+            let mut report = ContractValidationReport::default();
+            report.push_bounded(
+                limits,
+                Diagnostic::new(
+                    "contract/schema-malformed",
+                    LoadPhase::Version,
+                    Severity::Error,
+                    format!("malformed schema marker {found}; expected {CALIBRATION_SCHEMA:?}"),
+                )
+                .with_pointer("/schema")
+                .with_contract(CALIBRATION_CONTRACT.id)
+                .with_expected_version(ContractDescriptor::VERSION),
+            );
+            Err(ContractError::Report(Box::new(report)))
+        }
+        None => {
+            CALIBRATION_CONTRACT.parse_schema_strict(None, "/schema", limits)?;
+            Ok(())
+        }
+    }
 }
 
 fn append_prefixed_report(
@@ -94,8 +111,8 @@ mod pointer_tests {
     #[test]
     fn nested_diagnostic_pointer_join_is_rfc_6901_safe() {
         assert_eq!(
-            prefix_json_pointer(FINAL_MARKET_POINTER, Some("/version")),
-            "/result/final_market/version"
+            prefix_json_pointer(FINAL_MARKET_POINTER, Some("/schema_version")),
+            "/result/final_market/schema_version"
         );
         assert_eq!(
             prefix_json_pointer(FINAL_MARKET_POINTER, Some("/")),
@@ -221,15 +238,12 @@ pub struct CalibrationResult {
     /// Final calibrated market context (all curves, surfaces, scalars, etc.)
     // MarketContextState is from finstack-quant-core which does not carry ts_export yet.
     // Using `unknown` as a placeholder until finstack-quant-core adds TS support.
-    #[schemars(with = "serde_json::Value")]
     #[cfg_attr(feature = "ts_export", ts(type = "unknown"))]
     pub final_market: MarketContextState,
     /// Merged plan-level calibration report.
-    #[schemars(with = "serde_json::Value")]
     #[cfg_attr(feature = "ts_export", ts(type = "unknown"))]
     pub report: CalibrationReport,
     /// Per-step calibration reports keyed by step id.
-    #[schemars(with = "std::collections::BTreeMap<String, serde_json::Value>")]
     #[cfg_attr(feature = "ts_export", ts(type = "Record<string, unknown>"))]
     pub step_reports: std::collections::BTreeMap<String, CalibrationReport>,
     /// Results metadata (timestamp, version, rounding context, etc.).
@@ -244,8 +258,7 @@ pub struct CalibrationResult {
 #[serde(deny_unknown_fields)]
 pub struct CalibrationResultEnvelope {
     /// Schema marker; current writers emit [`CALIBRATION_SCHEMA`].
-    #[schemars(schema_with = "calibration_schema_marker")]
-    pub schema: String,
+    pub schema: CalibrationSchema,
     /// The calibration result.
     pub result: CalibrationResult,
 }
@@ -259,7 +272,7 @@ impl CalibrationResultEnvelope {
     ///   snapshot, reports, and result metadata.
     pub fn new(result: CalibrationResult) -> Self {
         Self {
-            schema: CALIBRATION_SCHEMA.to_string(),
+            schema: CalibrationSchema::Calibration,
             result,
         }
     }
@@ -276,9 +289,7 @@ impl CalibrationResultEnvelope {
 
     /// Strictly load a persisted calibration result envelope.
     ///
-    /// This persistence entry point requires an explicit schema marker. It
-    /// accepts the historical unversioned calibration marker with a legacy
-    /// warning, requires the current version for slash-versioned markers,
+    /// This persistence entry point requires the exact v1 schema marker,
     /// enforces the supplied resource limits, and strictly restores the nested
     /// final market so its version and references cannot bypass validation.
     ///
@@ -300,38 +311,8 @@ impl CalibrationResultEnvelope {
         limits: &LoadLimits,
     ) -> Result<(Self, ContractValidationReport), ContractError> {
         let value = parse_result_value(bytes, limits)?;
-        let mut report = match value.get("schema") {
-            Some(serde_json::Value::String(schema)) if schema == LEGACY_CALIBRATION_SCHEMA => {
-                legacy_calibration_schema_report(limits)
-            }
-            Some(serde_json::Value::String(schema)) => {
-                CALIBRATION_CONTRACT.parse_schema_strict(Some(schema), "/schema", limits)?;
-                ContractValidationReport::default()
-            }
-            Some(found) => {
-                let mut report = ContractValidationReport::default();
-                report.push_bounded(
-                    limits,
-                    Diagnostic::new(
-                        "contract/schema-malformed",
-                        LoadPhase::Version,
-                        Severity::Error,
-                        format!(
-                            "malformed schema marker {}; expected a string in {:?} format",
-                            found, CALIBRATION_SCHEMA
-                        ),
-                    )
-                    .with_pointer("/schema")
-                    .with_contract(CALIBRATION_CONTRACT.id)
-                    .with_expected_version(CALIBRATION_CONTRACT.current),
-                );
-                return Err(ContractError::Report(Box::new(report)));
-            }
-            None => {
-                CALIBRATION_CONTRACT.parse_schema_strict(None, "/schema", limits)?;
-                ContractValidationReport::default()
-            }
-        };
+        validate_schema_marker(&value, limits)?;
+        let mut report = ContractValidationReport::default();
         validate_final_market(&value, &mut report, limits);
         if report.has_errors() {
             return Err(ContractError::Report(Box::new(report)));
@@ -357,8 +338,7 @@ pub struct CalibrationEnvelope {
     #[cfg_attr(feature = "ts_export", ts(type = "string | null"))]
     pub schema_url: Option<String>,
     /// Schema marker; current writers emit [`CALIBRATION_SCHEMA`].
-    #[schemars(schema_with = "calibration_schema_marker")]
-    pub schema: String,
+    pub schema: CalibrationSchema,
     /// The calibration plan containing steps and quote-set references.
     pub plan: CalibrationPlan,
 
@@ -389,7 +369,7 @@ impl CalibrationEnvelope {
     ) -> Self {
         Self {
             schema_url: None,
-            schema: CALIBRATION_SCHEMA.to_string(),
+            schema: CalibrationSchema::Calibration,
             plan,
             market_data,
             prior_market,
@@ -408,18 +388,16 @@ impl CalibrationEnvelope {
 
     /// Strictly load a persisted calibration request envelope.
     ///
-    /// The loader enforces resource limits and requires an explicit calibration
-    /// schema marker. The deprecated unversioned marker remains readable with a
-    /// compatibility warning; slash-versioned markers must match the supported
-    /// calibration contract. Typed requests also run the complete solver-free
-    /// semantic validation pass before they are returned.
+    /// The loader enforces resource limits and requires the exact v1 calibration
+    /// schema marker. Typed requests also run the complete solver-free semantic
+    /// validation pass before they are returned.
     ///
     /// # Arguments
     ///
     /// * `bytes` - Complete UTF-8 JSON encoding of a calibration request
-    ///   envelope in the v3 flat-market shape.
+    ///   envelope in the canonical flat-market shape.
     /// * `limits` - Resource policy bounding input bytes, JSON nesting depth,
-    ///   and retained compatibility diagnostics.
+    ///   and retained diagnostics.
     ///
     /// # Errors
     ///
@@ -432,38 +410,8 @@ impl CalibrationEnvelope {
         limits: &LoadLimits,
     ) -> Result<(Self, ContractValidationReport), ContractError> {
         let value = parse_json_value(bytes, limits)?;
-        let mut report = match value.get("schema") {
-            Some(serde_json::Value::String(schema)) if schema == LEGACY_CALIBRATION_SCHEMA => {
-                legacy_calibration_schema_report(limits)
-            }
-            Some(serde_json::Value::String(schema)) => {
-                CALIBRATION_CONTRACT.parse_schema_strict(Some(schema), "/schema", limits)?;
-                ContractValidationReport::default()
-            }
-            Some(found) => {
-                let mut report = ContractValidationReport::default();
-                report.push_bounded(
-                    limits,
-                    Diagnostic::new(
-                        "contract/schema-malformed",
-                        LoadPhase::Version,
-                        Severity::Error,
-                        format!(
-                            "malformed schema marker {}; expected a string in {:?} format",
-                            found, CALIBRATION_SCHEMA
-                        ),
-                    )
-                    .with_pointer("/schema")
-                    .with_contract(CALIBRATION_CONTRACT.id)
-                    .with_expected_version(CALIBRATION_CONTRACT.current),
-                );
-                return Err(ContractError::Report(Box::new(report)));
-            }
-            None => {
-                CALIBRATION_CONTRACT.parse_schema_strict(None, "/schema", limits)?;
-                ContractValidationReport::default()
-            }
-        };
+        validate_schema_marker(&value, limits)?;
+        let mut report = ContractValidationReport::default();
         let envelope: Self = deserialize_json_value(value, limits)?;
         super::validate::append_contract_diagnostics(
             &mut report,
@@ -649,14 +597,18 @@ impl StepParams {
                     .as_ref()
                     .map(|id| vec![id.to_string()])
                     .unwrap_or_default(),
-                writes: vec![p.surface_id.clone()],
-                primary_output: StepPrimaryOutput::Surface(CurveId::from(p.surface_id.as_str())),
+                writes: vec![p.vol_surface_id.clone()],
+                primary_output: StepPrimaryOutput::Surface(CurveId::from(
+                    p.vol_surface_id.as_str(),
+                )),
             },
             StepParams::SwaptionVol(p) => StepIo {
                 kind: "swaption_vol",
                 reads: vec![p.discount_curve_id.to_string()],
-                writes: vec![p.surface_id.clone()],
-                primary_output: StepPrimaryOutput::Surface(CurveId::from(p.surface_id.as_str())),
+                writes: vec![p.vol_surface_id.clone()],
+                primary_output: StepPrimaryOutput::Surface(CurveId::from(
+                    p.vol_surface_id.as_str(),
+                )),
             },
             StepParams::BaseCorrelation(p) => {
                 let curve_id = CurveId::from(format!("{}_CORR", p.index_id));
@@ -709,8 +661,10 @@ impl StepParams {
                     .as_ref()
                     .map(|id| vec![id.to_string()])
                     .unwrap_or_default(),
-                writes: vec![p.surface_id.clone()],
-                primary_output: StepPrimaryOutput::Surface(CurveId::from(p.surface_id.as_str())),
+                writes: vec![p.vol_surface_id.clone()],
+                primary_output: StepPrimaryOutput::Surface(CurveId::from(
+                    p.vol_surface_id.as_str(),
+                )),
             },
             StepParams::XccyBasis(p) => {
                 let mut writes = vec![p.curve_id.to_string()];
@@ -755,7 +709,8 @@ pub struct DiscountCurveParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the curve.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Calibration method to use.
@@ -796,7 +751,8 @@ pub struct ForwardCurveParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the curve.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Tenor in years for the forward curve.
@@ -839,7 +795,8 @@ pub struct HazardCurveParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the curve.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Identifier for the discount curve to use.
@@ -905,7 +862,8 @@ pub struct InflationCurveParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the curve.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Identifier for the discount curve to use.
@@ -968,21 +926,30 @@ pub struct SeasonalFactors {
 /// Parameters for volatility surface calibration step.
 #[cfg_attr(feature = "ts_export", derive(TS))]
 #[cfg_attr(feature = "ts_export", ts(export))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum VolSurfaceModel {
+    /// Stochastic alpha-beta-rho model.
+    Sabr,
+}
+
+/// Parameters for volatility surface calibration step.
+#[cfg_attr(feature = "ts_export", derive(TS))]
+#[cfg_attr(feature = "ts_export", ts(export))]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct VolSurfaceParams {
     /// Identifier for the volatility surface being built.
-    pub surface_id: String,
+    pub vol_surface_id: String,
     /// Base date for the surface.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Identifier for the underlying instrument.
     pub underlying_ticker: String,
-    /// Model type.
-    ///
-    /// Note: currently supports SABR-only; set to `"SABR"` (case-insensitive).
-    pub model: String,
+    /// Volatility model used for calibration.
+    pub model: VolSurfaceModel,
     /// Discount curve ID.
     #[serde(default)]
     #[cfg_attr(feature = "ts_export", ts(type = "string | null"))]
@@ -1020,9 +987,10 @@ pub struct VolSurfaceParams {
 #[serde(deny_unknown_fields)]
 pub struct SwaptionVolParams {
     /// Identifier for the volatility surface.
-    pub surface_id: String,
+    pub vol_surface_id: String,
     /// Base date for the calibration.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Discount curve identifier for pricing.
@@ -1073,7 +1041,7 @@ pub struct SwaptionVolParams {
     ///
     /// This is distinct from `plan.settings.tolerance` (solver tolerance). For swaption-vol
     /// calibration, success should reflect whether the fitted smile residuals are within a
-    /// market-appropriate tolerance (e.g., 10–20 vol bps), not machine epsilon.
+    /// market-appropriate tolerance (e.g., 10–20 vol bp), not machine epsilon.
     #[serde(default)]
     pub vol_tolerance: Option<f64>,
 
@@ -1127,7 +1095,8 @@ pub struct BaseCorrelationParams {
     /// Maturity of the tranches in years.
     pub maturity_years: f64,
     /// Base date for the calibration.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Discount curve identifier for pricing.
@@ -1153,7 +1122,7 @@ pub struct BaseCorrelationParams {
     /// Business day convention for synthetic tranche schedule adjustments.
     #[serde(default)]
     #[cfg_attr(feature = "ts_export", ts(type = "string | null"))]
-    pub bdc: Option<BusinessDayConvention>,
+    pub business_day_convention: Option<BusinessDayConvention>,
     /// Optional calendar identifier for schedule generation and date adjustments.
     #[serde(default)]
     pub calendar_id: Option<String>,
@@ -1237,7 +1206,8 @@ pub struct HullWhiteStepParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the calibration.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Optional initial guess for mean reversion κ.
@@ -1278,7 +1248,8 @@ pub struct CapFloorHullWhiteStepParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the calibration.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Optional source mean reversion κ. Required for one-quote calibration.
@@ -1309,9 +1280,10 @@ pub struct CapFloorHullWhiteStepParams {
 #[serde(deny_unknown_fields)]
 pub struct SviSurfaceParams {
     /// Identifier for the volatility surface being built.
-    pub surface_id: String,
+    pub vol_surface_id: String,
     /// Base date for the surface.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Underlying instrument ticker.
@@ -1435,7 +1407,8 @@ pub struct XccyBasisParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub currency: Currency,
     /// Base date for the curve.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// FX spot rate (domestic per foreign), used when a quote omits `spot_fx`.
@@ -1480,7 +1453,8 @@ pub struct ParametricCurveParams {
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub curve_id: CurveId,
     /// Base date for the curve.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     #[cfg_attr(feature = "ts_export", ts(type = "string"))]
     pub base_date: Date,
     /// Nelson-Siegel variant (NS or NSS).

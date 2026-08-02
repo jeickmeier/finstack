@@ -37,7 +37,7 @@
 //!     .expect("surface should build");
 //!
 //! let report = check_surface(&surface, &ArbitrageCheckConfig {
-//!     forward: Some(100.0),
+//!     forward_prices: Some(vec![100.0]),
 //!     ..Default::default()
 //! })?;
 //!
@@ -66,6 +66,7 @@ use std::collections::BTreeMap;
 
 /// Configuration for the arbitrage detection suite.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ArbitrageCheckConfig {
     /// Run butterfly (strike convexity) check.
     pub check_butterfly: bool,
@@ -73,15 +74,10 @@ pub struct ArbitrageCheckConfig {
     pub check_calendar_spread: bool,
     /// Run Dupire local vol density check.
     pub check_local_vol_density: bool,
-    /// Scalar forward price, broadcast across expiries when `forward_prices`
-    /// is absent.
-    pub forward: Option<f64>,
     /// Optional per-expiry forward prices used by butterfly, calendar, and
     /// local-vol density checks.
     ///
-    /// When supplied, this must have the same length as `surface.expiries()`.
-    /// If omitted, `forward` is broadcast across expiries for backward compatibility.
-    #[serde(default)]
+    /// Supply one value to broadcast across expiries or one value per expiry.
     pub forward_prices: Option<Vec<f64>>,
     /// Tolerance for all checks (total-variance units).
     pub tolerance: f64,
@@ -96,7 +92,6 @@ impl Default for ArbitrageCheckConfig {
             check_butterfly: true,
             check_calendar_spread: true,
             check_local_vol_density: true,
-            forward: None,
             forward_prices: None,
             tolerance: 1e-10,
             min_severity: ArbitrageSeverity::Negligible,
@@ -176,11 +171,10 @@ fn local_vol_density_violations(
 /// * `config` - Check-selection, forward-price, tolerance, and severity
 ///   settings applied without mutating `surface`.
 ///
-/// Butterfly, calendar-spread, and local-vol-density checks require a forward
-/// price. `config.forward_prices` supplies one value for every surface expiry
-/// and takes precedence over `config.forward`; otherwise the scalar forward is
-/// broadcast. If neither is supplied, the enabled checks are skipped and the
-/// report contains no violations. Results below `config.min_severity` are
+/// Butterfly, calendar-spread, and local-vol-density checks require forward
+/// prices. `config.forward_prices` accepts one value to broadcast or one value
+/// for every surface expiry. If omitted, the enabled checks are skipped and
+/// the report contains no violations. Results below `config.min_severity` are
 /// filtered before the report is sorted from highest to lowest severity.
 ///
 /// The tolerance is interpreted in total-variance units by the individual
@@ -189,9 +183,9 @@ fn local_vol_density_violations(
 ///
 /// # Errors
 ///
-/// Returns an error only if `config.forward_prices` is supplied with a length
-/// different from `surface.expiries().len()`. It does not validate the
-/// finiteness or positivity of forward prices or the tolerance.
+/// Returns an error only if `config.forward_prices` contains neither one value
+/// nor one value per surface expiry. It does not validate the finiteness or
+/// positivity of forward prices or the tolerance.
 pub fn check_surface(
     surface: &VolSurface,
     config: &ArbitrageCheckConfig,
@@ -200,16 +194,7 @@ pub fn check_surface(
     let mut all_violations: Vec<ArbitrageViolation> = Vec::new();
 
     let forwards = if let Some(forwards) = &config.forward_prices {
-        if forwards.len() != surface.expiries().len() {
-            return Err(crate::Error::Validation(format!(
-                "arbitrage forward_prices length {} does not match expiry count {}",
-                forwards.len(),
-                surface.expiries().len()
-            )));
-        }
-        forwards.clone()
-    } else if let Some(fwd) = config.forward {
-        vec![fwd; surface.expiries().len()]
+        expand_forward_prices(surface.expiries().len(), forwards.clone())?
     } else {
         Vec::new()
     };
@@ -257,7 +242,7 @@ pub fn check_surface(
         .any(|v| v.severity > ArbitrageSeverity::Negligible);
 
     Ok(ArbitrageReport {
-        surface_id: surface.id().to_string(),
+        vol_surface_id: surface.id().to_string(),
         violations: all_violations,
         passed,
         counts_by_type,
@@ -371,10 +356,7 @@ pub fn check_local_vol_density_grid(
 /// * `strikes` - Strictly ordered strike grid shared by every volatility row.
 /// * `expiries` - Strictly ordered expiry times in years, one per row in `vols`.
 /// * `vols` - Implied-volatility rows aligned with `expiries` and `strikes`.
-/// * `forward` - Optional scalar forward price broadcast across expiries when
-///   `forward_prices` is absent or constant.
-/// * `forward_prices` - Optional one-value broadcast or one forward price per
-///   expiry. A non-constant vector enables per-expiry local-vol checks.
+/// * `forward_prices` - One-value broadcast or one forward price per expiry.
 /// * `tolerance` - Non-negative numerical tolerance in total-variance units
 ///   used when classifying violations.
 ///
@@ -384,70 +366,19 @@ pub fn check_surface_grid(
     strikes: &[f64],
     expiries: &[f64],
     vols: &[Vec<f64>],
-    forward: Option<f64>,
-    forward_prices: Option<Vec<f64>>,
+    forward_prices: Vec<f64>,
     tolerance: f64,
 ) -> crate::Result<ArbitrageReport> {
     let surface = VolSurface::from_rows("surface-grid", expiries, strikes, vols)?;
-    let normalized_forward_prices = forward_prices
-        .map(|values| expand_forward_prices(expiries.len(), values))
-        .transpose()?;
-    let local_forward = forward.or_else(|| {
-        normalized_forward_prices.as_ref().and_then(|values| {
-            values
-                .first()
-                .copied()
-                .filter(|first| values.iter().all(|v| (v - first).abs() < 1e-14))
-        })
-    });
-    let per_expiry_local_vol_forwards = if local_forward.is_none() {
-        normalized_forward_prices.clone()
-    } else {
-        None
-    };
     let config = ArbitrageCheckConfig {
         check_butterfly: true,
         check_calendar_spread: true,
-        check_local_vol_density: local_forward.is_some(),
-        forward: local_forward,
-        forward_prices: normalized_forward_prices,
+        check_local_vol_density: true,
+        forward_prices: Some(forward_prices),
         tolerance,
         min_severity: ArbitrageSeverity::Negligible,
     };
-    let mut report = check_surface(&surface, &config)?;
-
-    if let Some(forwards) = per_expiry_local_vol_forwards {
-        report
-            .violations
-            .extend(local_vol_density_violations(&surface, &forwards, tolerance));
-        refresh_report_summary(&mut report);
-    }
-
-    Ok(report)
-}
-
-fn refresh_report_summary(report: &mut ArbitrageReport) {
-    report
-        .violations
-        .sort_by_key(|violation| std::cmp::Reverse(violation.severity));
-
-    report.counts_by_type.clear();
-    report.counts_by_severity.clear();
-    for violation in &report.violations {
-        *report
-            .counts_by_type
-            .entry(violation.violation_type)
-            .or_insert(0) += 1;
-        *report
-            .counts_by_severity
-            .entry(violation.severity)
-            .or_insert(0) += 1;
-    }
-
-    report.passed = !report
-        .violations
-        .iter()
-        .any(|v| v.severity > ArbitrageSeverity::Negligible);
+    check_surface(&surface, &config)
 }
 
 // =============================================================================
@@ -549,14 +480,13 @@ mod tests {
             &strikes,
             &expiries,
             &vols,
-            None,
-            Some(vec![100.0, 101.0, 102.0, 103.0]),
+            vec![100.0, 101.0, 102.0, 103.0],
             1e-6,
         )
         .expect("grid arbitrage check");
 
         assert!(report.passed);
-        assert_eq!(report.surface_id, "surface-grid");
+        assert_eq!(report.vol_surface_id, "surface-grid");
     }
 
     #[test]
@@ -570,7 +500,6 @@ mod tests {
             check_butterfly: false,
             check_calendar_spread: false,
             check_local_vol_density: true,
-            forward: None,
             forward_prices: Some(forwards),
             ..Default::default()
         };
@@ -590,15 +519,9 @@ mod tests {
             vec![0.20, 0.15, 0.15, 0.15, 0.20],
         ];
 
-        let report = check_surface_grid(
-            &strikes,
-            &expiries,
-            &vols,
-            None,
-            Some(vec![100.0, 101.0, 102.0]),
-            1e-10,
-        )
-        .expect("grid arbitrage check");
+        let report =
+            check_surface_grid(&strikes, &expiries, &vols, vec![100.0, 101.0, 102.0], 1e-10)
+                .expect("grid arbitrage check");
 
         let local_vol_count = report
             .violations
@@ -620,7 +543,7 @@ mod tests {
     fn flat_surface_passes_all_checks() {
         let surface = flat_surface();
         let config = ArbitrageCheckConfig {
-            forward: Some(100.0),
+            forward_prices: Some(vec![100.0]),
             ..Default::default()
         };
         let report = check_surface(&surface, &config).expect("arbitrage check should succeed");
@@ -648,7 +571,7 @@ mod tests {
     fn clean_smile_passes_butterfly_and_calendar() {
         let surface = clean_smile_surface();
         let config = ArbitrageCheckConfig {
-            forward: Some(100.0),
+            forward_prices: Some(vec![100.0]),
             min_severity: ArbitrageSeverity::Minor,
             ..Default::default()
         };
@@ -691,7 +614,7 @@ mod tests {
             check_butterfly: true,
             check_calendar_spread: false,
             check_local_vol_density: false,
-            forward: Some(100.0),
+            forward_prices: Some(vec![100.0]),
             min_severity: ArbitrageSeverity::Minor,
             ..Default::default()
         };
@@ -724,7 +647,7 @@ mod tests {
             check_butterfly: false,
             check_calendar_spread: true,
             check_local_vol_density: false,
-            forward: Some(100.0),
+            forward_prices: Some(vec![100.0]),
             min_severity: ArbitrageSeverity::Negligible,
             ..Default::default()
         };
@@ -772,7 +695,7 @@ mod tests {
             check_calendar_spread: true,
             check_butterfly: false,
             check_local_vol_density: false,
-            forward: Some(100.0),
+            forward_prices: Some(vec![100.0]),
             ..Default::default()
         };
         let report = check_surface(&surface, &config).expect("arbitrage check should succeed");
@@ -797,7 +720,7 @@ mod tests {
             check_butterfly: true,
             check_calendar_spread: false,
             check_local_vol_density: false,
-            forward: Some(100.0),
+            forward_prices: Some(vec![100.0]),
             ..Default::default()
         };
         let report = check_surface(&surface, &config).expect("arbitrage check should succeed");
@@ -818,7 +741,7 @@ mod tests {
         let surface = calendar_spread_violation_surface();
         let config_all = ArbitrageCheckConfig {
             min_severity: ArbitrageSeverity::Negligible,
-            forward: Some(100.0),
+            forward_prices: Some(vec![100.0]),
             ..Default::default()
         };
         let report = check_surface(&surface, &config_all).expect("arbitrage check should succeed");
@@ -844,7 +767,7 @@ mod tests {
             check_butterfly: false,
             check_calendar_spread: true,
             check_local_vol_density: false,
-            forward: Some(100.0),
+            forward_prices: Some(vec![100.0]),
             ..Default::default()
         };
         let report = check_surface(&surface, &config).expect("arbitrage check should succeed");
@@ -870,7 +793,6 @@ mod tests {
             check_butterfly: true,
             check_calendar_spread: true,
             check_local_vol_density: true,
-            forward: None,
             ..Default::default()
         };
         let report = check_surface(&surface, &config).expect("arbitrage check should succeed");
@@ -985,7 +907,7 @@ mod tests {
     fn report_serialization_round_trip() {
         let surface = calendar_spread_violation_surface();
         let config = ArbitrageCheckConfig {
-            forward: Some(100.0),
+            forward_prices: Some(vec![100.0]),
             ..Default::default()
         };
         let report = check_surface(&surface, &config).expect("arbitrage check should succeed");
@@ -997,7 +919,7 @@ mod tests {
         let deserialized: ArbitrageReport =
             serde_json::from_str(&json).expect("report should deserialize");
 
-        assert_eq!(report.surface_id, deserialized.surface_id);
+        assert_eq!(report.vol_surface_id, deserialized.vol_surface_id);
         assert_eq!(report.passed, deserialized.passed);
         assert_eq!(report.violations.len(), deserialized.violations.len());
         assert_eq!(report.elapsed_us, deserialized.elapsed_us);
@@ -1009,7 +931,6 @@ mod tests {
             check_butterfly: true,
             check_calendar_spread: false,
             check_local_vol_density: true,
-            forward: Some(100.0),
             forward_prices: Some(vec![100.0, 101.0]),
             tolerance: 1e-8,
             min_severity: ArbitrageSeverity::Minor,
@@ -1024,9 +945,13 @@ mod tests {
             config.check_calendar_spread,
             deserialized.check_calendar_spread
         );
-        assert_eq!(config.forward, deserialized.forward);
         assert_eq!(config.forward_prices, deserialized.forward_prices);
         assert!((config.tolerance - deserialized.tolerance).abs() < 1e-14);
         assert_eq!(config.min_severity, deserialized.min_severity);
+
+        // schema-rejection-test: the retired scalar key is not an alias.
+        let mut retired = serde_json::to_value(&config).expect("serialize config fixture");
+        retired["forward"] = serde_json::json!(100.0);
+        assert!(serde_json::from_value::<ArbitrageCheckConfig>(retired).is_err());
     }
 }

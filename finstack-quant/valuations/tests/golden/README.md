@@ -2,7 +2,7 @@
 
 Golden fixtures pin Finstack Quant's valuation outputs against externally sourced
 reference values (Bloomberg screens, QuantLib, closed-form formulas). Fixtures
-live under `data/` and use the strict `finstack_quant.golden/2` schema. Both the Rust
+live under `data/` and use the strict `finstack_quant.golden/1` schema. Both the Rust
 runner (`tests/golden/`) and the Python bindings layer
 (`finstack-quant-py/tests/golden/`) load the same JSON files and must agree.
 
@@ -22,13 +22,13 @@ Instrument directories such as `bond/`, `fra/`, and `swaption/` live beneath
 each golden type. Bloomberg screenshot evidence stays beside its fixture in an
 instrument-level `screenshots/` directory.
 
-## Schema (`finstack_quant.golden/2`)
+## Schema (`finstack_quant.golden/1`)
 
 Each fixture is one JSON object with exactly these top-level sections:
 
 ```jsonc
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": { /* identity, provenance, valuation date, screenshots */ },
   "kind": "pricing",            // or "sabr_smile"
   /* ...kind-specific body fields (see below)... */
@@ -196,9 +196,3 @@ four-period aggregate and risk outputs. The single-name CDS and deposit are
 registered in the same unified generator while preserving their original
 valuation dates, committed market curves, holder-view deposit treatment, and
 canonical Finstack risky-annuity definitions.
-
-## Migrating fixtures
-
-The one-off v1→v2 migration script lives at
-[`scripts/golden/migrate_v1_to_v2.py`](../../../../scripts/golden/migrate_v1_to_v2.py)
-(`uv run scripts/golden/migrate_v1_to_v2.py [--check]`).

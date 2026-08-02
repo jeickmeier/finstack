@@ -9,7 +9,6 @@
 //! - Error propagation
 
 use super::common::*;
-use finstack_quant_cashflows::CashflowProvider;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_valuations::instruments::Instrument;
 use rust_decimal::Decimal;
@@ -262,23 +261,6 @@ fn test_extreme_inflation() {
 }
 
 #[test]
-fn test_same_issue_and_maturity_date() {
-    // Arrange
-    let mut ilb = sample_tips();
-    ilb.issue_date = d(2025, 1, 2);
-    ilb.maturity = d(2025, 1, 2); // Same day
-
-    let (ctx, _) = market_context_with_index();
-    let as_of = d(2025, 1, 2);
-
-    // Act
-    let flows = ilb.dated_cashflows(&ctx, as_of).unwrap();
-
-    // Assert - should handle gracefully (likely empty or just principal)
-    assert!(flows.is_empty() || flows.len() == 1);
-}
-
-#[test]
 fn test_very_short_maturity() {
     // Arrange
     let mut ilb = sample_tips();
@@ -358,29 +340,6 @@ fn test_attributes_mutable() {
 }
 
 #[test]
-fn test_currency_mismatch_detection() {
-    // Arrange
-    let ilb_usd = sample_tips(); // USD bond
-    let (mut ctx_gbp, _) = uk_market_context(); // GBP market
-
-    // Insert USD discount curve into GBP context
-    let disc = finstack_quant_core::market_data::term_structures::DiscountCurve::builder("USD-OIS")
-        .base_date(d(2025, 1, 2))
-        .knots([(0.0, 1.0), (5.0, 0.95)])
-        .build()
-        .unwrap();
-    ctx_gbp = ctx_gbp.insert(disc);
-
-    let as_of = d(2025, 1, 2);
-
-    // Act - this might work or error depending on implementation
-    // Either way, it should not panic
-    let _result = ilb_usd.value(&ctx_gbp, as_of);
-
-    // Assert - we just want to ensure no panic
-}
-
-#[test]
 fn test_negative_inflation_lag_days() {
     // Arrange
     let mut ilb = sample_tips();
@@ -434,13 +393,13 @@ fn test_business_day_convention_variants() {
     let (ctx, _) = market_context_with_index();
     let as_of = d(2025, 1, 2);
 
-    for bdc in [
+    for business_day_convention in [
         finstack_quant_core::dates::BusinessDayConvention::Following,
         finstack_quant_core::dates::BusinessDayConvention::Preceding,
         finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
     ] {
         let mut ilb = sample_tips();
-        ilb.bdc = bdc;
+        ilb.business_day_convention = business_day_convention;
 
         // Act
         let pv = ilb.value(&ctx, as_of).unwrap();

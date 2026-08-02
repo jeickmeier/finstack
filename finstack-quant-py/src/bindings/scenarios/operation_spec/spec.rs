@@ -168,18 +168,18 @@ impl PyOperationSpec {
 
     /// Bucketed base-correlation shock by detachment and (reserved) maturity.
     #[classmethod]
-    #[pyo3(signature = (surface_id, points, detachment_bps=None, maturities=None))]
+    #[pyo3(signature = (surface_id, points, detachment_bp=None, maturities=None))]
     fn base_corr_bucket_pts(
         _cls: &Bound<'_, PyType>,
         surface_id: &str,
         points: f64,
-        detachment_bps: Option<Vec<i32>>,
+        detachment_bp: Option<Vec<i32>>,
         maturities: Option<Vec<String>>,
     ) -> Self {
         Self {
             inner: OperationSpec::BaseCorrBucketPts {
                 surface_id: CurveId::from(surface_id),
-                detachment_bps,
+                detachment_bp,
                 maturities,
                 points,
             },
@@ -188,17 +188,17 @@ impl PyOperationSpec {
 
     /// Parallel percent shift to a volatility surface.
     #[classmethod]
-    #[pyo3(signature = (surface_kind, surface_id, pct))]
+    #[pyo3(signature = (surface_kind, vol_surface_id, pct))]
     fn vol_surface_parallel_pct(
         _cls: &Bound<'_, PyType>,
         surface_kind: PyRef<'_, PyVolSurfaceKind>,
-        surface_id: &str,
+        vol_surface_id: &str,
         pct: f64,
     ) -> Self {
         Self {
             inner: OperationSpec::VolSurfaceParallelPct {
                 surface_kind: surface_kind.inner,
-                surface_id: CurveId::from(surface_id),
+                vol_surface_id: CurveId::from(vol_surface_id),
                 pct,
             },
         }
@@ -206,11 +206,11 @@ impl PyOperationSpec {
 
     /// Bucketed volatility surface percent shock.
     #[classmethod]
-    #[pyo3(signature = (surface_kind, surface_id, pct, tenors=None, strikes=None))]
+    #[pyo3(signature = (surface_kind, vol_surface_id, pct, tenors=None, strikes=None))]
     fn vol_surface_bucket_pct(
         _cls: &Bound<'_, PyType>,
         surface_kind: PyRef<'_, PyVolSurfaceKind>,
-        surface_id: &str,
+        vol_surface_id: &str,
         pct: f64,
         tenors: Option<Vec<String>>,
         strikes: Option<Vec<f64>>,
@@ -218,7 +218,7 @@ impl PyOperationSpec {
         Self {
             inner: OperationSpec::VolSurfaceBucketPct {
                 surface_kind: surface_kind.inner,
-                surface_id: CurveId::from(surface_id),
+                vol_surface_id: CurveId::from(vol_surface_id),
                 tenors,
                 strikes,
                 pct,

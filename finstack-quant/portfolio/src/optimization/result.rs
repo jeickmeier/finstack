@@ -7,12 +7,14 @@ use crate::portfolio::Portfolio;
 use crate::position::Position;
 use crate::types::{Entity, PositionId};
 use finstack_quant_core::config::ResultsMeta;
+use finstack_quant_core::wire::SchemaVersion;
 use indexmap::IndexMap;
-use serde::ser::SerializeStruct;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize, Serializer};
 
 /// Status of an optimization run.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum OptimizationStatus {
     /// Found optimal solution.
     Optimal,
@@ -50,7 +52,8 @@ impl OptimizationStatus {
 }
 
 /// Direction of a trade.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum TradeDirection {
     /// Buy more of the instrument (increase exposure).
     Buy,
@@ -61,7 +64,8 @@ pub enum TradeDirection {
 }
 
 /// Whether a trade is for an existing position or a new candidate.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum TradeType {
     /// Adjusting an existing portfolio position.
     Existing,
@@ -72,7 +76,8 @@ pub enum TradeType {
 }
 
 /// Trade specification for a single position.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TradeSpec {
     /// Position identifier in the optimized portfolio.
     pub position_id: PositionId,
@@ -95,7 +100,8 @@ pub struct TradeSpec {
 }
 
 /// Solution of an optimization problem.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, JsonSchema)]
+#[schemars(with = "PortfolioOptimizationResultWire")]
 pub struct PortfolioOptimizationResult {
     /// Echo of the original problem for traceability.
     pub problem: PortfolioOptimizationProblem,
@@ -127,14 +133,6 @@ pub struct PortfolioOptimizationResult {
 
     /// Optimization status.
     pub status: OptimizationStatus,
-
-    /// Shadow prices / dual values for constraints (how much objective improves
-    /// per unit relaxation). Key is constraint label or auto‑generated identifier.
-    ///
-    /// **Note:** The current LP backend (`good_lp` / `minilp`) does not expose
-    /// dual information, so this map is always empty. It is retained for forward
-    /// compatibility with solvers that do support duals.
-    pub dual_values: IndexMap<String, f64>,
 
     /// Constraint slack values (positive = slack, zero ≈ binding).
     pub constraint_slacks: IndexMap<String, f64>,
@@ -332,36 +330,78 @@ impl PortfolioOptimizationResult {
 /// `turnover`, `trades`, `binding_constraints`, `label`). The `problem` field
 /// is intentionally omitted — it contains `Arc<dyn Instrument>` values that do
 /// not round-trip through serde.
-/// Wire-format schema version for serialized `PortfolioOptimizationResult`.
-pub const PORTFOLIO_OPTIMIZATION_RESULT_SCHEMA_VERSION: u32 = 1;
+/// Canonical serializable optimization-result contract.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PortfolioOptimizationResultWire {
+    /// Required numeric v1 marker.
+    pub schema_version: SchemaVersion,
+    /// Solver outcome.
+    pub status: OptimizationStatus,
+    /// Stable snake-case status label.
+    pub status_label: String,
+    /// Whether the solution can be consumed.
+    pub is_feasible: bool,
+    /// Objective value at the solution.
+    pub objective_value: f64,
+    /// Gross turnover.
+    pub turnover: f64,
+    /// Optimal weights keyed by position.
+    pub optimal_weights: IndexMap<PositionId, f64>,
+    /// Current weights keyed by position.
+    pub current_weights: IndexMap<PositionId, f64>,
+    /// Weight changes keyed by position.
+    pub weight_deltas: IndexMap<PositionId, f64>,
+    /// Implied target quantities keyed by position.
+    pub implied_quantities: IndexMap<PositionId, f64>,
+    /// Evaluated metrics.
+    pub metric_values: IndexMap<String, f64>,
+    /// Executable trade list.
+    pub trades: Vec<TradeSpec>,
+    /// Constraint slack values.
+    pub constraint_slacks: IndexMap<String, f64>,
+    /// Approximately binding constraint names.
+    pub binding_constraints: Vec<String>,
+    /// Optional user-supplied problem label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
+impl From<&PortfolioOptimizationResult> for PortfolioOptimizationResultWire {
+    fn from(result: &PortfolioOptimizationResult) -> Self {
+        let status_label = match result.status {
+            OptimizationStatus::Optimal => "optimal",
+            OptimizationStatus::FeasibleButSuboptimal => "feasible_but_suboptimal",
+            OptimizationStatus::Infeasible { .. } => "infeasible",
+            OptimizationStatus::Unbounded => "unbounded",
+            OptimizationStatus::Error { .. } => "error",
+        };
+        Self {
+            schema_version: SchemaVersion::CURRENT,
+            status: result.status.clone(),
+            status_label: status_label.to_string(),
+            is_feasible: result.status.is_feasible(),
+            objective_value: result.objective_value,
+            turnover: result.turnover(),
+            optimal_weights: result.optimal_weights.clone(),
+            current_weights: result.current_weights.clone(),
+            weight_deltas: result.weight_deltas.clone(),
+            implied_quantities: result.implied_quantities.clone(),
+            metric_values: result.metric_values.clone(),
+            trades: result.to_trade_list(),
+            constraint_slacks: result.constraint_slacks.clone(),
+            binding_constraints: result
+                .binding_constraints()
+                .into_iter()
+                .map(|(name, _)| name.to_string())
+                .collect(),
+            label: result.problem.label.clone(),
+        }
+    }
+}
 
 impl Serialize for PortfolioOptimizationResult {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let binding_constraints: Vec<String> = self
-            .binding_constraints()
-            .into_iter()
-            .map(|(name, _)| name.to_string())
-            .collect();
-        let mut st = serializer.serialize_struct("PortfolioOptimizationResult", 16)?;
-        st.serialize_field(
-            "schema_version",
-            &PORTFOLIO_OPTIMIZATION_RESULT_SCHEMA_VERSION,
-        )?;
-        st.serialize_field("status", &self.status)?;
-        st.serialize_field("status_label", &format!("{:?}", self.status))?;
-        st.serialize_field("is_feasible", &self.status.is_feasible())?;
-        st.serialize_field("objective_value", &self.objective_value)?;
-        st.serialize_field("turnover", &self.turnover())?;
-        st.serialize_field("optimal_weights", &self.optimal_weights)?;
-        st.serialize_field("current_weights", &self.current_weights)?;
-        st.serialize_field("weight_deltas", &self.weight_deltas)?;
-        st.serialize_field("implied_quantities", &self.implied_quantities)?;
-        st.serialize_field("metric_values", &self.metric_values)?;
-        st.serialize_field("trades", &self.to_trade_list())?;
-        st.serialize_field("dual_values", &self.dual_values)?;
-        st.serialize_field("constraint_slacks", &self.constraint_slacks)?;
-        st.serialize_field("binding_constraints", &binding_constraints)?;
-        st.serialize_field("label", &self.problem.label)?;
-        st.end()
+        PortfolioOptimizationResultWire::from(self).serialize(serializer)
     }
 }

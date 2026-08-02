@@ -153,12 +153,12 @@ use super::{adjust, prev_cds_date, BusinessDayConvention, HolidayCalendar};
 /// use finstack_quant_core::dates::Tenor;
 ///
 /// // 4 payments per year = quarterly
-/// let freq = Tenor::from_payments_per_year(4)?;
-/// assert_eq!(freq, Tenor::quarterly());
+/// let frequency = Tenor::from_payments_per_year(4)?;
+/// assert_eq!(frequency, Tenor::quarterly());
 ///
 /// // 2 payments per year = semi-annual
-/// let freq = Tenor::from_payments_per_year(2)?;
-/// assert_eq!(freq, Tenor::semi_annual());
+/// let frequency = Tenor::from_payments_per_year(2)?;
+/// assert_eq!(frequency, Tenor::semi_annual());
 /// # Ok::<(), finstack_quant_core::Error>(())
 /// ```
 ///
@@ -230,6 +230,7 @@ use crate::dates::Tenor;
     schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum StubKind {
     /// No stub allowed: start/end must align exactly with the frequency,
     /// otherwise schedule generation returns an error.
@@ -261,8 +262,7 @@ impl std::str::FromStr for StubKind {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
+        match s {
             "none" => Ok(StubKind::None),
             "short_front" => Ok(StubKind::ShortFront),
             "short_back" => Ok(StubKind::ShortBack),
@@ -303,6 +303,7 @@ impl std::str::FromStr for StubKind {
 #[derive(
     Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum ScheduleWarning {
     /// Schedule generation failed but graceful fallback returned an empty schedule.
@@ -410,7 +411,8 @@ impl std::fmt::Display for ScheduleWarning {
 )]
 pub struct Schedule {
     /// The generated sequence of dates, monotonically increasing.
-    #[schemars(with = "Vec<String>")]
+    #[serde(with = "crate::wire::dates")]
+    #[schemars(with = "Vec<crate::wire::DateWire>")]
     pub dates: Vec<Date>,
     /// Warnings generated during schedule construction.
     ///
@@ -582,7 +584,7 @@ impl IntoIterator for Schedule {
 pub struct ScheduleBuilder<'a> {
     start: Date,
     end: Date,
-    freq: Tenor,
+    frequency: Tenor,
     stub: StubKind,
     conv: Option<BusinessDayConvention>,
     /// Borrowed calendar (set by [`adjust_with`](Self::adjust_with)).
@@ -636,7 +638,7 @@ impl<'a> ScheduleBuilder<'a> {
         Ok(Self {
             start,
             end,
-            freq: Tenor::monthly(),
+            frequency: Tenor::monthly(),
             stub: StubKind::None,
             conv: None,
             cal: None,
@@ -650,8 +652,8 @@ impl<'a> ScheduleBuilder<'a> {
 
     /// Set coupon/payment frequency.
     #[must_use]
-    pub fn frequency(mut self, freq: Tenor) -> Self {
-        self.freq = freq;
+    pub fn frequency(mut self, frequency: Tenor) -> Self {
+        self.frequency = frequency;
         self
     }
 
@@ -712,7 +714,7 @@ impl<'a> ScheduleBuilder<'a> {
     /// [`adjust_with`](Self::adjust_with) / [`adjust_with_id`](Self::adjust_with_id).
     #[must_use]
     pub fn cds_imm(mut self) -> Self {
-        self.freq = Tenor::quarterly();
+        self.frequency = Tenor::quarterly();
         self.stub = StubKind::ShortBack;
         self.cds_imm_mode = true;
         self.imm_mode = false;
@@ -744,7 +746,7 @@ impl<'a> ScheduleBuilder<'a> {
     /// ```
     #[must_use]
     pub fn imm(mut self) -> Self {
-        self.freq = Tenor::quarterly();
+        self.frequency = Tenor::quarterly();
         self.stub = StubKind::ShortBack;
         self.imm_mode = true;
         self.cds_imm_mode = false;
@@ -915,7 +917,7 @@ impl<'a> ScheduleBuilder<'a> {
             let builder = BuilderInternal {
                 start: adj_start,
                 end: self.end,
-                freq: self.freq,
+                frequency: self.frequency,
                 stub: self.stub,
                 eom: self.eom,
             };
@@ -924,7 +926,7 @@ impl<'a> ScheduleBuilder<'a> {
             let builder = BuilderInternal {
                 start: self.start,
                 end: self.end,
-                freq: self.freq,
+                frequency: self.frequency,
                 stub: self.stub,
                 eom: self.eom,
             };
@@ -974,10 +976,12 @@ impl<'a> ScheduleBuilder<'a> {
 /// from configuration files and converted to a runtime [`ScheduleBuilder`].
 pub struct ScheduleSpec {
     /// Start date of the schedule.
-    #[schemars(with = "String")]
+    #[serde(with = "crate::wire::date")]
+    #[schemars(with = "crate::wire::DateWire")]
     pub start: Date,
     /// End date (maturity) of the schedule.
-    #[schemars(with = "String")]
+    #[serde(with = "crate::wire::date")]
+    #[schemars(with = "crate::wire::DateWire")]
     pub end: Date,
     /// Payment frequency (e.g., quarterly, monthly).
     pub frequency: Tenor,
@@ -999,10 +1003,13 @@ pub struct ScheduleSpec {
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct ScheduleSpecWire {
-    #[schemars(with = "String")]
+    #[serde(with = "crate::wire::date")]
+    #[schemars(with = "crate::wire::DateWire")]
     start: Date,
-    #[schemars(with = "String")]
+    #[serde(with = "crate::wire::date")]
+    #[schemars(with = "crate::wire::DateWire")]
     end: Date,
     frequency: Tenor,
     stub: StubKind,
@@ -1012,12 +1019,7 @@ struct ScheduleSpecWire {
     #[serde(default)]
     imm_mode: bool,
     cds_imm_mode: bool,
-    #[serde(default)]
-    error_policy: Option<ScheduleErrorPolicy>,
-    #[serde(default)]
-    graceful: Option<bool>,
-    #[serde(default)]
-    allow_missing_calendar: Option<bool>,
+    error_policy: ScheduleErrorPolicy,
 }
 
 impl TryFrom<ScheduleSpecWire> for ScheduleSpec {
@@ -1027,22 +1029,6 @@ impl TryFrom<ScheduleSpecWire> for ScheduleSpec {
         if wire.imm_mode && wire.cds_imm_mode {
             return Err("standard IMM and CDS IMM modes are mutually exclusive".to_string());
         }
-        if wire.error_policy.is_some()
-            && (wire.graceful.is_some() || wire.allow_missing_calendar.is_some())
-        {
-            return Err(
-                "error_policy cannot be combined with legacy schedule policy booleans".to_string(),
-            );
-        }
-        let error_policy = wire.error_policy.unwrap_or_else(|| {
-            if wire.graceful.unwrap_or(false) {
-                ScheduleErrorPolicy::GracefulEmpty
-            } else if wire.allow_missing_calendar.unwrap_or(false) {
-                ScheduleErrorPolicy::MissingCalendarWarning
-            } else {
-                ScheduleErrorPolicy::Strict
-            }
-        });
         Ok(Self {
             start: wire.start,
             end: wire.end,
@@ -1053,7 +1039,7 @@ impl TryFrom<ScheduleSpecWire> for ScheduleSpec {
             end_of_month: wire.end_of_month,
             imm_mode: wire.imm_mode,
             cds_imm_mode: wire.cds_imm_mode,
-            error_policy,
+            error_policy: wire.error_policy,
         })
     }
 }

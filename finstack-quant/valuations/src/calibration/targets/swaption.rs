@@ -14,6 +14,8 @@ use finstack_quant_core::dates::{
 };
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::surfaces::VolCube;
+#[cfg(test)]
+use finstack_quant_core::market_data::surfaces::VolQuoteType;
 use finstack_quant_core::math::volatility::sabr::SabrParams;
 use finstack_quant_core::Result;
 use std::collections::BTreeMap;
@@ -101,8 +103,8 @@ impl SwaptionVolTarget {
     ) -> Result<(VolCube, CalibrationReport)> {
         // Group quotes by (expiry_years, tenor_years) using stable basis-point keys.
         let mut grouped_quotes: QuotesByExpiryTenor<'_> = BTreeMap::new();
-        let dc = if let Some(dc) = params.fixed_day_count {
-            dc
+        let day_count = if let Some(day_count) = params.fixed_day_count {
+            day_count
         } else {
             let mut idx_from_quotes = None;
             for quote in quotes {
@@ -144,9 +146,13 @@ impl SwaptionVolTarget {
                         maturity, expiry
                     )));
                 }
-                let t_exp =
-                    dc.year_fraction(params.base_date, *expiry, DayCountContext::default())?;
-                let t_ten = dc.year_fraction(*expiry, *maturity, DayCountContext::default())?;
+                let t_exp = day_count.year_fraction(
+                    params.base_date,
+                    *expiry,
+                    DayCountContext::default(),
+                )?;
+                let t_ten =
+                    day_count.year_fraction(*expiry, *maturity, DayCountContext::default())?;
                 let key = (to_basis_points(t_exp), to_basis_points(t_ten));
 
                 if let MarketQuote::Vol(vq) = q {
@@ -460,7 +466,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         }
 
         let cube = VolCube::from_grid(
-            &params.surface_id,
+            &params.vol_surface_id,
             &target_expiries,
             &target_tenors,
             &cube_params,
@@ -559,18 +565,18 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         let idx_conv = ConventionRegistry::try_global()?.require_rate_index(&idx_key)?;
 
         // Strict conventions: We use exactly what's in the registry.
-        let fixed_freq = idx_conv.default_fixed_leg_frequency;
-        let float_freq = idx_conv.default_payment_frequency;
+        let fixed_frequency = idx_conv.default_fixed_leg_frequency;
+        let float_frequency = idx_conv.default_payment_frequency;
 
         let fixed_day_count = params
             .fixed_day_count
             .unwrap_or(idx_conv.default_fixed_leg_day_count);
         let float_day_count = idx_conv.day_count;
 
-        let bdc = swaption_conv.business_day_convention; // Or index market BDC? usually swaption follows index but overrides might happen.
-                                                         // Actually, let's use the index convention for swap details, as swaption convention is for the OPTION part usually?
-                                                         // But SwaptionConventions likely points to the underlying swap index.
-                                                         // Let's stick to index conventions for swap leg details.
+        let business_day_convention = swaption_conv.business_day_convention; // Or index market BDC? usually swaption follows index but overrides might happen.
+                                                                             // Actually, let's use the index convention for swap details, as swaption convention is for the OPTION part usually?
+                                                                             // But SwaptionConventions likely points to the underlying swap index.
+                                                                             // Let's stick to index conventions for swap leg details.
 
         let calendar_id = params
             .calendar_id
@@ -578,12 +584,12 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
             .or(Some(swaption_conv.calendar_id.as_str()));
 
         Ok(SwaptionLegConventions {
-            fixed_freq,
-            float_freq,
+            fixed_frequency,
+            float_frequency,
             fixed_day_count,
             float_day_count,
-            fixed_bdc: bdc,
-            float_bdc: bdc,
+            fixed_business_day_convention: business_day_convention,
+            float_business_day_convention: business_day_convention,
             calendar_id,
         })
     }
@@ -602,14 +608,14 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         let idx_conv = ConventionRegistry::try_global()?.require_rate_index(&index_id)?;
 
         Ok(SwaptionLegConventions {
-            fixed_freq: idx_conv.default_fixed_leg_frequency,
-            float_freq: idx_conv.default_payment_frequency,
+            fixed_frequency: idx_conv.default_fixed_leg_frequency,
+            float_frequency: idx_conv.default_payment_frequency,
             fixed_day_count: params
                 .fixed_day_count
                 .unwrap_or(idx_conv.default_fixed_leg_day_count),
             float_day_count: idx_conv.day_count,
-            fixed_bdc: idx_conv.market_business_day_convention,
-            float_bdc: idx_conv.market_business_day_convention,
+            fixed_business_day_convention: idx_conv.market_business_day_convention,
+            float_business_day_convention: idx_conv.market_business_day_convention,
             calendar_id: params
                 .calendar_id
                 .as_deref()
@@ -663,9 +669,9 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
                 crate::cashflow::builder::periods::BuildPeriodsParams {
                     start: swap_start,
                     end: swap_end,
-                    frequency: leg_conv.float_freq,
+                    frequency: leg_conv.float_frequency,
                     stub: StubKind::None,
-                    bdc: leg_conv.float_bdc,
+                    business_day_convention: leg_conv.float_business_day_convention,
                     calendar_id: leg_conv
                         .calendar_id
                         .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),
@@ -742,9 +748,9 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
             crate::cashflow::builder::periods::BuildPeriodsParams {
                 start,
                 end,
-                frequency: leg_conv.fixed_freq,
+                frequency: leg_conv.fixed_frequency,
                 stub: StubKind::None,
-                bdc: leg_conv.fixed_bdc,
+                business_day_convention: leg_conv.fixed_business_day_convention,
                 calendar_id: leg_conv
                     .calendar_id
                     .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),
@@ -991,12 +997,12 @@ type SABRParamsByExpiryTenor = BTreeMap<(u64, u64), SABRParameters>;
 
 #[derive(Debug, Clone, Copy)]
 struct SwaptionLegConventions<'a> {
-    fixed_freq: Tenor,
-    float_freq: Tenor,
+    fixed_frequency: Tenor,
+    float_frequency: Tenor,
     fixed_day_count: DayCount,
     float_day_count: DayCount,
-    fixed_bdc: BusinessDayConvention,
-    float_bdc: BusinessDayConvention,
+    fixed_business_day_convention: BusinessDayConvention,
+    float_business_day_convention: BusinessDayConvention,
     calendar_id: Option<&'a str>,
 }
 
@@ -1021,7 +1027,7 @@ mod tests {
 
     fn params(base_date: Date) -> SwaptionVolParams {
         SwaptionVolParams {
-            surface_id: "USD-SWPTN".to_string(),
+            vol_surface_id: "USD-SWPTN".to_string(),
             base_date,
             discount_curve_id: CurveId::from("USD-OIS"),
             forward_id: None,
@@ -1123,7 +1129,7 @@ mod tests {
                 maturity: maturity_date,
                 strike: k,
                 vol: vol_bp,
-                quote_type: "implied_vol".to_string(),
+                quote_type: VolQuoteType::Normal,
                 convention: SwaptionConventionId::new("USD-Annual"),
             }));
         }
@@ -1204,7 +1210,7 @@ mod tests {
                 maturity: maturity_date,
                 strike: k,
                 vol: vol_pct,
-                quote_type: "implied_vol".to_string(),
+                quote_type: VolQuoteType::BlackLognormal,
                 convention: SwaptionConventionId::new("USD-Annual"),
             }));
         }
@@ -1312,7 +1318,7 @@ mod tests {
                 maturity: good_maturity_date,
                 strike: k,
                 vol: vol_dec * 100.0,
-                quote_type: "implied_vol".to_string(),
+                quote_type: VolQuoteType::BlackLognormal,
                 convention: SwaptionConventionId::new("USD-Annual"),
             }));
         }
@@ -1327,7 +1333,7 @@ mod tests {
                 maturity: bad_maturity_date,
                 strike: k,
                 vol: 20.0,
-                quote_type: "implied_vol".to_string(),
+                quote_type: VolQuoteType::BlackLognormal,
                 convention: SwaptionConventionId::new("USD-Annual"),
             }));
         }
@@ -1427,7 +1433,7 @@ mod tests {
                 maturity: maturity_date,
                 strike: k,
                 vol: 20.0,
-                quote_type: "implied_vol".to_string(),
+                quote_type: VolQuoteType::BlackLognormal,
                 convention: SwaptionConventionId::new("USD-Annual"),
             }));
         }
@@ -1544,9 +1550,9 @@ mod tests {
             crate::cashflow::builder::periods::BuildPeriodsParams {
                 start: swap_start,
                 end: swap_end,
-                frequency: leg.float_freq,
+                frequency: leg.float_frequency,
                 stub: StubKind::None,
-                bdc: leg.float_bdc,
+                business_day_convention: leg.float_business_day_convention,
                 calendar_id: leg
                     .calendar_id
                     .unwrap_or(crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID),

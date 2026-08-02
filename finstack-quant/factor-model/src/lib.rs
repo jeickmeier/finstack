@@ -43,7 +43,7 @@
 //!
 //! - Factor identifiers (`FactorId`) are string-backed and case-sensitive.
 //! - Covariance entries are annualized (co)variances in each factor's canonical
-//!   bump unit (bps for rates/credit, % for equity/commodity/FX, vol points for
+//!   bump unit (bp for rates/credit, % for equity/commodity/FX, vol points for
 //!   volatility). See [`FactorCovarianceMatrix`] for the units contract.
 //! - Credit decomposition enforces the reconciliation invariant to absolute
 //!   tolerance `1e-10`.
@@ -82,15 +82,18 @@ pub mod envelope;
 pub mod error;
 /// Matching primitives and built-in matcher components.
 pub mod matching;
-mod parse;
 /// Generic factor identifiers, definitions, and market dependencies.
 pub mod primitives;
+/// JSON Schema generation helpers for factor-model contracts.
+pub mod schema;
 /// Positions × factors sensitivity matrix storage.
 pub mod sensitivity_matrix;
 
 pub use config::{BumpSizeConfig, FactorBumpUnit, FactorModelConfig, PricingMode, RiskMeasure};
 pub use covariance::FactorCovarianceMatrix;
-pub use envelope::{FactorModelConfigEnvelope, FACTOR_MODEL_CONFIG_CONTRACT};
+pub use envelope::{
+    FactorModelConfigEnvelope, FactorModelConfigSchema, FACTOR_MODEL_CONFIG_CONTRACT,
+};
 pub use error::{FactorModelError, UnmatchedPolicy};
 pub use finstack_quant_core::{Error, Result};
 pub use matching::{

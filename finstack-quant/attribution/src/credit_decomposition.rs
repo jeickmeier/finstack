@@ -251,7 +251,11 @@ impl AttributionSpec {
                 .attributes()
                 .get_meta("day_count")
                 .or_else(|| instrument.attributes().get_meta("daycount"))
-                .and_then(|dc| dc.parse::<finstack_quant_core::dates::DayCount>().ok())
+                .and_then(|day_count| {
+                    day_count
+                        .parse::<finstack_quant_core::dates::DayCount>()
+                        .ok()
+                })
                 .unwrap_or(finstack_quant_core::dates::DayCount::Act365F);
             let tenor = finstack_quant_core::dates::Tenor::new(
                 5,

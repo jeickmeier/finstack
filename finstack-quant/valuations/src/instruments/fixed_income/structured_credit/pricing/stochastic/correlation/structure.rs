@@ -31,6 +31,7 @@ use crate::instruments::fixed_income::structured_credit::pricing::stochastic::ca
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(tag = "structure", deny_unknown_fields)]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum CorrelationStructure {
     /// Flat (homogeneous) correlation structure.
     ///

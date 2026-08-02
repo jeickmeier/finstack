@@ -54,7 +54,7 @@ use finstack_quant_core::{Error, Result};
 /// | Parameter | Typical Range | Description |
 /// |-----------|---------------|-------------|
 /// | kappa | 0.01-0.10 | Mean reversion (higher = faster reversion) |
-/// | sigma | 0.005-0.015 | Normal volatility (50-150 bps) |
+/// | sigma | 0.005-0.015 | Normal volatility (50-150 bp) |
 /// | steps | 50-200 | Tree steps (more = accuracy, O(n²) cost) |
 #[derive(Debug, Clone)]
 pub struct HullWhiteTreeConfig {
@@ -67,7 +67,7 @@ pub struct HullWhiteTreeConfig {
     /// Short rate volatility (σ), annualized.
     ///
     /// This is normal/absolute volatility in rate units.
-    /// Typical range: 0.005-0.015 (50-150 bps per year)
+    /// Typical range: 0.005-0.015 (50-150 bp per year)
     pub sigma: f64,
 
     /// Number of time steps in the tree.
@@ -1195,13 +1195,13 @@ mod tests {
                 .sum();
 
             let error = (sum_q - target_df).abs();
-            let error_bps = (error / target_df) * 10000.0;
+            let error_bp = (error / target_df) * 10000.0;
 
             assert!(
-                error_bps < 0.1,
-                "State price calibration error {:.6} ({:.4} bps) at step {} (t={:.2})",
+                error_bp < 0.1,
+                "State price calibration error {:.6} ({:.4} bp) at step {} (t={:.2})",
                 error,
-                error_bps,
+                error_bp,
                 step,
                 t
             );
@@ -1264,11 +1264,11 @@ mod tests {
                 .map(|j| tree.state_price(step, j))
                 .sum();
 
-            let error_bps = ((sum_q - target_df) / target_df).abs() * 10000.0;
+            let error_bp = ((sum_q - target_df) / target_df).abs() * 10000.0;
             assert!(
-                error_bps < 0.1,
-                "Steep-curve calibration error {:.4} bps at step {} (t={:.2})",
-                error_bps,
+                error_bp < 0.1,
+                "Steep-curve calibration error {:.4} bp at step {} (t={:.2})",
+                error_bp,
                 step,
                 t
             );
@@ -1281,11 +1281,11 @@ mod tests {
             .backward_induction(&terminal, |_, _, cont| cont)
             .expect("terminal values sized to final step");
         let target_df = steep_curve.df(10.0);
-        let error_bps = ((value - target_df) / target_df).abs() * 10000.0;
+        let error_bp = ((value - target_df) / target_df).abs() * 10000.0;
         assert!(
-            error_bps < 0.1,
-            "Steep-curve backward induction error {:.4} bps (value={:.8}, df={:.8})",
-            error_bps,
+            error_bp < 0.1,
+            "Steep-curve backward induction error {:.4} bp (value={:.8}, df={:.8})",
+            error_bp,
             value,
             target_df
         );
@@ -1305,12 +1305,12 @@ mod tests {
         // Bond price at maturity should be exactly 1.0
         // Production standard: < 1 bp error
         let bp = tree.bond_price(final_step, mid_node, 2.0, &curve);
-        let error_bps = (bp - 1.0).abs() * 10000.0;
+        let error_bp = (bp - 1.0).abs() * 10000.0;
         assert!(
-            error_bps < 1.0,
-            "Bond price at maturity should be 1.0, got {:.8} (error: {:.4} bps)",
+            error_bp < 1.0,
+            "Bond price at maturity should be 1.0, got {:.8} (error: {:.4} bp)",
             bp,
-            error_bps
+            error_bp
         );
     }
 
@@ -1423,15 +1423,92 @@ mod tests {
 
         let target_df = curve.df(1.0);
         let error = (value - target_df).abs();
-        let error_bps = (error / target_df) * 10000.0;
+        let error_bp = (error / target_df) * 10000.0;
 
         // Production standard: pricing error < 1 basis point
         assert!(
-            error_bps < 1.0,
-            "Unit payoff value {:.8} should match df {:.8} (error: {:.4} bps)",
+            error_bp < 1.0,
+            "Unit payoff value {:.8} should match df {:.8} (error: {:.4} bp)",
             value,
             target_df,
-            error_bps
+            error_bp
+        );
+    }
+
+    #[test]
+    fn root_forward_swap_rate_matches_curve_par_rate_within_one_bp() {
+        let curve = test_discount_curve();
+        let tree = HullWhiteTree::calibrate(HullWhiteTreeConfig::new(0.03, 0.01, 80), &curve, 5.0)
+            .expect("calibration should succeed");
+        let payment_times: Vec<f64> = (1..=10).map(|period| period as f64 * 0.5).collect();
+        let accrual_fractions = [0.5; 10];
+
+        let tree_forward =
+            tree.forward_swap_rate(0, 0, 0.0, 5.0, &payment_times, &accrual_fractions, &curve);
+        let market_annuity: f64 = payment_times
+            .iter()
+            .zip(accrual_fractions.iter())
+            .map(|(&payment_time, &accrual)| accrual * curve.df(payment_time))
+            .sum();
+        let market_forward = (curve.df(0.0) - curve.df(5.0)) / market_annuity;
+        let error_bp = (tree_forward - market_forward).abs() * 10_000.0;
+
+        assert!(
+            tree_forward.is_finite() && error_bp < 1.0,
+            "root tree forward {tree_forward:.8} must match curve par rate \
+             {market_forward:.8} within 1 bp; error={error_bp:.4} bp"
+        );
+    }
+
+    #[test]
+    fn low_kappa_tree_calibrates_and_clamps_time_mapping() {
+        let curve = test_discount_curve();
+        let steps = 80;
+        let tree =
+            HullWhiteTree::calibrate(HullWhiteTreeConfig::new(0.01, 0.01, steps), &curve, 10.0)
+                .expect("low-kappa calibration should succeed");
+
+        assert_eq!(tree.time_to_step(-1.0), 0);
+        assert_eq!(tree.time_to_step(0.0), 0);
+        assert_eq!(tree.time_to_step(5.0), steps / 2);
+        assert_eq!(tree.time_to_step(10.0), steps);
+        assert_eq!(tree.time_to_step(15.0), steps);
+
+        let midpoint = tree.time_to_step(5.0);
+        let state_price_sum: f64 = (0..tree.num_nodes(midpoint))
+            .map(|node| tree.state_price(midpoint, node))
+            .sum();
+        let target_df = curve.df(5.0);
+        let error_bp = ((state_price_sum - target_df) / target_df).abs() * 10_000.0;
+        assert!(
+            error_bp < 1.0,
+            "low-kappa tree must preserve the curve within 1 bp at 5Y; \
+             error={error_bp:.4} bp"
+        );
+    }
+
+    #[test]
+    fn higher_volatility_increases_node_rate_dispersion() {
+        let curve = test_discount_curve();
+        let steps = 60;
+        let low_vol =
+            HullWhiteTree::calibrate(HullWhiteTreeConfig::new(0.03, 0.005, steps), &curve, 5.0)
+                .expect("low-volatility calibration should succeed");
+        let high_vol =
+            HullWhiteTree::calibrate(HullWhiteTreeConfig::new(0.03, 0.02, steps), &curve, 5.0)
+                .expect("high-volatility calibration should succeed");
+        let midpoint = steps / 2;
+
+        let low_spread = low_vol.rate_at_node(midpoint, low_vol.num_nodes(midpoint) - 1)
+            - low_vol.rate_at_node(midpoint, 0);
+        let high_spread = high_vol.rate_at_node(midpoint, high_vol.num_nodes(midpoint) - 1)
+            - high_vol.rate_at_node(midpoint, 0);
+
+        assert!(low_spread.is_finite() && high_spread.is_finite());
+        assert!(
+            high_spread > low_spread,
+            "higher Hull-White sigma must widen node-rate dispersion: \
+             low={low_spread:.8}, high={high_spread:.8}"
         );
     }
 
@@ -1547,11 +1624,11 @@ mod tests {
                 .map(|j| tree.state_price(step, j))
                 .sum();
 
-            let error_bps = ((sum_q - target_df) / target_df).abs() * 10000.0;
+            let error_bp = ((sum_q - target_df) / target_df).abs() * 10000.0;
             assert!(
-                error_bps < 5.0,
-                "Boundary-heavy calibration error {:.2} bps at step {} (t={:.2})",
-                error_bps,
+                error_bp < 5.0,
+                "Boundary-heavy calibration error {:.2} bp at step {} (t={:.2})",
+                error_bp,
                 step,
                 t
             );
@@ -1564,11 +1641,11 @@ mod tests {
             .backward_induction(&terminal, |_, _, cont| cont)
             .expect("terminal values sized to final step");
         let target_df = curve.df(5.0);
-        let error_bps = ((value - target_df) / target_df).abs() * 10000.0;
+        let error_bp = ((value - target_df) / target_df).abs() * 10000.0;
         assert!(
-            error_bps < 5.0,
-            "Backward induction error {:.2} bps with boundary nodes (value={:.8}, df={:.8})",
-            error_bps,
+            error_bp < 5.0,
+            "Backward induction error {:.2} bp with boundary nodes (value={:.8}, df={:.8})",
+            error_bp,
             value,
             target_df
         );
@@ -1667,11 +1744,11 @@ mod tests {
             let sum_q: f64 = (0..tree.num_nodes(step))
                 .map(|j| tree.state_price(step, j))
                 .sum();
-            let error_bps = ((sum_q - target_df) / target_df).abs() * 10000.0;
+            let error_bp = ((sum_q - target_df) / target_df).abs() * 10000.0;
             assert!(
-                error_bps < 0.1,
-                "Steep-curve per-step-dt calibration error {:.4} bps at pillar t={:.2}",
-                error_bps,
+                error_bp < 0.1,
+                "Steep-curve per-step-dt calibration error {:.4} bp at pillar t={:.2}",
+                error_bp,
                 t
             );
         }
@@ -1682,11 +1759,11 @@ mod tests {
             .backward_induction(&terminal, |_, _, cont| cont)
             .expect("terminal values sized to final step");
         let target_df = steep_curve.df(10.0);
-        let error_bps = ((value - target_df) / target_df).abs() * 10000.0;
+        let error_bp = ((value - target_df) / target_df).abs() * 10000.0;
         assert!(
-            error_bps < 0.1,
-            "Steep-curve per-step-dt backward induction error {:.4} bps",
-            error_bps
+            error_bp < 0.1,
+            "Steep-curve per-step-dt backward induction error {:.4} bp",
+            error_bp
         );
     }
 }

@@ -10,10 +10,11 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::context::{MarketContext, MarketContextState};
 use finstack_quant_core::money::Money;
 use finstack_quant_wasm::api::attribution::*;
+use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 
 fn bond_json() -> String {
-    use finstack_quant_valuations::instruments::json_loader::InstrumentJson;
+    use finstack_quant_valuations::instruments::json_loader::{InstrumentEnvelope, InstrumentJson};
     use finstack_quant_valuations::instruments::Bond;
     use time::macros::date;
 
@@ -26,7 +27,8 @@ fn bond_json() -> String {
         "USD-OIS",
     )
     .expect("bond construction");
-    serde_json::to_string(&InstrumentJson::Bond(bond)).expect("instrument JSON")
+    serde_json::to_string(&InstrumentEnvelope::new(InstrumentJson::Bond(bond)))
+        .expect("instrument envelope JSON")
 }
 
 fn market_json(as_of: time::Date, rate: f64) -> String {
@@ -65,7 +67,7 @@ fn params(method_json: &str) -> JsAttributionParams {
 fn default_waterfall_order_starts_with_carry() {
     let order: Vec<String> =
         serde_wasm_bindgen::from_value(default_waterfall_order().unwrap()).unwrap();
-    assert_eq!(order.first().map(String::as_str), Some("Carry"));
+    assert_eq!(order.first().map(String::as_str), Some("carry"));
 }
 
 #[wasm_bindgen_test]
@@ -77,7 +79,7 @@ fn default_attribution_metrics_non_empty() {
 
 #[wasm_bindgen_test]
 fn attribute_pnl_end_to_end_parallel() {
-    let json = attribute_pnl(&params("\"Parallel\"")).expect("attributePnl should succeed");
+    let json = attribute_pnl(&params("\"parallel\"")).expect("attributePnl should succeed");
     let attr: serde_json::Value = serde_json::from_str(&json).expect("PnlAttribution JSON");
     // +20bp rates move on a long bond: the rates factor must be a loss.
     let rates: f64 = attr["rates_curves_pnl"]["amount"]
@@ -94,17 +96,21 @@ fn attribute_pnl_end_to_end_parallel() {
 #[wasm_bindgen_test]
 fn validate_attribution_json_rejects_wrong_schema() {
     let envelope = format!(
-        r#"{{"schema":"finstack_quant.attribution/99","spec":{{"instrument":{},"market_t0":{},"market_t1":{},"as_of_t0":"2025-01-15","as_of_t1":"2025-01-16","method":"Parallel"}}}}"#,
+        r#"{{"schema":"finstack_quant.attribution/99","spec":{{"instrument":{},"market_t0":{},"market_t1":{},"as_of_t0":"2025-01-15","as_of_t1":"2025-01-16","method":"parallel"}}}}"#,
         bond_json(),
         market_json(time::macros::date!(2025 - 01 - 15), 0.04),
         market_json(time::macros::date!(2025 - 01 - 16), 0.042),
     );
     let err = validate_attribution_json(&envelope)
         .expect_err("wrong schema must be rejected by validation, not just by execute");
-    let msg = err.as_string().unwrap_or_default();
+    let msg: String = err
+        .dyn_into::<js_sys::Error>()
+        .expect("validation errors should be JavaScript Error objects")
+        .message()
+        .into();
     assert!(
-        msg.contains("schema"),
-        "error should name the schema: {msg}"
+        msg.contains("finstack_quant.attribution/99"),
+        "error should name the rejected marker: {msg}"
     );
 }
 
@@ -118,7 +124,7 @@ fn attribute_pnl_missing_market_data_yields_structured_error() {
         empty,
         "2025-01-15".to_string(),
         "2025-01-16".to_string(),
-        "\"Parallel\"".to_string(),
+        "\"parallel\"".to_string(),
         None,
         None,
     );

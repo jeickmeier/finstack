@@ -43,17 +43,22 @@ pub(crate) fn exact_factor_market_keys(
         MarketMapping::FxRate { pair } => {
             push_unique_key(&mut keys, MarketFactorKey::fx(pair.0, pair.1));
         }
-        MarketMapping::VolShift { surface_ids, .. } => {
-            for surface_id in surface_ids {
+        MarketMapping::VolShift {
+            vol_surface_ids, ..
+        } => {
+            for vol_surface_id in vol_surface_ids {
                 // Generic curve bumps resolve curves before surfaces. A
                 // same-named curve therefore makes a VolShift mapping
                 // ambiguous even when a vol surface is also present.
-                if market.curve(surface_id.as_str()).is_some()
-                    || market.get_surface(surface_id.as_str()).is_err()
+                if market.curve(vol_surface_id.as_str()).is_some()
+                    || market.get_surface(vol_surface_id.as_str()).is_err()
                 {
                     return None;
                 }
-                push_unique_key(&mut keys, MarketFactorKey::vol_surface(surface_id.clone()));
+                push_unique_key(
+                    &mut keys,
+                    MarketFactorKey::vol_surface(vol_surface_id.clone()),
+                );
             }
         }
     }

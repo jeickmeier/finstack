@@ -9,16 +9,16 @@ use super::engine::{
 };
 use finstack_quant_core::dates::Tenor;
 
-fn maintenance(cov_type: CovenantType, freq: Tenor, metric: &str) -> CovenantSpec {
+fn maintenance(cov_type: CovenantType, frequency: Tenor, metric: &str) -> CovenantSpec {
     CovenantSpec::with_metric(
-        Covenant::new(cov_type, freq).with_scope(CovenantScope::Maintenance),
+        Covenant::new(cov_type, frequency).with_scope(CovenantScope::Maintenance),
         metric,
     )
 }
 
-fn incurrence(cov_type: CovenantType, freq: Tenor, metric: &str) -> CovenantSpec {
+fn incurrence(cov_type: CovenantType, frequency: Tenor, metric: &str) -> CovenantSpec {
     CovenantSpec::with_metric(
-        Covenant::new(cov_type, freq).with_scope(CovenantScope::Incurrence),
+        Covenant::new(cov_type, frequency).with_scope(CovenantScope::Incurrence),
         metric,
     )
 }
@@ -52,7 +52,7 @@ pub fn lbo_standard(
     vec![
         {
             let mut s = maintenance(
-                CovenantType::MaxDebtToEBITDA {
+                CovenantType::MaxDebtToEbitda {
                     threshold: initial_leverage,
                 },
                 Tenor::quarterly(),
@@ -155,7 +155,7 @@ pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Vec<Cove
     vec![
         {
             let mut s = maintenance(
-                CovenantType::MinDSCR {
+                CovenantType::MinDscr {
                     threshold: min_dscr,
                 },
                 Tenor::quarterly(),
@@ -211,7 +211,7 @@ pub fn real_estate(min_dscr: f64, min_debt_yield: f64, max_ltv: f64) -> Vec<Cove
 /// - Min Liquidity (debt service reserve)
 /// - Max Net Debt / EBITDA
 ///
-/// The two `MinDSCR` covenants share a type but carry distinct instance
+/// The two `MinDscr` covenants share a type but carry distinct instance
 /// labels so their reports, breaches, and consequences never collide: a
 /// lock-up breach blocks distributions only and can never resolve to the
 /// primary covenant's Event-of-Default consequence.
@@ -235,7 +235,7 @@ pub fn project_finance(
     vec![
         {
             let mut s = maintenance(
-                CovenantType::MinDSCR {
+                CovenantType::MinDscr {
                     threshold: min_dscr,
                 },
                 Tenor::quarterly(),
@@ -248,7 +248,7 @@ pub fn project_finance(
         },
         {
             let mut s = maintenance(
-                CovenantType::MinDSCR {
+                CovenantType::MinDscr {
                     threshold: distribution_lockup_dscr,
                 },
                 Tenor::quarterly(),
@@ -268,7 +268,7 @@ pub fn project_finance(
             "liquidity",
         ),
         maintenance(
-            CovenantType::MaxNetDebtToEBITDA {
+            CovenantType::MaxNetDebtToEbitda {
                 threshold: max_net_leverage,
             },
             Tenor::quarterly(),

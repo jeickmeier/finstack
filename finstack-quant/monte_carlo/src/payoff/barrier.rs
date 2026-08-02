@@ -36,6 +36,7 @@ pub use finstack_quant_core::types::BarrierType;
 
 /// Vanilla option kind for barrier payoff evaluation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum OptionKind {
     /// Call option: max(S-K, 0)
     Call,
@@ -329,14 +330,15 @@ mod tests {
     }
 
     #[test]
-    fn barrier_type_serde_uses_canonical_output_and_accepts_legacy_mc_input() {
+    fn barrier_type_serde_accepts_only_canonical_snake_case() {
         let barrier_type: BarrierType =
-            serde_json::from_str("\"UpAndOut\"").expect("legacy MC spelling should deserialize");
+            serde_json::from_str("\"up_and_out\"").expect("canonical spelling should deserialize");
         assert_eq!(barrier_type, BarrierType::UpAndOut);
         assert_eq!(
             serde_json::to_string(&barrier_type).expect("barrier type should serialize"),
             "\"up_and_out\""
         );
+        assert!(serde_json::from_str::<BarrierType>("\"UpAndOut\"").is_err());
     }
 
     #[test]

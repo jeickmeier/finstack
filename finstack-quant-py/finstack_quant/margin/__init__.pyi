@@ -2516,16 +2516,16 @@ class FundingConfig:
 
     Parameters
     ----------
-    funding_spread_bps : float
+    funding_spread_bp : float
         Non-negative finite funding cost spread in basis points.
-    funding_benefit_bps : float | None, optional
-        Non-negative finite funding benefit in bps, no greater than the cost
+    funding_benefit_bp : float | None, optional
+        Non-negative finite funding benefit in bp, no greater than the cost
         spread; ``None`` for symmetric funding.
     im_profile : ImProfile | None, optional
         Valid expected initial-margin profile driving MVA; ``None`` disables MVA.
-    margin_funding_spread_bps : float | None, optional
+    margin_funding_spread_bp : float | None, optional
         Non-negative finite spread applied to posted IM; ``None`` reuses
-        ``funding_spread_bps``.
+        ``funding_spread_bp``.
 
     Returns
     -------
@@ -2540,32 +2540,32 @@ class FundingConfig:
 
     Examples
     --------
-    >>> FundingConfig(50.0, None).funding_spread_bps
+    >>> FundingConfig(50.0, None).funding_spread_bp
     50.0
     """
 
     def __init__(
         self,
-        funding_spread_bps: float,
-        funding_benefit_bps: float | None = None,
+        funding_spread_bp: float,
+        funding_benefit_bp: float | None = None,
         im_profile: ImProfile | None = None,
-        margin_funding_spread_bps: float | None = None,
+        margin_funding_spread_bp: float | None = None,
     ) -> None:
         """
         Initialize FVA and MVA funding parameters.
 
         Parameters
         ----------
-        funding_spread_bps : float
+        funding_spread_bp : float
             Non-negative finite funding cost spread in basis points.
-        funding_benefit_bps : float | None
+        funding_benefit_bp : float | None
             Non-negative finite funding benefit in basis points, no greater
             than the cost spread; ``None`` uses the funding cost spread.
         im_profile : ImProfile | None
             Valid expected initial-margin profile driving MVA, or ``None``.
-        margin_funding_spread_bps : float | None
-            Non-negative finite IM funding spread in bps, or ``None`` to reuse
-            ``funding_spread_bps``.
+        margin_funding_spread_bp : float | None
+            Non-negative finite IM funding spread in bp, or ``None`` to reuse
+            ``funding_spread_bp``.
 
         Raises
         ------
@@ -2576,35 +2576,35 @@ class FundingConfig:
         ...
 
     @property
-    def funding_spread_bps(self) -> float:
+    def funding_spread_bp(self) -> float:
         """
         Funding spread in basis points.
 
         Returns
         -------
         float
-            Spread in bps.
+            Spread in bp.
 
         Examples
         --------
-        >>> FundingConfig(10.0).funding_spread_bps
+        >>> FundingConfig(10.0).funding_spread_bp
         10.0
         """
         ...
 
     @property
-    def funding_benefit_bps(self) -> float | None:
+    def funding_benefit_bp(self) -> float | None:
         """
         Funding benefit spread in basis points (or None).
 
         Returns
         -------
         float or None
-            Benefit bps if asymmetric.
+            Benefit bp if asymmetric.
 
         Examples
         --------
-        >>> FundingConfig(10.0, 8.0).funding_benefit_bps
+        >>> FundingConfig(10.0, 8.0).funding_benefit_bp
         8.0
         """
         ...
@@ -2627,7 +2627,7 @@ class FundingConfig:
         ...
 
     @property
-    def margin_funding_spread_bps(self) -> float | None:
+    def margin_funding_spread_bp(self) -> float | None:
         """
         IM funding spread in basis points (or None).
 
@@ -2638,42 +2638,42 @@ class FundingConfig:
 
         Examples
         --------
-        >>> FundingConfig(10.0, None, None, 6.0).margin_funding_spread_bps
+        >>> FundingConfig(10.0, None, None, 6.0).margin_funding_spread_bp
         6.0
         """
         ...
 
-    def effective_margin_spread_bps(self) -> float:
+    def effective_margin_spread_bp(self) -> float:
         """
         Effective IM funding spread in basis points.
 
-        Falls back to ``funding_spread_bps`` when
-        ``margin_funding_spread_bps`` is ``None``.
+        Falls back to ``funding_spread_bp`` when
+        ``margin_funding_spread_bp`` is ``None``.
 
         Returns
         -------
         float
-            Effective IM funding spread in bps.
+            Effective IM funding spread in bp.
 
         Examples
         --------
-        >>> FundingConfig(10.0).effective_margin_spread_bps()
+        >>> FundingConfig(10.0).effective_margin_spread_bp()
         10.0
         """
         ...
 
-    def effective_benefit_bps(self) -> float:
+    def effective_benefit_bp(self) -> float:
         """
         Effective funding benefit spread in basis points.
 
         Returns
         -------
         float
-            Effective benefit bps.
+            Effective benefit bp.
 
         Examples
         --------
-        >>> isinstance(FundingConfig(1.0).effective_benefit_bps(), float)
+        >>> isinstance(FundingConfig(1.0).effective_benefit_bp(), float)
         True
         """
         ...
@@ -3145,8 +3145,8 @@ class XvaResult:
     """
     Result of XVA calculations (CVA, DVA, FVA, MVA, exposure profiles).
 
-    Adjustments compose as ``bilateral_cva = CVA - DVA + FVA`` for legacy
-    compatibility and ``total_xva = bilateral_cva + MVA`` (all-in).
+    Adjustments compose as ``total_xva = CVA - DVA + FVA + MVA``; uncomputed
+    optional legs contribute zero.
 
     Parameters
     ----------
@@ -3272,35 +3272,17 @@ class XvaResult:
         ...
 
     @property
-    def bilateral_cva(self) -> float | None:
+    def total_xva(self) -> float:
         """
-        Legacy bilateral adjustment = CVA − DVA + FVA (or None).
-
-        Uncomputed FVA contributes zero.
-
-        Returns
-        -------
-        float or None
-            Bilateral CVA if defined.
-
-        Examples
-        --------
-        >>> # Instance field
-        """
-        ...
-
-    @property
-    def total_xva(self) -> float | None:
-        """
-        All-in adjustment = bilateral_cva + MVA (or None).
+        All-in adjustment = CVA − DVA + FVA + MVA.
 
         Uncomputed legs contribute zero. This is the quantity subtracted from
         the risk-free value of the netting set.
 
         Returns
         -------
-        float or None
-            Total XVA if defined.
+        float
+            Total XVA.
         """
         ...
 
@@ -4713,18 +4695,18 @@ class Haircut01:
         """
         ...
 
-    def haircut_bps(self) -> float:
+    def haircut_bp(self) -> float:
         """
         Current haircut in basis points.
 
         Returns
         -------
         float
-            Haircut in bps.
+            Haircut in bp.
 
         Examples
         --------
-        >>> Haircut01(1.0, 0.01, "USD").haircut_bps()
+        >>> Haircut01(1.0, 0.01, "USD").haircut_bp()
         100.0
         """
         ...
@@ -5631,7 +5613,7 @@ def compute_mva(
         Expected IM profile ``E[IM(t)]`` (from ``im_profile_from_simm`` or
         the stochastic engine's mean per-path IM).
     funding_spread_curve : list[tuple[float, float]]
-        ``(time_years, spread_bps)`` pairs in basis points, linearly
+        ``(time_years, spread_bp)`` pairs in basis points, linearly
         interpolated with flat extrapolation; a single pair means a flat
         spread.
     discount_curve : DiscountCurve
@@ -5748,8 +5730,8 @@ def compute_bilateral_xva(
     ``funding`` carries an ``im_profile``; that posted IM also reduces ENE for
     bilateral DVA.
 
-    The result reports ``bilateral_cva = CVA - DVA + FVA`` for legacy
-    compatibility and ``total_xva = bilateral_cva + MVA`` (all-in).
+    The result reports ``total_xva = CVA - DVA + FVA + MVA``; uncomputed
+    optional legs contribute zero.
 
     Parameters
     ----------
@@ -5772,8 +5754,8 @@ def compute_bilateral_xva(
     Returns
     -------
     XvaResult
-        CVA, DVA, FVA, MVA, ``bilateral_cva``, ``total_xva``, and the
-        exposure/regulatory profiles.
+        CVA, DVA, FVA, MVA, ``total_xva``, and the exposure/regulatory
+        profiles.
 
     Raises
     ------
@@ -5795,7 +5777,7 @@ def compute_bilateral_xva(
     ... )
     >>> hz = HazardCurve("CPTY", dt.date(2025, 1, 1), [(0.0, 0.02), (30.0, 0.02)])
     >>> result = compute_bilateral_xva(profile, hz, hz, df, 0.40, 0.40)
-    >>> result.bilateral_cva == result.cva - result.dva
+    >>> result.total_xva == result.cva - result.dva
     True
     """
     ...

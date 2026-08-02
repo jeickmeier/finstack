@@ -85,6 +85,7 @@ pub const PIVOT_TOLERANCE_RELATIVE: f64 = 1e-10;
 
 /// Error type for Cholesky decomposition failures.
 #[derive(Debug, Clone, PartialEq, Error, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum CholeskyError {
     /// Matrix is not positive semi-definite (diagonal element became negative).

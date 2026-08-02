@@ -21,6 +21,7 @@ pub struct ViolationLocation {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum ArbitrageType {
     /// Call prices not convex in strike: C(K-d) - 2C(K) + C(K+d) < 0.
     /// Equivalently, implied density is negative at this strike.
@@ -52,6 +53,7 @@ pub enum ArbitrageType {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum ArbitrageSeverity {
     /// Violation is within numerical noise (< tolerance).
     /// Likely a finite-difference artifact, not a real arbitrage.
@@ -96,15 +98,15 @@ pub struct ArbitrageViolation {
     pub description: String,
     /// Suggested adjustment to the implied vol at this point to
     /// remove the violation (in vol units, additive). `None` if no
-    /// simple fix is available. Reserved for Phase 2 repair.
+    /// simple fix is available.
     pub suggested_fix: Option<f64>,
 }
 
 /// Aggregated arbitrage report for a volatility surface.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ArbitrageReport {
-    /// Identifier of the surface that was checked.
-    pub surface_id: String,
+    /// Identifier of the volatility surface that was checked.
+    pub vol_surface_id: String,
     /// All violations found, sorted by severity (critical first).
     pub violations: Vec<ArbitrageViolation>,
     /// Whether the surface passes all checks (no violations above Negligible).

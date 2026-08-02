@@ -170,8 +170,8 @@ def test_record_tasks_consume_checked_in_baselines_and_root_target() -> None:
     python_compare = configuration["tasks"]["python-bench-portfolio-compare"]["run"]
 
     assert "finstack-quant/portfolio/target/" not in record + rust_compare
-    assert "--baseline docs/benchmarks/materialization-rust-baseline.json" in rust_compare
-    assert "--baseline docs/benchmarks/materialization-python-baseline.json" in python_compare
+    assert "--baseline benchmarks/materialization/materialization-rust-baseline.json" in rust_compare
+    assert "--baseline benchmarks/materialization/materialization-python-baseline.json" in python_compare
     assert "--criterion-dir target/materialization-criterion/criterion" in rust_compare
     assert 'FQ_MATERIALIZATION_CRITERION_DIR="$PWD/target/materialization-criterion/criterion"' in rust_compare
     assert "target/materialization-python/baseline.json" not in record + python_compare
@@ -180,7 +180,9 @@ def test_record_tasks_consume_checked_in_baselines_and_root_target() -> None:
 def test_documented_toolchains_match_machine_artifact() -> None:
     """Human-readable toolchain versions stay synchronized with the JSON record."""
     root = Path(__file__).parents[2]
-    artifact = json.loads((root / "docs/materialization-benchmark-results.json").read_text(encoding="utf-8"))
+    artifact = json.loads(
+        (root / "benchmarks/materialization/materialization-benchmark-results.json").read_text(encoding="utf-8")
+    )
     document = (root / "docs/MATERIALIZATION_BENCHMARKS.md").read_text(encoding="utf-8")
     _DOCS_MODULE.verify_document(document, artifact)
 
@@ -188,10 +190,12 @@ def test_documented_toolchains_match_machine_artifact() -> None:
 def test_benchmark_record_links_exact_checked_in_baselines() -> None:
     """Cheap docs checks reject baseline path, identity, and digest drift."""
     root = Path(__file__).parents[2]
-    manifest_path = Path("docs/materialization-benchmark-baseline.json")
-    rust_path = Path("docs/benchmarks/materialization-rust-baseline.json")
-    python_path = Path("docs/benchmarks/materialization-python-baseline.json")
-    artifact = json.loads((root / "docs/materialization-benchmark-results.json").read_text(encoding="utf-8"))
+    manifest_path = Path("benchmarks/materialization/materialization-benchmark-baseline.json")
+    rust_path = Path("benchmarks/materialization/materialization-rust-baseline.json")
+    python_path = Path("benchmarks/materialization/materialization-python-baseline.json")
+    artifact = json.loads(
+        (root / "benchmarks/materialization/materialization-benchmark-results.json").read_text(encoding="utf-8")
+    )
     manifest = json.loads((root / manifest_path).read_text(encoding="utf-8"))
 
     _DOCS_MODULE.verify_baseline_links(
@@ -207,12 +211,14 @@ def test_benchmark_record_links_exact_checked_in_baselines() -> None:
 def test_benchmark_checker_rejects_tampered_manifest_baseline_paths(language: str) -> None:
     """The manifest cannot redirect either durable baseline to another path."""
     root = Path(__file__).parents[2]
-    manifest_path = Path("docs/materialization-benchmark-baseline.json")
-    rust_path = Path("docs/benchmarks/materialization-rust-baseline.json")
-    python_path = Path("docs/benchmarks/materialization-python-baseline.json")
-    artifact = json.loads((root / "docs/materialization-benchmark-results.json").read_text(encoding="utf-8"))
+    manifest_path = Path("benchmarks/materialization/materialization-benchmark-baseline.json")
+    rust_path = Path("benchmarks/materialization/materialization-rust-baseline.json")
+    python_path = Path("benchmarks/materialization/materialization-python-baseline.json")
+    artifact = json.loads(
+        (root / "benchmarks/materialization/materialization-benchmark-results.json").read_text(encoding="utf-8")
+    )
     manifest = json.loads((root / manifest_path).read_text(encoding="utf-8"))
-    manifest[f"{language}_baseline_path"] = f"docs/benchmarks/tampered-{language}.json"
+    manifest[f"{language}_baseline_path"] = f"benchmarks/materialization/tampered-{language}.json"
 
     with pytest.raises(ValueError, match=rf"{language} baseline path mismatch"):
         _DOCS_MODULE.verify_baseline_links(

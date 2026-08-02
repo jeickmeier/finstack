@@ -49,7 +49,7 @@ impl PyAltmanPdCalibration {
     /// Legacy uncalibrated house heuristic.
     #[classattr]
     const HEURISTIC_V1: Self = Self {
-        inner: AltmanPdCalibration::HeuristicV1,
+        inner: AltmanPdCalibration::Heuristic,
     };
 }
 

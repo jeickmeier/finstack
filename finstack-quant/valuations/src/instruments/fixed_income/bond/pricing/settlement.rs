@@ -29,22 +29,32 @@ pub(crate) fn settlement_date(bond: &Bond, as_of: Date) -> Result<Date> {
     };
 
     let sd: i32 = sd_u32 as i32;
-    let (calendar_id, bdc) = match &bond.cashflow_spec {
-        CashflowSpec::Fixed(spec) => (Some(spec.schedule.calendar_id.as_str()), spec.schedule.bdc),
-        CashflowSpec::Floating(spec) => {
-            (Some(spec.schedule.calendar_id.as_str()), spec.schedule.bdc)
-        }
-        CashflowSpec::StepUp(spec) => (Some(spec.schedule.calendar_id.as_str()), spec.schedule.bdc),
+    let (calendar_id, business_day_convention) = match &bond.cashflow_spec {
+        CashflowSpec::Fixed(spec) => (
+            Some(spec.schedule.calendar_id.as_str()),
+            spec.schedule.business_day_convention,
+        ),
+        CashflowSpec::Floating(spec) => (
+            Some(spec.schedule.calendar_id.as_str()),
+            spec.schedule.business_day_convention,
+        ),
+        CashflowSpec::StepUp(spec) => (
+            Some(spec.schedule.calendar_id.as_str()),
+            spec.schedule.business_day_convention,
+        ),
         CashflowSpec::Amortizing { base, .. } => match &**base {
-            CashflowSpec::Fixed(spec) => {
-                (Some(spec.schedule.calendar_id.as_str()), spec.schedule.bdc)
-            }
-            CashflowSpec::Floating(spec) => {
-                (Some(spec.schedule.calendar_id.as_str()), spec.schedule.bdc)
-            }
-            CashflowSpec::StepUp(spec) => {
-                (Some(spec.schedule.calendar_id.as_str()), spec.schedule.bdc)
-            }
+            CashflowSpec::Fixed(spec) => (
+                Some(spec.schedule.calendar_id.as_str()),
+                spec.schedule.business_day_convention,
+            ),
+            CashflowSpec::Floating(spec) => (
+                Some(spec.schedule.calendar_id.as_str()),
+                spec.schedule.business_day_convention,
+            ),
+            CashflowSpec::StepUp(spec) => (
+                Some(spec.schedule.calendar_id.as_str()),
+                spec.schedule.business_day_convention,
+            ),
             CashflowSpec::Amortizing { .. } => (None, BusinessDayConvention::Following),
         },
     };
@@ -52,7 +62,7 @@ pub(crate) fn settlement_date(bond: &Bond, as_of: Date) -> Result<Date> {
     if let Some(id) = calendar_id {
         if let Some(cal) = finstack_quant_core::dates::calendar::calendar_by_id(id) {
             let d = as_of.add_business_days(sd, cal)?;
-            return adjust(d, bdc, cal);
+            return adjust(d, business_day_convention, cal);
         }
     }
 

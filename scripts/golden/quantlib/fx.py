@@ -7,7 +7,7 @@ from typing import Any
 import QuantLib as ql  # type: ignore[import-not-found]  # noqa: N813
 
 from .common import (
-    SCHEMA_VERSION,
+    SCHEMA,
     VALUATION_DATE,
     central_difference,
     flat_discount_curve,
@@ -86,7 +86,7 @@ def build_fx_forward() -> dict[str, Any]:
         "collateralized no-arbitrage forward valuation with continuous flat curves."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="eurusd_1y_forward_quantlib",
             domain="fx.fx_forward",

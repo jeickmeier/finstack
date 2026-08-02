@@ -109,7 +109,7 @@ pub struct CdsConventions {
     /// The day count convention for the premium leg.
     pub day_count: DayCount,
     /// The business day convention.
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// The number of business days for settlement.
     pub settlement_days: i32,
     /// The payment frequency of the premium leg.

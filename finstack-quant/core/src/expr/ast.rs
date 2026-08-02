@@ -38,14 +38,14 @@ pub struct Expr {
 /// The core expression node types.
 ///
 /// Deserialization is strict (`deny_unknown_fields`): unknown fields inside
-/// struct variants (`CSRef`, `BinOp`, `UnaryOp`, `IfThenElse`) are rejected.
+/// struct variants (`CsRef`, `BinOp`, `UnaryOp`, `IfThenElse`) are rejected.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExprNode {
     /// Reference a column by name.
     Column(String),
     /// Domain-specific capital-structure reference.
-    CSRef {
+    CsRef {
         /// Capital-structure component.
         component: String,
         /// Instrument id or `total`.
@@ -84,6 +84,7 @@ pub enum ExprNode {
 
 /// Binary operators for expressions.
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BinOp {
     // Arithmetic
     /// Addition (+)
@@ -120,6 +121,7 @@ pub enum BinOp {
 
 /// Unary operators for expressions.
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum UnaryOp {
     /// Negation (-)
     Neg,
@@ -140,7 +142,7 @@ impl Expr {
     pub fn cs_ref(component: impl Into<String>, instrument_or_total: impl Into<String>) -> Self {
         Self {
             id: None,
-            node: ExprNode::CSRef {
+            node: ExprNode::CsRef {
                 component: component.into(),
                 instrument_or_total: instrument_or_total.into(),
             },
@@ -218,7 +220,7 @@ impl Hash for Expr {
                 0u8.hash(state);
                 name.hash(state);
             }
-            ExprNode::CSRef {
+            ExprNode::CsRef {
                 component,
                 instrument_or_total,
             } => {
@@ -266,11 +268,11 @@ impl PartialEq for Expr {
         match (&self.node, &other.node) {
             (ExprNode::Column(a), ExprNode::Column(b)) => a == b,
             (
-                ExprNode::CSRef {
+                ExprNode::CsRef {
                     component: a_component,
                     instrument_or_total: a_instrument,
                 },
-                ExprNode::CSRef {
+                ExprNode::CsRef {
                     component: b_component,
                     instrument_or_total: b_instrument,
                 },
@@ -323,6 +325,7 @@ impl Eq for Expr {}
 
 /// Built-in function identifiers.
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Function {
     /// Previous N values (shift down).
     Lag,

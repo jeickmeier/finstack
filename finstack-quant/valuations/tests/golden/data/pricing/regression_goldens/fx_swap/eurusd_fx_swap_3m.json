@@ -1,12 +1,12 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "eurusd_fx_swap_3m",
     "domain": "fx.fx_swap",
     "description": "Synthetic EUR/USD 3M FX swap with explicit FX matrix and discount curves.",
     "valuation_date": "2026-04-30",
     "source": "formula",
-    "source_detail": "Finstack Quant canonical FX swap discounting calculation on deterministic synthetic EUR/USD market data Phase-2 envelope migration (2026-05-09): Tier-A wrap. The original snapshot is preserved verbatim in initial_market with empty plan.steps; no calibration math changes. Pricing tolerance contracts preserved.",
+    "source_detail": "Finstack Quant canonical FX swap discounting calculation on deterministic synthetic EUR/USD market data The canonical typed market inputs are supplied with no calibration steps. Pricing tolerance contracts preserved.",
     "captured_by": "jeickmeier",
     "captured_on": "2026-04-30",
     "last_reviewed_by": "jeickmeier",
@@ -20,10 +20,10 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
-        "id": "eurusd_fx_swap_3m_tier_a_wrap",
-        "description": "Tier-A wrap (Phase-2 envelope migration, 2026-05-09): the original market snapshot is preserved in initial_market with empty plan.steps. Routes through engine::execute_with_diagnostics without changing pricing math.",
+        "id": "eurusd_fx_swap_3m_market",
+        "description": "the canonical typed market inputs are supplied with no calibration steps. Routes through engine::execute_with_diagnostics without changing pricing math.",
         "quote_sets": {},
         "steps": [],
         "settings": {
@@ -48,7 +48,7 @@
           "kind": "discount_curve",
           "id": "EUR-OIS",
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "knot_points": [
             [
               0.0,
@@ -68,13 +68,15 @@
           "min_forward_rate": null,
           "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null
+          "rate_calibration": null,
+          "calibration_ois_cutoff_days": null,
+          "fx_policy": null
         },
         {
           "kind": "discount_curve",
           "id": "USD-OIS",
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "knot_points": [
             [
               0.0,
@@ -94,7 +96,9 @@
           "min_forward_rate": null,
           "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null
+          "rate_calibration": null,
+          "calibration_ois_cutoff_days": null,
+          "fx_policy": null
         }
       ]
     }

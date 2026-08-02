@@ -28,6 +28,7 @@ use std::collections::HashMap;
 /// }
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GoldenSuite<T> {
     /// Suite-level metadata including provenance.
     pub meta: SuiteMeta,
@@ -39,7 +40,8 @@ pub struct GoldenSuite<T> {
 ///
 /// All golden fixtures must include provenance to document where and when
 /// the expected values were generated.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SuiteMeta {
     /// Unique identifier for this suite.
     pub suite_id: String,
@@ -64,8 +66,8 @@ pub struct SuiteMeta {
     #[serde(default = "default_status")]
     pub status: String,
 
-    /// Schema version for forward compatibility.
-    #[serde(default = "default_schema_version")]
+    /// Required schema version. Only version `1` is accepted.
+    #[serde(deserialize_with = "deserialize_schema_version")]
     pub schema_version: u32,
 
     /// Extensible metadata bag for future additions.
@@ -77,8 +79,33 @@ fn default_status() -> String {
     "unknown".to_string()
 }
 
-fn default_schema_version() -> u32 {
-    1
+fn deserialize_schema_version<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let version = u32::deserialize(deserializer)?;
+    if version == 1 {
+        Ok(version)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "unsupported schema_version {version}; expected 1"
+        )))
+    }
+}
+
+impl Default for SuiteMeta {
+    fn default() -> Self {
+        Self {
+            suite_id: String::new(),
+            description: String::new(),
+            reference_source: ReferenceSource::default(),
+            generated: GeneratedInfo::default(),
+            validated: None,
+            status: default_status(),
+            schema_version: 1,
+            extra: HashMap::new(),
+        }
+    }
 }
 
 /// Reference source for expected values.
@@ -486,5 +513,34 @@ mod tests {
             assert_eq!(meta.reference_source.version, Some("1.8.2".to_string()));
             assert!(meta.extra.contains_key("custom_field"));
         }
+    }
+
+    #[test]
+    fn suite_meta_requires_schema_version_one() {
+        let base = serde_json::json!({
+            "suite_id": "test",
+            "reference_source": { "name": "manual" },
+            "generated": { "at": "2025-01-15", "by": "test" },
+            "status": "certified",
+            "schema_version": 1
+        });
+        assert!(
+            serde_json::from_value::<SuiteMeta>(base.clone()).is_ok(),
+            "schema version one must deserialize"
+        );
+
+        let mut missing = base.clone();
+        let removed = missing
+            .as_object_mut()
+            .and_then(|object| object.remove("schema_version"));
+        assert!(
+            removed.is_some(),
+            "test fixture must contain schema_version"
+        );
+        assert!(serde_json::from_value::<SuiteMeta>(missing).is_err());
+
+        let mut future = base;
+        future["schema_version"] = serde_json::json!(2);
+        assert!(serde_json::from_value::<SuiteMeta>(future).is_err());
     }
 }

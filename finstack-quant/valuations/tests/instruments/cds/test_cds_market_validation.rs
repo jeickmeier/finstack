@@ -638,10 +638,10 @@ fn test_standard_tenors_reasonable_par_spreads() {
 
         let par_spread = *result.measures.get("par_spread").unwrap();
 
-        // Par spread should be positive and reasonable (20-200 bps for IG credit)
+        // Par spread should be positive and reasonable (20-200 bp for IG credit)
         assert!(
             par_spread > 20.0 && par_spread < 200.0,
-            "{}Y par spread={:.2} bps outside typical range",
+            "{}Y par spread={:.2} bp outside typical range",
             tenor_years,
             par_spread
         );
@@ -695,7 +695,7 @@ fn test_term_structure_upward_sloping_spreads() {
     for (years, spread) in &par_spreads {
         assert!(
             spread > &20.0 && spread < &200.0,
-            "{}Y par spread={:.2} bps outside reasonable range",
+            "{}Y par spread={:.2} bp outside reasonable range",
             years,
             spread
         );

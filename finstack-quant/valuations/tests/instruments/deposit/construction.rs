@@ -74,13 +74,13 @@ fn test_construction_with_different_day_counts() {
         DayCount::ActAct,
     ];
 
-    for dc in day_counts {
+    for day_count in day_counts {
         let dep = Deposit::builder()
             .id(InstrumentId::new("DEP-DC"))
             .notional(Money::new(1_000_000.0, Currency::USD))
             .start_date(base)
             .maturity(date(2025, 7, 1))
-            .day_count(dc)
+            .day_count(day_count)
             .discount_curve_id(CurveId::new("USD-OIS"))
             .build()
             .unwrap();

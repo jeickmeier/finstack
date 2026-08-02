@@ -1,5 +1,148 @@
 {
   "$defs": {
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "LookbackOption": {
+      "additionalProperties": false,
+      "description": "Lookback option instrument.\n\n# Monitoring Convention\n\nThis instrument uses **continuous monitoring** for analytical pricing. Real-world\nlookback options are typically monitored discretely (daily closes). The continuous\nformulas provide an upper bound; for accurate discrete pricing, use Monte Carlo.\n\nSee module-level documentation for details on discrete monitoring adjustments.\n\n# Observed Extrema\n\nFor seasoned options (where some monitoring has already occurred), provide:\n- `observed_min`: Minimum spot observed so far (for floating calls / fixed puts)\n- `observed_max`: Maximum spot observed so far (for floating puts / fixed calls)\n\nIf not provided, the current spot is used as the starting extremum.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and grouping"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve ID for present value calculations"
+        },
+        "div_yield_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional dividend yield curve ID"
+        },
+        "expiry": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Option expiry date"
+        },
+        "expiry_fixing": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Terminal underlying fixing observed at expiry.\n\nRequired when valuing after expiry so the realized payoff cannot move\nwith a later market spot snapshot. At expiry itself, the current market\nspot is treated as the terminal fixing when this field is absent."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Pricing overrides (manual price, yield, spread)"
+        },
+        "lookback_type": {
+          "$ref": "#/$defs/LookbackType",
+          "description": "Lookback type (fixed or floating strike)"
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount"
+        },
+        "observed_max": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Observed maximum spot price since inception (required for Floating Put / Fixed Call)"
+        },
+        "observed_min": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Observed minimum spot price since inception (required for Floating Call / Fixed Put)"
+        },
+        "option_type": {
+          "$ref": "#/$defs/OptionType",
+          "description": "Option type (call or put)"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only valuation adjustments."
+        },
+        "spot_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Spot price identifier"
+        },
+        "strike": {
+          "description": "Strike price (None for floating strike lookbacks)",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "underlying_ticker": {
+          "description": "Underlying asset ticker symbol",
+          "type": "string"
+        },
+        "use_gobet_miri": {
+          "default": false,
+          "description": "Whether to use Monte Carlo with Gobet-Miri correction for discrete monitoring.\n\nWhen `true`, `value()` dispatches to `npv_mc()` for discrete-monitoring-corrected\npricing using Monte Carlo simulation.\n\n**Defaults to `false`** (analytical continuous pricing).\nSet to `true` for production pricing of discretely-monitored lookbacks.",
+          "type": "boolean"
+        },
+        "vol_surface_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Volatility surface ID"
+        }
+      },
+      "required": [
+        "id",
+        "underlying_ticker",
+        "option_type",
+        "lookback_type",
+        "expiry",
+        "notional",
+        "day_count",
+        "discount_curve_id",
+        "spot_id",
+        "vol_surface_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "LookbackType": {
       "description": "Lookback option type.",
       "oneOf": [
@@ -29,18 +172,39 @@
           "type": "string"
         }
       ]
+    },
+    "lookback_option": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/LookbackOption"
+            },
+            "type": {
+              "const": "lookback_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/exotics/lookback_option.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Option with payoff based on the max/min of the underlying over a period",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "discount_curve_id": "USD-OIS",
           "div_yield_id": "SPX-DIV",
           "expiry": "2024-12-20",
@@ -53,27 +217,6 @@
           "observed_max": null,
           "observed_min": null,
           "option_type": "call",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "spot_id": "SPX-SPOT",
           "strike": 4500.0,
           "underlying_ticker": "SPX",
@@ -87,176 +230,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Lookback Option instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and grouping"
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention"
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve ID for present value calculations"
-            },
-            "div_yield_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional dividend yield curve ID"
-            },
-            "expiry": {
-              "description": "Option expiry date",
-              "format": "date",
-              "type": "string"
-            },
-            "expiry_fixing": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Terminal underlying fixing observed at expiry.\n\nRequired when valuing after expiry so the realized payoff cannot move\nwith a later market spot snapshot. At expiry itself, the current market\nspot is treated as the terminal fixing when this field is absent."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "lookback_type": {
-              "$ref": "#/$defs/LookbackType",
-              "description": "Lookback type (fixed or floating strike)"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount"
-            },
-            "observed_max": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Observed maximum spot price since inception (required for Floating Put / Fixed Call)"
-            },
-            "observed_min": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Observed minimum spot price since inception (required for Floating Call / Fixed Put)"
-            },
-            "option_type": {
-              "$ref": "#/$defs/OptionType",
-              "description": "Option type (call or put)"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Pricing overrides (manual price, yield, spread)"
-            },
-            "spot_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Spot price identifier"
-            },
-            "strike": {
-              "description": "Strike price (None for floating strike lookbacks)",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "underlying_ticker": {
-              "description": "Underlying asset ticker symbol",
-              "type": "string"
-            },
-            "use_gobet_miri": {
-              "default": false,
-              "description": "Whether to use Monte Carlo with Gobet-Miri correction for discrete monitoring.\n\nWhen `true`, `value()` dispatches to `npv_mc()` for discrete-monitoring-corrected\npricing using Monte Carlo simulation.\n\n**Defaults to `false`** (analytical continuous pricing).\nSet to `true` for production pricing of discretely-monitored lookbacks.",
-              "type": "boolean"
-            },
-            "vol_surface_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Volatility surface ID"
-            }
-          },
-          "required": [
-            "id",
-            "underlying_ticker",
-            "option_type",
-            "lookback_type",
-            "expiry",
-            "notional",
-            "day_count",
-            "discount_curve_id",
-            "spot_id",
-            "vol_surface_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "lookback_option",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/lookback_option"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Lookback Option",
+  "title": "lookback_option",
   "type": "object"
 }

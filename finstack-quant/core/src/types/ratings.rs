@@ -82,50 +82,73 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 pub enum CreditRating {
     /// AAA / Aaa — Highest quality, minimal credit risk
+    #[serde(rename = "AAA")]
     AAA,
     /// AA+ / Aa1
+    #[serde(rename = "AA+")]
     AAPlus,
     /// AA / Aa2 — Very high quality, very low credit risk
+    #[serde(rename = "AA")]
     AA,
     /// AA- / Aa3
+    #[serde(rename = "AA-")]
     AAMinus,
     /// A+ / A1
+    #[serde(rename = "A+")]
     APlus,
     /// A / A2 — High quality, low credit risk
+    #[serde(rename = "A")]
     A,
     /// A- / A3
+    #[serde(rename = "A-")]
     AMinus,
     /// BBB+ / Baa1
+    #[serde(rename = "BBB+")]
     BBBPlus,
     /// BBB / Baa2 — Medium grade, moderate credit risk (lowest investment grade)
+    #[serde(rename = "BBB")]
     BBB,
     /// BBB- / Baa3
+    #[serde(rename = "BBB-")]
     BBBMinus,
     /// BB+ / Ba1
+    #[serde(rename = "BB+")]
     BBPlus,
     /// BB / Ba2 — Speculative, substantial credit risk
+    #[serde(rename = "BB")]
     BB,
     /// BB- / Ba3
+    #[serde(rename = "BB-")]
     BBMinus,
     /// B+ / B1
+    #[serde(rename = "B+")]
     BPlus,
     /// B / B2 — Highly speculative, high credit risk
+    #[serde(rename = "B")]
     B,
     /// B- / B3
+    #[serde(rename = "B-")]
     BMinus,
     /// CCC+ / Caa1
+    #[serde(rename = "CCC+")]
     CCCPlus,
     /// CCC / Caa2 — Poor standing, very high credit risk
+    #[serde(rename = "CCC")]
     CCC,
     /// CCC- / Caa3
+    #[serde(rename = "CCC-")]
     CCCMinus,
     /// CC / Ca — Highly vulnerable, near default
+    #[serde(rename = "CC")]
     CC,
     /// C — Lowest rated, typically in default
+    #[serde(rename = "C")]
     C,
     /// D — In default
+    #[serde(rename = "D")]
     D,
     /// NR — Not rated
+    #[serde(rename = "NR")]
     NR,
 }
 
@@ -558,10 +581,10 @@ impl RatingFactorTable {
     ///
     /// # Errors
     ///
-    /// Returns an error if the embedded registry cannot load or `id` is unknown
-    /// after its compatibility-alias resolution. It never falls back to the
-    /// default table for an unknown explicit ID, avoiding a silent methodology
-    /// change in a credit calculation.
+    /// Returns an error if the embedded registry cannot load or `id` is
+    /// unknown. It never falls back to the default table for an unknown
+    /// explicit ID, avoiding a silent methodology change in a credit
+    /// calculation.
     pub fn from_registry_id(id: &str) -> crate::Result<Self> {
         Ok(Self::from_registry_parts(
             embedded_registry()?.rating_factor_table(id)?,
@@ -876,9 +899,16 @@ mod tests {
     fn credit_rating_serde_wire_name_is_stable() {
         let json = serde_json::to_string(&CreditRating::BBBMinus).expect("rating serializes");
 
-        assert_eq!(json, r#""BBBMinus""#);
+        assert_eq!(json, r#""BBB-""#);
         let restored: CreditRating = serde_json::from_str(&json).expect("rating deserializes");
         assert_eq!(restored, CreditRating::BBBMinus);
+
+        for noncanonical in [r#""BBBMinus""#, r#""bbb-""#, r#""Baa3""#] {
+            assert!(
+                serde_json::from_str::<CreditRating>(noncanonical).is_err(),
+                "noncanonical persisted rating {noncanonical} must be rejected"
+            );
+        }
     }
 
     #[test]

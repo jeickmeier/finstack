@@ -37,18 +37,18 @@ fn test_results_meta_serialization() {
 
 #[test]
 fn test_results_meta_deserializes_without_optional_fields() {
-    // JSON without optional fields should deserialize successfully
-    let old_json = r#"{
-        "numeric_mode": "F64",
+    // Canonical JSON without optional fields should deserialize successfully.
+    let json = r#"{
+        "numeric_mode": "f64",
         "rounding": {
-            "mode": "Bankers",
-            "ingest_scale_by_ccy": {},
-            "output_scale_by_ccy": {},
+            "mode": "bankers",
+            "ingest_scale_by_currency": {},
+            "output_scale_by_currency": {},
             "version": 1
         }
     }"#;
 
-    let meta: ResultsMeta = serde_json::from_str(old_json).expect("Failed to deserialize old JSON");
+    let meta: ResultsMeta = serde_json::from_str(json).expect("Failed to deserialize JSON");
     assert_eq!(meta.numeric_mode, NumericMode::F64);
     // New fields should be None or default
     assert!(meta.fx_policy_applied.is_none());

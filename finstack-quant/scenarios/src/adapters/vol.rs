@@ -25,6 +25,7 @@ const LARGE_NEGATIVE_VOL_SHOCK_PCT: f64 = -50.0;
 
 /// Arbitrage violation types detected in volatility surfaces.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ArbitrageViolation {
     /// Calendar spread arbitrage: total variance decreases with expiry at given strike
     CalendarSpread {
@@ -159,7 +160,7 @@ fn surface_grid(surface: &VolSurface) -> Result<Vec<Vec<f64>>> {
 /// `d1 = ±inf`/NaN in every Black-Scholes consumer downstream, which is too
 /// severe to surface as a warning-and-apply.
 fn arbitrage_warnings_for_surface(
-    surface_id: &CurveId,
+    vol_surface_id: &CurveId,
     surface: &VolSurface,
 ) -> Result<Vec<Warning>> {
     let vols = surface_grid(surface)?;
@@ -172,14 +173,14 @@ fn arbitrage_warnings_for_surface(
                 vol,
             } => {
                 return Err(crate::error::Error::Validation(format!(
-                    "Vol surface '{surface_id}' shock would produce non-positive vol \
+                    "Vol surface '{vol_surface_id}' shock would produce non-positive vol \
                      ({vol:.6}) at expiry={expiry:.4}Y, strike={strike:.2}; volatility \
                      must stay positive. Reduce the shock magnitude."
                 )));
             }
             calendar @ ArbitrageViolation::CalendarSpread { .. } => {
                 warnings.push(Warning::VolSurfaceArbitrage {
-                    surface_id: surface_id.as_str().to_string(),
+                    vol_surface_id: vol_surface_id.as_str().to_string(),
                     detail: calendar.to_string(),
                 });
             }
@@ -190,17 +191,17 @@ fn arbitrage_warnings_for_surface(
 
 /// Generate effects for a parallel vol-surface percent shock.
 pub(crate) fn vol_parallel_effects(
-    surface_id: &CurveId,
+    vol_surface_id: &CurveId,
     pct: f64,
     ctx: &ExecutionContext,
 ) -> Result<Vec<ScenarioEffect>> {
     let mut effects = Vec::new();
-    let surface = ctx.market.get_surface(surface_id.as_str())?;
+    let surface = ctx.market.get_surface(vol_surface_id.as_str())?;
 
     if pct <= LARGE_NEGATIVE_VOL_SHOCK_PCT {
         effects.push(ScenarioEffect::Warning(
             Warning::VolSurfaceLargeNegativeShock {
-                surface_id: surface_id.as_str().to_string(),
+                vol_surface_id: vol_surface_id.as_str().to_string(),
                 pct,
                 bucket: false,
             },
@@ -215,12 +216,12 @@ pub(crate) fn vol_parallel_effects(
     };
 
     let preview = surface.as_ref().apply_bump(parallel_spec)?;
-    for w in arbitrage_warnings_for_surface(surface_id, &preview)? {
+    for w in arbitrage_warnings_for_surface(vol_surface_id, &preview)? {
         effects.push(ScenarioEffect::Warning(w));
     }
 
     let bump = MarketBump::Curve {
-        id: surface_id.clone(),
+        id: vol_surface_id.clone(),
         spec: parallel_spec,
     };
     effects.push(ScenarioEffect::MarketBump(bump));
@@ -261,18 +262,18 @@ fn snap_to_grid_expiry(
 
 /// Generate effects for a bucketed vol-surface percent shock.
 pub(crate) fn vol_bucket_effects(
-    surface_id: &CurveId,
+    vol_surface_id: &CurveId,
     tenors: Option<&[String]>,
     strikes: Option<&[f64]>,
     pct: f64,
     ctx: &ExecutionContext,
 ) -> Result<Vec<ScenarioEffect>> {
     let mut warnings = Vec::new();
-    let surface = ctx.market.get_surface(surface_id.as_str())?;
+    let surface = ctx.market.get_surface(vol_surface_id.as_str())?;
 
     if pct <= LARGE_NEGATIVE_VOL_SHOCK_PCT {
         warnings.push(Warning::VolSurfaceLargeNegativeShock {
-            surface_id: surface_id.as_str().to_string(),
+            vol_surface_id: vol_surface_id.as_str().to_string(),
             pct,
             bucket: true,
         });
@@ -312,10 +313,10 @@ pub(crate) fn vol_bucket_effects(
         .ok_or_else(|| {
             finstack_quant_core::Error::from(finstack_quant_core::InputError::DimensionMismatch)
         })?;
-    warnings.extend(arbitrage_warnings_for_surface(surface_id, &preview)?);
+    warnings.extend(arbitrage_warnings_for_surface(vol_surface_id, &preview)?);
 
     let bump = MarketBump::VolBucketPct {
-        surface_id: surface_id.clone(),
+        vol_surface_id: vol_surface_id.clone(),
         expiries: exp_years,
         strikes: strikes.map(<[f64]>::to_vec),
         pct,
@@ -423,7 +424,7 @@ mod tests {
             name: None,
             description: None,
             operations: vec![OperationSpec::VolSurfaceParallelPct {
-                surface_id: "VOL".into(),
+                vol_surface_id: "VOL".into(),
                 surface_kind: VolSurfaceKind::Equity,
                 pct: 10.0,
             }],
@@ -476,8 +477,8 @@ mod tests {
             as_of: date!(2025 - 01 - 01),
         };
 
-        let surface_id = CurveId::from("VOL");
-        let err = vol_parallel_effects(&surface_id, -100.0, &ctx)
+        let vol_surface_id = CurveId::from("VOL");
+        let err = vol_parallel_effects(&vol_surface_id, -100.0, &ctx)
             .expect_err("a -100% vol shock must be rejected, not warned");
         assert!(
             err.to_string().contains("non-positive"),
@@ -508,9 +509,15 @@ mod tests {
             as_of: date!(2025 - 01 - 01),
         };
 
-        let surface_id = CurveId::from("VOL");
-        let err = vol_bucket_effects(&surface_id, Some(&["6M".to_string()]), None, -100.0, &ctx)
-            .expect_err("a bucket shock zeroing a vol point must be rejected");
+        let vol_surface_id = CurveId::from("VOL");
+        let err = vol_bucket_effects(
+            &vol_surface_id,
+            Some(&["6M".to_string()]),
+            None,
+            -100.0,
+            &ctx,
+        )
+        .expect_err("a bucket shock zeroing a vol point must be rejected");
         assert!(
             err.to_string().contains("non-positive"),
             "error should name the non-positive vol condition: {err}"
@@ -537,9 +544,14 @@ mod tests {
             as_of: date!(2025 - 01 - 01),
         };
 
-        let surface_id = CurveId::from("VOL");
-        let effects =
-            vol_bucket_effects(&surface_id, Some(&["6M".to_string()]), None, -30.0, &ctx)?;
+        let vol_surface_id = CurveId::from("VOL");
+        let effects = vol_bucket_effects(
+            &vol_surface_id,
+            Some(&["6M".to_string()]),
+            None,
+            -30.0,
+            &ctx,
+        )?;
 
         assert!(effects.iter().any(|effect| matches!(
             effect,

@@ -114,6 +114,7 @@
 /// discount-only float-leg pricing; see `InterestRateSwap::is_single_curve_ois` for details.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum FloatingLegCompounding {
     /// Simple interest compounding (term-rate style).
     ///
@@ -319,40 +320,6 @@ impl std::fmt::Display for FloatingLegCompounding {
     }
 }
 
-impl std::str::FromStr for FloatingLegCompounding {
-    type Err = String;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "simple" => Ok(Self::Simple),
-            "sofr" => Ok(Self::sofr()),
-            "sonia" => Ok(Self::sonia()),
-            "estr" | "€str" | "ester" => Ok(Self::estr()),
-            "tona" => Ok(Self::tona()),
-            "fedfunds" | "fed_funds" | "effr" => Ok(Self::fedfunds()),
-            "compounded_in_arrears" | "compounded" => Ok(Self::CompoundedInArrears {
-                lookback_days: 0,
-                observation_shift: None,
-            }),
-            "compounded_observation_shift" | "observation_shift" => {
-                Ok(Self::CompoundedWithObservationShift { shift_days: 0 })
-            }
-            "sofr_observation_shift" => Ok(Self::sofr_observation_shift()),
-            "sonia_observation_shift" => Ok(Self::sonia_observation_shift()),
-            "rate_cutoff" | "rate_cut_off" | "compounded_rate_cutoff" | "compounded_lockout" => {
-                Ok(Self::CompoundedWithRateCutoff { cutoff_days: 0 })
-            }
-            other => Err(format!(
-                "Unknown floating leg compounding: '{}'. Valid: simple, sofr, sonia, estr, tona, \
-                 fedfunds, compounded_in_arrears, compounded, compounded_observation_shift, \
-                 sofr_observation_shift, sonia_observation_shift, rate_cutoff",
-                other
-            )),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -405,16 +372,12 @@ mod tests {
     }
 
     #[test]
-    fn rate_cutoff_roundtrips_and_parses() {
+    fn rate_cutoff_roundtrips() {
         let method = FloatingLegCompounding::CompoundedWithRateCutoff { cutoff_days: 1 };
         let json = serde_json::to_string(&method).expect("serialize rate cutoff");
         let deserialized: FloatingLegCompounding =
             serde_json::from_str(&json).expect("deserialize rate cutoff");
 
         assert_eq!(deserialized, method);
-        assert_eq!(
-            "rate_cutoff".parse::<FloatingLegCompounding>(),
-            Ok(FloatingLegCompounding::CompoundedWithRateCutoff { cutoff_days: 0 })
-        );
     }
 }

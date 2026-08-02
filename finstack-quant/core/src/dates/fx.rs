@@ -107,7 +107,7 @@ fn with_joint_calendar<R>(
 /// # Arguments
 ///
 /// * `date` - Unadjusted settlement or payment date to normalize.
-/// * `bdc` - Business-day convention governing the roll direction and
+/// * `business_day_convention` - Business-day convention governing the roll direction and
 ///   month-crossing behavior.
 /// * `base_cal_id` - Optional base-currency holiday calendar ID; `None` uses
 ///   the weekends-only calendar.
@@ -121,7 +121,7 @@ fn with_joint_calendar<R>(
 /// - Date adjustment fails
 pub fn adjust_joint_calendar(
     date: Date,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     base_cal_id: Option<&str>,
     quote_cal_id: Option<&str>,
 ) -> Result<Date> {
@@ -129,7 +129,7 @@ pub fn adjust_joint_calendar(
     let quote_cal = resolve_calendar(quote_cal_id)?;
 
     with_joint_calendar(base_cal, quote_cal, |joint_calendar| {
-        adjust(date, bdc, joint_calendar)
+        adjust(date, business_day_convention, joint_calendar)
     })
 }
 
@@ -426,14 +426,18 @@ impl ResolvedCalendarPair {
     /// # Arguments
     ///
     /// * `date` - Date to adjust
-    /// * `bdc` - Business day convention
+    /// * `business_day_convention` - Business day convention
     ///
     /// # Returns
     ///
     /// The adjusted date that is a business day on both calendars.
-    pub fn adjust_joint_calendar(&self, date: Date, bdc: BusinessDayConvention) -> Result<Date> {
+    pub fn adjust_joint_calendar(
+        &self,
+        date: Date,
+        business_day_convention: BusinessDayConvention,
+    ) -> Result<Date> {
         with_joint_calendar(self.base, self.quote, |joint_calendar| {
-            adjust(date, bdc, joint_calendar)
+            adjust(date, business_day_convention, joint_calendar)
         })
     }
 }

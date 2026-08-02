@@ -49,7 +49,7 @@ calibration-only runner would.
 
 ## Conventions for any future calibration goldens
 
-When you add a fixture here, follow the same `finstack_quant.golden/2` schema
+When you add a fixture here, follow the same `finstack_quant.golden/1` schema
 the pricing runner uses (`tests/golden/schema.rs`). The runner will need:
 
 - Domain prefix `calibration.<asset_class>` (e.g. `calibration.discount`).

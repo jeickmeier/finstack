@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 
 /// Map from leverage to hazard rate.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum LeverageHazardMap {
     /// `lambda(t) = lambda_0 * (L(t) / L_0)^beta`
     PowerLaw {
@@ -48,6 +49,7 @@ pub enum LeverageHazardMap {
 /// hazard rate, enabling a feedback loop where PIK accrual increases the
 /// notional (and hence leverage), which drives the hazard rate higher.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EndogenousHazardSpec {
     /// Base (reference) hazard rate `lambda_0`.
     base_hazard_rate: f64,
@@ -396,7 +398,7 @@ mod tests {
         let json = r#"{
             "base_hazard_rate": 0.05,
             "base_leverage": 1.5,
-            "leverage_hazard_map": { "Tabular": {
+            "leverage_hazard_map": { "tabular": {
                 "leverage_points": [],
                 "hazard_points": []
             }}
@@ -417,7 +419,7 @@ mod tests {
         let json = r#"{
             "base_hazard_rate": 0.05,
             "base_leverage": 1.5,
-            "leverage_hazard_map": { "Tabular": {
+            "leverage_hazard_map": { "tabular": {
                 "leverage_points": [1.0, 2.0, 3.0],
                 "hazard_points": [0.05]
             }}

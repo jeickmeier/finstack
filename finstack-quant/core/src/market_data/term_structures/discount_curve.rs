@@ -110,7 +110,6 @@ use super::common::{
 };
 use crate::math::interp::{ExtrapolationPolicy, InterpStyle};
 use crate::{
-    currency::Currency,
     dates::{Date, DayCount, DayCountContext},
     market_data::traits::{Discounting, TermStructure},
     math::interp::types::Interp,
@@ -125,46 +124,8 @@ use crate::{
 /// This constant can be overridden via [`DiscountCurveBuilder::min_forward_tenor`].
 pub const DEFAULT_MIN_FORWARD_TENOR: f64 = 1e-6;
 
-/// Market quote metadata used to build a discount curve.
-///
-/// This is optional sidecar data for risk calculations that need to shock the
-/// original benchmark quotes and re-bootstrap instead of applying direct
-/// zero-rate bumps to the fitted curve.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DiscountCurveRateCalibration {
-    /// Rate index used by the benchmark instruments.
-    pub index_id: String,
-    /// Currency of the calibrated curve.
-    pub currency: Currency,
-    /// Benchmark rate quotes used for calibration.
-    pub quotes: Vec<DiscountCurveRateQuote>,
-}
-
-/// A single benchmark rate quote used to calibrate a discount curve.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DiscountCurveRateQuote {
-    /// Instrument type represented by the quote.
-    pub quote_type: DiscountCurveRateQuoteType,
-    /// Tenor string, such as `3M` or `5Y`.
-    pub tenor: String,
-    /// Quoted rate in decimal form.
-    pub rate: f64,
-}
-
-/// Supported benchmark quote instruments for discount-curve quote metadata.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DiscountCurveRateQuoteType {
-    /// Money-market deposit quote.
-    Deposit,
-    /// Interest-rate swap quote.
-    Swap,
-}
-
 /// Piece-wise discount factor curve supporting several interpolation styles.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "RawDiscountCurve", into = "RawDiscountCurve")]
 pub struct DiscountCurve {
     pub(crate) id: CurveId,
@@ -186,10 +147,8 @@ pub struct DiscountCurve {
     pub(crate) allow_non_monotonic: bool,
     /// Minimum tenor for forward rate calculations (configurable)
     pub(crate) min_forward_tenor: f64,
-    /// Optional market quotes used to bootstrap this curve.
-    pub(crate) rate_calibration: Option<DiscountCurveRateCalibration>,
     /// Exact typed recipe used to replay calibration after quote shocks.
-    pub(crate) rate_calibration_recipe: Option<super::RateCalibrationRecipe>,
+    pub(crate) rate_calibration: Option<super::RateCalibrationRecipe>,
     /// Rate cut-off (business days) of the OIS compounding convention this
     /// curve was *calibrated* under, when bootstrapped with a
     /// `CompoundedWithRateCutoff` override.
@@ -211,15 +170,16 @@ pub struct DiscountCurve {
 }
 
 /// Raw serializable state of DiscountCurve
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawDiscountCurve {
     /// Curve identifier
     pub id: String,
     /// Base date
+    #[serde(with = "crate::wire::date")]
+    #[schemars(with = "crate::wire::DateWire")]
     pub base: Date,
     /// Day count convention for discount time basis
-    #[serde(default = "default_day_count")]
     pub day_count: DayCount,
     /// Time/value pairs used to construct the curve
     pub knot_points: Vec<(f64, f64)>,
@@ -228,32 +188,17 @@ struct RawDiscountCurve {
     /// Extrapolation policy
     pub extrapolation: ExtrapolationPolicy,
     /// Minimum forward rate floor (if set)
-    #[serde(default)]
     pub min_forward_rate: Option<f64>,
     /// Whether non-monotonic DFs are allowed (dangerous override)
-    #[serde(default)]
     pub allow_non_monotonic: bool,
     /// Minimum tenor for forward rate calculations
-    #[serde(default = "default_min_forward_tenor")]
     pub min_forward_tenor: f64,
-    /// Optional market quotes used to bootstrap this curve.
-    #[serde(default)]
-    pub rate_calibration: Option<DiscountCurveRateCalibration>,
     /// Exact typed calibration replay recipe.
-    #[serde(default)]
-    pub rate_calibration_recipe: Option<super::RateCalibrationRecipe>,
+    pub rate_calibration: Option<super::RateCalibrationRecipe>,
     /// OIS cut-off (business days) the curve was calibrated under, if any.
-    #[serde(default)]
     pub calibration_ois_cutoff_days: Option<i32>,
-    /// Opaque FX policy stamp; see [`DiscountCurve::fx_policy`]. Defaults to
-    /// `None` so curve JSON written before this field existed deserializes
-    /// cleanly.
-    #[serde(default)]
+    /// Opaque FX policy stamp; see [`DiscountCurve::fx_policy`].
     pub fx_policy: Option<String>,
-}
-
-fn default_min_forward_tenor() -> f64 {
-    DEFAULT_MIN_FORWARD_TENOR
 }
 
 impl From<DiscountCurve> for RawDiscountCurve {
@@ -276,7 +221,6 @@ impl From<DiscountCurve> for RawDiscountCurve {
             allow_non_monotonic: curve.allow_non_monotonic,
             min_forward_tenor: curve.min_forward_tenor,
             rate_calibration: curve.rate_calibration,
-            rate_calibration_recipe: curve.rate_calibration_recipe,
             calibration_ois_cutoff_days: curve.calibration_ois_cutoff_days,
             fx_policy: curve.fx_policy,
         }
@@ -295,7 +239,6 @@ impl TryFrom<RawDiscountCurve> for DiscountCurve {
             .extrapolation(state.extrapolation)
             .min_forward_tenor(state.min_forward_tenor)
             .rate_calibration_opt(state.rate_calibration)
-            .rate_calibration_recipe_opt(state.rate_calibration_recipe)
             .calibration_ois_cutoff_days_opt(state.calibration_ois_cutoff_days)
             .fx_policy_opt(state.fx_policy)
             .validation(ValidationMode::Raw {
@@ -304,11 +247,6 @@ impl TryFrom<RawDiscountCurve> for DiscountCurve {
             })
             .build()
     }
-}
-
-fn default_day_count() -> DayCount {
-    // Default for omitted field.
-    DayCount::Act365F
 }
 
 impl DiscountCurve {
@@ -378,16 +316,10 @@ impl DiscountCurve {
         self.extrapolation
     }
 
-    /// Market quote metadata used to build this curve, when available.
-    #[inline]
-    pub fn rate_calibration(&self) -> Option<&DiscountCurveRateCalibration> {
-        self.rate_calibration.as_ref()
-    }
-
     /// Exact typed conventions and quotes used to calibrate this curve.
     #[inline]
-    pub fn rate_calibration_recipe(&self) -> Option<&super::RateCalibrationRecipe> {
-        self.rate_calibration_recipe.as_ref()
+    pub fn rate_calibration(&self) -> Option<&super::RateCalibrationRecipe> {
+        self.rate_calibration.as_ref()
     }
 
     /// OIS rate cut-off (business days) this curve was calibrated under, if any.
@@ -717,19 +649,19 @@ impl DiscountCurve {
         Ok(forwards)
     }
 
-    /// Fallible: discount factor on a specific date `date` using explicit day-count `dc`.
+    /// Fallible: discount factor on a specific date `date` using explicit day-count `day_count`.
     ///
     /// # Errors
     ///
-    /// Propagates a failure from `dc.signed_year_fraction` for the curve base
+    /// Propagates a failure from `day_count.signed_year_fraction` for the curve base
     /// date and `date`.
     #[inline]
     #[must_use = "computed discount factor should not be discarded"]
-    pub fn df_on_date(&self, date: Date, dc: crate::dates::DayCount) -> crate::Result<f64> {
+    pub fn df_on_date(&self, date: Date, day_count: crate::dates::DayCount) -> crate::Result<f64> {
         let t = if date == self.base {
             0.0
         } else {
-            dc.signed_year_fraction(self.base, date, DayCountContext::default())?
+            day_count.signed_year_fraction(self.base, date, DayCountContext::default())?
         };
         Ok(self.df(t))
     }
@@ -1267,7 +1199,6 @@ impl DiscountCurve {
             allow_non_monotonic: false, // Strict validation by default
             min_forward_tenor: DEFAULT_MIN_FORWARD_TENOR, // Default ~30 seconds
             rate_calibration: None,
-            rate_calibration_recipe: None,
             calibration_ois_cutoff_days: None,
             fx_policy: None,
         }
@@ -1307,7 +1238,6 @@ impl DiscountCurve {
             .extrapolation(self.extrapolation)
             .min_forward_tenor(self.min_forward_tenor)
             .rate_calibration_opt(self.rate_calibration.clone())
-            .rate_calibration_recipe_opt(self.rate_calibration_recipe.clone())
             .calibration_ois_cutoff_days_opt(self.calibration_ois_cutoff_days)
             .fx_policy_opt(self.fx_policy.clone())
             .apply_non_monotonic_settings(self.allow_non_monotonic, self.min_forward_rate)
@@ -1515,8 +1445,7 @@ pub struct DiscountCurveBuilder {
     pub(crate) min_forward_rate: Option<f64>,
     pub(crate) allow_non_monotonic: bool,
     pub(crate) min_forward_tenor: f64,
-    pub(crate) rate_calibration: Option<DiscountCurveRateCalibration>,
-    pub(crate) rate_calibration_recipe: Option<super::RateCalibrationRecipe>,
+    pub(crate) rate_calibration: Option<super::RateCalibrationRecipe>,
     pub(crate) calibration_ois_cutoff_days: Option<i32>,
     pub(crate) fx_policy: Option<String>,
 }
@@ -1531,9 +1460,9 @@ impl DiscountCurveBuilder {
     ///
     /// # Arguments
     ///
-    /// * `dc` - Dc supplied by the caller for this operation
-    pub fn day_count(mut self, dc: DayCount) -> Self {
-        self.day_count = dc;
+    /// * `day_count` - Dc supplied by the caller for this operation
+    pub fn day_count(mut self, day_count: DayCount) -> Self {
+        self.day_count = day_count;
         self
     }
     /// Supply knot points `(t, df)` where *t* is the year fraction and *df*
@@ -1622,33 +1551,18 @@ impl DiscountCurveBuilder {
         self
     }
 
-    /// Attach market quote metadata used to bootstrap this curve.
-    pub fn rate_calibration(mut self, calibration: DiscountCurveRateCalibration) -> Self {
+    /// Attach the typed calibration recipe used to bootstrap this curve.
+    pub fn rate_calibration(mut self, calibration: super::RateCalibrationRecipe) -> Self {
         self.rate_calibration = Some(calibration);
         self
     }
 
-    /// Optionally attach market quote metadata used to bootstrap this curve.
+    /// Optionally attach the typed calibration recipe used to bootstrap this curve.
     pub fn rate_calibration_opt(
         mut self,
-        calibration: Option<DiscountCurveRateCalibration>,
+        calibration: Option<super::RateCalibrationRecipe>,
     ) -> Self {
         self.rate_calibration = calibration;
-        self
-    }
-
-    /// Attach an exact typed calibration replay recipe.
-    pub fn rate_calibration_recipe(mut self, recipe: super::RateCalibrationRecipe) -> Self {
-        self.rate_calibration_recipe = Some(recipe);
-        self
-    }
-
-    /// Optionally attach an exact typed calibration replay recipe.
-    pub fn rate_calibration_recipe_opt(
-        mut self,
-        recipe: Option<super::RateCalibrationRecipe>,
-    ) -> Self {
-        self.rate_calibration_recipe = recipe;
         self
     }
 
@@ -1784,7 +1698,6 @@ impl DiscountCurveBuilder {
             allow_non_monotonic: self.allow_non_monotonic,
             min_forward_tenor: self.min_forward_tenor,
             rate_calibration: self.rate_calibration,
-            rate_calibration_recipe: self.rate_calibration_recipe,
             calibration_ois_cutoff_days: self.calibration_ois_cutoff_days,
             fx_policy: self.fx_policy,
         })
@@ -1898,36 +1811,33 @@ mod tests {
     }
 
     #[test]
-    fn legacy_rate_calibration_metadata_defaults_recipe_safely() {
-        let legacy = serde_json::json!({
+    fn optional_rate_calibration_round_trips_as_none() {
+        let canonical = serde_json::json!({
             "id": "USD-OIS",
             "base": "2025-01-02",
-            "day_count": "Act365F",
+            "day_count": "act_365f",
             "knot_points": [[0.0, 1.0], [5.0, 0.8]],
             "interp_style": "linear",
             "extrapolation": "flat_forward",
-            "rate_calibration": {
-                "index_id": "USD-SOFR-OIS",
-                "currency": "USD",
-                "quotes": [{
-                    "quote_type": "swap",
-                    "tenor": "5Y",
-                    "rate": 0.04
-                }]
-            }
+            "min_forward_rate": null,
+            "allow_non_monotonic": false,
+            "min_forward_tenor": 1e-8,
+            "rate_calibration": null,
+            "calibration_ois_cutoff_days": null,
+            "fx_policy": null
         });
 
-        let curve: DiscountCurve = serde_json::from_value(legacy).expect("legacy serialized curve");
-        let serialized = serde_json::to_value(curve).expect("serialize legacy curve");
+        let curve: DiscountCurve =
+            serde_json::from_value(canonical).expect("canonical serialized curve");
+        let serialized = serde_json::to_value(curve).expect("serialize curve");
         let restored: DiscountCurve =
-            serde_json::from_value(serialized.clone()).expect("round-trip legacy curve");
+            serde_json::from_value(serialized.clone()).expect("round-trip curve");
 
         assert!(
-            serialized["rate_calibration_recipe"].is_null(),
-            "legacy metadata must default to no replay recipe"
+            serialized["rate_calibration"].is_null(),
+            "an absent rate calibration remains null"
         );
-        assert!(restored.rate_calibration().is_some());
-        assert!(restored.rate_calibration_recipe().is_none());
+        assert!(restored.rate_calibration().is_none());
     }
 
     #[test]

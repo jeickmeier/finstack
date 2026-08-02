@@ -4,25 +4,23 @@ use crate::types::AmountOrScalar;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::PeriodId;
 use indexmap::IndexMap;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::fmt;
-use std::sync::Arc;
 
 /// Type-safe identifier for a node in a financial model.
 ///
-/// Wraps an `Arc<str>` so that cloning a `NodeId` is a reference-count bump
-/// rather than a heap allocation — node ids are cloned heavily (evaluation
-/// order, column maps, per-warning context). It serializes as a plain string
-/// and is interoperable with `&str` via [`Borrow`] and [`AsRef`].
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// Serializes as a plain string and is interoperable with `&str` via
+/// [`Borrow`] and [`AsRef`].
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[repr(transparent)]
-pub struct NodeId(Arc<str>);
+pub struct NodeId(String);
 
 impl NodeId {
     /// Create a new `NodeId` from any string-like value.
     pub fn new(id: impl Into<String>) -> Self {
-        Self(Arc::from(id.into()))
+        Self(id.into())
     }
 
     /// Return the inner string slice.
@@ -40,19 +38,19 @@ impl fmt::Display for NodeId {
 
 impl From<&str> for NodeId {
     fn from(s: &str) -> Self {
-        Self(Arc::from(s))
+        Self(s.to_owned())
     }
 }
 
 impl From<String> for NodeId {
     fn from(s: String) -> Self {
-        Self(Arc::from(s))
+        Self(s)
     }
 }
 
 impl From<&String> for NodeId {
     fn from(s: &String) -> Self {
-        Self(Arc::from(s.as_str()))
+        Self(s.clone())
     }
 }
 
@@ -80,28 +78,13 @@ impl PartialEq<str> for NodeId {
     }
 }
 
-// Serialize as a plain string. A manual impl avoids requiring serde's `rc`
-// feature flag for the `Arc<str>` inner representation.
-impl Serialize for NodeId {
-    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.0)
-    }
-}
-
-impl<'de> Deserialize<'de> for NodeId {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
-        let s = String::deserialize(deserializer)?;
-        Ok(Self(Arc::from(s)))
-    }
-}
-
 /// Specification for a single node (metric/line item) in the financial model.
 ///
 /// A node can be:
 /// - **Value**: Explicit values only
 /// - **Calculated**: Formula-derived only
 /// - **Mixed**: Value OR Forecast OR Formula (precedence: Value > Forecast > Formula)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct NodeSpec {
     /// Unique identifier for this node
@@ -116,6 +99,7 @@ pub struct NodeSpec {
 
     /// Explicit values per period (for Value and Mixed nodes)
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<IndexMap<String, AmountOrScalar>>")]
     pub values: Option<IndexMap<PeriodId, AmountOrScalar>>,
 
     /// Forecast specification (for Mixed nodes)
@@ -221,7 +205,7 @@ impl NodeSpec {
 /// - **Value**: Only explicit values (actuals, assumptions)
 /// - **Calculated**: Only formula-derived
 /// - **Mixed**: Value OR Forecast OR Formula (precedence: Value > Forecast > Formula)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeType {
     /// Only explicit values
@@ -235,7 +219,7 @@ pub enum NodeType {
 /// Forecast method specification.
 ///
 /// Defines how to forecast future values for a node.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ForecastSpec {
     /// Forecast method
@@ -339,7 +323,7 @@ impl ForecastSpec {
 }
 
 /// Available forecast methods.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ForecastMethod {
     /// Carry last value forward
@@ -368,7 +352,7 @@ pub enum ForecastMethod {
 }
 
 /// Seasonal decomposition mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SeasonalMode {
     /// Additive seasonality: Y = Trend + Seasonal + Error
@@ -381,7 +365,7 @@ pub enum SeasonalMode {
 ///
 /// Determines whether a node represents monetary values (with a specific currency)
 /// or scalar values (ratios, percentages, counts, etc.).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum NodeValueType {
     /// Monetary value with a specific currency (e.g., revenue, costs, balance sheet items)

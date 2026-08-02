@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import math
 
 import pytest
 
@@ -122,10 +123,10 @@ def test_funding_config_carries_im_profile_for_mva() -> None:
     profile = ImProfile([1.0, 2.0], [1_000_000.0, 1_000_000.0])
     config = FundingConfig(50.0, 30.0, profile, 20.0)
 
-    assert config.funding_spread_bps == pytest.approx(50.0)
-    assert config.effective_benefit_bps() == pytest.approx(30.0)
-    assert config.margin_funding_spread_bps == pytest.approx(20.0)
-    assert config.effective_margin_spread_bps() == pytest.approx(20.0)
+    assert config.funding_spread_bp == pytest.approx(50.0)
+    assert config.effective_benefit_bp() == pytest.approx(30.0)
+    assert config.margin_funding_spread_bp == pytest.approx(20.0)
+    assert config.effective_margin_spread_bp() == pytest.approx(20.0)
     assert config.im_profile is not None
     assert config.im_profile.times == [1.0, 2.0]
 
@@ -133,16 +134,16 @@ def test_funding_config_carries_im_profile_for_mva() -> None:
 def test_funding_config_margin_spread_defaults_to_funding_spread() -> None:
     config = FundingConfig(45.0)
     assert config.im_profile is None
-    assert config.margin_funding_spread_bps is None
-    assert config.effective_margin_spread_bps() == pytest.approx(45.0)
+    assert config.margin_funding_spread_bp is None
+    assert config.effective_margin_spread_bp() == pytest.approx(45.0)
 
 
 @pytest.mark.parametrize(
     ("args", "message"),
     [
-        ((-1.0,), "funding_spread_bps"),
-        ((25.0, 30.0), "funding_benefit_bps"),
-        ((25.0, None, None, float("nan")), "margin_funding_spread_bps"),
+        ((-1.0,), "funding_spread_bp"),
+        ((25.0, 30.0), "funding_benefit_bp"),
+        ((25.0, None, None, float("nan")), "margin_funding_spread_bp"),
     ],
 )
 def test_funding_config_constructor_validates(args: tuple[object, ...], message: str) -> None:
@@ -151,13 +152,12 @@ def test_funding_config_constructor_validates(args: tuple[object, ...], message:
 
 
 def test_xva_result_exposes_mva_and_total_xva() -> None:
-    """Legacy bilateral CVA includes FVA and total XVA adds MVA."""
+    """The required total composes all computed XVA legs."""
     payload = json.dumps({
         "cva": 100.0,
         "dva": 30.0,
         "fva": 20.0,
         "mva": 15.0,
-        "bilateral_cva": 90.0,
         "total_xva": 105.0,
         "epe_profile": [[1.0, 10.0]],
         "ene_profile": [[1.0, 2.0]],
@@ -169,14 +169,14 @@ def test_xva_result_exposes_mva_and_total_xva() -> None:
     result = XvaResult.from_json(payload)
 
     assert result.mva == pytest.approx(15.0)
-    assert result.bilateral_cva == pytest.approx(result.cva - result.dva + result.fva)
-    assert result.total_xva == pytest.approx(result.bilateral_cva + result.mva)
+    assert result.total_xva == pytest.approx(result.cva - result.dva + result.fva + result.mva)
 
 
-def test_xva_result_mva_fields_are_optional() -> None:
-    """Payloads without the funding legs still load, with ``None`` fields."""
+def test_xva_result_funding_legs_are_optional_but_total_is_required() -> None:
+    """Payloads may omit funding legs while retaining the required total."""
     payload = json.dumps({
         "cva": 100.0,
+        "total_xva": 100.0,
         "epe_profile": [[1.0, 10.0]],
         "ene_profile": [[1.0, 0.0]],
         "pfe_profile": [[1.0, 10.0]],
@@ -187,7 +187,7 @@ def test_xva_result_mva_fields_are_optional() -> None:
     result = XvaResult.from_json(payload)
 
     assert result.mva is None
-    assert result.total_xva is None
+    assert result.total_xva == pytest.approx(100.0)
 
 
 def flat_hazard_curve(lam: float) -> HazardCurve:
@@ -219,8 +219,7 @@ def test_compute_bilateral_xva_aggregates_mva_into_total() -> None:
     assert result.dva == pytest.approx(0.0)
     assert result.mva == pytest.approx(10_000.0)
     assert result.fva > 0.0
-    assert result.bilateral_cva == pytest.approx(result.cva - result.dva + result.fva)
-    assert result.total_xva == pytest.approx(result.bilateral_cva + result.mva)
+    assert result.total_xva == pytest.approx(result.cva - result.dva + result.fva + result.mva)
 
 
 def test_compute_bilateral_xva_nets_posted_im_from_dva() -> None:
@@ -275,10 +274,7 @@ def test_compute_bilateral_xva_without_funding_has_no_funding_legs() -> None:
     assert result.fva is None
     assert result.mva is None
     assert result.cva > 0.0
-    # With no funding legs, legacy bilateral_cva collapses to the credit-only
-    # adjustment and is also the all-in total.
-    assert result.bilateral_cva == pytest.approx(result.cva - result.dva)
-    assert result.total_xva == pytest.approx(result.bilateral_cva)
+    assert result.total_xva == pytest.approx(result.cva - result.dva)
 
 
 def test_compute_bilateral_xva_rejects_bad_recovery_rate() -> None:
@@ -303,4 +299,4 @@ def test_compute_bilateral_xva_accepts_keyword_arguments() -> None:
         own_recovery_rate=0.40,
         funding=None,
     )
-    assert result.total_xva is not None
+    assert math.isfinite(result.total_xva)

@@ -3,31 +3,42 @@
 #![cfg(feature = "ts_export")]
 
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use finstack_quant_core::contract::{Diagnostic, LoadPhase, Severity, ValidationReport};
 use finstack_quant_portfolio::{
     InstrumentArtifact, MaterializationPhases, MaterializationReport, MaterializedPosition,
     MaterializerInfo, PortfolioHeader, PortfolioMaterializationEnvelope,
+    PortfolioMaterializationSchema,
 };
 use ts_rs::TS;
 
-const OUT_DIR: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../finstack-quant-wasm/types/generated"
-);
-
 static CONFIG: OnceLock<ts_rs::Config> = OnceLock::new();
+static OUTPUT_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+fn output_dir() -> &'static Path {
+    OUTPUT_DIR
+        .get_or_init(|| {
+            std::env::var_os("FINSTACK_TS_OUTPUT_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../finstack-quant-wasm/types/generated")
+                })
+        })
+        .as_path()
+}
 
 fn config() -> &'static ts_rs::Config {
     CONFIG.get_or_init(|| {
-        fs::create_dir_all(OUT_DIR).expect("create generated types directory");
-        ts_rs::Config::new().with_out_dir(OUT_DIR)
+        fs::create_dir_all(output_dir()).expect("create generated types directory");
+        ts_rs::Config::new().with_out_dir(output_dir())
     })
 }
 
 fn normalize_generated_types() {
-    for entry in fs::read_dir(OUT_DIR).expect("read generated types directory") {
+    for entry in fs::read_dir(output_dir()).expect("read generated types directory") {
         let path = entry.expect("read generated type entry").path();
         if path.extension().and_then(|extension| extension.to_str()) != Some("ts") {
             continue;
@@ -57,6 +68,7 @@ fn export_materialization_contract_types() {
     MaterializationReport::export(config).expect("export MaterializationReport");
     MaterializerInfo::export(config).expect("export MaterializerInfo");
     PortfolioHeader::export(config).expect("export PortfolioHeader");
+    PortfolioMaterializationSchema::export(config).expect("export PortfolioMaterializationSchema");
     InstrumentArtifact::export(config).expect("export InstrumentArtifact");
     MaterializedPosition::export(config).expect("export MaterializedPosition");
     PortfolioMaterializationEnvelope::export(config)

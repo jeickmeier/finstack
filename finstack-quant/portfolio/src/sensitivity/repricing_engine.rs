@@ -576,7 +576,7 @@ mod tests {
         let positions = vec![("eur-jpy".to_string(), &instrument as &dyn Instrument, 1.0)];
         let factors = vec![FactorDefinition {
             id: FactorId::new("usd-eur"),
-            factor_type: FactorType::FX,
+            factor_type: FactorType::Fx,
             market_mapping: finstack_quant_factor_model::MarketMapping::FxRate {
                 pair: (Currency::USD, Currency::EUR),
             },

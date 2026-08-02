@@ -269,8 +269,8 @@ fn test_standard_day_count_act360() {
 
     let tranche = mezzanine_tranche();
     assert_eq!(
-        format!("{:?}", tranche.day_count),
-        "Act360",
+        tranche.day_count,
+        finstack_quant_core::dates::DayCount::Act360,
         "Standard CDS day count should be Act/360"
     );
 }

@@ -80,7 +80,7 @@ fn floor_sabr_vol_normal(v: f64, forward: f64, floored: &mut usize) -> f64 {
 fn warn_sabr_vol_normal_floored(context: &str, id: &CurveId, floored: usize) {
     if floored > 0 {
         tracing::warn!(
-            surface_id = %id,
+            vol_surface_id = %id,
             count = floored,
             floor_rel = SABR_NORMAL_VOL_FLOOR_REL,
             context = context,
@@ -100,8 +100,9 @@ fn warn_sabr_vol_normal_floored(context: &str, id: &CurveId, floored: usize) {
 /// between nodes is bilinear in parameter space; the implied vol at an
 /// arbitrary (expiry, tenor, strike) is obtained by interpolating parameters
 /// and then evaluating the Hagan approximation.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(try_from = "RawVolCube", into = "RawVolCube")]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(try_from = "VolCubeWire", into = "VolCubeWire")]
+#[schemars(try_from = "VolCubeWire")]
 pub struct VolCube {
     id: CurveId,
     expiries: Box<[f64]>,
@@ -118,21 +119,20 @@ pub struct VolCube {
 // ---------------------------------------------------------------------------
 
 /// Raw serializable state of a VolCube.
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct RawVolCube {
+struct VolCubeWire {
     pub id: String,
     pub expiries: Vec<f64>,
     pub tenors: Vec<f64>,
     pub params: Vec<SabrParams>,
     pub forwards: Vec<f64>,
-    #[serde(default)]
     pub interpolation_mode: VolInterpolationMode,
 }
 
-impl From<VolCube> for RawVolCube {
+impl From<VolCube> for VolCubeWire {
     fn from(cube: VolCube) -> Self {
-        RawVolCube {
+        VolCubeWire {
             id: cube.id.to_string(),
             expiries: cube.expiries.to_vec(),
             tenors: cube.tenors.to_vec(),
@@ -143,10 +143,10 @@ impl From<VolCube> for RawVolCube {
     }
 }
 
-impl TryFrom<RawVolCube> for VolCube {
+impl TryFrom<VolCubeWire> for VolCube {
     type Error = crate::Error;
 
-    fn try_from(raw: RawVolCube) -> crate::Result<Self> {
+    fn try_from(raw: VolCubeWire) -> crate::Result<Self> {
         Ok(VolCube::from_grid(
             &raw.id,
             &raw.expiries,

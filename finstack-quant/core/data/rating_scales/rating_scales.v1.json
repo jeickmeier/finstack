@@ -1,5 +1,5 @@
 {
-  "schema_version": "finstack_quant.rating_scales/1",
+  "schema": "finstack_quant.rating_scales/1",
   "scorecard_policy": {
     "default_score": 50.0,
     "default_scale_id": "sp",

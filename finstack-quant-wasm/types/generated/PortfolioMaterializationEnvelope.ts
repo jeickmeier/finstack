@@ -3,6 +3,7 @@ import type { InstrumentArtifact } from "./InstrumentArtifact";
 import type { MaterializedPosition } from "./MaterializedPosition";
 import type { MaterializerInfo } from "./MaterializerInfo";
 import type { PortfolioHeader } from "./PortfolioHeader";
+import type { PortfolioMaterializationSchema } from "./PortfolioMaterializationSchema";
 
 /**
  * Strict, versioned portfolio materialization bundle.
@@ -15,7 +16,7 @@ export type PortfolioMaterializationEnvelope = {
 /**
  * Exact materialization contract marker.
  */
-schema: string,
+schema: PortfolioMaterializationSchema,
 /**
  * Portfolio fields that do not contain runtime instrument trait objects.
  */

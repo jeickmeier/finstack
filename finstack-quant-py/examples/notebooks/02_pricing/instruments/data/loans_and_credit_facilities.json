@@ -6,16 +6,16 @@
         "tags": []
       },
       "base_rate_spec": {
-        "Floating": {
+        "floating": {
           "all_in_floor_bp": null,
-          "cap_bp": null,
+          "all_in_cap_bp": null,
           "fixing_calendar_id": null,
-          "floor_bp": "0",
+          "index_floor_bp": "0",
           "gearing": "1",
           "gearing_includes_spread": true,
           "index_cap_bp": null,
           "index_id": "USD-SOFR-3M",
-          "reset_freq": {
+          "reset_frequency": {
             "count": 3,
             "unit": "months"
           },
@@ -28,10 +28,10 @@
         "currency": "USD"
       },
       "commitment_date": "2024-01-01",
-      "day_count": "Act360",
+      "day_count": "act_360",
       "discount_curve_id": "USD-OIS",
       "draw_repay_spec": {
-        "Deterministic": [
+        "deterministic": [
           {
             "amount": {
               "amount": "5000000",
@@ -57,14 +57,14 @@
       "fees": {
         "commitment_fee_tiers": [
           {
-            "bps": "25",
+            "bp": "25",
             "threshold": "0"
           }
         ],
         "facility_fee_bp": 5.0,
         "usage_fee_tiers": [
           {
-            "bps": "10",
+            "bp": "10",
             "threshold": "0"
           }
         ]
@@ -75,16 +75,15 @@
       },
       "id": "RCF-USD-3Y",
       "maturity": "2027-01-01",
-      "pricing_overrides": {},
       "recovery_rate": 0.7,
-      "stub": "ShortFront"
+      "stub": "short_front"
     },
     "type": "revolving_credit"
   },
   "term_loan": {
     "spec": {
       "amortization": {
-        "PercentPerPeriod": {
+        "percent_per_period": {
           "bp": 250
         }
       },
@@ -92,11 +91,11 @@
         "meta": {},
         "tags": []
       },
-      "bdc": "modified_following",
+      "business_day_convention": "modified_following",
       "calendar_id": null,
-      "coupon_type": "Cash",
+      "coupon_type": "cash",
       "currency": "USD",
-      "day_count": "Act360",
+      "day_count": "act_360",
       "discount_curve_id": "USD-OIS",
       "frequency": {
         "count": 3,
@@ -109,14 +108,13 @@
         "amount": "10000000",
         "currency": "USD"
       },
-      "pricing_overrides": {},
       "rate": {
-        "Fixed": {
+        "fixed": {
           "rate_bp": 600
         }
       },
       "settlement_days": 2,
-      "stub": "None"
+      "stub": "none"
     },
     "type": "term_loan"
   }

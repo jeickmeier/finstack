@@ -1,46 +1,38 @@
 //! Expiry-related edge cases
 
 use crate::swaption::common::*;
-use finstack_quant_valuations::instruments::Instrument;
+use finstack_quant_core::dates::Date;
+use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_valuations::instruments::rates::swaption::{SABRParameters, SwaptionExercise};
+use finstack_quant_valuations::instruments::{Instrument, PricingOptions};
 use finstack_quant_valuations::metrics::MetricId;
+use finstack_quant_valuations::pricer::ModelKey;
 
-// Note: These tests are disabled because the implementation correctly rejects
-// swaptions with expiry before as_of date as an invalid date range.
-// This is the expected behavior for the pricing engine.
-
-#[test]
-fn test_expired_swaption_zero_value() {
-    let as_of = time::macros::date!(2024 - 01 - 01);
-    let expiry = time::macros::date!(2023 - 12 - 01); // Already expired
-    let swap_start = time::macros::date!(2023 - 12 - 01); // Must align with expiry
-    let swap_end = time::macros::date!(2028 - 12 - 01);
-
-    let swaption = create_standard_payer_swaption(expiry, swap_start, swap_end, 0.05);
-    let market = create_flat_market(as_of, 0.05, 0.30);
-
-    // Should return an error for expired swaptions
-    assert!(
-        swaption.value(&market, as_of).is_err(),
-        "Expired swaption should return error"
-    );
+fn curve_only_market(as_of: Date, rate: f64) -> MarketContext {
+    MarketContext::new()
+        .insert(build_flat_discount_curve(rate, as_of, "USD_OIS"))
+        .insert(build_flat_forward_curve(rate, as_of, "USD_LIBOR_3M"))
 }
 
 #[test]
-fn test_expired_swaption_zero_greeks() {
+fn expired_swaption_direct_and_registry_are_zero_without_market_data() {
     let as_of = time::macros::date!(2024 - 01 - 01);
-    let expiry = time::macros::date!(2023 - 12 - 01); // Already expired
-    let swap_start = time::macros::date!(2023 - 12 - 01); // Must align with expiry
+    let expiry = time::macros::date!(2023 - 12 - 01);
     let swap_end = time::macros::date!(2028 - 12 - 01);
+    let swaption = create_standard_payer_swaption(expiry, expiry, swap_end, 0.05);
+    let market = MarketContext::new();
 
-    let swaption = create_standard_payer_swaption(expiry, swap_start, swap_end, 0.05);
-    let market = create_flat_market(as_of, 0.05, 0.30);
+    let direct = swaption
+        .value(&market, as_of)
+        .expect("expired direct value should be model-independent");
+    assert_eq!(direct.amount(), 0.0);
 
     let result = swaption
         .price_with_metrics(
             &market,
             as_of,
             &[MetricId::Delta, MetricId::Vega],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
+            PricingOptions::default(),
         )
         .expect("expired swaption metrics should be well-defined");
     assert_eq!(result.value.amount(), 0.0);
@@ -49,19 +41,77 @@ fn test_expired_swaption_zero_greeks() {
 }
 
 #[test]
-fn test_at_expiry_pricing() {
-    let as_of = time::macros::date!(2024 - 01 - 01);
-    let expiry = as_of; // At expiry
-    let swap_start = as_of;
+fn at_expiry_direct_sabr_and_registry_models_share_intrinsic_without_volatility() {
+    let expiry = time::macros::date!(2024 - 01 - 01);
     let swap_end = time::macros::date!(2029 - 01 - 01);
+    let swaption =
+        create_standard_payer_swaption(expiry, expiry, swap_end, 0.03).with_sabr(SABRParameters {
+            alpha: 0.20,
+            beta: 0.5,
+            rho: -0.3,
+            nu: 0.4,
+            shift: None,
+        });
+    assert_ne!(
+        swaption.get_discount_curve_id(),
+        swaption.get_forward_curve_id(),
+        "fixture must exercise the multi-curve terminal path"
+    );
+    let market = curve_only_market(expiry, 0.05);
 
-    let swaption = create_standard_payer_swaption(expiry, swap_start, swap_end, 0.05);
-    let market = create_flat_market(as_of, 0.05, 0.30);
+    let direct = swaption
+        .value(&market, expiry)
+        .expect("direct intrinsic value without volatility")
+        .amount();
+    let sabr = swaption
+        .price_sabr(&market, expiry)
+        .expect("SABR terminal value without volatility")
+        .amount();
+    assert!(direct > 0.0, "deep-ITM payer must have positive intrinsic");
+    assert!((sabr - direct).abs() < 1e-8);
 
-    let pv = swaption.value(&market, as_of).unwrap().amount();
+    for model in [
+        ModelKey::Discounting,
+        ModelKey::Black76,
+        ModelKey::HullWhite1F,
+    ] {
+        let registry = swaption
+            .price_with_metrics(
+                &market,
+                expiry,
+                &[],
+                PricingOptions::default().with_model(model),
+            )
+            .expect("registry terminal value without volatility")
+            .value
+            .amount();
+        assert!(
+            (registry - direct).abs() < 1e-8,
+            "{model} terminal value {registry} must equal direct intrinsic {direct}"
+        );
+    }
+}
 
-    // At expiry, value should be zero or intrinsic (depending on implementation)
-    assert!(pv >= 0.0, "At expiry value should be non-negative");
+#[test]
+fn unsupported_exercise_style_is_not_masked_by_expiry() {
+    let as_of = time::macros::date!(2024 - 01 - 01);
+    let expiry = time::macros::date!(2023 - 12 - 01);
+    let swap_end = time::macros::date!(2028 - 12 - 01);
+    let swaption = create_standard_payer_swaption(expiry, expiry, swap_end, 0.05)
+        .with_exercise_style(SwaptionExercise::Bermudan);
+    let market = MarketContext::new();
+
+    let direct_error = swaption
+        .value(&market, as_of)
+        .expect_err("generic direct pricing must reject Bermudan exercise");
+    assert!(direct_error.to_string().contains("only supports European"));
+
+    let registry_error = swaption
+        .price_with_metrics(&market, as_of, &[], PricingOptions::default())
+        .expect_err("generic registry pricing must reject Bermudan exercise");
+    assert!(registry_error
+        .to_string()
+        .contains("only supports European"));
 }
 
 /// At the exact expiry instant a European swaption is worth its intrinsic

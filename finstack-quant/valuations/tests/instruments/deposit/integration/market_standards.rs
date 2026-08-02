@@ -295,7 +295,7 @@ fn test_usd_deposit_friday_trade_with_nyse_calendar() {
         .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(finstack_quant_valuations::instruments::Attributes::new())
         .spot_lag_days_opt(Some(2))
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(Some("nyse".into()))
         .build()
         .expect("Valid deposit");
@@ -403,7 +403,7 @@ fn test_gbp_deposit_t0_settlement() {
         .discount_curve_id(CurveId::new("GBP-OIS"))
         .attributes(finstack_quant_valuations::instruments::Attributes::new())
         .spot_lag_days_opt(Some(0)) // T+0 for GBP
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .build()
         .expect("Valid deposit");
 
@@ -454,7 +454,7 @@ fn test_modified_following_eom_adjustment() {
         .quote_rate_opt(Some(Decimal::try_from(0.02).expect("valid decimal")))
         .discount_curve_id(CurveId::new("USD-OIS"))
         .attributes(finstack_quant_valuations::instruments::Attributes::new())
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(Some("nyse".into()))
         .build()
         .expect("Valid deposit");

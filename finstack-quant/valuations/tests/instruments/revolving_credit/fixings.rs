@@ -59,7 +59,7 @@ fn build_seasoned_floating_facility(
         .maturity(maturity_date)
         .base_rate_spec(BaseRateSpec::Floating(FloatingRateSpec {
             index_id: "USD-SOFR-3M".into(),
-            spread_bp: rust_decimal::Decimal::try_from(200.0).expect("valid"), // +200 bps
+            spread_bp: rust_decimal::Decimal::try_from(200.0).expect("valid"), // +200 bp
             gearing: rust_decimal::Decimal::try_from(1.0).expect("valid"),
             gearing_includes_spread: true,
             index_floor_bp: Some(rust_decimal::Decimal::try_from(0.0).expect("valid")), // 0% floor on index
@@ -67,7 +67,7 @@ fn build_seasoned_floating_facility(
             all_in_cap_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,
@@ -218,7 +218,7 @@ fn test_fixings_respect_floor() {
         .maturity(maturity_date)
         .base_rate_spec(BaseRateSpec::Floating(FloatingRateSpec {
             index_id: "USD-SOFR-3M".into(),
-            spread_bp: rust_decimal::Decimal::try_from(200.0).expect("valid"), // +200 bps
+            spread_bp: rust_decimal::Decimal::try_from(200.0).expect("valid"), // +200 bp
             gearing: rust_decimal::Decimal::try_from(1.0).expect("valid"),
             gearing_includes_spread: true,
             index_floor_bp: Some(rust_decimal::Decimal::try_from(300.0).expect("valid")), // 3% floor
@@ -226,7 +226,7 @@ fn test_fixings_respect_floor() {
             all_in_cap_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,

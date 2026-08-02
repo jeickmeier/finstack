@@ -68,9 +68,9 @@ impl PyRate {
 
     /// Build from an integer basis-point amount (e.g. ``500`` for 5%).
     #[classmethod]
-    #[pyo3(text_signature = "(cls, bps)")]
-    fn from_bps(_cls: &Bound<'_, PyType>, bps: i32) -> Self {
-        Self::from_inner(Rate::from_bps(bps))
+    #[pyo3(text_signature = "(cls, bp)")]
+    fn from_bp(_cls: &Bound<'_, PyType>, bp: i32) -> Self {
+        Self::from_inner(Rate::from_bp(bp))
     }
 
     /// Rate as a decimal fraction.
@@ -87,8 +87,8 @@ impl PyRate {
 
     /// Rate rounded to the nearest basis point.
     #[getter]
-    fn as_bps(&self) -> i32 {
-        self.inner.as_bps()
+    fn as_bp(&self) -> i32 {
+        self.inner.as_bp()
     }
 
     /// Return ``repr(self)``.
@@ -167,7 +167,7 @@ impl PyBps {
 
 impl Hash for PyBps {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.inner.as_bps().hash(state);
+        self.inner.as_bp().hash(state);
     }
 }
 
@@ -178,21 +178,21 @@ impl PyBps {
     const ZERO: PyBps = PyBps { inner: Bps::ZERO };
 
     #[new]
-    #[pyo3(text_signature = "(bps)")]
+    #[pyo3(text_signature = "(bp)")]
     /// Construct from a whole basis-point value.
     ///
     /// Raises ``ValueError`` for fractional input: ``Bps`` is integer-backed,
     /// and silently rounding a sub-bp spread (e.g. an FRN margin of 62.5bp)
     /// would change instrument economics. Use a decimal ``Rate`` or the JSON
     /// instrument path for sub-bp precision.
-    fn new(bps: f64) -> PyResult<Self> {
-        if bps.is_finite() && bps.fract() != 0.0 {
+    fn new(bp: f64) -> PyResult<Self> {
+        if bp.is_finite() && bp.fract() != 0.0 {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "Bps requires a whole number of basis points; got {bps}. \
+                "Bps requires a whole number of basis points; got {bp}. \
                  For sub-bp precision use a decimal Rate or the JSON instrument path."
             )));
         }
-        Bps::try_new(bps).map(Self::from_inner).map_err(core_to_py)
+        Bps::try_new(bp).map(Self::from_inner).map_err(core_to_py)
     }
 
     /// Value as a decimal fraction.
@@ -203,13 +203,13 @@ impl PyBps {
 
     /// Value as whole basis points.
     #[getter]
-    fn as_bps(&self) -> i32 {
-        self.inner.as_bps()
+    fn as_bp(&self) -> i32 {
+        self.inner.as_bp()
     }
 
     /// Return ``repr(self)``.
     fn __repr__(&self) -> String {
-        format!("Bps({})", self.inner.as_bps())
+        format!("Bps({})", self.inner.as_bp())
     }
 
     /// Return ``str(self)``.

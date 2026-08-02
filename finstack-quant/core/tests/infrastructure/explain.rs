@@ -44,7 +44,7 @@ fn test_explanation_trace_serialization() {
     let mut trace = ExplanationTrace::new("pricing");
     trace.push(
         TraceEntry::CashflowPV {
-            date: "2025-01-15".to_string(),
+            date: time::macros::date!(2025 - 01 - 15),
             cashflow_amount: 50000.0,
             cashflow_currency: "USD".to_string(),
             discount_factor: 0.95,

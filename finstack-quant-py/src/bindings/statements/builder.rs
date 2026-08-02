@@ -12,7 +12,7 @@ use crate::errors::{core_to_py, serde_json_to_py, statements_to_py};
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_core::money::fx::FxConversionPolicy;
 use finstack_quant_statements::builder::{MixedNodeBuilder, ModelBuilder};
-use finstack_quant_statements::types::AmountOrScalar;
+use finstack_quant_statements::types::{AmountOrScalar, FinancialStatementInstrument};
 use pyo3::prelude::*;
 
 /// Validate a formula the same way `ModelBuilder::compute` / `formula` do,
@@ -504,27 +504,29 @@ impl PyModelBuilder {
         Ok(())
     }
 
-    /// Add a generic debt instrument via an opaque JSON specification.
+    /// Add a debt instrument from its canonical v1 instrument envelope.
     ///
-    /// Use this for term loans, RCFs, or any instrument not covered by the
-    /// convenience constructors. The ``spec`` is passed straight through to
-    /// the capital-structure engine and must match the Rust deserialization
-    /// contract for the intended instrument type.
+    /// Use this for supported capital-structure instruments not covered by the
+    /// convenience constructors: bonds, convertible bonds, term loans, RCFs,
+    /// interest-rate swaps, caps/floors, and swaptions. The envelope is parsed
+    /// and narrowed by the canonical Rust contract before it is added.
     ///
     /// Parameters
     /// ----------
     /// id : str
     ///     Unique instrument identifier.
     /// spec_json : str
-    ///     JSON string matching the target instrument's serde shape.
+    ///     A ``finstack_quant.instrument/1`` envelope containing the target
+    ///     instrument. Bare instrument payloads are rejected.
     #[pyo3(text_signature = "($self, id, spec_json)")]
-    fn add_custom_debt(&mut self, id: &str, spec_json: &str) -> PyResult<()> {
-        let spec: serde_json::Value = serde_json::from_str(spec_json)
-            .map_err(|e| serde_json_to_py(e, "invalid debt instrument spec JSON"))?;
+    fn add_debt(&mut self, id: &str, spec_json: &str) -> PyResult<()> {
+        let spec = finstack_quant_valuations::pricer::json::parse_instrument_json(spec_json)
+            .map_err(core_to_py)?;
+        let spec = FinancialStatementInstrument::try_from(spec).map_err(statements_to_py)?;
         let state = self.take_any()?;
         let next = match state {
-            BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(b.add_custom_debt(id, spec)),
-            BuilderState::Ready(b) => BuilderState::Ready(b.add_custom_debt(id, spec)),
+            BuilderState::NeedPeriods(b) => BuilderState::NeedPeriods(b.add_debt(id, spec)),
+            BuilderState::Ready(b) => BuilderState::Ready(b.add_debt(id, spec)),
         };
         self.inner = Some(next);
         Ok(())

@@ -1,5 +1,5 @@
 {
-  "schema_version": "finstack_quant.hardcoded_assumptions_allowlist/1",
+  "schema": "finstack_quant.hardcoded_assumptions_allowlist/1",
   "entries": [
     {
       "path": "finstack-quant-py/src/bindings/analytics/backtesting.rs",
@@ -1502,12 +1502,6 @@
       "reason": "Structured-credit formula, named standard factory, or diagnostic; mutable assumptions live in structured-credit/TBA registries."
     },
     {
-      "path": "finstack-quant/valuations/bindings/CdsQuote.ts",
-      "category": "credit_assumption",
-      "contains": "recovery_rate: number, } | { \"type\": \"cds_upfront\",",
-      "reason": "Credit-model formula, validation, or API text; mutable PD/recovery/LGD defaults live in credit registries."
-    },
-    {
       "path": "finstack-quant/valuations/src/attribution/model_params.rs",
       "category": "structured_credit",
       "contains": "(def_t1.cdr - def_t0.cdr) * 10000.0",
@@ -1768,7 +1762,7 @@
     {
       "path": "finstack-quant/valuations/src/covenants/engine.rs",
       "category": "margin_regulatory",
-      "contains": "consequence_type: \"Require Collateral\".to_string(),",
+      "contains": "consequence_type: \"require_collateral\".to_string(),",
       "reason": "Margin/collateral API plumbing, display text, or sensitivity bump; regulatory schedules live in margin registries."
     },
     {
@@ -2638,7 +2632,7 @@
     {
       "path": "finstack-quant/valuations/src/instruments/fixed_income/tba/pricer.rs",
       "category": "structured_credit",
-      "contains": "let servicing_fee = 0.0025; // 25 bps",
+      "contains": "let servicing_fee = 0.0025; // 25 bp",
       "reason": "Financial formula or unit conversion, not an external default to configure."
     },
     {

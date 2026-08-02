@@ -1,8 +1,8 @@
 {
   "conventions": {
     "calendar": "UnitedStates::SOFR",
-    "day_count_fixed": "Thirty360::BondBasis",
-    "day_count_float": "Actual360",
+    "day_count_fixed": "30_360",
+    "day_count_float": "act_360",
     "fixed_frequency": "Semiannual",
     "float_frequency": "Quarterly",
     "settlement_days": 2,

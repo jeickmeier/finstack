@@ -64,7 +64,7 @@ impl PyHazardCurve {
         par_spreads: Option<Vec<(f64, f64)>>,
     ) -> PyResult<Self> {
         let base = py_to_date(base_date)?;
-        let dc = parse_day_count(day_count)?;
+        let day_count = parse_day_count(day_count)?;
         let recovery_rate = match recovery_rate {
             Some(r) => r,
             None => finstack_quant_core::credit::registry::default_market_recovery_rate()
@@ -74,7 +74,7 @@ impl PyHazardCurve {
         let mut builder = HazardCurve::builder(id)
             .base_date(base)
             .recovery_rate(recovery_rate)
-            .day_count(dc)
+            .day_count(day_count)
             .knots(knots);
         if let Some(points) = par_spreads {
             builder = builder.par_spreads(points);

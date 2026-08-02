@@ -16,7 +16,8 @@ use serde::{Deserialize, Serialize};
 #[serde(deny_unknown_fields)]
 pub struct ReinvestmentManager {
     /// End date of reinvestment period
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub end_date: Date,
     /// Whether reinvestment is currently allowed
     pub reinvestment_allowed: bool,
@@ -98,14 +99,14 @@ mod tests {
         let mgr = ReinvestmentManager::new(
             Date::from_calendar_date(2026, time::Month::January, 1).expect("valid date"),
         );
-        let pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+        let pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
 
         let a = PoolAsset {
             id: "A".to_string().into(),
             asset_type: AssetType::HighYieldBond { industry: None },
             balance: Money::new(100.0, Currency::USD),
             rate: 0.0,
-            spread_bps: None,
+            spread_bp: None,
             index_id: None,
             maturity: Date::from_calendar_date(2030, time::Month::January, 1).expect("valid date"),
             credit_quality: None,

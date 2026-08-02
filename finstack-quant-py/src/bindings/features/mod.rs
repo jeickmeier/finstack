@@ -126,16 +126,13 @@ fn rolling_regression_residual(
 
 /// Convert a signal to inverse-risk-scaled weights per timestamp.
 #[pyfunction]
-#[pyo3(signature = (values, time_key, volatility, params=None))]
+#[pyo3(signature = (values, time_key, volatility))]
 fn risk_scaled_weights(
-    py: Python<'_>,
     values: Vec<Option<f64>>,
     time_key: Vec<String>,
     volatility: Vec<Option<f64>>,
-    params: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Vec<Option<f64>>> {
-    let params = parse_params(py, params, "risk scaled weights params")?;
-    finstack_quant_features::risk_scaled_weights(&values, &time_key, &volatility, params.as_ref())
+    finstack_quant_features::risk_scaled_weights(&values, &time_key, &volatility)
         .map_err(core_to_py)
 }
 
@@ -168,16 +165,9 @@ fn normalize_signal(
 
 /// Convert ranks into long/short weights.
 #[pyfunction]
-#[pyo3(signature = (values, time_key, params=None))]
-fn rank_to_weights(
-    py: Python<'_>,
-    values: Vec<Option<f64>>,
-    time_key: Vec<String>,
-    params: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Vec<Option<f64>>> {
-    let params = parse_params(py, params, "rank to weights params")?;
-    finstack_quant_features::rank_to_weights(&values, &time_key, params.as_ref())
-        .map_err(core_to_py)
+#[pyo3(signature = (values, time_key))]
+fn rank_to_weights(values: Vec<Option<f64>>, time_key: Vec<String>) -> PyResult<Vec<Option<f64>>> {
+    finstack_quant_features::rank_to_weights(&values, &time_key).map_err(core_to_py)
 }
 
 /// Neutralize a signal and z-score residuals.

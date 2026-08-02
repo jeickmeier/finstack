@@ -26,7 +26,7 @@ class CreditFactorModel:
     --------
     >>> from finstack_quant.factor_model.credit import CreditFactorModel
     >>> model = CreditFactorModel.from_json(json_str)  # doctest: +SKIP
-    >>> model.schema_version  # doctest: +SKIP
+    >>> model.schema  # doctest: +SKIP
     'finstack_quant.credit_factor_model/1'
     """
 
@@ -70,14 +70,14 @@ class CreditFactorModel:
         ...
 
     @property
-    def schema_version(self) -> str:
+    def schema(self) -> str:
         """
-        Schema version string (``"finstack_quant.credit_factor_model/1"``).
+        Namespaced schema marker (``"finstack_quant.credit_factor_model/1"``).
 
         Returns
         -------
         str
-            Version tag embedded in the artifact.
+            Exact contract marker embedded in the artifact.
         """
         ...
 
@@ -249,7 +249,7 @@ class LevelsAtDate:
         Returns
         -------
         float
-            Generic level in bps.
+            Generic level in bp.
         """
         ...
 
@@ -277,7 +277,7 @@ class LevelsAtDate:
         Returns
         -------
         dict[str, float]
-            Map of bucket label to spread contribution in bps.
+            Map of bucket label to spread contribution in bp.
 
         Raises
         ------
@@ -293,7 +293,7 @@ class LevelsAtDate:
         Returns
         -------
         dict[str, float]
-            Per-issuer adder in bps.
+            Per-issuer adder in bp.
         """
         ...
 
@@ -338,12 +338,12 @@ class PeriodDecomposition:
     @property
     def d_generic(self) -> float:
         """
-        Change in generic spread over the period (bps).
+        Change in generic spread over the period (bp).
 
         Returns
         -------
         float
-            Generic delta in bps.
+            Generic delta in bp.
         """
         ...
 
@@ -371,7 +371,7 @@ class PeriodDecomposition:
         Returns
         -------
         dict[str, float]
-            Map of bucket label to spread change in bps.
+            Map of bucket label to spread change in bp.
 
         Raises
         ------
@@ -387,7 +387,7 @@ class PeriodDecomposition:
         Returns
         -------
         dict[str, float]
-            Per-issuer adder delta in bps.
+            Per-issuer adder delta in bp.
         """
         ...
 

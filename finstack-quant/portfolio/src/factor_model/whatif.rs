@@ -620,7 +620,7 @@ mod tests {
         )
         .expect("position");
         let portfolio = Portfolio::builder("raw-factor-stress")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .position(position)
             .build()
@@ -670,7 +670,7 @@ mod tests {
         )
         .expect("position");
         let portfolio = Portfolio::builder("cancellation-factor-stress")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .position(position)
             .build()
@@ -717,7 +717,7 @@ mod tests {
         )
         .expect("position");
         let portfolio = Portfolio::builder("non-finite-factor-stress")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .position(position)
             .build()
@@ -754,7 +754,7 @@ mod tests {
         )
         .expect("position");
         let portfolio = Portfolio::builder("portfolio-eur")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .position(position)
             .build()
@@ -885,7 +885,7 @@ mod tests {
         )
         .expect("position");
         let portfolio = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .position(position)
             .build()
@@ -965,7 +965,7 @@ mod tests {
         )
         .expect("unaffected position");
         let portfolio = Portfolio::builder("selective-factor-stress")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .position(affected)
             .position(unaffected)
@@ -1010,7 +1010,7 @@ mod tests {
         )
         .expect("position");
         let portfolio = Portfolio::builder("default-dependency-factor-stress")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .position(position)
             .build()
@@ -1090,7 +1090,7 @@ mod tests {
         };
 
         let portfolio_result = Portfolio::builder("portfolio")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .position(position)
             .build();

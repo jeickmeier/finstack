@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 /// confidence interval in [`finstack_quant_core::money::Money`] after choosing a
 /// currency.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Estimate {
     /// Mean of the discounted path values.
     pub mean: f64,
@@ -34,35 +35,20 @@ pub struct Estimate {
     /// Equal to `num_paths` without variance reduction. When
     /// [`crate::engine::McEngineConfig::antithetic`] is enabled this is twice
     /// `num_paths` because each estimator averages an antithetic pair of
-    /// paths. `#[serde(default)]` allows older payloads to round-trip with
-    /// `num_simulated_paths == 0` which [`Self::new`] back-fills with
-    /// `num_paths` for convenience.
-    #[serde(default)]
+    /// paths.
     pub num_simulated_paths: usize,
     /// Optional sample standard deviation of discounted path values.
     pub std_dev: Option<f64>,
     /// Optional median of captured discounted path values.
-    #[serde(default)]
     pub median: Option<f64>,
     /// Optional 25th percentile of captured discounted path values.
-    #[serde(default)]
     pub percentile_25: Option<f64>,
     /// Optional 75th percentile of captured discounted path values.
-    #[serde(default)]
     pub percentile_75: Option<f64>,
     /// Optional minimum of captured discounted path values.
-    #[serde(default)]
     pub min: Option<f64>,
     /// Optional maximum of captured discounted path values.
-    #[serde(default)]
     pub max: Option<f64>,
-    /// Legacy count of skipped paths from older survivor-pricing runs.
-    ///
-    /// Current engine loops reject non-finite discounted payoffs instead of
-    /// censoring paths, so new engine-created estimates should leave this at
-    /// zero.
-    #[serde(default)]
-    pub num_skipped: usize,
 }
 
 impl Estimate {
@@ -91,7 +77,6 @@ impl Estimate {
             percentile_75: None,
             min: None,
             max: None,
-            num_skipped: 0,
         }
     }
 
@@ -130,21 +115,6 @@ impl Estimate {
         self
     }
 
-    /// Attach a legacy skipped-path count.
-    ///
-    /// Retained for backward-compatible deserialization/display of older
-    /// survivor-pricing estimates. New engine loops reject non-finite payoffs
-    /// instead of censoring paths, so this should always be zero for
-    /// engine-created estimates.
-    #[deprecated(
-        since = "0.6.0",
-        note = "Engine loops now reject non-finite payoffs; num_skipped is always zero for new estimates. Retained for serde backward compatibility only; removable in 1.0.0."
-    )]
-    pub fn with_num_skipped(mut self, num_skipped: usize) -> Self {
-        self.num_skipped = num_skipped;
-        self
-    }
-
     /// Return `stderr / abs(mean)`.
     ///
     /// Returns `f64::INFINITY` when the estimate is numerically close to zero.
@@ -169,9 +139,6 @@ impl std::fmt::Display for Estimate {
             "{:.6} ± {:.6} [{:.6}, {:.6}] (n={}",
             self.mean, self.stderr, self.ci_95.0, self.ci_95.1, self.num_paths
         )?;
-        if self.num_skipped > 0 {
-            write!(f, ", skipped={}", self.num_skipped)?;
-        }
         write!(f, ")")
     }
 }

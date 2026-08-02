@@ -47,7 +47,7 @@ fn create_test_pool(balance: f64, currency: Currency) -> AssetPool {
         AssetType, PoolAsset,
     };
 
-    let mut pool = AssetPool::new("TEST_POOL", DealType::CLO, currency);
+    let mut pool = AssetPool::new("TEST_POOL", DealType::Clo, currency);
 
     // Add assets to match the specified balance
     let num_assets = 10;
@@ -62,7 +62,7 @@ fn create_test_pool(balance: f64, currency: Currency) -> AssetPool {
             },
             balance: Money::new(asset_balance, currency),
             rate: 0.08,
-            spread_bps: Some(400.0),
+            spread_bp: Some(400.0),
             index_id: Some("SOFR-3M".into()),
             maturity: Date::from_calendar_date(2030, time::Month::January, 1).unwrap(),
             credit_quality: Some(CreditRating::BB),
@@ -198,7 +198,7 @@ fn test_golden_clo_2_0_full_payment() {
                     "senior_mgmt",
                     RecipientType::ManagerFee(ManagementFeeType::Senior),
                     PaymentCalculation::PercentageOfCollateral {
-                        rate: 0.004, // 40 bps
+                        rate: 0.004, // 40 bp
                         annualized: true,
                         day_count: None,
                         rounding: None,
@@ -491,7 +491,7 @@ fn test_golden_cmbs_sequential_pay() {
                 "master_servicer",
                 RecipientType::ServiceProvider("MasterServicer".into()),
                 PaymentCalculation::PercentageOfCollateral {
-                    rate: 0.0025, // 25 bps
+                    rate: 0.0025, // 25 bp
                     annualized: true,
                     day_count: None,
                     rounding: None,
@@ -679,13 +679,11 @@ fn test_golden_cre_pro_rata_distribution() {
     );
 
     // Verify pro-rata preferred return tier
-    let pref_tier = result
+    let (_, pref_amount) = result
         .tier_allocations
         .iter()
-        .find(|(id, _)| id == "preferred_return");
-
-    assert!(pref_tier.is_some());
-    let (_, pref_amount) = pref_tier.unwrap();
+        .find(|(id, _)| id == "preferred_return")
+        .expect("preferred-return tier");
 
     // Expected: 8% pref on $50M / 4 = $1,000,000 quarterly
     // LP: $47.5M × 8% / 4 = $950,000
@@ -700,31 +698,34 @@ fn test_golden_cre_pro_rata_distribution() {
     );
 
     // Verify residual tier exists
-    let residual_tier = result
+    let (_, residual_amount) = result
         .tier_allocations
         .iter()
-        .find(|(id, _)| id == "residual");
-    assert!(residual_tier.is_some());
+        .find(|(id, _)| id == "residual")
+        .expect("residual tier");
 
     // Check that LP gets ~80% and GP gets ~20% of residual
     let lp_dist = result
         .distributions
-        .get(&RecipientType::Tranche("LP".into()));
+        .get(&RecipientType::Tranche("LP".into()))
+        .expect("LP distribution");
     let gp_dist = result
         .distributions
-        .get(&RecipientType::ManagerFee(ManagementFeeType::Incentive));
+        .get(&RecipientType::ManagerFee(ManagementFeeType::Incentive))
+        .expect("GP promote distribution");
 
-    if let (Some(_lp), Some(gp)) = (lp_dist, gp_dist) {
-        // Total residual after opex and pref
-        let residual = available_cash.amount() - 100_000.0 - 1_000_000.0;
-
-        // GP should get ~20% of residual (promote)
-        let _expected_gp_residual = residual * 0.20;
-
-        // Note: GP also got preferred return, so total will be higher
-        // Just verify GP got some promote
-        assert!(gp.amount() > 50_000.0); // More than just 5% of pref
-    }
+    let expected_gp = residual_amount.amount() * 0.20;
+    let expected_lp = 950_000.0 + residual_amount.amount() * 0.80;
+    assert!(
+        (gp_dist.amount() - expected_gp).abs() < CASH_TOLERANCE,
+        "GP promote mismatch: expected {expected_gp}, got {}",
+        gp_dist.amount()
+    );
+    assert!(
+        (lp_dist.amount() - expected_lp).abs() < CASH_TOLERANCE,
+        "LP preferred return plus residual mismatch: expected {expected_lp}, got {}",
+        lp_dist.amount()
+    );
 }
 
 #[test]

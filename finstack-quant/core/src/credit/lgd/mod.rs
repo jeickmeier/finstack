@@ -29,7 +29,7 @@ pub use workout::{CollateralPiece, CollateralType, WorkoutCosts, WorkoutLgd, Wor
 /// # Arguments
 ///
 /// * `seniority` - Debt-seniority label accepted by [`SeniorityClass`], such as
-///   `senior-secured`.
+///   `senior_secured`.
 /// * `rating_agency` - Calibration-provider name accepted by
 ///   [`SeniorityCalibration::from_agency`].
 ///
@@ -52,7 +52,7 @@ pub fn seniority_recovery_stats(
 /// # Arguments
 ///
 /// * `seniority` - Debt-seniority label accepted by [`SeniorityClass`], such as
-///   `senior-secured`.
+///   `senior_secured`.
 ///
 /// # Errors
 /// Returns an error if the seniority class is unknown or absent from the
@@ -153,7 +153,7 @@ pub fn workout_lgd(
 /// Apply a stressed downturn adjustment to base LGD.
 ///
 /// Uses the proprietary mean-plus-multiple-of-Bernoulli-stdev approximation
-/// (see [`DownturnMethod::FryeJacobs`]
+/// (see [`DownturnMethod::StressedApproximation`]
 /// for the formula and naming note — this is *not* the Frye-Jacobs (2012)
 /// model):
 ///
@@ -178,7 +178,7 @@ pub fn downturn_lgd_stressed(
     lgd_sensitivity: f64,
     stress_quantile: f64,
 ) -> crate::Result<f64> {
-    DownturnLgd::frye_jacobs(asset_correlation, lgd_sensitivity, stress_quantile)?.adjust(base_lgd)
+    DownturnLgd::stressed(asset_correlation, lgd_sensitivity, stress_quantile)?.adjust(base_lgd)
 }
 
 /// Apply a regulatory-floor downturn adjustment to base LGD.
@@ -231,14 +231,14 @@ mod tests {
 
     #[test]
     fn seniority_recovery_stats_accepts_binding_strings() {
-        let stats = seniority_recovery_stats("senior-secured", "s&p").unwrap();
+        let stats = seniority_recovery_stats("senior_secured", "s&p").unwrap();
         assert!((stats.mean() - 0.53).abs() < 1e-12);
     }
 
     #[test]
     fn seniority_recovery_stats_default_uses_registry_default() {
-        let stats = seniority_recovery_stats_default("senior-secured").unwrap();
-        let explicit = seniority_recovery_stats("senior-secured", "moodys").unwrap();
+        let stats = seniority_recovery_stats_default("senior_secured").unwrap();
+        let explicit = seniority_recovery_stats("senior_secured", "moodys").unwrap();
         assert!((stats.mean() - explicit.mean()).abs() < 1e-12);
         assert!((stats.std_dev() - explicit.std_dev()).abs() < 1e-12);
     }
@@ -254,7 +254,7 @@ mod tests {
     fn workout_lgd_returns_net_recovery_and_lgd() {
         let (net_recovery, lgd) = workout_lgd(
             100.0,
-            vec![("real-estate".to_string(), 80.0, 0.30)],
+            vec![("real_estate".to_string(), 80.0, 0.30)],
             0.05,
             0.03,
             2.0,
@@ -268,5 +268,18 @@ mod tests {
         let expected_net = 48.0 / (1.05_f64 * 1.05);
         assert!((net_recovery - expected_net).abs() < 1e-12);
         assert!((lgd - (1.0 - expected_net / 100.0)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn workout_lgd_rejects_noncanonical_collateral_type() {
+        assert!(workout_lgd(
+            100.0,
+            vec![("real-estate".to_string(), 80.0, 0.30)],
+            0.05,
+            0.03,
+            2.0,
+            0.05,
+        )
+        .is_err());
     }
 }

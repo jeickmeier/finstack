@@ -45,8 +45,7 @@ pub struct HullWhite1FParams {
     pub sigma: f64,
     /// Optional piecewise-constant short-rate volatility schedule.
     ///
-    /// When absent, [`Self::sigma`] is used everywhere for backwards
-    /// compatibility with existing serialized market snapshots and callers.
+    /// When absent, [`Self::sigma`] is used everywhere.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sigma_curve: Option<PiecewiseConstantCurve>,
     /// Time-dependent mean reversion level θ(t)

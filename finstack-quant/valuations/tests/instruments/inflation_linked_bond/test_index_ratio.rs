@@ -365,7 +365,7 @@ fn test_index_ratio_tips_requires_linear_interpolation() {
 fn test_index_ratio_uk_requires_step_interpolation() {
     // Arrange
     let mut ilb = sample_uk_linker();
-    ilb.indexation_method = IndexationMethod::UK;
+    ilb.indexation_method = IndexationMethod::Uk;
 
     let observations = vec![(d(2024, 6, 1), 320.0)];
     let index = finstack_quant_core::market_data::scalars::InflationIndex::new(

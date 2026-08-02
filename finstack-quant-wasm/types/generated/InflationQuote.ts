@@ -65,7 +65,7 @@ index: string,
 /**
  * Per-instrument conventions
  */
-convention: string, } } | { "yo_y_inflation_swap": {
+convention: string, } } | { "yoy_inflation_swap": {
 /**
  * Unique identifier for the quote.
  */

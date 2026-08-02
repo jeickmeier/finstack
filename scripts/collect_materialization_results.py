@@ -349,7 +349,7 @@ def main() -> int:
     rust_stats = {name: stats(samples) for name, samples in cases["rust"].items()}
     regression_changes = {case: result["relative_median_change"]["point"] for case, result in criterion.items()}
     output = {
-        "schema": "finstack_quant.materialization_benchmark_results/2",
+        "schema": "finstack_quant.materialization_benchmark_results/1",
         "recorded_at": recorded_at,
         "baselines": {
             "manifest": {

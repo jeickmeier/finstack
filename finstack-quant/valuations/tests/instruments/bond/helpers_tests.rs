@@ -43,18 +43,6 @@ fn test_periods_per_year_days() {
 }
 
 #[test]
-fn test_periods_per_year_zero_months_error() {
-    // 0 months should be an error
-    assert!(Tenor::try_new(0, TenorUnit::Months).is_err());
-}
-
-#[test]
-fn test_periods_per_year_zero_days_error() {
-    // 0 days should be an error
-    assert!(Tenor::try_new(0, TenorUnit::Days).is_err());
-}
-
-#[test]
 fn test_periods_per_year_years_and_weeks() {
     assert_eq!(
         periods_per_year(Tenor::new(2, TenorUnit::Years)).unwrap(),
@@ -68,22 +56,6 @@ fn test_periods_per_year_years_and_weeks() {
         periods_per_year(Tenor::new(2, TenorUnit::Weeks)).unwrap(),
         26.0
     );
-}
-
-#[test]
-fn test_periods_per_year_zero_years_and_weeks_error() {
-    assert!(Tenor::try_new(0, TenorUnit::Years).is_err());
-    assert!(Tenor::try_new(0, TenorUnit::Weeks).is_err());
-}
-
-#[test]
-fn test_yield_compounding_variants() {
-    // Test that all compounding variants are available
-    let _simple = YieldCompounding::Simple;
-    let _annual = YieldCompounding::Annual;
-    let _periodic = YieldCompounding::Periodic(2);
-    let _continuous = YieldCompounding::Continuous;
-    let _street = YieldCompounding::Street;
 }
 
 #[test]
@@ -146,8 +118,8 @@ fn test_df_from_yield_street() {
     // Street convention uses bond's frequency
     let ytm = 0.06;
     let t = 1.0;
-    let freq = Tenor::semi_annual(); // 2 periods per year
-    let df = df_from_yield(ytm, t, YieldCompounding::Street, freq).unwrap();
+    let frequency = Tenor::semi_annual(); // 2 periods per year
+    let df = df_from_yield(ytm, t, YieldCompounding::Street, frequency).unwrap();
 
     // Should be same as Periodic(2)
     let expected = (1.0_f64 + 0.06 / 2.0).powf(-2.0 * 1.0);
@@ -156,13 +128,13 @@ fn test_df_from_yield_street() {
 
 #[test]
 fn test_df_from_yield_treasury_actual_short_and_long_paths() {
-    let freq = Tenor::semi_annual();
+    let frequency = Tenor::semi_annual();
 
-    let short_df = df_from_yield(0.06, 0.25, YieldCompounding::TreasuryActual, freq).unwrap();
+    let short_df = df_from_yield(0.06, 0.25, YieldCompounding::TreasuryActual, frequency).unwrap();
     let short_expected = 1.0 / (1.0 + 0.06 * 0.25);
     assert!((short_df - short_expected).abs() < 1e-12);
 
-    let stub_df = df_from_yield(0.06, 1.3, YieldCompounding::TreasuryActual, freq).unwrap();
+    let stub_df = df_from_yield(0.06, 1.3, YieldCompounding::TreasuryActual, frequency).unwrap();
     let m = 2.0_f64;
     let n_full_periods = (1.3_f64 * m).floor();
     let stub_time = 1.3 - n_full_periods / m;
@@ -170,7 +142,7 @@ fn test_df_from_yield_treasury_actual_short_and_long_paths() {
         * (1.0_f64 + 0.06_f64 / m).powf(-n_full_periods);
     assert!((stub_df - stub_expected).abs() < 1e-12);
 
-    let no_stub_df = df_from_yield(0.06, 1.5, YieldCompounding::TreasuryActual, freq).unwrap();
+    let no_stub_df = df_from_yield(0.06, 1.5, YieldCompounding::TreasuryActual, frequency).unwrap();
     let no_stub_expected = (1.0_f64 + 0.06_f64 / m).powf(-m * 1.5_f64);
     assert!((no_stub_df - no_stub_expected).abs() < 1e-12);
 }
@@ -484,25 +456,12 @@ fn test_price_from_ytm_compounded_params_continuous_vs_annual() {
 }
 
 #[test]
-fn test_yield_compounding_equality() {
-    // Test PartialEq implementation
-    assert_eq!(YieldCompounding::Simple, YieldCompounding::Simple);
-    assert_eq!(YieldCompounding::Annual, YieldCompounding::Annual);
-    assert_eq!(YieldCompounding::Periodic(2), YieldCompounding::Periodic(2));
-    assert_eq!(YieldCompounding::Continuous, YieldCompounding::Continuous);
-    assert_eq!(YieldCompounding::Street, YieldCompounding::Street);
-
-    assert_ne!(YieldCompounding::Simple, YieldCompounding::Annual);
-    assert_ne!(YieldCompounding::Periodic(2), YieldCompounding::Periodic(4));
-}
-
-#[test]
 fn test_df_from_yield_street_with_monthly() {
     // Street convention with monthly frequency
     let ytm = 0.12; // 12% annual
     let t = 0.5; // 6 months
-    let freq = Tenor::monthly(); // 12 periods per year
-    let df = df_from_yield(ytm, t, YieldCompounding::Street, freq).unwrap();
+    let frequency = Tenor::monthly(); // 12 periods per year
+    let df = df_from_yield(ytm, t, YieldCompounding::Street, frequency).unwrap();
 
     // Should use monthly compounding
     let expected = (1.0_f64 + 0.12 / 12.0).powf(-12.0 * 0.5);
@@ -513,8 +472,8 @@ fn test_df_from_yield_street_with_monthly() {
 fn test_df_from_yield_street_with_quarterly() {
     let ytm = 0.08;
     let t = 1.0;
-    let freq = Tenor::quarterly();
-    let df = df_from_yield(ytm, t, YieldCompounding::Street, freq).unwrap();
+    let frequency = Tenor::quarterly();
+    let df = df_from_yield(ytm, t, YieldCompounding::Street, frequency).unwrap();
 
     // Should use quarterly compounding (4 periods per year)
     let expected = (1.0_f64 + 0.08 / 4.0).powf(-4.0 * 1.0);

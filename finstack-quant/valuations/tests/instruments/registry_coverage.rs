@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use finstack_quant_core::market_data::term_structures::HazardCurve;
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::StochasticDefaultSpec;
-use finstack_quant_valuations::instruments::json_loader::registry_tags;
+use finstack_quant_valuations::instruments::json_loader::{instrument_registry, registry_tags};
 use finstack_quant_valuations::instruments::json_loader::{InstrumentEnvelope, InstrumentJson};
 use serde::Deserialize;
 use time::macros::date;
@@ -18,17 +18,8 @@ use time::macros::date;
 struct CoverageManifest {
     schema_version: u32,
     #[serde(default)]
-    auxiliary_fixture: Vec<AuxiliaryFixture>,
-    #[serde(default)]
     non_persistable: Vec<NonPersistablePolicy>,
     instrument: Vec<CoverageEntry>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AuxiliaryFixture {
-    fixture: String,
-    rationale: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,7 +76,7 @@ fn dependencies_are_empty(
     dependencies: &finstack_quant_valuations::instruments::MarketDependencies,
 ) -> bool {
     dependencies.curves.is_empty()
-        && dependencies.spot_ids.is_empty()
+        && dependencies.market_scalar_ids.is_empty()
         && dependencies.volatility_dependencies.is_empty()
         && dependencies.fx_pairs.is_empty()
         && dependencies.series_ids.is_empty()
@@ -288,7 +279,7 @@ fn registry_coverage_manifest_is_checked_in() {
 }
 
 #[test]
-fn generator_freshness_check_includes_canonical_fixtures() {
+fn generator_freshness_check_rejects_non_registry_fixtures() {
     let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(Path::parent)
@@ -323,7 +314,6 @@ fn generator_freshness_check_includes_canonical_fixtures() {
     }
     let canonical = examples_dir.join("bond.json");
     let auxiliary = examples_dir.join("basket_with_instruments.json");
-    fs::write(&auxiliary, "{}\n").expect("write auxiliary fixture");
 
     let git = |args: &[&str]| {
         Command::new("git")
@@ -359,11 +349,13 @@ fn generator_freshness_check_includes_canonical_fixtures() {
             .expect("run generated-fixture freshness checker")
     };
 
-    fs::write(&auxiliary, "{\"auxiliary\":true}\n").expect("modify auxiliary fixture");
+    assert!(check().success(), "canonical fixture inventory must pass");
+    fs::write(&auxiliary, "{\"auxiliary\":true}\n").expect("write auxiliary fixture");
     assert!(
-        check().success(),
-        "auxiliary fixture changes must not fail generated freshness"
+        !check().success(),
+        "non-registry fixtures must fail generated freshness"
     );
+    fs::remove_file(&auxiliary).expect("remove auxiliary fixture");
     fs::write(&canonical, "{\"stale\":true}\n").expect("modify canonical fixture");
     assert!(
         !check().success(),
@@ -374,21 +366,40 @@ fn generator_freshness_check_includes_canonical_fixtures() {
 }
 
 #[test]
-fn public_registry_lists_canonical_tags_and_aliases() {
+fn public_registry_lists_only_canonical_tags() {
     let registry = registry_tags();
     assert_eq!(registry.len(), 70, "canonical registry tag count drifted");
-    assert!(
-        registry
-            .iter()
-            .any(|(tag, aliases)| *tag == "snowball" && aliases.contains(&"inverse_floater")),
-        "registry must expose canonical tags with their accepted aliases"
-    );
+    assert!(registry.contains(&"snowball"));
+    assert!(!registry.contains(&"inverse_floater"));
+}
+
+#[test]
+fn persisted_tags_match_runtime_instrument_types() {
+    for entry in instrument_registry() {
+        let examples = entry
+            .examples()
+            .unwrap_or_else(|error| panic!("build {} example: {error}", entry.tag));
+        let [example] = examples.as_slice() else {
+            panic!("{} must provide exactly one example", entry.tag);
+        };
+        let envelope: InstrumentEnvelope = serde_json::from_value(example.clone())
+            .unwrap_or_else(|error| panic!("parse {} example: {error}", entry.tag));
+        assert_eq!(envelope.instrument.type_tag(), entry.tag);
+        let runtime = envelope
+            .into_boxed()
+            .unwrap_or_else(|error| panic!("build {} runtime instrument: {error}", entry.tag));
+        assert_eq!(
+            runtime.key().as_str(),
+            entry.tag,
+            "runtime InstrumentType and persisted instrument tag diverged"
+        );
+    }
 }
 
 #[test]
 fn declared_non_persistable_cases_are_exercised() {
     let manifest = load_manifest();
-    let registry: BTreeSet<&str> = registry_tags().iter().map(|(tag, _)| *tag).collect();
+    let registry: BTreeSet<&str> = registry_tags().iter().copied().collect();
     let mut exercised = BTreeSet::new();
 
     for policy in &manifest.non_persistable {
@@ -448,7 +459,7 @@ fn registry_manifest_and_fixtures_are_consistent() {
     let manifest = load_manifest();
     assert_eq!(manifest.schema_version, 1);
 
-    let registry: BTreeSet<&str> = registry_tags().iter().map(|(tag, _)| *tag).collect();
+    let registry: BTreeSet<&str> = registry_tags().iter().copied().collect();
     assert_eq!(
         registry.len(),
         registry_tags().len(),
@@ -567,18 +578,6 @@ fn registry_manifest_and_fixtures_are_consistent() {
         "registry and coverage manifest tags must match exactly"
     );
 
-    for auxiliary in &manifest.auxiliary_fixture {
-        assert!(
-            !auxiliary.rationale.trim().is_empty(),
-            "auxiliary fixture {} requires a rationale",
-            auxiliary.fixture
-        );
-        assert!(
-            declared_fixtures.insert(auxiliary.fixture.as_str()),
-            "fixture {} is declared more than once",
-            auxiliary.fixture
-        );
-    }
     let examples_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("instruments")
@@ -601,7 +600,7 @@ fn registry_manifest_and_fixtures_are_consistent() {
         declared_fixtures.into_iter().map(str::to_string).collect();
     assert_eq!(
         actual_fixtures, declared_fixtures,
-        "every checked-in JSON fixture must be a canonical tag fixture or an explicit auxiliary fixture"
+        "every checked-in JSON fixture must be owned by one canonical registry tag"
     );
 }
 
@@ -616,7 +615,7 @@ fn every_registered_instrument_satisfies_persistence_contract() {
     let limits = finstack_quant_core::LoadLimits::default();
     let mut failures = Vec::new();
 
-    for (tag, _aliases) in registry_tags() {
+    for tag in registry_tags() {
         let entry = entries
             .get(tag)
             .unwrap_or_else(|| panic!("{tag}: canonical registry tag is absent from manifest"));

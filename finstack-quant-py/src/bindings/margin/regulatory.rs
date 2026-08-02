@@ -25,49 +25,49 @@ fn parse_currency(code: &str) -> PyResult<Currency> {
 }
 
 fn parse_correlation_scenario(s: &str) -> PyResult<CorrelationScenario> {
-    match s.to_ascii_lowercase().as_str() {
+    match s {
         "low" => Ok(CorrelationScenario::Low),
-        "medium" | "med" | "base" => Ok(CorrelationScenario::Medium),
+        "medium" => Ok(CorrelationScenario::Medium),
         "high" => Ok(CorrelationScenario::High),
-        other => Err(crate::errors::value_error(format!(
-            "unknown FRTB correlation scenario '{other}' (expected 'low', 'medium', or 'high')"
+        _ => Err(crate::errors::value_error(format!(
+            "unknown FRTB correlation scenario '{s}' (expected 'low', 'medium', or 'high')"
         ))),
     }
 }
 
 fn risk_class_label(rc: FrtbRiskClass) -> &'static str {
     match rc {
-        FrtbRiskClass::Girr => "GIRR",
-        FrtbRiskClass::CsrNonSec => "CSR_NON_SEC",
-        FrtbRiskClass::CsrSecCtp => "CSR_SEC_CTP",
-        FrtbRiskClass::CsrSecNonCtp => "CSR_SEC_NON_CTP",
-        FrtbRiskClass::Equity => "EQUITY",
-        FrtbRiskClass::Commodity => "COMMODITY",
-        FrtbRiskClass::Fx => "FX",
-        _ => "UNKNOWN",
+        FrtbRiskClass::Girr => "girr",
+        FrtbRiskClass::CsrNonSec => "csr_non_sec",
+        FrtbRiskClass::CsrSecCtp => "csr_sec_ctp",
+        FrtbRiskClass::CsrSecNonCtp => "csr_sec_non_ctp",
+        FrtbRiskClass::Equity => "equity",
+        FrtbRiskClass::Commodity => "commodity",
+        FrtbRiskClass::Fx => "fx",
+        _ => "unknown",
     }
 }
 
 fn asset_class_label(ac: SaCcrAssetClass) -> &'static str {
     match ac {
-        SaCcrAssetClass::InterestRate => "INTEREST_RATE",
-        SaCcrAssetClass::ForeignExchange => "FOREIGN_EXCHANGE",
-        SaCcrAssetClass::Credit => "CREDIT",
-        SaCcrAssetClass::Equity => "EQUITY",
-        SaCcrAssetClass::Commodity => "COMMODITY",
-        _ => "UNKNOWN",
+        SaCcrAssetClass::InterestRate => "interest_rate",
+        SaCcrAssetClass::ForeignExchange => "foreign_exchange",
+        SaCcrAssetClass::Credit => "credit",
+        SaCcrAssetClass::Equity => "equity",
+        SaCcrAssetClass::Commodity => "commodity",
+        _ => "unknown",
     }
 }
 
 fn parse_asset_class(s: &str) -> PyResult<SaCcrAssetClass> {
-    match s.to_ascii_lowercase().as_str() {
-        "ir" | "interest_rate" | "interestrate" | "rates" => Ok(SaCcrAssetClass::InterestRate),
-        "fx" | "foreign_exchange" | "foreignexchange" => Ok(SaCcrAssetClass::ForeignExchange),
-        "credit" | "cr" => Ok(SaCcrAssetClass::Credit),
-        "equity" | "eq" => Ok(SaCcrAssetClass::Equity),
-        "commodity" | "comm" | "co" => Ok(SaCcrAssetClass::Commodity),
-        other => Err(crate::errors::value_error(format!(
-            "unknown SA-CCR asset class '{other}' (expected ir/fx/credit/equity/commodity)"
+    match s {
+        "interest_rate" => Ok(SaCcrAssetClass::InterestRate),
+        "foreign_exchange" => Ok(SaCcrAssetClass::ForeignExchange),
+        "credit" => Ok(SaCcrAssetClass::Credit),
+        "equity" => Ok(SaCcrAssetClass::Equity),
+        "commodity" => Ok(SaCcrAssetClass::Commodity),
+        _ => Err(crate::errors::value_error(format!(
+            "unknown SA-CCR asset class '{s}' (expected interest_rate/foreign_exchange/credit/equity/commodity)"
         ))),
     }
 }

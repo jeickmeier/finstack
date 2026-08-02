@@ -1,5 +1,231 @@
 {
   "$defs": {
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "RealEstateAsset": {
+      "additionalProperties": false,
+      "description": "Real estate asset valuation instrument.\n\nSupports DCF (explicit NOI schedule) and direct capitalization valuation.",
+      "properties": {
+        "acquisition_cost": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "acquisition_costs": {
+          "default": [],
+          "items": {
+            "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+          },
+          "type": "array"
+        },
+        "appraisal_value": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {}
+        },
+        "cap_rate": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "capex_schedule": {
+          "default": null,
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+              },
+              {
+                "format": "double",
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json"
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json"
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+        },
+        "discount_rate": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "disposition_cost_pct": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "disposition_costs": {
+          "default": [],
+          "items": {
+            "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+          },
+          "type": "array"
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "default": {}
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "default": {
+            "mc_seed_scenario": null,
+            "theta_period": null
+          }
+        },
+        "noi_schedule": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+              },
+              {
+                "format": "double",
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "property_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RealEstatePropertyType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "purchase_price": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sale_date": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sale_price": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "default": {}
+        },
+        "stabilized_noi": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "terminal_cap_rate": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "terminal_growth_rate": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "valuation_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+        },
+        "valuation_method": {
+          "$ref": "#/$defs/RealEstateValuationMethod"
+        }
+      },
+      "required": [
+        "id",
+        "currency",
+        "valuation_date",
+        "valuation_method",
+        "noi_schedule",
+        "day_count",
+        "discount_curve_id"
+      ],
+      "type": "object"
+    },
     "RealEstatePropertyType": {
       "description": "Broad property classification for reporting / tagging.",
       "oneOf": [
@@ -54,19 +280,40 @@
           "type": "string"
         }
       ]
+    },
+    "real_estate_asset": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/RealEstateAsset"
+            },
+            "type": {
+              "const": "real_estate_asset",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/real_estate_asset.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Real estate asset valuation using DCF or direct capitalization",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
           "currency": "USD",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "discount_curve_id": "USD-OIS",
           "discount_rate": 0.08,
           "id": "RE-OFFICE-DCF",
@@ -92,27 +339,6 @@
               100000.0
             ]
           ],
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "property_type": "office",
           "terminal_cap_rate": 0.055,
           "valuation_date": "2025-01-01",
@@ -125,261 +351,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Real Estate Asset instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "acquisition_cost": {
-              "description": "Optional one-time acquisition cost deducted at `as_of` in DCF valuation.\n\nThis is intended for closing costs, fees, and other transaction costs.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "acquisition_costs": {
-              "description": "Optional detailed acquisition cost line items (positive outflows) deducted at `as_of`.",
-              "items": {
-                "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-              },
-              "type": "array"
-            },
-            "appraisal_value": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional appraisal override value."
-            },
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "default": {},
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "cap_rate": {
-              "description": "Capitalization rate for direct cap (annualized).",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "capex_schedule": {
-              "description": "Capital expenditure schedule (date, amount). Values are treated as **positive outflows**.\n\nWhen present, cashflows are valued as `NOI - CapEx` (unlevered net cash flow).",
-              "items": {
-                "maxItems": 2,
-                "minItems": 2,
-                "prefixItems": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "format": "double",
-                    "type": "number"
-                  }
-                ],
-                "type": "array"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Currency for valuation."
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention for year fractions."
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier, used for risk attribution only.\n\nDCF valuation always discounts at [`discount_rate`](Self::discount_rate)\nregardless of whether this curve is loaded ; rate\nsensitivity (`Dv01`/`BucketedDv01`) bumps the risk-free component\ninside the rate."
-            },
-            "discount_rate": {
-              "description": "Discount rate for DCF (annualized).",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "disposition_cost_pct": {
-              "description": "Optional disposition cost percentage applied to terminal value.\n\nA value of `0.02` represents 2% selling costs. Must be in \\([0, 1)\\).",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "disposition_costs": {
-              "description": "Optional detailed disposition cost line items (positive outflows) deducted from terminal proceeds.",
-              "items": {
-                "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-              },
-              "type": "array"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "noi_schedule": {
-              "description": "Net operating income schedule (date, amount).",
-              "items": {
-                "maxItems": 2,
-                "minItems": 2,
-                "prefixItems": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "format": "double",
-                    "type": "number"
-                  }
-                ],
-                "type": "array"
-              },
-              "type": "array"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for tagging and scenarios."
-            },
-            "property_type": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/RealEstatePropertyType"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional property type classification (for reporting)."
-            },
-            "purchase_price": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional purchase price (useful for IRR / cap rate metrics)."
-            },
-            "sale_date": {
-              "description": "Optional sale/exit date that truncates the DCF horizon.\n\nWhen set, DCF only values unlevered flows up to and including `sale_date`.\nTerminal proceeds (if configured) are realized on `sale_date`.",
-              "format": "date",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "sale_price": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional explicit gross sale price (terminal proceeds), before disposition costs.\n\nWhen set, this takes precedence over `terminal_cap_rate` for terminal proceeds."
-            },
-            "stabilized_noi": {
-              "description": "Optional stabilized NOI override for direct cap.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "terminal_cap_rate": {
-              "description": "Optional terminal cap rate for DCF (uses last NOI).",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "terminal_growth_rate": {
-              "description": "Optional terminal growth rate used to project `NOI_{N+1}` for exit valuation.\n\nMarket convention for exit-cap terminal value is \\(TV = NOI_{N+1} / cap\\_rate\\_exit\\).\nWhen not provided, defaults to 0 (uses last NOI as-is).\nValidation range is \\([-100\\%, 20\\%]\\) to guard against configuration errors.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "valuation_date": {
-              "description": "Valuation date (base date for discounting).",
-              "format": "date",
-              "type": "string"
-            },
-            "valuation_method": {
-              "$ref": "#/$defs/RealEstateValuationMethod",
-              "description": "Valuation method (DCF or DirectCap)."
-            }
-          },
-          "required": [
-            "id",
-            "currency",
-            "valuation_date",
-            "valuation_method",
-            "noi_schedule",
-            "day_count",
-            "discount_curve_id"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "real_estate_asset",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/real_estate_asset"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Real Estate Asset",
+  "title": "real_estate_asset",
   "type": "object"
 }

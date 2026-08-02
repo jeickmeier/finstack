@@ -35,7 +35,7 @@ fn term_loan(upfront_fee: Option<Money>, callable: bool) -> TermLoan {
         .rate(RateSpec::Fixed { rate_bp: 600 })
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))

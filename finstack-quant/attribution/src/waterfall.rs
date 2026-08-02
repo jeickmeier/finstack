@@ -369,9 +369,9 @@ fn attribute_pnl_waterfall_impl(
     // attribution ran under (workspace rule: results carry the parallel flag).
     attribution.meta.execution_policy = Some(ExecutionPolicy::Serial);
 
-    // Plan a credit cascade if a model was supplied. Falls back to the legacy
-    // single CreditCurves step when planning yields None (no issuer tag, no
-    // hazard deps, etc.).
+    // Plan a credit cascade if a model was supplied. Use the canonical single
+    // CreditCurves step when planning yields None (no issuer tag, no hazard
+    // dependencies, etc.).
     let cascade: Option<CreditCascade> = match credit_factor_model {
         Some(model) => {
             plan_credit_cascade(model, instrument, market_t0, market_t1, as_of_t0, as_of_t1)?
@@ -448,10 +448,10 @@ fn attribute_pnl_waterfall_impl(
             AttributionFactor::Fx => {
                 attribution.fx_pnl = factor_pnl;
                 // Stamp FX policy when FX factor is applied
-                let target_ccy = attribution.fx_pnl.currency();
+                let target_currency = attribution.fx_pnl.currency();
                 stamp_fx_policy(
                     &mut attribution,
-                    target_ccy,
+                    target_currency,
                     "Waterfall FX attribution with full translation",
                 );
             }
@@ -549,7 +549,7 @@ impl<'a> WaterfallContext<'a> {
                     // Snap to T1 hazard. After the parallel Generic / Level /
                     // Adder bumps this step absorbs whatever non-parallel
                     // (steepening / twist) residual remains, and makes the
-                    // cascade end-state match the legacy single Credit step
+                    // cascade end-state match the single Credit step
                     // exactly so `Σ steps ≡ credit_curves_pnl` still holds.
                     snap_hazard_to_t1(&credit_base, self.market_t1, &cascade.hazard_curve_ids)
                 }

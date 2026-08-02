@@ -1,4 +1,4 @@
-//! Calibration benchmarks (v2 plan-driven API).
+//! Calibration benchmarks (canonical plan-driven API).
 //!
 //! This benchmark suite focuses on the plan-driven calibration step engine.
 
@@ -16,7 +16,7 @@ use finstack_quant_valuations::calibration::api::{
     engine,
     schema::{
         CalibrationEnvelope, CalibrationPlan, CalibrationStep, DiscountCurveParams,
-        ForwardCurveParams, StepParams, CALIBRATION_SCHEMA,
+        ForwardCurveParams, StepParams,
     },
 };
 use finstack_quant_valuations::calibration::bumps::{
@@ -151,7 +151,8 @@ fn bench_discount_and_forward_steps(c: &mut Criterion) {
                 settings: settings.clone(),
             };
             let envelope = CalibrationEnvelope {
-                schema: CALIBRATION_SCHEMA.to_string(),
+                schema:
+                    finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
                 schema_url: None,
                 market_data: disc_data.clone(),
                 prior_market: Vec::new(),
@@ -187,7 +188,8 @@ fn bench_discount_and_forward_steps(c: &mut Criterion) {
                 settings: settings.clone(),
             };
             let envelope = CalibrationEnvelope {
-                schema: CALIBRATION_SCHEMA.to_string(),
+                schema:
+                    finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
                 schema_url: None,
                 market_data: combined_data.clone(),
                 prior_market: Vec::new(),
@@ -269,7 +271,8 @@ fn bench_residual_normalization(c: &mut Criterion) {
                 settings: settings.clone(),
             };
             let envelope = CalibrationEnvelope {
-                schema: CALIBRATION_SCHEMA.to_string(),
+                schema:
+                    finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
                 schema_url: None,
                 market_data: disc_data.clone(),
                 prior_market: Vec::new(),
@@ -310,7 +313,8 @@ fn bench_residual_normalization(c: &mut Criterion) {
                 settings: settings.clone(),
             };
             let envelope = CalibrationEnvelope {
-                schema: CALIBRATION_SCHEMA.to_string(),
+                schema:
+                    finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
                 schema_url: None,
                 market_data: disc_data.clone(),
                 prior_market: Vec::new(),

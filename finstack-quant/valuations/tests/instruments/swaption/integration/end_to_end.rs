@@ -87,8 +87,16 @@ fn test_portfolio_of_swaptions() {
             .unwrap();
 
         total_pv += result.value.amount();
-        total_delta += result.measures.get("delta").copied().unwrap_or(0.0);
-        total_vega += result.measures.get("vega").copied().unwrap_or(0.0);
+        total_delta += result
+            .measures
+            .get(MetricId::Delta.as_str())
+            .copied()
+            .expect("requested delta metric must be present");
+        total_vega += result
+            .measures
+            .get(MetricId::Vega.as_str())
+            .copied()
+            .expect("requested vega metric must be present");
     }
 
     // Portfolio metrics should be finite

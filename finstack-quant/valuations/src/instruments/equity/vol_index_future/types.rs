@@ -87,7 +87,9 @@ use time::macros::date;
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct VolatilityIndexFuture {
@@ -101,11 +103,13 @@ pub struct VolatilityIndexFuture {
     /// itself (the Wednesday ~30 days before the expiry of the SPX options
     /// used in the settlement calculation), not a date 30 days before
     /// settlement.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Final settlement date — the morning Special Opening Quotation (SOQ)
     /// of the index is computed on this date (same day as `expiry` for VIX).
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub settlement_date: Date,
     /// Final settlement/SOQ fixing in index points.
     #[serde(default)]
@@ -127,13 +131,24 @@ pub struct VolatilityIndexFuture {
     pub vol_index_curve_id: CurveId,
     /// Attributes for tagging and selection.
     #[builder(default)]
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-only pricing controls.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only valuation adjustments.
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -146,6 +161,7 @@ pub struct VolatilityIndexFuture {
 /// - Minimum tick: 0.05 index points ($50)
 /// - Weekly and monthly expiries available
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct VolIndexContractSpecs {
     /// Contract multiplier (USD per index point).
     /// VIX standard: 1000 (each point = $1,000)

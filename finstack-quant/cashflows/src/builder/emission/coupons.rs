@@ -151,7 +151,7 @@ fn observed_overnight_rate(
     obs_date: Date,
     weight_days: u32,
     fwd: &ForwardCurve,
-    fwd_dc_basis: f64,
+    fwd_day_count_basis: f64,
     fixings: Option<&ScalarTimeSeries>,
     index_id: &str,
 ) -> finstack_quant_core::Result<f64> {
@@ -167,11 +167,11 @@ fn observed_overnight_rate(
             return Ok(fixing);
         }
     }
-    let fwd_dc = fwd.day_count();
+    let fwd_day_count = fwd.day_count();
     let t = if obs_date == fwd_base {
         0.0
     } else {
-        fwd_dc.year_fraction(
+        fwd_day_count.year_fraction(
             fwd_base,
             obs_date,
             finstack_quant_core::dates::DayCountContext::default(),
@@ -181,7 +181,7 @@ fn observed_overnight_rate(
     // rather than the instantaneous forward at t. For piecewise-constant
     // curves the two are identical, but for interpolated curves (linear,
     // cubic) `rate_period` gives the correct overnight forward average.
-    let overnight_dt = f64::from(weight_days) / fwd_dc_basis;
+    let overnight_dt = f64::from(weight_days) / fwd_day_count_basis;
     Ok(fwd.rate_period(t, t + overnight_dt))
 }
 
@@ -314,12 +314,12 @@ pub(crate) fn emit_fixed_coupons_on(
             // For stubs the adjacent regular period is not available here, so
             // core's frequency-based quasi-coupon subdivision is used instead
             // (coupon_period: None).
-            let yf = spec.schedule.dc.year_fraction(
+            let yf = spec.schedule.day_count.year_fraction(
                 accrual_start,
                 accrual_end,
                 finstack_quant_core::dates::DayCountContext {
                     calendar: Some(calendar),
-                    frequency: Some(spec.schedule.freq),
+                    frequency: Some(spec.schedule.frequency),
                     bus_basis: None,
                     coupon_period: (!is_stub)
                         .then_some((period.unadjusted_start, period.unadjusted_end)),
@@ -351,7 +351,7 @@ pub(crate) fn emit_fixed_coupons_on(
                         .with_accrual(CashFlowAccrual {
                             start: accrual_start,
                             end: accrual_end,
-                            day_count: spec.schedule.dc,
+                            day_count: spec.schedule.day_count,
                             projected_index_rate: None,
                         }),
                 );
@@ -364,7 +364,7 @@ pub(crate) fn emit_fixed_coupons_on(
                     flow.accrual = Some(CashFlowAccrual {
                         start: accrual_start,
                         end: accrual_end,
-                        day_count: spec.schedule.dc,
+                        day_count: spec.schedule.day_count,
                         projected_index_rate: None,
                     });
                 }
@@ -787,12 +787,12 @@ pub(crate) fn emit_float_coupons_on(
             // UNADJUSTED scheduled period as the ICMA reference (equal to the
             // accrual period on unadjusted schedules); stubs fall back to
             // core's frequency-based quasi-coupon subdivision.
-            let yf = spec.schedule.dc.year_fraction(
+            let yf = spec.schedule.day_count.year_fraction(
                 accrual_start,
                 accrual_end,
                 finstack_quant_core::dates::DayCountContext {
                     calendar: Some(calendar),
-                    frequency: Some(spec.schedule.freq),
+                    frequency: Some(spec.schedule.frequency),
                     bus_basis: None,
                     coupon_period: (!is_stub)
                         .then_some((period.unadjusted_start, period.unadjusted_end)),
@@ -805,7 +805,7 @@ pub(crate) fn emit_float_coupons_on(
             let reset_date = compute_reset_date(
                 accrual_start,
                 spec.rate_spec.reset_lag_days,
-                spec.schedule.bdc,
+                spec.schedule.business_day_convention,
                 schedule.fixing_calendar,
             )?;
 
@@ -816,7 +816,7 @@ pub(crate) fn emit_float_coupons_on(
             let index_tenor = spec
                 .rate_spec
                 .index_tenor
-                .unwrap_or(spec.rate_spec.reset_freq);
+                .unwrap_or(spec.rate_spec.reset_frequency);
             let index_maturity = compute_index_maturity(reset_date, index_tenor)?;
 
             let runtime_spec = &schedule.runtime_spec;
@@ -827,7 +827,7 @@ pub(crate) fn emit_float_coupons_on(
             // When projection fails (curve error or missing curve), the fallback
             // policy on the spec controls behavior:
             //   Error      -> propagate immediately (strictest, default)
-            //   SpreadOnly -> use spread as total rate (legacy)
+            //   spread_only -> use the spread as the total rate
             //   FixedRate(r) -> use r as the index component
             let (total_rate, projected_index_rate) =
                 if let Some(ref method) = spec.rate_spec.overnight_compounding {
@@ -860,11 +860,11 @@ pub(crate) fn emit_float_coupons_on(
                         // calendar (resolved by the compiler from
                         // `fixing_calendar_id`, defaulting to the accrual
                         // calendar), not the accrual calendar.
-                        let overnight_dc = spec
+                        let overnight_day_count = spec
                             .rate_spec
                             .overnight_basis
                             .unwrap_or(finstack_quant_core::dates::DayCount::Act360);
-                        let day_count_basis = match overnight_dc {
+                        let day_count_basis = match overnight_day_count {
                             finstack_quant_core::dates::DayCount::Act360 => 360.0,
                             finstack_quant_core::dates::DayCount::Act365F => 365.0,
                             other => {
@@ -1092,7 +1092,7 @@ pub(crate) fn emit_float_coupons_on(
                     .with_accrual(CashFlowAccrual {
                         start: accrual_start,
                         end: accrual_end,
-                        day_count: spec.schedule.dc,
+                        day_count: spec.schedule.day_count,
                         projected_index_rate,
                     }),
                 );
@@ -1105,7 +1105,7 @@ pub(crate) fn emit_float_coupons_on(
                     flow.accrual = Some(CashFlowAccrual {
                         start: accrual_start,
                         end: accrual_end,
-                        day_count: spec.schedule.dc,
+                        day_count: spec.schedule.day_count,
                         projected_index_rate,
                     });
                 }

@@ -1,9 +1,9 @@
 {
-  "$schema": "../../schemas/calibration/3/calibration.schema.json",
-  "schema": "finstack_quant.calibration",
+  "$schema": "../../schemas/calibration/1/calibration.schema.json",
+  "schema": "finstack_quant.calibration/1",
   "plan": {
     "id": "fx_snapshot",
-    "description": "Snapshot-only example: FX matrix supplied via initial_market.fx, with no calibration steps. Demonstrates Track B \u2014 non-bootstrapped market data (FX cross rates) carried directly through initial_market. Three direct quotes (EUR/USD, USD/JPY, GBP/USD) are supplied; EUR/JPY is not quoted directly but is available via triangulation through the USD pivot. Shows both direct lookup and triangulated cross-rate retrieval.",
+    "description": "Snapshot-only example: FX matrix supplied via market_data fx_spot entries, with no calibration steps. Demonstrates Track B \u2014 non-bootstrapped market data (FX cross rates) carried directly through market_data. Three direct quotes (EUR/USD, USD/JPY, GBP/USD) are supplied; EUR/JPY is not quoted directly but is available via triangulation through the USD pivot. Shows both direct lookup and triangulated cross-rate retrieval.",
     "quote_sets": {},
     "steps": [],
     "settings": {

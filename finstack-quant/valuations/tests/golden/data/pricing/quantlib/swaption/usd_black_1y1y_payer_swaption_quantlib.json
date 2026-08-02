@@ -5,76 +5,66 @@
     "vega": 1499.5634006621185
   },
   "instrument": {
-    "spec": {
-      "attributes": {
-        "meta": {},
-        "tags": [
-          "golden",
-          "quantlib"
-        ]
-      },
-      "calendar_id": "weekends_only",
-      "day_count": "Act365F",
-      "discount_curve_id": "USD-OIS",
-      "expiry": "2027-04-30",
-      "fixed_freq": {
-        "count": 12,
-        "unit": "months"
-      },
-      "float_freq": {
-        "count": 12,
-        "unit": "months"
-      },
-      "forward_curve_id": "USD-TERM-1Y",
-      "id": "USD-BLACK-1Y1Y-PAYER-SWAPTION-QUANTLIB",
-      "notional": {
-        "amount": "10000000",
-        "currency": "USD"
-      },
-      "option_type": "call",
-      "sabr_params": null,
-      "settlement": "physical",
-      "strike": "0.04",
-      "swap_end": "2028-04-30",
-      "swap_start": "2027-04-30",
-      "underlying_fixed_leg": {
-        "calendar_id": "weekends_only",
-        "compounding_simple": true,
-        "day_count": "Act365F",
-        "discount_curve_id": "USD-OIS",
-        "end": "2028-04-30",
-        "frequency": {
-          "count": 12,
-          "unit": "months"
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "spec": {
+        "attributes": {
+          "meta": {},
+          "tags": [
+            "golden",
+            "quantlib"
+          ]
         },
-        "par_method": null,
-        "payment_lag_days": 0,
-        "rate": "0.04",
-        "start": "2027-04-30",
-        "stub": "None"
-      },
-      "underlying_float_leg": {
-        "calendar_id": "weekends_only",
-        "compounding": "Simple",
-        "day_count": "Act365F",
-        "discount_curve_id": "USD-OIS",
-        "end": "2028-04-30",
-        "fixing_calendar_id": "weekends_only",
-        "forward_curve_id": "USD-TERM-1Y",
-        "frequency": {
-          "count": 12,
-          "unit": "months"
+        "expiry": "2027-04-30",
+        "id": "USD-BLACK-1Y1Y-PAYER-SWAPTION-QUANTLIB",
+        "notional": {
+          "amount": "10000000",
+          "currency": "USD"
         },
-        "payment_lag_days": 0,
-        "reset_lag_days": 0,
-        "spread_bp": "0",
-        "start": "2027-04-30",
-        "stub": "None"
+        "option_type": "call",
+        "sabr_params": null,
+        "settlement": "physical",
+        "underlying_fixed_leg": {
+          "calendar_id": "weekends_only",
+          "compounding_simple": true,
+          "day_count": "act_365f",
+          "discount_curve_id": "USD-OIS",
+          "end": "2028-04-30",
+          "frequency": {
+            "count": 12,
+            "unit": "months"
+          },
+          "par_method": null,
+          "payment_lag_days": 0,
+          "rate": "0.04",
+          "start": "2027-04-30",
+          "stub": "none"
+        },
+        "underlying_float_leg": {
+          "calendar_id": "weekends_only",
+          "compounding": "simple",
+          "day_count": "act_365f",
+          "discount_curve_id": "USD-OIS",
+          "end": "2028-04-30",
+          "fixing_calendar_id": "weekends_only",
+          "forward_curve_id": "USD-TERM-1Y",
+          "frequency": {
+            "count": 12,
+            "unit": "months"
+          },
+          "payment_lag_days": 0,
+          "reset_lag_days": 0,
+          "spread_bp": "0",
+          "start": "2027-04-30",
+          "stub": "none"
+        },
+        "vol_model": "black",
+        "vol_surface_id": "USD-SWAPTION-VOL-QL",
+        "exercise_style": "european",
+        "cash_settlement_method": "par_yield"
       },
-      "vol_model": "black",
-      "vol_surface_id": "USD-SWAPTION-VOL-QL"
-    },
-    "type": "swaption"
+      "type": "swaption"
+    }
   },
   "kind": "pricing",
   "market": {
@@ -85,7 +75,7 @@
         {
           "allow_non_monotonic": false,
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "extrapolation": "flat_forward",
           "id": "USD-OIS",
           "interp_style": "log_linear",
@@ -106,7 +96,7 @@
         },
         {
           "base": "2026-04-30",
-          "day_count": "Act360",
+          "day_count": "act_360",
           "extrapolation": "flat_forward",
           "id": "USD-TERM-1Y",
           "interp_style": "linear",
@@ -129,8 +119,10 @@
       "dividends": [],
       "fx": null,
       "fx_delta_vol_surfaces": [],
+      "hierarchy": null,
       "inflation_indices": [],
       "prices": {},
+      "schema_version": 1,
       "series": [],
       "surfaces": [
         {
@@ -161,7 +153,6 @@
           ]
         }
       ],
-      "version": 2,
       "vol_cubes": []
     },
     "kind": "snapshot"
@@ -178,11 +169,11 @@
     "review_interval_months": 6,
     "screenshots": [],
     "source": "quantlib",
-    "source_detail": "QuantLib 1.42.1; deterministic flat-curve native instrument benchmark.",
+    "source_detail": "QuantLib 1.43; deterministic flat-curve native instrument benchmark.",
     "valuation_date": "2026-04-30"
   },
   "model": "black76",
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "tolerances": {
     "dv01": {
       "abs": 1e-07,

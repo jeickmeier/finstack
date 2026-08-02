@@ -1,4 +1,9 @@
-//! JSON orchestration for panel transform pipelines.
+//! JSON and typed-spec orchestration for panel transform pipelines.
+//!
+//! [`transform_panel`] accepts a UTF-8 JSON [`PanelTransformSpec`] and returns
+//! a JSON object mapping operation names to output columns.
+//! [`transform_panel_spec`] is the typed Rust entry point and preserves
+//! operation order in [`PanelTransformResult`].
 
 use crate::{
     transform_cross_sectional_with_op, transform_timeseries_with_op, CrossSectionalOp, TimeSeriesOp,
@@ -7,7 +12,7 @@ use finstack_quant_core::{Error, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 /// Apply a list of named panel transforms from a JSON specification.
 ///
@@ -24,7 +29,7 @@ pub fn transform_panel(spec_json: &str) -> Result<String> {
     let spec: PanelTransformSpec = serde_json::from_str(spec_json)
         .map_err(|err| Error::Validation(format!("invalid panel transform JSON: {err}")))?;
     let result = transform_panel_spec(&spec)?;
-    serde_json::to_string(&LegacyPanelTransformResult::from(&result))
+    serde_json::to_string(&result)
         .map_err(|err| Error::Internal(format!("failed to serialize panel transform: {err}")))
 }
 
@@ -168,27 +173,17 @@ pub struct PanelTransformResult {
 
 impl PanelTransformResult {
     /// Look up an output column by name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Exact operation output name as supplied in the panel
+    ///   specification; lookup is case-sensitive and returns `None` when no
+    ///   column matches.
     #[must_use]
     pub fn get_column(&self, name: &str) -> Option<&[Option<f64>]> {
         self.columns
             .iter()
             .find(|column| column.name == name)
             .map(|column| column.values.as_slice())
-    }
-}
-
-#[derive(Debug, Serialize)]
-struct LegacyPanelTransformResult {
-    columns: BTreeMap<String, Vec<Option<f64>>>,
-}
-
-impl From<&PanelTransformResult> for LegacyPanelTransformResult {
-    fn from(result: &PanelTransformResult) -> Self {
-        let columns = result
-            .columns
-            .iter()
-            .map(|column| (column.name.clone(), column.values.clone()))
-            .collect();
-        Self { columns }
     }
 }

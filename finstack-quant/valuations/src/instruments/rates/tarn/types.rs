@@ -33,7 +33,7 @@ use finstack_quant_core::types::{CurveId, InstrumentId};
 ///
 /// - Brigo, D., & Mercurio, F. (2006). *Interest Rate Models - Theory and
 ///   Practice* (2nd ed.). Springer. Chapter 14: Exotic Derivatives.
-#[derive(PartialEq, Clone, Debug, finstack_quant_valuations_macros::FocusedPricingOverrides)]
+#[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Tarn {
     /// Unique instrument identifier.
@@ -50,7 +50,8 @@ pub struct Tarn {
     /// Notional amount.
     pub notional: Money,
     /// Coupon payment dates (must be sorted ascending).
-    #[schemars(with = "Vec<String>")]
+    #[serde(with = "finstack_quant_core::wire::dates")]
+    #[schemars(with = "Vec<finstack_quant_core::wire::DateWire>")]
     pub coupon_dates: Vec<Date>,
     /// Floating rate tenor (e.g., "3M", "6M").
     pub floating_tenor: Tenor,
@@ -64,14 +65,23 @@ pub struct Tarn {
     /// Day count convention for coupon accrual.
     pub day_count: DayCount,
     /// Pricing overrides.
-    #[serde(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection.
     pub attributes: Attributes,
@@ -178,10 +188,10 @@ impl crate::instruments::common_impl::traits::Instrument for Tarn {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
         deps.add_forward_curve(self.floating_index_id.clone());
-        if let Some(surface_id) = &self.vol_surface_id {
+        if let Some(vol_surface_id) = &self.vol_surface_id {
             deps.add_volatility_dependency(
                 crate::instruments::common_impl::dependencies::VolatilityDependency::new(
-                    surface_id.clone(),
+                    vol_surface_id.clone(),
                     None,
                     None,
                 ),

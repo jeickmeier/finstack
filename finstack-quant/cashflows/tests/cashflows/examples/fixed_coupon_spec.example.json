@@ -1,16 +1,16 @@
 {
   "schema": "finstack_quant.cashflow/1",
   "fixed_coupon_spec": {
-    "coupon_type": "Cash",
+    "coupon_type": "cash",
     "rate": "0.0425",
-    "freq": {
+    "frequency": {
       "count": 6,
       "unit": "months"
     },
-    "dc": "Thirty360",
-    "bdc": "modified_following",
+    "day_count": "30_360",
+    "business_day_convention": "modified_following",
     "calendar_id": "weekends_only",
-    "stub": "None",
+    "stub": "none",
     "end_of_month": false,
     "payment_lag_days": 0
   }

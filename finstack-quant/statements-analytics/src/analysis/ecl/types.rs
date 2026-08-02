@@ -29,6 +29,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// IFRS 9 Financial Instruments, Section 5.5 -- Impairment.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Stage {
     /// Performing -- 12-month ECL. No significant increase in credit risk
     /// since initial recognition.
@@ -219,7 +220,6 @@ pub struct Exposure {
     /// ends. When `None`, the constant [`Exposure::ead`] is used for every
     /// bucket. Knot times must be strictly increasing, finite, and
     /// non-negative; EAD values must be finite and non-negative.
-    #[serde(default)]
     pub ead_schedule: Option<Vec<(f64, f64)>>,
 }
 
@@ -605,7 +605,7 @@ mod tests {
             },
             "consecutive_performing_periods": 0, "previous_stage": null
         }"#;
-        // ead_schedule is optional (serde default) for backwards compatibility.
+        // ead_schedule is an optional part of the canonical exposure shape.
         let exposure: Exposure = serde_json::from_str(json).unwrap();
         assert!(exposure.ead_schedule.is_none());
 

@@ -189,7 +189,7 @@ impl BondEngine {
             if let Some(ref mut t) = trace {
                 t.push(
                     TraceEntry::CashflowPV {
-                        date: d.to_string(),
+                        date: *d,
                         cashflow_amount: amt.amount(),
                         cashflow_currency: amt.currency().to_string(),
                         discount_factor: df,

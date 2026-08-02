@@ -1,12 +1,12 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "usd_swaption_1y_into_5y_receiver_atm",
     "domain": "rates.swaption",
     "description": "Bloomberg SWPM USD 1Y into 5Y ATM receiver swaption captured from screens on 2026-05-02.",
     "valuation_date": "2026-05-02",
     "source": "bloomberg-screen",
-    "source_detail": "Bloomberg SWPM USD SOFR 1Y x 5Y long receiver swaption, curve 490 USD SOFR discount/projection, USD RFR BVOL Cube normal vols, trade date 2026-05-02, valuation date 2026-05-02. The legacy fixture filename is retained although the benchmarked screen is a 1Y into 5Y ATM receiver, not a 5Y into 5Y 25 OTM receiver. Phase-2 envelope migration (2026-05-09): Tier-A wrap. The original snapshot is preserved in initial_market with empty plan.steps, routing through engine::execute_with_diagnostics without changing pricing math. Bloomberg-parity contract (NPV abs 500) preserved.",
+    "source_detail": "Bloomberg SWPM USD SOFR 1Y x 5Y long receiver swaption, curve 490 USD SOFR discount/projection, USD RFR BVOL Cube normal vols, trade date 2026-05-02, valuation date 2026-05-02. The legacy fixture filename is retained although the benchmarked screen is a 1Y into 5Y ATM receiver, not a 5Y into 5Y 25 OTM receiver. The canonical typed market inputs are supplied with no calibration steps, routing through engine::execute_with_diagnostics without changing pricing math. Bloomberg-parity contract (NPV abs 500) preserved.",
     "captured_by": "jeickmeier",
     "captured_on": "2026-05-02",
     "last_reviewed_by": "jeickmeier",
@@ -69,10 +69,10 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
-        "id": "swaption_5y5y_tier_a_wrap",
-        "description": "Tier-A wrap: the swaption is a Bloomberg-parity test where the screen NPV (155,363.65) is the assertion target with tight 0.15% tolerance. Calibrating USD-SOFR-DISC from synthetic or even Bloomberg-transcribed quotes introduces ~1bp curve drift that shifts the swaption's NPV by tens of thousands — well outside the parity tolerance. The envelope wrap routes the fixture through engine::execute_with_diagnostics without changing pricing math, preserving the Bloomberg-parity contract.",
+        "id": "swaption_5y5y_market",
+        "description": "Snapshot-only calibration envelope: the swaption is a Bloomberg-parity test where the screen NPV (155,363.65) is the assertion target with tight 0.15% tolerance. Calibrating USD-SOFR-DISC from synthetic or even Bloomberg-transcribed quotes introduces ~1bp curve drift that shifts the swaption's NPV by tens of thousands — well outside the parity tolerance. The envelope wrap routes the fixture through engine::execute_with_diagnostics without changing pricing math, preserving the Bloomberg-parity contract.",
         "quote_sets": {},
         "steps": [],
         "settings": {
@@ -89,7 +89,7 @@
           "kind": "discount_curve",
           "id": "USD-SOFR-DISC",
           "base": "2026-05-02",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "knot_points": [
             [
               0.0,
@@ -206,7 +206,8 @@
           "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
           "rate_calibration": null,
-          "calibration_ois_cutoff_days": 1
+          "calibration_ois_cutoff_days": 1,
+          "fx_policy": null
         },
         {
           "kind": "vol_surface",
@@ -218,6 +219,7 @@
             5.0
           ],
           "secondary_axis": "tenor",
+          "quote_type": "normal",
           "interpolation_mode": "vol",
           "vols_row_major": [
             0.00888
@@ -237,25 +239,10 @@
           "amount": "10000000",
           "currency": "USD"
         },
-        "strike": "0.03766225",
         "expiry": "2027-05-03",
-        "swap_start": "2027-05-05",
-        "swap_end": "2032-05-05",
-        "fixed_freq": {
-          "count": 12,
-          "unit": "months"
-        },
-        "float_freq": {
-          "count": 12,
-          "unit": "months"
-        },
-        "day_count": "Act360",
         "cash_settlement_method": "isda_par_par",
         "vol_model": "normal",
-        "discount_curve_id": "USD-SOFR-DISC",
-        "forward_curve_id": "USD-SOFR-DISC",
         "vol_surface_id": "USD-RFR-BVOL-CUBE-1Y5Y",
-        "calendar_id": "usny",
         "underlying_fixed_leg": {
           "discount_curve_id": "USD-SOFR-DISC",
           "rate": "0.03766225",
@@ -263,9 +250,9 @@
             "count": 12,
             "unit": "months"
           },
-          "day_count": "Act360",
+          "day_count": "act_360",
           "calendar_id": "usny",
-          "stub": "None",
+          "stub": "none",
           "start": "2027-05-05",
           "end": "2032-05-05",
           "par_method": null,
@@ -280,22 +267,24 @@
             "count": 12,
             "unit": "months"
           },
-          "day_count": "Act360",
+          "day_count": "act_360",
           "calendar_id": "usny",
-          "stub": "None",
+          "stub": "none",
           "reset_lag_days": 0,
           "fixing_calendar_id": "usny",
           "start": "2027-05-05",
           "end": "2032-05-05",
           "compounding": {
-            "CompoundedWithRateCutoff": {
+            "compounded_with_rate_cutoff": {
               "cutoff_days": 1
             }
           },
           "payment_lag_days": 2
         },
-        "pricing_overrides": {
-          "vol_surface_extrapolation": "clamp"
+        "instrument_pricing_overrides": {
+          "model_config": {
+            "vol_surface_extrapolation": "clamp"
+          }
         },
         "sabr_params": null,
         "attributes": {
@@ -314,7 +303,8 @@
             "legacy_fixture_name": "usd_swaption_5y_into_5y_receiver_25_otm"
           }
         },
-        "settlement": "cash"
+        "settlement": "cash",
+        "exercise_style": "european"
       }
     }
   },

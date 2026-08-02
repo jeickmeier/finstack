@@ -116,7 +116,7 @@ pub struct JsCreditFactorModel {
 impl JsCreditFactorModel {
     /// Deserialize a `CreditFactorModel` from JSON.
     ///
-    /// Validates the `schema_version` field and all structural constraints.
+    /// Validates the required `schema` marker and all structural constraints.
     ///
     /// # Errors
     /// Throws if the JSON is malformed or fails validation.
@@ -133,6 +133,14 @@ impl JsCreditFactorModel {
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<String, JsValue> {
         serde_json::to_string_pretty(&self.inner).map_err(to_js_err)
+    }
+
+    /// Return the exact namespaced contract marker.
+    ///
+    /// @returns The string `"finstack_quant.credit_factor_model/1"`.
+    #[wasm_bindgen(getter)]
+    pub fn schema(&self) -> String {
+        self.inner.schema.as_str().to_owned()
     }
 }
 
@@ -432,7 +440,8 @@ mod tests {
         VolModelChoice,
     };
     use finstack_quant_factor_model::credit::hierarchy::{
-        CreditFactorModel, CreditHierarchySpec, GenericFactorSpec, HierarchyDimension, IssuerTags,
+        CreditFactorModel, CreditFactorModelSchema, CreditHierarchySpec, GenericFactorSpec,
+        HierarchyDimension, IssuerTags,
     };
     use std::collections::BTreeMap;
     use time::Month;
@@ -492,7 +501,7 @@ mod tests {
 
         let mut spreads: BTreeMap<IssuerId, Vec<Option<f64>>> = BTreeMap::new();
         let mut tags: BTreeMap<IssuerId, IssuerTags> = BTreeMap::new();
-        let mut asof_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
+        let mut as_of_spreads: BTreeMap<IssuerId, f64> = BTreeMap::new();
 
         for (idx, (id, rating, region)) in issuer_specs.iter().enumerate() {
             let issuer_id = IssuerId::new(*id);
@@ -505,7 +514,7 @@ mod tests {
                     )
                 })
                 .collect();
-            asof_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
+            as_of_spreads.insert(issuer_id.clone(), series[n - 1].unwrap());
             spreads.insert(issuer_id.clone(), series);
             let mut t = BTreeMap::new();
             t.insert("rating".to_owned(), rating.to_string());
@@ -524,7 +533,7 @@ mod tests {
                 values: generic_values,
             },
             as_of,
-            asof_spreads,
+            as_of_spreads,
             idiosyncratic_overrides: BTreeMap::new(),
         }
     }
@@ -543,8 +552,8 @@ mod tests {
         assert!(!json.is_empty());
         let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(
-            parsed["schema_version"].as_str().unwrap(),
-            CreditFactorModel::SCHEMA_VERSION
+            parsed["schema"].as_str().unwrap(),
+            CreditFactorModelSchema::CreditFactorModel.as_str()
         );
 
         // Deserialize and validate — structural round-trip.
@@ -560,8 +569,8 @@ mod tests {
         let json2 = serde_json::to_string_pretty(&model2).expect("re-serialize");
         let parsed2: serde_json::Value = serde_json::from_str(&json2).expect("valid JSON 2");
         assert_eq!(
-            parsed2["schema_version"].as_str().unwrap(),
-            CreditFactorModel::SCHEMA_VERSION
+            parsed2["schema"].as_str().unwrap(),
+            CreditFactorModelSchema::CreditFactorModel.as_str()
         );
     }
 

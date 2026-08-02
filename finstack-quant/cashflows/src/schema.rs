@@ -6,24 +6,49 @@ use serde_json::Value;
 /// Stable base URI for cashflow component schemas.
 pub const CASHFLOW_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/cashflow/1/";
 
-/// Return the canonical schema URI for a cashflow-owned schemars definition.
+/// Typed cashflow definitions eligible for assertion-checked externalization.
+pub const CASHFLOW_SCHEMA_DEFINITIONS: &[finstack_quant_core::schema::ExternalSchemaDefinition] = &[
+    finstack_quant_core::schema::ExternalSchemaDefinition::new::<crate::builder::DefaultModelSpec>(
+        "DefaultModelSpec",
+        "https://finstack_quant.dev/schemas/cashflow/1/default_model_spec.schema.json",
+    ),
+    finstack_quant_core::schema::ExternalSchemaDefinition::new::<crate::builder::FeeSpec>(
+        "FeeSpec",
+        "https://finstack_quant.dev/schemas/cashflow/1/fee_specs.schema.json",
+    ),
+    finstack_quant_core::schema::ExternalSchemaDefinition::new::<crate::builder::FixedCouponSpec>(
+        "FixedCouponSpec",
+        "https://finstack_quant.dev/schemas/cashflow/1/coupon_specs.schema.json",
+    ),
+    finstack_quant_core::schema::ExternalSchemaDefinition::new::<crate::builder::PrepaymentModelSpec>(
+        "PrepaymentModelSpec",
+        "https://finstack_quant.dev/schemas/cashflow/1/prepayment_model_spec.schema.json",
+    ),
+    finstack_quant_core::schema::ExternalSchemaDefinition::new::<crate::builder::RecoveryModelSpec>(
+        "RecoveryModelSpec",
+        "https://finstack_quant.dev/schemas/cashflow/1/recovery_model_spec.schema.json",
+    ),
+    finstack_quant_core::schema::ExternalSchemaDefinition::new::<crate::builder::ScheduleParams>(
+        "ScheduleParams",
+        "https://finstack_quant.dev/schemas/cashflow/1/schedule_params.schema.json",
+    ),
+];
+
+/// Package a derived cashflow schema using canonical shared definitions.
+///
+/// This pass changes only reference placement: shared definitions are
+/// replaced by their equivalent published `$id`, then newly unreachable local
+/// definitions are removed.
 ///
 /// # Arguments
 ///
-/// * `name` - Exact generated schemars definition name, such as
-///   `"ScheduleParams"`; unsupported names return `None`.
-#[must_use]
-pub fn definition_uri(name: &str) -> Option<String> {
-    let filename = match name {
-        "DefaultModelSpec" => "default_model_spec.schema.json",
-        "FeeSpec" => "fee_specs.schema.json",
-        "FixedCouponSpec" => "coupon_specs.schema.json",
-        "PrepaymentModelSpec" => "prepayment_model_spec.schema.json",
-        "RecoveryModelSpec" => "recovery_model_spec.schema.json",
-        "ScheduleParams" => "schedule_params.schema.json",
-        _ => return None,
-    };
-    Some(format!("{CASHFLOW_SCHEMA_BASE}{filename}"))
+/// * `schema` - Complete schema generated from a cashflow serde type.
+#[doc(hidden)]
+pub fn package_cashflow_schema(schema: &mut Value) -> Result<()> {
+    finstack_quant_core::schema::externalize_schema_definitions(
+        schema,
+        finstack_quant_core::schema::COMMON_SCHEMA_DEFINITIONS,
+    )
 }
 
 const SCHEMAS: [(&str, &str); 7] = [

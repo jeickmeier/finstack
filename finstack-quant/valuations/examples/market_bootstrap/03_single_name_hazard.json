@@ -1,9 +1,9 @@
 {
-  "$schema": "../../schemas/calibration/3/calibration.schema.json",
-  "schema": "finstack_quant.calibration",
+  "$schema": "../../schemas/calibration/1/calibration.schema.json",
+  "schema": "finstack_quant.calibration/1",
   "plan": {
     "id": "issuer_a_hazard",
-    "description": "Single-name hazard curve for Issuer-A bootstrapped from CDS par spreads, chained on a USD-OIS discount curve bootstrapped from deposit and IRS quotes in the same plan. Step 1 produces the USD-OIS discount curve; step 2 calibrates the hazard curve against it. The envelope is fully self-bootstrapping from quotes \u2014 no hand-entered curves in initial_market. Recovery rate 0.4 follows the ISDA CDS standard model convention for senior unsecured single-name CDS.",
+    "description": "Single-name hazard curve for Issuer-A bootstrapped from CDS par spreads, chained on a USD-OIS discount curve bootstrapped from deposit and IRS quotes in the same plan. Step 1 produces the USD-OIS discount curve; step 2 calibrates the hazard curve against it. The envelope is fully self-bootstrapping from quotes \u2014 no hand-entered curves in prior_market. Recovery rate 0.4 follows the ISDA CDS standard model convention for senior unsecured single-name CDS.",
     "quote_sets": {
       "usd_rate_quotes": [
         "USD-SOFR-DEP-1M",
@@ -29,7 +29,7 @@
         "curve_id": "USD-OIS",
         "currency": "USD",
         "base_date": "2026-05-08",
-        "method": "Bootstrap",
+        "method": "bootstrap",
         "interpolation": "linear",
         "extrapolation": "flat_forward",
         "pricing_discount_id": null,
@@ -50,9 +50,9 @@
         "discount_curve_id": "USD-OIS",
         "recovery_rate": 0.4,
         "notional": 1.0,
-        "method": "Bootstrap",
+        "method": "bootstrap",
         "interpolation": "linear",
-        "par_interp": "Linear"
+        "par_interp": "linear"
       }
     ],
     "settings": {}

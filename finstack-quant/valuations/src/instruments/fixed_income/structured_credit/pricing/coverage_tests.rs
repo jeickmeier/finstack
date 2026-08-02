@@ -18,10 +18,11 @@ use serde::{Deserialize, Serialize};
 
 /// Coverage test type (OC/IC).
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum CoverageTest {
     /// Overcollateralization test.
-    OC {
+    Oc {
         /// Unique test identifier.
         id: String,
         /// Required OC ratio (e.g., 1.25 = 125%).
@@ -32,7 +33,7 @@ pub enum CoverageTest {
         performing_only: bool,
     },
     /// Interest coverage test.
-    IC {
+    Ic {
         /// Unique test identifier.
         id: String,
         /// Required IC ratio (e.g., 1.20 = 120%).
@@ -43,7 +44,7 @@ pub enum CoverageTest {
 impl CoverageTest {
     /// Create new OC test with standard settings.
     pub fn new_oc(required_ratio: f64) -> Self {
-        Self::OC {
+        Self::Oc {
             id: format!("oc_test_{}", (required_ratio * 100.0).round() as u32),
             required_ratio,
             include_cash: true,
@@ -53,7 +54,7 @@ impl CoverageTest {
 
     /// Create new OC test with explicit ID.
     pub fn new_oc_with_id(id: impl Into<String>, required_ratio: f64) -> Self {
-        Self::OC {
+        Self::Oc {
             id: id.into(),
             required_ratio,
             include_cash: true,
@@ -63,7 +64,7 @@ impl CoverageTest {
 
     /// Create new IC test.
     pub fn new_ic(required_ratio: f64) -> Self {
-        Self::IC {
+        Self::Ic {
             id: format!("ic_test_{}", (required_ratio * 100.0).round() as u32),
             required_ratio,
         }
@@ -71,7 +72,7 @@ impl CoverageTest {
 
     /// Create new IC test with explicit ID.
     pub fn new_ic_with_id(id: impl Into<String>, required_ratio: f64) -> Self {
-        Self::IC {
+        Self::Ic {
             id: id.into(),
             required_ratio,
         }
@@ -80,21 +81,21 @@ impl CoverageTest {
     /// Get the test ID.
     pub fn id(&self) -> &str {
         match self {
-            Self::OC { id, .. } | Self::IC { id, .. } => id.as_str(),
+            Self::Oc { id, .. } | Self::Ic { id, .. } => id.as_str(),
         }
     }
 
     /// Get the required ratio for this test.
     pub fn required_level(&self) -> f64 {
         match self {
-            Self::OC { required_ratio, .. } | Self::IC { required_ratio, .. } => *required_ratio,
+            Self::Oc { required_ratio, .. } | Self::Ic { required_ratio, .. } => *required_ratio,
         }
     }
 
     /// Calculate the test result.
     pub fn calculate(&self, context: &TestContext) -> Result<TestResult> {
         match self {
-            Self::OC {
+            Self::Oc {
                 id,
                 required_ratio,
                 include_cash,
@@ -106,7 +107,7 @@ impl CoverageTest {
                 *include_cash,
                 *performing_only,
             ),
-            Self::IC { id, required_ratio } => {
+            Self::Ic { id, required_ratio } => {
                 self.calculate_ic(context, id.clone(), *required_ratio)
             }
         }
@@ -627,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_oc_test_calculation() {
-        let pool = AssetPool::new("TEST", DealType::CLO, Currency::USD);
+        let pool = AssetPool::new("TEST", DealType::Clo, Currency::USD);
         let test = CoverageTest::new_oc(1.25);
 
         let tranche = Tranche::new(
@@ -674,7 +675,7 @@ mod tests {
 
     #[test]
     fn test_ic_test_calculation() {
-        let pool = AssetPool::new("TEST", DealType::CLO, Currency::USD);
+        let pool = AssetPool::new("TEST", DealType::Clo, Currency::USD);
         let test = CoverageTest::new_ic(1.20);
 
         let tranche = Tranche::new(
@@ -726,7 +727,7 @@ mod tests {
     fn test_oc_cure_with_cash_in_numerator_restores_exact_ratio() {
         // Numerator = collateral (90k, stays) + cash (30k, leaves on diversion).
         // Denominator = 100k. Ratio = 120k / 100k = 1.20, breaches a 1.25 trigger.
-        let pool = AssetPool::new("TEST", DealType::CLO, Currency::USD);
+        let pool = AssetPool::new("TEST", DealType::Clo, Currency::USD);
         let required_ratio = 1.25_f64;
         let test = CoverageTest::new_oc(required_ratio);
 
@@ -801,7 +802,7 @@ mod tests {
     /// balances) — the most a coverage diversion could ever pay down.
     #[test]
     fn test_oc_cure_is_capped_at_denominator_for_near_one_trigger() {
-        let pool = AssetPool::new("TEST", DealType::CLO, Currency::USD);
+        let pool = AssetPool::new("TEST", DealType::Clo, Currency::USD);
         // Trigger just above 1.0 — the pathological regime for the cure.
         let required_ratio = 1.001_f64;
         let test = CoverageTest::new_oc(required_ratio);
@@ -967,7 +968,7 @@ mod tests {
     /// the senior interest shortfall, so IC-only breaches actually divert cash.
     #[test]
     fn test_ic_breach_yields_senior_interest_shortfall_cure() {
-        let pool = AssetPool::new("TEST", DealType::CLO, Currency::USD);
+        let pool = AssetPool::new("TEST", DealType::Clo, Currency::USD);
         let required_ratio = 1.20_f64;
         let test = CoverageTest::new_ic(required_ratio);
 
@@ -1044,7 +1045,7 @@ mod haircut_tests {
 
     /// Pool of two 500k assets: one AAA, one CCC.
     fn rated_pool() -> AssetPool {
-        let mut pool = AssetPool::new("POOL", DealType::CLO, Currency::USD);
+        let mut pool = AssetPool::new("POOL", DealType::Clo, Currency::USD);
         for (id, rating) in [("AAA1", CreditRating::AAA), ("CCC1", CreditRating::CCC)] {
             let mut asset = PoolAsset::fixed_rate_bond(
                 id,
@@ -1329,7 +1330,7 @@ mod haircut_tests {
             all_in_floor_bp: None,
             index_cap_bp: None,
             overnight_index_constraints: Default::default(),
-            reset_freq: Tenor::quarterly(),
+            reset_frequency: Tenor::quarterly(),
             index_tenor: None,
             reset_lag_days: 0,
             fixing_calendar_id: None,

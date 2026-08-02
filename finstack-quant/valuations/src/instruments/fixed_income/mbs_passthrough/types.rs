@@ -26,8 +26,8 @@ use time::Month;
 /// - **GNMA I**: Single-issuer pools with a 14-day stated delay. Payments on the 15th.
 /// - **GNMA II**: Multi-issuer pools with a 50-day stated delay. Payments on the 20th.
 ///
-/// Use `GnmaI` or `GnmaII` to select the appropriate convention. Legacy `GNMA`
-/// and `GNMA_I_I` payloads deserialize as `GnmaII`.
+/// Use `GnmaI` or `GnmaII` to select the appropriate convention. Their
+/// persisted values are exactly `GNMA_I` and `GNMA_II`, respectively.
 #[derive(
     Debug,
     Clone,
@@ -55,7 +55,7 @@ pub enum AgencyProgram {
     /// GNMA II securities pay on the 20th of the month following the accrual
     /// period, resulting in a ~50-day stated delay from accrual start. This is
     /// the larger and more actively traded GNMA program.
-    #[serde(rename = "GNMA_II", alias = "GNMA", alias = "GNMA_I_I")]
+    #[serde(rename = "GNMA_II")]
     GnmaII,
 }
 
@@ -275,7 +275,9 @@ pub enum PoolType {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct AgencyMbsPassthrough {
@@ -299,13 +301,13 @@ pub struct AgencyMbsPassthrough {
     pub wac: f64,
     /// Pass-through rate (net coupon to investor).
     pub pass_through_rate: f64,
-    /// Servicing fee rate (annual, as decimal e.g., 0.0025 for 25 bps).
+    /// Servicing fee rate (annual, as decimal e.g., 0.0025 for 25 bp).
     ///
     /// Defaults to `0.0` when omitted.
     #[builder(default)]
     #[serde(default)]
     pub servicing_fee_rate: f64,
-    /// Guarantee fee rate (annual, as decimal e.g., 0.0025 for 25 bps).
+    /// Guarantee fee rate (annual, as decimal e.g., 0.0025 for 25 bp).
     ///
     /// Defaults to `0.0` when omitted.
     #[builder(default)]
@@ -316,7 +318,8 @@ pub struct AgencyMbsPassthrough {
     /// seasoning ramps is derived separately from `issue_date`.
     pub wam: u32,
     /// Issue date of the pool.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue_date: Date,
     /// End date of the latest accrual period whose delayed P&I payment has
     /// settled and is already reflected in `current_face`.
@@ -325,10 +328,12 @@ pub struct AgencyMbsPassthrough {
     /// payment-delay rule and `as_of`.
     #[builder(optional)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
+    #[serde(with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub last_paid_accrual_end: Option<Date>,
     /// Legal maturity date.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Optional custom payment delay (overrides agency default).
     #[builder(optional)]
@@ -342,16 +347,25 @@ pub struct AgencyMbsPassthrough {
     pub day_count: DayCount,
     /// Pricing overrides (including quoted price for OAS).
     #[builder(default)]
-    #[serde(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging.
     #[builder(default)]
@@ -591,15 +605,13 @@ mod tests {
     }
 
     #[test]
-    fn legacy_gnma_names_deserialize_as_canonical_gnma_ii() {
-        for legacy in ["GNMA", "GNMA_I_I", "GNMA_II"] {
-            let agency = serde_json::from_str::<AgencyProgram>(&format!("\"{legacy}\""))
-                .expect("accepted GNMA spelling");
-            assert_eq!(agency, AgencyProgram::GnmaII);
-            assert_eq!(
-                serde_json::to_string(&agency).expect("serialize agency"),
-                "\"GNMA_II\""
-            );
+    fn agency_program_accepts_only_canonical_gnma_ii() {
+        let agency =
+            serde_json::from_str::<AgencyProgram>("\"GNMA_II\"").expect("canonical GNMA spelling");
+        assert_eq!(agency, AgencyProgram::GnmaII);
+        for legacy in ["GNMA", "GNMA_I_I"] {
+            serde_json::from_str::<AgencyProgram>(&format!("\"{legacy}\""))
+                .expect_err("legacy GNMA spelling must be rejected");
         }
     }
 

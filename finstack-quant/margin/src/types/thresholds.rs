@@ -4,6 +4,7 @@
 //! that govern margin call mechanics.
 
 use super::enums::{ImMethodology, MarginTenor};
+use super::serde_validation;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::Result;
@@ -297,6 +298,11 @@ pub struct ImParameters {
     /// Margin Period of Risk in business days.
     ///
     /// Standard is 10 days under BCBS-IOSCO. CCPs may use shorter periods.
+    #[serde(
+        deserialize_with = "serde_validation::mpor_days::deserialize",
+        serialize_with = "serde_validation::mpor_days::serialize"
+    )]
+    #[schemars(range(min = 1))]
     pub mpor_days: u32,
 
     /// IM threshold (aggregate group level).

@@ -1,6 +1,6 @@
 //! Golden test framework.
 //!
-//! Fixtures live under `tests/golden/data/` and use the `finstack_quant.golden/2`
+//! Fixtures live under `tests/golden/data/` and use the `finstack_quant.golden/1`
 //! schema defined in [`schema`]. Each fixture is validated by [`walk`] and
 //! executed by [`runner`].
 

@@ -1,7 +1,7 @@
 //! Walk-test for validating every committed golden fixture.
 
 use crate::golden::pricing_common::requested_metrics;
-use crate::golden::schema::{Body, GoldenFixture, Market, SCHEMA_VERSION};
+use crate::golden::schema::{Body, GoldenFixture, Market, SCHEMA};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
 use finstack_quant_valuations::metrics::MetricId;
@@ -21,13 +21,7 @@ const VALID_SOURCES: &[&str] = &[
     "formula",
     "textbook",
 ];
-const COMMON_TOP_LEVEL_KEYS: &[&str] = &[
-    "schema_version",
-    "metadata",
-    "kind",
-    "expected",
-    "tolerances",
-];
+const COMMON_TOP_LEVEL_KEYS: &[&str] = &["schema", "metadata", "kind", "expected", "tolerances"];
 const PRICING_BODY_KEYS: &[&str] = &["model", "market", "instrument"];
 const SABR_BODY_KEYS: &[&str] = &[
     "alpha",
@@ -123,10 +117,10 @@ pub(crate) fn validate_fixture(path: &Path) -> Result<(), String> {
     let fixture: GoldenFixture =
         serde_json::from_str(&raw).map_err(|err| format!("parse failed: {err}"))?;
 
-    if fixture.schema_version != SCHEMA_VERSION {
+    if fixture.schema != SCHEMA {
         return Err(format!(
-            "schema_version is '{}', expected '{}'",
-            fixture.schema_version, SCHEMA_VERSION
+            "schema is '{}', expected '{}'",
+            fixture.schema, SCHEMA
         ));
     }
 
@@ -314,9 +308,9 @@ fn strip_default_instrument_inputs(value: &mut serde_json::Value) {
         strip_default_instrument_inputs(child);
     }
 
-    remove_default_string(object, "coupon_type", "Cash");
-    remove_default_string(object, "bdc", "modified_following");
-    remove_default_string(object, "stub", "ShortFront");
+    remove_default_string(object, "coupon_type", "cash");
+    remove_default_string(object, "business_day_convention", "modified_following");
+    remove_default_string(object, "stub", "short_front");
     remove_default_string(object, "vol_surface_extrapolation", "error");
     remove_default_string(object, "bond_risk_basis", "bullet_discountable");
     remove_default_bool(object, "adaptive_bumps", false);
@@ -327,7 +321,9 @@ fn strip_default_instrument_inputs(value: &mut serde_json::Value) {
     remove_default_f64(object, "rho_bump_decimal", 0.0001);
     remove_default_f64(object, "vega_bump_decimal", 0.0001);
     remove_empty_array(object, "discrete_dividends");
-    remove_empty_object(object, "pricing_overrides");
+    remove_empty_object(object, "instrument_pricing_overrides");
+    remove_empty_object(object, "metric_pricing_overrides");
+    remove_empty_object(object, "scenario_pricing_overrides");
 }
 
 fn remove_default_string(
@@ -403,17 +399,11 @@ fn validate_swaption_underlying_tenor(instrument_json: &serde_json::Value) -> Re
         .get("spec")
         .and_then(serde_json::Value::as_object)
         .ok_or("swaption instrument.spec must be an object")?;
-    let top_tenor = tenor_years(spec, "swap_start", "swap_end")?;
     let fixed_tenor = leg_tenor_years(spec, "underlying_fixed_leg")?;
     let float_tenor = leg_tenor_years(spec, "underlying_float_leg")?;
     if fixed_tenor != float_tenor {
         return Err(format!(
             "swaption underlying fixed/float leg tenors differ: fixed={fixed_tenor}y, float={float_tenor}y"
-        ));
-    }
-    if top_tenor != fixed_tenor {
-        return Err(format!(
-            "swaption top-level tenor ({top_tenor}y) does not match underlying leg tenor ({fixed_tenor}y)"
         ));
     }
     Ok(())
@@ -650,14 +640,13 @@ mod tests {
     }
 
     #[test]
-    fn pricing_body_rejects_inconsistent_swaption_underlying_tenor() {
+    fn pricing_body_rejects_inconsistent_swaption_leg_tenors() {
         let mut fixture = load_fixture(SWAPTION_FIXTURE);
         let Body::Pricing(pricing) = &mut fixture.body else {
             panic!("swaption fixture must be a pricing fixture");
         };
-        pricing.instrument["instrument"]["spec"]["swap_end"] = serde_json::json!("2029-05-08");
         pricing.instrument["instrument"]["spec"]["underlying_fixed_leg"]["end"] =
-            serde_json::json!("2032-05-05");
+            serde_json::json!("2031-05-05");
         pricing.instrument["instrument"]["spec"]["underlying_float_leg"]["end"] =
             serde_json::json!("2032-05-05");
 

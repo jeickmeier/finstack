@@ -1,65 +1,55 @@
 //! Generate checked-in JSON Schemas owned by the portfolio crate.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use finstack_quant_portfolio::PortfolioMaterializationEnvelope;
-use serde_json::{Map, Value};
+use finstack_quant_core::schema::{
+    externalize_schema_definitions, run_schema_generator, ExternalSchemaDefinition, SchemaArtifact,
+    SchemaGenerationCommand,
+};
+use finstack_quant_core::Result;
+use finstack_quant_portfolio::{
+    optimization::PortfolioOptimizationResultWire, PortfolioMaterializationEnvelope,
+};
+use finstack_quant_valuations::instruments::InstrumentEnvelope;
+use serde_json::Value;
 
-const JSON_SCHEMA_DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
-const PORTFOLIO_SCHEMA_BASE: &str = "https://finstack_quant.dev/schemas/portfolio/1/";
+const INSTRUMENT_SCHEMA_URI: &str =
+    "https://finstack_quant.dev/schemas/instrument/1/instrument.schema.json";
 
-fn schemas_dir() -> PathBuf {
-    let manifest_dir =
-        std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be set by Cargo");
-    Path::new(&manifest_dir)
-        .join("schemas")
-        .join("portfolio")
-        .join("1")
+const EXTERNAL_DEFINITIONS: &[ExternalSchemaDefinition] =
+    &[ExternalSchemaDefinition::new::<InstrumentEnvelope>(
+        "InstrumentEnvelope",
+        INSTRUMENT_SCHEMA_URI,
+    )];
+
+fn package_materialization_schema(schema: &mut Value) -> Result<()> {
+    externalize_schema_definitions(schema, EXTERNAL_DEFINITIONS)
 }
 
-fn write_schema(filename: &str, title: &str, description: &str, generated: schemars::Schema) {
-    let directory = schemas_dir();
-    std::fs::create_dir_all(&directory)
-        .unwrap_or_else(|error| panic!("create {}: {error}", directory.display()));
-    let path = directory.join(filename);
-    let generated =
-        serde_json::to_value(generated).expect("serialize portfolio materialization schema");
-    let generated = generated
-        .as_object()
-        .expect("generated portfolio schema must be an object");
-
-    let mut output = Map::new();
-    output.insert(
-        "$id".to_string(),
-        Value::String(format!("{PORTFOLIO_SCHEMA_BASE}{filename}")),
-    );
-    output.insert(
-        "$schema".to_string(),
-        Value::String(JSON_SCHEMA_DIALECT.to_string()),
-    );
-    output.insert("title".to_string(), Value::String(title.to_string()));
-    output.insert(
-        "description".to_string(),
-        Value::String(description.to_string()),
-    );
-    for (key, value) in generated {
-        if !matches!(key.as_str(), "$id" | "$schema" | "title" | "description") {
-            output.insert(key.clone(), value.clone());
-        }
-    }
-
-    let json = serde_json::to_string_pretty(&Value::Object(output))
-        .expect("encode portfolio materialization schema");
-    std::fs::write(&path, json + "\n")
-        .unwrap_or_else(|error| panic!("write {}: {error}", path.display()));
-    println!("updated {}", path.display());
-}
-
-fn main() {
-    write_schema(
-        "portfolio_materialization.schema.json",
+const ARTIFACTS: &[SchemaArtifact] = &[
+    SchemaArtifact::new::<PortfolioMaterializationEnvelope>(
+        "schemas/portfolio/1/portfolio_materialization.schema.json",
+        "https://finstack_quant.dev/schemas/portfolio/1/portfolio_materialization.schema.json",
         "Portfolio Materialization Envelope",
         "Strict, versioned, content-addressed portfolio materialization bundle.",
-        schemars::schema_for!(PortfolioMaterializationEnvelope),
-    );
+    )
+    .with_packager(package_materialization_schema),
+    SchemaArtifact::new::<PortfolioOptimizationResultWire>(
+        "schemas/portfolio/1/portfolio_optimization_result.schema.json",
+        "https://finstack_quant.dev/schemas/portfolio/1/portfolio_optimization_result.schema.json",
+        "Portfolio Optimization Result",
+        "Canonical typed v1 output from portfolio optimization.",
+    ),
+];
+
+fn main() {
+    let command = SchemaGenerationCommand::from_env()
+        .unwrap_or_else(|error| panic!("parse schema generator arguments: {error}"));
+    run_schema_generator(
+        Path::new(env!("CARGO_MANIFEST_DIR")),
+        Path::new("schemas/portfolio"),
+        ARTIFACTS,
+        &command,
+    )
+    .unwrap_or_else(|error| panic!("generate portfolio schemas: {error}"));
 }

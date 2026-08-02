@@ -294,11 +294,15 @@ fn test_pricing_with_different_day_counts() {
 
     let day_counts = vec![DayCount::Act360, DayCount::Act365F, DayCount::Thirty360];
 
-    for dc in day_counts {
+    for day_count in day_counts {
         let mut future = create_standard_future(start, end);
-        future.day_count = dc;
+        future.day_count = day_count;
 
         let pv = future.value(&market, as_of).unwrap();
-        assert!(pv.amount().is_finite(), "PV should be valid for {:?}", dc);
+        assert!(
+            pv.amount().is_finite(),
+            "PV should be valid for {:?}",
+            day_count
+        );
     }
 }

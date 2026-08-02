@@ -36,13 +36,12 @@ impl std::str::FromStr for DigitalPayoutType {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.trim().to_ascii_lowercase().replace(['-', '/', ' '], "_");
-        match normalized.as_str() {
-            "cash_or_nothing" | "cashornothing" => Ok(Self::CashOrNothing),
-            "asset_or_nothing" | "assetornothing" => Ok(Self::AssetOrNothing),
-            other => Err(format!(
+        match s {
+            "cash_or_nothing" => Ok(Self::CashOrNothing),
+            "asset_or_nothing" => Ok(Self::AssetOrNothing),
+            _ => Err(format!(
                 "Unknown digital payout type: '{}'. Valid: cash_or_nothing, asset_or_nothing",
-                other
+                s
             )),
         }
     }
@@ -74,7 +73,9 @@ impl std::str::FromStr for DigitalPayoutType {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = FxDigitalOption::validate)]
 #[serde(deny_unknown_fields)]
@@ -95,7 +96,8 @@ pub struct FxDigitalOption {
     /// is the notional of foreign currency delivered)
     pub payout_amount: Money,
     /// Option expiry date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
     /// Day count convention
     pub day_count: DayCount,
@@ -108,17 +110,26 @@ pub struct FxDigitalOption {
     /// FX volatility surface ID
     pub vol_surface_id: CurveId,
     /// Pricing overrides (manual price, yield, spread)
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and grouping
     pub attributes: Attributes,
@@ -423,10 +434,6 @@ mod tests {
 
     #[test]
     fn digital_payout_type_fromstr_display_roundtrip() {
-        fn assert_digital_payout_type(label: &str, expected: DigitalPayoutType) {
-            assert!(matches!(DigitalPayoutType::from_str(label), Ok(value) if value == expected));
-        }
-
         let variants = [
             DigitalPayoutType::CashOrNothing,
             DigitalPayoutType::AssetOrNothing,
@@ -436,9 +443,8 @@ mod tests {
             let parsed = DigitalPayoutType::from_str(&s).expect("roundtrip parse should succeed");
             assert_eq!(v, parsed, "roundtrip failed for {s}");
         }
-        // Test aliases
-        assert_digital_payout_type("cashornothing", DigitalPayoutType::CashOrNothing);
-        assert_digital_payout_type("assetornothing", DigitalPayoutType::AssetOrNothing);
+        assert!(DigitalPayoutType::from_str("cashornothing").is_err());
+        assert!(DigitalPayoutType::from_str("assetornothing").is_err());
         assert!(DigitalPayoutType::from_str("invalid").is_err());
     }
 }

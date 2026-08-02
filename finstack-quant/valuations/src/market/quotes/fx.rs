@@ -56,7 +56,8 @@ pub enum FxQuote {
         convention: FxOptionConventionId,
         /// Option expiry date.
         #[cfg_attr(feature = "ts_export", ts(type = "string"))]
-        #[schemars(with = "String")]
+        #[serde(with = "finstack_quant_core::wire::date")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         expiry: Date,
         /// Strike exchange rate quoted as quote-currency per base-currency.
         strike: f64,

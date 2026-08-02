@@ -123,7 +123,7 @@ pub(crate) const DEFAULT_INDEXATION_LAG_MONTHS: u32 = 3;
 /// - Inflation swap valuation (zero-coupon and year-on-year)
 /// - Real rate curve construction (nominal - breakeven = real)
 /// - Pension liability modeling with inflation indexation
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(try_from = "RawInflationCurve", into = "RawInflationCurve")]
 pub struct InflationCurve {
     id: CurveId,
@@ -142,7 +142,7 @@ pub struct InflationCurve {
 }
 
 /// Raw serializable state of an InflationCurve
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RawInflationCurve {
     /// Curve identifier
@@ -150,6 +150,8 @@ struct RawInflationCurve {
     /// Base CPI level at t=0
     pub base_cpi: f64,
     /// Base date
+    #[serde(with = "crate::wire::date")]
+    #[schemars(with = "crate::wire::DateWire")]
     pub base_date: Date,
     /// Day count convention
     #[serde(default = "default_day_count")]
@@ -655,8 +657,8 @@ impl InflationCurveBuilder {
     }
 
     /// Choose the day-count basis for time calculations.
-    pub fn day_count(mut self, dc: DayCount) -> Self {
-        self.day_count = dc;
+    pub fn day_count(mut self, day_count: DayCount) -> Self {
+        self.day_count = day_count;
         self
     }
 

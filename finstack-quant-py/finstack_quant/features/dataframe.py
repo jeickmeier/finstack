@@ -194,8 +194,9 @@ def cross_sectional(
         df: Source DataFrame.
         value: Name of the numeric column to transform. ``NaN``/``None`` entries
             are treated as missing.
-        time_key: Name of the column whose values partition the cross-section;
-            entries are coerced to strings.
+        time_key: Column name, index level name, or integer index level
+            position that partitions the cross-section. Entries are coerced to
+            strings. Omit when ``df.index`` is a ``DatetimeIndex``.
         op: Cross-sectional operation name (e.g. ``"zscore"``, ``"rank"``,
             ``"winsorize"``). See ``transform_cross_sectional`` for the full set.
         params: Optional operation parameters.
@@ -206,8 +207,10 @@ def cross_sectional(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value`` or ``time_key`` is not a column of ``df``.
-        ValueError: If ``op`` is unsupported or ``params`` are malformed.
+        KeyError: If ``value`` is missing, or ``time_key`` is not a column or
+            index level (and no ``DatetimeIndex`` default applies).
+        ValueError: If ``time_key`` is ambiguous (both a column and an index
+            level), ``op`` is unsupported, or ``params`` are malformed.
 
     Examples:
     --------
@@ -247,9 +250,11 @@ def timeseries(
         df: Source DataFrame.
         value: Name of the numeric column to transform. ``NaN``/``None`` entries
             are treated as missing.
-        entity: Name of the entity-key column; entries are coerced to strings.
-        order: Name of the sort-key column within each entity; entries are
-            coerced to strings.
+        entity: Column name, index level name, or integer index level position
+            identifying the entity; entries are coerced to strings.
+        order: Column name, index level name, or integer index level position
+            used to sort within each entity; entries are coerced to strings.
+            Omit when ``df.index`` is a ``DatetimeIndex``.
         op: Time-series operation name (e.g. ``"returns"``, ``"rolling_mean"``,
             ``"ewma_mean"``). See ``transform_timeseries`` for the full set.
         params: Optional operation parameters.
@@ -260,9 +265,11 @@ def timeseries(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value``, ``entity``, or ``order`` is not a column of
-            ``df``.
-        ValueError: If ``op`` is unsupported or ``params`` are malformed.
+        KeyError: If ``value`` is missing, or ``entity``/``order`` is not a
+            column or index level (and no ``DatetimeIndex`` default applies for
+            ``order``).
+        ValueError: If a key selector is ambiguous (both a column and an index
+            level), ``op`` is unsupported, or ``params`` are malformed.
 
     Examples:
     --------
@@ -303,12 +310,15 @@ def panel(
         operations: Sequence of operation mappings, each with ``name``,
             ``family`` (``"timeseries"`` or ``"cross_sectional"``), ``op``, and
             optional ``params``. Names must be unique and non-empty.
-        entity: Name of the entity-key column; required when any operation has
-            ``family="timeseries"``. Entries are coerced to strings.
-        order: Name of the sort-key column; required when any operation has
-            ``family="timeseries"``. Entries are coerced to strings.
-        time_key: Name of the partition-key column; required when any operation
-            has ``family="cross_sectional"``. Entries are coerced to strings.
+        entity: Column or index level name for the entity key; required when any
+            operation has ``family="timeseries"``. Entries are coerced to
+            strings.
+        order: Column or index level name for the sort key; required when any
+            operation has ``family="timeseries"`` unless ``df.index`` is a
+            ``DatetimeIndex``. Entries are coerced to strings.
+        time_key: Column or index level name for the partition key; required when
+            any operation has ``family="cross_sectional"`` unless ``df.index`` is
+            a ``DatetimeIndex``. Entries are coerced to strings.
 
     Returns:
         pandas.DataFrame: One column per operation ``name``, in the order given,
@@ -316,9 +326,11 @@ def panel(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value`` or a referenced key column is not in ``df``.
-        ValueError: If the pipeline spec is invalid (missing required keys,
-            duplicate or empty names, or a failing operation).
+        TypeError: If ``entity`` is omitted for a time-series operation.
+        KeyError: If ``value`` or a referenced key is not a column or index
+            level (and no ``DatetimeIndex`` default applies).
+        ValueError: If a key selector is ambiguous, or the pipeline spec is
+            invalid (duplicate or empty names, or a failing operation).
 
     Examples:
     --------
@@ -350,7 +362,7 @@ def panel(
             default_datetime_index=True,
         )
     result = json.loads(_transform_panel(json.dumps(spec)))
-    columns = result["columns"]
+    columns = {column["name"]: column["values"] for column in result["columns"]}
     ordered = {operation["name"]: columns[operation["name"]] for operation in operations}
     return pd.DataFrame(ordered, index=df.index)
 
@@ -373,10 +385,12 @@ def grouped(
         df: Source DataFrame.
         value: Name of the numeric column to transform. ``NaN``/``None`` entries
             are treated as missing.
-        time_key: Name of the primary partition-key column; entries are coerced
-            to strings.
-        groups: Name of the secondary partition-key column combined with
-            ``time_key``; entries are coerced to strings.
+        time_key: Column name, index level name, or integer index level
+            position for the primary partition. Entries are coerced to strings.
+            Omit when ``df.index`` is a ``DatetimeIndex``.
+        groups: Column name, index level name, or integer index level position
+            for the secondary partition combined with ``time_key``. Entries are
+            coerced to strings.
         op: Cross-sectional operation name. See ``transform_cross_sectional``
             for the full set.
         params: Optional operation parameters.
@@ -387,9 +401,12 @@ def grouped(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value``, ``time_key``, or ``groups`` is not a column of
-            ``df``.
-        ValueError: If ``op`` is unsupported or ``params`` are malformed.
+        TypeError: If ``groups`` is omitted.
+        KeyError: If ``value`` is missing, or a key selector is not a column or
+            index level (and no ``DatetimeIndex`` default applies for
+            ``time_key``).
+        ValueError: If a key selector is ambiguous, ``op`` is unsupported, or
+            ``params`` are malformed.
 
     Examples:
     --------
@@ -429,8 +446,9 @@ def neutralize(
         df: Source DataFrame.
         value: Name of the signal column to neutralize. ``NaN``/``None`` entries
             are treated as missing.
-        time_key: Name of the partition-key column; entries are coerced to
-            strings.
+        time_key: Column name, index level name, or integer index level
+            position that partitions the cross-section. Entries are coerced to
+            strings. Omit when ``df.index`` is a ``DatetimeIndex``.
         exposures: Names of the exposure columns regressed against ``value``.
         params: Optional parameters. ``fit_intercept`` (default ``True``) adds an
             intercept term.
@@ -441,8 +459,11 @@ def neutralize(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value``, ``time_key``, or any exposure column is missing.
-        ValueError: If ``params`` are malformed.
+        TypeError: If ``exposures`` is omitted.
+        KeyError: If ``value`` or any exposure column is missing, or ``time_key``
+            is not a column or index level (and no ``DatetimeIndex`` default
+            applies).
+        ValueError: If ``time_key`` is ambiguous or ``params`` are malformed.
 
     Examples:
     --------
@@ -484,9 +505,11 @@ def pairwise(
         value: Name of the first numeric column. ``NaN``/``None`` entries are
             treated as missing.
         other: Name of the second numeric column paired with ``value``.
-        entity: Name of the entity-key column; entries are coerced to strings.
-        order: Name of the sort-key column within each entity; entries are
-            coerced to strings.
+        entity: Column name, index level name, or integer index level position
+            identifying the entity; entries are coerced to strings.
+        order: Column name, index level name, or integer index level position
+            used to sort within each entity; entries are coerced to strings.
+            Omit when ``df.index`` is a ``DatetimeIndex``.
         op: Pairwise operation name: ``"rolling_cov"``, ``"rolling_corr"``, or
             ``"rolling_beta"``.
         params: Optional parameters ``window`` and ``min_periods``.
@@ -497,8 +520,11 @@ def pairwise(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value``, ``other``, ``entity``, or ``order`` is missing.
-        ValueError: If ``op`` is unsupported or ``params`` are malformed.
+        KeyError: If ``value`` or ``other`` is missing, or ``entity``/``order``
+            is not a column or index level (and no ``DatetimeIndex`` default
+            applies for ``order``).
+        ValueError: If a key selector is ambiguous, ``op`` is unsupported, or
+            ``params`` are malformed.
 
     Examples:
     --------
@@ -537,9 +563,11 @@ def rolling_regression_residual(
         value: Name of the signal column. ``NaN``/``None`` entries are treated as
             missing.
         exposures: Names of the exposure columns regressed against ``value``.
-        entity: Name of the entity-key column; entries are coerced to strings.
-        order: Name of the sort-key column within each entity; entries are
-            coerced to strings.
+        entity: Column name, index level name, or integer index level position
+            identifying the entity; entries are coerced to strings.
+        order: Column name, index level name, or integer index level position
+            used to sort within each entity; entries are coerced to strings.
+            Omit when ``df.index`` is a ``DatetimeIndex``.
         params: Optional parameters ``window``, ``min_periods``, and
             ``fit_intercept``.
 
@@ -549,9 +577,10 @@ def rolling_regression_residual(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value``, ``entity``, ``order``, or any exposure column is
-            missing.
-        ValueError: If ``params`` are malformed.
+        KeyError: If ``value`` or any exposure column is missing, or
+            ``entity``/``order`` is not a column or index level (and no
+            ``DatetimeIndex`` default applies for ``order``).
+        ValueError: If a key selector is ambiguous or ``params`` are malformed.
 
     Examples:
     --------
@@ -574,7 +603,6 @@ def risk_scaled_weights(
     value: str,
     time_key: KeySelector | None = None,
     volatility: str | None = None,
-    params: TransformParams | None = None,
 ) -> Any:
     """Convert a DataFrame signal column to inverse-risk-scaled weights.
 
@@ -586,10 +614,12 @@ def risk_scaled_weights(
         df: Source DataFrame.
         value: Name of the signal column. ``NaN``/``None`` entries are treated as
             missing.
-        time_key: Name of the partition-key column; entries are coerced to
-            strings.
+        time_key: Column name, index level name, or integer index level
+            position that partitions the cross-section. Entries are coerced to
+            strings. Omit when ``df.index`` is a ``DatetimeIndex``.
         volatility: Name of the risk-estimate column aligned to ``value``.
-        params: Unused; accepted for signature symmetry with other helpers.
+            Values are used as ``signal / volatility``; non-positive magnitudes
+            map to missing weights.
 
     Returns:
         pandas.Series: Weights aligned to ``df.index`` and named
@@ -597,7 +627,11 @@ def risk_scaled_weights(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value``, ``time_key``, or ``volatility`` is missing.
+        TypeError: If ``volatility`` is omitted.
+        KeyError: If ``value`` or ``volatility`` is missing, or ``time_key`` is
+            not a column or index level (and no ``DatetimeIndex`` default
+            applies).
+        ValueError: If ``time_key`` is ambiguous.
 
     Examples:
     --------
@@ -614,7 +648,6 @@ def risk_scaled_weights(
             default_datetime_index=True,
         ),
         _numeric_column(df, _require_column_name(volatility, "volatility")),
-        params,
     )
     return _series(df, out, f"{value}_risk_scaled_weight")
 
@@ -634,8 +667,9 @@ def clean_signal(
         df: Source DataFrame.
         value: Name of the signal column. ``NaN``/``None`` entries are treated as
             missing.
-        time_key: Name of the partition-key column; entries are coerced to
-            strings.
+        time_key: Column name, index level name, or integer index level
+            position that partitions the cross-section. Entries are coerced to
+            strings. Omit when ``df.index`` is a ``DatetimeIndex``.
         params: Optional quantile bounds ``lower`` (default ``0.01``) and
             ``upper`` (default ``0.99``).
 
@@ -645,8 +679,10 @@ def clean_signal(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value`` or ``time_key`` is missing.
-        ValueError: If quantile bounds violate ``0 <= lower <= upper <= 1``.
+        KeyError: If ``value`` is missing, or ``time_key`` is not a column or
+            index level (and no ``DatetimeIndex`` default applies).
+        ValueError: If ``time_key`` is ambiguous or quantile bounds violate
+            ``0 <= lower <= upper <= 1``.
 
     Examples:
     --------
@@ -682,8 +718,9 @@ def normalize_signal(
         df: Source DataFrame.
         value: Name of the signal column. ``NaN``/``None`` entries are treated as
             missing.
-        time_key: Name of the partition-key column; entries are coerced to
-            strings.
+        time_key: Column name, index level name, or integer index level
+            position that partitions the cross-section. Entries are coerced to
+            strings. Omit when ``df.index`` is a ``DatetimeIndex``.
         params: Optional parameters. ``method`` selects any single-column
             cross-sectional operation and defaults to ``"zscore"``; remaining
             params are forwarded to that operation.
@@ -694,8 +731,10 @@ def normalize_signal(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value`` or ``time_key`` is missing.
-        ValueError: If ``method`` is unsupported or ``params`` are malformed.
+        KeyError: If ``value`` is missing, or ``time_key`` is not a column or
+            index level (and no ``DatetimeIndex`` default applies).
+        ValueError: If ``time_key`` is ambiguous, ``method`` is unsupported, or
+            ``params`` are malformed.
 
     Examples:
     --------
@@ -720,7 +759,6 @@ def rank_to_weights(
     df: Any,
     value: str,
     time_key: KeySelector | None = None,
-    params: TransformParams | None = None,
 ) -> Any:
     """Convert DataFrame signal ranks to gross-normalized long/short weights.
 
@@ -731,9 +769,9 @@ def rank_to_weights(
         df: Source DataFrame.
         value: Name of the signal column. ``NaN``/``None`` entries are treated as
             missing.
-        time_key: Name of the partition-key column; entries are coerced to
-            strings.
-        params: Unused; accepted for signature symmetry with other helpers.
+        time_key: Column name, index level name, or integer index level
+            position that partitions the cross-section. Entries are coerced to
+            strings. Omit when ``df.index`` is a ``DatetimeIndex``.
 
     Returns:
         pandas.Series: Weights aligned to ``df.index`` and named
@@ -741,7 +779,9 @@ def rank_to_weights(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value`` or ``time_key`` is missing.
+        KeyError: If ``value`` is missing, or ``time_key`` is not a column or
+            index level (and no ``DatetimeIndex`` default applies).
+        ValueError: If ``time_key`` is ambiguous.
 
     Examples:
     --------
@@ -757,7 +797,6 @@ def rank_to_weights(
             role="time_key",
             default_datetime_index=True,
         ),
-        params,
     )
     return _series(df, out, f"{value}_rank_weight")
 
@@ -779,8 +818,9 @@ def neutralize_and_zscore(
         df: Source DataFrame.
         value: Name of the signal column. ``NaN``/``None`` entries are treated as
             missing.
-        time_key: Name of the partition-key column; entries are coerced to
-            strings.
+        time_key: Column name, index level name, or integer index level
+            position that partitions the cross-section. Entries are coerced to
+            strings. Omit when ``df.index`` is a ``DatetimeIndex``.
         exposures: Names of the exposure columns regressed against ``value``.
         params: Optional parameters forwarded to ``neutralize``;
             ``fit_intercept`` (default ``True``).
@@ -791,8 +831,11 @@ def neutralize_and_zscore(
 
     Raises:
         ImportError: If pandas is not installed.
-        KeyError: If ``value``, ``time_key``, or any exposure column is missing.
-        ValueError: If ``params`` are malformed.
+        TypeError: If ``exposures`` is omitted.
+        KeyError: If ``value`` or any exposure column is missing, or ``time_key``
+            is not a column or index level (and no ``DatetimeIndex`` default
+            applies).
+        ValueError: If ``time_key`` is ambiguous or ``params`` are malformed.
 
     Examples:
     --------

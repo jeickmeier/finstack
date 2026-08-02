@@ -7,7 +7,7 @@
           "additionalProperties": false,
           "description": "Fixed rate (annualized).",
           "properties": {
-            "Fixed": {
+            "fixed": {
               "properties": {
                 "rate": {
                   "description": "Annual interest rate (e.g., 0.05 for 5%).",
@@ -22,7 +22,7 @@
             }
           },
           "required": [
-            "Fixed"
+            "fixed"
           ],
           "type": "object"
         },
@@ -30,12 +30,12 @@
           "additionalProperties": false,
           "description": "Floating rate using canonical FloatingRateSpec.\n\nComposes the standard floating rate specification with full support\nfor floors, caps, and gearing.",
           "properties": {
-            "Floating": {
+            "floating": {
               "$ref": "#/$defs/FloatingRateSpec"
             }
           },
           "required": [
-            "Floating"
+            "floating"
           ],
           "type": "object"
         }
@@ -48,7 +48,7 @@
           "additionalProperties": false,
           "description": "CIR process for stochastic credit spread/hazard rate.\n\nModels credit spread as: dλ_t = κ(θ - λ_t)dt + σ√λ_t dW_t",
           "properties": {
-            "Cir": {
+            "cir": {
               "properties": {
                 "initial": {
                   "description": "Initial credit spread",
@@ -81,7 +81,7 @@
             }
           },
           "required": [
-            "Cir"
+            "cir"
           ],
           "type": "object"
         },
@@ -89,13 +89,13 @@
           "additionalProperties": false,
           "description": "Constant credit spread (no dynamics).",
           "properties": {
-            "Constant": {
+            "constant": {
               "format": "double",
               "type": "number"
             }
           },
           "required": [
-            "Constant"
+            "constant"
           ],
           "type": "object"
         },
@@ -103,11 +103,11 @@
           "additionalProperties": false,
           "description": "Market-anchored credit spread process calibrated to a hazard curve and CDS option vol.\n\nAt the simulation anchor (the later of valuation and commitment date),\nthe initial spread is set from the contemporaneous hazard and the mean\nlevel is anchored to conditional survival over the remaining tenor.\nVolatility is scaled from the CDS index option implied volatility.",
           "properties": {
-            "MarketAnchored": {
+            "market_anchored": {
               "properties": {
-                "hazard_curve_id": {
+                "credit_curve_id": {
                   "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-                  "description": "Hazard curve identifier in `MarketContext` used to anchor spreads."
+                  "description": "Credit curve identifier in `MarketContext` used to anchor spreads."
                 },
                 "implied_vol": {
                   "description": "Annualized CDS (index) option implied volatility for spreads.",
@@ -130,7 +130,7 @@
                 }
               },
               "required": [
-                "hazard_curve_id",
+                "credit_curve_id",
                 "kappa",
                 "implied_vol"
               ],
@@ -138,13 +138,14 @@
             }
           },
           "required": [
-            "MarketAnchored"
+            "market_anchored"
           ],
           "type": "object"
         }
       ]
     },
     "DrawRepayEvent": {
+      "additionalProperties": false,
       "description": "A single draw or repayment event.",
       "properties": {
         "amount": {
@@ -152,9 +153,8 @@
           "description": "Amount being drawn or repaid (absolute value)."
         },
         "date": {
-          "description": "Date of the draw or repayment.",
-          "format": "date",
-          "type": "string"
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Date of the draw or repayment."
         },
         "is_draw": {
           "description": "True if this is a draw, false if it's a repayment.",
@@ -175,7 +175,7 @@
           "additionalProperties": false,
           "description": "Deterministic schedule of draws and repayments.",
           "properties": {
-            "Deterministic": {
+            "deterministic": {
               "items": {
                 "$ref": "#/$defs/DrawRepayEvent"
               },
@@ -183,7 +183,7 @@
             }
           },
           "required": [
-            "Deterministic"
+            "deterministic"
           ],
           "type": "object"
         },
@@ -191,12 +191,12 @@
           "additionalProperties": false,
           "description": "Stochastic utilization for Monte Carlo simulation.",
           "properties": {
-            "Stochastic": {
+            "stochastic": {
               "$ref": "#/$defs/StochasticUtilizationSpec"
             }
           },
           "required": [
-            "Stochastic"
+            "stochastic"
           ],
           "type": "object"
         }
@@ -206,26 +206,18 @@
       "additionalProperties": false,
       "description": "Fee tier for utilization-based fee structures.\n\nTiers are evaluated in order: the first tier where utilization >= threshold applies.\nTiers must be sorted by threshold (ascending); [`evaluate_fee_tiers`]\nrejects unordered tiers.",
       "properties": {
-        "bps": {
-          "description": "Fee rate in basis points for this tier.",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+        "bp": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Fee rate in basis points for this tier."
         },
         "threshold": {
-          "description": "Utilization threshold (0.0 to 1.0). Fee applies when utilization >= this threshold.",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Utilization threshold (0.0 to 1.0). Fee applies when utilization >= this threshold."
         }
       },
       "required": [
         "threshold",
-        "bps"
+        "bp"
       ],
       "type": "object"
     },
@@ -233,12 +225,12 @@
       "description": "Policy for handling floating rate projection failures.\n\nControls what happens when a forward curve lookup fails during\ncashflow emission. The default (`Error`) surfaces failures explicitly;\nthe other variants are explicit opt-in degradation modes for callers\nthat intentionally want a projected schedule without a forward curve.\n\n# References\n\n- `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`\n- `docs/REFERENCES.md#hull-options-futures`",
       "oneOf": [
         {
-          "const": "Error",
+          "const": "error",
           "description": "Return an error with curve ID and reset date (strictest, safest).",
           "type": "string"
         },
         {
-          "const": "SpreadOnly",
+          "const": "spread_only",
           "description": "Treat the index component as zero, so the coupon rate is the spread\n(plus any floors/caps/gearing). An explicit opt-in for spread-only\nprojection when no forward curve is available; emits `warn!`.",
           "type": "string"
         },
@@ -246,16 +238,12 @@
           "additionalProperties": false,
           "description": "Use a fixed rate as the index component. Emits `info!`.\n\nThe value is a **decimal annual rate**, not basis points: `0.045`\nmeans 4.5%. This differs from the bp-denominated spread/floor/cap\nfields on [`FloatingRateSpec`] because it substitutes directly for\nthe projected index rate.",
           "properties": {
-            "FixedRate": {
-              "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-              "type": [
-                "string",
-                "number"
-              ]
+            "fixed_rate": {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json"
             }
           },
           "required": [
-            "FixedRate"
+            "fixed_rate"
           ],
           "type": "object"
         }
@@ -263,27 +251,31 @@
     },
     "FloatingRateSpec": {
       "additionalProperties": false,
-      "description": "Canonical floating rate specification for all instruments.\n\nUsed by bonds, swaps, credit facilities, and structured products.\nAll instruments should compose this type rather than defining their own\nfloating rate specifications.\n\n# Rate Calculation\n\nThe all-in rate is computed as:\n1. Look up forward rate from `index_id` curve for the accrual period\n2. Apply `index_floor_bp` to index rate (if specified) - applied BEFORE adding spread\n3. Add `spread_bp` to get base rate\n4. Multiply by `gearing` (typically 1.0)\n5. Apply `all_in_cap_bp` to final rate (if specified) - applied AFTER spread and gearing\n\nFormula: `cap(gearing * (floor(index) + spread))`\n\n# Negative Rate Handling\n\nNegative index rates are supported and will flow through calculations\nunless constrained by floors. For markets with negative rates (EUR, JPY, CHF):\n\n- Set `index_floor_bp: Some(0.0)` to floor the index at zero\n- Set `all_in_floor_bp: Some(0.0)` to floor the total coupon at zero\n- Omit floors to allow negative coupons (rare but valid in some structures)\n\nThe implementation does not reject negative rates; the policy is controlled\nby the floor configuration.\n\n# Seasoned Instruments (Historical Fixings)\n\nHistorical fixings **are supported** via the `MarketContext`: store a\n`ScalarTimeSeries` under the canonical id `FIXING:{index_id}` (see\n`finstack_quant_core::market_data::fixings`) containing realized index\nobservations. Observation dates strictly before the forward curve base\ndate then resolve from that series instead of the curve:\n\n- **Overnight observations** (compounded/averaged paths) use LOCF lookup\n  (last observation carried forward), matching RFR publication\n  conventions where a fixing carries over non-publication days\n  (ARRC 2020 SOFR conventions; ISDA 2021 Supp. 70 §7.1(g)). A partially\n  seasoned compounding window seamlessly mixes realized fixings and\n  curve-projected forwards with identical `(rate, days)` weighting.\n- **Term-rate resets** use exact-date lookup on the (business-day\n  adjusted) reset date — a term rate fixes on a specific published date.\n  The fixing is the index rate only; gearing/spread/floors/caps apply on\n  top exactly as for projected rates.\n\nAn observation exactly on the curve base date prefers a published\nsame-day fixing when the series has one, otherwise projects from `t = 0`.\n\nThe [`FloatingRateFallback`] policy applies only when **no** fixing\nseries is provided: `Error` (the default) fails the build with a\ndescriptive message naming the date, index, and expected series id;\n`FixedRate(r)` uses `r` as the index rate for the affected coupon;\n`SpreadOnly` projects spread-only.\n\n# Example\n\n```rust\nuse finstack_quant_core::dates::Tenor;\nuse finstack_quant_cashflows::builder::{FloatingRateSpec, OvernightIndexConstraintApplication};\nuse rust_decimal_macros::dec;\n\n// 3M SOFR + 200bps with 0% floor\nlet spec = FloatingRateSpec {\n    index_id: \"USD-SOFR-3M\".into(),\n    spread_bp: dec!(200.0),\n    gearing: dec!(1.0),\n    gearing_includes_spread: true,\n    index_floor_bp: Some(dec!(0.0)),\n    all_in_floor_bp: None,\n    all_in_cap_bp: None,\n    index_cap_bp: None,\n    overnight_index_constraints: OvernightIndexConstraintApplication::Daily,\n    reset_freq: Tenor::quarterly(),\n    index_tenor: None,\n    reset_lag_days: 2,\n    fixing_calendar_id: None,\n    overnight_compounding: None,\n    overnight_basis: None,\n    fallback: Default::default(),\n};\n```",
+      "description": "Canonical floating rate specification for all instruments.\n\nUsed by bonds, swaps, credit facilities, and structured products.\nAll instruments should compose this type rather than defining their own\nfloating rate specifications.\n\n# Rate Calculation\n\nThe all-in rate is computed as:\n1. Look up forward rate from `index_id` curve for the accrual period\n2. Apply `index_floor_bp` to index rate (if specified) - applied BEFORE adding spread\n3. Add `spread_bp` to get base rate\n4. Multiply by `gearing` (typically 1.0)\n5. Apply `all_in_cap_bp` to final rate (if specified) - applied AFTER spread and gearing\n\nFormula: `cap(gearing * (floor(index) + spread))`\n\n# Negative Rate Handling\n\nNegative index rates are supported and will flow through calculations\nunless constrained by floors. For markets with negative rates (EUR, JPY, CHF):\n\n- Set `index_floor_bp: Some(0.0)` to floor the index at zero\n- Set `all_in_floor_bp: Some(0.0)` to floor the total coupon at zero\n- Omit floors to allow negative coupons (rare but valid in some structures)\n\nThe implementation does not reject negative rates; the policy is controlled\nby the floor configuration.\n\n# Seasoned Instruments (Historical Fixings)\n\nHistorical fixings **are supported** via the `MarketContext`: store a\n`ScalarTimeSeries` under the canonical id `FIXING:{index_id}` (see\n`finstack_quant_core::market_data::fixings`) containing realized index\nobservations. Observation dates strictly before the forward curve base\ndate then resolve from that series instead of the curve:\n\n- **Overnight observations** (compounded/averaged paths) use LOCF lookup\n  (last observation carried forward), matching RFR publication\n  conventions where a fixing carries over non-publication days\n  (ARRC 2020 SOFR conventions; ISDA 2021 Supp. 70 §7.1(g)). A partially\n  seasoned compounding window seamlessly mixes realized fixings and\n  curve-projected forwards with identical `(rate, days)` weighting.\n- **Term-rate resets** use exact-date lookup on the (business-day\n  adjusted) reset date — a term rate fixes on a specific published date.\n  The fixing is the index rate only; gearing/spread/floors/caps apply on\n  top exactly as for projected rates.\n\nAn observation exactly on the curve base date prefers a published\nsame-day fixing when the series has one, otherwise projects from `t = 0`.\n\nThe [`FloatingRateFallback`] policy applies only when **no** fixing\nseries is provided: `Error` (the default) fails the build with a\ndescriptive message naming the date, index, and expected series id;\n`FixedRate(r)` uses `r` as the index rate for the affected coupon;\n`SpreadOnly` projects spread-only.\n\n# Example\n\n```rust\nuse finstack_quant_core::dates::Tenor;\nuse finstack_quant_cashflows::builder::{FloatingRateSpec, OvernightIndexConstraintApplication};\nuse rust_decimal_macros::dec;\n\n// 3M SOFR + 200bps with 0% floor\nlet spec = FloatingRateSpec {\n    index_id: \"USD-SOFR-3M\".into(),\n    spread_bp: dec!(200.0),\n    gearing: dec!(1.0),\n    gearing_includes_spread: true,\n    index_floor_bp: Some(dec!(0.0)),\n    all_in_floor_bp: None,\n    all_in_cap_bp: None,\n    index_cap_bp: None,\n    overnight_index_constraints: OvernightIndexConstraintApplication::Daily,\n    reset_frequency: Tenor::quarterly(),\n    index_tenor: None,\n    reset_lag_days: 2,\n    fixing_calendar_id: None,\n    overnight_compounding: None,\n    overnight_basis: None,\n    fallback: Default::default(),\n};\n```",
       "properties": {
         "all_in_cap_bp": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
-          "description": "Cap on all-in rate in basis points (applied after spread and gearing).\n\nExample: all_in_cap_bp = Some(1000.0) ensures all-in rate <= 10%.",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number",
-            "null"
-          ]
+          "description": "Cap on all-in rate in basis points (applied after spread and gearing).\n\nExample: all_in_cap_bp = Some(1000.0) ensures all-in rate <= 10%."
         },
         "all_in_floor_bp": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
-          "description": "Floor on all-in rate in basis points (Min Coupon).\n\nApplied to the final calculated rate after gearing and spread.",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number",
-            "null"
-          ]
+          "description": "Floor on all-in rate in basis points (Min Coupon).\n\nApplied to the final calculated rate after gearing and spread."
         },
         "fallback": {
           "$ref": "#/$defs/FloatingRateFallback",
@@ -298,13 +290,9 @@
           ]
         },
         "gearing": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
           "default": "1",
-          "description": "Gearing/leverage multiplier applied to the all-in rate (default: 1.0).\n\nExample: gearing = 2.0 means the rate is doubled.\n\n**Restriction:** gearing must be strictly positive (`gearing > 0`);\nprojection rejects zero or negative gearing, so inverse floaters\n(negative gearing) are not currently expressible with this field.",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "description": "Gearing/leverage multiplier applied to the all-in rate (default: 1.0).\n\nExample: gearing = 2.0 means the rate is doubled.\n\n**Restriction:** gearing must be strictly positive (`gearing > 0`);\nprojection rejects zero or negative gearing, so inverse floaters\n(negative gearing) are not currently expressible with this field."
         },
         "gearing_includes_spread": {
           "default": true,
@@ -312,24 +300,28 @@
           "type": "boolean"
         },
         "index_cap_bp": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
-          "description": "Cap on index rate in basis points (applied to index component).",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number",
-            "null"
-          ]
+          "description": "Cap on index rate in basis points (applied to index component)."
         },
         "index_floor_bp": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
-          "description": "Floor on index rate in basis points (applied to index component).\n\nExample: index_floor_bp = Some(0.0) ensures index rate >= 0%.",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number",
-            "null"
-          ]
+          "description": "Floor on index rate in basis points (applied to index component).\n\nExample: index_floor_bp = Some(0.0) ensures index rate >= 0%."
         },
         "index_id": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
@@ -344,7 +336,7 @@
               "type": "null"
             }
           ],
-          "description": "Underlying index tenor used to project the forward rate (term rates).\n\nThe forward rate is projected over\n`[accrual_start, accrual_start + index_tenor]`. When `None` (the serde\ndefault), the index tenor falls back to [`Self::reset_freq`]. Set this\nexplicitly when the reset cadence differs from the index's underlying\ndeposit period (e.g. a monthly-paying leg referencing a 3M index).\nIgnored for overnight-compounded legs."
+          "description": "Underlying index tenor used to project the forward rate (term rates).\n\nThe forward rate is projected over\n`[accrual_start, accrual_start + index_tenor]`. When `None` (the serde\ndefault), the index tenor falls back to [`Self::reset_frequency`]. Set this\nexplicitly when the reset cadence differs from the index's underlying\ndeposit period (e.g. a monthly-paying leg referencing a 3M index).\nIgnored for overnight-compounded legs."
         },
         "overnight_basis": {
           "anyOf": [
@@ -355,7 +347,7 @@
               "type": "null"
             }
           ],
-          "description": "Day-count basis for the overnight compounding denominator.\n\nThis controls the annualization factor used when compounding daily\novernight fixings (e.g., 360 for SOFR/ESTR/TONA, 365 for SONIA).\nIt is independent of the leg's accrual day count (`dc`), which\ngoverns the coupon year fraction.\n\nDefaults to `Act/360` when `None`, matching SOFR/ESTR/TONA\nconvention. Set to `Act/365F` for SONIA.\nIgnored when `overnight_compounding` is `None`."
+          "description": "Day-count basis for the overnight compounding denominator.\n\nThis controls the annualization factor used when compounding daily\novernight fixings (e.g., 360 for SOFR/ESTR/TONA, 365 for SONIA).\nIt is independent of the leg's accrual day count (`day_count`), which\ngoverns the coupon year fraction.\n\nDefaults to `Act/360` when `None`, matching SOFR/ESTR/TONA\nconvention. Set to `Act/365F` for SONIA.\nIgnored when `overnight_compounding` is `None`."
         },
         "overnight_compounding": {
           "anyOf": [
@@ -372,7 +364,7 @@
           "$ref": "#/$defs/OvernightIndexConstraintApplication",
           "description": "Index floor/cap application policy for overnight-compounded coupons."
         },
-        "reset_freq": {
+        "reset_frequency": {
           "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
           "description": "Reset frequency for rate fixings.\n\nThis is the cadence at which the rate refixes; it also serves as the\ndefault index tenor when [`Self::index_tenor`] is `None`."
         },
@@ -383,20 +375,26 @@
           "type": "integer"
         },
         "spread_bp": {
-          "description": "Spread/margin over index in basis points. Uses Decimal for exact representation.",
-          "pattern": "^-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?$",
-          "type": [
-            "string",
-            "number"
-          ]
+          "$ref": "https://finstack_quant.dev/schemas/common/1/decimal.schema.json",
+          "description": "Spread/margin over index in basis points. Uses Decimal for exact representation."
         }
       },
       "required": [
         "index_id",
         "spread_bp",
-        "reset_freq"
+        "reset_frequency"
       ],
       "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
     },
     "InterestRateProcessSpec": {
       "description": "Interest rate process specification (for floating rates).",
@@ -405,7 +403,7 @@
           "additionalProperties": false,
           "description": "Hull-White 1-factor model for short rate.\n\nModels short rate as: dr_t = κ[θ(t) - r_t]dt + σ dW_t",
           "properties": {
-            "HullWhite1F": {
+            "hull_white_1f": {
               "properties": {
                 "initial": {
                   "description": "Initial short rate used only when `sigma == 0`. For a stochastic\nprocess, the pricer derives the initial rate from the facility's\ndiscount curve at the valuation anchor.",
@@ -438,13 +436,14 @@
             }
           },
           "required": [
-            "HullWhite1F"
+            "hull_white_1f"
           ],
           "type": "object"
         }
       ]
     },
     "McConfig": {
+      "additionalProperties": false,
       "description": "Advanced Monte Carlo configuration for revolving credit facilities.\n\nEnables multi-factor modeling with credit risk, interest rate dynamics,\ncorrelation between factors, and default modeling.",
       "properties": {
         "correlation_matrix": {
@@ -505,12 +504,12 @@
       "description": "Compounding method for overnight rate indices (SOFR, ESTR, SONIA).\n\nControls how daily overnight fixings are aggregated into a period rate\nfor floating rate coupons. The choice of compounding method affects both\nthe accrued amount and the payment timing/certainty.\n\n# Market Conventions\n\n| Index | Standard Method | Lookback | Reference |\n|-------|----------------|----------|-----------|\n| USD SOFR | CompoundedInArrears | 2 BD | ISDA 2021 |\n| EUR €STR | CompoundedWithObservationShift | 2 BD | ECB |\n| GBP SONIA | CompoundedWithObservationShift | 5 BD | BoE |\n| JPY TONA | CompoundedInArrears | 2 BD | BoJ |\n\n# Reference\n\n- ISDA (2021). \"IBOR Fallbacks Supplement.\" Section 7.\n- ARRC (2020). \"SOFR: A User's Guide.\" Federal Reserve Bank of New York.\n- `docs/REFERENCES.md#andersen-piterbarg-interest-rate-modeling`\n- `docs/REFERENCES.md#isda-2006-definitions`",
       "oneOf": [
         {
-          "const": "SimpleAverage",
+          "const": "simple_average",
           "description": "Arithmetic (non-compounded) average of daily overnight fixings,\nweighted by accrual days: `Rate = (Σ rᵢ·dᵢ) / D`.\n\nThis is a fully supported convention. It is the correct choice for\ninstruments that contractually specify a simple-average overnight\nindex (some bilateral loans and older FRNs) rather than the\ncompounded ISDA 2021 convention. Use [`Self::CompoundedInArrears`]\nfor standard SOFR/ESTR/TONA legs.",
           "type": "string"
         },
         {
-          "const": "CompoundedInArrears",
+          "const": "compounded_in_arrears",
           "description": "Compounded in arrears with daily compounding (ISDA 2021 standard).\n\n```text\nRate = [∏(1 + r_i × d_i/360) - 1] × 360/D\n```",
           "type": "string"
         },
@@ -518,7 +517,7 @@
           "additionalProperties": false,
           "description": "Compounded in arrears with lookback (shift observation period).\n\nUses rates from `lookback_days` business days before each accrual date.",
           "properties": {
-            "CompoundedWithLookback": {
+            "compounded_with_lookback": {
               "additionalProperties": false,
               "properties": {
                 "lookback_days": {
@@ -535,7 +534,7 @@
             }
           },
           "required": [
-            "CompoundedWithLookback"
+            "compounded_with_lookback"
           ],
           "type": "object"
         },
@@ -543,7 +542,7 @@
           "additionalProperties": false,
           "description": "Compounded in arrears with lockout (rate cut-off near end of period).\n\nUses the rate from `lockout_days` business days before period end for all\nremaining days in the period. With fixings `b_1..b_n` (where `b_n` is one\nbusiness day before the exclusive period end), the cut-off fixing is\n`b_{n-lockout+1}` per ISDA 2021 Definitions §7 (rate cut-off) and the\nARRC SOFR FRN conventions.",
           "properties": {
-            "CompoundedWithLockout": {
+            "compounded_with_lockout": {
               "additionalProperties": false,
               "properties": {
                 "lockout_days": {
@@ -560,7 +559,7 @@
             }
           },
           "required": [
-            "CompoundedWithLockout"
+            "compounded_with_lockout"
           ],
           "type": "object"
         },
@@ -568,7 +567,7 @@
           "additionalProperties": false,
           "description": "Compounded in arrears with observation shift.\n\nBoth observation dates AND weights are shifted back by `shift_days`\nbusiness days. This is the ISDA 2021 recommended convention for SOFR\nand the standard for GBP SONIA and EUR €STR.",
           "properties": {
-            "CompoundedWithObservationShift": {
+            "compounded_with_observation_shift": {
               "additionalProperties": false,
               "properties": {
                 "shift_days": {
@@ -585,7 +584,7 @@
             }
           },
           "required": [
-            "CompoundedWithObservationShift"
+            "compounded_with_observation_shift"
           ],
           "type": "object"
         }
@@ -595,18 +594,123 @@
       "description": "Where overnight index floors/caps are applied for daily-compounded rates.",
       "oneOf": [
         {
-          "const": "Daily",
+          "const": "daily",
           "description": "Apply index floors/caps to each sampled daily fixing before compounding.\n\nThis matches common floored SOFR loan conventions.",
           "type": "string"
         },
         {
-          "const": "Period",
+          "const": "period",
           "description": "Apply index floors/caps once to the compounded period index rate.\n\nThis preserves the historical period-level behavior for contracts that\nexplicitly define floors/caps on the period index rate.",
           "type": "string"
         }
       ]
     },
+    "RevolvingCredit": {
+      "additionalProperties": false,
+      "description": "Revolving credit facility instrument.\n\nModels a credit facility with draws/repayments, interest payments on drawn\namounts, and fees (commitment, usage, facility, upfront). Supports both\ndeterministic schedules and stochastic utilization via Monte Carlo.\n\nSee unit tests and `examples/` for usage.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "base_rate_spec": {
+          "$ref": "#/$defs/BaseRateSpec",
+          "description": "Base rate specification (fixed or floating)."
+        },
+        "commitment_amount": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Total committed amount for the facility."
+        },
+        "commitment_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Date when the facility becomes available."
+        },
+        "credit_curve_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional credit curve identifier for credit risk modeling.\n\nWhen provided, survival probabilities from the hazard curve are applied\nto discount cashflows, adjusting for default risk."
+        },
+        "day_count": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
+          "description": "Day count convention for interest accrual."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier for pricing."
+        },
+        "draw_repay_spec": {
+          "$ref": "#/$defs/DrawRepaySpec",
+          "description": "Draw and repayment schedule (deterministic or stochastic)."
+        },
+        "drawn_amount": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Current drawn amount (initial utilization)."
+        },
+        "fees": {
+          "$ref": "#/$defs/RevolvingCreditFees",
+          "description": "Fee structure for the facility."
+        },
+        "frequency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
+          "description": "Payment frequency for interest and fees."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique identifier for the facility."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Attributes for scenario selection and tagging.\nInstrument-owned pricing inputs."
+        },
+        "maturity": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Date when the facility expires."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-time pricing configuration."
+        },
+        "recovery_rate": {
+          "default": 0.0,
+          "description": "Recovery rate on default (used when credit_curve_id is present).\n\nRepresents the fraction of exposure recovered in the event of default.\nTypical values: 0.30-0.50 for senior secured facilities.\nDefaults to 0.0 if not specified.",
+          "format": "double",
+          "type": "number"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only pricing adjustments."
+        },
+        "stub": {
+          "$ref": "#/$defs/StubKind",
+          "default": "short_front",
+          "description": "Stub rule for schedule generation when dates don't align with frequency.\n\nDetermines how to handle partial periods at the start or end of the schedule:\n- `ShortFront`: Short stub at the beginning (most common for RCFs)\n- `ShortBack`: Short stub at the end\n- `LongFront`: Long stub at the beginning\n- `LongBack`: Long stub at the end\n- `None`: No stub allowed (dates must align exactly)\n\nDefaults to `ShortFront` for maximum flexibility with unaligned dates."
+        }
+      },
+      "required": [
+        "id",
+        "commitment_amount",
+        "drawn_amount",
+        "commitment_date",
+        "maturity",
+        "base_rate_spec",
+        "day_count",
+        "frequency",
+        "fees",
+        "draw_repay_spec",
+        "discount_curve_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
     "RevolvingCreditFees": {
+      "additionalProperties": false,
       "description": "Fee structure for a revolving credit facility.\n\nContains the various fees charged on the facility:\n- Upfront: one-time fee at commitment\n- Commitment: annual fee on undrawn amount (can be tiered by utilization)\n- Usage: annual fee on drawn amount (can be tiered by utilization)\n- Facility: annual fee on total commitment\n\nFlat fees can be represented as single-tier vectors.",
       "properties": {
         "commitment_fee_tiers": {
@@ -648,6 +752,7 @@
       "type": "object"
     },
     "StochasticUtilizationSpec": {
+      "additionalProperties": false,
       "description": "Specification for stochastic utilization modeling.\n\nDefines the stochastic process and simulation parameters for\nMonte Carlo pricing with uncertain draw/repayment patterns. Credit risk is\nincorporated via hazard-rate survival weighting (no explicit default events).",
       "properties": {
         "antithetic": {
@@ -701,27 +806,27 @@
       "description": "Stub period handling when start/end dates don't align with payment frequency.\n\nControls how schedules are generated when the start and end dates don't\ndivide evenly by the payment frequency, resulting in an irregular period\n(stub) at the beginning or end of the schedule.\n\n# Variants\n\n- **`None`**: No stub allowed (default). Generates regular periods from\n  start to end and returns an error\n  ([`InputError::NonIntegerScheduleTenor`]) when the dates don't divide\n  evenly by the frequency. Use a stub variant for misaligned schedules.\n\n[`InputError::NonIntegerScheduleTenor`]: crate::error::InputError::NonIntegerScheduleTenor\n- **`ShortFront`**: Short stub period at the start. Schedule is built\n  backward from the end date, creating a short first period.\n- **`ShortBack`**: Short stub period at the end. Schedule is built forward\n  from the start date, creating a short final period.\n- **`LongFront`**: Long stub period at the start. Combines the first two\n  periods into a single longer period.\n- **`LongBack`**: Long stub period at the end. Combines the last two periods\n  into a single longer period.\n\n# Financial Context\n\nStub conventions are important for:\n- Interest accrual calculations (short/long first coupons)\n- Cash flow present value computations\n- Matching market conventions for specific instruments\n\n# Examples\n\n```rust\nuse finstack_quant_core::dates::{ScheduleBuilder, Tenor, StubKind};\nuse time::{Date, Month};\n\nlet start = Date::from_calendar_date(2025, Month::January, 10)?;\nlet end = Date::from_calendar_date(2025, Month::December, 15)?;\n\n// Short stub at front\nlet sched = ScheduleBuilder::new(start, end)?\n    .frequency(Tenor::quarterly())\n    .stub_rule(StubKind::ShortFront)\n    .build()?;\n# Ok::<(), Box<dyn std::error::Error>>(())\n```\n\n# See Also\n\n- [`ScheduleBuilder::stub_rule`] to configure stub behavior",
       "oneOf": [
         {
-          "const": "None",
+          "const": "none",
           "description": "No stub allowed: start/end must align exactly with the frequency,\notherwise schedule generation returns an error.",
           "type": "string"
         },
         {
-          "const": "ShortFront",
+          "const": "short_front",
           "description": "Short stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "ShortBack",
+          "const": "short_back",
           "description": "Short stub period at the end of the schedule (final step truncated to maturity).",
           "type": "string"
         },
         {
-          "const": "LongFront",
+          "const": "long_front",
           "description": "Long stub period at the beginning of the schedule.",
           "type": "string"
         },
         {
-          "const": "LongBack",
+          "const": "long_back",
           "description": "Long stub period at the end of the schedule (merges final two periods).",
           "type": "string"
         }
@@ -734,7 +839,7 @@
           "additionalProperties": false,
           "description": "Mean-reverting utilization rate process.\n\nModels utilization as reverting to a long-term target with specified\nspeed and volatility. Uses Ornstein-Uhlenbeck dynamics:\ndU(t) = speed * (target_rate - U(t)) * dt + volatility * dW(t)",
           "properties": {
-            "MeanReverting": {
+            "mean_reverting": {
               "properties": {
                 "speed": {
                   "description": "Mean reversion speed (annualized).",
@@ -761,7 +866,28 @@
             }
           },
           "required": [
-            "MeanReverting"
+            "mean_reverting"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "revolving_credit": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/RevolvingCredit"
+            },
+            "type": {
+              "const": "revolving_credit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
           ],
           "type": "object"
         }
@@ -771,14 +897,14 @@
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fixed_income/revolving_credit.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Credit facility with draws/repayments and usage/commitment fees",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
         "spec": {
           "attributes": {},
           "base_rate_spec": {
-            "Floating": {
+            "floating": {
               "all_in_cap_bp": null,
               "all_in_floor_bp": null,
               "fixing_calendar_id": null,
@@ -787,7 +913,7 @@
               "index_cap_bp": null,
               "index_floor_bp": "0",
               "index_id": "USD-SOFR-3M",
-              "reset_freq": {
+              "reset_frequency": {
                 "count": 3,
                 "unit": "months"
               },
@@ -801,10 +927,10 @@
           },
           "commitment_date": "2024-01-01",
           "credit_curve_id": null,
-          "day_count": "Act360",
+          "day_count": "act_360",
           "discount_curve_id": "USD-OIS",
           "draw_repay_spec": {
-            "Deterministic": [
+            "deterministic": [
               {
                 "amount": {
                   "amount": "5000000",
@@ -830,7 +956,7 @@
           "fees": {
             "commitment_fee_tiers": [
               {
-                "bps": "25",
+                "bp": "25",
                 "threshold": "0"
               }
             ],
@@ -838,7 +964,7 @@
             "upfront_fee": null,
             "usage_fee_tiers": [
               {
-                "bps": "10",
+                "bp": "10",
                 "threshold": "0"
               }
             ]
@@ -849,29 +975,8 @@
           },
           "id": "RCF-USD-3Y",
           "maturity": "2027-01-01",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "recovery_rate": 0.0,
-          "stub": "ShortFront"
+          "stub": "short_front"
         },
         "type": "revolving_credit"
       },
@@ -880,148 +985,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Revolving Credit instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "base_rate_spec": {
-              "$ref": "#/$defs/BaseRateSpec",
-              "description": "Base rate specification (fixed or floating)."
-            },
-            "commitment_amount": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Total committed amount for the facility."
-            },
-            "commitment_date": {
-              "description": "Date when the facility becomes available.",
-              "format": "date",
-              "type": "string"
-            },
-            "credit_curve_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null,
-              "description": "Optional credit curve identifier for credit risk modeling.\n\nWhen provided, survival probabilities from the hazard curve are applied\nto discount cashflows, adjusting for default risk."
-            },
-            "day_count": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/day_count.schema.json",
-              "description": "Day count convention for interest accrual."
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier for pricing."
-            },
-            "draw_repay_spec": {
-              "$ref": "#/$defs/DrawRepaySpec",
-              "description": "Draw and repayment schedule (deterministic or stochastic)."
-            },
-            "drawn_amount": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Current drawn amount (initial utilization)."
-            },
-            "fees": {
-              "$ref": "#/$defs/RevolvingCreditFees",
-              "description": "Fee structure for the facility."
-            },
-            "frequency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/tenor.schema.json",
-              "description": "Payment frequency for interest and fees."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique identifier for the facility."
-            },
-            "maturity": {
-              "description": "Date when the facility expires.",
-              "format": "date",
-              "type": "string"
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for scenario selection and tagging.\nInstrument-owned pricing inputs."
-            },
-            "recovery_rate": {
-              "default": 0.0,
-              "description": "Recovery rate on default (used when credit_curve_id is present).\n\nRepresents the fraction of exposure recovered in the event of default.\nTypical values: 0.30-0.50 for senior secured facilities.\nDefaults to 0.0 if not specified.",
-              "format": "double",
-              "type": "number"
-            },
-            "stub": {
-              "$ref": "#/$defs/StubKind",
-              "default": "ShortFront",
-              "description": "Stub rule for schedule generation when dates don't align with frequency.\n\nDetermines how to handle partial periods at the start or end of the schedule:\n- `ShortFront`: Short stub at the beginning (most common for RCFs)\n- `ShortBack`: Short stub at the end\n- `LongFront`: Long stub at the beginning\n- `LongBack`: Long stub at the end\n- `None`: No stub allowed (dates must align exactly)\n\nDefaults to `ShortFront` for maximum flexibility with unaligned dates."
-            }
-          },
-          "required": [
-            "id",
-            "commitment_amount",
-            "drawn_amount",
-            "commitment_date",
-            "maturity",
-            "base_rate_spec",
-            "day_count",
-            "frequency",
-            "fees",
-            "draw_repay_spec",
-            "discount_curve_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "revolving_credit",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/revolving_credit"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Revolving Credit Facility",
+  "title": "revolving_credit",
   "type": "object"
 }

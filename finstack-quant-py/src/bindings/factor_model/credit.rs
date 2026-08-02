@@ -28,7 +28,7 @@ use pyo3::types::PyDict;
 /// Example:
 ///     >>> from finstack_quant.factor_model.credit import CreditFactorModel
 ///     >>> model = CreditFactorModel.from_json(json_str)  # doctest: +SKIP
-///     >>> model.schema_version  # doctest: +SKIP
+///     >>> model.schema  # doctest: +SKIP
 ///     'finstack_quant.credit_factor_model/1'
 #[pyclass(
     name = "CreditFactorModel",
@@ -53,7 +53,7 @@ impl PyCreditFactorModel {
 impl PyCreditFactorModel {
     /// Deserialize a :class:`CreditFactorModel` from JSON.
     ///
-    /// Validates the ``schema_version`` field and all structural constraints.
+    /// Validates the required ``schema`` marker and all structural constraints.
     ///
     /// Args:
     ///     json: JSON string produced by :meth:`to_json` or the offline calibrator.
@@ -79,10 +79,10 @@ impl PyCreditFactorModel {
         serde_json::to_string_pretty(&self.inner).map_err(display_to_py)
     }
 
-    /// Schema version string (``"finstack_quant.credit_factor_model/1"``).
+    /// Namespaced schema marker (``"finstack_quant.credit_factor_model/1"``).
     #[getter]
-    fn schema_version(&self) -> &str {
-        &self.inner.schema_version
+    fn schema(&self) -> &'static str {
+        self.inner.schema.as_str()
     }
 
     /// Calibration anchor date (ISO 8601 string).

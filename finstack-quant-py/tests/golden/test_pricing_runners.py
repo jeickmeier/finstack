@@ -10,7 +10,7 @@ from tests.golden.runners.pricing_common import _resolve_market
 def _minimal_market_dict() -> dict:
     """Minimal valid MarketContext JSON shape (empty curves, no surfaces)."""
     return {
-        "version": 2,
+        "schema_version": 1,
         "curves": [],
         "fx": None,
         "surfaces": [],
@@ -22,13 +22,14 @@ def _minimal_market_dict() -> dict:
         "fx_delta_vol_surfaces": [],
         "vol_cubes": [],
         "collateral": {},
+        "hierarchy": None,
     }
 
 
 def _minimal_envelope_dict() -> dict:
     """Minimal valid CalibrationEnvelope JSON shape (no steps, no initial market)."""
     return {
-        "schema": "finstack_quant.calibration",
+        "schema": "finstack_quant.calibration/1",
         "plan": {
             "id": "test_envelope",
             "quote_sets": {},

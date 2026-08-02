@@ -8,31 +8,92 @@ use crate::contract_specs::{embedded_registry, ContractSpecRegistry};
 use crate::impl_instrument_base;
 use crate::instruments::common_impl::dependencies::MarketDependencies;
 use crate::instruments::common_impl::traits::Attributes;
-use finstack_quant_core::dates::Date;
+use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 
-// Re-export the canonical position type from the historical module path.
 use crate::instruments::Position;
 
-/// Day-count basis used to annualize implied repo rates.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
-)]
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum RepoDayCountBasis {
-    /// ACT/360 convention (common in USD and EUR money markets)
+enum RepoDayCountWire {
+    #[serde(rename = "act_360")]
     Act360,
-    /// ACT/365 convention (common in GBP money markets)
-    Act365,
+    #[serde(rename = "act_365f")]
+    Act365F,
 }
 
-impl RepoDayCountBasis {
-    fn annualization_denominator(self) -> f64 {
-        match self {
-            Self::Act360 => 360.0,
-            Self::Act365 => 365.0,
+impl From<RepoDayCountWire> for DayCount {
+    fn from(value: RepoDayCountWire) -> Self {
+        match value {
+            RepoDayCountWire::Act360 => Self::Act360,
+            RepoDayCountWire::Act365F => Self::Act365F,
         }
+    }
+}
+
+impl TryFrom<DayCount> for RepoDayCountWire {
+    type Error = finstack_quant_core::Error;
+
+    fn try_from(value: DayCount) -> Result<Self, Self::Error> {
+        match value {
+            DayCount::Act360 => Ok(Self::Act360),
+            DayCount::Act365F => Ok(Self::Act365F),
+            unsupported => Err(finstack_quant_core::Error::Validation(format!(
+                "bond-future repo_day_count must be act_360 or act_365f, got {unsupported:?}"
+            ))),
+        }
+    }
+}
+
+mod repo_day_count_wire {
+    use super::{DayCount, RepoDayCountWire};
+    use serde::{Deserialize, Serialize};
+
+    pub(super) fn serialize<S>(value: &DayCount, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        RepoDayCountWire::try_from(*value)
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D>(deserializer: D) -> Result<DayCount, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        RepoDayCountWire::deserialize(deserializer).map(Into::into)
+    }
+}
+
+mod deliverable_basket_wire {
+    use super::DeliverableBond;
+    use serde::{Deserialize, Serialize};
+
+    pub(super) fn serialize<S>(value: &[DeliverableBond], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if value.is_empty() {
+            return Err(serde::ser::Error::custom(
+                "deliverable_basket cannot be empty",
+            ));
+        }
+        value.serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D>(deserializer: D) -> Result<Vec<DeliverableBond>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = Vec::<DeliverableBond>::deserialize(deserializer)?;
+        if value.is_empty() {
+            return Err(serde::de::Error::custom(
+                "deliverable_basket cannot be empty",
+            ));
+        }
+        Ok(value)
     }
 }
 
@@ -70,6 +131,7 @@ impl RepoDayCountBasis {
 /// };
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DeliverableBond {
     /// Identifier of the deliverable bond
     pub bond_id: InstrumentId,
@@ -77,6 +139,11 @@ pub struct DeliverableBond {
     ///
     /// **Must match exchange-published value**. CFs are not calculated internally.
     /// See struct-level documentation for exchange references.
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_positive_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_positive_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::PositiveF64Wire")]
     pub conversion_factor: f64,
 }
 
@@ -97,6 +164,7 @@ pub struct DeliverableBond {
 /// assert_eq!(specs.standard_coupon, 0.06);
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct BondFutureSpecs {
     /// Face value of a single contract (e.g., $100,000 for UST)
     pub contract_size: f64,
@@ -116,17 +184,30 @@ pub struct BondFutureSpecs {
     /// Use "target2" for European government bond futures.
     #[serde(default = "default_calendar_id")]
     pub calendar_id: String,
-    /// Day-count basis for implied repo rate annualization.
-    #[serde(default = "default_repo_day_count_basis")]
-    pub repo_day_count_basis: RepoDayCountBasis,
+    /// Day-count convention for implied repo rate annualization.
+    ///
+    /// Bond-future repo supports `act_360` and `act_365f`.
+    #[serde(default = "default_repo_day_count", with = "repo_day_count_wire")]
+    #[schemars(with = "RepoDayCountWire")]
+    pub repo_day_count: DayCount,
 }
 
 fn default_calendar_id() -> String {
     "nyse".to_string()
 }
 
-fn default_repo_day_count_basis() -> RepoDayCountBasis {
-    RepoDayCountBasis::Act360
+fn default_repo_day_count() -> DayCount {
+    DayCount::Act360
+}
+
+fn repo_annualization_denominator(day_count: DayCount) -> finstack_quant_core::Result<f64> {
+    match day_count {
+        DayCount::Act360 => Ok(360.0),
+        DayCount::Act365F => Ok(365.0),
+        unsupported => Err(finstack_quant_core::Error::Validation(format!(
+            "bond-future repo_day_count must be act_360 or act_365f, got {unsupported:?}"
+        ))),
+    }
 }
 
 #[allow(clippy::expect_used)]
@@ -378,7 +459,9 @@ impl BondFutureSpecs {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct BondFuture {
@@ -390,21 +473,29 @@ pub struct BondFuture {
     pub notional: Money,
 
     /// Future expiry date (last trading day)
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub expiry: Date,
 
     /// First delivery date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub delivery_start: Date,
 
     /// Last delivery date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub delivery_end: Date,
 
     /// Contract/entry futures price (e.g., 125.50 for 125-16/32).
     ///
     /// `base_value` returns model-minus-contract value for a long position.
     /// Current-settlement variation margin is a separate cash-P&L workflow.
+    #[serde(
+        serialize_with = "crate::instruments::common_impl::numeric::serialize_non_negative_f64",
+        deserialize_with = "crate::instruments::common_impl::numeric::deserialize_non_negative_f64"
+    )]
+    #[schemars(with = "finstack_quant_core::wire::NonNegativeF64Wire")]
     pub quoted_price: f64,
 
     /// Position side (Long or Short)
@@ -414,6 +505,9 @@ pub struct BondFuture {
     pub contract_specs: BondFutureSpecs,
 
     /// Basket of deliverable bonds with conversion factors
+    #[serde(with = "deliverable_basket_wire")]
+    #[schemars(with = "Vec<DeliverableBond>")]
+    #[schemars(length(min = 1))]
     pub deliverable_basket: Vec<DeliverableBond>,
 
     /// Cheapest-to-Deliver (CTD) bond identifier.
@@ -486,17 +580,26 @@ pub struct BondFuture {
     pub repo_curve_id: Option<CurveId>,
 
     /// Attributes for scenario selection and tagging
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -637,6 +740,7 @@ impl BondFuture {
                 self.notional.amount()
             )));
         }
+        repo_annualization_denominator(self.contract_specs.repo_day_count)?;
 
         Ok(())
     }
@@ -1220,10 +1324,8 @@ impl BondFuture {
         let total_proceeds = invoice_price + coupon_income;
 
         // Implied repo rate annualization uses contract-specific day-count basis.
-        let annualization_basis = self
-            .contract_specs
-            .repo_day_count_basis
-            .annualization_denominator();
+        let annualization_basis =
+            repo_annualization_denominator(self.contract_specs.repo_day_count)?;
         let holding_period_return = (total_proceeds / purchase_price) - 1.0;
         let annualized = holding_period_return * (annualization_basis / days_to_delivery as f64);
 
@@ -1327,7 +1429,7 @@ mod tests {
         assert_eq!(specs.standard_coupon, 0.06);
         assert_eq!(specs.standard_maturity_years, 10.0);
         assert_eq!(specs.settlement_days, 2);
-        assert_eq!(specs.repo_day_count_basis, RepoDayCountBasis::Act360);
+        assert_eq!(specs.repo_day_count, DayCount::Act360);
     }
 
     #[test]
@@ -1372,7 +1474,30 @@ mod tests {
         assert_eq!(specs.standard_coupon, 0.04); // Different from UST/Bund
         assert_eq!(specs.standard_maturity_years, 10.0);
         assert_eq!(specs.settlement_days, 2);
-        assert_eq!(specs.repo_day_count_basis, RepoDayCountBasis::Act365);
+        assert_eq!(specs.repo_day_count, DayCount::Act365F);
+    }
+
+    #[test]
+    fn repo_day_count_wire_accepts_only_supported_canonical_values() {
+        for value in ["act_360", "act_365f"] {
+            let mut json = serde_json::to_value(BondFutureSpecs::default())
+                .expect("serialize bond future specs");
+            json["repo_day_count"] = serde_json::json!(value);
+            assert!(
+                serde_json::from_value::<BondFutureSpecs>(json).is_ok(),
+                "{value} must be accepted"
+            );
+        }
+
+        for value in ["act360", "act365", "30_360", "act_act"] {
+            let mut json = serde_json::to_value(BondFutureSpecs::default())
+                .expect("serialize bond future specs");
+            json["repo_day_count"] = serde_json::json!(value);
+            assert!(
+                serde_json::from_value::<BondFutureSpecs>(json).is_err(),
+                "{value} must be rejected"
+            );
+        }
     }
 
     #[test]

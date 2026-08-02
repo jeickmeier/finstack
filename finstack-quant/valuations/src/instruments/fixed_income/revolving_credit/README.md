@@ -34,7 +34,7 @@ let facility = RevolvingCredit::builder()
     .base_rate_spec(BaseRateSpec::Floating {
         index_id: "USD-SOFR-3M".into(),
         margin_bp: 200.0,
-        reset_freq: Tenor::quarterly(),
+        reset_frequency: Tenor::quarterly(),
         index_floor_bp: Some(0.0),
     })
     .day_count(DayCount::Act360)
@@ -46,17 +46,17 @@ let facility = RevolvingCredit::builder()
     ]))
     .discount_curve_id("USD-OIS".into())
     // Optional credit risk inputs:
-    // .hazard_curve_id("BORROWER-HZ".into())
+    // .credit_curve_id("BORROWER-HZ".into())
     // .recovery_rate(0.4)
     .build()?;
 ```
 
 Inputs of note:
 
-- Base rate: `Fixed { rate }` or `Floating { index_id, margin_bp, reset_freq, index_floor_bp }`
+- Base rate: `Fixed { rate }` or `Floating { index_id, margin_bp, reset_frequency, index_floor_bp }`
 - Fees: `upfront_fee`, `commitment_fee_tiers`, `usage_fee_tiers`, `facility_fee_bp`
 - Draw/repay regime: `DrawRepaySpec::Deterministic(Vec<DrawRepayEvent>)` or `DrawRepaySpec::Stochastic(...)`
-- Optional `hazard_curve_id` and `recovery_rate` to enable survival weighting
+- Optional `credit_curve_id` and `recovery_rate` to enable survival weighting
 - Calendar metadata via `attributes` (e.g., `calendar_id`) to control schedule adjustments
 
 ---
@@ -106,8 +106,8 @@ For a sub‑period \([t_i, t_{i+1}]\) with accrual factor \(dt\):
 
 - Interest (fixed): \(I = B_\text{drawn} \cdot r \cdot dt\)
 - Interest (floating): \(I = B_\text{drawn} \cdot \max(\text{index}, \text{floor}) + \text{margin}\) applied over \(dt\)
-- Commitment fee: \(F_c = (C - B_\text{drawn}) \cdot \text{commitment\_bps} \cdot 10^{-4} \cdot dt\)
-- Usage fee: \(F_u = B_\text{drawn} \cdot \text{usage\_bps} \cdot 10^{-4} \cdot dt\)
+- Commitment fee: \(F_c = (C - B_\text{drawn}) \cdot \text{commitment\_bp} \cdot 10^{-4} \cdot dt\)
+- Usage fee: \(F_u = B_\text{drawn} \cdot \text{usage\_bp} \cdot 10^{-4} \cdot dt\)
 - Facility fee: \(F_f = C \cdot \text{facility\_bp} \cdot 10^{-4} \cdot dt\)
 
 Tiered fees choose the highest tier where \( \text{utilization} \ge \text{threshold} \).

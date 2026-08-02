@@ -14,7 +14,7 @@ export type SwaptionVolParams = {
 /**
  * Identifier for the volatility surface.
  */
-surface_id: string,
+vol_surface_id: string,
 /**
  * Base date for the calibration.
  */
@@ -77,7 +77,7 @@ swap_index: string | null,
  *
  * This is distinct from `plan.settings.tolerance` (solver tolerance). For swaption-vol
  * calibration, success should reflect whether the fitted smile residuals are within a
- * market-appropriate tolerance (e.g., 10–20 vol bps), not machine epsilon.
+ * market-appropriate tolerance (e.g., 10–20 vol bp), not machine epsilon.
  */
 vol_tolerance: number | null,
 /**

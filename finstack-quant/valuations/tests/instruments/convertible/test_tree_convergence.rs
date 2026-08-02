@@ -52,9 +52,9 @@ fn create_test_convertible() -> ConvertibleBond {
         rate: rust_decimal::Decimal::try_from(0.05).expect("valid"),
         schedule: finstack_quant_cashflows::builder::ScheduleParams {
             // 5% coupon
-            freq: Tenor::semi_annual(),
-            dc: DayCount::Act365F,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::semi_annual(),
+            day_count: DayCount::Act365F,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,

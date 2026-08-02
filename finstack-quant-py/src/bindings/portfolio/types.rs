@@ -77,8 +77,8 @@ impl PyPortfolio {
 
     /// Base currency code.
     #[getter]
-    fn base_ccy(&self) -> String {
-        self.inner.base_ccy.to_string()
+    fn base_currency(&self) -> String {
+        self.inner.base_currency.to_string()
     }
 
     /// Number of positions in the portfolio.
@@ -96,10 +96,10 @@ impl PyPortfolio {
 
     fn __repr__(&self) -> String {
         format!(
-            "Portfolio(id=\"{}\", as_of={}, base_ccy={}, positions={})",
+            "Portfolio(id=\"{}\", as_of={}, base_currency={}, positions={})",
             self.inner.id,
             self.inner.as_of,
-            self.inner.base_ccy,
+            self.inner.base_currency,
             self.inner.positions().len()
         )
     }
@@ -156,13 +156,13 @@ impl PyPortfolioValuation {
     /// Total portfolio value in the base currency (amount).
     #[getter]
     fn total_value(&self) -> f64 {
-        self.inner.total_base_ccy.amount()
+        self.inner.total_base_currency.amount()
     }
 
     /// Base currency of the total.
     #[getter]
-    fn base_ccy(&self) -> String {
-        self.inner.total_base_ccy.currency().to_string()
+    fn base_currency(&self) -> String {
+        self.inner.total_base_currency.currency().to_string()
     }
 
     /// Valuation date (ISO 8601).
@@ -193,8 +193,8 @@ impl PyPortfolioValuation {
         format!(
             "PortfolioValuation(as_of={}, total={} {}, positions={})",
             self.inner.as_of,
-            self.inner.total_base_ccy.amount(),
-            self.inner.total_base_ccy.currency(),
+            self.inner.total_base_currency.amount(),
+            self.inner.total_base_currency.currency(),
             self.inner.position_values.len()
         )
     }
@@ -433,17 +433,17 @@ impl PyPortfolioCashflows {
     ///
     /// See :func:`finstack_quant_portfolio::cashflows::PortfolioCashflows::collapse_to_base_by_date_kind`
     /// for the exact convention. Returns JSON.
-    #[pyo3(text_signature = "(self, market, base_ccy, as_of)")]
+    #[pyo3(text_signature = "(self, market, base_currency, as_of)")]
     fn collapse_to_base_by_date_kind(
         &self,
         py: Python<'_>,
         market: &Bound<'_, PyAny>,
-        base_ccy: &str,
+        base_currency: &str,
         as_of: &str,
     ) -> PyResult<String> {
         let market = crate::bindings::extract::extract_market_ref(py, market)?;
         let ccy: finstack_quant_core::currency::Currency =
-            base_ccy.parse().map_err(display_to_py)?;
+            base_currency.parse().map_err(display_to_py)?;
         let as_of_date = super::parse_date(as_of)?;
         let market_ref: &finstack_quant_core::market_data::context::MarketContext = &market;
         let cashflows = &self.inner;

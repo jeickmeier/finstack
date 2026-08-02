@@ -61,7 +61,7 @@ pub enum StmtExpr {
     ///
     /// Keeps the component/instrument tokens separate so the compiler can
     /// rewrite them into encoded column names understood by the evaluator.
-    CSRef {
+    CsRef {
         /// Component (interest_expense, principal_payment, debt_balance)
         component: String,
         /// Instrument ID or "total" for aggregate
@@ -163,7 +163,7 @@ impl StmtExpr {
 
     /// Create a capital structure reference.
     pub fn cs_ref(component: impl Into<String>, instrument_or_total: impl Into<String>) -> Self {
-        Self::CSRef {
+        Self::CsRef {
             component: component.into(),
             instrument_or_total: instrument_or_total.into(),
         }

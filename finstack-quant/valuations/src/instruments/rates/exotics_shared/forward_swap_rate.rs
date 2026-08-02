@@ -31,10 +31,10 @@ pub fn resolve_reference_swap_convention(
         return Ok(convention);
     }
     match currency {
-        Currency::USD => Ok(IRSConvention::USDStandard),
-        Currency::EUR => Ok(IRSConvention::EURStandard),
-        Currency::GBP => Ok(IRSConvention::GBPStandard),
-        Currency::JPY => Ok(IRSConvention::JPYStandard),
+        Currency::USD => Ok(IRSConvention::UsdSofr),
+        Currency::EUR => Ok(IRSConvention::EurEstr),
+        Currency::GBP => Ok(IRSConvention::GbpSonia),
+        Currency::JPY => Ok(IRSConvention::JpyTonar),
         _ => Err(finstack_quant_core::Error::Validation(format!(
             "CMS reference swap requires an explicit IRS convention for currency {currency}"
         ))),
@@ -84,11 +84,11 @@ pub struct ForwardSwapRateInputs<'a> {
     /// Swap maturity/end date.
     pub end: Date,
     /// Fixed leg payment frequency.
-    pub fixed_freq: Tenor,
+    pub fixed_frequency: Tenor,
     /// Fixed leg day-count convention.
     pub fixed_day_count: DayCount,
     /// Floating leg payment/reset frequency.
-    pub float_freq: Tenor,
+    pub float_frequency: Tenor,
     /// Floating leg day-count convention.
     pub float_day_count: DayCount,
     /// Calendar used to adjust reference-swap schedules.
@@ -101,7 +101,7 @@ pub struct ForwardSwapRateInputs<'a> {
     pub end_of_month: bool,
     /// Payment lag in business days.
     pub payment_lag_days: i32,
-    /// Require a term projection curve whose tenor matches `float_freq`.
+    /// Require a term projection curve whose tenor matches `float_frequency`.
     /// Disable for overnight-compounded reference swaps.
     pub enforce_forward_tenor: bool,
 }
@@ -127,9 +127,9 @@ pub fn calculate_forward_swap_rate(inputs: ForwardSwapRateInputs<'_>) -> Result<
         crate::cashflow::builder::periods::BuildPeriodsParams {
             start: inputs.start,
             end: inputs.end,
-            frequency: inputs.fixed_freq,
+            frequency: inputs.fixed_frequency,
             stub: inputs.stub,
-            bdc: inputs.business_day_convention,
+            business_day_convention: inputs.business_day_convention,
             calendar_id: inputs.calendar_id,
             end_of_month: inputs.end_of_month,
             day_count: inputs.fixed_day_count,
@@ -164,15 +164,19 @@ pub fn calculate_forward_swap_rate(inputs: ForwardSwapRateInputs<'_>) -> Result<
             .market
             .get_forward(inputs.forward_curve_id.as_ref())?;
         if inputs.enforce_forward_tenor {
-            validate_term_curve_tenor(fwd_curve.as_ref(), inputs.float_freq, "CMS reference swap")?;
+            validate_term_curve_tenor(
+                fwd_curve.as_ref(),
+                inputs.float_frequency,
+                "CMS reference swap",
+            )?;
         }
         let sched_float = crate::cashflow::builder::periods::build_periods(
             crate::cashflow::builder::periods::BuildPeriodsParams {
                 start: inputs.start,
                 end: inputs.end,
-                frequency: inputs.float_freq,
+                frequency: inputs.float_frequency,
                 stub: inputs.stub,
-                bdc: inputs.business_day_convention,
+                business_day_convention: inputs.business_day_convention,
                 calendar_id: inputs.calendar_id,
                 end_of_month: inputs.end_of_month,
                 day_count: inputs.float_day_count,
@@ -232,9 +236,9 @@ mod tests {
             as_of,
             start,
             end,
-            fixed_freq: "1Y".parse().expect("tenor"),
+            fixed_frequency: "1Y".parse().expect("tenor"),
             fixed_day_count: DayCount::Act365F,
-            float_freq: "1Y".parse().expect("tenor"),
+            float_frequency: "1Y".parse().expect("tenor"),
             float_day_count: DayCount::Act365F,
             calendar_id: crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID,
             business_day_convention: BusinessDayConvention::ModifiedFollowing,

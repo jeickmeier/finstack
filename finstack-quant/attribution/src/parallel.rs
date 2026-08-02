@@ -581,7 +581,7 @@ fn attribute_pnl_parallel_impl(
     // FX CONVENTION: attribution reports in the instrument's NATIVE pricing
     // currency, so the `compute_pnl` conversion here is a same-currency
     // identity (no FX rate is ever applied on this path). Reporting-currency
-    // translation happens exclusively in `translate_to_target_ccy`; the FX
+    // translation happens exclusively in `translate_to_target_currency`; the FX
     // factor (Step 7) captures only the *pricing impact* of swapping the FX
     // matrix inside the pricer.
     // Carry freezes the market at T₀: it reprices at the T₁ date against the
@@ -1026,7 +1026,7 @@ fn attribute_pnl_parallel_impl(
             // instrument's native currency, so the `compute_pnl_with_fx`
             // conversions below are same-currency identities — the with-fx
             // variant matters only for external callers with target ≠ native;
-            // reporting-currency translation lives in `translate_to_target_ccy`.
+            // reporting-currency translation lives in `translate_to_target_currency`.
             attribution.fx_pnl = compute_pnl_with_fx(
                 fx_reprice,
                 val_t1,
@@ -1306,7 +1306,7 @@ fn attribute_pnl_parallel_impl(
                 // Precompute the cumulative bp for each parallel step. The
                 // `CurveShape` step carries no bp (it is a snap-to-T1) and
                 // contributes `None`; everywhere else `Some(running_bp)`.
-                let cumulative_bps: Vec<Option<f64>> = {
+                let cumulative_bp: Vec<Option<f64>> = {
                     let mut running_bp = 0.0_f64;
                     cascade
                         .steps
@@ -1349,13 +1349,13 @@ fn attribute_pnl_parallel_impl(
                     ExecutionPolicy::Parallel => cascade
                         .steps
                         .par_iter()
-                        .zip(cumulative_bps.par_iter())
+                        .zip(cumulative_bp.par_iter())
                         .map(reprice_cascade_step)
                         .collect::<Result<Vec<Money>>>()?,
                     ExecutionPolicy::Serial => cascade
                         .steps
                         .iter()
-                        .zip(cumulative_bps.iter())
+                        .zip(cumulative_bp.iter())
                         .map(reprice_cascade_step)
                         .collect::<Result<Vec<Money>>>()?,
                 };

@@ -1,4 +1,4 @@
-//! Shared tolerance policy for the calibration v2 test suite.
+//! Shared tolerance policy for the calibration canonical test suite.
 //!
 //! These values aim to be "vendor grade" (Bloomberg/FINCAD-style): tight, explicit,
 //! and consistent with the units used by each calibration adapter.
@@ -31,7 +31,7 @@ pub const F64_ABS_TOL_STRICT: f64 = 1e-12;
 /// floating-point steps and convention adjustments.
 pub const F64_ABS_TOL_LOOSE: f64 = 1e-10;
 
-/// Repricing PV tolerance (absolute dollars) used by v2 external repricing tests.
+/// Repricing PV tolerance (absolute dollars) used by canonical external repricing tests.
 pub const REPRICE_PV_ABS_TOL_DOLLARS: f64 = 1.0;
 
 /// Swap repricing tolerance expressed as an implied par-rate error in basis points.

@@ -23,7 +23,7 @@ fn test_builder_creates_valid_swap_with_all_required_fields() {
         .strike_variance(DEFAULT_STRIKE_VAR)
         .start_date(start)
         .maturity(end)
-        .observation_freq(Tenor::daily())
+        .observation_frequency(Tenor::daily())
         .observation_calendar_id("USNY".to_string())
         .realized_var_method(RealizedVarMethod::CloseToClose)
         .side(PayReceive::Receive)
@@ -82,9 +82,9 @@ fn test_different_observation_frequencies_are_supported() {
     ];
 
     // Assert
-    for freq in frequencies {
+    for frequency in frequencies {
         let mut swap = sample_swap(PayReceive::Receive);
-        swap.observation_freq = freq;
+        swap.observation_frequency = frequency;
         let dates = swap.observation_dates().expect("observation schedule");
         assert!(!dates.is_empty());
         assert!(dates.len() >= 2); // At minimum start and end
@@ -121,10 +121,10 @@ fn test_different_day_count_conventions_are_supported() {
     ];
 
     // Act & Assert
-    for dc in conventions {
+    for day_count in conventions {
         let mut swap = sample_swap(PayReceive::Receive);
-        swap.day_count = dc;
-        assert_eq!(swap.day_count, dc);
+        swap.day_count = day_count;
+        assert_eq!(swap.day_count, day_count);
     }
 }
 
@@ -207,24 +207,13 @@ fn test_pay_receive_from_str_parses_valid_inputs() {
 
     // Act & Assert
     assert!(matches!(PayReceive::from_str("pay"), Ok(PayReceive::Pay)));
-    assert!(matches!(PayReceive::from_str("payer"), Ok(PayReceive::Pay)));
-    assert!(matches!(PayReceive::from_str("short"), Ok(PayReceive::Pay)));
     assert!(matches!(
         PayReceive::from_str("receive"),
         Ok(PayReceive::Receive)
     ));
-    assert!(matches!(
-        PayReceive::from_str("receiver"),
-        Ok(PayReceive::Receive)
-    ));
-    assert!(matches!(
-        PayReceive::from_str("long"),
-        Ok(PayReceive::Receive)
-    ));
-    assert!(matches!(
-        PayReceive::from_str("LONG"),
-        Ok(PayReceive::Receive)
-    ));
+    for retired in ["payer", "short", "receiver", "long", "LONG"] {
+        assert!(PayReceive::from_str(retired).is_err());
+    }
 }
 
 #[test]

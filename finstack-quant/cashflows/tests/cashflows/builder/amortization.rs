@@ -367,9 +367,9 @@ mod computation {
             coupon_type: CouponType::Cash,
             rate: Decimal::try_from(0.05).expect("valid"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::quarterly(),
-                dc: DayCount::Act365F,
-                bdc: BusinessDayConvention::Following,
+                frequency: Tenor::quarterly(),
+                day_count: DayCount::Act365F,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: "weekends_only".to_string(),
                 stub: StubKind::None,
                 end_of_month: false,
@@ -530,7 +530,7 @@ mod computation {
             // Allow for small increases due to PIK if present
             if window[1] > window[0] + 1000.0 {
                 // Only fail if significant increase without PIK
-                let has_pik = schedule.get_flows().iter().any(|cf| cf.kind == CFKind::PIK);
+                let has_pik = schedule.get_flows().iter().any(|cf| cf.kind == CFKind::Pik);
                 assert!(
                     has_pik,
                     "Outstanding should decrease: ${:.2} -> ${:.2}",

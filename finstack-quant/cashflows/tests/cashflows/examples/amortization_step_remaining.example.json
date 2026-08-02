@@ -1,7 +1,7 @@
 {
   "schema": "finstack_quant.cashflow/1",
   "amortization_spec": {
-    "StepRemaining": {
+    "step_remaining": {
       "schedule": [
         [
           "2025-06-15",

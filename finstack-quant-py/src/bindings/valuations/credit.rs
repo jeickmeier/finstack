@@ -94,7 +94,7 @@ impl PyMertonModel {
         self.inner.default_probability(horizon)
     }
 
-    /// Implied CDS par spread for `horizon` and `recovery` (decimal, not bps).
+    /// Implied CDS par spread for `horizon` and `recovery` (decimal, not bp).
     ///
     /// # Errors
     ///

@@ -1,4 +1,4 @@
-//! Tests for the plan-driven calibration v2 API.
+//! Tests for the plan-driven calibration canonical API.
 
 use crate::finstack_quant_test_utils::calibration as cal_utils;
 use finstack_quant_core::currency::Currency;
@@ -48,7 +48,7 @@ fn missing_quote_set_fails_fast() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data: Vec::new(),
         prior_market: Vec::new(),
@@ -106,7 +106,7 @@ fn plan_and_envelope_serde_roundtrip() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),
@@ -114,7 +114,10 @@ fn plan_and_envelope_serde_roundtrip() {
 
     let json = serde_json::to_string_pretty(&envelope).expect("serialize");
     let decoded: CalibrationEnvelope = serde_json::from_str(&json).expect("deserialize");
-    assert_eq!(decoded.schema, "finstack_quant.calibration/2");
+    assert_eq!(
+        decoded.schema,
+        finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT
+    );
     assert_eq!(decoded.plan.steps.len(), 1);
 }
 
@@ -195,7 +198,7 @@ fn two_step_envelope(use_parallel: bool) -> CalibrationEnvelope {
     };
     CalibrationEnvelope {
         schema_url: None,
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: Vec::new(),

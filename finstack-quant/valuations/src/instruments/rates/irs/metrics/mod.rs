@@ -63,7 +63,7 @@ pub(crate) fn register_irs_metrics(registry: &mut crate::metrics::MetricRegistry
     use crate::pricer::InstrumentType;
     crate::register_metrics! {
         registry: registry,
-        instrument: InstrumentType::IRS,
+        instrument: InstrumentType::Irs,
         metrics: [
             (Annuity, annuity::AnnuityCalculator),
             (ParRate, par_rate::ParRateCalculator),

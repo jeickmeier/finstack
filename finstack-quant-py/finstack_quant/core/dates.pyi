@@ -8,8 +8,8 @@ Example::
 
     >>> import datetime
     >>> from finstack_quant.core.dates import DayCount, Tenor, ScheduleBuilder
-    >>> dc = DayCount.ACT_365F
-    >>> dc.year_fraction(datetime.date(2024, 1, 1), datetime.date(2025, 1, 1))
+    >>> day_count = DayCount.ACT_365F
+    >>> day_count.year_fraction(datetime.date(2024, 1, 1), datetime.date(2025, 1, 1))
     1.0
 
 Examples
@@ -248,8 +248,8 @@ class DayCount:
     --------
     >>> import datetime
     >>> from finstack_quant.core.dates import DayCount
-    >>> dc = DayCount.ACT_360
-    >>> dc.year_fraction(datetime.date(2024, 1, 1), datetime.date(2024, 7, 1))
+    >>> day_count = DayCount.ACT_360
+    >>> day_count.year_fraction(datetime.date(2024, 1, 1), datetime.date(2024, 7, 1))
     0.5027777777777778
     """
 
@@ -288,7 +288,7 @@ class DayCount:
         ----------
         name : str
             Convention identifier (e.g. ``"act_360"``, ``"act_365f"``,
-            ``"thirty_360"``, ``"bus_252"``).
+            ``"30_360"``, ``"bus_252"``).
 
         Returns
         -------
@@ -2391,13 +2391,13 @@ class ScheduleBuilder:
         """
         ...
 
-    def frequency(self, freq: Union[Tenor, str]) -> ScheduleBuilder:
+    def frequency(self, frequency: Union[Tenor, str]) -> ScheduleBuilder:
         """
         Set the coupon/roll frequency.
 
         Parameters
         ----------
-        freq : Tenor | str
+        frequency : Tenor | str
             Tenor object or string like ``"3M"``.
 
         Returns

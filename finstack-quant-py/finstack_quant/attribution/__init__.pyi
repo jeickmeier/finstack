@@ -229,7 +229,7 @@ class PnlAttribution:
         """
         FX translation P&L amount.
 
-        Reporting-currency FX P&L when ``AttributionConfig.target_ccy`` was
+        Reporting-currency FX P&L when ``AttributionConfig.target_currency`` was
         supplied and differs from native. Equals
         ``val_t0_native × (T1_fx − T0_fx)``. Zero by default.
 
@@ -328,7 +328,8 @@ class PnlAttribution:
     @property
     def method(self) -> str:
         """
-        Attribution method name (Parallel, Waterfall, MetricsBased, Taylor).
+        Canonical attribution method name (``parallel``, ``waterfall``,
+        ``metrics_based``, or ``taylor``).
 
         Returns
         -------
@@ -548,7 +549,7 @@ class PnlAttribution:
                 ``"vol"``, ``"cross_factor"``, ``"scalars"``,
                 ``"credit_factor"``, ``"carry"``, ``"inflation"``,
                 ``"correlations"``, ``"model_params"``).
-            key_a: primary identifier (curve_id, pair label, surface_id,
+            key_a: primary identifier (curve_id, pair label, vol_surface_id,
                 equity_id, level_name, sub-component name).
             key_b: secondary key when present (tenor, ``to``-currency, bucket
                 path); ``None`` otherwise.
@@ -651,7 +652,8 @@ def attribute_pnl(
     Parameters
     ----------
     instrument_json : str
-        Tagged instrument JSON (``{"type": "bond", ...}``).
+        Canonical v1 instrument envelope
+        (``{"schema": "finstack_quant.instrument/1", "instrument": {...}}``).
     market_t0_json : str
         JSON-serialized ``MarketContext`` at T₀.
     market_t1_json : str
@@ -661,9 +663,9 @@ def attribute_pnl(
     as_of_t1 : str
         Valuation date T₁ in ISO 8601 format.
     method : str or dict[str, Any]
-        Attribution method — one of ``"Parallel"``,
-        ``{"Waterfall": ["Carry", "RatesCurves", ...]}``,
-        ``"MetricsBased"``, or ``{"Taylor": {"include_gamma": True, ...}}``.
+        Attribution method — one of ``"parallel"``,
+        ``{"waterfall": ["carry", "rates_curves", ...]}``,
+        ``"metrics_based"``, or ``{"taylor": {"include_gamma": True, ...}}``.
     config : dict[str, Any] or None
         Optional config overrides (tolerance, metrics, bump sizes,
         target currency, or ``{"execution_policy": "serial"}`` for
@@ -678,7 +680,7 @@ def attribute_pnl(
 
     Examples
     --------
-    >>> attr_json = attribute_pnl(inst, mkt_t0, mkt_t1, "2025-01-15", "2025-01-16", "Parallel")
+    >>> attr_json = attribute_pnl(inst, mkt_t0, mkt_t1, "2025-01-15", "2025-01-16", "parallel")
     >>> attr = PnlAttribution.from_json(attr_json)  # doctest: +SKIP
     >>> print(attr.explain())  # doctest: +SKIP
 
@@ -797,13 +799,13 @@ def default_waterfall_order() -> list[str]:
     Returns
     -------
     list[str]
-        Factor names in the default waterfall order.
+        Canonical snake-case factor names in the default waterfall order.
 
     Examples
     --------
     >>> from finstack_quant.attribution import default_waterfall_order
     >>> default_waterfall_order()  # doctest: +SKIP
-    ['Carry', 'RatesCurves', 'CreditCurves', ...]
+    ['carry', 'rates_curves', 'credit_curves', ...]
     """
     ...
 

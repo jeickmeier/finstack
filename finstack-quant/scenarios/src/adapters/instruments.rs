@@ -151,11 +151,11 @@ where
                     ));
                 } else {
                     let label = instrument_label(instrument.attributes());
-                    let type_name = format!("{:?}", instrument.key());
+                    let instrument_type = instrument.key();
                     accumulate_meta_shock(instrument.attributes_mut(), kind.meta_key(), delta);
                     warnings.push(Warning::InstrumentShockFallback {
                         shock_kind: kind.label().to_string(),
-                        inst_type: type_name,
+                        inst_type: instrument_type,
                         label,
                     });
                 }
@@ -178,11 +178,11 @@ where
                         .is_some();
                 if !routed {
                     let label = instrument_label(instrument.attributes());
-                    let type_name = format!("{:?}", instrument.key());
+                    let instrument_type = instrument.key();
                     accumulate_meta_shock(instrument.attributes_mut(), kind.meta_key(), delta);
                     warnings.push(Warning::InstrumentShockFallback {
                         shock_kind: kind.label().to_string(),
-                        inst_type: type_name,
+                        inst_type: instrument_type,
                         label,
                     });
                 }

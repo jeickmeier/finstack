@@ -8,33 +8,36 @@ use rust_decimal::Decimal;
 /// Fee specification for fixed-fee and periodic-basis-point programs.
 ///
 /// Sign policy: any non-zero fee amount is emitted. Negative fixed amounts and
-/// negative `bps` quotes (rebates) flow through as negative fee cashflows for
+/// negative `bp` quotes (rebates) flow through as negative fee cashflows for
 /// both variants.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum FeeSpec {
     /// Fixed fee paid once on a specified date.
     Fixed {
         /// Payment date of the fixed fee.
-        #[schemars(with = "String")]
+        #[serde(with = "finstack_quant_core::wire::date")]
+        #[schemars(with = "finstack_quant_core::wire::DateWire")]
         date: Date,
         /// Fee amount in currency units.
         amount: Money,
     },
     /// Periodic fee quoted in basis points and accrued over generated periods.
-    PeriodicBps {
+    PeriodicBp {
         /// Economic balance used as the fee base.
         base: FeeBase,
         /// Fee quote in basis points per annum, stored as `Decimal` to preserve
         /// the quoted value exactly.
-        bps: Decimal,
+        #[serde(with = "finstack_quant_core::wire::decimal")]
+        #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+        bp: Decimal,
         /// Accrual and payment frequency for the fee schedule.
-        freq: Tenor,
+        frequency: Tenor,
         /// Day-count convention used to annualize the fee accrual.
-        dc: DayCount,
+        day_count: DayCount,
         /// Business-day convention applied to generated fee dates.
-        bdc: BusinessDayConvention,
-        /// Holiday calendar identifier used with `bdc`.
+        business_day_convention: BusinessDayConvention,
+        /// Holiday calendar identifier used with `business_day_convention`.
         ///
         /// Use `"weekends_only"` when only weekend adjustment is required.
         calendar_id: String,
@@ -50,6 +53,7 @@ pub enum FeeSpec {
 #[derive(
     Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum FeeAccrualBasis {
     /// Use the outstanding balance at the period's accrual start, matching the
     /// coupon convention (same-date amortization/PIK on the payment date does
@@ -67,9 +71,10 @@ impl FeeAccrualBasis {
     }
 }
 
-/// Fee base for periodic bps fees.
+/// Fee base for periodic bp fees.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
 pub enum FeeBase {
     /// Fee base is the drawn outstanding after amortization and PIK updates.
     Drawn,
@@ -89,9 +94,13 @@ pub enum FeeBase {
 #[serde(deny_unknown_fields)]
 pub struct FeeTier {
     /// Utilization threshold (0.0 to 1.0). Fee applies when utilization >= this threshold.
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub threshold: Decimal,
     /// Fee rate in basis points for this tier.
-    pub bps: Decimal,
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
+    pub bp: Decimal,
 }
 
 impl FeeTier {
@@ -101,26 +110,26 @@ impl FeeTier {
     ///
     /// * `threshold` - Utilization threshold (0.0 to 1.0); must be finite and
     ///   representable as a `Decimal`.
-    /// * `bps` - Fee rate in basis points for this tier.
+    /// * `bp` - Fee rate in basis points for this tier.
     ///
     /// # Errors
     ///
     /// Returns [`finstack_quant_core::Error::Validation`] when `threshold` is NaN,
     /// infinite, or outside the `Decimal` representable range.
-    pub fn from_bps(threshold: f64, bps: Bps) -> finstack_quant_core::Result<Self> {
+    pub fn from_bp(threshold: f64, bp: Bps) -> finstack_quant_core::Result<Self> {
         if !threshold.is_finite() {
             return Err(finstack_quant_core::Error::Validation(format!(
-                "FeeTier::from_bps: threshold must be finite, got {threshold}"
+                "FeeTier::from_bp: threshold must be finite, got {threshold}"
             )));
         }
         let threshold = Decimal::try_from(threshold).map_err(|e| {
             finstack_quant_core::Error::Validation(format!(
-                "FeeTier::from_bps: threshold {threshold} is not representable as Decimal: {e}"
+                "FeeTier::from_bp: threshold {threshold} is not representable as Decimal: {e}"
             ))
         })?;
         Ok(Self {
             threshold,
-            bps: Decimal::from(bps.as_bps()),
+            bp: Decimal::from(bp.as_bp()),
         })
     }
 }
@@ -158,7 +167,7 @@ pub fn evaluate_fee_tiers(
         .iter()
         .rev()
         .find(|tier| utilization >= tier.threshold)
-        .map(|tier| tier.bps)
+        .map(|tier| tier.bp)
         .unwrap_or(Decimal::ZERO))
 }
 
@@ -175,27 +184,30 @@ mod tests {
 
         // Round-trip a valid spec, then inject a typo'd field: strict serde
         // must reject it instead of silently ignoring the typo.
-        let spec = FeeSpec::PeriodicBps {
+        let spec = FeeSpec::PeriodicBp {
             base: FeeBase::Drawn,
-            bps: dec!(50),
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::ModifiedFollowing,
+            bp: dec!(50),
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::ModifiedFollowing,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::ShortFront,
             accrual_basis: FeeAccrualBasis::TimeWeightedAverage,
         };
         let mut value = serde_json::to_value(&spec).expect("serializable spec");
         let inner = value
-            .get_mut("PeriodicBps")
+            .get_mut("periodic_bp")
             .expect("externally tagged variant")
             .as_object_mut()
             .expect("struct variant body");
-        inner.insert("acrual_basis".to_string(), serde_json::json!("PointInTime"));
+        inner.insert(
+            "acrual_basis".to_string(),
+            serde_json::json!("point_in_time"),
+        );
         let result: Result<FeeSpec, _> = serde_json::from_value(value);
         assert!(
             result.is_err(),
-            "FeeSpec::PeriodicBps must reject typo'd field, got {result:?}"
+            "FeeSpec::PeriodicBp must reject typo'd field, got {result:?}"
         );
 
         let spec = FeeSpec::Fixed {
@@ -204,7 +216,7 @@ mod tests {
         };
         let mut value = serde_json::to_value(&spec).expect("serializable spec");
         let inner = value
-            .get_mut("Fixed")
+            .get_mut("fixed")
             .expect("externally tagged variant")
             .as_object_mut()
             .expect("struct variant body");
@@ -220,7 +232,7 @@ mod tests {
     fn fee_tier_rejects_unknown_fields() {
         let tier = FeeTier {
             threshold: dec!(0.5),
-            bps: dec!(25),
+            bp: dec!(25),
         };
         let mut value = serde_json::to_value(&tier).expect("serializable tier");
         value
@@ -234,12 +246,12 @@ mod tests {
     #[test]
     fn from_bps_rejects_non_finite_threshold() {
         for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            let result = FeeTier::from_bps(bad, Bps::new(25));
+            let result = FeeTier::from_bp(bad, Bps::new(25));
             assert!(result.is_err(), "threshold {bad} must be rejected");
         }
-        let tier = FeeTier::from_bps(0.5, Bps::new(25)).expect("finite threshold");
+        let tier = FeeTier::from_bp(0.5, Bps::new(25)).expect("finite threshold");
         assert_eq!(tier.threshold, dec!(0.5));
-        assert_eq!(tier.bps, dec!(25));
+        assert_eq!(tier.bp, dec!(25));
     }
 
     #[test]
@@ -247,11 +259,11 @@ mod tests {
         let tiers = [
             FeeTier {
                 threshold: dec!(0.5),
-                bps: dec!(50),
+                bp: dec!(50),
             },
             FeeTier {
                 threshold: dec!(0.25),
-                bps: dec!(25),
+                bp: dec!(25),
             },
         ];
         let result = evaluate_fee_tiers(&tiers, dec!(0.6));
@@ -260,11 +272,11 @@ mod tests {
         let ordered = [
             FeeTier {
                 threshold: dec!(0.25),
-                bps: dec!(25),
+                bp: dec!(25),
             },
             FeeTier {
                 threshold: dec!(0.5),
-                bps: dec!(50),
+                bp: dec!(50),
             },
         ];
         assert_eq!(

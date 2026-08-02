@@ -43,16 +43,20 @@ pub struct DealConfig {
 #[serde(deny_unknown_fields)]
 pub struct DealDates {
     /// Deal closing date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub closing_date: Date,
     /// First payment date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub first_payment_date: Date,
     /// End of reinvestment period (if applicable)
-    #[schemars(with = "Option<String>")]
+    #[serde(default, with = "finstack_quant_core::wire::optional_date")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DateWire>")]
     pub reinvestment_end_date: Option<Date>,
     /// Legal final maturity date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Payment frequency
     pub frequency: Tenor,
@@ -89,15 +93,15 @@ pub struct DealFees {
     /// Annual trustee fee (fixed amount)
     pub trustee_fee_annual: Money,
     /// Senior management fee (basis points per annum on collateral)
-    pub senior_mgmt_fee_bps: f64,
+    pub senior_mgmt_fee_bp: f64,
     /// Subordinated management fee (basis points per annum)
-    pub subordinated_mgmt_fee_bps: f64,
+    pub subordinated_mgmt_fee_bp: f64,
     /// Servicing fee (basis points per annum)
-    pub servicing_fee_bps: f64,
+    pub servicing_fee_bp: f64,
     /// Master servicer fee (for CMBS/RMBS, basis points)
-    pub master_servicer_fee_bps: Option<f64>,
+    pub master_servicer_fee_bp: Option<f64>,
     /// Special servicer fee (for CMBS, basis points)
-    pub special_servicer_fee_bps: Option<f64>,
+    pub special_servicer_fee_bp: Option<f64>,
 }
 
 impl DealFees {
@@ -311,7 +315,7 @@ impl DealConfig {
         dates: DealDates,
         base_currency: finstack_quant_core::currency::Currency,
     ) -> Self {
-        Self::standard(DealType::CLO, dates, base_currency)
+        Self::standard(DealType::Clo, dates, base_currency)
     }
 
     /// Create RMBS deal configuration
@@ -319,7 +323,7 @@ impl DealConfig {
         dates: DealDates,
         base_currency: finstack_quant_core::currency::Currency,
     ) -> Self {
-        Self::standard(DealType::RMBS, dates, base_currency)
+        Self::standard(DealType::Rmbs, dates, base_currency)
     }
 
     /// Create ABS deal configuration
@@ -327,7 +331,7 @@ impl DealConfig {
         dates: DealDates,
         base_currency: finstack_quant_core::currency::Currency,
     ) -> Self {
-        Self::standard(DealType::ABS, dates, base_currency)
+        Self::standard(DealType::Abs, dates, base_currency)
     }
 
     /// Create CMBS deal configuration
@@ -335,7 +339,7 @@ impl DealConfig {
         dates: DealDates,
         base_currency: finstack_quant_core::currency::Currency,
     ) -> Self {
-        Self::standard(DealType::CMBS, dates, base_currency)
+        Self::standard(DealType::Cmbs, dates, base_currency)
     }
 
     /// Add hedge swap for interest rate or basis risk management
@@ -384,8 +388,8 @@ mod tests {
         let fees = DealFees::clo_standard(Currency::USD);
 
         assert_eq!(fees.trustee_fee_annual.amount(), 50_000.0);
-        assert_eq!(fees.senior_mgmt_fee_bps, 40.0);
-        assert_eq!(fees.subordinated_mgmt_fee_bps, 20.0);
+        assert_eq!(fees.senior_mgmt_fee_bp, 40.0);
+        assert_eq!(fees.subordinated_mgmt_fee_bp, 20.0);
     }
 
     #[test]

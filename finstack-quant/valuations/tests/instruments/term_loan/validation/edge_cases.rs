@@ -28,7 +28,7 @@ fn test_zero_coupon_loan() {
         .rate(RateSpec::Fixed { rate_bp: 0 }) // Zero coupon
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -67,7 +67,7 @@ fn test_very_short_maturity() {
         .rate(RateSpec::Fixed { rate_bp: 500 })
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -103,7 +103,7 @@ fn test_very_long_maturity() {
         .rate(RateSpec::Fixed { rate_bp: 600 })
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -139,7 +139,7 @@ fn test_negative_rate_environment() {
         .rate(RateSpec::Fixed { rate_bp: 500 })
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -182,7 +182,7 @@ fn ddtl_spec_template() -> TermLoanSpec {
         rate: RateSpec::Fixed { rate_bp: 500 },
         frequency: Tenor::semi_annual(),
         day_count: DayCount::Act360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: None,
         stub: StubKind::None,
         amortization: AmortizationSpec::None,

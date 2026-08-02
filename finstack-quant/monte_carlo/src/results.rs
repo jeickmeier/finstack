@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 /// `ci_95` are stored as [`Money`], while the auxiliary statistics remain raw
 /// `f64` values in the same currency unit as `mean.amount()`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MoneyEstimate {
     /// Discounted mean present value.
     pub mean: Money,
@@ -33,34 +34,21 @@ pub struct MoneyEstimate {
     /// See [`crate::estimate::Estimate::num_simulated_paths`]. Equal to
     /// `num_paths` without variance reduction, or `2 * num_paths` with
     /// antithetic variates.
-    #[serde(default)]
     pub num_simulated_paths: usize,
     /// Optional sample standard deviation of discounted path values.
-    #[serde(default)]
     pub std_dev: Option<f64>,
     /// Optional median of captured discounted path values.
     ///
     /// This is populated only when captured-path diagnostics are available.
-    #[serde(default)]
     pub median: Option<f64>,
     /// Optional 25th percentile of captured discounted path values.
-    #[serde(default)]
     pub percentile_25: Option<f64>,
     /// Optional 75th percentile of captured discounted path values.
-    #[serde(default)]
     pub percentile_75: Option<f64>,
     /// Optional minimum of captured discounted path values.
-    #[serde(default)]
     pub min: Option<f64>,
     /// Optional maximum of captured discounted path values.
-    #[serde(default)]
     pub max: Option<f64>,
-    /// Legacy count of skipped paths from older survivor-pricing runs.
-    ///
-    /// Current engine loops reject non-finite discounted payoffs instead of
-    /// censoring paths.
-    #[serde(default)]
-    pub num_skipped: usize,
 }
 
 impl MoneyEstimate {
@@ -91,7 +79,6 @@ impl MoneyEstimate {
             percentile_75: estimate.percentile_75,
             min: estimate.min,
             max: estimate.max,
-            num_skipped: estimate.num_skipped,
         }
     }
 

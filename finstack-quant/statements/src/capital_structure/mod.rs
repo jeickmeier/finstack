@@ -2,7 +2,7 @@
 //!
 //! This module provides integration between financial models and capital structure
 //! (debt instruments like bonds, swaps, loans). Valuation-backed instrument JSON
-//! construction is available through the default `valuation-integration` feature.
+//! construction uses the canonical typed valuations instrument registry.
 //!
 //! ## Features
 //! - Construct bonds, swaps, and other debt instruments from specifications
@@ -84,9 +84,7 @@ mod waterfall_spec;
 
 // Curated public facade — preserves the same public type set as the old `types.rs`.
 pub use cashflows::{CapitalStructureCashflows, CashflowBreakdown};
-pub use integration::aggregate_instrument_cashflows;
-#[cfg(feature = "valuation-integration")]
-pub use integration::build_any_instrument_from_spec;
+pub use integration::{aggregate_instrument_cashflows, build_instrument_from_spec};
 pub use period_flows::calculate_period_flows;
 pub use state::CapitalStructureState;
 pub use waterfall::{execute_waterfall, WaterfallPeriodResult};

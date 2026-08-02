@@ -51,7 +51,7 @@ pub struct CDSTrancheBuildOverrides {
     /// Optional business day convention override.
     ///
     /// If `None`, uses the business day convention from the CDS convention.
-    pub bdc: Option<BusinessDayConvention>,
+    pub business_day_convention: Option<BusinessDayConvention>,
     /// Optional calendar identifier override.
     ///
     /// If `None`, uses the calendar ID from the CDS convention.
@@ -92,7 +92,7 @@ impl CDSTrancheBuildOverrides {
             series,
             frequency: None,
             day_count: None,
-            bdc: None,
+            business_day_convention: None,
             calendar_id: None,
             use_imm_dates: true,
         }
@@ -223,7 +223,7 @@ pub fn build_cds_tranche_instrument(
         ctx.as_of(),
         &conv.calendar_id,
         conv.settlement_days,
-        conv.bdc,
+        conv.business_day_convention,
     )?;
 
     // Resolve calendar for tenor addition
@@ -270,7 +270,7 @@ pub fn build_cds_tranche_instrument(
         let maturity_imm = next_cds_date(maturity - time::Duration::days(1));
         (effective_date, maturity_imm, true)
     } else {
-        let maturity_adj = adjust(maturity, conv.bdc, cal)?;
+        let maturity_adj = adjust(maturity, conv.business_day_convention, cal)?;
         (spot, maturity_adj, false)
     };
 
@@ -287,9 +287,11 @@ pub fn build_cds_tranche_instrument(
     };
 
     let schedule_params = ScheduleParams {
-        freq: overrides.frequency.unwrap_or(conv.frequency),
-        dc: overrides.day_count.unwrap_or(conv.day_count),
-        bdc: overrides.bdc.unwrap_or(conv.bdc),
+        frequency: overrides.frequency.unwrap_or(conv.frequency),
+        day_count: overrides.day_count.unwrap_or(conv.day_count),
+        business_day_convention: overrides
+            .business_day_convention
+            .unwrap_or(conv.business_day_convention),
         calendar_id: overrides
             .calendar_id
             .clone()
@@ -372,10 +374,16 @@ mod tests {
             .expect("registry")
             .require_cds(&convention_key)
             .expect("convention should exist");
-        let spot = resolve_spot_date(as_of, &conv.calendar_id, conv.settlement_days, conv.bdc)
-            .expect("spot date");
+        let spot = resolve_spot_date(
+            as_of,
+            &conv.calendar_id,
+            conv.settlement_days,
+            conv.business_day_convention,
+        )
+        .expect("spot date");
         let cal = resolve_calendar(&conv.calendar_id).expect("calendar");
-        let maturity_adj = adjust(maturity, conv.bdc, cal).expect("maturity adjustment");
+        let maturity_adj =
+            adjust(maturity, conv.business_day_convention, cal).expect("maturity adjustment");
 
         assert_eq!(tranche.effective_date, Some(spot));
         assert_eq!(tranche.maturity, maturity_adj);

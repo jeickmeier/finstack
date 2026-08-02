@@ -1,10 +1,10 @@
 """
 Feature engineering: panel-data transformations for signal research.
 
-Bindings for ``finstack_quant_core::features``. Provides time-series,
-cross-sectional, and pairwise transforms (z-score, rank, rolling mean,
-neutralization, risk-scaled weights) plus a general panel dispatcher
-:func:`transform_panel`.
+Bindings for the ``finstack-quant-features`` crate
+(``finstack_quant.features``). Provides time-series, cross-sectional, and
+pairwise transforms (z-score, rank, rolling mean, neutralization, risk-scaled
+weights) plus a general panel dispatcher :func:`transform_panel`.
 
 Examples
 --------
@@ -387,7 +387,6 @@ def risk_scaled_weights(
     values: list[float | None],
     time_key: list[str],
     volatility: list[float | None],
-    params: TransformParams | None = None,
 ) -> list[float | None]:
     """
     Convert a signal to inverse-risk-scaled weights within each timestamp.
@@ -406,9 +405,6 @@ def risk_scaled_weights(
     volatility : list[float | None]
         Risk estimate per row, aligned to ``values``. A magnitude at
         or below ``1e-12`` is treated as missing.
-    params : TransformParams or None
-        Unused; accepted for signature symmetry with other helpers.
-
     Returns
     -------
     list[float | None]
@@ -523,7 +519,6 @@ def normalize_signal(
 def rank_to_weights(
     values: list[float | None],
     time_key: list[str],
-    params: TransformParams | None = None,
 ) -> list[float | None]:
     """
     Convert cross-sectional ranks into gross-normalized long/short weights.
@@ -539,9 +534,6 @@ def rank_to_weights(
     time_key : list[str]
         Cross-sectional partition key for each row; length must match
         ``values``.
-    params : TransformParams or None
-        Unused; accepted for signature symmetry with other helpers.
-
     Returns
     -------
     list[float | None]
@@ -634,8 +626,9 @@ def transform_panel(spec_json: str) -> str:
     Returns
     -------
     str
-        JSON string shaped as ``{"columns": {name: values}}``, where each
-        output column is aligned to the input ``values``.
+        JSON string shaped as
+        ``{"columns": [{"name": name, "values": values}]}``, preserving
+        operation order with every output column aligned to the input values.
 
     Raises
     ------

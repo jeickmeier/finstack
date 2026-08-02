@@ -9,12 +9,72 @@
 use finstack_quant_statements::prelude::*;
 use indexmap::indexmap;
 
-mod common;
-use common::{assert_close, SAMPLE_VAR_TOLERANCE};
+const SAMPLE_VAR_TOLERANCE: f64 = 1e-3;
+const PANDAS_TOLERANCE: f64 = 1e-12;
+
+fn assert_sample_stat(actual: f64, expected: f64, message: &str) {
+    let diff = (actual - expected).abs();
+    assert!(
+        diff < SAMPLE_VAR_TOLERANCE,
+        "{}: expected {}, got {} (diff: {}, tolerance: {})",
+        message,
+        expected,
+        actual,
+        diff,
+        SAMPLE_VAR_TOLERANCE
+    );
+}
+
+fn assert_pandas_stat(actual: f64, expected: f64, message: &str) {
+    let diff = (actual - expected).abs();
+    assert!(
+        diff < PANDAS_TOLERANCE,
+        "{}: expected {}, got {} (diff: {}, tolerance: {})",
+        message,
+        expected,
+        actual,
+        diff,
+        PANDAS_TOLERANCE
+    );
+}
 
 // ============================================================================
 // Variance and Standard Deviation Tests (Market Standards)
 // ============================================================================
+
+#[test]
+fn test_rolling_mean_matches_pandas_full_window() {
+    let model = ModelBuilder::new("test")
+        .periods("2025Q1..2025Q4", None)
+        .unwrap()
+        .value(
+            "data",
+            &[
+                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(10.0)),
+                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(20.0)),
+                (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(30.0)),
+                (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(40.0)),
+            ],
+        )
+        .compute("rolling_mean_3", "rolling_mean(data, 3)")
+        .unwrap()
+        .build()
+        .unwrap();
+
+    let mut evaluator = Evaluator::new();
+    let results = evaluator.evaluate(&model).unwrap();
+
+    assert_eq!(
+        results.get("rolling_mean_3", &PeriodId::quarter(2025, 3)),
+        Some(20.0),
+        "Q3 should average [10, 20, 30]"
+    );
+    assert_eq!(
+        results.get("rolling_mean_3", &PeriodId::quarter(2025, 4)),
+        Some(30.0),
+        "Q4 should average [20, 30, 40]"
+    );
+}
 
 #[test]
 fn test_variance_uses_sample_not_population() {
@@ -54,10 +114,9 @@ fn test_variance_uses_sample_not_population() {
         .unwrap();
 
     let expected_sample_var = 1.0;
-    assert_close(
+    assert_sample_stat(
         variance,
         expected_sample_var,
-        SAMPLE_VAR_TOLERANCE,
         "Rolling variance should use sample variance (n-1)",
     );
 
@@ -72,18 +131,12 @@ fn test_variance_uses_sample_not_population() {
     let std_dev = results
         .get("rolling_std_4", &PeriodId::quarter(2025, 4))
         .unwrap();
-    assert_close(
+    assert_sample_stat(
         std_dev,
         variance.sqrt(),
-        SAMPLE_VAR_TOLERANCE,
         "Rolling std should be sqrt of rolling variance",
     );
-    assert_close(
-        std_dev,
-        1.0,
-        SAMPLE_VAR_TOLERANCE,
-        "Rolling std should be 1.0",
-    );
+    assert_sample_stat(std_dev, 1.0, "Rolling std should be 1.0");
 }
 
 #[test]
@@ -819,12 +872,11 @@ fn test_seasonal_allows_negative_values() {
 }
 
 // ============================================================================
-// EWM Bias Correction Tests (pandas parity)
+// EWM Tests (pandas parity)
 // ============================================================================
 
 #[test]
-fn test_ewm_var_without_bias_correction() {
-    // Test default behavior (adjust=False)
+fn test_ewm_statistics_match_pandas_adjust_false() {
     let model = ModelBuilder::new("test")
         .periods("2025Q1..2025Q4", None)
         .unwrap()
@@ -837,95 +889,47 @@ fn test_ewm_var_without_bias_correction() {
                 (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(0.08)),
             ],
         )
-        .compute("volatility", "ewm_var(returns, 0.3)")
+        .compute("mean", "ewm_mean(returns, 0.3)")
+        .unwrap()
+        .compute("variance_default", "ewm_var(returns, 0.3)")
+        .unwrap()
+        .compute("variance_unbiased", "ewm_var(returns, 0.3, 1.0)")
+        .unwrap()
+        .compute("variance_biased", "ewm_var(returns, 0.3, 0.0)")
+        .unwrap()
+        .compute("std_unbiased", "ewm_std(returns, 0.3, 1.0)")
         .unwrap()
         .build()
         .unwrap();
 
     let mut evaluator = Evaluator::new();
     let results = evaluator.evaluate(&model).unwrap();
+    let q4 = PeriodId::quarter(2025, 4);
 
-    // Should return a valid non-negative variance
-    let vol = results
-        .get("volatility", &PeriodId::quarter(2025, 4))
-        .unwrap();
-    assert!(vol >= 0.0, "EWM variance should be non-negative");
-    assert!(!vol.is_nan(), "EWM variance should not be NaN");
-}
+    let mean = results.get("mean", &q4).unwrap();
+    let variance_default = results.get("variance_default", &q4).unwrap();
+    let variance_unbiased = results.get("variance_unbiased", &q4).unwrap();
+    let variance_biased = results.get("variance_biased", &q4).unwrap();
+    let std_unbiased = results.get("std_unbiased", &q4).unwrap();
 
-#[test]
-fn test_ewm_var_with_bias_correction() {
-    // Test bias-corrected mode (adjust=True, pandas default)
-    let model = ModelBuilder::new("test")
-        .periods("2025Q1..2025Q4", None)
-        .unwrap()
-        .value(
-            "returns",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(0.10)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(0.05)),
-                (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(0.15)),
-                (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(0.08)),
-            ],
-        )
-        .compute("volatility_adjusted", "ewm_var(returns, 0.3, 1.0)")
-        .unwrap()
-        .build()
-        .unwrap();
-
-    let mut evaluator = Evaluator::new();
-    let results = evaluator.evaluate(&model).unwrap();
-
-    // Bias-corrected variance should be valid
-    let vol_adj = results
-        .get("volatility_adjusted", &PeriodId::quarter(2025, 4))
-        .unwrap();
-    assert!(
-        vol_adj >= 0.0,
-        "Bias-corrected EWM variance should be non-negative"
+    // The weighting convention is always pandas adjust=False. The optional
+    // third argument controls variance bias correction, not weighting.
+    assert_pandas_stat(mean, 0.097_15, "EWM mean");
+    assert_pandas_stat(
+        variance_default,
+        0.001_382_217_790_879_14,
+        "default unbiased EWM variance",
     );
-    assert!(
-        !vol_adj.is_nan(),
-        "Bias-corrected EWM variance should not be NaN"
+    assert_pandas_stat(
+        variance_unbiased,
+        0.001_382_217_790_879_14,
+        "explicit unbiased EWM variance",
     );
-}
-
-#[test]
-fn test_ewm_std_with_bias_correction() {
-    // Test that std is sqrt of variance (with bias correction)
-    let model = ModelBuilder::new("test")
-        .periods("2025Q1..2025Q4", None)
-        .unwrap()
-        .value(
-            "returns",
-            &[
-                (PeriodId::quarter(2025, 1), AmountOrScalar::scalar(0.10)),
-                (PeriodId::quarter(2025, 2), AmountOrScalar::scalar(0.05)),
-                (PeriodId::quarter(2025, 3), AmountOrScalar::scalar(0.15)),
-                (PeriodId::quarter(2025, 4), AmountOrScalar::scalar(0.08)),
-            ],
-        )
-        .compute("ewm_variance", "ewm_var(returns, 0.3, 1.0)")
-        .unwrap()
-        .compute("ewm_std_dev", "ewm_std(returns, 0.3, 1.0)")
-        .unwrap()
-        .build()
-        .unwrap();
-
-    let mut evaluator = Evaluator::new();
-    let results = evaluator.evaluate(&model).unwrap();
-
-    let variance = results
-        .get("ewm_variance", &PeriodId::quarter(2025, 4))
-        .unwrap();
-    let std_dev = results
-        .get("ewm_std_dev", &PeriodId::quarter(2025, 4))
-        .unwrap();
-
-    // Standard deviation should be sqrt of variance
-    assert!(
-        (std_dev - variance.sqrt()).abs() < 1e-10,
-        "EWM std should equal sqrt(variance)"
+    assert_pandas_stat(variance_biased, 0.001_004_377_5, "biased EWM variance");
+    assert_pandas_stat(
+        std_unbiased,
+        0.037_178_189_720_306_98,
+        "unbiased EWM standard deviation",
     );
 }
 

@@ -34,16 +34,6 @@
 //   - cause: structured EnvelopeError payload (object with `kind` etc.)
 // Standard try/catch exposes both via `e.name` and `e.cause`.
 
-export type {
-  AccrualConfigJson,
-  CashFlowJson,
-  CashFlowMetaJson,
-  CashFlowScheduleJson,
-  DatedFlowJson,
-  MoneyJson,
-  NotionalJson,
-} from './types/generated/CashflowSchedule';
-//
 // WASM ownership: every wasm-bindgen class exposed below owns a wasm heap
 // allocation. Call `free()` when a handle is no longer needed. On runtimes
 // that define `Symbol.dispose`, wasm-bindgen also installs
@@ -439,17 +429,17 @@ export interface MoneyConstructor {
  * - **Percent**: `5.0` represents 5%.
  * - **Basis points**: `500` represents 5% (1 bp = 0.01%).
  *
- * Use the `fromPercent` or `fromBps` factories to avoid scaling errors
+ * Use the `fromPercent` or `fromBp` factories to avoid scaling errors
  * when working with quoted rates.
  *
  * @example
  * ```javascript
  * import init, { core } from "finstack-quant-wasm";
  * await init();
- * const r = core.Rate.fromBps(250);     // 2.5% as 250 bps
+ * const r = core.Rate.fromBp(250);     // 2.5% as 250 bp
  * r.asDecimal;  // 0.025
  * r.asPercent;  // 2.5
- * r.asBps;      // 250
+ * r.asBp;      // 250
  * ```
  */
 export interface Rate extends WasmOwned {
@@ -468,9 +458,9 @@ export interface Rate extends WasmOwned {
   /**
    * Rate in basis points, rounded to the nearest integer (e.g. `500` for 5%).
    *
-   * @returns Rate in bps.
+   * @returns Rate in bp.
    */
-  readonly asBps: number;
+  readonly asBp: number;
 }
 
 /**
@@ -481,17 +471,17 @@ export interface Rate extends WasmOwned {
  * - **Percent**: `5.0` represents 5%.
  * - **Basis points**: `500` represents 5% (1 bp = 0.01%).
  *
- * Use the `fromPercent` or `fromBps` factories to avoid scaling errors
+ * Use the `fromPercent` or `fromBp` factories to avoid scaling errors
  * when working with quoted rates.
  *
  * @example
  * ```javascript
  * import init, { core } from "finstack-quant-wasm";
  * await init();
- * const r = core.Rate.fromBps(250);     // 2.5% as 250 bps
+ * const r = core.Rate.fromBp(250);     // 2.5% as 250 bp
  * r.asDecimal;  // 0.025
  * r.asPercent;  // 2.5
- * r.asBps;      // 250
+ * r.asBp;      // 250
  * ```
  */
 export interface RateConstructor {
@@ -526,30 +516,30 @@ export interface RateConstructor {
   /**
    * Create a rate from a whole number of basis points.
    *
-   * The canonical Rust `Rate::from_bps` takes an integer (`i32`) number
+   * The canonical Rust `Rate::from_bp` takes an integer (`i32`) number
    * of basis points. Because JavaScript numbers are `f64`, this binding
    * accepts a float but **rejects fractional input** rather than
    * silently rounding it: a sub-bp rate quietly rounded to whole bp is a
    * pricing bug, not a convenience. Use `new Rate(decimal)` or
    * `Rate.fromPercent` for sub-bp rates.
    *
-   * @param bps - Rate in whole basis points (e.g. `500` for 5%).
+   * @param bp - Rate in whole basis points (e.g. `500` for 5%).
    * @returns The constructed `Rate`.
-   * @throws If `bps` is non-finite or not a whole number of basis points.
+   * @throws If `bp` is non-finite or not a whole number of basis points.
    *
    * @example
    * ```javascript
-   * const r = core.Rate.fromBps(250);  // 2.5%
+   * const r = core.Rate.fromBp(250);  // 2.5%
    * r.asDecimal;  // 0.025
    * ```
    */
-  fromBps(bps: number): Rate;
+  fromBp(bp: number): Rate;
 }
 
 /**
- * Basis points (1 bp = 0.01%, 10_000 bps = 100%).
+ * Basis points (1 bp = 0.01%, 10_000 bp = 100%).
  *
- * Stored as integer bps internally; constructors reject fractional input.
+ * Stored as integer bp internally; constructors reject fractional input.
  *
  * @example
  * ```javascript
@@ -557,7 +547,7 @@ export interface RateConstructor {
  * await init();
  * const spread = new core.Bps(125);
  * spread.asDecimal();  // 0.0125
- * spread.asBps();      // 125
+ * spread.asBp();      // 125
  * ```
  */
 export interface Bps extends WasmOwned {
@@ -570,15 +560,15 @@ export interface Bps extends WasmOwned {
   /**
    * Value in whole basis points.
    *
-   * @returns Integer bps.
+   * @returns Integer bp.
    */
-  asBps(): number;
+  asBp(): number;
 }
 
 /**
- * Basis points (1 bp = 0.01%, 10_000 bps = 100%).
+ * Basis points (1 bp = 0.01%, 10_000 bp = 100%).
  *
- * Stored as integer bps internally; constructors reject fractional input.
+ * Stored as integer bp internally; constructors reject fractional input.
  *
  * @example
  * ```javascript
@@ -586,14 +576,14 @@ export interface Bps extends WasmOwned {
  * await init();
  * const spread = new core.Bps(125);
  * spread.asDecimal();  // 0.0125
- * spread.asBps();      // 125
+ * spread.asBp();      // 125
  * ```
  */
 export interface BpsConstructor {
   /**
    * Create basis points from a whole-number value.
    *
-   * @param value - Value in whole basis points (e.g. `25` for 25 bps).
+   * @param value - Value in whole basis points (e.g. `25` for 25 bp).
    * @returns The constructed `Bps`.
    * @throws If `value` is non-finite or not a whole number of basis
    * points. Sub-bp spreads must use the JSON instrument path (which
@@ -678,10 +668,10 @@ export interface PercentageConstructor {
  * ```javascript
  * import init, { core } from "finstack-quant-wasm";
  * await init();
- * const dc = core.DayCount.act365f();
+ * const day_count = core.DayCount.act365f();
  * const start = core.createDate(2025, 1, 15);
  * const end   = core.createDate(2025, 7, 15);
- * const yf    = dc.yearFraction(start, end);
+ * const yf    = day_count.yearFraction(start, end);
  * // yf ≈ 0.4959 (181 / 365)
  * ```
  */
@@ -700,10 +690,10 @@ export interface DayCount extends WasmOwned {
    *
    * @example
    * ```javascript
-   * const dc = core.DayCount.act360();
+   * const dayCount = core.DayCount.act360();
    * const start = core.createDate(2025, 1, 15);
    * const end   = core.createDate(2025, 4, 15);
-   * dc.yearFraction(start, end); // 90 / 360 = 0.25
+   * dayCount.yearFraction(start, end); // 90 / 360 = 0.25
    * ```
    */
   yearFraction(startEpochDays: number, endEpochDays: number): number;
@@ -763,10 +753,10 @@ export interface DayCount extends WasmOwned {
  * ```javascript
  * import init, { core } from "finstack-quant-wasm";
  * await init();
- * const dc = core.DayCount.act365f();
+ * const day_count = core.DayCount.act365f();
  * const start = core.createDate(2025, 1, 15);
  * const end   = core.createDate(2025, 7, 15);
- * const yf    = dc.yearFraction(start, end);
+ * const yf    = day_count.yearFraction(start, end);
  * // yf ≈ 0.4959 (181 / 365)
  * ```
  */
@@ -1749,10 +1739,6 @@ export interface MonteCarloEstimateJson {
    */
   num_simulated_paths: number;
   /**
-   * Legacy skipped-path count; current engines reject non-finite payoffs.
-   */
-  num_skipped: number;
-  /**
    * Median of captured discounted path values (absent when paths are not captured).
    */
   median?: number;
@@ -1812,8 +1798,7 @@ export interface VariationMarginJson {
  * Bilateral XVA result (JSON object from Rust).
  *
  * Adjustments are positive when they cost the desk and compose as
- * `bilateral_cva = cva - dva + fva` for legacy compatibility and
- * `total_xva = bilateral_cva + mva` (all-in). Optional legs are absent when
+ * `total_xva = cva - dva + fva + mva`. Optional funding legs are absent when
  * they were not computed.
  */
 export interface XvaResultJson {
@@ -1835,13 +1820,9 @@ export interface XvaResultJson {
    */
   mva?: number;
   /**
-   * Legacy bilateral adjustment = `cva - dva + fva`.
+   * Required all-in adjustment = `cva - dva + fva + mva`.
    */
-  bilateral_cva?: number;
-  /**
-   * All-in adjustment = `bilateral_cva + mva`.
-   */
-  total_xva?: number;
+  total_xva: number;
   /**
    * Expected positive exposure profile as `[time, value]` pairs.
    */
@@ -2860,7 +2841,7 @@ export declare class Performance {
     prices: NumericMatrix,
     tickerNames: string[],
     benchmarkTicker?: string | null,
-    freq?: string
+    frequency?: string
   );
   /** Construct from a return matrix (one row per `dates` entry per ticker). */
   static fromReturns(
@@ -2868,13 +2849,13 @@ export declare class Performance {
     returns: NumericMatrix,
     tickerNames: string[],
     benchmarkTicker?: string | null,
-    freq?: string
+    frequency?: string
   ): Performance;
   resetDateRange(start: string, end: string): void;
   resetBenchTicker(ticker: string): void;
   tickerNames(): string[];
   benchmarkIdx(): number;
-  freq(): string;
+  frequency(): string;
   /** Full return-aligned date grid as ISO date strings (independent of any active window). */
   dates(): string[];
   /** Dates of the currently active analysis window as ISO date strings. */
@@ -2973,7 +2954,7 @@ export declare class Performance {
   ): LookbackReturns;
   periodStats(
     tickerIdx: number,
-    aggFreq?: string,
+    aggregationFrequency?: string,
     fiscalYearStartMonth?: number,
     fiscalYearStartDay?: number
   ): PeriodStats;
@@ -3396,10 +3377,10 @@ export interface FeaturesNamespace {
   ): FeatureValue[];
   /**
    * Convert a signal to inverse-risk-scaled weights per timestamp.
-   * @param values - Numeric observations in the shape and order required by the selected transformation.
+   * @param values - Numeric signal observations aligned with `timeKey` and `volatility`.
    * @param timeKey - Cross-sectional time key shared by values evaluated in the same slice.
-   * @param volatility - Annualized volatility expressed as a decimal, such as 0.20 for 20%.
-   * @param params - Operation-specific parameter object defining transformation settings.
+   * @param volatility - Row-aligned risk estimates used as `signal / volatility`; zero, missing, or non-finite values yield missing weights.
+   * @param params - Reserved parameter object; accepted for API symmetry and has no effect.
    * @returns Returns the resulting `FeatureValue[]` collection in the documented order.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
    */
@@ -3903,7 +3884,7 @@ export interface MonteCarloNamespace {
    * Price a European call option via Monte Carlo under GBM dynamics.
    *
    * Returns a JSON object with `mean`, `currency`, `stderr`, `std_dev`,
-   * `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`, `num_skipped`,
+   * `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`,
    * `median`, `percentile_25`, `percentile_75`, `min`, `max`, and
    * `relative_stderr`.
    * @param spot - Current spot price or exchange rate in the documented quote convention.
@@ -3935,7 +3916,7 @@ export interface MonteCarloNamespace {
    * Price a European put option via Monte Carlo under GBM dynamics.
    *
    * Returns a JSON object with `mean`, `currency`, `stderr`, `std_dev`,
-   * `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`, `num_skipped`,
+   * `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`,
    * `median`, `percentile_25`, `percentile_75`, `min`, `max`, and
    * `relative_stderr`.
    * @param spot - Current spot price or exchange rate in the documented quote convention.
@@ -4344,9 +4325,9 @@ export interface MarginNamespace {
    * only when `fundingJson` carries an `im_profile`; that posted IM also reduces
    * ENE for bilateral DVA.
    *
-   * The returned object reports `bilateral_cva = CVA - DVA + FVA` for legacy
-   * compatibility and `total_xva = bilateral_cva + MVA` for the all-in amount.
-   * Optional legs are absent from the payload when they were not computed.
+   * The returned object reports the required all-in amount as
+   * `total_xva = CVA - DVA + FVA + MVA`. Optional funding legs are absent from
+   * the payload when they were not computed.
    *
    * @param exposureProfileJson - `ExposureProfile` JSON with `times`,
    * `mtm_values`, `epe`, and `ene` arrays of equal length.
@@ -4372,9 +4353,9 @@ export interface MarginNamespace {
    * const result = margin.computeBilateralXva(
    *   JSON.stringify({ times: [1, 2], mtm_values: [1e6, 1e6], epe: [1e6, 1e6], ene: [0, 0] }),
    *   hz, hz, df, 0.4, 0.4,
-   *   JSON.stringify({ funding_spread_bps: 50.0 }),
+   *   JSON.stringify({ funding_spread_bp: 50.0 }),
    * );
-   * result.total_xva; // bilateral_cva + MVA
+   * result.total_xva; // CVA - DVA + FVA + MVA
    * ```
    * @throws Error - If JSON is malformed or has unknown funding fields, a recovery rate
    */
@@ -4583,11 +4564,11 @@ export interface Bond extends WasmOwned {
    */
   readonly id: string;
   /**
-   * Serialize to tagged instrument JSON (`{"type": "bond", "spec": ...}`).
+   * Serialize to a canonical `finstack_quant.instrument/1` envelope.
    *
    * Pass the result to `valuations.instruments.priceInstrument` (or the
    * other generic pricing entry points) to price this bond.
-   * @returns Tagged instrument JSON accepted by `priceInstrument` and `Bond.fromJson`.
+   * @returns Canonical instrument envelope accepted by `priceInstrument` and `Bond.fromJson`.
    * @throws If serialization fails.
    */
   toJson(): string;
@@ -4641,8 +4622,8 @@ export interface BondConstructor {
    * which preserves the exact decimal spread).
    * @param issue - Issue date as an ISO-8601 string (`"YYYY-MM-DD"`).
    * @param maturity - Maturity date as an ISO-8601 string (`"YYYY-MM-DD"`).
-   * @param freq - Payment frequency (e.g. `Tenor.quarterly()`).
-   * @param dc - Day count convention (e.g. `DayCount.act360()`).
+   * @param frequency - Payment frequency (e.g. `Tenor.quarterly()`).
+   * @param dayCount - Day count convention (e.g. `DayCount.act360()`).
    * @param discountCurveId - Discount curve identifier used for pricing.
    * @returns The validated floating-rate note.
    * @throws If validation fails.
@@ -4654,16 +4635,15 @@ export interface BondConstructor {
     marginBp: Bps,
     issue: string,
     maturity: string,
-    freq: Tenor,
-    dc: DayCount,
+    frequency: Tenor,
+    dayCount: DayCount,
     discountCurveId: string
   ): Bond;
   /**
-   * Deserialize a bond from tagged instrument JSON.
+   * Deserialize a bond from its canonical v1 instrument envelope.
    *
-   * Accepts the same `{"type": "bond", "spec": {...}}` payload the JSON
-   * loader accepts; the loader's validation runs on the result.
-   * @param json - Tagged instrument JSON with type `"bond"`.
+   * Bare payloads are rejected; the loader's validation runs on the result.
+   * @param json - A `finstack_quant.instrument/1` envelope containing type `"bond"`.
    * @returns The validated bond.
    * @throws If the JSON is malformed, has a different instrument type, or fails validation.
    */
@@ -4684,11 +4664,11 @@ export interface TermLoan extends WasmOwned {
    */
   readonly id: string;
   /**
-   * Serialize to tagged instrument JSON (`{"type": "term_loan", "spec": ...}`).
+   * Serialize to a canonical `finstack_quant.instrument/1` envelope.
    *
    * Pass the result to `valuations.instruments.priceInstrument` (or the
    * other generic pricing entry points) to price this loan.
-   * @returns Tagged instrument JSON accepted by `priceInstrument` and `TermLoan.fromJson`.
+   * @returns Canonical instrument envelope accepted by `priceInstrument` and `TermLoan.fromJson`.
    * @throws If serialization fails.
    */
   toJson(): string;
@@ -4698,7 +4678,8 @@ export interface TermLoan extends WasmOwned {
  * Constructor surface for the typed `TermLoan` WebAssembly instrument.
  *
  * Rust has no `fixed`/`floating` convenience constructors for term loans;
- * construct via `fromJson` with tagged JSON or start from `example()`.
+ * construct via `fromJson` with a canonical v1 instrument envelope or start
+ * from `example()`.
  * @example
  * ```typescript
  * import init, { valuations } from "finstack-quant-wasm";
@@ -4709,11 +4690,10 @@ export interface TermLoan extends WasmOwned {
  */
 export interface TermLoanConstructor {
   /**
-   * Deserialize a term loan from tagged instrument JSON.
+   * Deserialize a term loan from its canonical v1 instrument envelope.
    *
-   * Accepts the same `{"type": "term_loan", "spec": {...}}` payload the
-   * JSON loader accepts; the loader's validation runs on the result.
-   * @param json - Tagged instrument JSON with type `"term_loan"`.
+   * Bare payloads are rejected; the loader's validation runs on the result.
+   * @param json - A `finstack_quant.instrument/1` envelope containing type `"term_loan"`.
    * @returns The validated term loan.
    * @throws If the JSON is malformed, has a different instrument type, or fails validation.
    */
@@ -4749,7 +4729,7 @@ export interface ValuationInstrumentsNamespace {
    */
   TermLoan: TermLoanConstructor;
   /**
-   * Construct tagged bond instrument JSON from a cashflow schedule.
+   * Construct a canonical bond instrument envelope from a cashflow schedule.
    * @param instrumentId - Stable instrument identifier used for pricing and metric keys.
    * @param scheduleJson - Canonical cashflow-schedule JSON used to construct the fixed-income instrument.
    * @param discountCurveId - Market-context discount-curve identifier for the instrument currency.
@@ -4764,20 +4744,19 @@ export interface ValuationInstrumentsNamespace {
     quotedClean?: number | null
   ): string;
   /**
-   * Validate a tagged instrument JSON string.
+   * Validate a canonical v1 instrument envelope.
    *
-   * Deserializes the input against the known instrument schema and
-   * returns the canonical (re-serialized) JSON.
-   * @param json - Canonical JSON string defining the object to deserialize or normalize.
+   * Bare instrument payloads are rejected. Returns canonical re-serialized JSON.
+   * @param json - A `finstack_quant.instrument/1` envelope to validate and canonicalize.
    * @returns Returns the requested string representation or JSON payload.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
    */
   validateInstrumentJson(json: string): string;
   /**
-   * Price an instrument from its tagged JSON and return a ValuationResult JSON.
+   * Price an instrument from its canonical envelope and return a ValuationResult JSON.
    *
    * Pass `model = "default"` to use the instrument-native default model.
-   * @param instrumentJson - Canonical JSON payload representing the instrument consumed by this API.
+   * @param instrumentJson - A canonical `finstack_quant.instrument/1` envelope.
    * @param marketJson - Canonical market-context JSON supplying curves, quotes, and FX data.
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @param model - Optional pricing-model identifier; omit for the instrument-native model (matches the Python binding's `model="default"`).
@@ -6483,8 +6462,8 @@ export interface AttributionNamespace {
    */
   validateAttributionJson(json: string): string;
   /**
-   * Return the default waterfall factor ordering as a JSON array.
-   * @returns Returns the resulting `string[]` collection in the documented order.
+   * Return the default waterfall factor ordering as canonical snake-case values.
+   * @returns Canonical snake-case factor names in the documented order.
    */
   defaultWaterfallOrder(): string[];
   /**
@@ -7445,6 +7424,7 @@ export interface PortfolioNamespace {
    * @param asOf - ISO-8601 valuation date used to resolve date-dependent market data.
    * @returns Returns the requested string representation or JSON payload.
    * @throws Error - Thrown when supplied values are malformed, violate the documented constraints, or the underlying calculation cannot complete.
+   * @param base_currency - ISO-4217 base currency in which aggregate portfolio values are reported.
    */
   aggregateMetrics(
     valuationJson: string,

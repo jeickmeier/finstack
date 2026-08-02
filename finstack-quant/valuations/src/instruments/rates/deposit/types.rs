@@ -42,7 +42,7 @@ use finstack_quant_core::types::IndexId;
 /// business-day adjusted cashflow generation:
 ///
 /// - `spot_lag_days`: Number of business days from trade date to spot date (default: 2 for USD/EUR/JPY, 0 for GBP)
-/// - `bdc`: Business day convention for date adjustment (default: ModifiedFollowing)
+/// - `business_day_convention`: Business day convention for date adjustment (default: ModifiedFollowing)
 /// - `calendar_id`: Holiday calendar identifier for business day logic (e.g., "nyse", "target")
 ///
 /// When these fields are set, the effective start date is computed as
@@ -53,7 +53,9 @@ use finstack_quant_core::types::IndexId;
     Debug,
     PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct Deposit {
@@ -62,10 +64,12 @@ pub struct Deposit {
     /// Principal amount of the deposit.
     pub notional: Money,
     /// Start date of the deposit period.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Maturity date of the deposit period.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Day count convention for interest accrual.
     pub day_count: DayCount,
@@ -76,21 +80,32 @@ pub struct Deposit {
     /// is only appropriate if the caller never requests cashflow generation/PV from
     /// this instrument (e.g., constructing placeholders).
     #[builder(optional)]
+    #[serde(default, with = "finstack_quant_core::wire::optional_decimal")]
+    #[schemars(with = "Option<finstack_quant_core::wire::DecimalWire>")]
     pub quote_rate: Option<Decimal>,
     /// Discount curve id used for valuation and par extraction.
     pub discount_curve_id: CurveId,
     /// Attributes for scenario selection and tagging.
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -108,7 +123,7 @@ pub struct Deposit {
     /// Default: `ModifiedFollowing` (standard money market convention).
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
 
     /// Optional holiday calendar identifier for business day logic.
     ///
@@ -156,7 +171,7 @@ impl Deposit {
             .discount_curve_id(CurveId::new("USD-OIS"))
             .attributes(Attributes::new())
             .spot_lag_days_opt(Some(2))
-            .bdc(BusinessDayConvention::ModifiedFollowing)
+            .business_day_convention(BusinessDayConvention::ModifiedFollowing)
             .build()
     }
 
@@ -200,7 +215,7 @@ impl Deposit {
             .discount_curve_id(CurveId::new(discount_curve_id))
             .attributes(attributes)
             .spot_lag_days_opt(Some(conv.market_settlement_days))
-            .bdc(conv.market_business_day_convention)
+            .business_day_convention(conv.market_business_day_convention)
             .calendar_id_opt(Some(conv.market_calendar_id.clone().into()))
             .build()?;
 
@@ -307,11 +322,11 @@ impl crate::instruments::common_impl::traits::Instrument for Deposit {
     crate::impl_focused_pricing_overrides!();
 }
 
-/// Minimum reasonable deposit rate (-10% = -1000 bps).
+/// Minimum reasonable deposit rate (-10% = -1000 bp).
 /// Rates below this are likely data errors or misconfigured instruments.
 const MIN_REASONABLE_RATE: f64 = -0.10;
 
-/// Maximum reasonable deposit rate (100% = 10000 bps).
+/// Maximum reasonable deposit rate (100% = 10000 bp).
 /// Rates above this are likely data errors or misconfigured instruments.
 const MAX_REASONABLE_RATE: f64 = 1.0;
 
@@ -378,7 +393,7 @@ impl Deposit {
                     quote_rate = r_f64,
                     min_bound = MIN_REASONABLE_RATE,
                     max_bound = MAX_REASONABLE_RATE,
-                    "Deposit quote rate {:.4} ({:.0} bps) is outside typical range [{:.0}%, {:.0}%]",
+                    "Deposit quote rate {:.4} ({:.0} bp) is outside typical range [{:.0}%, {:.0}%]",
                     r_f64,
                     r_f64 * 10000.0,
                     MIN_REASONABLE_RATE * 100.0,
@@ -410,7 +425,7 @@ impl Deposit {
             None => None,
         };
 
-        let bdc = self.bdc;
+        let business_day_convention = self.business_day_convention;
 
         let base_start = if let Some(lag_days) = self.spot_lag_days {
             // Compute spot date: start + spot_lag business days
@@ -426,7 +441,7 @@ impl Deposit {
 
         // Apply business day adjustment if calendar is available
         if let Some(cal) = calendar {
-            adjust(base_start, bdc, cal)
+            adjust(base_start, business_day_convention, cal)
         } else {
             Ok(base_start)
         }
@@ -455,11 +470,11 @@ impl Deposit {
             None => None,
         };
 
-        let bdc = self.bdc;
+        let business_day_convention = self.business_day_convention;
 
         // Apply business day adjustment if calendar is available
         if let Some(cal) = calendar {
-            adjust(self.maturity, bdc, cal)
+            adjust(self.maturity, business_day_convention, cal)
         } else {
             Ok(self.maturity)
         }
@@ -568,7 +583,10 @@ mod tests {
         );
         assert_eq!(deposit.discount_curve_id, CurveId::new("USD-OIS"));
         assert_eq!(deposit.spot_lag_days, Some(2));
-        assert_eq!(deposit.bdc, BusinessDayConvention::ModifiedFollowing);
+        assert_eq!(
+            deposit.business_day_convention,
+            BusinessDayConvention::ModifiedFollowing
+        );
         assert_eq!(deposit.calendar_id.as_deref(), Some("usny"));
     }
 

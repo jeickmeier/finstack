@@ -348,6 +348,32 @@ mod tests {
     }
 
     #[test]
+    fn test_exact_gbm_remains_finite_and_positive_for_extreme_shocks() {
+        let cases = [
+            ("five_sigma_down", 0.20, 0.0, 1.0, 1.0, 1.0, -5.0),
+            ("five_sigma_up", -0.05, 0.10, 1.0, 1_000.0, 1.0, 5.0),
+            ("tiny_spot_low_vol", -0.02, 0.01, 0.01, 1.0e-12, 0.001, -5.0),
+        ];
+        let disc = ExactGbm::new();
+
+        for (name, rate, dividend_yield, volatility, spot, dt, shock) in cases {
+            let process = GbmProcess::new(
+                GbmParams::new(rate, dividend_yield, volatility).expect("valid GBM parameters"),
+            );
+            let mut state = vec![spot];
+            let mut work = vec![];
+
+            disc.step(&process, 0.0, dt, &mut state, &[shock], &mut work);
+
+            assert!(
+                state[0].is_finite() && state[0] > 0.0,
+                "{name}: exact GBM produced invalid state {}",
+                state[0]
+            );
+        }
+    }
+
+    #[test]
     fn test_exact_gbm_multiple_steps() {
         let params = GbmParams::new(0.05, 0.0, 0.2).unwrap();
         let process = GbmProcess::new(params);

@@ -309,6 +309,7 @@ pub trait Copula: Send + Sync {
 )]
 #[serde(tag = "type", deny_unknown_fields)]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum CopulaSpec {
     /// One-factor Gaussian copula (market standard default).
     ///
@@ -626,7 +627,7 @@ mod tests {
     fn test_deserialized_invalid_student_t_df_is_rejected_on_build() {
         // Simulate config file with invalid df <= 2
         let spec: CopulaSpec =
-            serde_json::from_str(r#"{"type":"StudentT","degrees_of_freedom":1.5}"#)
+            serde_json::from_str(r#"{"type":"student_t","degrees_of_freedom":1.5}"#)
                 .expect("should deserialize");
         assert!(matches!(
             spec.build(),

@@ -60,8 +60,8 @@ pub fn parse_tenor_to_years(tenor: &str) -> Result<f64> {
 
 /// Convert basis-point integers to absolute fractions (e.g., `300 bp` → `0.03`).
 #[inline]
-pub(crate) fn bps_to_fractions(bps: &[i32]) -> Vec<f64> {
-    bps.iter().map(|bp| f64::from(*bp) / 10_000.0).collect()
+pub(crate) fn bp_to_fractions(bp: &[i32]) -> Vec<f64> {
+    bp.iter().map(|bp| f64::from(*bp) / 10_000.0).collect()
 }
 
 /// Parse a tenor string to a year fraction using calendar-aware computation.
@@ -75,7 +75,7 @@ pub(crate) fn bps_to_fractions(bps: &[i32]) -> Vec<f64> {
 /// - `tenor`: Tenor string in formats like "1D", "1W", "3M", "5Y"
 /// - `as_of`: Starting date for the calculation
 /// - `calendar`: Optional holiday calendar for business day adjustment
-/// - `bdc`: Business-day convention to apply when a calendar is supplied
+/// - `business_day_convention`: Business-day convention to apply when a calendar is supplied
 /// - `day_count`: Day-count convention for year fraction calculation
 ///
 /// # Returns
@@ -87,46 +87,14 @@ pub fn parse_tenor_to_years_with_context(
     tenor: &str,
     as_of: Date,
     calendar: Option<&dyn HolidayCalendar>,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
     day_count: DayCount,
 ) -> Result<f64> {
     let parsed = Tenor::parse(tenor).map_err(|e| Error::InvalidTenor(e.to_string()))?;
 
     parsed
-        .to_years_with_context(as_of, calendar, bdc, day_count)
+        .to_years_with_context(as_of, calendar, business_day_convention, day_count)
         .map_err(|e| Error::Internal(e.to_string()))
-}
-
-/// Parse a day-count string override into a [`DayCount`] enum.
-///
-/// # Arguments
-///
-/// - `raw`: Day-count alias such as `act/360`, `act/365f`, `act/act`,
-///   `30/360`, or `30e/360`.
-///
-/// # Returns
-///
-/// The normalized [`DayCount`] enum corresponding to the provided alias.
-///
-/// # Errors
-///
-/// Returns [`Error::Validation`] if `raw` is not one of the supported aliases.
-pub fn parse_day_count_override(raw: &str) -> Result<DayCount> {
-    let normalised = raw.trim().to_lowercase();
-    let parsed = match normalised.as_str() {
-        "act360" | "act/360" | "actual/360" => DayCount::Act360,
-        "act365f" | "act/365f" | "actual/365" | "actual/365f" | "act365" => DayCount::Act365F,
-        "actact" | "act/act" | "actual/actual" => DayCount::ActAct,
-        "30/360" | "thirty360" => DayCount::Thirty360,
-        "30e/360" | "30/360e" | "thirtye360" => DayCount::ThirtyE360,
-        other => {
-            return Err(Error::Validation(format!(
-                "Unsupported day count override '{}'",
-                other
-            )))
-        }
-    };
-    Ok(parsed)
 }
 
 /// Resolve the effective day-count and tenor length for a rate binding.
@@ -138,33 +106,33 @@ pub fn parse_day_count_override(raw: &str) -> Result<DayCount> {
 /// - `default_day_count`: Day-count convention to use when the binding does not
 ///   override it.
 /// - `calendar`: Optional holiday calendar for business-day adjustment.
-/// - `bdc`: Business-day convention to apply when `calendar` is present.
+/// - `business_day_convention`: Business-day convention to apply when `calendar` is present.
 ///
 /// # Returns
 ///
 /// A tuple `(year_fraction, effective_day_count)` where `effective_day_count`
-/// is either the parsed override or `default_day_count`.
+/// is either the typed override or `default_day_count`.
 ///
 /// # Errors
 ///
-/// Returns an error if the day-count override is unsupported or the tenor
-/// cannot be converted into a year fraction.
+/// Returns an error if the tenor cannot be converted into a year fraction.
 pub fn tenor_years_from_binding(
     binding: &RateBindingSpec,
     base_date: Date,
     default_day_count: DayCount,
     calendar: Option<&dyn HolidayCalendar>,
-    bdc: BusinessDayConvention,
+    business_day_convention: BusinessDayConvention,
 ) -> Result<(f64, DayCount)> {
-    let effective_dc = if let Some(dc) = &binding.day_count {
-        parse_day_count_override(dc)?
-    } else {
-        default_day_count
-    };
+    let effective_day_count = binding.day_count.unwrap_or(default_day_count);
 
-    let years =
-        parse_tenor_to_years_with_context(&binding.tenor, base_date, calendar, bdc, effective_dc)?;
-    Ok((years, effective_dc))
+    let years = parse_tenor_to_years_with_context(
+        &binding.tenor,
+        base_date,
+        calendar,
+        business_day_convention,
+        effective_day_count,
+    )?;
+    Ok((years, effective_day_count))
 }
 
 /// Parse a period string to an integer number of days.
@@ -345,10 +313,10 @@ mod tests {
 
     #[test]
     fn test_bps_to_fractions() {
-        let out = bps_to_fractions(&[300, 700]);
+        let out = bp_to_fractions(&[300, 700]);
         assert!((out[0] - 0.03).abs() < 1e-9);
         assert!((out[1] - 0.07).abs() < 1e-9);
-        assert!(bps_to_fractions(&[]).is_empty());
+        assert!(bp_to_fractions(&[]).is_empty());
     }
 
     #[test]

@@ -230,18 +230,6 @@ pub(crate) fn plan_credit_cascade(
     _as_of_t0: Date,
     _as_of_t1: Date,
 ) -> Result<Option<CreditCascade>> {
-    // Gate the model schema before consuming it: the
-    // model's own docs require checking `SCHEMA_VERSION` before trusting
-    // content, and a silently-accepted future schema could re-interpret beta
-    // or factor semantics.
-    if model.schema_version != CreditFactorModel::SCHEMA_VERSION {
-        return Err(finstack_quant_core::Error::Validation(format!(
-            "unsupported CreditFactorModel schema_version {:?}; expected {:?}",
-            model.schema_version,
-            CreditFactorModel::SCHEMA_VERSION
-        )));
-    }
-
     // Resolve issuer id from instrument attributes.
     let issuer_id_str = match instrument.attributes().get_meta(ISSUER_ID_META_KEY) {
         Some(s) => s.to_string(),
@@ -709,7 +697,8 @@ mod tests {
         tags.insert("region".to_string(), "US".to_string());
 
         CreditFactorModel {
-            schema_version: CreditFactorModel::SCHEMA_VERSION.into(),
+            schema:
+                finstack_quant_factor_model::credit::hierarchy::CreditFactorModelSchema::CURRENT,
             as_of: create_date(2024, Month::March, 29).unwrap(),
             calibration_window: DateRange {
                 start: create_date(2022, Month::March, 29).unwrap(),

@@ -856,7 +856,7 @@ class CashFlowSchedule:
         market: MarketContext,
         disc_curve_id: str,
         base: datetime.date,
-        dc: DayCount | None = None,
+        day_count: DayCount | None = None,
         hazard_curve_id: str | None = None,
     ) -> dict[str, dict[str, Money]]:
         """
@@ -875,7 +875,7 @@ class CashFlowSchedule:
         base : datetime.date
             Valuation date used to convert cashflow dates into discount
             times.
-        dc : DayCount, optional
+        day_count : DayCount, optional
             Day-count convention for discount times (default Act/365F).
         hazard_curve_id : str, optional
             Hazard curve identifier for credit-adjusted present value.
@@ -1213,8 +1213,8 @@ class FeeSpec:
     """
     Fee specification: a one-time fixed fee or a periodic basis-point fee.
 
-    Constructed via :meth:`fixed` or :meth:`periodic_bps`, mirroring the
-    two Rust ``FeeSpec`` variants. Negative amounts and bps quotes are
+    Constructed via :meth:`fixed` or :meth:`periodic_bp`, mirroring the
+    two Rust ``FeeSpec`` variants. Negative amounts and bp quotes are
     treated as rebates and flow through unchanged.
 
     Examples
@@ -1260,12 +1260,12 @@ class FeeSpec:
         ...
 
     @staticmethod
-    def periodic_bps(
+    def periodic_bp(
         base: FeeBase,
-        bps: Decimal | float,
-        freq: Tenor | str,
-        dc: DayCount,
-        bdc: BusinessDayConvention | str,
+        bp: Decimal | float,
+        frequency: Tenor | str,
+        day_count: DayCount,
+        business_day_convention: BusinessDayConvention | str,
         calendar_id: str,
         stub: StubKind | None = None,
         accrual_basis: FeeAccrualBasis | None = None,
@@ -1277,16 +1277,16 @@ class FeeSpec:
         ----------
         base : FeeBase
             Economic balance the fee accrues against (drawn or undrawn).
-        bps : decimal.Decimal | float
+        bp : decimal.Decimal | float
             Fee quote in basis points per annum.
-        freq : Tenor | str
+        frequency : Tenor | str
             Accrual and payment frequency for the fee schedule.
-        dc : DayCount
+        day_count : DayCount
             Day-count convention used to annualize the fee accrual.
-        bdc : BusinessDayConvention | str
+        business_day_convention : BusinessDayConvention | str
             Business-day convention applied to generated fee dates.
         calendar_id : str
-            Holiday calendar id used with *bdc*.
+            Holiday calendar id used with *business_day_convention*.
         stub : StubKind, optional
             Stub-handling rule for irregular periods (default short-front).
         accrual_basis : FeeAccrualBasis, optional
@@ -1308,12 +1308,12 @@ class FeeSpec:
         >>> from finstack_quant.cashflows.builder import FeeBase, FeeSpec
         >>> from finstack_quant.core.dates import DayCount, Tenor
         >>> from finstack_quant.core.money import Money
-        >>> spec = FeeSpec.periodic_bps(
+        >>> spec = FeeSpec.periodic_bp(
         ...     base=FeeBase.undrawn(facility_limit=Money(10_000_000.0, "USD")),
-        ...     bps=50,
-        ...     freq=Tenor.quarterly(),
-        ...     dc=DayCount.ACT_360,
-        ...     bdc="modified_following",
+        ...     bp=50,
+        ...     frequency=Tenor.quarterly(),
+        ...     day_count=DayCount.ACT_360,
+        ...     business_day_convention="modified_following",
         ...     calendar_id="weekends_only",
         ... )
         >>> spec is not None
@@ -1401,7 +1401,7 @@ class FloatingCouponSpec:
     ...     FloatingRateSpec,
     ...     ScheduleParams,
     ... )
-    >>> rate_spec = FloatingRateSpec(index_id="USD-SOFR-3M", spread_bp=Decimal("200"), reset_freq="3M")
+    >>> rate_spec = FloatingRateSpec(index_id="USD-SOFR-3M", spread_bp=Decimal("200"), reset_frequency="3M")
     >>> spec = FloatingCouponSpec(rate_spec, ScheduleParams.usd_sofr_swap())
     >>> spec.rate_spec.index_id
     'USD-SOFR-3M'
@@ -1506,7 +1506,7 @@ class FloatingRateSpec:
     --------
     >>> from decimal import Decimal
     >>> from finstack_quant.cashflows.builder import FloatingRateSpec
-    >>> spec = FloatingRateSpec(index_id="USD-SOFR-3M", spread_bp=Decimal("200"), reset_freq="3M")
+    >>> spec = FloatingRateSpec(index_id="USD-SOFR-3M", spread_bp=Decimal("200"), reset_frequency="3M")
     >>> spec.index_id
     'USD-SOFR-3M'
     """
@@ -1515,7 +1515,7 @@ class FloatingRateSpec:
         self,
         index_id: str,
         spread_bp: Decimal | float,
-        reset_freq: Tenor | str,
+        reset_frequency: Tenor | str,
         gearing: Decimal | float | None = None,
         gearing_includes_spread: bool = True,
         index_floor_bp: Decimal | float | None = None,
@@ -1539,7 +1539,7 @@ class FloatingRateSpec:
             Forward curve identifier (e.g. ``"USD-SOFR-3M"``).
         spread_bp : decimal.Decimal | float
             Spread/margin over the index in basis points.
-        reset_freq : Tenor | str
+        reset_frequency : Tenor | str
             Reset frequency for rate fixings; also the default index tenor.
         gearing : decimal.Decimal | float, optional
             Leverage multiplier applied to the all-in rate (default ``1``);
@@ -1560,7 +1560,7 @@ class FloatingRateSpec:
             coupons (default daily).
         index_tenor : Tenor | str, optional
             Underlying index tenor for the forward projection, when it
-            differs from *reset_freq*.
+            differs from *reset_frequency*.
         reset_lag_days : int
             Reset lag in business days (default ``2``, T-2 convention).
         fixing_calendar_id : str, optional
@@ -2223,10 +2223,10 @@ class ScheduleParams:
 
     def __init__(
         self,
-        freq: Tenor | str,
-        dc: DayCount,
+        frequency: Tenor | str,
+        day_count: DayCount,
         calendar_id: str,
-        bdc: BusinessDayConvention | str | None = None,
+        business_day_convention: BusinessDayConvention | str | None = None,
         stub: StubKind | None = None,
         end_of_month: bool = False,
         payment_lag_days: int = 0,
@@ -2238,14 +2238,14 @@ class ScheduleParams:
 
         Parameters
         ----------
-        freq : Tenor | str
+        frequency : Tenor | str
             Accrual and payment frequency (e.g. ``"3M"``).
-        dc : DayCount
+        day_count : DayCount
             Day-count convention for accrual year fractions.
         calendar_id : str
             Holiday calendar id (``"weekends_only"`` for weekend-only
             rolling).
-        bdc : BusinessDayConvention | str, optional
+        business_day_convention : BusinessDayConvention | str, optional
             Payment-date rolling convention (default Modified Following).
         stub : StubKind, optional
             Stub rule (default short-front).
@@ -2254,7 +2254,7 @@ class ScheduleParams:
         payment_lag_days : int
             Payment lag in business days (default ``0``).
         adjust_accrual_dates : bool
-            Roll accrual boundaries with *bdc*, i.e. swap/ISDA convention
+            Roll accrual boundaries with *business_day_convention*, i.e. swap/ISDA convention
             (default ``False``, bond convention).
         roll_rule : RollRule, optional
             IMM/CDS-IMM anchor grid (default none).
@@ -2448,7 +2448,7 @@ class ScheduleParams:
         ...
 
     @property
-    def freq(self) -> Tenor:
+    def frequency(self) -> Tenor:
         """
         Accrual and payment frequency.
 
@@ -2460,7 +2460,7 @@ class ScheduleParams:
         ...
 
     @property
-    def dc(self) -> DayCount:
+    def day_count(self) -> DayCount:
         """
         Day-count convention.
 

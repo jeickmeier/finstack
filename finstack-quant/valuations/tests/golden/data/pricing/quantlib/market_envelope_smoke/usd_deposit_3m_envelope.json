@@ -1,12 +1,12 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "usd_deposit_3m_envelope",
     "domain": "rates.deposit",
-    "description": "Phase-1 smoke fixture: same deposit + expected outputs as deposit/usd_deposit_3m.json, but the discount curve is built via market_envelope rather than a materialized snapshot.",
+    "description": "Smoke fixture: same deposit + expected outputs as deposit/usd_deposit_3m.json, but the discount curve is built via market_envelope rather than a materialized snapshot.",
     "valuation_date": "2026-04-30",
     "source": "quantlib",
-    "source_detail": "Phase-1 smoke: same QuantLib-Python 1.42.1 oracle values as deposit/usd_deposit_3m.json; discount curve carried through initial_market with no calibration steps to produce byte-identical pricing Regenerated 2026-06-11 (docs/reviews/2026-06-09-core-quant-review.md): core npv now excludes flows on or before the valuation date (market-standard holder-view position value), so the T+0 initial -10MM notional exchange on the 2026-04-30 valuation date is no longer part of npv. New expected npv = prior QuantLib trade NPV (2877.927119438455) + 10,000,000 excluded initial flow at DF=1; equivalently QuantLib CashFlows.npv with includeSettlementDateFlows=False. deposit_par_rate and dv01 are unchanged (the t=0 flow has DF=1 and no rate sensitivity).",
+    "source_detail": "Smoke fixture: same QuantLib-Python 1.42.1 oracle values as deposit/usd_deposit_3m.json; discount curve carried through prior_market with no calibration steps to produce byte-identical pricing Regenerated 2026-06-11 (docs/reviews/2026-06-09-core-quant-review.md): core npv now excludes flows on or before the valuation date (market-standard holder-view position value), so the T+0 initial -10MM notional exchange on the 2026-04-30 valuation date is no longer part of npv. New expected npv = prior QuantLib trade NPV (2877.927119438455) + 10,000,000 excluded initial flow at DF=1; equivalently QuantLib CashFlows.npv with includeSettlementDateFlows=False. deposit_par_rate and dv01 are unchanged (the t=0 flow has DF=1 and no rate sensitivity).",
     "captured_by": "jeickmeier",
     "captured_on": "2026-04-30",
     "last_reviewed_by": "jeickmeier",
@@ -20,10 +20,10 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
         "id": "smoke_carry_through",
-        "description": "Phase-1 smoke envelope: carries the original usd_deposit_3m USD-OIS discount curve through initial_market for byte-identical pricing. No calibration steps.",
+        "description": "Smoke-test envelope: carries the original usd_deposit_3m USD-OIS discount curve through prior_market for byte-identical pricing. No calibration steps.",
         "quote_sets": {},
         "steps": [],
         "settings": {
@@ -40,7 +40,7 @@
           "kind": "discount_curve",
           "id": "USD-OIS",
           "base": "2026-04-30",
-          "day_count": "Act365F",
+          "day_count": "act_365f",
           "knot_points": [
             [
               0.0,
@@ -72,7 +72,9 @@
           "min_forward_rate": null,
           "allow_non_monotonic": false,
           "min_forward_tenor": 1e-06,
-          "rate_calibration": null
+          "rate_calibration": null,
+          "calibration_ois_cutoff_days": null,
+          "fx_policy": null
         }
       ]
     }
@@ -89,7 +91,7 @@
         },
         "start_date": "2026-04-30",
         "maturity": "2026-07-30",
-        "day_count": "Act360",
+        "day_count": "act_360",
         "quote_rate": "0.041",
         "discount_curve_id": "USD-OIS",
         "attributes": {

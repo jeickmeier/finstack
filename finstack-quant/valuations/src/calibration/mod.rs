@@ -9,7 +9,7 @@
 //! use finstack_quant_valuations::calibration::api::{engine, schema::CalibrationEnvelope};
 //! use finstack_quant_core::market_data::context::MarketContext;
 //!
-//! # let envelope_json = r#"{"schema":"finstack_quant.calibration","plan":{"id":"empty","description":null,"quote_sets":{},"steps":[],"settings":{}}}"#;
+//! # let envelope_json = r#"{"schema":"finstack_quant.calibration/1","plan":{"id":"empty","description":null,"quote_sets":{},"steps":[],"settings":{}}}"#;
 //! let envelope: CalibrationEnvelope =
 //!     serde_json::from_str(envelope_json).expect("parse envelope");
 //! let result = engine::execute(&envelope).expect("calibration succeeded");
@@ -70,7 +70,7 @@
 //!   should include `# References` sections pointing to `docs/REFERENCES.md`.
 //!
 //! # Features
-//! - **Plan-Driven API**: Uses `"finstack_quant.calibration"` schema for structured calibration plans.
+//! - **Plan-Driven API**: Uses `"finstack_quant.calibration/1"` schema for structured calibration plans.
 //! - **Flexible Solvers**: Supports both sequential bootstrapping and global optimization (Newton/LM).
 //! - **Market Standards**: Implements post-2008 multi-curve frameworks and strict pricing conventions.
 //! - **Extensible Architecture**: Easy to add new instrument types and calibration targets.

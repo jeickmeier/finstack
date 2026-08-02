@@ -58,6 +58,7 @@ use crate::money::Money;
     serde::Deserialize,
     schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CFKind {
     /// Fixed-rate coupon cash-flow.
     ///
@@ -115,7 +116,7 @@ pub enum CFKind {
     /// Interest that is added to the outstanding principal rather than paid in cash.
     /// Creates a new notional amount: `new_notional = old_notional + PIK_interest`.
     /// The amount field represents the interest capitalized.
-    PIK,
+    Pik,
 
     /// Scheduled amortization (principal repayment).
     ///
@@ -231,7 +232,7 @@ impl std::fmt::Display for CFKind {
             CFKind::UsageFee => "usage_fee",
             CFKind::FacilityFee => "facility_fee",
             CFKind::Notional => "notional",
-            CFKind::PIK => "pik",
+            CFKind::Pik => "pik",
             CFKind::Amortization => "amortization",
             CFKind::PrePayment => "prepayment",
             CFKind::RevolvingDraw => "revolving_draw",
@@ -253,45 +254,37 @@ impl std::fmt::Display for CFKind {
     }
 }
 
-impl crate::parse::NormalizedEnum for CFKind {
-    const VARIANTS: &'static [(&'static str, Self)] = &[
-        ("fixed", Self::Fixed),
-        ("float_reset", Self::FloatReset),
-        ("inflation_coupon", Self::InflationCoupon),
-        ("fee", Self::Fee),
-        ("commitment_fee", Self::CommitmentFee),
-        ("usage_fee", Self::UsageFee),
-        ("facility_fee", Self::FacilityFee),
-        ("notional", Self::Notional),
-        ("pik", Self::PIK),
-        ("amortization", Self::Amortization),
-        ("amort", Self::Amortization),
-        ("prepayment", Self::PrePayment),
-        ("pre_payment", Self::PrePayment),
-        ("revolving_draw", Self::RevolvingDraw),
-        ("revolving_repayment", Self::RevolvingRepayment),
-        ("defaulted_notional", Self::DefaultedNotional),
-        ("recovery", Self::Recovery),
-        ("accrued_on_default", Self::AccruedOnDefault),
-        ("stub", Self::Stub),
-        ("initial_margin_post", Self::InitialMarginPost),
-        ("initial_margin_return", Self::InitialMarginReturn),
-        ("variation_margin_receive", Self::VariationMarginReceive),
-        ("variation_margin_pay", Self::VariationMarginPay),
-        ("margin_interest", Self::MarginInterest),
-        ("collateral_substitution_in", Self::CollateralSubstitutionIn),
-        (
-            "collateral_substitution_out",
-            Self::CollateralSubstitutionOut,
-        ),
-    ];
-}
-
 impl std::str::FromStr for CFKind {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::parse::parse_normalized_enum(s)
+        match s {
+            "fixed" => Ok(Self::Fixed),
+            "float_reset" => Ok(Self::FloatReset),
+            "inflation_coupon" => Ok(Self::InflationCoupon),
+            "fee" => Ok(Self::Fee),
+            "commitment_fee" => Ok(Self::CommitmentFee),
+            "usage_fee" => Ok(Self::UsageFee),
+            "facility_fee" => Ok(Self::FacilityFee),
+            "notional" => Ok(Self::Notional),
+            "pik" => Ok(Self::Pik),
+            "amortization" => Ok(Self::Amortization),
+            "prepayment" => Ok(Self::PrePayment),
+            "revolving_draw" => Ok(Self::RevolvingDraw),
+            "revolving_repayment" => Ok(Self::RevolvingRepayment),
+            "defaulted_notional" => Ok(Self::DefaultedNotional),
+            "recovery" => Ok(Self::Recovery),
+            "accrued_on_default" => Ok(Self::AccruedOnDefault),
+            "stub" => Ok(Self::Stub),
+            "initial_margin_post" => Ok(Self::InitialMarginPost),
+            "initial_margin_return" => Ok(Self::InitialMarginReturn),
+            "variation_margin_receive" => Ok(Self::VariationMarginReceive),
+            "variation_margin_pay" => Ok(Self::VariationMarginPay),
+            "margin_interest" => Ok(Self::MarginInterest),
+            "collateral_substitution_in" => Ok(Self::CollateralSubstitutionIn),
+            "collateral_substitution_out" => Ok(Self::CollateralSubstitutionOut),
+            _ => Err(format!("unknown cashflow kind {s:?}")),
+        }
     }
 }
 
@@ -317,10 +310,12 @@ impl CFKind {
 #[serde(deny_unknown_fields)]
 pub struct CashFlowAccrual {
     /// Contractual accrual-period start date.
-    #[schemars(with = "String")]
+    #[serde(with = "crate::wire::date")]
+    #[schemars(with = "crate::wire::DateWire")]
     pub start: Date,
     /// Contractual accrual-period end date.
-    #[schemars(with = "String")]
+    #[serde(with = "crate::wire::date")]
+    #[schemars(with = "crate::wire::DateWire")]
     pub end: Date,
     /// Day-count convention used for the accrual factor.
     pub day_count: DayCount,
@@ -339,10 +334,12 @@ pub struct CashFlowAccrual {
 #[serde(deny_unknown_fields)]
 pub struct CashFlow {
     /// Payment date (or payment date for principal/fee, or reset date for `CFKind::FloatReset`).
-    #[schemars(with = "String")]
+    #[serde(with = "crate::wire::date")]
+    #[schemars(with = "crate::wire::DateWire")]
     pub date: Date,
     /// Optional index reset date (for floating coupons).
-    #[schemars(with = "Option<String>")]
+    #[serde(default, with = "crate::wire::optional_date")]
+    #[schemars(with = "Option<crate::wire::DateWire>")]
     pub reset_date: Option<Date>,
     /// Monetary amount including its currency.
     pub amount: Money,
@@ -515,13 +512,6 @@ fn non_finite_kind(x: f64) -> NonFiniteKind {
 mod tests {
     use super::*;
 
-    fn assert_parses_to<T>(label: &str, expected: T)
-    where
-        T: std::str::FromStr + PartialEq,
-    {
-        assert!(matches!(label.parse::<T>(), Ok(value) if value == expected));
-    }
-
     fn assert_roundtrip<T>(value: T)
     where
         T: Clone + std::fmt::Display + std::str::FromStr + PartialEq,
@@ -572,7 +562,7 @@ mod tests {
             "date": Date::from_calendar_date(2025, Month::January, 15).expect("valid date"),
             "reset_date": null,
             "amount": Money::new(100.0, Currency::USD),
-            "kind": "Fixed",
+            "kind": "fixed",
             "accrual_factor": 0.25,
             "rate": 0.05,
             "extra": true
@@ -616,12 +606,12 @@ mod tests {
             date,
             reset_date: None,
             amount: amt,
-            kind: CFKind::PIK,
+            kind: CFKind::Pik,
             accrual_factor: 0.0,
             rate: None,
             accrual: None,
         };
-        assert_eq!(pik.kind, CFKind::PIK);
+        assert_eq!(pik.kind, CFKind::Pik);
         assert!(pik.validate().is_ok());
 
         let amort = CashFlow {
@@ -665,7 +655,7 @@ mod tests {
         for kind in [
             CFKind::Fee,
             CFKind::Notional,
-            CFKind::PIK,
+            CFKind::Pik,
             CFKind::Amortization,
             CFKind::Recovery,
             CFKind::MarginInterest,
@@ -789,7 +779,7 @@ mod tests {
             CFKind::UsageFee,
             CFKind::FacilityFee,
             CFKind::Notional,
-            CFKind::PIK,
+            CFKind::Pik,
             CFKind::Amortization,
             CFKind::PrePayment,
             CFKind::RevolvingDraw,
@@ -813,18 +803,10 @@ mod tests {
     }
 
     #[test]
-    fn cfkind_from_str_aliases() {
-        // Amortization aliases
-        assert_parses_to("amort", CFKind::Amortization);
-        assert_parses_to("amortization", CFKind::Amortization);
-
-        // PrePayment aliases
-        assert_parses_to("prepayment", CFKind::PrePayment);
-        assert_parses_to("pre_payment", CFKind::PrePayment);
-
-        // Case-insensitive via normalize_label
-        assert_parses_to("FIXED", CFKind::Fixed);
-        assert_parses_to("Float-Reset", CFKind::FloatReset);
+    fn cfkind_from_str_rejects_noncanonical_spellings() {
+        for rejected in ["amort", "pre_payment", "FIXED", "Float-Reset", " fixed"] {
+            assert!(rejected.parse::<CFKind>().is_err());
+        }
     }
 
     #[test]

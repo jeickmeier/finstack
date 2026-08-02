@@ -58,7 +58,7 @@ impl Default for SimpleCDSTrancheHazardPricer {
 
 impl crate::pricer::Pricer for SimpleCDSTrancheHazardPricer {
     fn key(&self) -> crate::pricer::PricerKey {
-        crate::pricer::PricerKey::new(crate::pricer::InstrumentType::CDSTranche, self.model_key)
+        crate::pricer::PricerKey::new(crate::pricer::InstrumentType::CdsTranche, self.model_key)
     }
 
     fn price_dyn(
@@ -75,7 +75,7 @@ impl crate::pricer::Pricer for SimpleCDSTrancheHazardPricer {
             .downcast_ref::<crate::instruments::credit_derivatives::cds_tranche::CDSTranche>()
             .ok_or_else(|| {
                 crate::pricer::PricingError::type_mismatch(
-                    crate::pricer::InstrumentType::CDSTranche,
+                    crate::pricer::InstrumentType::CdsTranche,
                     instrument.key(),
                 )
             })?;
@@ -96,7 +96,7 @@ impl crate::pricer::Pricer for SimpleCDSTrancheHazardPricer {
             crate::results::ValuationResult::stamped(cds_tranche.id(), as_of, pv).with_details(
                 crate::results::ValuationDetails::CreditDerivative(
                     crate::results::CreditDerivativeValuationDetails {
-                        model_key: format!("{:?}", self.model_key),
+                        model_key: self.model_key,
                         integration_method: Some("isda_standard_model".to_string()),
                     },
                 ),

@@ -74,7 +74,7 @@ fn create_cds(tenor_years: i32) -> CreditDefaultSwap {
     test_utils::cds_buy_protection(
         format!("CDS-{}Y", tenor_years),
         Money::new(10_000_000.0, Currency::USD),
-        200.0, // 200 bps spread
+        200.0, // 200 bp spread
         start,
         maturity,
         "USD-OIS",
@@ -156,7 +156,7 @@ fn create_credit_market() -> MarketContext {
         .build()
         .unwrap();
 
-    // Hazard rate curve (200 bps flat)
+    // Hazard rate curve (200 bp flat)
     let hazard = HazardCurve::builder("CORP-HAZARD")
         .issuer("CORP")
         .seniority(Seniority::Senior)

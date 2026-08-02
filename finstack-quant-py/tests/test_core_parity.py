@@ -49,7 +49,7 @@ def test_tenor_constructor_uses_checked_rust_validation() -> None:
 
 
 def test_bps_constructor_rejects_rounded_i32_overflow() -> None:
-    assert Bps(2_147_483_647).as_bps == 2_147_483_647
+    assert Bps(2_147_483_647).as_bp == 2_147_483_647
     with pytest.raises(ValueError, match="overflow"):
         Bps(2_147_483_648)
 
@@ -62,7 +62,7 @@ def test_bps_constructor_rejects_fractional_input() -> None:
     """
     with pytest.raises(ValueError, match="whole number"):
         Bps(62.5)
-    assert Bps(62.0).as_bps == 62
+    assert Bps(62.0).as_bp == 62
 
 
 class TestCurrencyParity:
@@ -378,7 +378,7 @@ class TestDiscountCurveParity:
         context.insert(curve)
 
         state = json.loads(context.to_json())
-        assert state["curves"][0]["day_count"] == "Act360"
+        assert state["curves"][0]["day_count"] == "act_360"
 
     def test_explicit_day_count_still_overrides_curve_id_inference(self) -> None:
         """Users can still override the inferred day-count convention explicitly."""
@@ -392,7 +392,7 @@ class TestDiscountCurveParity:
         context.insert(curve)
 
         state = json.loads(context.to_json())
-        assert state["curves"][0]["day_count"] == "Act365F"
+        assert state["curves"][0]["day_count"] == "act_365f"
 
     def test_flat_uses_continuous_compounding(self) -> None:
         curve = DiscountCurve.flat("USD-OIS", date(2024, 1, 1), 0.04)

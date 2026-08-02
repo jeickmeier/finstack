@@ -5,29 +5,26 @@ use finstack_quant_core::to_canonical_bytes;
 use finstack_quant_valuations::calibration::api::schema::CalibrationEnvelope;
 use finstack_quant_valuations::instruments::InstrumentEnvelope;
 
-fn matrix() -> serde_json::Value {
-    serde_json::from_str(include_str!("data/contract_version_matrix.json"))
-        .expect("contract matrix parses")
-}
-
-fn document_with_replacement(contract: &str, from: &str, to: &str) -> Vec<u8> {
-    serde_json::to_string(&matrix()[contract]["base"])
-        .expect("base fixture serializes")
-        .replace(from, to)
-        .into_bytes()
+fn document_with_replacement(document: &str, from: &str, to: &str) -> Vec<u8> {
+    serde_json::to_string(
+        &serde_json::from_str::<serde_json::Value>(document).expect("canonical fixture parses"),
+    )
+    .expect("canonical fixture serializes")
+    .replace(from, to)
+    .into_bytes()
 }
 
 #[test]
 fn instrument_envelope_has_golden_canonical_bytes_hash_and_order_invariance() {
     let first_bytes = document_with_replacement(
-        "instrument",
-        r#""meta":{}"#,
-        r#""meta":{"desk":"rates","source":"golden"}"#,
+        include_str!("data/canonical/instrument.json"),
+        r#""attributes":{"meta":{"desk":"rates","source":"golden"}}"#,
+        r#""attributes":{"meta":{"desk":"rates","source":"golden"}}"#,
     );
     let second_bytes = document_with_replacement(
-        "instrument",
-        r#""meta":{}"#,
-        r#""meta":{"source":"golden","desk":"rates"}"#,
+        include_str!("data/canonical/instrument.json"),
+        r#""attributes":{"meta":{"desk":"rates","source":"golden"}}"#,
+        r#""attributes":{"meta":{"source":"golden","desk":"rates"}}"#,
     );
     InstrumentEnvelope::from_slice_strict(&first_bytes, &LoadLimits::default())
         .expect("first instrument is strictly valid");
@@ -39,7 +36,12 @@ fn instrument_envelope_has_golden_canonical_bytes_hash_and_order_invariance() {
         serde_json::from_slice(&second_bytes).expect("second envelope parses");
 
     let canonical = to_canonical_bytes(&first).expect("instrument canonicalizes");
-    assert_eq!(canonical, include_bytes!("data/canonical/instrument.json"));
+    assert_eq!(
+        canonical,
+        include_str!("data/canonical/instrument.json")
+            .trim()
+            .as_bytes()
+    );
     assert_eq!(
         first.content_hash().expect("instrument hashes"),
         include_str!("data/canonical/instrument.sha256").trim()
@@ -53,12 +55,12 @@ fn instrument_envelope_has_golden_canonical_bytes_hash_and_order_invariance() {
 #[test]
 fn calibration_envelope_has_golden_canonical_bytes_hash_and_order_invariance() {
     let first_bytes = document_with_replacement(
-        "calibration",
+        include_str!("data/canonical/calibration.json"),
         r#""quote_sets":{}"#,
         r#""quote_sets":{"usd":[],"eur":[]}"#,
     );
     let second_bytes = document_with_replacement(
-        "calibration",
+        include_str!("data/canonical/calibration.json"),
         r#""quote_sets":{}"#,
         r#""quote_sets":{"eur":[],"usd":[]}"#,
     );
@@ -72,7 +74,12 @@ fn calibration_envelope_has_golden_canonical_bytes_hash_and_order_invariance() {
     assert!(!second_report.has_errors());
 
     let canonical = to_canonical_bytes(&first).expect("calibration canonicalizes");
-    assert_eq!(canonical, include_bytes!("data/canonical/calibration.json"));
+    assert_eq!(
+        canonical,
+        include_str!("data/canonical/calibration.json")
+            .trim()
+            .as_bytes()
+    );
     assert_eq!(
         first.content_hash().expect("calibration hashes"),
         include_str!("data/canonical/calibration.sha256").trim()

@@ -1,9 +1,9 @@
 {
-  "$schema": "../../schemas/calibration/3/calibration.schema.json",
-  "schema": "finstack_quant.calibration",
+  "$schema": "../../schemas/calibration/1/calibration.schema.json",
+  "schema": "finstack_quant.calibration/1",
   "plan": {
     "id": "bond_prices_snapshot",
-    "description": "Snapshot-only example: bond clean prices supplied via initial_market.prices keyed by bond ID, with no calibration steps. Demonstrates Track B for fixed-income \u2014 non-bootstrapped bond marks loaded as MarketScalar values. The MarketScalar shape is shared with equity spot prices (see 08_equity_vol_surface.json). Three bonds are included: a 10-year US Treasury, an IBM 7-year corporate bond, and a Microsoft 5-year corporate bond. Clean prices are near par (99\u2013105) as is typical for investment-grade fixed-income instruments close to issuance.",
+    "description": "Snapshot-only example: bond clean prices supplied via market_data price entries keyed by bond ID, with no calibration steps. Demonstrates Track B for fixed-income \u2014 non-bootstrapped bond marks loaded as MarketScalar values. The MarketScalar shape is shared with equity spot prices (see 08_equity_vol_surface.json). Three bonds are included: a 10-year US Treasury, an IBM 7-year corporate bond, and a Microsoft 5-year corporate bond. Clean prices are near par (99\u2013105) as is typical for investment-grade fixed-income instruments close to issuance.",
     "quote_sets": {},
     "steps": [],
     "settings": {}

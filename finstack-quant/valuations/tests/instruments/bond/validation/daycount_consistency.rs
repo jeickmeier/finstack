@@ -50,11 +50,12 @@ fn create_bond_with_daycount(
             coupon_type: CouponType::Cash,
             rate: rust_decimal::Decimal::try_from(coupon).expect("valid coupon"),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: day_count,
+                day_count,
 
-                bdc: finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
+                business_day_convention:
+                    finstack_quant_core::dates::BusinessDayConvention::ModifiedFollowing,
 
                 calendar_id: "weekends_only".to_string(),
 

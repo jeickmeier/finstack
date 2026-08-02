@@ -342,52 +342,8 @@ fn with_planning_produces_same_result() {
 }
 
 #[test]
-fn with_cache_configuration() {
-    let ctx = SimpleContext::new(["x"]).expect("unique columns");
-    let x = vec![1.0, 2.0, 3.0, 4.0];
-    let cols: Vec<&[f64]> = vec![x.as_slice()];
-
-    let expr = Expr::call(
-        Function::RollingSum,
-        vec![Expr::column("x"), Expr::literal(2.0)],
-    );
-
-    let meta = results_meta(&FinstackConfig::default());
-    let plain = CompiledExpr::with_planning(expr.clone(), meta.clone()).unwrap();
-    let compiled = CompiledExpr::with_planning(expr, meta)
-        .unwrap()
-        .with_cache(1);
-    assert!(!compiled.has_cache());
-
-    let mut opts = EvalOpts::default();
-    opts.cache_budget_mb = Some(1);
-    opts.max_arena_bytes = 1_073_741_824;
-
-    let result = compiled.eval(&ctx, &cols, opts).unwrap().values;
-    let expected = plain.eval(&ctx, &cols, EvalOpts::default()).unwrap().values;
-
-    for (actual, expected) in result.iter().zip(expected.iter()) {
-        if expected.is_nan() {
-            assert!(actual.is_nan());
-        } else {
-            assert!((actual - expected).abs() < 1e-12);
-        }
-    }
-
-    assert!(result[0].is_nan());
-    assert!((result[1] - 3.0).abs() < 1e-12);
-    assert!((result[2] - 5.0).abs() < 1e-12);
-    assert!((result[3] - 7.0).abs() < 1e-12);
-}
-
-#[test]
 fn repeated_eval_on_different_same_length_inputs_returns_fresh_results() {
-    // Regression for the stale cross-eval cache (
-    // ): the persistent cache
-    // keyed on (dag_node_id, len) with no input fingerprint, so re-evaluating
-    // the same CompiledExpr on different same-length data returned the FIRST
-    // dataset's values. The shared rolling_std sub-expression below was a
-    // cache node under the old strategy.
+    // Reusing scratch storage must not leak values between evaluations.
     let ctx = SimpleContext::new(["x"]).expect("unique columns");
     let rolling = Expr::call(
         Function::RollingStd,
@@ -396,9 +352,7 @@ fn repeated_eval_on_different_same_length_inputs_returns_fresh_results() {
     let expr = Expr::bin_op(BinOp::Add, rolling.clone(), rolling);
 
     let meta = results_meta(&FinstackConfig::default());
-    let compiled = CompiledExpr::with_planning(expr.clone(), meta.clone())
-        .unwrap()
-        .with_cache(8);
+    let compiled = CompiledExpr::with_planning(expr.clone(), meta.clone()).unwrap();
 
     let a = vec![1.0, 2.0, 3.0, 4.0];
     let cols_a: Vec<&[f64]> = vec![a.as_slice()];

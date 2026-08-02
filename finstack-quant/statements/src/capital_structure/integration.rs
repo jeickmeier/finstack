@@ -8,8 +8,8 @@
 //!
 //! The single-instrument / single-period extraction lives in
 //! [`crate::capital_structure::period_flows`]. The optional JSON-spec →
-//! instrument constructor `build_any_instrument_from_spec()` is available with
-//! the `valuation-integration` feature.
+//! instrument constructor `build_instrument_from_spec()` resolves the typed
+//! instrument payload through the valuations registry.
 
 use crate::capital_structure::cashflows::{CapitalStructureCashflows, CashflowBreakdown};
 use crate::capital_structure::period_flows::period_snapshot_date;
@@ -38,18 +38,17 @@ use std::sync::Arc;
 ///
 /// Returns an error when the payload does not match a registered instrument
 /// type or fails spec validation.
-#[cfg(feature = "valuation-integration")]
-pub fn build_any_instrument_from_spec(
+pub fn build_instrument_from_spec(
     spec: &crate::types::DebtInstrumentSpec,
 ) -> Result<Arc<dyn CashflowProvider + Send + Sync>> {
-    finstack_quant_valuations::instruments::cashflow_provider_from_value(spec.spec.clone()).map_err(
-        |e| {
-            crate::error::Error::build(format!(
-                "Failed to build debt instrument '{}': {e}",
-                spec.id
-            ))
-        },
-    )
+    let instrument: finstack_quant_valuations::instruments::InstrumentJson =
+        spec.spec.clone().into();
+    instrument.into_cashflow_provider().map_err(|e| {
+        crate::error::Error::build(format!(
+            "Failed to build debt instrument '{}': {e}",
+            spec.id
+        ))
+    })
 }
 
 /// Aggregate cashflows from instruments by period using valuations infrastructure.
@@ -87,7 +86,6 @@ pub fn build_any_instrument_from_spec(
 /// let instruments: IndexMap<String, Arc<dyn CashflowProvider + Send + Sync>> = IndexMap::new();
 /// let spec = CapitalStructureSpec {
 ///     debt_instruments: vec![],
-///     equity_instruments: vec![],
 ///     meta: IndexMap::new(),
 ///     reporting_currency: None,
 ///     fx_policy: None,
@@ -289,7 +287,7 @@ pub fn aggregate_instrument_cashflows(
                                 }
                             }
                         }
-                        CFKind::PIK => {
+                        CFKind::Pik => {
                             // PIK (payment-in-kind) interest accrued but not paid in cash
                             // This increases the outstanding balance and is tracked separately
                             breakdown.interest_expense_pik += abs_value;

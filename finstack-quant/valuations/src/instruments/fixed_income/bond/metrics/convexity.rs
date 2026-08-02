@@ -87,7 +87,7 @@ impl MetricCalculator for ConvexityCalculator {
 
         let comp =
             crate::instruments::fixed_income::bond::pricing::quote_conversions::YieldCompounding::Street;
-        let freq = bond.cashflow_spec.frequency();
+        let frequency = bond.cashflow_spec.frequency();
 
         // Compute quote-date context (settlement date) for yield-based convexity
         let quote_ctx = QuoteDateContext::new(bond, &context.curves, context.as_of)?;
@@ -130,7 +130,7 @@ impl MetricCalculator for ConvexityCalculator {
                     },
                 )?
                 .max(0.0);
-            let df_second = df_second_derivative(yield_rate, t, comp, freq)?;
+            let df_second = df_second_derivative(yield_rate, t, comp, frequency)?;
             d2_price += amount.amount() * df_second;
         }
 
@@ -142,7 +142,7 @@ fn df_second_derivative(
     ytm: f64,
     t: f64,
     comp: crate::instruments::fixed_income::bond::pricing::quote_conversions::YieldCompounding,
-    freq: finstack_quant_core::dates::Tenor,
+    frequency: finstack_quant_core::dates::Tenor,
 ) -> finstack_quant_core::Result<f64> {
     use crate::instruments::fixed_income::bond::pricing::quote_conversions::{
         df_from_yield, periods_per_year, YieldCompounding,
@@ -152,7 +152,7 @@ fn df_second_derivative(
         return Ok(0.0);
     }
 
-    let df = df_from_yield(ytm, t, comp, freq)?;
+    let df = df_from_yield(ytm, t, comp, frequency)?;
     Ok(match comp {
         YieldCompounding::Simple => {
             let denom = 1.0 + ytm * t;
@@ -170,13 +170,13 @@ fn df_second_derivative(
         }
         YieldCompounding::Continuous => t * t * df,
         YieldCompounding::Street => {
-            let m = periods_per_year(freq)?.max(1.0);
+            let m = periods_per_year(frequency)?.max(1.0);
             let c = m * t;
             let denom = m + ytm;
             c * (c + 1.0) / (denom * denom) * df
         }
         YieldCompounding::TreasuryActual => {
-            let m = periods_per_year(freq)?.max(1.0);
+            let m = periods_per_year(frequency)?.max(1.0);
             let period_length = 1.0 / m;
 
             if t <= period_length {

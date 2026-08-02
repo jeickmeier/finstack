@@ -25,7 +25,7 @@ fn maturity_date() -> Date {
 }
 
 fn create_simple_pool() -> AssetPool {
-    let mut pool = AssetPool::new("POOL", DealType::ABS, Currency::USD);
+    let mut pool = AssetPool::new("POOL", DealType::Abs, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "A1",
         Money::new(5_000_000.0, Currency::USD),
@@ -44,7 +44,7 @@ fn create_simple_pool() -> AssetPool {
 }
 
 fn create_simple_clo_pool() -> AssetPool {
-    let mut pool = AssetPool::new("CLO_POOL", DealType::CLO, Currency::USD);
+    let mut pool = AssetPool::new("CLO_POOL", DealType::Clo, Currency::USD);
     pool.assets.push(
         PoolAsset::fixed_rate_bond(
             "L1",
@@ -69,7 +69,7 @@ fn create_simple_clo_pool() -> AssetPool {
 }
 
 fn create_simple_cmbs_pool() -> AssetPool {
-    let mut pool = AssetPool::new("CMBS_POOL", DealType::CMBS, Currency::USD);
+    let mut pool = AssetPool::new("CMBS_POOL", DealType::Cmbs, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "CMBS-LOAN-1",
         Money::new(10_000_000.0, Currency::USD),
@@ -614,7 +614,7 @@ fn test_structured_credit_metric_dependency_resolution() {
 #[test]
 fn test_structured_credit_pool_balance_cleanup() {
     // Arrange: AssetPool with very small remaining balance
-    let mut pool = AssetPool::new("SMALL_POOL", DealType::ABS, Currency::USD);
+    let mut pool = AssetPool::new("SMALL_POOL", DealType::Abs, Currency::USD);
     pool.assets.push(PoolAsset::fixed_rate_bond(
         "A1",
         Money::new(50.0, Currency::USD), // Below cleanup threshold

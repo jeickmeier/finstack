@@ -95,9 +95,9 @@ fn test_commodity_option_equity_dependencies_complete() {
         market = market.insert(build_forward_curve(id.as_str(), 0.25, 0.04));
     }
     for volatility in &market_deps.volatility_dependencies {
-        market = market.insert_surface(build_vol_surface(volatility.surface_id.as_str()));
+        market = market.insert_surface(build_vol_surface(volatility.vol_surface_id.as_str()));
     }
-    for spot_id in &market_deps.spot_ids {
+    for spot_id in &market_deps.market_scalar_ids {
         market = market.insert_price(
             spot_id,
             MarketScalar::Price(Money::new(100.0, Currency::USD)),
@@ -152,7 +152,7 @@ fn test_missing_equity_spot_fails() {
         market = market.insert(build_forward_curve(id.as_str(), 0.25, 0.04));
     }
     for volatility in &market_deps.volatility_dependencies {
-        market = market.insert_surface(build_vol_surface(volatility.surface_id.as_str()));
+        market = market.insert_surface(build_vol_surface(volatility.vol_surface_id.as_str()));
     }
 
     let result = option.value(&market, as_of);

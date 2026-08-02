@@ -22,9 +22,16 @@ use std::sync::Arc;
 
 const SCENARIO_BATCH_MAX_ACTIVE_STATES: usize = 8;
 
-/// JSON envelope returned by scenario-and-revalue binding surfaces.
+/// Serialize-only scenario-and-revalue view returned by binding surfaces.
+///
+/// This pre-1.0 API intentionally has no alias under its former
+/// persistence-implying name:
+///
+/// ```compile_fail
+/// use finstack_quant_portfolio::scenarios::ScenarioRevalueEnvelope;
+/// ```
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct ScenarioRevalueEnvelope {
+pub struct ScenarioRevalueView {
     /// Stressed portfolio valuation.
     pub valuation: crate::valuation::PortfolioValuation,
     /// Scenario application report.
@@ -70,8 +77,8 @@ fn selective_invalidation(
                 };
                 MarketFactorKey::curve(curve_id.clone(), kind)
             }
-            ScenarioMarketTarget::VolSurface { surface_id, .. } => {
-                MarketFactorKey::vol_surface(surface_id.as_str())
+            ScenarioMarketTarget::VolSurface { vol_surface_id, .. } => {
+                MarketFactorKey::vol_surface(vol_surface_id.as_str())
             }
             ScenarioMarketTarget::EquityPrice { price_id } => {
                 MarketFactorKey::spot(price_id.as_str())
@@ -260,7 +267,7 @@ fn replace_portfolio_instruments(
 /// # let scenario: ScenarioSpec = unimplemented!("Provide a scenario");
 /// let config = FinstackConfig::default();
 /// let (valuation, _report) = apply_and_revalue(&portfolio, &scenario, &market, &config)?;
-/// println!("Stressed total: {}", valuation.total_base_ccy);
+/// println!("Stressed total: {}", valuation.total_base_currency);
 /// # Ok(())
 /// # }
 /// ```
@@ -289,12 +296,16 @@ pub fn apply_and_revalue(
     Ok((valuation, report))
 }
 
-/// Apply a scenario and return the canonical JSON envelope shape.
+/// Apply a scenario and return the serialize-only JSON view shape.
 ///
 /// # Errors
 ///
 /// Returns any scenario-application or valuation error raised by
 /// [`apply_and_revalue`].
+///
+/// ```compile_fail
+/// use finstack_quant_portfolio::scenarios::apply_and_revalue_envelope;
+/// ```
 ///
 /// # Arguments
 ///
@@ -305,14 +316,14 @@ pub fn apply_and_revalue(
 ///   source and subsequent valuation context.
 /// * `config` - Library valuation configuration, including market-data and
 ///   convention resolution policy.
-pub fn apply_and_revalue_envelope(
+pub fn apply_and_revalue_view(
     portfolio: &Portfolio,
     scenario: &ScenarioSpec,
     market: &MarketContext,
     config: &finstack_quant_core::config::FinstackConfig,
-) -> Result<ScenarioRevalueEnvelope> {
+) -> Result<ScenarioRevalueView> {
     let (valuation, report) = apply_and_revalue(portfolio, scenario, market, config)?;
-    Ok(ScenarioRevalueEnvelope { valuation, report })
+    Ok(ScenarioRevalueView { valuation, report })
 }
 
 /// Scenario-attributable profit and loss, in the portfolio base currency.
@@ -337,19 +348,26 @@ pub fn apply_and_revalue_envelope(
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScenarioPnl {
     /// Total scenario P&L in the portfolio base currency
-    /// (`stressed.total_base_ccy - base.total_base_ccy`).
+    /// (`stressed.total_base_currency - base.total_base_currency`).
     pub total: Money,
 
     /// Per-position scenario P&L in the portfolio base currency.
     pub by_position: IndexMap<PositionId, Money>,
 }
 
-/// JSON envelope returned by scenario-P&L binding surfaces.
+/// Serialize-only scenario-P&L view returned by binding surfaces.
 ///
-/// Mirrors [`ScenarioRevalueEnvelope`] so callers keep scenario provenance
+/// Mirrors [`ScenarioRevalueView`] so callers keep scenario provenance
 /// (which operations were applied, which were skipped) alongside the P&L.
+///
+/// This pre-1.0 API intentionally has no alias under its former
+/// persistence-implying name:
+///
+/// ```compile_fail
+/// use finstack_quant_portfolio::scenarios::ScenarioPnlEnvelope;
+/// ```
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct ScenarioPnlEnvelope {
+pub struct ScenarioPnlView {
     /// Scenario-attributable profit and loss.
     pub pnl: ScenarioPnl,
     /// Scenario application report.
@@ -402,7 +420,9 @@ fn diff_valuations(
         );
     }
 
-    let total = stressed.total_base_ccy.checked_sub(base.total_base_ccy)?;
+    let total = stressed
+        .total_base_currency
+        .checked_sub(base.total_base_currency)?;
 
     Ok(ScenarioPnl { total, by_position })
 }
@@ -593,7 +613,7 @@ pub fn scenario_pnl_batch(
     Ok(results)
 }
 
-/// Compute scenario P&L and return the canonical JSON envelope shape.
+/// Compute scenario P&L and return the serialize-only JSON view shape.
 ///
 /// # Arguments
 ///
@@ -608,14 +628,18 @@ pub fn scenario_pnl_batch(
 ///
 /// Returns any scenario-application, valuation, or currency-mismatch error
 /// raised by [`scenario_pnl`].
-pub fn scenario_pnl_envelope(
+///
+/// ```compile_fail
+/// use finstack_quant_portfolio::scenarios::scenario_pnl_envelope;
+/// ```
+pub fn scenario_pnl_view(
     portfolio: &Portfolio,
     scenario: &ScenarioSpec,
     market: &MarketContext,
     config: &finstack_quant_core::config::FinstackConfig,
-) -> Result<ScenarioPnlEnvelope> {
+) -> Result<ScenarioPnlView> {
     let (pnl, report) = scenario_pnl(portfolio, scenario, market, config)?;
-    Ok(ScenarioPnlEnvelope { pnl, report })
+    Ok(ScenarioPnlView { pnl, report })
 }
 
 #[cfg(test)]
@@ -718,7 +742,7 @@ mod tests {
         .expect("test should succeed");
 
         let portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -777,7 +801,7 @@ mod tests {
         .expect("test should succeed");
 
         let portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -828,7 +852,7 @@ mod tests {
         .expect("test should succeed");
 
         let mut portfolio = PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -875,7 +899,7 @@ mod tests {
         .expect("test should succeed");
 
         PortfolioBuilder::new("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -929,7 +953,7 @@ mod tests {
         )
         .expect("counting position");
         let portfolio = PortfolioBuilder::new("COUNTING_SCENARIO_BATCH")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -998,11 +1022,11 @@ mod tests {
     }
 
     #[test]
-    fn scenario_pnl_envelope_serializes_for_binding_surfaces() {
+    fn scenario_pnl_view_serializes_for_binding_surfaces() {
         let portfolio = single_position_portfolio();
         let market = build_test_market();
 
-        let envelope = scenario_pnl_envelope(
+        let view = scenario_pnl_view(
             &portfolio,
             &scenario_with(vec![OperationSpec::CurveParallelBp {
                 curve_kind: CurveKind::Discount,
@@ -1015,7 +1039,7 @@ mod tests {
         )
         .expect("test should succeed");
 
-        let json = serde_json::to_string(&envelope).expect("envelope must serialize");
+        let json = serde_json::to_string(&view).expect("view must serialize");
         assert!(json.contains("\"pnl\""), "missing pnl key: {json}");
         assert!(json.contains("\"report\""), "missing report key: {json}");
         assert!(
@@ -1025,10 +1049,10 @@ mod tests {
 
         // The ladder round-trips so Python/WASM callers can rehydrate it.
         let reparsed: ScenarioPnl =
-            serde_json::from_str(&serde_json::to_string(&envelope.pnl).expect("pnl serializes"))
+            serde_json::from_str(&serde_json::to_string(&view.pnl).expect("pnl serializes"))
                 .expect("pnl round-trips");
-        assert_eq!(reparsed.by_position.len(), envelope.pnl.by_position.len());
-        assert_eq!(reparsed.total.amount(), envelope.pnl.total.amount());
+        assert_eq!(reparsed.by_position.len(), view.pnl.by_position.len());
+        assert_eq!(reparsed.total.amount(), view.pnl.total.amount());
     }
 
     /// Build a one-position valuation whose only position value is `amount`.
@@ -1050,7 +1074,7 @@ mod tests {
         crate::valuation::PortfolioValuation {
             as_of: date!(2024 - 01 - 01),
             position_values,
-            total_base_ccy: value,
+            total_base_currency: value,
             by_entity: IndexMap::new(),
             degraded_positions: Vec::new(),
             fx_collapse_policy: finstack_quant_core::money::fx::FxConversionPolicy::CashflowDate,

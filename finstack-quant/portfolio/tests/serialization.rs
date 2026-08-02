@@ -116,7 +116,7 @@ fn test_portfolio_spec_serialization() {
 
     let portfolio = PortfolioBuilder::new("TEST_PORTFOLIO")
         .name("Test Portfolio")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENTITY_A"))
         .entity(Entity::new("ENTITY_B"))
@@ -132,7 +132,7 @@ fn test_portfolio_spec_serialization() {
     // Verify spec contains all portfolio data
     assert_eq!(spec.id, "TEST_PORTFOLIO");
     assert_eq!(spec.name, Some("Test Portfolio".to_string()));
-    assert_eq!(spec.base_ccy, Currency::USD);
+    assert_eq!(spec.base_currency, Currency::USD);
     assert_eq!(spec.as_of, as_of);
     assert_eq!(spec.entities.len(), 2);
     assert_eq!(spec.positions.len(), 2);
@@ -169,7 +169,7 @@ fn test_portfolio_spec_json_roundtrip() {
     .unwrap();
 
     let portfolio = PortfolioBuilder::new("TEST")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(as_of)
         .entity(Entity::new("ENTITY_A"))
         .position(position)
@@ -186,7 +186,7 @@ fn test_portfolio_spec_json_roundtrip() {
 
     // Verify roundtrip preserved data
     assert_eq!(spec_roundtrip.id, spec.id);
-    assert_eq!(spec_roundtrip.base_ccy, spec.base_ccy);
+    assert_eq!(spec_roundtrip.base_currency, spec.base_currency);
     assert_eq!(spec_roundtrip.as_of, spec.as_of);
     assert_eq!(spec_roundtrip.positions.len(), spec.positions.len());
 
@@ -246,7 +246,7 @@ fn test_portfolio_from_spec_preserves_position_metadata() {
     let spec = PortfolioSpec {
         id: "TEST".to_string(),
         name: None,
-        base_ccy: Currency::USD,
+        base_currency: Currency::USD,
         as_of,
         entities,
         positions: vec![PositionSpec {
@@ -293,14 +293,12 @@ fn test_portfolio_spec_json_deserializes_multiple_instrument_specs() {
     let portfolio_json = json!({
         "id": "BULK_JSON",
         "name": "bulk portfolio",
-        "base_ccy": "USD",
+        "base_currency": "USD",
         "as_of": as_of,
         "entities": {
             "ENTITY_A": {
                 "id": "ENTITY_A",
                 "name": null,
-                "entity_type": "legal_entity",
-                "parent_id": null,
                 "meta": {}
             }
         },

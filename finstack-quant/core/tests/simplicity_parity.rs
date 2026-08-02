@@ -319,14 +319,14 @@ fn percentage_try_new_rejects_non_finite() {
 }
 
 #[test]
-fn bps_try_from_f64_matches_try_new() {
+fn bp_try_from_f64_matches_try_new() {
     let via_try = Bps::try_from(25.0_f64).unwrap();
     let via_new = Bps::try_new(25.0).unwrap();
-    assert_eq!(via_try.as_bps(), via_new.as_bps());
+    assert_eq!(via_try.as_bp(), via_new.as_bp());
 }
 
 #[test]
-fn bps_try_from_f64_rejects_non_finite() {
+fn bp_try_from_f64_rejects_non_finite() {
     assert!(Bps::try_from(f64::NAN).is_err());
     assert!(Bps::try_from(f64::INFINITY).is_err());
 }

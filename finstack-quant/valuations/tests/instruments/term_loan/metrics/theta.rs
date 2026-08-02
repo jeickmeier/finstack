@@ -28,7 +28,7 @@ fn test_theta_reflects_time_decay() {
         .rate(RateSpec::Fixed { rate_bp: 500 })
         .frequency(Tenor::semi_annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))

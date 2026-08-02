@@ -500,7 +500,7 @@ fn test_levered_real_estate_equity_value_is_asset_minus_debt() {
         .rate(RateSpec::Fixed { rate_bp: 500 }) // 5%
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -579,7 +579,7 @@ fn test_levered_real_estate_equity_custom_metrics_compute() {
         .rate(RateSpec::Fixed { rate_bp: 600 }) // 6%
         .frequency(Tenor::annual())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))
@@ -665,7 +665,7 @@ fn test_levered_real_estate_sensitivities_metrics_compute() {
         .rate(RateSpec::Fixed { rate_bp: 600 }) // 6%
         .frequency(Tenor::quarterly())
         .day_count(DayCount::Act360)
-        .bdc(BusinessDayConvention::ModifiedFollowing)
+        .business_day_convention(BusinessDayConvention::ModifiedFollowing)
         .calendar_id_opt(None)
         .stub(StubKind::None)
         .discount_curve_id(CurveId::from("USD-OIS"))

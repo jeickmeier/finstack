@@ -12,7 +12,7 @@
         "fx_convention_id": "EUR/USD",
         "exercise_style": "european",
         "settlement": "cash",
-        "day_count": "Act365F"
+        "day_count": "act_365f"
       }
     }
   ]

@@ -29,13 +29,14 @@ use crate::impl_instrument_base;
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum IndexationMethod {
     /// Canadian model (real yield, indexed principal and coupons)
     Canadian,
     /// US TIPS model (real yield, indexed principal and coupons)
-    TIPS,
+    Tips,
     /// UK model (nominal yield; indexed principal and coupons, no deflation floor)
-    UK,
+    Uk,
     /// French OATi/OAT€i model
     French,
     /// Japanese JGBi model
@@ -46,8 +47,8 @@ impl std::fmt::Display for IndexationMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             IndexationMethod::Canadian => write!(f, "canadian"),
-            IndexationMethod::TIPS => write!(f, "tips"),
-            IndexationMethod::UK => write!(f, "uk"),
+            IndexationMethod::Tips => write!(f, "tips"),
+            IndexationMethod::Uk => write!(f, "uk"),
             IndexationMethod::French => write!(f, "french"),
             IndexationMethod::Japanese => write!(f, "japanese"),
         }
@@ -58,13 +59,13 @@ impl std::str::FromStr for IndexationMethod {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
+        match s {
             "canadian" => Ok(IndexationMethod::Canadian),
-            "tips" | "us" => Ok(IndexationMethod::TIPS),
-            "uk" => Ok(IndexationMethod::UK),
+            "tips" => Ok(IndexationMethod::Tips),
+            "uk" => Ok(IndexationMethod::Uk),
             "french" => Ok(IndexationMethod::French),
-            "japanese" | "jgb" => Ok(IndexationMethod::Japanese),
-            other => Err(format!("Unknown indexation method: {}", other)),
+            "japanese" => Ok(IndexationMethod::Japanese),
+            _ => Err(format!("Unknown indexation method: {s}")),
         }
     }
 }
@@ -74,7 +75,7 @@ impl IndexationMethod {
     ///
     /// # UK Gilt Convention Notes
     ///
-    /// For `IndexationMethod::UK`, this returns the **legacy 8-month lag** which applies to
+    /// For `IndexationMethod::Uk`, this returns the **legacy 8-month lag** which applies to
     /// UK Index-Linked Gilts issued **before September 2005**. For modern Gilts issued
     /// **on or after September 2005**, use [`IndexationMethod::standard_lag_modern`] which
     /// returns the 3-month lag consistent with international standards.
@@ -91,9 +92,9 @@ impl IndexationMethod {
     /// - Use [`new_uk_linker_modern`](InflationLinkedBond::new_uk_linker_modern) for modern (3-month lag)
     pub fn standard_lag(&self) -> InflationLag {
         match self {
-            IndexationMethod::UK => InflationLag::Months(8), // Legacy UK Gilts (pre-Sep 2005)
+            IndexationMethod::Uk => InflationLag::Months(8), // Legacy UK Gilts (pre-Sep 2005)
             IndexationMethod::Canadian
-            | IndexationMethod::TIPS
+            | IndexationMethod::Tips
             | IndexationMethod::French
             | IndexationMethod::Japanese => InflationLag::Months(3),
         }
@@ -109,7 +110,7 @@ impl IndexationMethod {
     /// For legacy UK Gilts (pre-September 2005), use [`standard_lag`](Self::standard_lag).
     pub fn standard_lag_modern(&self) -> InflationLag {
         match self {
-            IndexationMethod::UK => InflationLag::Months(3), // Modern UK Gilts (Sep 2005+)
+            IndexationMethod::Uk => InflationLag::Months(3), // Modern UK Gilts (Sep 2005+)
             _ => self.standard_lag(),
         }
     }
@@ -131,7 +132,7 @@ impl IndexationMethod {
         matches!(
             self,
             IndexationMethod::Canadian
-                | IndexationMethod::TIPS
+                | IndexationMethod::Tips
                 | IndexationMethod::French
                 | IndexationMethod::Japanese
         )
@@ -145,8 +146,8 @@ impl IndexationMethod {
         matches!(
             self,
             IndexationMethod::Canadian
-                | IndexationMethod::TIPS
-                | IndexationMethod::UK
+                | IndexationMethod::Tips
+                | IndexationMethod::Uk
                 | IndexationMethod::French
                 | IndexationMethod::Japanese
         )
@@ -157,6 +158,7 @@ impl IndexationMethod {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum DeflationProtection {
     /// No deflation protection
     None,
@@ -180,12 +182,11 @@ impl std::str::FromStr for DeflationProtection {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
+        match s {
             "none" => Ok(DeflationProtection::None),
-            "maturity_only" | "maturity" => Ok(DeflationProtection::MaturityOnly),
-            "all_payments" | "all" => Ok(DeflationProtection::AllPayments),
-            other => Err(format!("Unknown deflation protection: {}", other)),
+            "maturity_only" => Ok(DeflationProtection::MaturityOnly),
+            "all_payments" => Ok(DeflationProtection::AllPayments),
+            _ => Err(format!("Unknown deflation protection: {s}")),
         }
     }
 }
@@ -268,7 +269,9 @@ impl InflationSource {
     Clone,
     Debug,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[builder(validate = InflationLinkedBond::validate)]
 #[serde(deny_unknown_fields)]
@@ -278,21 +281,26 @@ pub struct InflationLinkedBond {
     /// Notional amount (in real terms)
     pub notional: Money,
     /// Real coupon rate (as decimal)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub real_coupon: Decimal,
     /// Coupon frequency
     pub frequency: Tenor,
     /// Day count convention
     pub day_count: DayCount,
     /// Issue date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub issue_date: Date,
     /// Maturity date
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Base CPI/index value at issue
     pub base_index: f64,
     /// Base date for index (may differ from issue date)
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub base_date: Date,
     /// Indexation method
     pub indexation_method: IndexationMethod,
@@ -303,7 +311,7 @@ pub struct InflationLinkedBond {
     /// Business day convention
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Stub convention
     #[builder(default = StubKind::ShortFront)]
     #[serde(default = "crate::serde_defaults::stub_short_front")]
@@ -321,17 +329,26 @@ pub struct InflationLinkedBond {
     /// Quoted clean price (if available)
     pub quoted_clean: Option<f64>,
     /// Additional attributes
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -384,7 +401,7 @@ impl InflationLinkedBond {
                 "{context} curve and inflation-index identifiers cannot be empty"
             )));
         }
-        if matches!(self.indexation_method, IndexationMethod::UK)
+        if matches!(self.indexation_method, IndexationMethod::Uk)
             && !matches!(self.lag, InflationLag::Months(3) | InflationLag::Months(8))
         {
             return Err(finstack_quant_core::Error::Validation(format!(
@@ -404,7 +421,7 @@ impl InflationLinkedBond {
                 end: self.maturity,
                 frequency: self.frequency,
                 stub: self.stub,
-                bdc: self.bdc,
+                business_day_convention: self.business_day_convention,
                 calendar_id,
                 end_of_month: false,
                 day_count: self.day_count,
@@ -447,10 +464,10 @@ impl InflationLinkedBond {
             maturity: date!(2034 - 01 - 15),
             base_index: 100.0,
             base_date: date!(2024 - 01 - 15),
-            indexation_method: IndexationMethod::TIPS,
-            lag: IndexationMethod::TIPS.standard_lag(),
+            indexation_method: IndexationMethod::Tips,
+            lag: IndexationMethod::Tips.standard_lag(),
             deflation_protection: DeflationProtection::MaturityOnly,
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             stub: StubKind::None,
             calendar_id: None,
             discount_curve_id: CurveId::new("USD-OIS"),
@@ -480,10 +497,10 @@ impl InflationLinkedBond {
             maturity: bond_params.maturity,
             base_index: bond_params.base_index,
             base_date: bond_params.issue,
-            indexation_method: IndexationMethod::TIPS,
-            lag: IndexationMethod::TIPS.standard_lag(),
+            indexation_method: IndexationMethod::Tips,
+            lag: IndexationMethod::Tips.standard_lag(),
             deflation_protection: DeflationProtection::MaturityOnly,
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             stub: StubKind::None,
             calendar_id: None,
             discount_curve_id: discount_curve_id.into(),
@@ -573,10 +590,10 @@ impl InflationLinkedBond {
             maturity: bond_params.maturity,
             base_index: bond_params.base_index,
             base_date,
-            indexation_method: IndexationMethod::UK,
-            lag: IndexationMethod::UK.standard_lag(), // 8-month lag for legacy gilts
+            indexation_method: IndexationMethod::Uk,
+            lag: IndexationMethod::Uk.standard_lag(), // 8-month lag for legacy gilts
             deflation_protection: DeflationProtection::None,
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             stub: StubKind::None,
             calendar_id: None,
             discount_curve_id: discount_curve_id.into(),
@@ -674,10 +691,10 @@ impl InflationLinkedBond {
             maturity: bond_params.maturity,
             base_index: bond_params.base_index,
             base_date: bond_params.issue, // Modern gilts use issue date as base
-            indexation_method: IndexationMethod::UK,
-            lag: IndexationMethod::UK.standard_lag_modern(), // 3-month lag for modern gilts
+            indexation_method: IndexationMethod::Uk,
+            lag: IndexationMethod::Uk.standard_lag_modern(), // 3-month lag for modern gilts
             deflation_protection: DeflationProtection::None,
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             stub: StubKind::None,
             calendar_id: None,
             discount_curve_id: discount_curve_id.into(),
@@ -756,7 +773,7 @@ impl InflationLinkedBond {
             indexation_method: IndexationMethod::Japanese,
             lag: IndexationMethod::Japanese.standard_lag(),
             deflation_protection: DeflationProtection::MaturityOnly,
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             stub: StubKind::None,
             calendar_id: Some("jpto".into()),
             discount_curve_id: discount_curve_id.into(),
@@ -826,10 +843,10 @@ impl InflationLinkedBond {
             ));
         }
 
-        let is_modern_uk = matches!(self.indexation_method, IndexationMethod::UK)
+        let is_modern_uk = matches!(self.indexation_method, IndexationMethod::Uk)
             && matches!(self.lag, InflationLag::Months(m) if m <= 3);
 
-        if matches!(self.indexation_method, IndexationMethod::UK) {
+        if matches!(self.indexation_method, IndexationMethod::Uk) {
             let valid_uk_lag =
                 matches!(self.lag, InflationLag::Months(3) | InflationLag::Months(8));
             if !valid_uk_lag {
@@ -843,11 +860,11 @@ impl InflationLinkedBond {
         }
 
         let expected_interp = match self.indexation_method {
-            IndexationMethod::TIPS
+            IndexationMethod::Tips
             | IndexationMethod::Canadian
             | IndexationMethod::French
             | IndexationMethod::Japanese => InflationInterpolation::Linear,
-            IndexationMethod::UK => {
+            IndexationMethod::Uk => {
                 if is_modern_uk {
                     InflationInterpolation::Linear
                 } else {
@@ -909,11 +926,11 @@ impl InflationLinkedBond {
     /// daily-interpolated 3-month-lag reference CPI as US TIPS.
     fn daily_interpolated_indexation(&self) -> bool {
         match self.indexation_method {
-            IndexationMethod::TIPS
+            IndexationMethod::Tips
             | IndexationMethod::Canadian
             | IndexationMethod::French
             | IndexationMethod::Japanese => true,
-            IndexationMethod::UK => matches!(self.lag, InflationLag::Months(m) if m <= 3),
+            IndexationMethod::Uk => matches!(self.lag, InflationLag::Months(m) if m <= 3),
         }
     }
 
@@ -948,7 +965,7 @@ impl InflationLinkedBond {
                 end: self.maturity,
                 frequency: self.frequency,
                 stub: self.stub,
-                bdc: self.bdc,
+                business_day_convention: self.business_day_convention,
                 calendar_id: self
                     .calendar_id
                     .as_deref()
@@ -1025,7 +1042,7 @@ impl InflationLinkedBond {
                 end: self.maturity,
                 frequency: self.frequency,
                 stub: self.stub,
-                bdc: self.bdc,
+                business_day_convention: self.business_day_convention,
                 calendar_id: cal_id,
                 end_of_month: false,
                 day_count: self.day_count,
@@ -1056,8 +1073,11 @@ impl InflationLinkedBond {
             ));
         }
 
-        let principal_date =
-            crate::cashflow::builder::calendar::adjust_date(self.maturity, self.bdc, cal_id)?;
+        let principal_date = crate::cashflow::builder::calendar::adjust_date(
+            self.maturity,
+            self.business_day_convention,
+            cal_id,
+        )?;
         if principal_date >= as_of {
             flows.push((principal_date, self.notional));
         }
@@ -1331,7 +1351,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for InflationLinkedBond {
                 end: self.maturity,
                 frequency: self.frequency,
                 stub: self.stub,
-                bdc: self.bdc,
+                business_day_convention: self.business_day_convention,
                 calendar_id: self
                     .calendar_id
                     .as_deref()
@@ -1461,10 +1481,10 @@ mod tests {
             maturity,
             base_index: 100.0,
             base_date: as_of,
-            indexation_method: IndexationMethod::TIPS,
+            indexation_method: IndexationMethod::Tips,
             lag: InflationLag::None,
             deflation_protection: DeflationProtection::MaturityOnly,
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             stub: StubKind::None,
             calendar_id: None,
             discount_curve_id: CurveId::new("USD-NOM"),
@@ -1522,14 +1542,14 @@ mod tests {
         // new code agree, confirming the fix is frequency-aware.
         bond.frequency = Tenor::annual();
         bond.real_coupon = Decimal::try_from(0.04).expect("valid");
-        let result_annual_freq = bond
+        let result_annual_frequency = bond
             .breakeven_inflation(nominal_annual, &market, as_of)
-            .expect("annual-freq breakeven");
+            .expect("annual-frequency breakeven");
         // For annual frequency Street ≡ Annual, so the correction is zero;
         // result should be within 0.5 bp of the "wrong" annual calculation.
         assert!(
-            (result_annual_freq - wrong_breakeven).abs() < tol,
-            "annual-freq bond should not be corrected: got {result_annual_freq:.6}, wrong={wrong_breakeven:.6}"
+            (result_annual_frequency - wrong_breakeven).abs() < tol,
+            "annual-frequency bond should not be corrected: got {result_annual_frequency:.6}, wrong={wrong_breakeven:.6}"
         );
     }
 
@@ -1576,10 +1596,10 @@ mod tests {
             maturity,
             base_index: 100.0,
             base_date: issue,
-            indexation_method: IndexationMethod::TIPS,
+            indexation_method: IndexationMethod::Tips,
             lag: InflationLag::None,
             deflation_protection: DeflationProtection::MaturityOnly,
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             stub: StubKind::None,
             calendar_id: None,
             discount_curve_id: CurveId::new("USD-OIS"),
@@ -1673,10 +1693,10 @@ mod tests {
             maturity: d(2026, Month::January, 15),
             base_index: 100.0,
             base_date: d(2024, Month::January, 15),
-            indexation_method: IndexationMethod::TIPS,
+            indexation_method: IndexationMethod::Tips,
             lag: InflationLag::None,
             deflation_protection,
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             stub: StubKind::None,
             calendar_id: None,
             discount_curve_id: CurveId::new("USD-OIS"),
@@ -1820,7 +1840,7 @@ mod tests {
     fn uk_gilt_non_standard_lag_returns_err() {
         let as_of = d(2024, Month::January, 15);
         let mut bond = sample_bond(DeflationProtection::AllPayments);
-        bond.indexation_method = IndexationMethod::UK;
+        bond.indexation_method = IndexationMethod::Uk;
         bond.lag = InflationLag::Months(5); // non-standard
 
         let index = InflationIndex::new(
@@ -1845,7 +1865,7 @@ mod tests {
     fn uk_gilt_standard_lags_pass_validation() {
         let as_of = d(2024, Month::January, 15);
         let mut bond = sample_bond(DeflationProtection::AllPayments);
-        bond.indexation_method = IndexationMethod::UK;
+        bond.indexation_method = IndexationMethod::Uk;
         bond.lag = InflationLag::Months(3); // modern UK standard
 
         // Use a Linear-interpolated index to satisfy the modern UK invariant.

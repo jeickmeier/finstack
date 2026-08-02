@@ -5,7 +5,9 @@ use crate::dates::{Date, DayCount, Tenor};
 use crate::types::{CurveId, IndexId};
 
 /// Serialized identifier for an interest-rate futures convention.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(transparent)]
 pub struct RateCalibrationFutureContractId(String);
 
@@ -22,7 +24,9 @@ impl RateCalibrationFutureContractId {
 }
 
 /// Numerical method used to calibrate a rate curve.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum RateCalibrationMethod {
     /// Sequential bootstrap.
@@ -30,13 +34,14 @@ pub enum RateCalibrationMethod {
     /// Simultaneous solve of all curve parameters.
     GlobalSolve {
         /// Whether the original solve requested its specialized Jacobian.
-        #[serde(default)]
         use_analytical_jacobian: bool,
     },
 }
 
 /// OIS floating-leg compounding convention used during calibration.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum RateCalibrationOisCompounding {
     /// Simple term-rate accrual.
@@ -61,7 +66,9 @@ pub enum RateCalibrationOisCompounding {
 }
 
 /// Role of a curve and its linked rate-curve identifier during calibration.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum RateCalibrationCurveRole {
     /// Discount curve, linked to the projection curve used to price its instruments.
@@ -77,17 +84,23 @@ pub enum RateCalibrationCurveRole {
 }
 
 /// Typed maturity specification retained from an original market quote.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum RateCalibrationPillar {
     /// Relative tenor resolved from the calibration base date.
     Tenor(Tenor),
     /// Absolute calendar date.
-    Date(Date),
+    Date(
+        #[serde(with = "crate::wire::date")]
+        #[schemars(with = "crate::wire::DateWire")]
+        Date,
+    ),
 }
 
 /// Lossless rate quote representation used by calibration replay.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RateCalibrationQuote {
     /// Money-market deposit quote.
@@ -115,6 +128,8 @@ pub enum RateCalibrationQuote {
         /// Convention-registry identifier for the futures contract.
         contract: RateCalibrationFutureContractId,
         /// Futures expiry date.
+        #[serde(with = "crate::wire::date")]
+        #[schemars(with = "crate::wire::DateWire")]
         expiry: Date,
         /// Quoted futures price.
         price: f64,
@@ -134,17 +149,23 @@ pub enum RateCalibrationQuote {
         /// Optional floating-leg spread.
         spread_decimal: Option<f64>,
     },
+    /// Tenor-basis spread quote versus the linked discount curve.
+    Basis {
+        /// Referenced projection-rate index.
+        index_id: IndexId,
+        /// Relative-tenor or absolute-date maturity pillar.
+        pillar: RateCalibrationPillar,
+        /// Quoted basis spread in decimal form.
+        spread_decimal: f64,
+    },
 }
 
 /// Typed conventions required to replay a rate-curve calibration.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RateCalibrationRecipe {
     /// Currency of the calibrated curve.
-    ///
-    /// Optional only for backward compatibility with early serialized recipes.
-    #[serde(default)]
-    pub currency: Option<Currency>,
+    pub currency: Currency,
     /// Numerical calibration method.
     pub method: RateCalibrationMethod,
     /// Day count used for the curve's time axis.
@@ -154,9 +175,6 @@ pub struct RateCalibrationRecipe {
     /// Discount/projection role and linked curve identifier.
     pub role: RateCalibrationCurveRole,
     /// Complete typed quote set required for exact replay.
-    ///
-    /// Defaults empty for recipes serialized before quote replay became lossless.
-    #[serde(default)]
     pub quotes: Vec<RateCalibrationQuote>,
 }
 
@@ -167,8 +185,9 @@ mod tests {
     #[test]
     fn mixed_rate_quotes_round_trip_pillars_and_swap_spread() {
         let json = serde_json::json!({
+            "currency": "USD",
             "method": "bootstrap",
-            "curve_day_count": "Act365F",
+            "curve_day_count": "act_365f",
             "ois_compounding": null,
             "role": {
                 "discount": {
@@ -233,5 +252,23 @@ mod tests {
         );
         assert_eq!(serialized["quotes"][1]["fra"]["start"]["tenor"]["count"], 3);
         assert_eq!(serialized["quotes"][3]["swap"]["spread_decimal"], 0.00025);
+    }
+
+    #[test]
+    fn global_solve_requires_explicit_jacobian_policy() {
+        let json = serde_json::json!({
+            "currency": "USD",
+            "method": { "global_solve": {} },
+            "curve_day_count": "act_365f",
+            "ois_compounding": null,
+            "role": {
+                "discount": {
+                    "projection_curve_id": "USD-OIS"
+                }
+            },
+            "quotes": []
+        });
+
+        assert!(serde_json::from_value::<RateCalibrationRecipe>(json).is_err());
     }
 }

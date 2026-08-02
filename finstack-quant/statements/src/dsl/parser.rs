@@ -344,7 +344,7 @@ fn identifier(input: &str) -> IResult<&str, StmtExpr> {
         if parts.len() == 3 {
             return Ok((
                 input,
-                StmtExpr::CSRef {
+                StmtExpr::CsRef {
                     component: parts[1].to_string(),
                     instrument_or_total: parts[2].to_string(),
                 },

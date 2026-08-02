@@ -16,6 +16,7 @@ sensitivity/risk engines.
 
 ```
 factor-model/
+├── schemas/factor_model/1/ # Generated versioned JSON contracts
 ├── primitives/             # FactorId, FactorType, FactorDefinition, dependencies
 ├── matching/               # Mapping-table, cascade, hierarchy matchers
 ├── credit/                 # Credit hierarchy, calibration, decomposition
@@ -55,6 +56,21 @@ Credit-specific today:
 Future rates/equity/vol calibrators should follow the same
 `calibrate(inputs) -> model` shape as `CreditCalibrator` and return their own
 model artifact while reusing the generic primitives above.
+
+## JSON schemas
+
+This crate generates and embeds the v1 schemas for
+`FactorModelConfigEnvelope`, `CreditFactorModel`, `CreditCalibrationConfig`,
+and `CreditCalibrationInputs`. Regenerate them with:
+
+```bash
+cargo run -p finstack-quant-factor-model --bin gen_factor_model_schemas
+```
+
+The checked-in files live under `schemas/factor_model/1/`. Their published
+base URI remains `https://finstack_quant.dev/schemas/factor_model/1/` for
+compatibility with the original credit schemas. The Rust serde types and strict
+loaders remain authoritative for semantic validation.
 
 ## Credit concepts
 
@@ -128,7 +144,7 @@ let model = CreditCalibrator::new(config).calibrate(CreditCalibrationInputs {
     issuer_tags,
     generic_factor,
     as_of,
-    asof_spreads,
+    as_of_spreads,
     idiosyncratic_overrides: Default::default(),
 })?;
 ```

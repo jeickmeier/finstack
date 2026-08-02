@@ -12,20 +12,20 @@ fn cashflow_spec_json() -> String {
     serde_json::json!({
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None",
+            "amort": "none",
         },
         "issue": "2024-08-31",
         "maturity": "2025-08-31",
         "coupon_program": [{
             "kind": "fixed",
             "spec": {
-              "coupon_type": "Cash",
+              "coupon_type": "cash",
               "rate": "0.06",
-              "freq": {"count": 12, "unit": "months"},
-              "dc": "Thirty360",
-              "bdc": "following",
+              "frequency": {"count": 12, "unit": "months"},
+              "day_count": "30_360",
+              "business_day_convention": "following",
               "calendar_id": "weekends_only",
-              "stub": "None",
+              "stub": "none",
               "end_of_month": false,
               "payment_lag_days": 0,
             },
@@ -51,7 +51,7 @@ fn floating_cashflow_spec_json() -> String {
     serde_json::json!({
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None",
+            "amort": "none",
         },
         "issue": "2025-01-15",
         "maturity": "2026-01-15",
@@ -67,18 +67,18 @@ fn floating_cashflow_spec_json() -> String {
                 "all_in_floor_bp": null,
                 "all_in_cap_bp": null,
                 "index_cap_bp": null,
-                "reset_freq": {"count": 3, "unit": "months"},
+                "reset_frequency": {"count": 3, "unit": "months"},
                 "reset_lag_days": 0,
                 "fixing_calendar_id": null,
                 "overnight_compounding": null,
                 "overnight_basis": null,
               },
-              "coupon_type": "Cash",
-              "freq": {"count": 3, "unit": "months"},
-              "dc": "Act360",
-              "bdc": "following",
+              "coupon_type": "cash",
+              "frequency": {"count": 3, "unit": "months"},
+              "day_count": "act_360",
+              "business_day_convention": "following",
               "calendar_id": "weekends_only",
-              "stub": "None",
+              "stub": "none",
               "end_of_month": false,
               "payment_lag_days": 0,
             },
@@ -91,28 +91,28 @@ fn step_up_cashflow_spec_json() -> String {
     serde_json::json!({
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None",
+            "amort": "none",
         },
         "issue": "2024-01-01",
         "maturity": "2026-01-01",
         "coupon_program": [{
             "kind": "step_up",
             "spec": {
-                "coupon_type": "Cash",
+                "coupon_type": "cash",
                 "initial_rate": "0.06",
                 "step_schedule": [["2025-01-01", "0.07"]],
-                "freq": {"count": 12, "unit": "months"},
-                "dc": "Thirty360",
-                "bdc": "following",
+                "frequency": {"count": 12, "unit": "months"},
+                "day_count": "30_360",
+                "business_day_convention": "following",
                 "calendar_id": "weekends_only",
-                "stub": "None",
+                "stub": "none",
             },
         }],
         "payment_program": [{
             "kind": "program",
             "steps": [
-                {"date": "2025-01-01", "split": "PIK"},
-                {"date": "2026-01-01", "split": "Cash"},
+                {"date": "2025-01-01", "split": "pik"},
+                {"date": "2026-01-01", "split": "cash"},
             ],
         }],
     })
@@ -121,11 +121,11 @@ fn step_up_cashflow_spec_json() -> String {
 
 fn canonical_schedule_params_json() -> serde_json::Value {
     serde_json::json!({
-        "freq": {"count": 3, "unit": "months"},
-        "dc": "Act360",
-        "bdc": "following",
+        "frequency": {"count": 3, "unit": "months"},
+        "day_count": "act_360",
+        "business_day_convention": "following",
         "calendar_id": "weekends_only",
-        "stub": "None",
+        "stub": "none",
         "end_of_month": false,
         "payment_lag_days": 0,
     })
@@ -136,16 +136,16 @@ fn canonical_floating_coupon_json() -> serde_json::Value {
         "rate_spec": {
             "index_id": "TEST-INDEX",
             "spread_bp": "150",
-            "reset_freq": {"count": 3, "unit": "months"},
+            "reset_frequency": {"count": 3, "unit": "months"},
             "reset_lag_days": 0,
-            "fallback": "SpreadOnly",
+            "fallback": "spread_only",
         },
-        "coupon_type": "Cash",
-        "freq": {"count": 3, "unit": "months"},
-        "dc": "Act360",
-        "bdc": "following",
+        "coupon_type": "cash",
+        "frequency": {"count": 3, "unit": "months"},
+        "day_count": "act_360",
+        "business_day_convention": "following",
         "calendar_id": "weekends_only",
-        "stub": "None",
+        "stub": "none",
         "end_of_month": false,
         "payment_lag_days": 0,
     })
@@ -158,7 +158,7 @@ fn canonical_program_spec_json(
     serde_json::json!({
         "notional": {
             "initial": {"amount": "1000000", "currency": "USD"},
-            "amort": "None",
+            "amort": "none",
         },
         "issue": "2025-01-01",
         "maturity": "2027-01-01",
@@ -230,7 +230,7 @@ fn cashflows_json_bridge_builds_floating_schedule_with_market_json() {
         .as_array()
         .unwrap()
         .iter()
-        .filter(|flow| flow["kind"] == "FloatReset")
+        .filter(|flow| flow["kind"] == "float_reset")
         .collect();
 
     assert!(!float_flows.is_empty());
@@ -250,7 +250,7 @@ fn cashflows_json_bridge_builds_step_up_with_payment_program() {
         .as_array()
         .expect("flows array")
         .iter()
-        .any(|flow| flow["kind"] == "PIK"));
+        .any(|flow| flow["kind"] == "pik"));
 }
 
 #[wasm_bindgen_test]
@@ -261,7 +261,7 @@ fn cashflows_json_bridge_builds_fixed_to_float_and_explicit_windows() {
             "switch": "2026-01-01",
             "fixed": {"rate": "0.04", "schedule": canonical_schedule_params_json()},
             "floating": canonical_floating_coupon_json(),
-            "fixed_split": "Cash",
+            "fixed_split": "cash",
         }]),
         serde_json::json!([]),
     );
@@ -274,8 +274,8 @@ fn cashflows_json_bridge_builds_fixed_to_float_and_explicit_windows() {
         .iter()
         .filter_map(|flow| flow["kind"].as_str())
         .collect();
-    assert!(kinds.contains("Fixed"));
-    assert!(kinds.contains("FloatReset"));
+    assert!(kinds.contains("fixed"));
+    assert!(kinds.contains("float_reset"));
 
     let explicit_windows = canonical_program_spec_json(
         serde_json::json!([
@@ -284,13 +284,13 @@ fn cashflows_json_bridge_builds_fixed_to_float_and_explicit_windows() {
                 "start": "2025-01-01",
                 "end": "2026-01-01",
                 "spec": {
-                    "coupon_type": "Cash",
+                    "coupon_type": "cash",
                     "rate": "0.04",
-                    "freq": {"count": 3, "unit": "months"},
-                    "dc": "Act360",
-                    "bdc": "following",
+                    "frequency": {"count": 3, "unit": "months"},
+                    "day_count": "act_360",
+                    "business_day_convention": "following",
                     "calendar_id": "weekends_only",
-                    "stub": "None",
+                    "stub": "none",
                 },
             },
             {
@@ -312,13 +312,13 @@ fn cashflows_json_bridge_reports_overlapping_payment_windows() {
         serde_json::json!([{
             "kind": "fixed",
             "spec": {
-                "coupon_type": "Cash",
+                "coupon_type": "cash",
                 "rate": "0.04",
-                "freq": {"count": 3, "unit": "months"},
-                "dc": "Act360",
-                "bdc": "following",
+                "frequency": {"count": 3, "unit": "months"},
+                "day_count": "act_360",
+                "business_day_convention": "following",
                 "calendar_id": "weekends_only",
-                "stub": "None",
+                "stub": "none",
             },
         }]),
         serde_json::json!([
@@ -326,13 +326,13 @@ fn cashflows_json_bridge_reports_overlapping_payment_windows() {
                 "kind": "window",
                 "start": "2025-01-01",
                 "end": "2026-06-01",
-                "split": "PIK",
+                "split": "pik",
             },
             {
                 "kind": "window",
                 "start": "2026-01-01",
                 "end": "2027-01-01",
-                "split": "Cash",
+                "split": "cash",
             },
         ]),
     );
@@ -346,7 +346,7 @@ fn cashflows_json_bridge_accepts_config_and_missing_quoted_clean() {
     let schedule_json = cashflows::build_cashflow_schedule_json(&cashflow_spec_json(), None)
         .expect("schedule should build");
     let config_json = serde_json::json!({
-        "method": "Linear",
+        "method": "linear",
         "include_pik": true,
         "frequency": {"count": 12, "unit": "months"},
     })
@@ -361,7 +361,7 @@ fn cashflows_json_bridge_accepts_config_and_missing_quoted_clean() {
         bond_from_cashflows_json("CUSTOM-CF-NO-QUOTE", &schedule_json, "USD-OIS", None)
             .expect("bond JSON");
     let instrument: serde_json::Value = serde_json::from_str(&instrument_json).unwrap();
-    assert_eq!(instrument["spec"]["id"], "CUSTOM-CF-NO-QUOTE");
+    assert_eq!(instrument["instrument"]["spec"]["id"], "CUSTOM-CF-NO-QUOTE");
 }
 
 #[wasm_bindgen_test]
@@ -385,7 +385,7 @@ fn cashflows_json_bridge_rejects_amortization_over_notional() {
             "date": "2025-03-31",
             "reset_date": null,
             "amount": {"amount": "1000011", "currency": "USD"},
-            "kind": "Amortization",
+            "kind": "amortization",
             "accrual_factor": 0.0,
             "rate": null,
         }));

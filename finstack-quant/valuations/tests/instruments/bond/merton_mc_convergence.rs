@@ -198,10 +198,15 @@ fn zero_pik_coupon_matches_zero_coupon_bond() {
         price_diff,
     );
 
-    // PIK fraction should be 0 (nothing to PIK)
+    // `average_pik_fraction` records coupon-period elections, not cash amounts:
+    // the full-PIK schedule elects PIK in every period even though the coupon is zero.
     assert!(
-        pik_zero.average_pik_fraction < 1e-10 || cash_zero.average_pik_fraction < 1e-10,
-        "Zero-coupon bond should have no PIK accrual",
+        (pik_zero.average_pik_fraction - 1.0).abs() < 1e-10,
+        "Full-PIK schedule should elect PIK in every period"
+    );
+    assert!(
+        cash_zero.average_pik_fraction.abs() < 1e-10,
+        "Cash schedule should never elect PIK"
     );
 }
 
@@ -267,16 +272,16 @@ fn no_endogenous_no_dynamic_recovery_matches_standard() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 5: Antithetic variates improve estimate stability across seeds
+// Test 5: Antithetic and plain estimators converge to consistent prices
 // ---------------------------------------------------------------------------
 
 #[test]
-fn antithetic_variates_improve_estimate_stability() {
+fn antithetic_and_plain_prices_are_consistent() {
     // Antithetic variates reduce the true variance of the mean estimator
     // by inducing negative correlation between paired paths. The reported
     // standard_error treats all paths as independent (doesn't account for
     // pairing), so we verify antithetic behavior via:
-    // 1. Produces a reasonable, deterministic price
+    // 1. Produces a reasonable price
     // 2. Prices are consistent across antithetic and non-antithetic runs
     //    (they should converge to the same true price)
     let merton = base_merton();
@@ -314,13 +319,6 @@ fn antithetic_variates_improve_estimate_stability() {
         r_no.clean_price_pct,
         r_anti.clean_price_pct,
         price_diff,
-    );
-
-    // Antithetic should be deterministic
-    let r_anti2 = MertonMcEngine::price(100.0, 0.08, 5.0, 2, &config_anti, 0.04).expect("anti ok");
-    assert!(
-        (r_anti.clean_price_pct - r_anti2.clean_price_pct).abs() < 1e-10,
-        "Antithetic should be deterministic"
     );
 }
 

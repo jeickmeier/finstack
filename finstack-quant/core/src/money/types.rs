@@ -113,6 +113,8 @@ impl Default for FormatOpts {
 )]
 #[serde(deny_unknown_fields)]
 pub struct Money {
+    #[serde(with = "crate::wire::decimal")]
+    #[schemars(with = "crate::wire::DecimalWire")]
     amount: AmountRepr,
     currency: Currency,
 }

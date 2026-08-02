@@ -9,7 +9,8 @@
 //!
 //! | Asset class       | Functions                                                   |
 //! |-------------------|-------------------------------------------------------------|
-//! | Discount rates    | `bump_discount_curve`, `bump_discount_curve_synthetic`      |
+//! | Discount rates    | `bump_discount_curve`, `bump_discount_curve_from_rate_calibration`, `bump_discount_curve_with_config`, `bump_discount_curve_synthetic` |
+//! | Forward rates     | `bump_forward_curve_from_rate_calibration`                    |
 //! | Credit hazard     | `bump_hazard_spreads`, `bump_hazard_shift`                  |
 //! | Inflation         | `bump_inflation_rates`                                      |
 //! | Volatility        | `bump_vol_surface` (uses `VolBumpRequest`)                  |
@@ -20,32 +21,22 @@
 //! `VolBumpRequest` because the semantics differ (absolute vol points vs
 //! relative shifts) — see that type for details.
 //!
-//! # Calibration config — known limitation
+//! # Calibration policy
 //!
-//! Every bump re-calibrates with `CalibrationConfig::default()`, **not** the
-//! `CalibrationConfig` used to build the original curve. If the original curve
-//! was calibrated with non-default settings (custom solver tolerance, weighting
-//! scheme, `allow_non_monotonic_final`, or solver method), the bumped curve is
-//! recalibrated under different settings, so the bump delta conflates the
-//! market shock with a calibration-config change.
-//!
-//! The original config cannot currently be threaded here: it is not retained on
-//! the calibrated curve, and `CalibrationConfig` lives in `finstack-quant-valuations`
-//! while the curve types live in `finstack-quant-core`, so a curve cannot carry it
-//! without a cross-crate type relocation. Callers that require exact bump
-//! consistency should calibrate with the default config, or recompute risk
-//! through a path that re-runs the original calibration plan.
+//! Stored rate-calibration recipes retain the quote set, method, curve role,
+//! day count, and OIS convention needed by the
+//! `*_from_rate_calibration` entry points. `bump_discount_curve_with_config`
+//! additionally accepts the runtime solver and validation policy. Synthetic
+//! bump helpers operate directly on curve knots and do not recalibrate.
 //!
 //! ## Induced-error bound
 //!
-//! Both the base curve and the bumped curve reprice every input quote to within
-//! their respective calibration tolerances, so the residual leakage into a
+//! For recalibrated bumps, both the base curve and the bumped curve reprice
+//! every input quote to within their respective calibration tolerances, so residual leakage into a
 //! sensitivity is bounded by roughly the **sum of the two repricing tolerances
 //! divided by the bump size**. With the default `1e-10` tolerance and a 1bp
 //! bump this is on the order of `2e-10 / 1e-4 ≈ 2e-6` of the PV unit —
-//! negligible versus the bump itself. The leakage only becomes material if the
-//! original curve was calibrated with a *much looser* tolerance than the
-//! default; in that regime, prefer re-running the original calibration plan.
+//! negligible versus the bump itself.
 
 mod currency;
 pub(crate) mod hazard;
@@ -60,7 +51,9 @@ pub use inflation::{
     bump_inflation_rates, infer_currency_from_curve_id, observation_lag_from_curve,
 };
 pub use rates::{
-    bump_discount_curve, bump_discount_curve_synthetic, infer_currency_from_discount_curve_id,
+    bump_discount_curve, bump_discount_curve_from_rate_calibration, bump_discount_curve_synthetic,
+    bump_discount_curve_with_config, bump_forward_curve_from_rate_calibration,
+    infer_currency_from_discount_curve_id,
 };
 pub use vol::{bump_vol_surface, VolBumpRequest};
 

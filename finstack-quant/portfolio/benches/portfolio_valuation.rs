@@ -329,7 +329,7 @@ fn create_institutional_portfolio(num_positions: usize) -> finstack_quant_portfo
     let base = base_date();
     let mut builder = PortfolioBuilder::new("INSTITUTIONAL_PORTFOLIO")
         .name("Large Investment Organization")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base);
 
     // Add entities (funds/accounts)
@@ -532,7 +532,7 @@ fn create_institutional_portfolio(num_positions: usize) -> finstack_quant_portfo
             end: maturity_5y(),
             frequency: convention.frequency(),
             stub: convention.stub_convention(),
-            bdc: convention.business_day_convention(),
+            business_day_convention: convention.business_day_convention(),
             calendar_id: None,
             day_count: convention.day_count(),
             spread_bp: rust_decimal::Decimal::from(100),
@@ -774,7 +774,7 @@ fn create_institutional_portfolio(num_positions: usize) -> finstack_quant_portfo
             .strike_variance(0.0625) // 25% vol squared
             .start_date(base)
             .maturity(maturity_2y())
-            .observation_freq(Tenor::daily())
+            .observation_frequency(Tenor::daily())
             .observation_calendar_id("USNY".to_string())
             .realized_var_method(RealizedVarMethod::CloseToClose)
             .side(
@@ -816,9 +816,9 @@ fn create_institutional_portfolio(num_positions: usize) -> finstack_quant_portfo
         );
 
         let schedule_params = ScheduleParams {
-            freq: Tenor::quarterly(),
-            dc: DayCount::Act360,
-            bdc: BusinessDayConvention::Following,
+            frequency: Tenor::quarterly(),
+            day_count: DayCount::Act360,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: "weekends_only".to_string(),
             stub: StubKind::None,
             end_of_month: false,
@@ -921,7 +921,7 @@ fn create_institutional_portfolio(num_positions: usize) -> finstack_quant_portfo
         let sc_id = format!("CLO_{}", i);
 
         // Create simple pool
-        let mut pool = AssetPool::new(sc_id.clone(), DealType::CLO, Currency::USD);
+        let mut pool = AssetPool::new(sc_id.clone(), DealType::Clo, Currency::USD);
         for j in 0..10 {
             pool.assets.push(PoolAsset::fixed_rate_bond(
                 format!("{}_ASSET_{}", sc_id, j),
@@ -986,11 +986,11 @@ fn create_institutional_portfolio(num_positions: usize) -> finstack_quant_portfo
             coupon_type: CouponType::Cash,
             rate: dec!(0.03),
             schedule: finstack_quant_cashflows::builder::ScheduleParams {
-                freq: Tenor::semi_annual(),
+                frequency: Tenor::semi_annual(),
 
-                dc: DayCount::Act365F,
+                day_count: DayCount::Act365F,
 
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
 
                 calendar_id: "weekends_only".to_string(),
 
@@ -1091,7 +1091,7 @@ fn create_selective_benchmark_portfolio(
     let quarter_end = num_positions / 4;
     let half_end = num_positions / 2;
     let mut builder = PortfolioBuilder::new("SELECTIVE_BENCHMARK")
-        .base_ccy(Currency::USD)
+        .base_currency(Currency::USD)
         .as_of(base_date())
         .entity(Entity::new("SELECTIVE_ENTITY"));
 

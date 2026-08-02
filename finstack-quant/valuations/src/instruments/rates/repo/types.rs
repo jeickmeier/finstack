@@ -29,6 +29,7 @@ const DEFAULT_REPO_SPECS_ID: &str = "repo.usd_general_collateral";
     schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum RepoType {
     /// Term repo with fixed maturity date
     #[default]
@@ -53,11 +54,11 @@ impl std::str::FromStr for RepoType {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
+        match s {
             "term" => Ok(RepoType::Term),
             "open" => Ok(RepoType::Open),
             "overnight" => Ok(RepoType::Overnight),
-            other => Err(format!("Unknown repo type: {}", other)),
+            _ => Err(format!("Unknown repo type: {s}")),
         }
     }
 }
@@ -67,6 +68,7 @@ impl std::str::FromStr for RepoType {
     Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
 #[non_exhaustive]
+#[serde(rename_all = "snake_case")]
 pub enum CollateralType {
     /// General collateral (standard market rates)
     #[default]
@@ -80,27 +82,9 @@ pub enum CollateralType {
     },
 }
 
-impl std::str::FromStr for CollateralType {
-    type Err = String;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let normalized = s.to_ascii_lowercase().replace('-', "_");
-        match normalized.as_str() {
-            "general" | "gc" => Ok(Self::General),
-            "special" => Err(
-                "CollateralType::Special requires security_id; use CollateralSpec::special()"
-                    .to_string(),
-            ),
-            other => Err(format!(
-                "Unknown collateral type: '{}'. Valid: general, special",
-                other
-            )),
-        }
-    }
-}
-
 /// Specification of collateral backing a repo.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CollateralSpec {
     /// Type of collateral (general vs special)
     pub collateral_type: CollateralType,
@@ -146,8 +130,8 @@ impl CollateralSpec {
         }
     }
 
-    /// Create special collateral specification using a typed rate adjustment in bps.
-    pub fn special_bps(
+    /// Create special collateral specification using a typed rate adjustment in bp.
+    pub fn special_bp(
         security_id: impl Into<String>,
         instrument_id: impl Into<String>,
         quantity: f64,
@@ -157,7 +141,7 @@ impl CollateralSpec {
         Self {
             collateral_type: CollateralType::Special {
                 security_id: security_id.into(),
-                rate_adjustment_bp: rate_adjustment_bp.map(|bps| bps.as_bps() as f64),
+                rate_adjustment_bp: rate_adjustment_bp.map(|bp| bp.as_bp() as f64),
             },
             instrument_id: instrument_id.into(),
             quantity,
@@ -193,7 +177,9 @@ impl CollateralSpec {
     Clone,
     PartialEq,
     finstack_quant_valuations_macros::FinancialBuilder,
-    finstack_quant_valuations_macros::FocusedPricingOverrides,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
 pub struct Repo {
@@ -204,12 +190,16 @@ pub struct Repo {
     /// Collateral specification
     pub collateral: CollateralSpec,
     /// Repo rate (annual, as decimal)
+    #[serde(with = "finstack_quant_core::wire::decimal")]
+    #[schemars(with = "finstack_quant_core::wire::DecimalWire")]
     pub repo_rate: Decimal,
     /// Start date of the repo
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub start_date: Date,
     /// Maturity date of the repo
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub maturity: Date,
     /// Haircut percentage (as decimal, e.g., 0.02 = 2%)
     pub haircut: f64,
@@ -222,7 +212,7 @@ pub struct Repo {
     /// Business day convention
     #[builder(default = BusinessDayConvention::ModifiedFollowing)]
     #[serde(default = "crate::serde_defaults::bdc_modified_following")]
-    pub bdc: BusinessDayConvention,
+    pub business_day_convention: BusinessDayConvention,
     /// Optional calendar for business day adjustments
     pub calendar_id: Option<CalendarId>,
     /// Discount curve identifier for valuation
@@ -234,17 +224,26 @@ pub struct Repo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub margin_spec: Option<RepoMarginSpec>,
     /// Attributes for scenario selection and tagging
-    #[serde(default)]
     #[builder(default)]
     /// Instrument-owned pricing inputs.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::InstrumentPricingOverrides::is_empty"
+    )]
     pub instrument_pricing_overrides: crate::instruments::InstrumentPricingOverrides,
     /// Metric-time pricing configuration.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::MetricPricingOverrides::is_empty"
+    )]
     pub metric_pricing_overrides: crate::instruments::MetricPricingOverrides,
     /// Scenario-only pricing adjustments.
-    #[serde(default)]
     #[builder(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "crate::instruments::ScenarioPricingOverrides::is_empty"
+    )]
     pub scenario_pricing_overrides: crate::instruments::ScenarioPricingOverrides,
     /// Attributes for scenario selection and tagging
     pub attributes: Attributes,
@@ -384,7 +383,7 @@ impl Repo {
             .repo_type(RepoType::Overnight)
             .triparty(defaults.triparty)
             .day_count(defaults.day_count)
-            .bdc(defaults.business_day_convention)
+            .business_day_convention(defaults.business_day_convention)
             .calendar_id_opt(Some(cal_id.into()))
             .discount_curve_id(discount_curve_id.into())
             .margin_spec_opt(None)
@@ -417,7 +416,7 @@ impl Repo {
             .repo_type(RepoType::Term)
             .triparty(defaults.triparty)
             .day_count(defaults.day_count)
-            .bdc(defaults.business_day_convention)
+            .business_day_convention(defaults.business_day_convention)
             .calendar_id_opt(Some(defaults.calendar_id.into()))
             .discount_curve_id(discount_curve_id.into())
             .margin_spec_opt(None)
@@ -450,7 +449,7 @@ impl Repo {
             .repo_type(RepoType::Open)
             .triparty(defaults.triparty)
             .day_count(defaults.day_count)
-            .bdc(defaults.business_day_convention)
+            .business_day_convention(defaults.business_day_convention)
             .calendar_id_opt(Some(defaults.calendar_id.into()))
             .discount_curve_id(discount_curve_id.into())
             .margin_spec_opt(None)
@@ -614,8 +613,8 @@ impl Repo {
             })
         })?;
 
-        let adj_start = adjust(self.start_date, self.bdc, calendar)?;
-        let adj_maturity = adjust(self.maturity, self.bdc, calendar)?;
+        let adj_start = adjust(self.start_date, self.business_day_convention, calendar)?;
+        let adj_maturity = adjust(self.maturity, self.business_day_convention, calendar)?;
         Ok((adj_start, adj_maturity))
     }
 }
@@ -634,7 +633,7 @@ impl Instrument for Repo {
     > {
         let mut deps = crate::instruments::common_impl::dependencies::MarketDependencies::new();
         deps.add_discount_curve(self.discount_curve_id.clone());
-        deps.add_spot_id(&self.collateral.market_value_id);
+        deps.add_market_scalar_id(&self.collateral.market_value_id);
         Ok(deps)
     }
 
@@ -801,7 +800,7 @@ mod tests {
     /// - Adjusted dates match the calendar
     /// - PV is deterministic and stable
     #[test]
-    fn term_repo_weekend_bdc_adjustment_target2() {
+    fn term_repo_weekend_business_day_convention_adjustment_target2() {
         use crate::cashflow::traits::CashflowProvider;
         use finstack_quant_core::dates::calendar::TARGET2;
         use finstack_quant_core::dates::HolidayCalendar;
@@ -825,7 +824,7 @@ mod tests {
             .repo_type(RepoType::Term)
             .triparty(false)
             .day_count(DayCount::Act360)
-            .bdc(BusinessDayConvention::Following)
+            .business_day_convention(BusinessDayConvention::Following)
             .calendar_id_opt(Some("target2".into()))
             .discount_curve_id(CurveId::from("USD-OIS"))
             .margin_spec_opt(None)
@@ -903,7 +902,7 @@ mod tests {
             .repo_type(RepoType::Term)
             .triparty(false)
             .day_count(DayCount::Act360)
-            .bdc(BusinessDayConvention::Following)
+            .business_day_convention(BusinessDayConvention::Following)
             .calendar_id_opt(None) // No calendar - should cause error
             .discount_curve_id(CurveId::from("USD-OIS"))
             .margin_spec_opt(None)
@@ -941,7 +940,7 @@ mod tests {
             .repo_type(RepoType::Term)
             .triparty(false)
             .day_count(DayCount::Act360)
-            .bdc(BusinessDayConvention::Following)
+            .business_day_convention(BusinessDayConvention::Following)
             .calendar_id_opt(Some("NONEXISTENT_CALENDAR".into()))
             .discount_curve_id(CurveId::from("USD-OIS"))
             .margin_spec_opt(None)
@@ -991,7 +990,7 @@ mod tests {
             .repo_type(RepoType::Term)
             .triparty(false)
             .day_count(DayCount::Act360)
-            .bdc(BusinessDayConvention::Following)
+            .business_day_convention(BusinessDayConvention::Following)
             .calendar_id_opt(Some("target2".into()))
             .discount_curve_id(CurveId::from("USD-OIS"))
             .margin_spec_opt(None)
@@ -1011,7 +1010,7 @@ mod tests {
             .repo_type(RepoType::Term)
             .triparty(false)
             .day_count(DayCount::Act360)
-            .bdc(BusinessDayConvention::Following)
+            .business_day_convention(BusinessDayConvention::Following)
             .calendar_id_opt(Some("target2".into()))
             .discount_curve_id(CurveId::from("USD-OIS"))
             .margin_spec_opt(None)

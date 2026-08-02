@@ -67,7 +67,7 @@ def instrument_cashflows(
     for the supported model-instrument pairs.
 
     Args:
-        instrument_json: Tagged instrument JSON.
+        instrument_json: Canonical ``finstack_quant.instrument/1`` envelope.
         market: ``MarketContext`` instance or JSON string.
         as_of: ISO 8601 valuation date.
         model: ``"discounting"`` (DF only) or ``"hazard_rate"`` (adds survival

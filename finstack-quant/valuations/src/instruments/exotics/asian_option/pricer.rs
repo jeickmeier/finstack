@@ -1482,6 +1482,42 @@ mod tests {
     }
 
     #[test]
+    fn analytical_geometric_expired_uses_realized_average_and_ignores_spot() {
+        let as_of = date(2025, 6, 30);
+        let fixing_dates = vec![date(2025, 5, 31), as_of];
+        let mut option = asian_option(
+            AveragingMethod::Geometric,
+            OptionType::Call,
+            as_of,
+            100.0,
+            fixing_dates.clone(),
+        );
+        option.past_fixings = fixing_dates.iter().copied().zip([100.0, 121.0]).collect();
+
+        let pricer = AsianOptionAnalyticalGeometricPricer::new();
+        let low_spot_pv = pricer
+            .price_dyn(&option, &market(as_of, 50.0, 0.20, 0.05, 0.0), as_of)
+            .expect("expired geometric Asian price at low current spot")
+            .value
+            .amount();
+        let high_spot_pv = pricer
+            .price_dyn(&option, &market(as_of, 999.0, 0.20, 0.05, 0.0), as_of)
+            .expect("expired geometric Asian price at high current spot")
+            .value
+            .amount();
+
+        // sqrt(100 * 121) = 110, so the realized call payoff is exactly 10.
+        assert!(
+            (low_spot_pv - 10.0).abs() < 1e-12,
+            "expired geometric payoff should be 10, got {low_spot_pv}"
+        );
+        assert!(
+            (high_spot_pv - low_spot_pv).abs() < 1e-12,
+            "expired geometric payoff must ignore current spot: low={low_spot_pv}, high={high_spot_pv}"
+        );
+    }
+
+    #[test]
     fn analytical_geometric_expired_without_fixings_errors() {
         let as_of = date(2025, 6, 30);
         let option = asian_option(

@@ -1,5 +1,5 @@
 {
-  "schema_version": "finstack_quant.golden/2",
+  "schema": "finstack_quant.golden/1",
   "metadata": {
     "name": "cdx_ig_46_payer_atm_jun26",
     "domain": "credit.cds_option",
@@ -45,10 +45,10 @@
   "market": {
     "kind": "envelope",
     "envelope": {
-      "schema": "finstack_quant.calibration",
+      "schema": "finstack_quant.calibration/1",
       "plan": {
         "id": "cdx_ig_46_pricing_market",
-        "description": "Phase 2 migration: bootstraps the USD-S531 swap discount curve and the CDX.NA.IG.46 hazard curve from raw quotes. The SABR vol surface continues to ship as a snapshot in initial_market.surfaces (calibrating it from raw option quotes is deferred to a later sweep).",
+        "description": "Calibration setup: bootstraps the USD-S531 swap discount curve and the CDX.NA.IG.46 hazard curve from raw quotes. The SABR vol surface continues to ship as a snapshot in prior_market (calibrating it from raw option quotes is deferred to a later sweep).",
         "quote_sets": {
           "s531_rates": [
             "USD-S531-DEP-1M",
@@ -90,7 +90,7 @@
             "curve_id": "USD-S531-SWAP-20260507",
             "currency": "USD",
             "base_date": "2026-05-07",
-            "method": "Bootstrap",
+            "method": "bootstrap",
             "interpolation": "linear",
             "extrapolation": "flat_forward",
             "pricing_discount_id": null,
@@ -111,9 +111,9 @@
             "discount_curve_id": "USD-S531-SWAP-20260507",
             "recovery_rate": 0.4,
             "notional": 1.0,
-            "method": "Bootstrap",
+            "method": "bootstrap",
             "interpolation": "log_linear",
-            "par_interp": "Linear",
+            "par_interp": "linear",
             "doc_clause": "isda_na"
           }
         ],
@@ -534,6 +534,7 @@
             0.0075
           ],
           "secondary_axis": "strike",
+          "quote_type": "black_lognormal",
           "interpolation_mode": "vol",
           "vols_row_major": [
             0.3603,
@@ -554,56 +555,61 @@
     }
   },
   "instrument": {
-    "type": "cds_option",
-    "spec": {
-      "id": "CDX-NA-IG-46-CDSO-PAYER-ATM-20260507",
-      "strike": "0.00552848",
-      "option_type": "call",
-      "expiry": "2026-06-17",
-      "cds_maturity": "2031-06-20",
-      "notional": {
-        "amount": "100000000",
-        "currency": "USD"
-      },
-      "recovery_rate": 0.4,
-      "discount_curve_id": "USD-S531-SWAP-20260507",
-      "credit_curve_id": "CDX-NA-IG-46-CBBT",
-      "vol_surface_id": "CDX-NA-IG-46-CDSO-VOL",
-      "underlying_convention": "isda_na",
-      "pricing_overrides": {
-        "implied_volatility": 0.3603
-      },
-      "cash_settlement_date": "2026-05-12",
-      "exercise_settlement_date": "2026-06-23",
-      "underlying_effective_date": "2026-03-20",
-      "underlying_is_index": true,
-      "index_factor": 1.0,
-      "realized_index_loss": null,
-      "underlying_cds_coupon": "0.01",
-      "exercise_style": "european",
-      "settlement": "cash",
-      "attributes": {
-        "tags": [
-          "golden",
-          "bloomberg",
-          "cdso",
-          "cdx",
-          "index-cds-option",
-          "payer",
-          "atm"
-        ],
-        "meta": {
-          "bloomberg_screen": "CDSO",
-          "index": "MARKIT CDX.NA.IG.46 06/31",
-          "bbg_index_id": "SP650F62",
-          "red_pair_code": "2165BYEJ0",
-          "position": "Long Payer",
-          "trade_date": "2026-05-07",
-          "spread_vol_pct": "36.03",
-          "atm_forward_bp": "55.2848",
-          "strike_spread_bp": "55.2848",
-          "swap_curve": "S531 USD ISDA Swap Curve - Mid",
-          "cds_curve": "CBBT Mid"
+    "schema": "finstack_quant.instrument/1",
+    "instrument": {
+      "type": "cds_option",
+      "spec": {
+        "id": "CDX-NA-IG-46-CDSO-PAYER-ATM-20260507",
+        "strike": "0.00552848",
+        "option_type": "call",
+        "expiry": "2026-06-17",
+        "cds_maturity": "2031-06-20",
+        "notional": {
+          "amount": "100000000",
+          "currency": "USD"
+        },
+        "recovery_rate": 0.4,
+        "discount_curve_id": "USD-S531-SWAP-20260507",
+        "credit_curve_id": "CDX-NA-IG-46-CBBT",
+        "vol_surface_id": "CDX-NA-IG-46-CDSO-VOL",
+        "underlying_convention": "isda_na",
+        "instrument_pricing_overrides": {
+          "market_quotes": {
+            "implied_volatility": 0.3603
+          }
+        },
+        "cash_settlement_date": "2026-05-12",
+        "exercise_settlement_date": "2026-06-23",
+        "underlying_effective_date": "2026-03-20",
+        "underlying_is_index": true,
+        "index_factor": 1.0,
+        "realized_index_loss": null,
+        "underlying_cds_coupon": "0.01",
+        "exercise_style": "european",
+        "settlement": "cash",
+        "attributes": {
+          "tags": [
+            "golden",
+            "bloomberg",
+            "cdso",
+            "cdx",
+            "index-cds-option",
+            "payer",
+            "atm"
+          ],
+          "meta": {
+            "bloomberg_screen": "CDSO",
+            "index": "MARKIT CDX.NA.IG.46 06/31",
+            "bbg_index_id": "SP650F62",
+            "red_pair_code": "2165BYEJ0",
+            "position": "Long Payer",
+            "trade_date": "2026-05-07",
+            "spread_vol_pct": "36.03",
+            "atm_forward_bp": "55.2848",
+            "strike_spread_bp": "55.2848",
+            "swap_curve": "S531 USD ISDA Swap Curve - Mid",
+            "cds_curve": "CBBT Mid"
+          }
         }
       }
     }
@@ -628,7 +634,7 @@
     "par_spread": {
       "abs": 0.07,
       "rel": 1e-06,
-      "tolerance_reason": "Bloomberg displays ATM Fwd to 4 decimals in bp. Phase 2 bootstrap migration residual is ~0.062 bp (bootstrapped curves). 0.07 bp absolute tolerance accommodates this last-mile residual while expected_outputs remains the Bloomberg screen value."
+      "tolerance_reason": "Bloomberg displays ATM Fwd to 4 decimals in bp. Calibration residual is ~0.062 bp (bootstrapped curves). 0.07 bp absolute tolerance accommodates this last-mile residual while expected_outputs remains the Bloomberg screen value."
     },
     "delta": {
       "abs": 0.001,

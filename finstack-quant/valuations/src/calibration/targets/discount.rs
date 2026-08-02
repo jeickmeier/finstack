@@ -21,8 +21,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve, DiscountCurveRateCalibration, DiscountCurveRateQuote,
-    DiscountCurveRateQuoteType, RateCalibrationCurveRole, RateCalibrationFutureContractId,
+    DiscountCurve, RateCalibrationCurveRole, RateCalibrationFutureContractId,
     RateCalibrationMethod, RateCalibrationOisCompounding, RateCalibrationPillar,
     RateCalibrationQuote, RateCalibrationRecipe,
 };
@@ -401,7 +400,7 @@ Global solve requires strictly increasing times.",
         // Defaulting to the quote accrual day-count (often Act/360) materially shifts
         // the curve's time mapping and can produce large zero-rate/DF differences when
         // compared to vendor curves that report Act/365F continuous zeros.
-        let curve_dc = params
+        let curve_day_count = params
             .conventions
             .curve_day_count
             .unwrap_or(finstack_quant_core::dates::DayCount::Act365F);
@@ -414,10 +413,12 @@ Global solve requires strictly increasing times.",
             .pricing_forward_id
             .as_ref()
             .unwrap_or(&params.curve_id);
-        let rate_calibration_sidecar =
-            Self::build_rate_calibration_from_quotes(&raw_rates_quotes, params.currency);
-        let rate_calibration_recipe =
-            Self::rate_calibration_recipe(params, curve_dc, forward_id.clone(), &raw_rates_quotes);
+        let rate_calibration = Self::rate_calibration(
+            params,
+            curve_day_count,
+            forward_id.clone(),
+            &raw_rates_quotes,
+        );
 
         // Notional 1_000_000 keeps coupon-money construction off floating-point
         // rounding edges. The OIS-compounding override is threaded through so
@@ -428,7 +429,7 @@ Global solve requires strictly increasing times.",
             quotes,
             params.base_date,
             discount_and_forward_curve_ids(discount_id.as_ref(), forward_id.as_ref()),
-            Some(curve_dc),
+            Some(curve_day_count),
             residual_notional,
             params.conventions.ois_compounding.clone(),
         )?;
@@ -445,7 +446,7 @@ Global solve requires strictly increasing times.",
             solve_interp: params.interpolation,
             extrapolation: params.extrapolation,
             config: config.clone(),
-            curve_day_count: curve_dc,
+            curve_day_count,
             spot_knot: None,
             residual_notional,
             base_context: context.clone(),
@@ -542,16 +543,11 @@ Global solve requires strictly increasing times.",
             }
         }
 
-        // Attach the rate_calibration sidecar (computed from rates_quotes before they were
-        // consumed by the prepare loop above).
         let id = curve.id().to_string();
-        let mut builder = curve
+        let curve = curve
             .to_builder_with_id(id)
-            .rate_calibration_recipe(rate_calibration_recipe);
-        if let Some(calibration) = rate_calibration_sidecar {
-            builder = builder.rate_calibration(calibration);
-        }
-        let curve = builder.build()?;
+            .rate_calibration(rate_calibration)
+            .build()?;
 
         let new_context = context.clone().insert(curve);
 
@@ -589,65 +585,14 @@ Global solve requires strictly increasing times.",
         Ok((new_context, report))
     }
 
-    /// Build a [`DiscountCurveRateCalibration`] from the solved rate quotes.
-    ///
-    /// This legacy compatibility sidecar is stamped only when every quote can
-    /// be represented without loss: tenor deposits and zero-spread tenor swaps.
-    /// Exact replay always uses the curve's typed [`RateCalibrationRecipe`].
-    fn build_rate_calibration_from_quotes(
-        quotes: &[RateQuote],
-        currency: Currency,
-    ) -> Option<DiscountCurveRateCalibration> {
-        // Infer the index_id from the first deposit or swap quote that has one.
-        let index_id = quotes.iter().find_map(|q| match q {
-            RateQuote::Deposit { index, .. } | RateQuote::Swap { index, .. } => {
-                Some(index.to_string())
-            }
-            _ => None,
-        })?;
-
-        let calibration_quotes: Option<Vec<DiscountCurveRateQuote>> = quotes
-            .iter()
-            .map(|q| match q {
-                RateQuote::Deposit {
-                    pillar: crate::market::quotes::ids::Pillar::Tenor(tenor),
-                    rate,
-                    ..
-                } => Some(DiscountCurveRateQuote {
-                    quote_type: DiscountCurveRateQuoteType::Deposit,
-                    tenor: tenor.to_string(),
-                    rate: *rate,
-                }),
-                RateQuote::Swap {
-                    pillar: crate::market::quotes::ids::Pillar::Tenor(tenor),
-                    rate,
-                    spread_decimal: None,
-                    ..
-                } => Some(DiscountCurveRateQuote {
-                    quote_type: DiscountCurveRateQuoteType::Swap,
-                    tenor: tenor.to_string(),
-                    rate: *rate,
-                }),
-                _ => None,
-            })
-            .collect();
-        let calibration_quotes = calibration_quotes?;
-
-        Some(DiscountCurveRateCalibration {
-            index_id,
-            currency,
-            quotes: calibration_quotes,
-        })
-    }
-
-    fn rate_calibration_recipe(
+    fn rate_calibration(
         params: &DiscountCurveParams,
         curve_day_count: DayCount,
         projection_curve_id: CurveId,
         quotes: &[RateQuote],
     ) -> RateCalibrationRecipe {
         RateCalibrationRecipe {
-            currency: Some(params.currency),
+            currency: params.currency,
             method: match &params.method {
                 CalibrationMethod::Bootstrap => RateCalibrationMethod::Bootstrap,
                 CalibrationMethod::GlobalSolve {
@@ -1429,7 +1374,7 @@ mod tests {
             scenario_pricing_overrides: Default::default(),
             attributes: Default::default(),
             spot_lag_days: Some(0),
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: None,
             start_date: base_date,
             maturity: pay_date,
@@ -1497,7 +1442,7 @@ mod tests {
             scenario_pricing_overrides: Default::default(),
             attributes: Default::default(),
             spot_lag_days: Some(0),
-            bdc: BusinessDayConvention::Following,
+            business_day_convention: BusinessDayConvention::Following,
             calendar_id: None,
             start_date: base_date,
             maturity,
@@ -1566,7 +1511,7 @@ mod tests {
                     scenario_pricing_overrides: Default::default(),
                     attributes: Default::default(),
                     spot_lag_days: Some(0),
-                    bdc: BusinessDayConvention::Following,
+                    business_day_convention: BusinessDayConvention::Following,
                     calendar_id: None,
                     start_date: base_date,
                     maturity,
@@ -1672,7 +1617,7 @@ mod tests {
                 scenario_pricing_overrides: Default::default(),
                 attributes: Default::default(),
                 spot_lag_days: Some(0),
-                bdc: BusinessDayConvention::Following,
+                business_day_convention: BusinessDayConvention::Following,
                 calendar_id: None,
                 start_date: base_date,
                 maturity,
@@ -1723,7 +1668,7 @@ mod tests {
     fn replay_recipe_preserves_supported_mixed_quote_shapes_losslessly() {
         let date = Date::from_calendar_date(2025, Month::September, 17).expect("valid date");
         let index = finstack_quant_core::types::IndexId::new("USD-SOFR-OIS");
-        let quotes = vec![
+        let quotes = [
             RateQuote::Deposit {
                 id: crate::market::quotes::ids::QuoteId::new("DEP"),
                 index: index.clone(),
@@ -1791,10 +1736,5 @@ mod tests {
                 ..
             } if (*value - 0.00025).abs() < f64::EPSILON
         ));
-        assert!(
-            DiscountCurveTarget::build_rate_calibration_from_quotes(&quotes, Currency::USD)
-                .is_none(),
-            "legacy sidecar must be omitted rather than silently dropping mixed quote fields"
-        );
     }
 }

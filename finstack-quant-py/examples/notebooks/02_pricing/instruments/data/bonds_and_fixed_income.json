@@ -1,32 +1,32 @@
 {
   "amort_bond": {
     "spec": {
-      "accrual_method": "Linear",
+      "accrual_method": "linear",
       "attributes": {
         "meta": {},
         "tags": []
       },
       "call_put": null,
       "cashflow_spec": {
-        "Amortizing": {
+        "amortizing": {
           "base": {
-            "Fixed": {
-              "bdc": "following",
+            "fixed": {
+              "business_day_convention": "following",
               "calendar_id": "weekends_only",
-              "coupon_type": "Cash",
-              "dc": "Thirty360",
+              "coupon_type": "cash",
+              "day_count": "30_360",
               "end_of_month": false,
-              "freq": {
+              "frequency": {
                 "count": 6,
                 "unit": "months"
               },
               "payment_lag_days": 0,
               "rate": "0.045",
-              "stub": "ShortFront"
+              "stub": "short_front"
             }
           },
           "schedule": {
-            "LinearTo": {
+            "linear_to": {
               "final_notional": {
                 "amount": "250000",
                 "currency": "USD"
@@ -45,14 +45,13 @@
         "amount": "1000000",
         "currency": "USD"
       },
-      "pricing_overrides": {},
       "settlement_days": 2
     },
     "type": "bond"
   },
   "callable_bond": {
     "spec": {
-      "accrual_method": "Linear",
+      "accrual_method": "linear",
       "attributes": {
         "meta": {},
         "tags": []
@@ -68,19 +67,19 @@
         "puts": []
       },
       "cashflow_spec": {
-        "Fixed": {
-          "bdc": "following",
+        "fixed": {
+          "business_day_convention": "following",
           "calendar_id": "weekends_only",
-          "coupon_type": "Cash",
-          "dc": "Thirty360",
+          "coupon_type": "cash",
+          "day_count": "30_360",
           "end_of_month": false,
-          "freq": {
+          "frequency": {
             "count": 6,
             "unit": "months"
           },
           "payment_lag_days": 0,
           "rate": "0.05",
-          "stub": "None"
+          "stub": "none"
         }
       },
       "credit_curve_id": null,
@@ -93,8 +92,10 @@
         "amount": "1000000",
         "currency": "USD"
       },
-      "pricing_overrides": {
-        "quoted_clean_price": 99.0
+      "instrument_pricing_overrides": {
+        "market_quotes": {
+          "quoted_clean_price": 99.0
+        }
       },
       "settlement_days": 1
     },
@@ -102,26 +103,26 @@
   },
   "fixed_bond": {
     "spec": {
-      "accrual_method": "Linear",
+      "accrual_method": "linear",
       "attributes": {
         "meta": {},
         "tags": []
       },
       "call_put": null,
       "cashflow_spec": {
-        "Fixed": {
-          "bdc": "following",
+        "fixed": {
+          "business_day_convention": "following",
           "calendar_id": "weekends_only",
-          "coupon_type": "Cash",
-          "dc": "Thirty360",
+          "coupon_type": "cash",
+          "day_count": "30_360",
           "end_of_month": false,
-          "freq": {
+          "frequency": {
             "count": 6,
             "unit": "months"
           },
           "payment_lag_days": 0,
           "rate": "0.0425",
-          "stub": "None"
+          "stub": "none"
         }
       },
       "credit_curve_id": null,
@@ -134,8 +135,10 @@
         "amount": "1000000",
         "currency": "USD"
       },
-      "pricing_overrides": {
-        "quoted_clean_price": 98.75
+      "instrument_pricing_overrides": {
+        "market_quotes": {
+          "quoted_clean_price": 98.75
+        }
       },
       "settlement_days": 1
     },
@@ -143,41 +146,41 @@
   },
   "frn_bond": {
     "spec": {
-      "accrual_method": "Linear",
+      "accrual_method": "linear",
       "attributes": {
         "meta": {},
         "tags": []
       },
       "call_put": null,
       "cashflow_spec": {
-        "Floating": {
-          "coupon_type": "Cash",
-          "freq": {
+        "floating": {
+          "coupon_type": "cash",
+          "frequency": {
             "count": 3,
             "unit": "months"
           },
-          "bdc": "modified_following",
+          "business_day_convention": "modified_following",
           "calendar_id": "weekends_only",
-          "dc": "Act360",
+          "day_count": "act_360",
           "end_of_month": false,
           "payment_lag_days": 0,
           "rate_spec": {
             "all_in_floor_bp": null,
-            "cap_bp": null,
+            "all_in_cap_bp": null,
             "fixing_calendar_id": null,
-            "floor_bp": "0",
+            "index_floor_bp": "0",
             "gearing": "1",
             "gearing_includes_spread": true,
             "index_cap_bp": null,
             "index_id": "USD-SOFR-3M",
-            "reset_freq": {
+            "reset_frequency": {
               "count": 3,
               "unit": "months"
             },
             "reset_lag_days": 2,
             "spread_bp": "150"
           },
-          "stub": "ShortFront"
+          "stub": "short_front"
         }
       },
       "credit_curve_id": null,
@@ -190,33 +193,32 @@
         "amount": "1000000",
         "currency": "USD"
       },
-      "pricing_overrides": {},
       "settlement_days": 2
     },
     "type": "bond"
   },
   "hazard_bond": {
     "spec": {
-      "accrual_method": "Linear",
+      "accrual_method": "linear",
       "attributes": {
         "meta": {},
         "tags": []
       },
       "call_put": null,
       "cashflow_spec": {
-        "Fixed": {
-          "bdc": "following",
+        "fixed": {
+          "business_day_convention": "following",
           "calendar_id": "weekends_only",
-          "coupon_type": "Cash",
-          "dc": "Thirty360",
+          "coupon_type": "cash",
+          "day_count": "30_360",
           "end_of_month": false,
-          "freq": {
+          "frequency": {
             "count": 6,
             "unit": "months"
           },
           "payment_lag_days": 0,
           "rate": "0.055",
-          "stub": "None"
+          "stub": "none"
         }
       },
       "credit_curve_id": "USD-CREDIT",
@@ -229,33 +231,32 @@
         "amount": "1000000",
         "currency": "USD"
       },
-      "pricing_overrides": {},
       "settlement_days": 1
     },
     "type": "bond"
   },
   "pik_bond": {
     "spec": {
-      "accrual_method": "Linear",
+      "accrual_method": "linear",
       "attributes": {
         "meta": {},
         "tags": []
       },
       "call_put": null,
       "cashflow_spec": {
-        "Fixed": {
-          "bdc": "following",
+        "fixed": {
+          "business_day_convention": "following",
           "calendar_id": "weekends_only",
-          "coupon_type": "PIK",
-          "dc": "Thirty360",
+          "coupon_type": "pik",
+          "day_count": "30_360",
           "end_of_month": false,
-          "freq": {
+          "frequency": {
             "count": 6,
             "unit": "months"
           },
           "payment_lag_days": 0,
           "rate": "0.08",
-          "stub": "None"
+          "stub": "none"
         }
       },
       "credit_curve_id": null,
@@ -268,30 +269,32 @@
         "amount": "100",
         "currency": "USD"
       },
-      "pricing_overrides": {
-        "merton_mc_config": {
+      "instrument_pricing_overrides": {
+        "model_config": {
+          "merton_mc_config": {
           "antithetic": true,
-          "barrier_crossing": "BrownianBridge",
+          "barrier_crossing": "brownian_bridge",
           "default_recovery_rate": 0.4,
           "merton": {
             "asset_value": 200.0,
             "asset_vol": 0.25,
             "barrier_type": {
-              "FirstPassage": {
+              "first_passage": {
                 "barrier_growth_rate": 0.0
               }
             },
             "debt_barrier": 100.0,
-            "dynamics": "GeometricBrownian",
+            "dynamics": "geometric_brownian",
             "payout_rate": 0.0,
             "risk_free_rate": 0.04
           },
           "num_paths": 2000,
           "pik_schedule": {
-            "Uniform": "Pik"
+            "uniform": "pik"
           },
           "seed": 42,
           "time_steps_per_year": 50
+          }
         }
       },
       "settlement_days": 0

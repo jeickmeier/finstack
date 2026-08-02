@@ -119,7 +119,7 @@ mod replay_tests {
         .unwrap();
 
         Portfolio::builder("TEST")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(as_of)
             .entity(Entity::new("ENTITY_A"))
             .position(position)
@@ -416,8 +416,15 @@ mod replay_tests {
             on_error: Default::default(),
         };
         let json = serde_json::to_string(&config).unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&json).unwrap()["mode"],
+            "full_attribution"
+        );
         let deserialized: ReplayConfig = serde_json::from_str(&json).unwrap();
         assert!(matches!(deserialized.mode, ReplayMode::FullAttribution));
+
+        // schema-rejection-test: retired enum spellings must stay invalid.
+        assert!(serde_json::from_str::<ReplayConfig>(r#"{"mode":"FullAttribution"}"#).is_err());
     }
 
     #[test]
@@ -590,7 +597,7 @@ mod replay_tests {
             fail_metrics,
         });
         let portfolio = Portfolio::builder("REPLAY_PROBE_PORTFOLIO")
-            .base_ccy(Currency::USD)
+            .base_currency(Currency::USD)
             .as_of(date!(2024 - 01 - 01))
             .entity(Entity::new("ENTITY_A"))
             .position(
@@ -684,8 +691,8 @@ mod replay_tests {
         for (serial_step, parallel_step) in seven.steps.iter().zip(&eight.steps) {
             assert_eq!(parallel_step.date, serial_step.date);
             assert_eq!(
-                parallel_step.valuation.total_base_ccy,
-                serial_step.valuation.total_base_ccy
+                parallel_step.valuation.total_base_currency,
+                serial_step.valuation.total_base_currency
             );
             assert_eq!(parallel_step.daily_pnl, serial_step.daily_pnl);
             assert_eq!(parallel_step.cumulative_pnl, serial_step.cumulative_pnl);

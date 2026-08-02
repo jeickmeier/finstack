@@ -2,7 +2,7 @@
   "$id": "https://finstack_quant.dev/schemas/cashflow/1/recovery_model_spec.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Recovery model specifications for credit instruments. Rust type: RecoveryModelSpec from finstack_quant_valuations::cashflow::builder::specs::recovery",
+  "description": "Cashflow recovery-model specification.",
   "properties": {
     "rate": {
       "description": "Recovery rate as fraction (0.0 to 1.0, e.g., 0.40 for 40%)",
@@ -20,6 +20,6 @@
     "rate",
     "recovery_lag"
   ],
-  "title": "Recovery Model Specification",
+  "title": "RecoveryModelSpec",
   "type": "object"
 }

@@ -1,6 +1,6 @@
-//! Explainability tests for calibration v2.
+//! Explainability tests for calibration canonical.
 //!
-//! v2 captures explainability traces at the per-step report level.
+//! canonical captures explainability traces at the per-step report level.
 
 use crate::finstack_quant_test_utils::calibration as cal_utils;
 use finstack_quant_core::currency::Currency;
@@ -62,7 +62,7 @@ fn explanation_not_computed_by_default() {
 
     let ctx = MarketContext::new().insert(base_discount_curve(base_date));
     let fwd_quotes = forward_quotes();
-    let (prior, mut market_data) = cal_utils::split_initial_market(&ctx);
+    let (prior, mut market_data) = cal_utils::split_market_context(&ctx);
     cal_utils::extend_market_data(&mut market_data, &fwd_quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("fwd".to_string(), cal_utils::quote_set_ids(&fwd_quotes));
@@ -93,7 +93,7 @@ fn explanation_not_computed_by_default() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -111,7 +111,7 @@ fn explanation_is_present_when_enabled() {
 
     let ctx = MarketContext::new().insert(base_discount_curve(base_date));
     let fwd_quotes = forward_quotes();
-    let (prior, mut market_data) = cal_utils::split_initial_market(&ctx);
+    let (prior, mut market_data) = cal_utils::split_market_context(&ctx);
     cal_utils::extend_market_data(&mut market_data, &fwd_quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("fwd".to_string(), cal_utils::quote_set_ids(&fwd_quotes));
@@ -147,7 +147,7 @@ fn explanation_is_present_when_enabled() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,

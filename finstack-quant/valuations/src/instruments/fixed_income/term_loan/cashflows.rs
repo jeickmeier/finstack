@@ -21,9 +21,9 @@ use std::collections::BTreeMap;
 
 fn loan_schedule_params(loan: &TermLoan) -> ScheduleParams {
     ScheduleParams {
-        freq: loan.frequency,
-        dc: loan.day_count,
-        bdc: loan.bdc,
+        frequency: loan.frequency,
+        day_count: loan.day_count,
+        business_day_convention: loan.business_day_convention,
         calendar_id: loan
             .calendar_id
             .clone()
@@ -417,7 +417,7 @@ pub(crate) fn generate_cashflows(
                     all_in_floor_bp: spec.all_in_floor_bp,
                     index_cap_bp: spec.index_cap_bp,
                     overnight_index_constraints: Default::default(),
-                    reset_freq: loan.frequency,
+                    reset_frequency: loan.frequency,
                     index_tenor: None,
                     reset_lag_days: spec.reset_lag_days,
                     fixing_calendar_id: spec.fixing_calendar_id.clone(),
@@ -460,7 +460,7 @@ pub(crate) fn generate_cashflows(
                 payment_steps.push((date, active_coupon_type));
             }
             active_coupon_type = if enable_pik {
-                CouponType::PIK
+                CouponType::Pik
             } else {
                 CouponType::Cash
             };
@@ -480,12 +480,12 @@ pub(crate) fn generate_cashflows(
     }
     if let Some(ddtl) = &loan.ddtl {
         if ddtl.usage_fee_bp != 0 {
-            let _ = builder.fee(FeeSpec::PeriodicBps {
+            let _ = builder.fee(FeeSpec::PeriodicBp {
                 base: FeeBase::Drawn,
-                bps: Decimal::from(ddtl.usage_fee_bp),
-                freq: loan.frequency,
-                dc: loan.day_count,
-                bdc: loan.bdc,
+                bp: Decimal::from(ddtl.usage_fee_bp),
+                frequency: loan.frequency,
+                day_count: loan.day_count,
+                business_day_convention: loan.business_day_convention,
                 calendar_id: loan.calendar_id.clone().unwrap_or_else(|| {
                     crate::cashflow::builder::calendar::WEEKENDS_ONLY_ID.to_string()
                 }),

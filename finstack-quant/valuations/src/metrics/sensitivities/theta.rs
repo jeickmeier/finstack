@@ -430,7 +430,7 @@ fn compute_theta_breakdown(context: &mut crate::metrics::MetricContext) -> Resul
     let base_pv = context
         .instrument_value_with_scenario(&context.curves, context.as_of)?
         .amount();
-    let base_ccy = context.base_value.currency();
+    let base_currency = context.base_value.currency();
 
     let horizon_days = (rolled_date - context.as_of).whole_days();
     let rolled_reprice = context
@@ -445,7 +445,8 @@ fn compute_theta_breakdown(context: &mut crate::metrics::MetricContext) -> Resul
     };
 
     let start_date = context.as_of;
-    let carry = collect_cashflows_in_period_cached(context, start_date, rolled_date, base_ccy)?;
+    let carry =
+        collect_cashflows_in_period_cached(context, start_date, rolled_date, base_currency)?;
 
     let roll_down = rolled_pv - base_pv;
 

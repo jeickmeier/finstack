@@ -140,7 +140,7 @@ fn test_very_high_spread() {
     let cds = crate::finstack_quant_test_utils::cds_buy_protection(
         "HIGH_SPREAD",
         Money::new(10_000_000.0, Currency::USD),
-        10000.0, // 10000 bps = 100%
+        10000.0, // 10000 bp = 100%
         as_of,
         end,
         "USD_OIS",

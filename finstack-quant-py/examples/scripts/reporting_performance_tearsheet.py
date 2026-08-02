@@ -23,7 +23,7 @@ def main() -> None:
     returns = pd.DataFrame({"Global Macro Composite": rets}, index=idx)
 
     # 2) Compute analytics (you own the config).
-    perf = Performance.from_returns(returns, freq="daily")
+    perf = Performance.from_returns(returns, frequency="daily")
 
     # 3) Render the tear sheet (Direction A house style by default).
     ts = reporting.performance_tearsheet(

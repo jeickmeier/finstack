@@ -97,8 +97,8 @@ pub fn build_flat_discount_curve(rate: f64, base_date: Date, curve_id: &str) -> 
 }
 
 /// Build a flat volatility surface.
-pub fn build_flat_vol_surface(vol: f64, surface_id: &str) -> VolSurface {
-    VolSurface::builder(surface_id)
+pub fn build_flat_vol_surface(vol: f64, vol_surface_id: &str) -> VolSurface {
+    VolSurface::builder(vol_surface_id)
         .expiries(&[0.25, 0.5, 1.0, 2.0, 5.0])
         .strikes(&[0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4])
         .row(&[vol; 7])

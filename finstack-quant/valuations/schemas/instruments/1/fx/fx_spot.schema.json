@@ -1,8 +1,137 @@
 {
+  "$defs": {
+    "FxSpot": {
+      "additionalProperties": false,
+      "description": "FX Spot instrument (1 unit of `base` priced in `quote`).\n\nRepresents the spot exchange rate between two currencies following\nstandard market quoting conventions (base/quote or CCY1/CCY2).\n\n# Quote Convention\n\nThe rate is interpreted as: **1 unit of base = rate units of quote**\n\nFor example, if `base = EUR`, `quote = USD`, and `spot_rate = 1.10`:\n- 1 EUR = 1.10 USD\n- This is the \"EUR/USD\" rate\n\n# Settlement\n\nFX spot typically settles T+2 (two business days after trade date).\nThis can be customized via `settlement_lag_days`.\n\nSee module-level documentation for comprehensive FX quoting conventions.",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json"
+        },
+        "base_calendar_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "base_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json"
+        },
+        "business_day_convention": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
+          "default": "modified_following"
+        },
+        "discount_curve_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "default": {}
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "default": {
+            "mc_seed_scenario": null,
+            "theta_period": null
+          }
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json"
+        },
+        "quote_calendar_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quote_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json"
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "default": {}
+        },
+        "settlement": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "settlement_lag_days": {
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "spot_rate": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "base_currency",
+        "quote_currency",
+        "notional",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "fx_spot": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/FxSpot"
+            },
+            "type": {
+              "const": "fx_spot",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_spot.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "FX spot position representing immediate currency exchange",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -10,32 +139,11 @@
           "attributes": {},
           "base_calendar_id": null,
           "base_currency": "EUR",
-          "bdc": "modified_following",
+          "business_day_convention": "modified_following",
           "id": "EURUSD",
           "notional": {
             "amount": "1000000",
             "currency": "EUR"
-          },
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
           },
           "quote_calendar_id": null,
           "quote_currency": "USD",
@@ -50,141 +158,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Fx Spot instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "base_calendar_id": {
-              "description": "Optional base currency calendar for joint calendar settlement adjustment.\n\nPer market convention, FX settlement uses the joint calendar of both currencies.\nA date is a good business day only if it's valid in both calendars.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "base_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency (the currency being priced)"
-            },
-            "bdc": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/business_day_convention.schema.json",
-              "default": "modified_following",
-              "description": "Business day convention to apply when adjusting settlement (default: ModifiedFollowing)\n\nNote: Default changed from `Following` to `ModifiedFollowing` in v0.8.0 to align\nwith ISDA standard FX settlement conventions."
-            },
-            "discount_curve_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional quote-currency discount curve for PV-ing the settlement\ncashflow. When absent the settlement amount is reported undiscounted\n(a 1–2 day effect for standard spot lags)."
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique identifier for the FX pair"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount in base currency."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Per-instrument pricing/sensitivity override knobs.\nInstrument-owned pricing inputs."
-            },
-            "quote_calendar_id": {
-              "description": "Optional quote currency calendar for joint calendar settlement adjustment.\n\nPer market convention, FX settlement uses the joint calendar of both currencies.\nA date is a good business day only if it's valid in both calendars.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "quote_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Quote currency (the currency used for pricing)"
-            },
-            "settlement": {
-              "description": "Optional settlement date (T+2 typically for spot)",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "settlement_lag_days": {
-              "description": "Optional settlement lag in business days when `settlement` is not provided (default: 2)",
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "spot_rate": {
-              "description": "Optional spot rate (if not provided, will look up from market data)",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "id",
-            "base_currency",
-            "quote_currency",
-            "notional",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "fx_spot",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/fx_spot"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "FX Spot",
+  "title": "fx_spot",
   "type": "object"
 }

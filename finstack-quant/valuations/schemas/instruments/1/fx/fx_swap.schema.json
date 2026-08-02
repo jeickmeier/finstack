@@ -1,8 +1,145 @@
 {
+  "$defs": {
+    "FxSwap": {
+      "additionalProperties": false,
+      "description": "FX Swap instrument definition",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "description": "Attributes for scenario selection and tagging."
+        },
+        "base_calendar_id": {
+          "default": null,
+          "description": "Optional base currency calendar for spot/settlement adjustment metadata.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "base_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Base currency (foreign)."
+        },
+        "base_notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional amount in base currency (exchanged on near, reversed on far)."
+        },
+        "domestic_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Domestic discount curve id (quote currency)."
+        },
+        "far_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Far leg settlement date (forward leg)."
+        },
+        "far_rate": {
+          "default": null,
+          "description": "Optional far leg FX rate (quote per base). If None, source from forwards.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "foreign_discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Foreign discount curve id (base currency)."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "default": {},
+          "description": "Per-instrument pricing/sensitivity override knobs."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "default": {
+            "mc_seed_scenario": null,
+            "theta_period": null
+          }
+        },
+        "near_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Near leg settlement date (spot leg)."
+        },
+        "near_rate": {
+          "default": null,
+          "description": "Optional near leg FX rate (quote per base). If None, source from market.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "quote_calendar_id": {
+          "default": null,
+          "description": "Optional quote currency calendar for spot/settlement adjustment metadata.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quote_currency": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
+          "description": "Quote currency (domestic)."
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "default": {}
+        }
+      },
+      "required": [
+        "id",
+        "base_currency",
+        "quote_currency",
+        "near_date",
+        "far_date",
+        "base_notional",
+        "domestic_discount_curve_id",
+        "foreign_discount_curve_id",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
+    "fx_swap": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/FxSwap"
+            },
+            "type": {
+              "const": "fx_swap",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/fx/fx_swap.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Foreign exchange swap with near and far legs",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -20,27 +157,6 @@
           "id": "FXSWAP-EURUSD-6M",
           "near_date": "2024-01-05",
           "near_rate": 1.1,
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quote_currency": "USD"
         },
         "type": "fx_swap"
@@ -50,140 +166,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Fx Swap instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "base_calendar_id": {
-              "description": "Optional base currency calendar for spot/settlement adjustment metadata.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "base_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Base currency (foreign)"
-            },
-            "base_notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional amount in base currency (exchanged on near, reversed on far)"
-            },
-            "domestic_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Domestic discount curve id (quote currency)"
-            },
-            "far_date": {
-              "description": "Far leg settlement date (forward leg)",
-              "format": "date",
-              "type": "string"
-            },
-            "far_rate": {
-              "description": "Optional far leg FX rate (quote per base). If None, source from forwards.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "foreign_discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Foreign discount curve id (base currency)"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier"
-            },
-            "near_date": {
-              "description": "Near leg settlement date (spot leg)",
-              "format": "date",
-              "type": "string"
-            },
-            "near_rate": {
-              "description": "Optional near leg FX rate (quote per base). If None, source from market.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for tagging and selection\nInstrument-owned pricing inputs."
-            },
-            "quote_calendar_id": {
-              "description": "Optional quote currency calendar for spot/settlement adjustment metadata.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "quote_currency": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/currency.schema.json",
-              "description": "Quote currency (domestic)"
-            }
-          },
-          "required": [
-            "id",
-            "base_currency",
-            "quote_currency",
-            "near_date",
-            "far_date",
-            "base_notional",
-            "domestic_discount_curve_id",
-            "foreign_discount_curve_id",
-            "attributes"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "fx_swap",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/fx_swap"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "FX Swap",
+  "title": "fx_swap",
   "type": "object"
 }

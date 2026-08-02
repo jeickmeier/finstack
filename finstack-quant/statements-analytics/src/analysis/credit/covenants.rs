@@ -263,10 +263,10 @@ fn default_driver_node_id(spec: &CovenantSpec) -> Option<&'static str> {
         // Leverage ratios: EBITDA is the usual denominator and the
         // dominant source of volatility; gross and net debt variants
         // share this driver.
-        CovenantType::MaxDebtToEBITDA { .. }
+        CovenantType::MaxDebtToEbitda { .. }
         | CovenantType::MaxTotalLeverage { .. }
         | CovenantType::MaxSeniorLeverage { .. }
-        | CovenantType::MaxNetDebtToEBITDA { .. } => Some("ebitda"),
+        | CovenantType::MaxNetDebtToEbitda { .. } => Some("ebitda"),
 
         // Coverage ratios: numerator is earnings-based. EBIT for
         // interest coverage, EBITDA for fixed-charge and DSCR (which
@@ -274,7 +274,7 @@ fn default_driver_node_id(spec: &CovenantSpec) -> Option<&'static str> {
         // formula — callers who want a dedicated `dscr` driver should
         // pass it explicitly).
         CovenantType::MinInterestCoverage { .. } => Some("ebit"),
-        CovenantType::MinFixedChargeCoverage { .. } | CovenantType::MinDSCR { .. } => {
+        CovenantType::MinFixedChargeCoverage { .. } | CovenantType::MinDscr { .. } => {
             Some("ebitda")
         }
 
@@ -487,7 +487,7 @@ mod tests {
         let mut engine = CovenantEngine::new();
         engine.add_spec(CovenantSpec {
             covenant: Covenant::new(
-                CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+                CovenantType::MaxDebtToEbitda { threshold: 4.0 },
                 Tenor::quarterly(),
             ),
             metric_id: Some(CovenantMetricId::from("NetDebtEbitda")),
@@ -525,7 +525,7 @@ mod tests {
         // 1. Setup Covenant Engine
         let mut engine = CovenantEngine::new();
         let covenant = Covenant::new(
-            CovenantType::MaxDebtToEBITDA { threshold: 4.0 },
+            CovenantType::MaxDebtToEbitda { threshold: 4.0 },
             Tenor::quarterly(),
         );
         let spec = CovenantSpec {

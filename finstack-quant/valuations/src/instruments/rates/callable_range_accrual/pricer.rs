@@ -259,7 +259,7 @@ impl CallableRangeAccrualPricer {
             flavor: Hw1fCalibrationFlavor::CapFloor,
             overrides: overrides.as_ref(),
             surface: Some(Hw1fSurfaceCalibration::CapFloor {
-                surface_id: inst.range_accrual.vol_surface_id.as_str(),
+                vol_surface_id: inst.range_accrual.vol_surface_id.as_str(),
                 points: surface_points.as_slice(),
             }),
             fallback: Some(self.hw_params),
@@ -439,7 +439,7 @@ fn callable_range_surface_points(
                 forward: strike,
                 strike,
                 is_cap: true,
-                weight: range.notional.amount().abs(),
+                annuity: range.notional.amount().abs(),
                 normal_vol_per_unit_sigma: None,
             });
         }
@@ -667,7 +667,6 @@ fn zero_estimate(currency: finstack_quant_core::currency::Currency) -> MoneyEsti
         percentile_75: None,
         min: Some(0.0),
         max: Some(0.0),
-        num_skipped: 0,
     }
 }
 

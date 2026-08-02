@@ -36,6 +36,7 @@ import type { OptionType } from "./OptionType";
  * use finstack_quant_valuations::market::quotes::ids::QuoteId;
  * use finstack_quant_valuations::market::conventions::ids::SwaptionConventionId;
  * use finstack_quant_core::dates::Date;
+ * use finstack_quant_core::market_data::surfaces::VolQuoteType;
  *
  * let quote = VolQuote::SwaptionVol {
  *     id: QuoteId::new("USD-SWPTN-VOL-1Yx5Y-ATM"),
@@ -43,7 +44,7 @@ import type { OptionType } from "./OptionType";
  *     maturity: Date::from_calendar_date(2030, time::Month::June, 20).unwrap(),
  *     strike: 0.045, // 4.5% strike rate
  *     vol: 0.15, // 15% implied volatility
- *     quote_type: "Normal".to_string(),
+ *     quote_type: VolQuoteType::Normal,
  *     convention: SwaptionConventionId::new("USD"),
  * };
  * ```
@@ -98,7 +99,7 @@ strike: number,
  */
 vol: number,
 /**
- * Quote type label; see [`parse_vol_quote_type`].
+ * Volatility quoting convention.
  */
 quote_type: string,
 /**
@@ -122,7 +123,7 @@ strike: number,
  */
 vol: number,
 /**
- * Quote type label, e.g. `"normal"`; see [`parse_vol_quote_type`].
+ * Volatility quoting convention.
  */
 quote_type: string,
 /**

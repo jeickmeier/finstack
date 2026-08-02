@@ -1,6 +1,7 @@
 {
   "$defs": {
     "EquityFutureSpecs": {
+      "additionalProperties": false,
       "description": "Contract specifications for equity index futures.\n\nContains exchange-specific contract parameters such as multiplier,\ntick size, and settlement method.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::equity::equity_index_future::EquityFutureSpecs;\n\n// E-mini S&P 500 specifications\nlet es_specs = EquityFutureSpecs::sp500_emini();\nassert_eq!(es_specs.multiplier, 50.0);\nassert_eq!(es_specs.tick_size, 0.25);\nassert_eq!(es_specs.tick_value, 12.50);\n```",
       "properties": {
         "multiplier": {
@@ -31,6 +32,145 @@
       ],
       "type": "object"
     },
+    "EquityIndexFuture": {
+      "additionalProperties": false,
+      "description": "Equity Index Future instrument.\n\nRepresents a futures contract on an equity index such as S&P 500, Nasdaq-100,\nEuro Stoxx 50, DAX, FTSE 100, or Nikkei 225.\n\n# Examples\n\n```rust\nuse finstack_quant_valuations::instruments::equity::equity_index_future::{\n    EquityIndexFuture, EquityFutureSpecs,\n};\nuse finstack_quant_valuations::instruments::Position;\nuse finstack_quant_core::currency::Currency;\nuse finstack_quant_core::dates::Date;\nuse finstack_quant_core::money::Money;\nuse finstack_quant_core::types::{CurveId, InstrumentId};\nuse time::Month;\n\nlet future = EquityIndexFuture::builder()\n    .id(InstrumentId::new(\"ES-2025M03\"))\n    .underlying_ticker(\"SPX\".to_string())\n    .notional(Money::new(2_250_000.0, Currency::USD))\n    .expiry(Date::from_calendar_date(2025, Month::March, 21).expect(\"EquityIndexFuture example is valid\"))\n    .last_trading_date(Date::from_calendar_date(2025, Month::March, 20).expect(\"EquityIndexFuture example is valid\"))\n    .position(Position::Long)\n    .contract_specs(EquityFutureSpecs::sp500_emini())\n    .discount_curve_id(CurveId::new(\"USD-OIS\"))\n    .spot_id(\"SPX-SPOT\".into())\n    .build()\n    .expect(\"Valid future\");\n```",
+      "properties": {
+        "attributes": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
+          "default": {},
+          "description": "Attributes for scenario selection and tagging"
+        },
+        "contract_specs": {
+          "$ref": "#/$defs/EquityFutureSpecs",
+          "default": {
+            "multiplier": 50.0,
+            "settlement_method": "Cash settled to Special Opening Quotation",
+            "tick_size": 0.25,
+            "tick_value": 12.5
+          },
+          "description": "Contract specifications."
+        },
+        "discount_curve_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Discount curve identifier for present value calculations."
+        },
+        "discrete_dividends": {
+          "description": "Optional discrete cash dividend schedule `(ex_date, amount)` for index carry.\n\nWhen non-empty, fair forward pricing uses PV spot adjustment and treats\ncontinuous dividend yield as zero to avoid double counting.",
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json"
+              },
+              {
+                "format": "double",
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "div_yield_id": {
+          "anyOf": [
+            {
+              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional dividend yield identifier for fair value calculation."
+        },
+        "entry_price": {
+          "description": "Entry price at trade inception (optional for new trades).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "expiry": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Future expiry/settlement date."
+        },
+        "id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Unique instrument identifier."
+        },
+        "instrument_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/instrument_pricing_overrides.schema.json",
+          "description": "Attributes for tagging and selection."
+        },
+        "last_trading_date": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/date.schema.json",
+          "description": "Last trading date (typically one day before expiry)."
+        },
+        "metric_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/metric_pricing_overrides.schema.json",
+          "description": "Metric-only pricing controls."
+        },
+        "notional": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
+          "description": "Notional exposure in settlement currency."
+        },
+        "position": {
+          "$ref": "#/$defs/Position",
+          "description": "Position side (Long or Short)."
+        },
+        "quoted_price": {
+          "description": "Current quoted market price (if available, overrides fair value).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "scenario_pricing_overrides": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/scenario_pricing_overrides.schema.json",
+          "description": "Scenario-only valuation adjustments."
+        },
+        "settlement_price": {
+          "description": "Official settlement price fixed after the last trading date.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "spot_id": {
+          "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
+          "description": "Index spot price identifier for fair value calculation."
+        },
+        "underlying_ticker": {
+          "description": "Index ticker symbol (e.g., \"SPX\", \"NDX\", \"SX5E\").",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "underlying_ticker",
+        "notional",
+        "expiry",
+        "last_trading_date",
+        "position",
+        "discount_curve_id",
+        "spot_id"
+      ],
+      "type": "object"
+    },
+    "InstrumentSchema": {
+      "description": "Canonical schema marker for persisted instrument envelopes.",
+      "oneOf": [
+        {
+          "const": "finstack_quant.instrument/1",
+          "description": "The sole supported instrument contract.",
+          "type": "string"
+        }
+      ]
+    },
     "Position": {
       "description": "Position direction for futures and forwards.",
       "oneOf": [
@@ -45,12 +185,33 @@
           "type": "string"
         }
       ]
+    },
+    "equity_index_future": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "spec": {
+              "$ref": "#/$defs/EquityIndexFuture"
+            },
+            "type": {
+              "const": "equity_index_future",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "spec"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$id": "https://finstack_quant.dev/schemas/instrument/1/equity/equity_index_future.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Equity index futures contract (E-mini S&P 500, Nasdaq-100, etc.)",
+  "description": "Canonical single-instrument v1 envelope generated from its serde type.",
   "examples": [
     {
       "instrument": {
@@ -72,27 +233,6 @@
             "currency": "USD"
           },
           "position": "long",
-          "pricing_overrides": {
-            "adaptive_bumps": false,
-            "call_friction_cents": null,
-            "cds_quote_bp": null,
-            "credit_spread_bump_bp": null,
-            "implied_volatility": null,
-            "mc_seed_scenario": null,
-            "mean_reversion": null,
-            "quoted_clean_price": null,
-            "rate_bump_bp": null,
-            "rho_bump_decimal": null,
-            "spot_bump_pct": null,
-            "theta_period": null,
-            "tree_steps": null,
-            "upfront_payment": null,
-            "use_gobet_miri": false,
-            "vega_bump_decimal": null,
-            "vol_bump_pct": null,
-            "vol_surface_extrapolation": "error",
-            "ytm_bump_decimal": null
-          },
           "quoted_price": 4550.0,
           "spot_id": "SPX-SPOT",
           "underlying_ticker": "SPX"
@@ -104,173 +244,16 @@
   ],
   "properties": {
     "instrument": {
-      "additionalProperties": false,
-      "description": "The Equity Index Future instrument definition",
-      "properties": {
-        "spec": {
-          "additionalProperties": false,
-          "properties": {
-            "attributes": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/attributes.schema.json",
-              "default": {},
-              "description": "Attributes for scenario selection and tagging"
-            },
-            "contract_specs": {
-              "$ref": "#/$defs/EquityFutureSpecs",
-              "default": {
-                "multiplier": 50.0,
-                "settlement_method": "Cash settled to Special Opening Quotation",
-                "tick_size": 0.25,
-                "tick_value": 12.5
-              },
-              "description": "Contract specifications."
-            },
-            "discount_curve_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Discount curve identifier for present value calculations."
-            },
-            "discrete_dividends": {
-              "description": "Optional discrete cash dividend schedule `(ex_date, amount)` for index carry.\n\nWhen non-empty, fair forward pricing uses PV spot adjustment and treats\ncontinuous dividend yield as zero to avoid double counting.",
-              "items": {
-                "maxItems": 2,
-                "minItems": 2,
-                "prefixItems": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "format": "double",
-                    "type": "number"
-                  }
-                ],
-                "type": "array"
-              },
-              "type": "array"
-            },
-            "div_yield_id": {
-              "anyOf": [
-                {
-                  "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional dividend yield identifier for fair value calculation."
-            },
-            "entry_price": {
-              "description": "Entry price at trade inception (optional for new trades).",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "expiry": {
-              "description": "Future expiry/settlement date.",
-              "format": "date",
-              "type": "string"
-            },
-            "id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Unique instrument identifier."
-            },
-            "last_trading_date": {
-              "description": "Last trading date (typically one day before expiry).",
-              "format": "date",
-              "type": "string"
-            },
-            "notional": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/money.schema.json",
-              "description": "Notional exposure in settlement currency."
-            },
-            "position": {
-              "$ref": "#/$defs/Position",
-              "description": "Position side (Long or Short)."
-            },
-            "pricing_overrides": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/pricing_overrides.schema.json",
-              "default": {
-                "adaptive_bumps": false,
-                "call_friction_cents": null,
-                "cds_act360_include_last_day": false,
-                "cds_aod_half_day_bias": false,
-                "credit_spread_bump_bp": null,
-                "mc_seed_scenario": null,
-                "mean_reversion": null,
-                "oas_price_basis": "settlement_dirty",
-                "oas_quote_compounding": "continuous",
-                "rate_bump_bp": null,
-                "rho_bump_decimal": null,
-                "spot_bump_pct": null,
-                "theta_period": null,
-                "tree_steps": null,
-                "use_gobet_miri": false,
-                "vega_bump_decimal": null,
-                "vol_bump_pct": null,
-                "vol_surface_extrapolation": "error",
-                "ytm_bump_decimal": null
-              },
-              "description": "Attributes for tagging and selection."
-            },
-            "quoted_price": {
-              "description": "Current quoted market price (if available, overrides fair value).",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "settlement_price": {
-              "description": "Official settlement price fixed after the last trading date.",
-              "format": "double",
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "spot_id": {
-              "$ref": "https://finstack_quant.dev/schemas/common/1/id.schema.json",
-              "description": "Index spot price identifier for fair value calculation."
-            },
-            "underlying_ticker": {
-              "description": "Index ticker symbol (e.g., \"SPX\", \"NDX\", \"SX5E\").",
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "underlying_ticker",
-            "notional",
-            "expiry",
-            "last_trading_date",
-            "position",
-            "discount_curve_id",
-            "spot_id"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "const": "equity_index_future",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "spec"
-      ],
-      "type": "object"
+      "$ref": "#/$defs/equity_index_future"
     },
     "schema": {
-      "const": "finstack_quant.instrument/1",
-      "description": "Schema version identifier",
-      "type": "string"
+      "$ref": "#/$defs/InstrumentSchema"
     }
   },
   "required": [
     "schema",
     "instrument"
   ],
-  "title": "Equity Index Future",
+  "title": "equity_index_future",
   "type": "object"
 }

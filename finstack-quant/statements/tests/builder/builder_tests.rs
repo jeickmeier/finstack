@@ -3,18 +3,6 @@
 use finstack_quant_statements::prelude::*;
 
 // ============================================================================
-// Crate Bootstrap Tests
-// ============================================================================
-
-#[test]
-fn test_builder_creation() {
-    let builder = ModelBuilder::new("test_model");
-    // Type-state ensures we can't call .build() yet
-    // This test just verifies construction works
-    let _ = builder;
-}
-
-// ============================================================================
 // Period Integration Tests
 // ============================================================================
 
@@ -174,6 +162,33 @@ fn test_value_node_with_currency() {
 }
 
 #[test]
+fn test_value_node_rejects_mixed_currencies_within_one_node() {
+    let result = ModelBuilder::new("test")
+        .periods("2025Q1..Q2", None)
+        .unwrap()
+        .value(
+            "revenue",
+            &[
+                (
+                    PeriodId::quarter(2025, 1),
+                    AmountOrScalar::amount(100_000.0, Currency::USD),
+                ),
+                (
+                    PeriodId::quarter(2025, 2),
+                    AmountOrScalar::amount(90_000.0, Currency::EUR),
+                ),
+            ],
+        )
+        .build();
+
+    let message = result.unwrap_err().to_string();
+    assert!(
+        message.contains("Currency mismatch"),
+        "expected currency mismatch error, got: {message}"
+    );
+}
+
+#[test]
 fn test_calculated_node() {
     let model = ModelBuilder::new("test")
         .periods("2025Q1..Q2", None)
@@ -266,7 +281,7 @@ fn test_schema_version() {
         .build()
         .unwrap();
 
-    assert_eq!(model.schema_version, 2);
+    assert_eq!(u32::from(model.schema_version), 1);
 }
 
 // ============================================================================

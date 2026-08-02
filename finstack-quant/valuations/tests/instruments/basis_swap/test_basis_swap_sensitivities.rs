@@ -69,7 +69,7 @@ fn make_leg(forward_curve: &str, start: Date, end: Date, spread_bp: Decimal) -> 
         end,
         frequency: Tenor::quarterly(),
         day_count: DayCount::Act360,
-        bdc: BusinessDayConvention::ModifiedFollowing,
+        business_day_convention: BusinessDayConvention::ModifiedFollowing,
         calendar_id: Some(CALENDAR_ID.to_string()),
         stub: StubKind::ShortFront,
         spread_bp,
@@ -105,17 +105,17 @@ fn dv01_per_curve_breakdown() {
         .measures
         .get("bucketed_dv01::USD_x2dOIS")
         .copied()
-        .unwrap_or(0.0);
+        .expect("discount-curve bucketed DV01 must be present");
     let dv01_primary_fwd = res
         .measures
         .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
         .copied()
-        .unwrap_or(0.0);
+        .expect("primary-forward bucketed DV01 must be present");
     let dv01_reference_fwd = res
         .measures
         .get("bucketed_dv01::USD_x2dSOFR_x2d1M")
         .copied()
-        .unwrap_or(0.0);
+        .expect("reference-forward bucketed DV01 must be present");
 
     let computed_total = dv01_discount + dv01_primary_fwd + dv01_reference_fwd;
     assert!(
@@ -159,7 +159,7 @@ fn dv01_scales_with_notional() {
             .measures
             .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
             .copied()
-            .unwrap_or(0.0);
+            .expect("primary-forward bucketed DV01 must be present");
         dv01s.push(dv01);
     }
 
@@ -204,7 +204,7 @@ fn dv01_vs_numerical_bump() {
         .measures
         .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
         .copied()
-        .unwrap_or(0.0);
+        .expect("primary-forward bucketed DV01 must be present");
 
     assert!(
         dv01_metric > 0.0 && dv01_metric.is_finite(),
@@ -305,12 +305,12 @@ fn dv01_leg_components_reasonable() {
         .measures
         .get("bucketed_dv01::USD_x2dSOFR_x2d3M")
         .copied()
-        .unwrap_or(0.0);
+        .expect("primary-forward bucketed DV01 must be present");
     let dv01_reference = res
         .measures
         .get("bucketed_dv01::USD_x2dSOFR_x2d1M")
         .copied()
-        .unwrap_or(0.0);
+        .expect("reference-forward bucketed DV01 must be present");
 
     assert!(
         dv01_primary > 0.0,

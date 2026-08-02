@@ -1095,6 +1095,89 @@ mod tests {
     }
 
     #[test]
+    fn barrier_prices_respect_bounds_and_zero_rebate_in_out_parity() {
+        let tree = BinomialTree::crr(120);
+
+        let call = OptionMarketParams::call(100.0, 100.0, 0.05, 0.20, 1.0);
+        let vanilla_call = tree
+            .price_european(&call)
+            .expect("vanilla call pricing should succeed");
+        let up_and_out = tree
+            .price_barrier_out(&call, Some(101.0), None, 0.0)
+            .expect("up-and-out call pricing should succeed");
+
+        assert!(up_and_out.is_finite() && up_and_out >= 0.0);
+        assert!(
+            up_and_out < vanilla_call,
+            "a nearby zero-rebate up barrier should strictly reduce the call value: \
+             barrier={up_and_out}, vanilla={vanilla_call}"
+        );
+
+        let put = OptionMarketParams::put(100.0, 95.0, 0.03, 0.25, 0.5);
+        let vanilla_put = tree
+            .price_european(&put)
+            .expect("vanilla put pricing should succeed");
+        let down_and_out = tree
+            .price_barrier_out(&put, None, Some(99.0), 0.0)
+            .expect("down-and-out put pricing should succeed");
+        let down_and_in = tree
+            .price_barrier_in(&put, None, Some(99.0), 0.0)
+            .expect("down-and-in put pricing should succeed");
+
+        for (label, value) in [("down-and-out", down_and_out), ("down-and-in", down_and_in)] {
+            assert!(
+                value.is_finite() && value >= 0.0 && value <= vanilla_put + 1e-10,
+                "{label} price must lie in [0, vanilla]: price={value}, vanilla={vanilla_put}"
+            );
+        }
+        assert!(
+            (vanilla_put - (down_and_out + down_and_in)).abs() < 1e-6,
+            "zero-rebate in/out parity failed: vanilla={vanilla_put}, \
+             knock_out={down_and_out}, knock_in={down_and_in}"
+        );
+    }
+
+    #[test]
+    fn knock_in_exercise_values_are_ordered_european_bermudan_american() {
+        let market_params = OptionMarketParams::put(100.0, 105.0, 0.03, 0.25, 1.0);
+        let tree = BinomialTree::crr(120);
+        let exercise_dates = [0.25, 0.5, 0.75, 1.0];
+
+        let european = tree
+            .price_barrier_in(&market_params, None, Some(95.0), 0.0)
+            .expect("European knock-in pricing should succeed");
+        let bermudan = tree
+            .price_barrier_in_bermudan(&market_params, None, Some(95.0), 0.0, &exercise_dates)
+            .expect("Bermudan knock-in pricing should succeed");
+        let american = tree
+            .price_barrier_in_american(&market_params, None, Some(95.0), 0.0)
+            .expect("American knock-in pricing should succeed");
+
+        assert!(
+            european <= bermudan + 1e-10,
+            "Bermudan knock-in must be worth at least European: \
+             european={european}, bermudan={bermudan}"
+        );
+        assert!(
+            bermudan <= american + 1e-10,
+            "American knock-in must be worth at least Bermudan: \
+             bermudan={bermudan}, american={american}"
+        );
+    }
+
+    #[test]
+    fn knock_in_requires_exactly_one_barrier_level() {
+        let market_params = OptionMarketParams::call(100.0, 100.0, 0.05, 0.20, 1.0);
+        let tree = BinomialTree::crr(40);
+
+        let neither = tree.price_barrier_in(&market_params, None, None, 0.0);
+        let both = tree.price_barrier_in(&market_params, Some(120.0), Some(80.0), 0.0);
+
+        assert!(neither.is_err(), "knock-in without a barrier must fail");
+        assert!(both.is_err(), "knock-in with two barriers must fail");
+    }
+
+    #[test]
     fn test_exercise_schedule_mapping() {
         // Map quarterly exercise dates over 1Y with 4 steps
         let dates = vec![0.0, 0.25, 0.5, 0.75, 1.0];

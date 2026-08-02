@@ -35,14 +35,14 @@ pub(crate) fn register_rates_pricers(registry: &mut PricerRegistry) {
     // Interest Rate Swaps
     register_generic!(
         registry,
-        InstrumentType::IRS,
+        InstrumentType::Irs,
         crate::instruments::InterestRateSwap
     );
 
     // FRA
     register_generic!(
         registry,
-        InstrumentType::FRA,
+        InstrumentType::Fra,
         crate::instruments::ForwardRateAgreement
     );
 
@@ -111,7 +111,7 @@ pub(crate) fn register_rates_pricers(registry: &mut PricerRegistry) {
 
     // DCF (Discounted Cash Flow)
     registry.register(
-        InstrumentType::DCF,
+        InstrumentType::Dcf,
         ModelKey::Discounting,
         crate::instruments::equity::dcf_equity::pricer::DcfPricer,
     );

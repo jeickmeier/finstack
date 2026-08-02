@@ -1,8 +1,9 @@
-//! Integration test for swaption volatility calibration (v2).
+//! Integration test for swaption volatility calibration (canonical).
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, DayCount, Tenor};
 use finstack_quant_core::market_data::context::MarketContext;
+use finstack_quant_core::market_data::surfaces::VolQuoteType;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_core::types::CurveId;
@@ -50,7 +51,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
             maturity: Date::from_calendar_date(2027, Month::January, 1).unwrap(),
             strike: 0.035,
             vol: 120.0,
-            quote_type: "OTM-100".to_string(),
+            quote_type: VolQuoteType::Normal,
             convention: SwaptionConventionId::new("USD"),
         }),
         MarketQuote::Vol(VolQuote::SwaptionVol {
@@ -59,7 +60,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
             maturity: Date::from_calendar_date(2027, Month::January, 1).unwrap(),
             strike: 0.040,
             vol: 100.0,
-            quote_type: "ATM-50".to_string(),
+            quote_type: VolQuoteType::Normal,
             convention: SwaptionConventionId::new("USD"),
         }),
         MarketQuote::Vol(VolQuote::SwaptionVol {
@@ -68,7 +69,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
             maturity: Date::from_calendar_date(2027, Month::January, 1).unwrap(),
             strike: 0.043,
             vol: 90.0,
-            quote_type: "ATM".to_string(),
+            quote_type: VolQuoteType::Normal,
             convention: SwaptionConventionId::new("USD"),
         }),
         MarketQuote::Vol(VolQuote::SwaptionVol {
@@ -77,7 +78,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
             maturity: Date::from_calendar_date(2027, Month::January, 1).unwrap(),
             strike: 0.046,
             vol: 100.0,
-            quote_type: "ATM+50".to_string(),
+            quote_type: VolQuoteType::Normal,
             convention: SwaptionConventionId::new("USD"),
         }),
         MarketQuote::Vol(VolQuote::SwaptionVol {
@@ -86,7 +87,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
             maturity: Date::from_calendar_date(2027, Month::January, 1).unwrap(),
             strike: 0.050,
             vol: 120.0,
-            quote_type: "OTM+100".to_string(),
+            quote_type: VolQuoteType::Normal,
             convention: SwaptionConventionId::new("USD"),
         }),
         // 1Y x 5Y bucket (5 strikes)
@@ -96,7 +97,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
             maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
             strike: 0.038,
             vol: 85.0,
-            quote_type: "OTM-100".to_string(),
+            quote_type: VolQuoteType::Normal,
             convention: SwaptionConventionId::new("USD"),
         }),
         MarketQuote::Vol(VolQuote::SwaptionVol {
@@ -105,7 +106,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
             maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
             strike: 0.042,
             vol: 75.0,
-            quote_type: "ATM-50".to_string(),
+            quote_type: VolQuoteType::Normal,
             convention: SwaptionConventionId::new("USD"),
         }),
         MarketQuote::Vol(VolQuote::SwaptionVol {
@@ -114,7 +115,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
             maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
             strike: 0.045,
             vol: 70.0,
-            quote_type: "ATM".to_string(),
+            quote_type: VolQuoteType::Normal,
             convention: SwaptionConventionId::new("USD"),
         }),
         MarketQuote::Vol(VolQuote::SwaptionVol {
@@ -123,7 +124,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
             maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
             strike: 0.048,
             vol: 75.0,
-            quote_type: "ATM+50".to_string(),
+            quote_type: VolQuoteType::Normal,
             convention: SwaptionConventionId::new("USD"),
         }),
         MarketQuote::Vol(VolQuote::SwaptionVol {
@@ -132,7 +133,7 @@ fn create_test_swaption_quotes() -> Vec<MarketQuote> {
             maturity: Date::from_calendar_date(2031, Month::January, 1).unwrap(),
             strike: 0.052,
             vol: 85.0,
-            quote_type: "OTM+100".to_string(),
+            quote_type: VolQuoteType::Normal,
             convention: SwaptionConventionId::new("USD"),
         }),
     ]
@@ -143,10 +144,10 @@ fn swaption_vol_step_builds_and_inserts_surface() {
     let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let currency = Currency::USD;
 
-    let initial_market = MarketContext::new().insert(create_test_discount_curve(base_date));
+    let source_market = MarketContext::new().insert(create_test_discount_curve(base_date));
 
     let swpt_quotes = create_test_swaption_quotes();
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &swpt_quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("swpt".to_string(), cal_utils::quote_set_ids(&swpt_quotes));
@@ -167,7 +168,7 @@ fn swaption_vol_step_builds_and_inserts_surface() {
             id: "swpt".to_string(),
             quote_set: "swpt".to_string(),
             params: StepParams::SwaptionVol(SwaptionVolParams {
-                surface_id: "USD-SWPT".to_string(),
+                vol_surface_id: "USD-SWPT".to_string(),
                 base_date,
                 discount_curve_id: CurveId::from("USD-OIS"),
                 forward_id: None,
@@ -194,7 +195,7 @@ fn swaption_vol_step_builds_and_inserts_surface() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -233,10 +234,10 @@ fn calibrated_swaption_surface_is_not_silently_reused_as_strike_surface() {
     let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let currency = Currency::USD;
 
-    let initial_market = MarketContext::new().insert(create_test_discount_curve(base_date));
+    let source_market = MarketContext::new().insert(create_test_discount_curve(base_date));
 
     let swpt_quotes = create_test_swaption_quotes();
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &swpt_quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("swpt".to_string(), cal_utils::quote_set_ids(&swpt_quotes));
@@ -250,7 +251,7 @@ fn calibrated_swaption_surface_is_not_silently_reused_as_strike_surface() {
             id: "swpt".to_string(),
             quote_set: "swpt".to_string(),
             params: StepParams::SwaptionVol(SwaptionVolParams {
-                surface_id: "USD-SWPT".to_string(),
+                vol_surface_id: "USD-SWPT".to_string(),
                 base_date,
                 discount_curve_id: CurveId::from("USD-OIS"),
                 forward_id: None,
@@ -275,7 +276,7 @@ fn calibrated_swaption_surface_is_not_silently_reused_as_strike_surface() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -318,10 +319,10 @@ fn swaption_vol_out_of_bounds_targets_error_by_default() {
     let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let currency = Currency::USD;
 
-    let initial_market = MarketContext::new().insert(create_test_discount_curve(base_date));
+    let source_market = MarketContext::new().insert(create_test_discount_curve(base_date));
 
     let swpt_quotes = create_test_swaption_quotes();
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &swpt_quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("swpt".to_string(), cal_utils::quote_set_ids(&swpt_quotes));
@@ -335,7 +336,7 @@ fn swaption_vol_out_of_bounds_targets_error_by_default() {
             id: "swpt".to_string(),
             quote_set: "swpt".to_string(),
             params: StepParams::SwaptionVol(SwaptionVolParams {
-                surface_id: "USD-SWPT".to_string(),
+                vol_surface_id: "USD-SWPT".to_string(),
                 base_date,
                 discount_curve_id: CurveId::from("USD-OIS"),
                 forward_id: None,
@@ -360,7 +361,7 @@ fn swaption_vol_out_of_bounds_targets_error_by_default() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,
@@ -377,10 +378,10 @@ fn swaption_vol_out_of_bounds_targets_can_clamp_when_configured() {
     let base_date = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let currency = Currency::USD;
 
-    let initial_market = MarketContext::new().insert(create_test_discount_curve(base_date));
+    let source_market = MarketContext::new().insert(create_test_discount_curve(base_date));
 
     let swpt_quotes = create_test_swaption_quotes();
-    let (prior, mut market_data) = cal_utils::split_initial_market(&initial_market);
+    let (prior, mut market_data) = cal_utils::split_market_context(&source_market);
     cal_utils::extend_market_data(&mut market_data, &swpt_quotes);
     let mut quote_sets: HashMap<String, Vec<QuoteId>> = HashMap::default();
     quote_sets.insert("swpt".to_string(), cal_utils::quote_set_ids(&swpt_quotes));
@@ -394,7 +395,7 @@ fn swaption_vol_out_of_bounds_targets_can_clamp_when_configured() {
             id: "swpt".to_string(),
             quote_set: "swpt".to_string(),
             params: StepParams::SwaptionVol(SwaptionVolParams {
-                surface_id: "USD-SWPT".to_string(),
+                vol_surface_id: "USD-SWPT".to_string(),
                 base_date,
                 discount_curve_id: CurveId::from("USD-OIS"),
                 forward_id: None,
@@ -419,7 +420,7 @@ fn swaption_vol_out_of_bounds_targets_can_clamp_when_configured() {
     let envelope = CalibrationEnvelope {
         schema_url: None,
 
-        schema: "finstack_quant.calibration/2".to_string(),
+        schema: finstack_quant_valuations::calibration::api::schema::CalibrationSchema::CURRENT,
         plan,
         market_data,
         prior_market: prior,

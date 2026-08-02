@@ -6,7 +6,7 @@ from typing import Any
 
 import QuantLib as ql  # type: ignore[import-not-found]  # noqa: N813
 
-from .common import SCHEMA_VERSION, metadata, tolerance
+from .common import SCHEMA, metadata, tolerance
 
 CDS_VALUATION_DATE = "2026-01-05"
 NOTIONAL = 10_000_000.0
@@ -78,7 +78,7 @@ def build_single_name_cds() -> dict[str, Any]:
         "accrual-on-default contribution included in QuantLib couponLegNPV."
     )
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema": SCHEMA,
         "metadata": metadata(
             name="cds_quantlib_flat_hazard_decomposition",
             domain="credit.cds",
@@ -120,15 +120,15 @@ def build_single_name_cds() -> dict[str, Any]:
                         "issuer": None,
                         "seniority": None,
                         "currency": None,
-                        "day_count": "Act365F",
+                        "day_count": "act_365f",
                         "par_points": [],
-                        "par_interp": "Linear",
+                        "par_interp": "linear",
                     },
                     {
                         "kind": "discount_curve",
                         "id": "USD-FLAT-2PCT",
                         "base": CDS_VALUATION_DATE,
-                        "day_count": "Act365F",
+                        "day_count": "act_365f",
                         "knot_points": [[0.0, 1.0], [10.0, 0.8187307530779818]],
                         "interp_style": "log_linear",
                         "extrapolation": "flat_forward",
@@ -152,7 +152,7 @@ def build_single_name_cds() -> dict[str, Any]:
                     "end": "2030-12-20",
                     "frequency": {"count": 3, "unit": "months"},
                     "calendar_id": "weekends",
-                    "day_count": "Act360",
+                    "day_count": "act_360",
                     "spread_bp": "100.0",
                     "discount_curve_id": "USD-FLAT-2PCT",
                 },
@@ -161,9 +161,11 @@ def build_single_name_cds() -> dict[str, Any]:
                     "recovery_rate": RECOVERY,
                     "settlement_delay": 0,
                 },
-                "pricing_overrides": {
-                    "cds_aod_half_day_bias": True,
-                    "cds_act360_include_last_day": True,
+                "instrument_pricing_overrides": {
+                    "model_config": {
+                        "cds_aod_half_day_bias": True,
+                        "cds_act360_include_last_day": True,
+                    },
                 },
                 "valuation_convention": "quant_lib_isda_parity",
                 "doc_clause": "xr14",

@@ -168,7 +168,7 @@ def build_bond_fixture() -> dict[str, Any]:
         "currency": "USD",
         "conventions": {
             "calendar": "UnitedStates::GovernmentBond",
-            "day_count": "Thirty360::BondBasis",
+            "day_count": "30_360",
             "frequency": "Semiannual",
             "business_day_convention": "Following",
             "date_generation": "Backward",
@@ -321,8 +321,8 @@ def build_irs_fixture() -> dict[str, Any]:
         "currency": "USD",
         "conventions": {
             "calendar": "UnitedStates::SOFR",
-            "day_count_fixed": "Thirty360::BondBasis",
-            "day_count_float": "Actual360",
+            "day_count_fixed": "30_360",
+            "day_count_float": "act_360",
             "fixed_frequency": "Semiannual",
             "float_frequency": "Quarterly",
             "swap_type": "Payer",
@@ -443,14 +443,14 @@ def build_fx_forward_fixture() -> dict[str, Any]:
         "name": "EURUSD-1Y-FORWARD",
         "currency": "USD",
         "conventions": {
-            "day_count": "Actual365Fixed",
+            "day_count": "act_365f",
             "settlement": "USD (cash-settled)",
             "model": "no-arbitrage forward, simple flat continuously-compounded rates",
         },
         "spec": {
-            "base_ccy": "EUR",
-            "quote_ccy": "USD",
-            "notional_base_ccy": notional_eur,
+            "base_currency": "EUR",
+            "quote_currency": "USD",
+            "notional_base_currency": notional_eur,
             "trade_date": ql_date_to_iso(t0),
             "maturity_date": ql_date_to_iso(maturity),
             "strike_at_forward": True,

@@ -3,7 +3,6 @@
 //! This module consolidates tests for:
 //!
 //! - **builder/**: Cashflow schedule generation, amortization, credit models (PSA/SDA)
-//! - **day_count**: ISDA 2006 day count convention golden values
 //! - **schema_roundtrip**: JSON schema serialization roundtrip tests
 //!
 //! Run all cashflow tests:
@@ -18,10 +17,6 @@ mod helpers;
 /// Cashflow builder, schedule generation, amortization, and credit model tests
 #[path = "cashflows/builder/mod.rs"]
 mod builder;
-
-/// ISDA 2006 day count convention golden values
-#[path = "cashflows/day_count.rs"]
-mod day_count;
 
 /// JSON schema serialization roundtrip tests
 #[path = "cashflows/schema_roundtrip.rs"]

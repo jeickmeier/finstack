@@ -52,8 +52,9 @@ pub struct ScoringDimension {
 
 /// Identifies which metric to extract from CompanyMetrics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum MetricExtractor {
-    /// A named field (e.g., "leverage", "oas_bps", "ebitda_margin").
+    /// A named field (e.g., "leverage", "oas_bp", "ebitda_margin").
     Named(String),
     /// A valuation multiple.
     Multiple(Multiple),
@@ -315,7 +316,7 @@ fn extract_single(metrics: &CompanyMetrics, extractor: &MetricExtractor) -> Opti
             "enterprise_value" => metrics.enterprise_value,
             "market_cap" => metrics.market_cap,
             "share_price" => metrics.share_price,
-            "oas_bps" => metrics.oas_bps,
+            "oas_bp" => metrics.oas_bp,
             "yield_pct" => metrics.yield_pct,
             "ebitda" => metrics.ebitda,
             "revenue" => metrics.revenue,

@@ -1,28 +1,15 @@
 //! Valuation result schema, measures, explanations, and serialization.
 //!
 use crate::metrics::MetricId;
+use crate::pricer::ModelKey;
 use finstack_quant_core::config::{results_meta_now, FinstackConfig, ResultsMeta};
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::explain::ExplanationTrace;
 use finstack_quant_core::money::Money;
+use finstack_quant_core::wire::SchemaVersion;
 use finstack_quant_covenants::CovenantReport;
 
 use indexmap::IndexMap;
-
-/// Wire-format schema version for [`ValuationResult`].
-///
-/// Bump this when adding, removing, or renaming fields in a way that is NOT
-/// handled by `#[serde(default)]` on the new field or `#[serde(alias)]` on a
-/// renamed one — i.e., when old deserialized payloads would produce incorrect
-/// results under the new shape. Document every bump in `CHANGELOG.md`.
-///
-/// Downstream consumers reading persisted results should assert
-/// `result.schema_version <= Self::SCHEMA_VERSION` and refuse newer payloads.
-pub const VALUATION_RESULT_SCHEMA_VERSION: u32 = 1;
-
-fn default_valuation_result_schema_version() -> u32 {
-    VALUATION_RESULT_SCHEMA_VERSION
-}
 
 /// Model-specific typed valuation details.
 ///
@@ -50,7 +37,7 @@ pub enum ValuationDetails {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct CreditDerivativeValuationDetails {
     /// Registered model key used by the pricer.
-    pub model_key: String,
+    pub model_key: ModelKey,
     /// CDS integration method actually used, when applicable.
     pub integration_method: Option<String>,
 }
@@ -201,20 +188,17 @@ pub struct FxValuationDetails {
 /// # }
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ValuationResult {
-    /// Wire-format schema version (see `VALUATION_RESULT_SCHEMA_VERSION`).
-    ///
-    /// Written into every serialized payload so downstream consumers can
-    /// detect schema mismatches when reading persisted results. Defaults to
-    /// the current version on deserialization of pre-versioning payloads.
-    #[serde(default = "default_valuation_result_schema_version")]
-    pub schema_version: u32,
+    /// Required wire-format schema version. Only numeric `1` is accepted.
+    pub schema_version: SchemaVersion,
 
     /// Unique identifier for the priced instrument.
     pub instrument_id: String,
 
     /// Valuation date (T+0) for the calculation.
-    #[schemars(with = "String")]
+    #[serde(with = "finstack_quant_core::wire::date")]
+    #[schemars(with = "finstack_quant_core::wire::DateWire")]
     pub as_of: Date,
 
     /// Present value in the instrument's native currency.
@@ -401,7 +385,7 @@ impl ValuationResult {
         meta: ResultsMeta,
     ) -> Self {
         Self {
-            schema_version: VALUATION_RESULT_SCHEMA_VERSION,
+            schema_version: SchemaVersion::CURRENT,
             instrument_id: instrument_id.to_string(),
             as_of,
             value,
@@ -930,5 +914,16 @@ mod tests {
                 assert!(back.explanation.is_some());
             }
         }
+    }
+
+    #[test]
+    fn credit_derivative_details_serialize_canonical_model_key() {
+        let details = CreditDerivativeValuationDetails {
+            model_key: ModelKey::HazardRate,
+            integration_method: Some("isda_standard_model".to_string()),
+        };
+
+        let json = serde_json::to_value(details).expect("details should serialize");
+        assert_eq!(json["model_key"], "hazard_rate");
     }
 }

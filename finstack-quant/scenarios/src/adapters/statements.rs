@@ -154,7 +154,7 @@ pub fn update_rate_from_binding(
     }
 
     if let Ok(curve) = market.get_forward(curve_id) {
-        let (start_years, effective_dc) = tenor_years_from_binding(
+        let (start_years, effective_day_count) = tenor_years_from_binding(
             binding,
             curve.base_date(),
             curve.day_count(),
@@ -179,12 +179,13 @@ pub fn update_rate_from_binding(
                 BusinessDayConvention::ModifiedFollowing,
             )?;
 
-        let accrual_years = Tenor::from_years(curve.tenor(), effective_dc)?.to_years_with_context(
-            forward_start,
-            calendar,
-            BusinessDayConvention::ModifiedFollowing,
-            effective_dc,
-        )?;
+        let accrual_years = Tenor::from_years(curve.tenor(), effective_day_count)?
+            .to_years_with_context(
+                forward_start,
+                calendar,
+                BusinessDayConvention::ModifiedFollowing,
+                effective_day_count,
+            )?;
         if !accrual_years.is_finite() || accrual_years <= 0.0 {
             return Err(Error::Validation(format!(
                 "Forward curve '{curve_id}' has non-positive accrual period ({accrual_years:.6}y); \

@@ -106,13 +106,15 @@ impl MarketScenario {
                     pct: shift.shift * 100.0,
                     as_of: self.date,
                 },
-                RiskFactorType::ImpliedVol { surface_id, .. } => {
+                RiskFactorType::ImpliedVol { vol_surface_id, .. } => {
                     match vol_shifts_by_surface
                         .iter_mut()
-                        .find(|(id, _)| id == surface_id)
+                        .find(|(id, _)| id == vol_surface_id)
                     {
                         Some((_, shifts)) => shifts.push(shift.shift),
-                        None => vol_shifts_by_surface.push((surface_id.clone(), vec![shift.shift])),
+                        None => {
+                            vol_shifts_by_surface.push((vol_surface_id.clone(), vec![shift.shift]))
+                        }
                     }
                     continue;
                 }
@@ -121,12 +123,12 @@ impl MarketScenario {
             bumps.push(bump);
         }
 
-        for (surface_id, shifts) in vol_shifts_by_surface {
+        for (vol_surface_id, shifts) in vol_shifts_by_surface {
             let count = shifts.len();
             let mean_shift = shifts.iter().sum::<f64>() / count as f64;
             if count > 1 {
                 tracing::warn!(
-                    surface_id = surface_id.as_str(),
+                    vol_surface_id = vol_surface_id.as_str(),
                     point_shocks = count,
                     mean_shift,
                     "scenario carries multiple ImpliedVol point shocks for one \
@@ -135,7 +137,7 @@ impl MarketScenario {
                 );
             }
             bumps.push(MarketBump::Curve {
-                id: surface_id,
+                id: vol_surface_id,
                 spec: BumpSpec {
                     mode: BumpMode::Additive,
                     units: BumpUnits::Fraction,
@@ -204,8 +206,8 @@ fn key_rate_bp_bump(curve_id: &CurveId, tenor_years: f64, shift: f64) -> (CurveI
 fn bump_curve_id(bump: &MarketBump) -> Option<CurveId> {
     match bump {
         MarketBump::Curve { id, .. } => Some(id.clone()),
-        MarketBump::VolBucketPct { surface_id, .. }
-        | MarketBump::BaseCorrBucketPts { surface_id, .. } => Some(surface_id.clone()),
+        MarketBump::VolBucketPct { vol_surface_id, .. } => Some(vol_surface_id.clone()),
+        MarketBump::BaseCorrBucketPts { surface_id, .. } => Some(surface_id.clone()),
         MarketBump::FxPct { .. } => None,
     }
 }
@@ -557,7 +559,7 @@ mod tests {
             vec![
                 RiskFactorShift {
                     factor: RiskFactorType::ImpliedVol {
-                        surface_id: CurveId::from("EQ-VOL"),
+                        vol_surface_id: CurveId::from("EQ-VOL"),
                         expiry_years: 0.5,
                         strike: 100.0,
                     },
@@ -565,7 +567,7 @@ mod tests {
                 },
                 RiskFactorShift {
                     factor: RiskFactorType::ImpliedVol {
-                        surface_id: CurveId::from("EQ-VOL"),
+                        vol_surface_id: CurveId::from("EQ-VOL"),
                         expiry_years: 1.0,
                         strike: 110.0,
                     },
@@ -611,7 +613,7 @@ mod tests {
             vec![
                 RiskFactorShift {
                     factor: RiskFactorType::ImpliedVol {
-                        surface_id: CurveId::from("EQ-VOL"),
+                        vol_surface_id: CurveId::from("EQ-VOL"),
                         expiry_years: 1.0,
                         strike: 100.0,
                     },
@@ -619,7 +621,7 @@ mod tests {
                 },
                 RiskFactorShift {
                     factor: RiskFactorType::ImpliedVol {
-                        surface_id: CurveId::from("FX-VOL"),
+                        vol_surface_id: CurveId::from("FX-VOL"),
                         expiry_years: 1.0,
                         strike: 1.10,
                     },
@@ -659,7 +661,7 @@ mod tests {
             date!(2024 - 01 - 02),
             vec![RiskFactorShift {
                 factor: RiskFactorType::ImpliedVol {
-                    surface_id: CurveId::from("EQ-VOL"),
+                    vol_surface_id: CurveId::from("EQ-VOL"),
                     expiry_years: 1.0,
                     strike: 100.0,
                 },
