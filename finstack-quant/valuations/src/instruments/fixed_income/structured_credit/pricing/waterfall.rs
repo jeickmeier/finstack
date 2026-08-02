@@ -494,46 +494,6 @@ pub(crate) struct AllocationContext<'a> {
     pub(crate) floating_rate_shift: f64,
 }
 
-impl<'a> AllocationContext<'a> {
-    /// Create a new allocation context.
-    ///
-    /// Pass `tranche_balances` to use current (dynamic) tranche balances for
-    /// interest accrual and principal calculations instead of the static balances
-    /// stored on the `Tranche` definitions.
-    #[allow(dead_code, clippy::too_many_arguments)] // public API constructor
-    pub(crate) fn new(
-        base_currency: Currency,
-        tranches: &'a TrancheStructure,
-        pool_balance: Money,
-        payment_date: Date,
-        valuation_date: Date,
-        market: &'a MarketContext,
-        tranche_balances: Option<&'a HashMap<String, Money>>,
-        deferred_interest: Option<&'a HashMap<String, Money>>,
-        reserve_balance: Money,
-    ) -> Self {
-        let mut tranche_index = HashMap::default();
-        tranche_index.reserve(tranches.tranches.len());
-        for (i, t) in tranches.tranches.iter().enumerate() {
-            tranche_index.insert(t.id.as_str(), i);
-        }
-
-        Self {
-            base_currency,
-            tranches,
-            tranche_index,
-            pool_balance,
-            payment_date,
-            valuation_date,
-            market,
-            tranche_balances,
-            deferred_interest,
-            reserve_balance,
-            floating_rate_shift: 0.0,
-        }
-    }
-}
-
 /// Mutable output for allocation tracking.
 ///
 /// Groups mutable state that is updated during allocation.

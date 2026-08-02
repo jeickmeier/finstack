@@ -388,42 +388,6 @@ impl<'a> BermudanSwaptionTreeValuator<'a> {
     }
 }
 
-/// Result of Bermudan swaption pricing with additional analytics.
-#[derive(Debug, Clone)]
-#[allow(dead_code)] // public API result struct
-pub(crate) struct BermudanSwaptionPriceResult {
-    /// Present value
-    pub(crate) pv: f64,
-    /// Exercise boundary (time, critical_rate)
-    pub(crate) exercise_boundary: Vec<(f64, Option<f64>)>,
-    /// Exercise probabilities (time, probability)
-    pub(crate) exercise_probabilities: Vec<(f64, f64)>,
-    /// European swaption value (first exercise only, for comparison)
-    pub(crate) european_value: Option<f64>,
-    /// Bermudan premium (Bermudan - European)
-    pub(crate) bermudan_premium: Option<f64>,
-}
-
-#[allow(dead_code)] // public API constructor
-impl BermudanSwaptionPriceResult {
-    /// Create a new price result.
-    pub(crate) fn new(
-        pv: f64,
-        exercise_boundary: Vec<(f64, Option<f64>)>,
-        exercise_probabilities: Vec<(f64, f64)>,
-        european_value: Option<f64>,
-    ) -> Self {
-        let bermudan_premium = european_value.map(|euro| pv - euro);
-        Self {
-            pv,
-            exercise_boundary,
-            exercise_probabilities,
-            european_value,
-            bermudan_premium,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

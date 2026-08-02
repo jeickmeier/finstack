@@ -508,9 +508,3 @@ impl Pricer for CmsReplicationPricer {
         Ok(ValuationResult::stamped(cms.id(), as_of, pv))
     }
 }
-
-/// Present value using static replication (direct entry point for metrics/wrappers).
-#[allow(dead_code)]
-pub(crate) fn compute_pv(inst: &CmsOption, curves: &MarketContext, as_of: Date) -> Result<Money> {
-    CmsReplicationPricer::new().price_internal(inst, curves, as_of)
-}

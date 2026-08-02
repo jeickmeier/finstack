@@ -119,25 +119,6 @@ pub(crate) fn price_tba(tba: &AgencyTba, market: &MarketContext, as_of: Date) ->
     Ok(Money::new(value, tba.notional.currency()))
 }
 
-/// Estimate settlement fail cost.
-///
-/// When a TBA trade fails to settle on the agreed date, the failing
-/// party incurs a financing cost on the unsettled position.
-///
-/// # Formula
-/// ```text
-/// Fail Cost = Position Value × Fail Rate × Fail Days / 360
-/// ```
-///
-/// # Arguments
-/// * `position_value` - Current value of the unsettled position
-/// * `fail_rate` - Financing rate for fails (typically Fed Funds - 300bp, floored at 0)
-/// * `fail_days` - Number of days the settlement has failed
-#[allow(dead_code)] // Utility available for downstream callers
-pub(crate) fn estimate_fail_cost(position_value: f64, fail_rate: f64, fail_days: u32) -> f64 {
-    position_value * fail_rate.max(0.0) * (fail_days as f64) / 360.0
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
