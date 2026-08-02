@@ -1,63 +1,51 @@
-//! Covenant evaluation, testing, and breach forecasting.
+//! Covenant evaluation, breach tracking, consequence application, and forward
+//! compliance forecasting.
 //!
-//! This module provides infrastructure for defining, testing, and forecasting
-//! financial covenants commonly found in credit agreements, loan documents,
-//! and structured product indentures.
+//! [`CovenantEngine`] evaluates [`CovenantSpec`] values from a
+//! [`CovenantMetricSource`]. [`ThresholdSchedule`] supports step-down limits,
+//! [`forecast_covenant_generic`] projects future compliance, and [`templates`]
+//! and [`json`] provide standard packages and the serde-first binding surface.
 //!
-//! # Features
+//! # Conventions
 //!
-//! - **Covenant Engine**: Rule-based evaluation of covenant compliance
-//! - **Threshold Schedules**: Time-varying covenant levels
-//! - **Breach Detection**: Identify current covenant violations
-//! - **Forward Forecasting**: Project future breaches under scenarios
-//! - **Consequence Modeling**: Trigger actions on breach (springing liens, etc.)
+//! - Callers choose each test date; [`Covenant::test_frequency`] is metadata and
+//!   is not enforced by the engine.
+//! - Metric sources provide calculation-ready values; the engine does not
+//!   aggregate LTM or other windows. Ratios use turns (`4.5` means 4.5x).
+//!   Amount metrics and thresholds must share the caller's reporting currency.
+//! - Equity cures are not modeled. Use [`CovenantWaiver`] for a full waiver or
+//!   amended threshold.
 //!
-//! # Covenant Types
+//! [`CovenantEngine::evaluate`] returns an error for invalid engine
+//! configuration, duplicate applicable covenant instance keys, missing metric
+//! values, failing custom calculators or evaluators, or a covenant that cannot
+//! produce a test value.
 //!
-//! Common financial covenants supported:
-//! - **Leverage Ratios**: Debt/EBITDA, Net Debt/EBITDA
-//! - **Coverage Ratios**: Interest coverage, fixed charge coverage
-//! - **Liquidity Tests**: Minimum cash, current ratio
-//! - **Capital Covenants**: Maximum capex, minimum equity
-//!
-//! # Quick Example
+//! # Example
 //!
 //! ```rust
-//! use finstack_quant_covenants::{Covenant, CovenantMetricId, CovenantSpec, CovenantType};
-//! use finstack_quant_core::dates::Tenor;
+//! use finstack_quant_core::dates::{create_date, Month, Tenor};
+//! use finstack_quant_covenants::{
+//!     Covenant, CovenantEngine, CovenantSpec, CovenantType, HashMapMetricSource,
+//! };
 //!
-//! // Define a max leverage covenant (4.5x Debt/EBITDA) with quarterly testing
+//! # fn main() -> finstack_quant_core::Result<()> {
 //! let covenant = Covenant::new(
 //!     CovenantType::MaxDebtToEbitda { threshold: 4.5 },
 //!     Tenor::quarterly(),
 //! );
+//! let mut engine = CovenantEngine::new();
+//! engine.add_spec(CovenantSpec::with_metric(covenant, "debt_to_ebitda"));
 //!
-//! // Wrap in spec with a metric for evaluation
-//! let spec = CovenantSpec::with_metric(covenant, CovenantMetricId::from("debt_to_ebitda"));
+//! let mut metrics = HashMapMetricSource::from_pairs([("debt_to_ebitda", 3.2)]);
+//! let test_date = create_date(2025, Month::March, 31)?;
+//! let reports = engine.evaluate(&mut metrics, test_date)?;
+//!
+//! assert!(reports["max_debt_ebitda"].passed);
+//! assert_eq!(reports["max_debt_ebitda"].threshold, Some(4.5));
+//! # Ok(())
+//! # }
 //! ```
-//!
-//! # Breach Forecasting
-//!
-//! Project potential future breaches under different scenarios:
-//!
-//! ```ignore
-//! use finstack_quant_covenants::{
-//!     forecast_breaches_generic, CovenantForecastConfig
-//! };
-//!
-//! // Configure forecasting
-//! let config = CovenantForecastConfig::default();
-//!
-//! // Forecast breaches over forecast horizon
-//! // let breaches = forecast_breaches_generic(&instrument, &covenants, &scenarios, config);
-//! ```
-//!
-//! # See Also
-//!
-//! - [`CovenantEngine`] for covenant evaluation
-//! - [`CovenantSpec`] for covenant definition
-//! - [`ThresholdSchedule`] for time-varying thresholds
-//! - `forecast_breaches_generic` for breach forecasting
 
 #![forbid(unsafe_code)]
 #![warn(clippy::float_cmp)]

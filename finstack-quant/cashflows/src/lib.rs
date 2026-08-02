@@ -17,38 +17,38 @@
 )]
 #![doc(test(attr(allow(clippy::expect_used))))]
 
-//! Cashflow schedule generation, aggregation, and currency-safe operations.
+//! Cashflow schedule construction, accrual, and currency-preserving aggregation.
 //!
-//! Build dated schedules for bonds, swaps, loans, and structured products using
-//! currency-tagged [`Money`]. Aggregation and period PV helpers keep currency
-//! boundaries explicit.
-//!
-//! # Modules
-//!
-//! - [`primitives`]: `CashFlow` and `CFKind` (from `finstack-quant-core`)
-//! - [`builder`]: [`builder::CashFlowSchedule`] and schedule construction
-//! - [`aggregation`]: period rollups and PV aggregation inputs
-//! - [`accrual`]: schedule-driven accrued interest
-//! - [`traits`]: [`CashflowProvider`] and `schedule_from_*` helpers
-//! - [`json`]: serde-first JSON bridge for building and validating schedules
-//!   (binding surface)
+//! [`builder`] creates currency-tagged [`builder::CashFlowSchedule`] values;
+//! [`accrual`] and [`aggregation`] provide schedule-level calculations;
+//! [`traits`] integrates instrument cashflow providers; and [`json`] plus
+//! [`schema`] expose serde and schema boundaries. Instrument pricing belongs in
+//! the valuation crates.
 //!
 //! # Conventions
 //!
-//! - Coupon rates are decimals (for example `0.05` for 5%).
-//! - Spreads and periodic fee quotes are often basis points on spec types.
-//! - Timing follows the day-count, calendar, and lag fields on builder specs.
-//! - [`primitives::CFKind`] is `#[non_exhaustive]` in `finstack_quant_core::cashflow`; do not
-//!   assume a fixed variant set in downstream matches.
+//! Amounts retain their [`Money`] currency, and checked aggregation does not
+//! perform FX conversion. Coupon rates are decimals (`0.05` means 5%); fields
+//! ending in `_bp` are basis points. Schedule dates follow the day-count,
+//! calendar, business-day, stub, roll, and payment-lag rules in
+//! [`builder::ScheduleParams`]. [`primitives::CFKind`] is non-exhaustive, so
+//! downstream matches require a catch-all arm.
 //!
-//! # Examples
+//! # Errors
 //!
-//! ## Building a Cashflow Schedule
+//! Fallible builders, checked aggregation, and JSON helpers return
+//! `finstack_quant_core::Error` for malformed or incomplete inputs, invalid
+//! dates, currency mismatches, and missing floating-rate market data when a
+//! leg's fallback policy requires it.
+//!
+//! # Example
 //!
 //! ```rust
-//! use finstack_quant_cashflows::builder::{CashFlowSchedule, CouponType, FixedCouponSpec, ScheduleParams};
+//! use finstack_quant_cashflows::builder::{
+//!     CashFlowSchedule, CouponType, FixedCouponSpec, ScheduleParams,
+//! };
 //! use finstack_quant_core::currency::Currency;
-//! use finstack_quant_core::dates::{BusinessDayConvention, Date, DayCount, StubKind, Tenor};
+//! use finstack_quant_core::dates::Date;
 //! use finstack_quant_core::money::Money;
 //! use rust_decimal_macros::dec;
 //! use time::Month;
@@ -70,62 +70,6 @@
 //! # Ok(())
 //! # }
 //! ```
-//!
-//! ## Aggregating Cashflows
-//!
-//! ```rust
-//! use finstack_quant_cashflows::aggregation::aggregate_cashflows_checked;
-//! use finstack_quant_core::money::Money;
-//! use finstack_quant_core::currency::Currency;
-//! use finstack_quant_core::dates::create_date;
-//! use time::Month;
-//!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let date1 = create_date(2025, Month::January, 15)?;
-//! let date2 = create_date(2025, Month::July, 15)?;
-//!
-//! let flows = vec![
-//!     (date1, Money::new(50_000.0, Currency::USD)),
-//!     (date2, Money::new(50_000.0, Currency::USD)),
-//! ];
-//!
-//! // Aggregate using explicit target currency
-//! let aggregated = aggregate_cashflows_checked(&flows, Currency::USD)?;
-//! assert_eq!(aggregated.amount(), Money::new(100_000.0, Currency::USD).amount());
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! ## Periodized present value
-//!
-//! Use [`builder::CashFlowSchedule::pv_by_period`] with [`aggregation::DateContext`]:
-//!
-//! ```ignore
-//! use finstack_quant_cashflows::builder::CashFlowSchedule;
-//! use finstack_quant_cashflows::aggregation::DateContext;
-//! use finstack_quant_cashflows::builder::PvDiscountSource;
-//! use finstack_quant_core::dates::{Date, DayCount, DayCountContext, Period};
-//! use finstack_quant_core::market_data::traits::Discounting;
-//!
-//! fn periodized_pv(
-//!     schedule: &CashFlowSchedule,
-//!     periods: &[Period],
-//!     disc: &dyn Discounting,
-//!     base: Date,
-//! ) -> finstack_quant_core::Result<()> {
-//!     let pv_map = schedule.pv_by_period(
-//!         periods,
-//!         PvDiscountSource::Discount { disc, credit: None },
-//!         DateContext::new(base, DayCount::Act365F, DayCountContext::default()),
-//!     )?;
-//!
-//!     let _ = pv_map;
-//!     Ok(())
-//! }
-//! ```
-//!
-//! Instrument-level PV adapters live in other workspace crates; this crate stops
-//! at schedule construction and schedule-level period PV.
 
 /// Cash-flow primitives (`CashFlow`, `CFKind`).
 pub mod primitives {
