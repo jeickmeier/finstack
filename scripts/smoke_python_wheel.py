@@ -1,0 +1,85 @@
+"""Smoke-test the installed ``finstack_quant`` wheel."""
+
+from __future__ import annotations
+
+import importlib
+import math
+from types import ModuleType
+
+import finstack_quant
+from finstack_quant.core.currency import Currency
+from finstack_quant.core.money import Money
+
+
+def _require(condition: bool, message: str) -> None:
+    """Raise a useful failure when a packaged-wheel contract is not met."""
+    if not condition:
+        raise AssertionError(message)
+
+
+def _import_public_packages() -> dict[str, ModuleType]:
+    """Import every public top-level package advertised by the wheel."""
+    package_names = tuple(finstack_quant.__all__)
+    _require(bool(package_names), "finstack_quant.__all__ must not be empty")
+    _require(
+        len(package_names) == len(set(package_names)),
+        f"finstack_quant.__all__ contains duplicate packages: {package_names}",
+    )
+
+    return {name: importlib.import_module(f"finstack_quant.{name}") for name in package_names}
+
+
+def main() -> None:
+    """Exercise the installed wheel's package surface and pricing primitives."""
+    packages = _import_public_packages()
+
+    usd = Currency("USD")
+    cash = Money(100.0, usd)
+    _require(cash.currency == usd, "Money did not preserve its Currency")
+    _require(cash.amount == 100.0, f"Money amount changed during construction: {cash.amount}")
+
+    spot = 100.0
+    strike = 100.0
+    rate = 0.05
+    dividend_yield = 0.02
+    volatility = 0.20
+    expiry = 1.0
+
+    valuations_price = packages["valuations"].bs_price(
+        spot,
+        strike,
+        rate,
+        dividend_yield,
+        volatility,
+        expiry,
+        True,
+    )
+    monte_carlo_price = packages["monte_carlo"].black_scholes_call(
+        spot,
+        strike,
+        rate,
+        dividend_yield,
+        volatility,
+        expiry,
+    )
+
+    for label, price in (
+        ("valuations.bs_price", valuations_price),
+        ("monte_carlo.black_scholes_call", monte_carlo_price),
+    ):
+        _require(math.isfinite(price), f"{label} returned a non-finite price: {price}")
+        _require(price > 0.0, f"{label} returned a non-positive price: {price}")
+
+    _require(
+        math.isclose(valuations_price, monte_carlo_price, rel_tol=1e-12, abs_tol=1e-12),
+        f"Black-Scholes implementations disagree: valuations={valuations_price}, monte_carlo={monte_carlo_price}",
+    )
+
+    print(
+        f"Packaged wheel smoke passed: imported {len(packages)} public packages; "
+        f"Black-Scholes call={valuations_price:.12g}"
+    )
+
+
+if __name__ == "__main__":
+    main()

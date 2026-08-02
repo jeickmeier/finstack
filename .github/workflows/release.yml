@@ -88,11 +88,15 @@ jobs:
           # (E0514). Keep sccache for Unix wheels, but force clean Windows compiles.
           sccache: ${{ runner.os != 'Windows' }}
 
-      - name: Smoke test wheel
-        if: matrix.target != 'aarch64' || runner.os != 'Linux'
+      # Linux arm64 remains build-only until the project selects a native arm64 runner.
+      - name: Install built wheel
+        if: matrix.os != 'linux-arm64'
         run: |
           python -c "from pathlib import Path; import subprocess, sys; wheels = sorted(Path('dist').glob('finstack_quant_py-*.whl')); assert len(wheels) == 1, f'Expected exactly one wheel in dist/, found: {wheels}'; subprocess.run([sys.executable, '-m', 'pip', 'install', str(wheels[0])], check=True)"
-          python -c "from finstack_quant.core.money import Money; from finstack_quant.core.currency import Currency; m = Money(100.0, Currency('USD')); print(f'OK: {m}')"
+
+      - name: Smoke test installed wheel
+        if: matrix.os != 'linux-arm64'
+        run: python scripts/smoke_python_wheel.py
 
       - uses: actions/upload-artifact@v6
         with:
