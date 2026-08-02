@@ -18,17 +18,22 @@
 //! continuously-compounded zeros by roughly +4.4 bp to +5.5 bp.
 
 use finstack_quant_core::currency::Currency;
-use finstack_quant_core::dates::{Date, DayCount};
+use finstack_quant_core::dates::{Date, DayCount, Tenor, TenorUnit};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::{
-    DiscountCurve, HazardCurve, InflationCurve,
+    DiscountCurve, HazardCurve, InflationCurve, ParInterp, Seniority,
 };
-use finstack_quant_core::math::interp::InterpStyle;
+use finstack_quant_core::math::interp::{ExtrapolationPolicy, InterpStyle};
+use finstack_quant_core::HashMap;
 use finstack_quant_valuations::calibration::bumps::{
-    bump_discount_curve_synthetic, bump_hazard_shift, bump_inflation_rates, bump_vol_surface,
-    BumpRequest, VolBumpRequest,
+    bump_discount_curve_synthetic, bump_hazard_shift, bump_hazard_spreads, bump_inflation_rates,
+    bump_vol_surface, BumpRequest, VolBumpRequest,
 };
+use finstack_quant_valuations::market::conventions::ids::{CdsConventionKey, CdsDocClause};
+use finstack_quant_valuations::market::quotes::cds::CdsQuote;
+use finstack_quant_valuations::market::quotes::ids::Pillar;
+use finstack_quant_valuations::market::{build_cds_instrument, BuildCtx};
 use time::Month;
 
 /// Tolerance for quantities that must agree to floating-point round-off.
@@ -299,7 +304,10 @@ fn sample_inflation_curve() -> InflationCurve {
     InflationCurve::builder("USD-CPI")
         .base_date(base_date())
         .base_cpi(300.0)
+        .day_count(DayCount::Act360)
         .indexation_lag_months(3)
+        .interp(InterpStyle::CubicHermite)
+        .extrapolation(ExtrapolationPolicy::FlatForward)
         .knots([
             (0.0, 300.0),
             (1.0, 307.5),
@@ -386,13 +394,89 @@ fn inflation_parallel_bump_is_faithful() {
     }
 }
 
+fn implied_inflation_zero_rate(curve: &InflationCurve, t: f64) -> f64 {
+    (curve.cpi(t) / curve.base_cpi()).powf(1.0 / t) - 1.0
+}
+
+/// Tenor allocation uses a strict 0.1-year window and sums every matching
+/// target. Requests between or beyond pillars are no-ops unless they fall
+/// inside that fuzzy window.
+#[test]
+fn inflation_tenor_bump_has_strict_fuzzy_additive_allocation() {
+    let base = sample_inflation_curve();
+    let discount_id = finstack_quant_core::types::CurveId::new("USD-OIS");
+    let bumped = bump_inflation_rates(
+        &base,
+        &inflation_market(),
+        &BumpRequest::Tenors(vec![
+            (1.0, 7.0),
+            (2.1, 100.0), // Exactly 0.1y from 2y: excluded by the strict bound.
+            (5.0, 2.0),
+            (5.05, 3.0), // Fuzzy match inside the 0.1y window.
+            (5.0, 4.0),  // Repeated target: additive with both matches above.
+            (3.0, 11.0), // Between pillars and outside every fuzzy window.
+            (7.5, 13.0),
+            (12.0, 17.0), // Beyond the last pillar.
+        ]),
+        &discount_id,
+        base_date(),
+        Currency::USD,
+        "3M",
+    )
+    .expect("inflation tenor bump succeeds");
+
+    assert_eq!(bumped.knots(), base.knots());
+    assert_eq!(bumped.cpi_levels()[0], base.cpi_levels()[0]);
+    for (t, expected_bp) in [(1.0, 7.0), (2.0, 0.0), (5.0, 9.0), (10.0, 0.0)] {
+        let realized_bp =
+            (implied_inflation_zero_rate(&bumped, t) - implied_inflation_zero_rate(&base, t)) * 1e4;
+        assert!(
+            (realized_bp - expected_bp).abs() < 1e-6,
+            "expected {expected_bp} bp inflation shift at {t}y, got {realized_bp} bp",
+        );
+    }
+
+    assert_eq!(bumped.id(), base.id());
+    assert_eq!(bumped.base_date(), base.base_date());
+    assert_eq!(bumped.base_cpi(), base.base_cpi());
+    assert_eq!(bumped.day_count(), base.day_count());
+    assert_eq!(bumped.indexation_lag_months(), base.indexation_lag_months());
+    assert_eq!(bumped.interp_style(), base.interp_style());
+    assert_eq!(bumped.extrapolation(), base.extrapolation());
+}
+
+fn hazard_base_date() -> Date {
+    Date::from_calendar_date(2025, Month::March, 20).expect("valid hazard base date")
+}
+
 fn sample_hazard_curve() -> HazardCurve {
     HazardCurve::builder("ACME-SEN-USD")
-        .base_date(base_date())
+        .base_date(hazard_base_date())
+        .day_count(DayCount::Act360)
         .recovery_rate(0.4)
+        .issuer("ACME")
+        .seniority(Seniority::Subordinated)
+        .currency(Currency::USD)
+        .par_interp(ParInterp::LogLinear)
+        .interp(InterpStyle::Linear)
+        .fx_policy("single_curve_credit::USD")
         .knots([(1.0, 0.010), (3.0, 0.015), (5.0, 0.020), (10.0, 0.025)])
+        .par_spreads([(1.0, 80.0), (3.0, 100.0), (5.0, 130.0), (10.0, 180.0)])
         .build()
         .expect("sample hazard curve")
+}
+
+fn assert_hazard_metadata_eq(base: &HazardCurve, bumped: &HazardCurve) {
+    assert_eq!(bumped.id(), base.id());
+    assert_eq!(bumped.base_date(), base.base_date());
+    assert_eq!(bumped.day_count(), base.day_count());
+    assert_eq!(bumped.recovery_rate(), base.recovery_rate());
+    assert_eq!(bumped.issuer(), base.issuer());
+    assert_eq!(bumped.seniority, base.seniority);
+    assert_eq!(bumped.currency(), base.currency());
+    assert_eq!(bumped.par_interp(), base.par_interp());
+    assert_eq!(bumped.survival_interp_style(), base.survival_interp_style());
+    assert_eq!(bumped.fx_policy(), base.fx_policy());
 }
 
 /// A `0 bp` model hazard shift must reproduce the original hazard curve.
@@ -433,6 +517,216 @@ fn hazard_shift_is_faithful_and_additive() {
             "hazard shift must be additive at t={t}",
         );
     }
+}
+
+/// Direct model-hazard buckets address exact pillars, otherwise the lower
+/// containing segment. Requests beyond the final support are explicit no-ops.
+#[test]
+fn hazard_tenor_shift_pins_segment_boundaries_and_near_knot_matching() {
+    let base = sample_hazard_curve();
+    let base_points: Vec<(f64, f64)> = base.knot_points().collect();
+    let cases = [
+        (0.5, Some(0), "below first"),
+        (1.0, Some(0), "first boundary"),
+        (2.0, Some(0), "first containing segment"),
+        (3.0, Some(1), "exact interior knot"),
+        (3.0 + 5e-7, Some(1), "near interior knot"),
+        (4.0, Some(1), "second containing segment"),
+        (10.0, Some(3), "last boundary"),
+        (10.0 + 5e-7, Some(3), "near last knot"),
+        (10.0 + 2e-6, None, "beyond last"),
+    ];
+
+    for (target, expected_idx, label) in cases {
+        let bumped = bump_hazard_shift(&base, &BumpRequest::Tenors(vec![(target, 7.0)]))
+            .unwrap_or_else(|error| panic!("{label} bump failed: {error}"));
+        let bumped_points: Vec<(f64, f64)> = bumped.knot_points().collect();
+        assert_eq!(bumped_points.len(), base_points.len());
+        for (idx, ((base_t, base_rate), (bumped_t, bumped_rate))) in
+            base_points.iter().zip(&bumped_points).enumerate()
+        {
+            assert_eq!(bumped_t, base_t, "{label} relocated knot {idx}");
+            let expected_rate = base_rate + if expected_idx == Some(idx) { 7e-4 } else { 0.0 };
+            assert!(
+                (bumped_rate - expected_rate).abs() < EXACT_TOL,
+                "{label}: expected hazard {expected_rate} at knot {idx}, got {bumped_rate}",
+            );
+        }
+        assert_hazard_metadata_eq(&base, &bumped);
+        assert_eq!(
+            bumped.par_spread_points().collect::<Vec<_>>(),
+            base.par_spread_points().collect::<Vec<_>>()
+        );
+    }
+}
+
+#[test]
+fn repeated_hazard_segment_targets_are_additive() {
+    let base = sample_hazard_curve();
+    let bumped = bump_hazard_shift(
+        &base,
+        &BumpRequest::Tenors(vec![(4.0, 3.0), (4.0, 5.0), (3.0, 2.0)]),
+    )
+    .expect("repeated segment shifts succeed");
+    let base_points: Vec<_> = base.knot_points().collect();
+    let bumped_points: Vec<_> = bumped.knot_points().collect();
+
+    for (idx, ((base_t, base_rate), (bumped_t, bumped_rate))) in
+        base_points.iter().zip(&bumped_points).enumerate()
+    {
+        assert_eq!(bumped_t, base_t);
+        let expected_rate = base_rate + if idx == 1 { 10e-4 } else { 0.0 };
+        assert!((bumped_rate - expected_rate).abs() < EXACT_TOL);
+    }
+    assert_hazard_metadata_eq(&base, &bumped);
+}
+
+fn hazard_market(hazard: HazardCurve) -> MarketContext {
+    let discount = DiscountCurve::builder("USD-OIS")
+        .base_date(hazard_base_date())
+        .day_count(DayCount::Act360)
+        .knots([
+            (0.0, 1.0),
+            (1.0, (-0.04_f64).exp()),
+            (3.0, (-0.12_f64).exp()),
+            (5.0, (-0.20_f64).exp()),
+            (10.0, (-0.40_f64).exp()),
+            (30.0, (-1.20_f64).exp()),
+        ])
+        .build()
+        .expect("hazard discount curve");
+    MarketContext::new().insert(discount).insert(hazard)
+}
+
+fn par_cds_quote(years: u32, spread_bp: f64) -> CdsQuote {
+    CdsQuote::CdsParSpread {
+        id: format!("ACME-CDS-{years}Y").into(),
+        entity: "ACME".to_string(),
+        convention: CdsConventionKey {
+            currency: Currency::USD,
+            doc_clause: CdsDocClause::IsdaNa,
+        },
+        pillar: Pillar::Tenor(Tenor::new(years, TenorUnit::Years)),
+        spread_bp,
+        recovery_rate: 0.4,
+    }
+}
+
+fn par_cds_build_context() -> BuildCtx {
+    let mut curve_ids = HashMap::default();
+    curve_ids.insert("discount".to_string(), "USD-OIS".to_string());
+    curve_ids.insert("credit".to_string(), "ACME-SEN-USD".to_string());
+    BuildCtx::new(hazard_base_date(), 1.0, curve_ids)
+}
+
+/// Par-spread tenor bumps use the same strict fuzzy allocation as inflation,
+/// then rebootstrap. The observable contract is quote repricing, not an
+/// assumed one-for-one displacement of model hazard rates.
+#[test]
+fn hazard_par_spread_tenor_bump_reprices_strict_fuzzy_targets() {
+    let source = sample_hazard_curve();
+    let market = hazard_market(source.clone());
+    let discount_id = finstack_quant_core::types::CurveId::new("USD-OIS");
+    let bumped = bump_hazard_spreads(
+        &source,
+        &market,
+        &BumpRequest::Tenors(vec![
+            (1.0, 2.0),
+            (1.05, 3.0),
+            (1.0, 4.0),
+            (3.1, 100.0), // Exactly 0.1y from 3y: excluded.
+            (4.0, 11.0),  // Between stored par tenors.
+            (5.05, 5.0),
+            (5.05, -2.0), // Repeated fuzzy target: additive.
+            (12.0, 13.0), // Beyond the final par tenor.
+        ]),
+        Some(&discount_id),
+    )
+    .expect("hazard par-spread bump succeeds");
+    let expected_quotes = [(1, 89.0), (3, 100.0), (5, 133.0), (10, 180.0)];
+    let repriced_spreads: Vec<f64> = bumped
+        .par_spread_points()
+        .map(|(_, spread)| spread)
+        .collect();
+    assert_eq!(repriced_spreads.len(), expected_quotes.len());
+    for (&actual, (_, expected)) in repriced_spreads.iter().zip(&expected_quotes) {
+        assert!((actual - expected).abs() < 1e-10);
+    }
+    assert_hazard_metadata_eq(&source, &bumped);
+
+    let bumped_market = market.insert(bumped);
+    let build_ctx = par_cds_build_context();
+    for (years, spread_bp) in expected_quotes {
+        let quote = par_cds_quote(years, spread_bp);
+        let instrument = build_cds_instrument(&quote, &build_ctx).expect("build par CDS");
+        let residual = instrument
+            .value_raw(&bumped_market, hazard_base_date())
+            .expect("reprice bumped par CDS");
+        assert!(
+            residual.abs() <= 5e-7,
+            "{years}Y bumped par spread {spread_bp}bp repriced to residual {residual}",
+        );
+    }
+}
+
+/// The sum of one-bucket quote risks reconciles to a parallel quote risk at
+/// the same 1 bp shock, within the suite's existing 2% CS01 tolerance.
+#[test]
+fn hazard_par_spread_bucket_risk_reconciles_to_parallel() {
+    let source = sample_hazard_curve();
+    let source_market = hazard_market(source.clone());
+    let discount_id = finstack_quant_core::types::CurveId::new("USD-OIS");
+    let calibrated = bump_hazard_spreads(
+        &source,
+        &source_market,
+        &BumpRequest::Parallel(0.0),
+        Some(&discount_id),
+    )
+    .expect("base par curve calibration");
+    let market = source_market.insert(calibrated);
+    let instrument = build_cds_instrument(&par_cds_quote(7, 150.0), &par_cds_build_context())
+        .expect("build risk CDS");
+    let base_pv = instrument
+        .value_raw(&market, hazard_base_date())
+        .expect("base CDS value");
+
+    let parallel = bump_hazard_spreads(
+        &source,
+        &market,
+        &BumpRequest::Parallel(1.0),
+        Some(&discount_id),
+    )
+    .expect("parallel par bump");
+    let parallel_risk = instrument
+        .value_raw(&market.clone().insert(parallel), hazard_base_date())
+        .expect("parallel bumped CDS value")
+        - base_pv;
+
+    // Every comparison starts from the same original quote grid. That removes
+    // the zero-bump schedule-snap round trip from the risk and isolates only
+    // the requested quote shock.
+    let bucket_times: Vec<f64> = source.par_spread_points().map(|(t, _)| t).collect();
+    let mut bucket_sum = 0.0;
+    for tenor in bucket_times {
+        let bucket = bump_hazard_spreads(
+            &source,
+            &market,
+            &BumpRequest::Tenors(vec![(tenor, 1.0)]),
+            Some(&discount_id),
+        )
+        .unwrap_or_else(|error| panic!("{tenor}y par bucket failed: {error}"));
+        bucket_sum += instrument
+            .value_raw(&market.clone().insert(bucket), hazard_base_date())
+            .expect("bucket-bumped CDS value")
+            - base_pv;
+    }
+
+    assert!(parallel_risk.is_finite() && parallel_risk.abs() > 1e-12);
+    let tolerance = 1e-8_f64.max(0.02 * parallel_risk.abs());
+    assert!(
+        (bucket_sum - parallel_risk).abs() <= tolerance,
+        "bucket risk {bucket_sum} must reconcile to parallel risk {parallel_risk}; tolerance {tolerance}",
+    );
 }
 
 fn sample_vol_surface() -> VolSurface {

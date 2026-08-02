@@ -13,7 +13,6 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Tenor, TenorUnit};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::HazardCurve;
-use finstack_quant_core::market_data::term_structures::ParInterp;
 use finstack_quant_core::market_data::term_structures::Seniority;
 use finstack_quant_core::types::CurveId;
 use std::collections::HashMap;
@@ -214,7 +213,7 @@ fn recalibrate_from_par_spreads(
         // Preserve the base curve's survival interpolation style so the
         // bumped curve is built with the same convention.
         interpolation: request.hazard.survival_interp_style(),
-        par_interp: ParInterp::Linear,
+        par_interp: request.hazard.par_interp(),
         doc_clause: Some(request.doc_clause.as_str().to_string()),
         cds_valuation_convention: request.cds_valuation_convention,
     };
@@ -226,7 +225,10 @@ fn recalibrate_from_par_spreads(
     let (ctx, _report) =
         step_runtime::execute_params_and_apply(&step, &market_quotes, request.context, &cfg)?;
     let new_curve = ctx.get_hazard(params.curve_id.as_str())?.as_ref().clone();
-    Ok(new_curve)
+    new_curve
+        .to_builder_with_id(new_curve.id().clone())
+        .fx_policy_opt(request.hazard.fx_policy().map(ToOwned::to_owned))
+        .build()
 }
 
 pub(crate) fn bump_hazard_spreads_cached(
@@ -532,7 +534,9 @@ fn with_key_rate_hazard_bump(
         .day_count(hazard.day_count())
         .knots(bumped_points)
         .par_interp(hazard.par_interp())
-        .par_spreads(hazard.par_spread_points());
+        .par_spreads(hazard.par_spread_points())
+        .interp(hazard.survival_interp_style())
+        .fx_policy_opt(hazard.fx_policy().map(ToOwned::to_owned));
 
     if let Some(issuer) = hazard.issuer() {
         builder = builder.issuer(issuer.to_string());
