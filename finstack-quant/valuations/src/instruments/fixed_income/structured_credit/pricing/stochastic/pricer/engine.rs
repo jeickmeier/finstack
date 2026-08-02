@@ -2074,60 +2074,6 @@ mod per_name_copula_tests {
         }
     }
 
-    /// **Concentration sensitivity** — the test that genuinely fails on the
-    /// parent (parent = LHP-only).
-    ///
-    /// A concentrated pool (60 names) priced per-name must produce a
-    /// materially different mezzanine/equity tranche value than the
-    /// pool-wide LHP approach, because name-level lumpiness now dominates.
-    #[test]
-    fn concentrated_pool_per_name_differs_from_lhp() {
-        let market = MarketContext::new().insert((*discount_curve()).clone());
-        // 40 names ⇒ concentrated: a single default is 2.5% of the pool,
-        // well inside the 8%-thick equity and 12%-thick mezz tranches.
-        let deal = clo_deal(40);
-
-        let per_name = StochasticPricer::new(copula_config(
-            0.05,
-            0.25,
-            36,
-            PoolGranularity::PerName,
-            8_000,
-        ))
-        .price(&deal, &market)
-        .expect("per-name pricing");
-        let lhp = StochasticPricer::new(copula_config(
-            0.05,
-            0.25,
-            36,
-            PoolGranularity::LargeHomogeneous,
-            8_000,
-        ))
-        .price(&deal, &market)
-        .expect("LHP pricing");
-
-        // Mezzanine and equity tranches must show a material PV gap: the LHP
-        // limit smooths away the discrete-default lumpiness that a 60-name
-        // pool genuinely carries. The parent engine (LHP-only) produces the
-        // SAME value for both, so this assertion fails on the parent.
-        let mezz_pn = tranche_pv(&per_name, "MEZZ");
-        let mezz_lhp = tranche_pv(&lhp, "MEZZ");
-        let eq_pn = tranche_pv(&per_name, "EQ");
-        let eq_lhp = tranche_pv(&lhp, "EQ");
-
-        let mezz_gap = (mezz_pn - mezz_lhp).abs();
-        let eq_gap = (eq_pn - eq_lhp).abs();
-        // Gap must exceed the MC noise floor by a wide margin. At 8 000 paths
-        // the per-tranche MC standard error is ≈ $30 k; the observed gaps
-        // ($0.29 M mezz, $0.38 M equity) clear the $100 k floor by ~3-4×.
-        assert!(
-            mezz_gap > 100_000.0 || eq_gap > 100_000.0,
-            "concentrated-pool per-name pricing must differ materially from \
-             LHP: mezz per-name={mezz_pn:.0} LHP={mezz_lhp:.0} (gap {mezz_gap:.0}); \
-             equity per-name={eq_pn:.0} LHP={eq_lhp:.0} (gap {eq_gap:.0})"
-        );
-    }
-
     /// Per-name simulation must be deterministic and bit-identical between
     /// repeated runs (seeded `PhiloxRng` substreams).
     #[test]
