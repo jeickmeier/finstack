@@ -268,9 +268,7 @@ struct IrsFixture {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct IrsSpec {
-    trade_date: String,
     settlement_date: String,
     maturity_date: String,
     notional: f64,

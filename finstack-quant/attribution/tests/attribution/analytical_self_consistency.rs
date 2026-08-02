@@ -52,12 +52,6 @@ fn df_from_rate(rate: f64, years: f64) -> f64 {
     (-rate * years).exp()
 }
 
-/// Helper to approximate rate from discount factor and time.
-#[allow(dead_code)]
-fn rate_from_df(df: f64, years: f64) -> f64 {
-    -df.ln() / years
-}
-
 /// Test case configuration for analytical parity.
 struct AnalyticalParityTestCase {
     name: &'static str,
