@@ -1,92 +1,26 @@
-//! Rate and percentage types with conversion utilities.
+//! Strongly typed financial rate units with explicit conversion semantics.
 //!
-//! This module provides strongly-typed wrappers for financial rates and percentages,
-//! with clear conversion semantics and arithmetic operations. The types prevent
-//! confusion between different representations of the same concept (e.g., 0.05 vs
-//! 5% vs 500 bp).
+//! - [`Rate`] stores an `f64` decimal: `0.05` is 5% or 500 bp.
+//! - [`Percentage`] stores an `f64` percentage: `5.0` is 5% or 0.05 decimal.
+//! - [`Bps`] stores an integer basis-point quote: 1 bp is 0.01% or 0.0001
+//!   decimal, and 10,000 bp is 100%.
 //!
-//! # Types
+//! `Rate` and `Percentage` serialize in their stored floating-point units and
+//! reject non-finite values when deserialized. `Bps` serializes as its integer
+//! basis-point quote. Floating-point compatibility constructors document when
+//! they panic; corresponding fallible constructors return validation errors.
 //!
-//! - [`Rate`]: Interest rates stored as decimal (0.05 = 5%)
-//! - [`Bps`]: Basis points (1 bp = 0.01%, 10,000 bp = 100%)
-//! - [`Percentage`]: Percentage values (5.0 = 5%)
-//!
-//! # Conversions
-//!
-//! All three types are interconvertible:
-//! ```text
-//! Rate <-> Bps <-> Percentage
-//!
-//! Examples:
-//! - Rate::from_percent(5.0) = 0.05 decimal
-//! - Bps::new(500) = 5.0% = 0.05 decimal
-//! - Percentage::new(5.0) = 5.0% = 0.05 decimal
-//! ```
-//!
-//! # Examples
-//!
-//! ## Basic rate operations
+//! # Example
 //!
 //! ```rust
-//! use finstack_quant_core::types::{Rate, Bps, Percentage};
+//! use finstack_quant_core::types::{Bps, Percentage, Rate};
 //!
-//! // Create rates in different formats
-//! let rate1 = Rate::from_percent(5.0);
-//! let rate2 = Rate::from_bp(500);
-//! let rate3 = Rate::from_decimal(0.05);
-//!
-//! assert_eq!(rate1, rate2);
-//! assert_eq!(rate2, rate3);
-//!
-//! // Convert between formats
-//! assert_eq!(rate1.as_percent(), 5.0);
-//! assert_eq!(rate1.as_bp(), 500);
-//! assert_eq!(rate1.as_decimal(), 0.05);
+//! let rate = Rate::from_decimal(0.05);
+//! assert_eq!(rate, Rate::from_percent(5.0));
+//! assert_eq!(rate, Rate::from_bp(500));
+//! assert_eq!(rate.as_percent(), Percentage::new(5.0).as_percent());
+//! assert_eq!(rate.as_bp(), Bps::new(500).as_bp());
 //! ```
-//!
-//! ## Arithmetic operations
-//!
-//! ```rust
-//! use finstack_quant_core::types::Rate;
-//!
-//! let base_rate = Rate::from_percent(3.0);
-//! let spread = Rate::from_bp(50); // 0.5%
-//!
-//! let total = base_rate + spread;
-//! assert!((total.as_percent() - 3.5).abs() < 1e-10);
-//!
-//! // Rate arithmetic supports scaling
-//! let doubled = total * 2.0;
-//! assert!((doubled.as_percent() - 7.0).abs() < 1e-10);
-//! ```
-//!
-//! ## Using basis points for precision
-//!
-//! ```rust
-//! use finstack_quant_core::types::Bps;
-//!
-//! // Basis points are ideal for small spreads
-//! let spread = Bps::new(25); // 0.25%
-//! assert_eq!(spread.as_percent(), 0.25);
-//!
-//! // Arithmetic in basis points
-//! let total_spread = spread + Bps::new(10);
-//! assert_eq!(total_spread.as_bp(), 35);
-//! ```
-//!
-//! # Industry Conventions
-//!
-//! Basis points are the standard unit for quoting spreads and small rate changes
-//! in fixed income markets:
-//! - **Credit spreads**: Quoted in bp (e.g., "50 bp over SOFR")
-//! - **Swap spreads**: Quoted in bp (e.g., "5y swap spread at 25 bp")
-//! - **Yield changes**: Often reported in bp (e.g., "yields up 10 bp")
-//!
-//! # See Also
-//!
-//! - [`Rate`] - Primary rate type with conversion methods
-//! - [`Bps`] - Basis points for precise spread quoting
-//! - [`Percentage`] - Display-friendly percentage values
 
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
@@ -109,47 +43,9 @@ fn non_finite_kind(v: f64) -> NonFiniteKind {
     }
 }
 
-/// A financial rate (e.g., interest rate, discount rate).
+/// A financial rate stored as an `f64` decimal.
 ///
-/// Internally stored as a decimal value where 0.05 represents 5%. This is the
-/// standard representation for financial calculations (compounding, discounting).
-///
-/// # Representation
-///
-/// Rates are stored as `f64` decimals:
-/// - 1% = 0.01
-/// - 5% = 0.05
-/// - 100% = 1.0
-///
-/// # Conversions
-///
-/// Provides methods to convert to/from:
-/// - **Decimal**: The internal representation (0.05 for 5%)
-/// - **Percentage**: Human-readable format (5.0 for 5%)
-/// - **Basis points**: Fixed income market convention (500 bp for 5%)
-///
-/// # Examples
-///
-/// ```rust
-/// use finstack_quant_core::types::Rate;
-///
-/// // Create from different formats
-/// let r1 = Rate::from_decimal(0.05);
-/// let r2 = Rate::from_percent(5.0);
-/// let r3 = Rate::from_bp(500);
-/// assert_eq!(r1, r2);
-/// assert_eq!(r2, r3);
-///
-/// // Use in calculations
-/// let notional = 1_000_000.0;
-/// let interest = notional * r1.as_decimal();
-/// assert_eq!(interest, 50_000.0);
-/// ```
-///
-/// # Thread Safety
-///
-/// `Rate` is `Copy` and contains only a single `f64`, making it trivially
-/// `Send + Sync`.
+/// For example, `0.05` represents 5% or 500 bp.
 ///
 /// # Serde
 ///
@@ -401,43 +297,13 @@ impl Neg for Rate {
     }
 }
 
-/// Basis points - a unit of measure for rates (1 bp = 0.01%).
+/// An integer basis-point quote.
 ///
-/// Commonly used in financial markets where small rate differences matter.
-/// One basis point equals one hundredth of a percent:
 /// - 1 bp = 0.01% = 0.0001 decimal
 /// - 100 bp = 1%
 /// - 10,000 bp = 100%
 ///
-/// # Industry Usage
-///
-/// Basis points are the standard unit for quoting:
-/// - **Credit spreads**: Corporate bond spread over benchmark (e.g., "150 bp")
-/// - **Swap spreads**: Swap rate vs government bond yield
-/// - **Rate changes**: Central bank moves (e.g., "Fed raised rates by 25 bp")
-/// - **Fees**: Management fees (e.g., "expense ratio of 50 bp")
-///
-/// # Precision
-///
-/// Stored as `i32` to avoid floating-point accumulation errors when
-/// aggregating small spreads or fees.
-///
-/// # Examples
-///
-/// ```rust
-/// use finstack_quant_core::types::Bps;
-///
-/// // Corporate bond spread over SOFR
-/// let credit_spread = Bps::new(150); // 1.5%
-/// assert_eq!(credit_spread.as_percent(), 1.5);
-/// assert_eq!(credit_spread.as_decimal(), 0.015);
-///
-/// // Fee calculation
-/// let management_fee = Bps::new(50); // 0.5%
-/// let aum = 100_000_000.0; // $100M
-/// let annual_fee = aum * management_fee.as_decimal();
-/// assert_eq!(annual_fee, 500_000.0);
-/// ```
+/// Values are stored and serialized as `i32` basis points.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Bps(i32);
 
@@ -650,31 +516,9 @@ impl Neg for Bps {
     }
 }
 
-/// A percentage value.
+/// A percentage stored as an `f64` in percentage units.
 ///
-/// Provides a clear type for percentage values with human-readable display
-/// formatting. Unlike [`Rate`], this stores values in percentage terms
-/// (5.0 for 5%) rather than decimal (0.05).
-///
-/// # Use Cases
-///
-/// - Display to end users (formatted as "X.XX%")
-/// - Configuration files where percentages are more intuitive
-/// - Volatility quoting (e.g., "20% implied volatility")
-/// - Performance metrics (e.g., "12.5% return")
-///
-/// # Examples
-///
-/// ```rust
-/// use finstack_quant_core::types::Percentage;
-///
-/// let vol = Percentage::new(20.0); // 20% volatility
-/// assert_eq!(vol.as_percent(), 20.0);
-/// assert_eq!(vol.as_decimal(), 0.20);
-///
-/// // Display formatting
-/// assert_eq!(format!("{}", vol), "20.00%");
-/// ```
+/// For example, `5.0` represents 5% or 0.05 decimal.
 ///
 /// # Serde
 ///
