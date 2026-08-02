@@ -132,8 +132,11 @@ run = "cargo build --workspace --exclude finstack-quant-py --exclude finstack-qu
 # `#[test]` modules out of this crate while `[lib] test = false`.
 # Type-checking it is still gated: `rust-lint` runs clippy with `--workspace`, and
 # clippy type-checks without linking, so binding compile errors are caught there.
-description = "Run Rust tests via cargo-nextest"
-run = "cargo nextest run --workspace --exclude finstack-quant-py --lib --test '*' --no-fail-fast"
+description = "Run native Rust tests via cargo-nextest"
+run = [
+  "cargo nextest run --workspace --exclude finstack-quant-py --exclude finstack-quant-wasm --lib --test '*' --no-fail-fast",
+  "cargo nextest run -p finstack-quant-wasm --lib --test dts_contract --no-fail-fast",
+]
 
 [tasks.rust-doc]
 description = "Build workspace docs, enforce input docs, and run contract doctests"
@@ -146,7 +149,10 @@ run = [
 
 [tasks.rust-test-slow]
 description = "Run Rust tests including ignored/slow ones"
-run = "cargo nextest run --workspace --exclude finstack-quant-py --lib --test '*' --run-ignored all --no-fail-fast"
+run = [
+  "cargo nextest run --workspace --exclude finstack-quant-py --exclude finstack-quant-wasm --lib --test '*' --run-ignored only --no-fail-fast",
+  "cargo nextest run -p finstack-quant-wasm --lib --test dts_contract --run-ignored only --no-tests pass --no-fail-fast",
+]
 
 [tasks.rust-test-cov]
 description = "Run Rust tests with HTML coverage report"
