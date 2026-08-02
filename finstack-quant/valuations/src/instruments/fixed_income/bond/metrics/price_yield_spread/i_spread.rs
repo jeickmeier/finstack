@@ -65,20 +65,6 @@ pub(crate) struct ISpreadCalculator {
     config: ISpreadConfig,
 }
 
-#[allow(dead_code)] // public API for external bindings
-impl ISpreadCalculator {
-    /// Create an I-Spread calculator with default (annual Act/Act) fixed-leg
-    /// conventions.
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
-    /// Create an I-Spread calculator with explicit fixed-leg conventions.
-    pub(crate) fn with_config(config: ISpreadConfig) -> Self {
-        Self { config }
-    }
-}
-
 impl MetricCalculator for ISpreadCalculator {
     fn dependencies(&self) -> &[MetricId] {
         &[MetricId::Ytm]

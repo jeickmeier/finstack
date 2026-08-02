@@ -74,46 +74,8 @@ use crate::metrics::{MetricCalculator, MetricContext, MetricId};
 ///
 /// None - this is a standalone metric using tree pricing.
 ///
-/// # Examples
-///
-/// ```text
-/// use finstack_quant_valuations::instruments::fixed_income::bond::metrics::price_yield_spread::EmbeddedOptionValueCalculator;
-/// use finstack_quant_valuations::metrics::MetricCalculator;
-///
-/// let calculator = EmbeddedOptionValueCalculator::new();
-/// // Use via MetricRegistry for proper context management
-/// ```
 #[derive(Debug, Clone, Default)]
 pub(crate) struct EmbeddedOptionValueCalculator;
-
-#[allow(dead_code)] // public API for external bindings
-impl EmbeddedOptionValueCalculator {
-    /// Create a calculator with default settings.
-    ///
-    /// Uses 100 tree steps and 1% (100 bp) normal volatility.
-    pub(crate) fn new() -> Self {
-        Self
-    }
-
-    /// Create a calculator with custom tree configuration.
-    ///
-    /// # Arguments
-    ///
-    /// * `tree_steps` - Number of steps in the short-rate tree (50-200 typical)
-    /// * `volatility` - Short rate volatility (normal vol in decimal, e.g., 0.01 = 100 bp)
-    ///
-    /// # Examples
-    ///
-    /// ```text
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::metrics::price_yield_spread::EmbeddedOptionValueCalculator;
-    ///
-    /// // High precision with calibrated volatility
-    /// let calc = EmbeddedOptionValueCalculator::with_config(200, 0.012);
-    /// ```
-    pub(crate) fn with_config(_tree_steps: usize, _volatility: f64) -> Self {
-        Self
-    }
-}
 
 impl MetricCalculator for EmbeddedOptionValueCalculator {
     fn calculate(&self, context: &mut MetricContext) -> finstack_quant_core::Result<f64> {
@@ -350,7 +312,7 @@ mod tests {
         let market = create_test_market();
         let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
 
-        let calc = EmbeddedOptionValueCalculator::new();
+        let calc = EmbeddedOptionValueCalculator;
         let base_value = bond.value(&market, as_of).expect("Should price");
 
         let mut context = MetricContext::new(
@@ -375,7 +337,7 @@ mod tests {
         let market = create_test_market();
         let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
 
-        let calc = EmbeddedOptionValueCalculator::new();
+        let calc = EmbeddedOptionValueCalculator;
         let base_value = bond.value(&market, as_of).expect("Should price");
 
         let mut context = MetricContext::new(
@@ -400,7 +362,7 @@ mod tests {
         let market = create_test_market();
         let as_of = Date::from_calendar_date(2025, Month::January, 1).expect("Valid date");
 
-        let calc = EmbeddedOptionValueCalculator::new();
+        let calc = EmbeddedOptionValueCalculator;
         let base_value = bond.value(&market, as_of).expect("Should price");
 
         let mut context = MetricContext::new(
