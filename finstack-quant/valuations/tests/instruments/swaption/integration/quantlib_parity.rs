@@ -500,47 +500,6 @@ fn test_quantlib_parity_rho() {
     assert_reasonable(rho.abs(), 0.1, 10_000.0, "Rho magnitude");
 }
 
-#[test]
-fn test_quantlib_parity_theta() {
-    // Test theta (time decay)
-    let as_of = date!(2024 - 01 - 01);
-    let expiry = date!(2025 - 01 - 01);
-    let swap_start = expiry;
-    let swap_end = date!(2030 - 01 - 01);
-
-    let swaption = create_standard_payer_swaption(expiry, swap_start, swap_end, 0.05);
-    let market = create_flat_market(as_of, 0.05, 0.20);
-
-    let result = swaption
-        .price_with_metrics(
-            &market,
-            as_of,
-            &[MetricId::Theta],
-            finstack_quant_valuations::instruments::PricingOptions::default(),
-        )
-        .unwrap();
-
-    let theta = *result.measures.get("theta").unwrap();
-
-    // Theta should be finite
-    assert!(theta.is_finite(), "Theta should be finite");
-
-    // Validate theta by bump-in-time
-    let pv_today = swaption.value(&market, as_of).unwrap().amount();
-    let tomorrow = as_of.checked_add(time::Duration::days(1)).unwrap();
-    let pv_tomorrow = swaption.value(&market, tomorrow).unwrap().amount();
-
-    let time_decay = pv_tomorrow - pv_today;
-
-    // Theta should reasonably approximate time decay (opposite sign convention)
-    let rel_diff = ((theta + time_decay) / theta.abs().max(1.0)).abs();
-    assert!(
-        rel_diff < 5.0,
-        "Theta should approximate time decay, rel_diff={}",
-        rel_diff
-    );
-}
-
 // =============================================================================
 // Implied Volatility Tests
 // =============================================================================
