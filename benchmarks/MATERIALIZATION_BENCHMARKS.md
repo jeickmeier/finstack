@@ -4,7 +4,7 @@ This procedure is the acceptance record for the portable portfolio
 materialization path. It measures JSON validation and construction of a reusable
 portfolio handle; it excludes database and network I/O, runtime startup,
 market-context construction, pricing, pandas conversion, and fixture generation.
-See [`CONTRACTS.md`](CONTRACTS.md#root-contract-matrix) for the persisted
+See [`CONTRACTS.md`](../docs/CONTRACTS.md#root-contract-matrix) for the persisted
 envelope, generated schema, and Rust/Python/WASM API map.
 
 ## Deterministic fixtures

@@ -29,7 +29,7 @@ notes.
 - [`CONTRACTS.md`](CONTRACTS.md): current persisted-contract matrix, strict
   loaders, exact v1 markers, canonical JSON, generated schemas, structured
   diagnostics, and materialization API links.
-- [`MATERIALIZATION_BENCHMARKS.md`](MATERIALIZATION_BENCHMARKS.md): reproducible
+- [`MATERIALIZATION_BENCHMARKS.md`](../benchmarks/MATERIALIZATION_BENCHMARKS.md): reproducible
   portfolio materialization fixtures, performance gates, profiling procedure,
   and reference results.
 - [`../finstack-quant-py/DOCS_STYLE.md`](../finstack-quant-py/DOCS_STYLE.md):

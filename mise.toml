@@ -593,10 +593,10 @@ description = "Verify tracked benchmark digests, baselines, and toolchains"
 run = """
 uv run python scripts/sync_materialization_benchmark_digest.py \
   --artifact benchmarks/materialization/materialization-benchmark-results.json \
-  --document docs/MATERIALIZATION_BENCHMARKS.md --check
+  --document benchmarks/MATERIALIZATION_BENCHMARKS.md --check
 uv run python scripts/check_materialization_benchmark_docs.py \
   --artifact benchmarks/materialization/materialization-benchmark-results.json \
-  --document docs/MATERIALIZATION_BENCHMARKS.md \
+  --document benchmarks/MATERIALIZATION_BENCHMARKS.md \
   --baseline-manifest benchmarks/materialization/materialization-benchmark-baseline.json \
   --rust-baseline benchmarks/materialization/materialization-rust-baseline.json \
   --python-baseline benchmarks/materialization/materialization-python-baseline.json
@@ -705,6 +705,6 @@ uv run python scripts/collect_materialization_results.py \
   --command 'uv run python scripts/collect_materialization_results.py --rust target/materialization-results/rust.json --python target/materialization-python/current-record.json --wasm target/materialization-results/wasm.json --fixture-a target/materialization-benchmarks/materialization-a-5000-unique.json --fixture-b target/materialization-benchmarks/materialization-b-5000-50.json --baseline benchmarks/materialization/materialization-benchmark-baseline.json --rust-baseline benchmarks/materialization/materialization-rust-baseline.json --rust-comparison target/materialization-criterion/comparison.json --python-baseline benchmarks/materialization/materialization-python-baseline.json --python-comparison target/materialization-python/comparison-record.json --output benchmarks/materialization/materialization-benchmark-results.json'
 uv run python scripts/sync_materialization_benchmark_digest.py \
   --artifact benchmarks/materialization/materialization-benchmark-results.json \
-  --document docs/MATERIALIZATION_BENCHMARKS.md --write
+  --document benchmarks/MATERIALIZATION_BENCHMARKS.md --write
 mise run materialization-benchmark-doc-check
 """

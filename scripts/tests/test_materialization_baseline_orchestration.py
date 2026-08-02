@@ -183,7 +183,7 @@ def test_documented_toolchains_match_machine_artifact() -> None:
     artifact = json.loads(
         (root / "benchmarks/materialization/materialization-benchmark-results.json").read_text(encoding="utf-8")
     )
-    document = (root / "docs/MATERIALIZATION_BENCHMARKS.md").read_text(encoding="utf-8")
+    document = (root / "benchmarks/MATERIALIZATION_BENCHMARKS.md").read_text(encoding="utf-8")
     _DOCS_MODULE.verify_document(document, artifact)
 
 
