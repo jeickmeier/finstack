@@ -10,7 +10,7 @@
 //! cargo test -p finstack-quant-cashflows --test cashflows
 //! ```
 
-/// Common test helpers: tolerance constants, date constructors, test curves
+/// Common test helpers: shared tolerances for rates, factors, and amounts.
 #[path = "cashflows/helpers.rs"]
 mod helpers;
 
