@@ -624,29 +624,6 @@ mod tests {
         assert_eq!(log_linear.style(), InterpStyle::LogLinear);
     }
 
-    #[test]
-    fn extrapolation_method_works() {
-        let flat_zero = InterpStyle::Linear
-            .build_enum(
-                standard_knots(),
-                standard_dfs(),
-                ExtrapolationPolicy::FlatZero,
-                ValidationPolicy::Strict,
-            )
-            .expect("should build in test");
-        let _ = flat_zero.extrapolation();
-
-        let flat_fwd = InterpStyle::LogLinear
-            .build_enum(
-                standard_knots(),
-                standard_dfs(),
-                ExtrapolationPolicy::FlatForward,
-                ValidationPolicy::Strict,
-            )
-            .expect("should build in test");
-        let _ = flat_fwd.extrapolation();
-    }
-
     // ========================================================================
     // ExtrapolationPolicy Tests
     // ========================================================================
@@ -668,16 +645,6 @@ mod tests {
     fn validation_policy_default_is_strict() {
         let default = ValidationPolicy::default();
         assert_eq!(default, ValidationPolicy::Strict);
-    }
-
-    #[test]
-    fn validation_policy_equality() {
-        assert_eq!(ValidationPolicy::Strict, ValidationPolicy::Strict);
-        assert_eq!(
-            ValidationPolicy::AllowNegative,
-            ValidationPolicy::AllowNegative
-        );
-        assert_ne!(ValidationPolicy::Strict, ValidationPolicy::AllowNegative);
     }
 
     // ========================================================================

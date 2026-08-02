@@ -18,8 +18,6 @@ fn test_builder_type_state() {
 
 #[test]
 fn test_periods_validation() {
-    let _result = ModelBuilder::new("test").periods("2025Q1..Q1", None);
-
     let empty_result = ModelBuilder::new("test").periods_explicit(vec![]);
     assert!(empty_result.is_err());
 }

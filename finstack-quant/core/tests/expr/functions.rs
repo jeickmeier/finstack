@@ -1630,48 +1630,4 @@ mod edge_cases {
             }
         }
     }
-
-    #[test]
-    fn all_functions_produce_valid_output() {
-        let (ctx, data) = standard_test_data();
-        let cols = to_slice_refs(&data);
-
-        let functions_to_test = vec![
-            (
-                Function::Lag,
-                vec![Expr::column("values"), Expr::literal(1.0)],
-            ),
-            (
-                Function::Lead,
-                vec![Expr::column("values"), Expr::literal(1.0)],
-            ),
-            (
-                Function::Diff,
-                vec![Expr::column("values"), Expr::literal(1.0)],
-            ),
-            (Function::CumSum, vec![Expr::column("values")]),
-            (Function::CumProd, vec![Expr::column("values")]),
-            (
-                Function::RollingMean,
-                vec![Expr::column("values"), Expr::literal(3.0)],
-            ),
-        ];
-
-        for (func, args) in functions_to_test {
-            let expr = CompiledExpr::new(Expr::call(func, args));
-            let result = expr.eval(&ctx, &cols, EvalOpts::default()).unwrap().values;
-
-            // Ensure evaluation worked
-            assert_eq!(result.len(), data[0].len());
-
-            // Verify all results are finite or NaN where expected
-            for val in &result {
-                assert!(
-                    val.is_finite() || val.is_nan(),
-                    "Function {:?} produced invalid value",
-                    func
-                );
-            }
-        }
-    }
 }

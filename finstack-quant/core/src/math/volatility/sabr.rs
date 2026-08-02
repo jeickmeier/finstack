@@ -1330,28 +1330,6 @@ mod tests {
     }
 
     #[test]
-    fn test_sabr_density_check_extreme_nu() {
-        let params = SabrParams {
-            alpha: 0.04,
-            beta: 0.5,
-            rho: -0.7,
-            nu: 2.0,
-            shift: None,
-        };
-        let forward = 0.05;
-        let expiry = 5.0;
-        let strikes: Vec<f64> = (1..=20)
-            .map(|i| forward * (0.5 + i as f64 * 0.05))
-            .collect();
-
-        let warnings = params.check_density(&strikes, forward, expiry);
-        // With extreme nu=2.0 and long expiry, we may see negative density
-        // at wing strikes. If not, that's also fine -- the test verifies
-        // the method runs without panic.
-        let _ = warnings; // Don't assert non-empty -- depends on approximation accuracy
-    }
-
-    #[test]
     fn sabr_density_check_reports_negative_density() {
         let forward = 0.05;
         let strikes: Vec<f64> = (1..=80).map(|i| 0.0025 + i as f64 * 0.0025).collect();

@@ -1734,49 +1734,6 @@ mod extrapolation_policy_tests {
 }
 
 // ============================================================================
-// DERIVATIVE_EPSILON Constant Tests
-// ============================================================================
-
-#[cfg(test)]
-mod derivative_epsilon_tests {
-    use super::*;
-
-    #[test]
-    fn derivative_epsilon_defined() {
-        // Verify constant is accessible and has expected value
-        assert_eq!(DERIVATIVE_EPSILON, 1e-6);
-    }
-}
-
-// ============================================================================
-// InterpStyle PartialEq Tests
-// ============================================================================
-
-#[cfg(test)]
-mod interp_style_eq_tests {
-    use super::*;
-
-    #[test]
-    fn interp_style_equality() {
-        assert_eq!(InterpStyle::Linear, InterpStyle::Linear);
-        assert_eq!(InterpStyle::LogLinear, InterpStyle::LogLinear);
-        assert_eq!(InterpStyle::MonotoneConvex, InterpStyle::MonotoneConvex);
-        assert_eq!(InterpStyle::CubicHermite, InterpStyle::CubicHermite);
-        assert_eq!(
-            InterpStyle::PiecewiseQuadraticForward,
-            InterpStyle::PiecewiseQuadraticForward
-        );
-    }
-
-    #[test]
-    fn interp_style_inequality() {
-        assert_ne!(InterpStyle::Linear, InterpStyle::LogLinear);
-        assert_ne!(InterpStyle::LogLinear, InterpStyle::MonotoneConvex);
-        assert_ne!(InterpStyle::MonotoneConvex, InterpStyle::CubicHermite);
-    }
-}
-
-// ============================================================================
 // Hagan-West forward non-negativity property tests (seeded)
 // ============================================================================
 

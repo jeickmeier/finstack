@@ -607,11 +607,6 @@ mod tests {
     }
 
     #[test]
-    fn test_bump_size_config_remains_equality_comparable() {
-        assert_eq!(BumpSizeConfig::default(), BumpSizeConfig::default());
-    }
-
-    #[test]
     fn test_factor_model_config_deserialize_uses_defaults_for_omitted_optionals() {
         let original = FactorModelConfig {
             factors: vec![FactorDefinition {

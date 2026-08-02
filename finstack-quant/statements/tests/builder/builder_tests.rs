@@ -3,18 +3,6 @@
 use finstack_quant_statements::prelude::*;
 
 // ============================================================================
-// Crate Bootstrap Tests
-// ============================================================================
-
-#[test]
-fn test_builder_creation() {
-    let builder = ModelBuilder::new("test_model");
-    // Type-state ensures we can't call .build() yet
-    // This test just verifies construction works
-    let _ = builder;
-}
-
-// ============================================================================
 // Period Integration Tests
 // ============================================================================
 

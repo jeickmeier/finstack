@@ -233,53 +233,21 @@ fn test_annualization_factor_specific_override_takes_precedence_over_global() {
 // ============================================================================
 
 #[test]
-fn test_time_elapsed_fraction_before_start_is_zero() {
-    // Arrange
+fn test_time_elapsed_fraction_boundaries() {
     let swap = sample_swap(PayReceive::Receive);
-    let as_of = date(2024, 12, 1);
+    let day = time::Duration::days(1);
 
-    // Act
-    let fraction = swap.time_elapsed_fraction(as_of);
+    assert_eq!(swap.time_elapsed_fraction(swap.start_date - day), 0.0);
+    assert_eq!(swap.time_elapsed_fraction(swap.start_date), 0.0);
 
-    // Assert
-    assert_eq!(fraction, 0.0);
-}
+    let just_after_start = swap.time_elapsed_fraction(swap.start_date + day);
+    assert!(just_after_start > 0.0 && just_after_start < 1.0);
 
-#[test]
-fn test_time_elapsed_fraction_at_start_is_zero() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
+    let just_before_maturity = swap.time_elapsed_fraction(swap.maturity - day);
+    assert!(just_before_maturity > 0.0 && just_before_maturity < 1.0);
 
-    // Act
-    let fraction = swap.time_elapsed_fraction(swap.start_date);
-
-    // Assert
-    assert_eq!(fraction, 0.0);
-}
-
-#[test]
-fn test_time_elapsed_fraction_at_maturity_is_one() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
-
-    // Act
-    let fraction = swap.time_elapsed_fraction(swap.maturity);
-
-    // Assert
-    assert_eq!(fraction, 1.0);
-}
-
-#[test]
-fn test_time_elapsed_fraction_after_maturity_is_one() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
-    let as_of = date(2025, 5, 1);
-
-    // Act
-    let fraction = swap.time_elapsed_fraction(as_of);
-
-    // Assert
-    assert_eq!(fraction, 1.0);
+    assert_eq!(swap.time_elapsed_fraction(swap.maturity), 1.0);
+    assert_eq!(swap.time_elapsed_fraction(swap.maturity + day), 1.0);
 }
 
 #[test]
@@ -354,28 +322,23 @@ fn test_time_elapsed_fraction_is_monotonic() {
 // ============================================================================
 
 #[test]
-fn test_realized_fraction_by_observations_before_start_is_zero() {
-    // Arrange
+fn test_realized_fraction_by_observations_boundaries() {
     let swap = sample_swap(PayReceive::Receive);
-    let as_of = date(2024, 12, 1);
+    let day = time::Duration::days(1);
 
-    // Act
-    let fraction = observation_weight(&swap, as_of);
+    let cases = [
+        (swap.start_date - day, 0.0),
+        (swap.start_date, 0.0),
+        (swap.maturity, 1.0),
+        (swap.maturity + day, 1.0),
+    ];
 
-    // Assert
-    assert_eq!(fraction, 0.0);
-}
-
-#[test]
-fn test_realized_fraction_by_observations_at_maturity_is_one() {
-    // Arrange
-    let swap = sample_swap(PayReceive::Receive);
-
-    // Act
-    let fraction = observation_weight(&swap, swap.maturity);
-
-    // Assert
-    assert_eq!(fraction, 1.0);
+    for (as_of, expected) in cases {
+        let fraction = swap
+            .realized_fraction_by_observations(as_of)
+            .expect("observation fraction");
+        assert_eq!(fraction, expected, "unexpected fraction at {as_of}");
+    }
 }
 
 #[test]
@@ -388,9 +351,15 @@ fn test_realized_fraction_by_observations_increases_with_time() {
     let mid_date = dates[mid_idx];
 
     // Act
-    let frac_start = observation_weight(&swap, swap.start_date);
-    let frac_mid = observation_weight(&swap, mid_date);
-    let frac_end = observation_weight(&swap, swap.maturity);
+    let frac_start = swap
+        .realized_fraction_by_observations(swap.start_date)
+        .expect("start fraction");
+    let frac_mid = swap
+        .realized_fraction_by_observations(mid_date)
+        .expect("mid fraction");
+    let frac_end = swap
+        .realized_fraction_by_observations(swap.maturity)
+        .expect("maturity fraction");
 
     // Assert
     assert!(frac_start < frac_mid);
@@ -406,7 +375,9 @@ fn test_realized_fraction_by_observations_matches_observation_count() {
     let as_of = dates[dates.len() / 2];
 
     // Act
-    let fraction = observation_weight(&swap, as_of);
+    let fraction = swap
+        .realized_fraction_by_observations(as_of)
+        .expect("observation fraction");
     let manual_frac = dates.iter().filter(|&&d| d <= as_of).count() as f64 / dates.len() as f64;
 
     // Assert

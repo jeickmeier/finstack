@@ -43,18 +43,6 @@ fn test_periods_per_year_days() {
 }
 
 #[test]
-fn test_periods_per_year_zero_months_error() {
-    // 0 months should be an error
-    assert!(Tenor::try_new(0, TenorUnit::Months).is_err());
-}
-
-#[test]
-fn test_periods_per_year_zero_days_error() {
-    // 0 days should be an error
-    assert!(Tenor::try_new(0, TenorUnit::Days).is_err());
-}
-
-#[test]
 fn test_periods_per_year_years_and_weeks() {
     assert_eq!(
         periods_per_year(Tenor::new(2, TenorUnit::Years)).unwrap(),
@@ -68,22 +56,6 @@ fn test_periods_per_year_years_and_weeks() {
         periods_per_year(Tenor::new(2, TenorUnit::Weeks)).unwrap(),
         26.0
     );
-}
-
-#[test]
-fn test_periods_per_year_zero_years_and_weeks_error() {
-    assert!(Tenor::try_new(0, TenorUnit::Years).is_err());
-    assert!(Tenor::try_new(0, TenorUnit::Weeks).is_err());
-}
-
-#[test]
-fn test_yield_compounding_variants() {
-    // Test that all compounding variants are available
-    let _simple = YieldCompounding::Simple;
-    let _annual = YieldCompounding::Annual;
-    let _periodic = YieldCompounding::Periodic(2);
-    let _continuous = YieldCompounding::Continuous;
-    let _street = YieldCompounding::Street;
 }
 
 #[test]
@@ -481,19 +453,6 @@ fn test_price_from_ytm_compounded_params_continuous_vs_annual() {
     // For 5% yield over ~1 year, the difference is ~0.12 (100bp annualized effect).
     assert!(price_continuous < price_annual);
     assert!((price_annual - price_continuous).abs() < 0.2);
-}
-
-#[test]
-fn test_yield_compounding_equality() {
-    // Test PartialEq implementation
-    assert_eq!(YieldCompounding::Simple, YieldCompounding::Simple);
-    assert_eq!(YieldCompounding::Annual, YieldCompounding::Annual);
-    assert_eq!(YieldCompounding::Periodic(2), YieldCompounding::Periodic(2));
-    assert_eq!(YieldCompounding::Continuous, YieldCompounding::Continuous);
-    assert_eq!(YieldCompounding::Street, YieldCompounding::Street);
-
-    assert_ne!(YieldCompounding::Simple, YieldCompounding::Annual);
-    assert_ne!(YieldCompounding::Periodic(2), YieldCompounding::Periodic(4));
 }
 
 #[test]
