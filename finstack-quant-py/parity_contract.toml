@@ -1416,7 +1416,6 @@ names = [
     "margin",
     "monte_carlo",
     "portfolio",
-    "reporting",
     "scenarios",
     "statements",
     "statements_analytics",

@@ -188,26 +188,28 @@ def _pyi_all_names(pyi_path: Path) -> list[str]:
 
 
 def test_pyi_top_level_matches_contract() -> None:
-    """The `.pyi` stub, ``finstack_quant.__all__``, and the contract must agree.
+    """The native `.pyi`, extension ``__all__``, and contract must agree.
 
     Drift in any of the three is a maintenance hazard, since they all encode
-    the same fact (the public top-level subpackages of finstack_quant).
+    the compiled extension's registered domain modules. Pure-Python packages
+    such as ``finstack_quant.reporting`` are tracked separately by the crate
+    package and symbol contract entries.
     """
     block = CONTRACT["pyi_top_level"]
     pyi_path = CONTRACT_PATH.parent / block["file"]
     contract = set(block["names"])
     pyi = _pyi_top_level_names(pyi_path)
-    finstack_all = set(importlib.import_module("finstack_quant").__all__)
+    extension_all = set(importlib.import_module("finstack_quant.finstack_quant").__all__)
 
     assert pyi == contract, (
         f"finstack_quant.pyi top-level names diverged from contract.\n"
         f"  missing from .pyi: {sorted(contract - pyi)}\n"
         f"  unlisted in contract: {sorted(pyi - contract)}"
     )
-    assert finstack_all == contract, (
-        f"finstack_quant.__all__ diverged from contract.\n"
-        f"  missing from finstack_quant.__all__: {sorted(contract - finstack_all)}\n"
-        f"  unlisted in contract: {sorted(finstack_all - contract)}"
+    assert extension_all == contract, (
+        f"finstack_quant.finstack_quant.__all__ diverged from contract.\n"
+        f"  missing from extension __all__: {sorted(contract - extension_all)}\n"
+        f"  unlisted in contract: {sorted(extension_all - contract)}"
     )
 
 
