@@ -14,7 +14,6 @@
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::traits::{Discounting, Survival, TermStructure};
 use finstack_quant_core::types::CurveId;
-use time::Month;
 
 /// Tolerance for rate and factor comparisons (e.g., CPR, SMM, DF, SP).
 pub const RATE_TOLERANCE: f64 = 1e-10;
@@ -25,18 +24,6 @@ pub const FACTOR_TOLERANCE: f64 = 1e-12;
 /// Calculate appropriate tolerance for financial amounts based on notional.
 pub fn financial_tolerance(notional: f64) -> f64 {
     (notional.abs() * 1e-8).max(0.01)
-}
-
-/// Convenience date constructor for tests.
-pub fn d(year: i32, month: u8, day: u8) -> Date {
-    let month_enum = Month::try_from(month).unwrap_or_else(|_| {
-        panic!(
-            "Invalid month {} in date {}-{:02}-{:02}",
-            month, year, month, day
-        )
-    });
-    Date::from_calendar_date(year, month_enum, day)
-        .unwrap_or_else(|_| panic!("Invalid date: {}-{:02}-{:02}", year, month, day))
 }
 
 /// Flat-rate discount curve with proper time-dependent discount factors.
