@@ -707,9 +707,8 @@ pub fn attribute_pnl_metrics_based(
         None,
     );
 
-    // W56: track whether any non-finite factor P&L was encountered. When true
-    // we set `attribution.result_invalid = true` before returning so that
-    // `residual_within_tolerance` correctly refuses to report a clean result.
+    // Track whether any non-finite factor P&L was encountered. Invalidating
+    // the result prevents residual tolerance from reporting a clean result.
     let mut non_finite_detected = false;
 
     // Total-return basis : `PnlAttribution::new` captured the
@@ -1931,9 +1930,8 @@ pub fn attribute_pnl_metrics_based(
         }
     }
 
-    // W56: propagate the non-finite flag BEFORE finalize_attribution so that
-    // compute_residual sees result_invalid = true and doesn't attempt to
-    // construct a residual from a (potentially sentinel) attributed sum.
+    // Propagate the flag before finalization so residual computation cannot
+    // turn a non-finite factor into an apparently clean result.
     if non_finite_detected {
         attribution.result_invalid = true;
     }

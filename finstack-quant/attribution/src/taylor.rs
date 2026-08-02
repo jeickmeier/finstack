@@ -1634,13 +1634,4 @@ mod tests {
             );
         }
     }
-
-    // Audit N2 (originally `taylor_flags_non_finite_factor_instead_of_panicking`):
-    // covered redundantly by the MO4 validation test above
-    // (`taylor_rejects_non_positive_bump_at_validation`) and by the
-    // metrics-based NaN-flagging test
-    // (`metrics_based::tests::nan_factor_sensitivity_sets_result_invalid_instead_of_panicking`).
-    // The MO4 change closed the original trigger (zero bump → 0/0 NaN) at the
-    // boundary; constructing an alternative NaN-producing pricer would
-    // duplicate the metrics-based coverage without exercising any new code.
 }

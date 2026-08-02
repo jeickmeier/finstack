@@ -742,24 +742,10 @@ impl<'a> WaterfallContext<'a> {
         }
     }
 
-    /// Update the current accumulated value by adding a factor's P&L delta.
+    /// Add a factor's P&L delta using `Money`'s decimal arithmetic.
     ///
-    /// # Numerical Precision (audit rec #7)
-    ///
-    /// The audit recommended a Kahan/Neumaier-compensated accumulator on the
-    /// suspicion that the ~9·ε drift of naive `f64 +` would matter at $1B+
-    /// notional. On closer inspection that drift does not exist on this code
-    /// path: `Money::checked_add` is backed by `rust_decimal::Decimal`
-    /// arithmetic, which is **exact** within its 28-digit precision envelope.
-    /// The only IEEE-754 rounding step is the single `Decimal → f64`
-    /// conversion when a downstream consumer calls `.amount()`. Compensating
-    /// a chain of decimal additions for f64 rounding errors that don't occur
-    /// would be net noise.
-    ///
-    /// If a future change replaces the `Money` storage with `f64`, or
-    /// inserts an f64 short-circuit on this hot path, the right fix would be
-    /// `finstack_quant_core::math::NeumaierAccumulator` on the amount channel with
-    /// the currency check still gating the operation.
+    /// Accumulation is exact within the decimal precision envelope; a currency
+    /// mismatch returns a validation error.
     fn update_current_value(&mut self, prev_val: Money, delta: Money) -> Result<()> {
         self.current_val = prev_val
             .checked_add(delta)

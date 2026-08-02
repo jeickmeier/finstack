@@ -1201,10 +1201,9 @@ fn attribute_pnl_parallel_impl(
                 val_with_t0_fx,
                 val_with_t0_rates,
             ),
-            // Audit fix: Credit×Vol — material for convertibles (equity vol
-            // drives the conversion option while the credit curve discounts
-            // the bond floor). Appended after the historical six pairs so the
-            // reduction order of existing books is unchanged.
+            // Credit×Vol captures convertibles, where equity volatility drives
+            // the conversion option while credit curves discount the bond floor.
+            // It remains last so the preceding pair reduction order stays stable.
             (
                 "Credit×Vol",
                 MarketRestoreFlags::CREDIT,

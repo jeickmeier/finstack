@@ -1271,10 +1271,9 @@ mod tests {
         );
     }
 
-    /// Audit N1: `scale()` must scale every component of `credit_factor_detail`
-    /// — including `curve_shape_pnl` and the `adder_magnitude` diagnostic — so
-    /// the reconciliation invariant `generic + Σlevels + adder + curve_shape ≡
-    /// credit_curves_pnl` survives scaling to position quantity.
+    /// Scaling must include every `credit_factor_detail` component, including
+    /// `curve_shape_pnl` and the `adder_magnitude` diagnostic, while preserving
+    /// `generic + Σlevels + adder + curve_shape ≡ credit_curves_pnl`.
     #[test]
     fn test_scale_preserves_credit_factor_detail_reconciliation() {
         let usd = Currency::USD;
