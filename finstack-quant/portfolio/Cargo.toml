@@ -37,7 +37,6 @@ criterion = { workspace = true }
 rust_decimal = { workspace = true }
 rust_decimal_macros = { workspace = true }
 jsonschema = { version = "0.28", default-features = false }
-smallvec = { version = "1.15", default-features = false }
 
 [[bench]]
 name = "portfolio_valuation"
