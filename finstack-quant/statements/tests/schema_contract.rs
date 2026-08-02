@@ -8,6 +8,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, Month, PeriodId};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::ContractDescriptor;
+use finstack_quant_statements::adjustments::types::NormalizationConfig;
 use finstack_quant_statements::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};
 use finstack_quant_statements::checks::{
     CheckCategory, CheckFinding, CheckReport, CheckResult, CheckSummary, Materiality, Severity,
@@ -15,7 +16,6 @@ use finstack_quant_statements::checks::{
 use finstack_quant_statements::evaluator::{
     CapitalStructureWarning, EvalWarning, ResultsMeta, StatementResult,
 };
-use finstack_quant_statements::adjustments::types::NormalizationConfig;
 use finstack_quant_statements::schema::{
     financial_model_spec_schema, generated_schema, normalization_config_schema,
     statement_result_schema, STATEMENTS_SCHEMA_BASE,
@@ -358,8 +358,7 @@ fn checked_in_schemas_have_stable_metadata() {
         "https://json-schema.org/draft/2020-12/schema"
     );
 
-    let normalization =
-        normalization_config_schema().expect("normalization config schema parses");
+    let normalization = normalization_config_schema().expect("normalization config schema parses");
     assert_eq!(
         normalization["$id"],
         format!("{STATEMENTS_SCHEMA_BASE}normalization_config.schema.json")
@@ -381,6 +380,15 @@ fn checked_in_schemas_apply_canonical_decimal_and_date_normalization() {
     assert_eq!(
         model.pointer("/$defs/DateWire/format"),
         Some(&json!("date"))
+    );
+}
+
+#[test]
+fn normalization_config_schema_exposes_base_mode_reported_default() {
+    let schema = normalization_config_schema().expect("normalization schema parses");
+    assert_eq!(
+        schema["$defs"]["AdjustmentCap"]["properties"]["base_mode"]["default"],
+        json!("reported")
     );
 }
 

@@ -48,6 +48,7 @@
       "properties": {
         "base_mode": {
           "$ref": "#/$defs/CapBaseMode",
+          "default": "reported",
           "description": "For self-referential caps (`base_node == target_node`), choose whether\nto size the cap against the reported or the progressively adjusted\nbase. Defaults to `Reported`, the standard LBO / credit-agreement\nconvention. Ignored when `base_node` is `None` or points to a\ndifferent node."
         },
         "base_node": {

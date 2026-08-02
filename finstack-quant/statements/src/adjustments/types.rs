@@ -60,9 +60,7 @@ pub enum AdjustmentValue {
 
 /// How a self-referential cap base (where `base_node == target_node`) is
 /// resolved each period.
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CapBaseMode {
     /// Cap against the **reported** (pre-adjustment) value of the base node.
@@ -96,6 +94,7 @@ pub struct AdjustmentCap {
     /// convention. Ignored when `base_node` is `None` or points to a
     /// different node.
     #[serde(default, skip_serializing_if = "is_default_cap_base_mode")]
+    #[schemars(extend("default" = "reported"))]
     pub base_mode: CapBaseMode,
 }
 
