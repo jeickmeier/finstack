@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use finstack_quant_core::schema::{run_schema_generator, SchemaArtifact, SchemaGenerationCommand};
+use finstack_quant_statements::adjustments::types::NormalizationConfig;
 use finstack_quant_statements::evaluator::StatementResult;
 use finstack_quant_statements::FinancialModelSpec;
 
@@ -18,6 +19,12 @@ const ARTIFACTS: &[SchemaArtifact] = &[
         "https://finstack_quant.dev/schemas/statements/1/statement_result.schema.json",
         "StatementResult",
         "Versioned financial statement evaluation result.",
+    ),
+    SchemaArtifact::new::<NormalizationConfig>(
+        "schemas/statements/1/normalization_config.schema.json",
+        "https://finstack_quant.dev/schemas/statements/1/normalization_config.schema.json",
+        "NormalizationConfig",
+        "Financial statement normalization policy and adjustment catalog.",
     ),
 ];
 

@@ -8,6 +8,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, Month, PeriodId};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::ContractDescriptor;
+use finstack_quant_statements::adjustments::types::{CapBaseMode, NormalizationConfig};
 use finstack_quant_statements::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};
 use finstack_quant_statements::checks::{
     CheckCategory, CheckFinding, CheckReport, CheckResult, CheckSummary, Materiality, Severity,
@@ -16,7 +17,8 @@ use finstack_quant_statements::evaluator::{
     CapitalStructureWarning, EvalWarning, ResultsMeta, StatementResult,
 };
 use finstack_quant_statements::schema::{
-    financial_model_spec_schema, generated_schema, statement_result_schema, STATEMENTS_SCHEMA_BASE,
+    financial_model_spec_schema, generated_schema, normalization_config_schema,
+    statement_result_schema, STATEMENTS_SCHEMA_BASE,
 };
 use finstack_quant_statements::types::NodeValueType;
 use finstack_quant_statements::FinancialModelSpec;
@@ -119,6 +121,39 @@ fn model_fixture_with_bond() -> Value {
         }]
     });
     model
+}
+
+fn normalization_fixture() -> Value {
+    json!({
+        "target_node": "ebitda",
+        "adjustments": [
+            {
+                "id": "restructuring",
+                "name": "Restructuring add-back",
+                "value": {
+                    "type": "fixed",
+                    "amounts": {
+                        "2025Q1": 50.0,
+                        "2025Q2": 45.0,
+                        "2025Q3": 40.0
+                    }
+                },
+                "cap": {
+                    "base_node": "ebitda",
+                    "value": 0.10
+                }
+            },
+            {
+                "id": "management_fee",
+                "name": "Management fee",
+                "value": {
+                    "type": "percentage_of_node",
+                    "node_id": "revenue",
+                    "percentage": 0.01
+                }
+            }
+        ]
+    })
 }
 
 fn representative_statement_result() -> StatementResult {
@@ -322,6 +357,16 @@ fn checked_in_schemas_have_stable_metadata() {
         result["$schema"],
         "https://json-schema.org/draft/2020-12/schema"
     );
+
+    let normalization = normalization_config_schema().expect("normalization config schema parses");
+    assert_eq!(
+        normalization["$id"],
+        format!("{STATEMENTS_SCHEMA_BASE}normalization_config.schema.json")
+    );
+    assert_eq!(
+        normalization["$schema"],
+        "https://json-schema.org/draft/2020-12/schema"
+    );
 }
 
 #[test]
@@ -335,6 +380,55 @@ fn checked_in_schemas_apply_canonical_decimal_and_date_normalization() {
     assert_eq!(
         model.pointer("/$defs/DateWire/format"),
         Some(&json!("date"))
+    );
+}
+
+#[test]
+fn normalization_config_schema_exposes_base_mode_reported_default() {
+    let schema = normalization_config_schema().expect("normalization schema parses");
+    let default_mode =
+        serde_json::to_value(CapBaseMode::default()).expect("CapBaseMode default serializes");
+    // Pin the wire value so a future default-variant change is caught here,
+    // not just in the schema comparison below.
+    assert_eq!(default_mode, json!("reported"));
+    assert_eq!(
+        schema["$defs"]["AdjustmentCap"]["properties"]["base_mode"]["default"],
+        default_mode
+    );
+}
+
+#[test]
+fn normalization_config_schema_matches_generated_type() {
+    let expected = expected_schema::<NormalizationConfig>(
+        "normalization_config.schema.json",
+        "NormalizationConfig",
+        "Financial statement normalization policy and adjustment catalog.",
+    );
+    assert_eq!(
+        normalization_config_schema().expect("normalization schema parses"),
+        &expected
+    );
+}
+
+#[test]
+fn normalization_config_schema_validates_supported_variants() {
+    validate_fixture(
+        normalization_config_schema().expect("normalization schema parses"),
+        &normalization_fixture(),
+    );
+}
+
+#[test]
+fn normalization_config_schema_rejects_unknown_adjustment_variant() {
+    let mut fixture = normalization_fixture();
+    fixture["adjustments"][0]["value"]["type"] = json!("run_rate");
+    let validator = jsonschema::validator_for(
+        normalization_config_schema().expect("normalization schema parses"),
+    )
+    .expect("checked-in normalization schema must compile");
+    assert!(
+        validator.iter_errors(&fixture).next().is_some(),
+        "an unsupported AdjustmentValue tag must be rejected"
     );
 }
 

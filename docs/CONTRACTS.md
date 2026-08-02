@@ -74,7 +74,11 @@ The registries also publish reusable, runtime-backed components:
   conventions, diagnostics, and closed pricing-override maps under
   [`common/1`](../finstack-quant/valuations/schemas/common/1/);
 - credit calibration inputs and configuration under
-  [`factor_model/1`](../finstack-quant/factor-model/schemas/factor_model/1/).
+  [`factor_model/1`](../finstack-quant/factor-model/schemas/factor_model/1/);
+- the financial-statement normalization sidecar/configuration contract
+  (add-back and deduction adjustments, caps, and self-referential cap base
+  mode) — not a root envelope — in
+  [`normalization_config.schema.json`](../finstack-quant/statements/schemas/statements/1/normalization_config.schema.json).
 
 Every instrument artifact is generated from the same registry that owns its
 serde tag, example provider, binding exposure, and single-variant envelope.
