@@ -3,7 +3,7 @@
 //! Organized by:
 //! - parameters: Parameter types and conventions
 //! - test_helpers: Shared test utilities and fixtures
-//! - parity: Tolerance-based comparison for validating against QuantLib, Bloomberg, etc.
+//! - parity: Tolerance-based comparison against documented reference values.
 
 #[macro_use]
 pub mod parity;

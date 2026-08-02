@@ -7,10 +7,10 @@
 // ============================================================================
 
 /// Common test utilities, helpers, models, and shared functionality.
-/// Includes parity testing framework for validating against QuantLib, Bloomberg, etc.
+/// Includes a parity helper for documented reference-value comparisons.
 ///
-/// Tests should use `use crate::parity::*;` to import types.
-/// Macros (assert_parity!, etc.) are available via `#[macro_use]` below.
+/// Tests should import [`parity::ParityConfig`] explicitly.
+/// The `assert_parity!` macro is available via `#[macro_use]` below.
 #[macro_use]
 #[path = "instruments/common/mod.rs"]
 mod common;
@@ -23,7 +23,7 @@ mod serde_skip_guard;
 #[allow(dead_code, unused_imports)]
 mod test_support;
 
-// Re-export parity module at crate level for `use crate::parity::*;` compatibility
+// Re-export parity helpers for explicit imports and macro expansion.
 pub use common::parity;
 
 // ============================================================================

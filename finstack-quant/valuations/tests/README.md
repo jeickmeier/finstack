@@ -23,7 +23,7 @@ tests/
 │   ├── common/             # Shared test infrastructure
 │   │   ├── helpers.rs      # Curve builders, date utilities
 │   │   ├── test_helpers.rs # Tolerances, fixtures
-│   │   ├── parity/         # Parity testing framework (QuantLib, Bloomberg)
+│   │   ├── parity.rs       # Configurable reference-value comparisons
 │   │   └── README.md       # Instrument test conventions
 │   ├── bond/               # Fixed income: bonds, deposits, linkers
 │   ├── irs/                # Interest rate swaps
@@ -245,19 +245,24 @@ use crate::common::test_helpers::{
 
 ### Parity Testing Framework
 
-For validating against external sources (QuantLib, Bloomberg, ISDA):
+For tolerance-based comparisons with documented reference values:
 
 ```rust
-use crate::parity::*;
+use crate::parity::ParityConfig;
 
-// Default tolerance (0.01% = 1 basis point)
-assert_parity!(calculated, reference);
+assert_parity!(
+    calculated,
+    reference,
+    ParityConfig::default(),
+    "Bond PV",
+);
 
-// Custom tolerance
-assert_parity!(calculated, reference, ParityConfig::tight());
-
-// With descriptive message
-assert_parity!(calculated, reference, ParityConfig::default(), "Bond PV");
+assert_parity!(
+    calculated,
+    reference,
+    ParityConfig::with_relative_tolerance(0.05),
+    "Approximate reference PV",
+);
 ```
 
 ### Golden Test Framework
@@ -289,8 +294,7 @@ Tests use standardized tolerances based on calculation type:
 |--------|-------------------|----------|
 | `ParityConfig::default()` | 0.01% (1 bp) | Standard financial calculations |
 | `ParityConfig::tight()` | 0.001% (0.1 bp) | High-precision validation |
-| `ParityConfig::loose()` | 0.1% (10 bp) | Known numerical instabilities |
-| `ParityConfig::very_loose()` | 1% (100 bp) | Monte Carlo results |
+| `ParityConfig::with_relative_tolerance(x)` | Caller supplied | Documented reference-specific differences |
 
 ### Usage Example
 
