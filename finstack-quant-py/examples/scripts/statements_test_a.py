@@ -111,6 +111,11 @@ NORMALIZATION_DOCUMENT: Final[dict[str, Any]] = {
                 "node_id": "revenue",
                 "percentage": 0.01,
             },
+            # Self-referential cap (base_node == target_node) with
+            # base_mode omitted: exercises Rust's default
+            # `CapBaseMode::Reported`, capping against the *reported*
+            # (pre-adjustment) EBITDA rather than the running adjusted base.
+            "cap": {"base_node": "ebitda", "value": 0.05},
         },
     ],
 }
@@ -130,26 +135,37 @@ SYNTHETIC_CLASSIFICATIONS: Final = (
 SUPPORTED_CLASSIFICATIONS: Final = frozenset({"fixed", "percentage_of_node"})
 
 EXPECTED_NORMALIZATION: Final = {
+    # The management-fee percentage (1% of revenue) is now self-referentially
+    # capped at 5% of *reported* EBITDA (base_mode omitted -> default
+    # `CapBaseMode::Reported`). Both quarters' 1%-of-revenue raw amounts
+    # exceed 5% of reported EBITDA, so the cap binds every period:
+    #   2025Q1: raw 10.0 > 170.0 * 0.05 = 8.5   -> capped 8.5
+    #   2025Q2: raw 11.0 > 200.0 * 0.05 = 10.0  -> capped 10.0
+    #   2025Q3: raw 11.0 > 200.0 * 0.05 = 10.0  -> capped 10.0
+    # Had base_mode been explicit `Progressive` instead, the base would
+    # widen by the prior restructuring add-back's running total
+    # ((170.0 + 17.0) * 0.05 = 9.35 for Q1; (200.0 + 20.0) * 0.05 = 11.0 for
+    # Q2/Q3), producing different capped amounts and final values.
     "2025Q1": {
         "base_value": 170.0,
         "raw_amounts": (50.0, 10.0),
-        "capped_amounts": (17.0, 10.0),
-        "is_capped": (True, False),
-        "final_value": 197.0,
+        "capped_amounts": (17.0, 8.5),
+        "is_capped": (True, True),
+        "final_value": 195.5,
     },
     "2025Q2": {
         "base_value": 200.0,
         "raw_amounts": (45.0, 11.0),
-        "capped_amounts": (20.0, 11.0),
-        "is_capped": (True, False),
-        "final_value": 231.0,
+        "capped_amounts": (20.0, 10.0),
+        "is_capped": (True, True),
+        "final_value": 230.0,
     },
     "2025Q3": {
         "base_value": 200.0,
         "raw_amounts": (40.0, 11.0),
-        "capped_amounts": (20.0, 11.0),
-        "is_capped": (True, False),
-        "final_value": 231.0,
+        "capped_amounts": (20.0, 10.0),
+        "is_capped": (True, True),
+        "final_value": 230.0,
     },
 }
 
@@ -319,6 +335,16 @@ The model and normalization contracts are mechanically ready. Empirical
 - Artifact: `finstack-quant/statements/schemas/statements/1/normalization_config.schema.json`
 - Supported variants: `fixed`, `percentage_of_node`
 
+## Reproducibility
+
+- Model schema: `{MODEL_SCHEMA_PATH.relative_to(WORKSPACE_ROOT)}`
+- Normalization schema: `{NORMALIZATION_SCHEMA_PATH.relative_to(WORKSPACE_ROOT)}`
+- Report-generation command:
+
+  ```
+  uv run python finstack-quant-py/examples/scripts/statements_test_a.py --write-report --signer {signer} --signed-on {signed_on.isoformat()}
+  ```
+
 ## A3 — Variant measurement
 
 - Status: **CONDITIONAL**
@@ -358,6 +384,11 @@ def write_report(path: Path, content: str) -> None:
     )
     temporary_path = Path(temporary_name)
     try:
+        # `mkstemp` creates the file mode 0600. Fix the mode on the open
+        # descriptor (not via a post-replace `chmod`, which would leave a
+        # window where a reader could observe the wrong permissions on the
+        # published path) so the replaced report stays ordinarily readable.
+        os.fchmod(descriptor, 0o644)
         with os.fdopen(descriptor, "w", encoding="utf-8") as output:
             output.write(content)
             output.flush()
@@ -393,12 +424,17 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         evidence = run_checks()
-        if args.write_report:
-            report = render_report(evidence, args.signer, args.signed_on)
-            write_report(args.report_path, report)
     except Exception as error:
         print(f"Test A mechanical failure: {error}", file=sys.stderr)
         return 1
+
+    if args.write_report:
+        try:
+            report = render_report(evidence, args.signer, args.signed_on)
+            write_report(args.report_path, report)
+        except Exception as error:
+            print(f"Test A report write failure: {error}", file=sys.stderr)
+            return 1
 
     print("A1 PASS — 40 nodes, 3 periods, 2 adjustments")
     print("A2 PASS — normalization schema published and validated")

@@ -8,7 +8,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::{Date, Month, PeriodId};
 use finstack_quant_core::money::Money;
 use finstack_quant_core::ContractDescriptor;
-use finstack_quant_statements::adjustments::types::NormalizationConfig;
+use finstack_quant_statements::adjustments::types::{CapBaseMode, NormalizationConfig};
 use finstack_quant_statements::capital_structure::{CapitalStructureCashflows, CashflowBreakdown};
 use finstack_quant_statements::checks::{
     CheckCategory, CheckFinding, CheckReport, CheckResult, CheckSummary, Materiality, Severity,
@@ -386,9 +386,14 @@ fn checked_in_schemas_apply_canonical_decimal_and_date_normalization() {
 #[test]
 fn normalization_config_schema_exposes_base_mode_reported_default() {
     let schema = normalization_config_schema().expect("normalization schema parses");
+    let default_mode =
+        serde_json::to_value(CapBaseMode::default()).expect("CapBaseMode default serializes");
+    // Pin the wire value so a future default-variant change is caught here,
+    // not just in the schema comparison below.
+    assert_eq!(default_mode, json!("reported"));
     assert_eq!(
         schema["$defs"]["AdjustmentCap"]["properties"]["base_mode"]["default"],
-        json!("reported")
+        default_mode
     );
 }
 

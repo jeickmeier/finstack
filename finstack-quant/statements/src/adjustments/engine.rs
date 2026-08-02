@@ -397,6 +397,69 @@ mod tests {
         );
     }
 
+    /// Characterization test: an omitted `base_mode` must cap a
+    /// self-referential adjustment against the **reported** (pre-adjustment)
+    /// target value, while an explicit `CapBaseMode::Progressive` must cap
+    /// against the running adjusted base after a prior adjustment. The two
+    /// outcomes must numerically diverge once an earlier adjustment has
+    /// widened (or narrowed) the running total.
+    #[test]
+    fn self_referential_cap_default_uses_reported_base_while_progressive_uses_adjusted_base() {
+        let results = mock_results();
+
+        let mut addback_amounts = IndexMap::new();
+        addback_amounts.insert(PeriodId::quarter(2025, 1), 20.0);
+        let addback = Adjustment::fixed("addback", "Addback", addback_amounts);
+
+        let mut second_amounts = IndexMap::new();
+        second_amounts.insert(PeriodId::quarter(2025, 1), 40.0);
+
+        // Omitted base_mode: `with_cap` uses `CapBaseMode::default()`.
+        let default_second = Adjustment::fixed("second", "Second", second_amounts.clone())
+            .with_cap(Some("EBITDA".to_string()), 0.30);
+        // Explicit Progressive base mode.
+        let progressive_second = Adjustment::fixed("second", "Second", second_amounts)
+            .with_cap_mode(Some("EBITDA".to_string()), 0.30, CapBaseMode::Progressive);
+
+        let default_config = NormalizationConfig::new("EBITDA")
+            .add_adjustment(addback.clone())
+            .expect("unique adjustment id")
+            .add_adjustment(default_second)
+            .expect("unique adjustment id");
+        let progressive_config = NormalizationConfig::new("EBITDA")
+            .add_adjustment(addback)
+            .expect("unique adjustment id")
+            .add_adjustment(progressive_second)
+            .expect("unique adjustment id");
+
+        let default_result = NormalizationEngine::normalize(&results, &default_config)
+            .expect("default reported-base cap normalizes");
+        let progressive_result = NormalizationEngine::normalize(&results, &progressive_config)
+            .expect("explicit progressive-base cap normalizes");
+
+        let default_capped = default_result[0].adjustments[1].capped_amount;
+        let progressive_capped = progressive_result[0].adjustments[1].capped_amount;
+
+        // Reported EBITDA is 100.0; the cap room does not widen from the
+        // prior 20.0 addback: 100.0 * 0.30 = 30.0.
+        assert_eq!(
+            default_capped, 30.0,
+            "omitted base_mode must cap against the reported (pre-adjustment) EBITDA"
+        );
+        // Progressive base is 100.0 + 20.0 (running total after the prior
+        // addback): (100.0 + 20.0) * 0.30 = 36.0.
+        assert_eq!(
+            progressive_capped, 36.0,
+            "explicit Progressive must cap against the running adjusted base"
+        );
+        assert_ne!(
+            default_capped, progressive_capped,
+            "default and Progressive self-referential caps must diverge after a prior adjustment"
+        );
+        assert!(default_result[0].adjustments[1].is_capped);
+        assert!(progressive_result[0].adjustments[1].is_capped);
+    }
+
     #[test]
     fn test_capped_adjustment_does_not_use_negative_ebitda_as_positive_cap_room() {
         let mut results = StatementResult::new();
