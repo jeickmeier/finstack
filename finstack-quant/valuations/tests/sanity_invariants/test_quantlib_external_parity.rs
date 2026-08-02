@@ -211,9 +211,7 @@ struct IrsFixture {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct IrsSpec {
-    trade_date: String,
     settlement_date: String,
     maturity_date: String,
     notional: f64,
@@ -383,7 +381,6 @@ struct FxForwardQuantlib {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct FxForwardQlSnapshot {
     npv_usd: f64,
 }
