@@ -2008,7 +2008,8 @@ def finite_diff_delta(
     Parameters
     ----------
     spot : float
-        Spot price.
+        Finite positive spot price. The down-bumped state must remain at least
+        ``1e-12``.
     strike : float
         Strike price.
     rate : float
@@ -2026,7 +2027,9 @@ def finite_diff_delta(
     num_steps : int, optional
         Time-grid steps (default ``50``).
     bump_size : float, optional
-        Relative bump fraction of spot (default ``0.01``).
+        Finite positive relative bump fraction of spot (default ``0.01``).
+        The absolute bump is ``max(abs(spot) * bump_size, 1e-8)`` and must
+        leave a symmetric central stencil above the spot floor.
     option_type : str, optional
         ``"call"`` or ``"put"``.
     currency : str, optional
@@ -2040,7 +2043,9 @@ def finite_diff_delta(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``spot`` or ``bump_size`` is non-finite or non-positive, the
+        symmetric down-bump falls below ``1e-12``, or another pricing input is
+        invalid.
 
     Examples
     --------
@@ -2075,7 +2080,8 @@ def finite_diff_delta_crn(
     Parameters
     ----------
     spot : float
-        Spot price.
+        Finite positive spot price. The down-bumped state must remain at least
+        ``1e-12``.
     strike : float
         Strike price.
     rate : float
@@ -2093,7 +2099,9 @@ def finite_diff_delta_crn(
     num_steps : int, optional
         Time-grid steps (default ``50``).
     bump_size : float, optional
-        Relative bump fraction of spot (default ``0.01``).
+        Finite positive relative bump fraction of spot (default ``0.01``).
+        The absolute bump is ``max(abs(spot) * bump_size, 1e-8)`` and must
+        leave a symmetric central stencil above the spot floor.
     option_type : str, optional
         ``"call"`` or ``"put"``.
     currency : str, optional
@@ -2107,7 +2115,9 @@ def finite_diff_delta_crn(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``spot`` or ``bump_size`` is non-finite or non-positive, the
+        symmetric down-bump falls below ``1e-12``, or another pricing input is
+        invalid.
 
     Examples
     --------
@@ -2139,7 +2149,8 @@ def finite_diff_gamma(
     Parameters
     ----------
     spot : float
-        Spot price.
+        Finite positive spot price. The down-bumped state must remain at least
+        ``1e-12``.
     strike : float
         Strike price.
     rate : float
@@ -2157,7 +2168,9 @@ def finite_diff_gamma(
     num_steps : int, optional
         Time-grid steps (default ``50``).
     bump_size : float, optional
-        Relative bump fraction of spot (default ``0.01``).
+        Finite positive relative bump fraction of spot (default ``0.01``).
+        The absolute bump is ``max(abs(spot) * bump_size, 1e-8)`` and must
+        leave a symmetric central stencil above the spot floor.
     option_type : str, optional
         ``"call"`` or ``"put"``.
     currency : str, optional
@@ -2171,7 +2184,9 @@ def finite_diff_gamma(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``spot`` or ``bump_size`` is non-finite or non-positive, the
+        symmetric down-bump falls below ``1e-12``, or another pricing input is
+        invalid.
 
     Examples
     --------
@@ -2205,7 +2220,8 @@ def finite_diff_gamma_crn(
     Parameters
     ----------
     spot : float
-        Spot price.
+        Finite positive spot price. The down-bumped state must remain at least
+        ``1e-12``.
     strike : float
         Strike price.
     rate : float
@@ -2223,7 +2239,9 @@ def finite_diff_gamma_crn(
     num_steps : int, optional
         Time-grid steps (default ``50``).
     bump_size : float, optional
-        Relative bump fraction of spot (default ``0.01``).
+        Finite positive relative bump fraction of spot (default ``0.01``).
+        The absolute bump is ``max(abs(spot) * bump_size, 1e-8)`` and must
+        leave a symmetric central stencil above the spot floor.
     option_type : str, optional
         ``"call"`` or ``"put"``.
     currency : str, optional
@@ -2237,7 +2255,9 @@ def finite_diff_gamma_crn(
     Raises
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``spot`` or ``bump_size`` is non-finite or non-positive, the
+        symmetric down-bump falls below ``1e-12``, or another pricing input is
+        invalid.
 
     Examples
     --------

@@ -1,5 +1,6 @@
 """Tests for Monte Carlo pricing: European pricer and convenience functions."""
 
+from collections.abc import Callable
 import math
 
 import pytest
@@ -9,11 +10,17 @@ from finstack_quant.monte_carlo import (
     GbmPathSummary,
     McEngine,
     TimeGrid,
+    finite_diff_delta,
+    finite_diff_delta_crn,
+    finite_diff_gamma,
+    finite_diff_gamma_crn,
     heston_satisfies_feller,
     price_european_call,
     price_european_put,
     simulate_gbm_paths,
 )
+
+GreekFunction = Callable[..., tuple[float, float]]
 
 
 class TestEuropeanPricer:
@@ -224,3 +231,42 @@ def test_heston_feller_delegates_validation_and_strict_condition() -> None:
     assert not heston_satisfies_feller(1.0, 0.045, 0.3)
     with pytest.raises(ValueError, match="kappa"):
         heston_satisfies_feller(0.0, 0.04, 0.3)
+
+
+@pytest.mark.parametrize(
+    "greek",
+    [
+        finite_diff_delta,
+        finite_diff_delta_crn,
+        finite_diff_gamma,
+        finite_diff_gamma_crn,
+    ],
+)
+@pytest.mark.parametrize(
+    ("spot", "bump_size", "message"),
+    [
+        (0.0, 0.01, "initial_spot"),
+        (float("nan"), 0.01, "initial_spot"),
+        (100.0, 0.0, "bump_size"),
+        (100.0, float("inf"), "bump_size"),
+        (1e-8, 2.0, "central stencil"),
+    ],
+)
+def test_finite_difference_greeks_map_invalid_stencils_to_value_error(
+    greek: GreekFunction,
+    spot: float,
+    bump_size: float,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        greek(
+            spot=spot,
+            strike=100.0,
+            rate=0.05,
+            div_yield=0.0,
+            vol=0.2,
+            expiry=1.0,
+            num_paths=8,
+            num_steps=1,
+            bump_size=bump_size,
+        )

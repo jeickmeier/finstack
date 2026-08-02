@@ -187,7 +187,14 @@ fn run_greek(
 /// Reports the conservative independence-bound stderr. Use [`finite_diff_delta_crn`]
 /// for paired common-random-number stderr.
 ///
+/// `spot` and the relative `bump_size` must be finite and positive. The
+/// absolute bump is `max(abs(spot) * bump_size, 1e-8)`, and the symmetric
+/// down-bumped state must remain at least `1e-12`.
+///
 /// Returns `(delta, stderr)`.
+///
+/// Raises `ValueError` when the inputs cannot form that symmetric central
+/// stencil or another pricing input is invalid.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (
@@ -231,7 +238,14 @@ fn finite_diff_delta(
 
 /// Finite-difference delta with paired common-random-number stderr.
 ///
+/// `spot` and the relative `bump_size` must be finite and positive. The
+/// absolute bump is `max(abs(spot) * bump_size, 1e-8)`, and the symmetric
+/// down-bumped state must remain at least `1e-12`.
+///
 /// Returns `(delta, stderr)`.
+///
+/// Raises `ValueError` when the inputs cannot form that symmetric central
+/// stencil or another pricing input is invalid.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (
@@ -275,7 +289,14 @@ fn finite_diff_delta_crn(
 
 /// Finite-difference gamma (independence-bound stderr).
 ///
+/// `spot` and the relative `bump_size` must be finite and positive. The
+/// absolute bump is `max(abs(spot) * bump_size, 1e-8)`, and the symmetric
+/// down-bumped state must remain at least `1e-12`.
+///
 /// Returns `(gamma, stderr)`.
+///
+/// Raises `ValueError` when the inputs cannot form that symmetric central
+/// stencil or another pricing input is invalid.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (
@@ -319,7 +340,14 @@ fn finite_diff_gamma(
 
 /// Finite-difference gamma with paired common-random-number stderr.
 ///
+/// `spot` and the relative `bump_size` must be finite and positive. The
+/// absolute bump is `max(abs(spot) * bump_size, 1e-8)`, and the symmetric
+/// down-bumped state must remain at least `1e-12`.
+///
 /// Returns `(gamma, stderr)`.
+///
+/// Raises `ValueError` when the inputs cannot form that symmetric central
+/// stencil or another pricing input is invalid.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 #[pyo3(signature = (
