@@ -611,7 +611,8 @@ impl DiscountedCashFlow {
     /// Calculate present value of explicit period cash flows using WACC.
     ///
     /// Respects [`mid_year_convention`](Self::mid_year_convention): when `true`,
-    /// each flow is discounted at `(t - 0.5)` years.
+    /// each flow's tenor is reduced by half the average flow spacing (0.5 years
+    /// for annual grids).
     pub fn calculate_pv_explicit_flows(&self) -> f64 {
         self.flows
             .iter()
