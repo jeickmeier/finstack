@@ -946,7 +946,6 @@ fn create_market_context() -> MarketContext {
 ### Related finstack Documentation
 
 - **Bond Instrument**: `finstack-quant/valuations/src/instruments/bond/README.md`
-- **Interest Rate Futures**: `finstack-quant/valuations/src/instruments/ir_future/README.md`
 - **Discount Curves**: `finstack-quant/core/src/market_data/term_structures/discount_curve.rs`
 - **Portfolio Framework**: `finstack-quant/portfolio/README.md`
 - **Scenario Engine**: `finstack-quant/scenarios/README.md`

@@ -15,8 +15,6 @@
 //!
 //! ## Total Coverage: ~80 tests
 //!
-//! See README.md for detailed test inventory.
-
 mod cashflows;
 mod common;
 mod construction;
