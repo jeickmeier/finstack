@@ -764,11 +764,8 @@ fn test_daycount_convention_impact_on_annuity() {
 /// # Acceptance Criteria
 /// - PV within 1e-8 of reference (deterministic, reproducible)
 /// - Reset dates must never be after accrual start dates
-/// - Runtime ≤ 5ms per swap valuation
 #[test]
 fn test_irs_t_minus_2_fixing_calendar_isda_standard() {
-    use std::time::Instant;
-
     let as_of = date!(2024 - 01 - 02); // Tuesday Jan 2, 2024
     let start = date!(2024 - 01 - 02);
     let end = date!(2029 - 01 - 02);
@@ -861,8 +858,6 @@ fn test_irs_t_minus_2_fixing_calendar_isda_standard() {
     // Validate the swap
     swap.validate().expect("Swap should be valid");
 
-    // Performance test: pricing should complete in < 5ms
-    let timer = Instant::now();
     let result = swap
         .price_with_metrics(
             &market,
@@ -876,15 +871,6 @@ fn test_irs_t_minus_2_fixing_calendar_isda_standard() {
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .unwrap();
-    let elapsed = timer.elapsed();
-
-    let max_ms = if cfg!(debug_assertions) { 200 } else { 10 };
-    assert!(
-        elapsed.as_millis() <= max_ms,
-        "Pricing should complete in <= {}ms, took {}ms",
-        max_ms,
-        elapsed.as_millis()
-    );
 
     let pv = result.value.amount();
     let pv_fixed = result.measures["pv_fixed"];

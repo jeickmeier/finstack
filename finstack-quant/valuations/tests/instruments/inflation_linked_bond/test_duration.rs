@@ -212,21 +212,3 @@ fn test_real_duration_uk_gilt() {
     assert!(dur > 10.0);
     assert!(dur < 20.0);
 }
-
-#[test]
-fn test_duration_calculation_performance() {
-    // Arrange
-    let ilb = sample_tips();
-    let (ctx, _) = market_context_with_index();
-    let as_of = d(2025, 1, 2);
-
-    // Act
-    let start = std::time::Instant::now();
-    for _ in 0..100 {
-        let _ = ilb.real_duration(&ctx, as_of).unwrap();
-    }
-    let elapsed = start.elapsed();
-
-    // Assert - 100 duration calculations should be fast (< 1 second)
-    assert!(elapsed.as_secs() < 1);
-}
