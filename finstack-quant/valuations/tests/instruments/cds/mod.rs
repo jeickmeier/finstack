@@ -11,6 +11,7 @@
 
 mod test_cds_construction;
 mod test_cds_conventions;
+mod test_cds_determinism;
 mod test_cds_edge_cases;
 mod test_cds_market_validation;
 mod test_cds_metrics;
@@ -18,5 +19,4 @@ mod test_cds_pricing;
 mod test_credit_derivatives_edge_cases;
 mod test_par_spread_roundtrip;
 
-mod test_cds_pricing_2;
 mod test_upfront;

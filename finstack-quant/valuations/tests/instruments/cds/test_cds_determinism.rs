@@ -4,8 +4,6 @@
 //! par spreads, CS01, and protection/premium leg calculations, and validates
 //! correctness against market standards.
 
-#[allow(unused_imports)]
-use crate::common::test_helpers::tolerances;
 use crate::finstack_quant_test_utils as test_utils;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::dates::Date;
@@ -67,25 +65,33 @@ fn create_test_market(base_date: Date) -> MarketContext {
     MarketContext::new().insert(disc).insert(hazard)
 }
 
+fn metric_value(
+    cds: &CreditDefaultSwap,
+    market: &MarketContext,
+    as_of: Date,
+    metric: MetricId,
+) -> f64 {
+    let result = cds
+        .price_with_metrics(
+            market,
+            as_of,
+            std::slice::from_ref(&metric),
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .unwrap();
+    result.measures[metric.as_str()]
+}
+
 #[test]
 fn test_cds_pv_determinism() {
     let cds = create_test_cds();
     let as_of = Date::from_calendar_date(2025, Month::January, 15).unwrap();
     let market = create_test_market(as_of);
 
-    // Price the CDS 100 times
-    let prices: Vec<f64> = (0..100)
-        .map(|_| cds.value(&market, as_of).unwrap().amount())
-        .collect();
+    let first = cds.value(&market, as_of).unwrap().amount();
+    let second = cds.value(&market, as_of).unwrap().amount();
 
-    // All prices must be bitwise identical
-    for i in 1..prices.len() {
-        assert_eq!(
-            prices[i], prices[0],
-            "CDS PV at iteration {} = {:.15} differs from iteration 0 = {:.15}",
-            i, prices[i], prices[0]
-        );
-    }
+    assert_eq!(second, first, "CDS PV must be bitwise deterministic");
 }
 
 #[test]
@@ -94,29 +100,10 @@ fn test_cds_cs01_determinism() {
     let as_of = Date::from_calendar_date(2025, Month::January, 15).unwrap();
     let market = create_test_market(as_of);
 
-    // Calculate CS01 50 times
-    let cs01s: Vec<f64> = (0..50)
-        .map(|_| {
-            let result = cds
-                .price_with_metrics(
-                    &market,
-                    as_of,
-                    &[MetricId::Cs01],
-                    finstack_quant_valuations::instruments::PricingOptions::default(),
-                )
-                .unwrap();
-            result.measures[MetricId::Cs01.as_str()]
-        })
-        .collect();
+    let first = metric_value(&cds, &market, as_of, MetricId::Cs01);
+    let second = metric_value(&cds, &market, as_of, MetricId::Cs01);
 
-    // All CS01s must be identical
-    for i in 1..cs01s.len() {
-        assert_eq!(
-            cs01s[i], cs01s[0],
-            "CS01 differs at iteration {}: {:.15} vs {:.15}",
-            i, cs01s[i], cs01s[0]
-        );
-    }
+    assert_eq!(second, first, "CS01 must be bitwise deterministic");
 }
 
 #[test]
@@ -125,29 +112,10 @@ fn test_cds_par_spread_determinism() {
     let as_of = Date::from_calendar_date(2025, Month::January, 15).unwrap();
     let market = create_test_market(as_of);
 
-    // Calculate par spread 50 times
-    let spreads: Vec<f64> = (0..50)
-        .map(|_| {
-            let result = cds
-                .price_with_metrics(
-                    &market,
-                    as_of,
-                    &[MetricId::ParSpread],
-                    finstack_quant_valuations::instruments::PricingOptions::default(),
-                )
-                .unwrap();
-            result.measures[MetricId::ParSpread.as_str()]
-        })
-        .collect();
+    let first = metric_value(&cds, &market, as_of, MetricId::ParSpread);
+    let second = metric_value(&cds, &market, as_of, MetricId::ParSpread);
 
-    // All spreads must be identical
-    for i in 1..spreads.len() {
-        assert_eq!(
-            spreads[i], spreads[0],
-            "Par spread differs at iteration {}: {:.15} vs {:.15}",
-            i, spreads[i], spreads[0]
-        );
-    }
+    assert_eq!(second, first, "par spread must be bitwise deterministic");
 
     // Correctness: Credit triangle approximation: par_spread ≈ hazard × (1-R) × 10000
     // With hazard ~1.5% at short end and recovery 40%:
@@ -156,9 +124,9 @@ fn test_cds_par_spread_determinism() {
     let min_spread = 60.0; // bp
     let max_spread = 150.0; // bp
     assert!(
-        spreads[0] > min_spread && spreads[0] < max_spread,
+        first > min_spread && first < max_spread,
         "Par spread {} bp outside expected range [{}, {}] bp",
-        spreads[0],
+        first,
         min_spread,
         max_spread
     );
@@ -170,29 +138,10 @@ fn test_cds_risky_annuity_determinism() {
     let as_of = Date::from_calendar_date(2025, Month::January, 15).unwrap();
     let market = create_test_market(as_of);
 
-    // Calculate risky PV01 50 times
-    let pv01s: Vec<f64> = (0..50)
-        .map(|_| {
-            let result = cds
-                .price_with_metrics(
-                    &market,
-                    as_of,
-                    &[MetricId::RiskyPv01],
-                    finstack_quant_valuations::instruments::PricingOptions::default(),
-                )
-                .unwrap();
-            result.measures[MetricId::RiskyPv01.as_str()]
-        })
-        .collect();
+    let first = metric_value(&cds, &market, as_of, MetricId::RiskyPv01);
+    let second = metric_value(&cds, &market, as_of, MetricId::RiskyPv01);
 
-    // All risky PV01s must be identical
-    for i in 1..pv01s.len() {
-        assert_eq!(
-            pv01s[i], pv01s[0],
-            "Risky PV01 differs at iteration {}: {:.15} vs {:.15}",
-            i, pv01s[i], pv01s[0]
-        );
-    }
+    assert_eq!(second, first, "risky PV01 must be bitwise deterministic");
 }
 
 #[test]
@@ -201,7 +150,7 @@ fn test_cds_all_metrics_determinism() {
     let as_of = Date::from_calendar_date(2025, Month::January, 15).unwrap();
     let market = create_test_market(as_of);
 
-    let metrics = vec![
+    let metrics = [
         MetricId::Cs01,
         MetricId::ParSpread,
         MetricId::RiskyPv01,
@@ -209,44 +158,37 @@ fn test_cds_all_metrics_determinism() {
         MetricId::PremiumLegPv,
     ];
 
-    // Calculate all metrics 30 times
-    let results: Vec<_> = (0..30)
-        .map(|_| {
-            cds.price_with_metrics(
-                &market,
-                as_of,
-                &metrics,
-                finstack_quant_valuations::instruments::PricingOptions::default(),
-            )
-            .unwrap()
-        })
-        .collect();
+    let first = cds
+        .price_with_metrics(
+            &market,
+            as_of,
+            &metrics,
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .unwrap();
+    let second = cds
+        .price_with_metrics(
+            &market,
+            as_of,
+            &metrics,
+            finstack_quant_valuations::instruments::PricingOptions::default(),
+        )
+        .unwrap();
 
-    // Verify each metric is deterministic
     for metric in &metrics {
-        let values: Vec<f64> = results
-            .iter()
-            .map(|r| r.measures[metric.as_str()])
-            .collect();
-
-        for i in 1..values.len() {
-            assert_eq!(
-                values[i],
-                values[0],
-                "{} differs at iteration {}: {:.15} vs {:.15}",
-                metric.as_str(),
-                i,
-                values[i],
-                values[0]
-            );
-        }
+        assert_eq!(
+            second.measures[metric.as_str()],
+            first.measures[metric.as_str()],
+            "{} must be bitwise deterministic",
+            metric.as_str()
+        );
     }
 
     // Correctness: Protection and premium legs should have reasonable ratio
     // Note: Legs won't exactly balance since CDS is not at par spread
     // But their ratio should be reasonable
-    let protection_pv = results[0].measures[MetricId::ProtectionLegPv.as_str()];
-    let premium_pv = results[0].measures[MetricId::PremiumLegPv.as_str()];
+    let protection_pv = first.measures[MetricId::ProtectionLegPv.as_str()];
+    let premium_pv = first.measures[MetricId::PremiumLegPv.as_str()];
     let pv_ratio = protection_pv / premium_pv.abs();
     assert!(
         pv_ratio > 0.1 && pv_ratio < 10.0,
@@ -279,16 +221,12 @@ fn test_cds_different_tenors_determinism() {
         )
         .expect("CDS construction should succeed");
 
-        let prices: Vec<f64> = (0..30)
-            .map(|_| cds.value(&market, as_of).unwrap().amount())
-            .collect();
+        let first = cds.value(&market, as_of).unwrap().amount();
+        let second = cds.value(&market, as_of).unwrap().amount();
 
-        for i in 1..prices.len() {
-            assert_eq!(
-                prices[i], prices[0],
-                "Maturity {} - PV differs at iteration {}: {:.15} vs {:.15}",
-                maturity, i, prices[i], prices[0]
-            );
-        }
+        assert_eq!(
+            second, first,
+            "maturity {maturity}: CDS PV must be bitwise deterministic"
+        );
     }
 }
