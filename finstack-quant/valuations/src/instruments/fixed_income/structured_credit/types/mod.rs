@@ -420,7 +420,7 @@ pub struct StructuredCredit {
     /// # Examples
     ///
     /// ```
-    /// use finstack_quant_valuations::instruments::fixed_income::structured_credit::CoverageTrigger;
+    /// use finstack_quant_valuations::instruments::fixed_income::structured_credit::waterfall::CoverageTrigger;
     ///
     /// // Class A must maintain 120% OC and 115% IC.
     /// let trigger = CoverageTrigger {
@@ -431,9 +431,9 @@ pub struct StructuredCredit {
     /// assert_eq!(trigger.oc_trigger, Some(1.20));
     /// ```
     ///
-    /// Use the fully-qualified waterfall type here: `tranches::CoverageTrigger`
-    /// is a different per-tranche breach-state record that shares the name.
-    /// The public re-export `structured_credit::CoverageTrigger` is this one.
+    /// Use the fully-qualified waterfall type here: the public re-export
+    /// `structured_credit::CoverageTrigger` is a different per-tranche
+    /// breach-state record that shares the name.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub coverage_triggers: Vec<waterfall::CoverageTrigger>,
@@ -669,7 +669,7 @@ impl StructuredCredit {
     ///
     /// ```no_run
     /// # use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
-    /// #     StructuredCredit, CoverageTrigger,
+    /// #     StructuredCredit, waterfall::CoverageTrigger,
     /// # };
     /// # fn example(deal: StructuredCredit) -> finstack_quant_core::Result<()> {
     /// let deal = deal.with_coverage_triggers(vec![CoverageTrigger {

@@ -14,7 +14,9 @@
 /// Act/365F. On an Act/360 curve that is a 1.39% relative difference in `t`,
 /// so the second-order price expansion
 ///
-///     dP/P ~= -D*dy + 0.5*C*dy^2
+/// ```text
+/// dP/P ~= -D*dy + 0.5*C*dy^2
+/// ```
 ///
 /// mixed two clocks: `D` and `C` were not measured against the same yield
 /// unit, and combining them was internally inconsistent.
