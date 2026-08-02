@@ -332,14 +332,6 @@ pub struct PyDayCountContextState {
     pub(crate) inner: DayCountContextState,
 }
 
-impl PyDayCountContextState {
-    /// Build from an existing Rust [`DayCountContextState`].
-    #[allow(dead_code)]
-    pub(crate) fn from_inner(inner: DayCountContextState) -> Self {
-        Self { inner }
-    }
-}
-
 #[pymethods]
 impl PyDayCountContextState {
     /// Create a context state.
@@ -440,14 +432,6 @@ impl PyDayCountContextState {
 pub struct PyThirty360Convention {
     /// Inner convention variant.
     pub(crate) inner: Thirty360Convention,
-}
-
-impl PyThirty360Convention {
-    /// Build from an existing Rust [`Thirty360Convention`].
-    #[allow(dead_code)]
-    pub(crate) const fn from_inner(inner: Thirty360Convention) -> Self {
-        Self { inner }
-    }
 }
 
 #[pymethods]

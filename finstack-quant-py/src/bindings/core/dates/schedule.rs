@@ -102,14 +102,6 @@ pub struct PyScheduleErrorPolicy {
     pub(crate) inner: ScheduleErrorPolicy,
 }
 
-impl PyScheduleErrorPolicy {
-    /// Build from an existing Rust [`ScheduleErrorPolicy`].
-    #[allow(dead_code)]
-    pub(crate) const fn from_inner(inner: ScheduleErrorPolicy) -> Self {
-        Self { inner }
-    }
-}
-
 #[pymethods]
 impl PyScheduleErrorPolicy {
     /// Strict — errors are immediately propagated.

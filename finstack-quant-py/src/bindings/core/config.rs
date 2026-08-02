@@ -111,14 +111,6 @@ pub struct PyToleranceConfig {
     pub(crate) inner: ToleranceConfig,
 }
 
-impl PyToleranceConfig {
-    /// Build a Python wrapper from a Rust [`ToleranceConfig`].
-    #[allow(dead_code)]
-    pub(crate) fn from_inner(inner: ToleranceConfig) -> Self {
-        Self { inner }
-    }
-}
-
 #[pymethods]
 impl PyToleranceConfig {
     #[new]
@@ -169,7 +161,6 @@ pub struct PyFinstackConfig {
 
 impl PyFinstackConfig {
     /// Build a Python wrapper from a Rust [`FinstackConfig`].
-    #[allow(dead_code)]
     pub(crate) fn from_inner(inner: FinstackConfig) -> Self {
         Self { inner }
     }
