@@ -19,321 +19,99 @@
 
 //! Multi-period P&L attribution for financial instruments.
 //!
-//! This crate decomposes mark-to-market changes between two dates into
-//! constituent factors: carry, rates curves, credit curves, inflation,
-//! correlations, FX, volatility, model parameters, and market scalars.
+//! Attribution explains the change in an instrument's value between two dates
+//! by separating carry and market-factor effects.
 //!
-//! # Overview
+//! # Methods
 //!
-//! P&L attribution answers the question: "Why did my position's value change from
-//! T₀ to T₁?" by isolating the impact of each market factor and model parameter.
+//! | Entry point | Use when |
+//! |---|---|
+//! | [`simple_pnl_bridge`] | Only raw endpoint P&L in an explicit currency is required |
+//! | [`attribute_pnl_metrics_based`] | Precomputed first- and optional second-order sensitivities provide a fast approximation |
+//! | [`attribute_pnl_parallel`] | Independent factor effects and an interaction residual are required |
+//! | [`attribute_pnl_waterfall`] | An ordered full-revaluation decomposition is required |
+//! | [`attribute_pnl_taylor`] | A bump-and-reprice first- or second-order decomposition is required |
 //!
-//! # Choosing a methodology
+//! # Conventions
 //!
-//! This module is intentionally layered by cost and fidelity. **Start at the top
-//! tier** and only move down when you actually need the extra information — the
-//! heavier methodologies are substantially more expensive and introduce more
-//! moving parts in production pipelines.
+//! - Positive P&L is a gain to the long-position holder.
+//! - Decomposition methods use a total-return basis: `total_pnl` includes cash
+//!   paid in `[T₀, T₁)`, while `mark_to_market_pnl` preserves the raw endpoint
+//!   value change when available. [`simple_pnl_bridge`] returns only that raw
+//!   endpoint change.
+//! - Repricing methods isolate the date roll before market moves. Waterfall
+//!   orders must begin with [`AttributionFactor::Carry`]; metrics-based carry
+//!   uses `CarryTotal` or theta over the elapsed days.
+//! - Direct decomposition functions report in the instrument's native pricing
+//!   currency; [`simple_pnl_bridge`] accepts an explicit target currency.
+//!   [`AttributionConfig::target_currency`] can translate aggregate fields:
+//!   opening value uses T₀ market/date FX, closing value uses T₁ market/date FX,
+//!   factors use T₁ FX, and the opening-position FX move is recorded separately
+//!   as `fx_translation_pnl`. Detail maps remain in native currency. The
+//!   `fx_pnl` field remains the pricing impact of FX inside the instrument.
 //!
-//! | Tier         | Entry point                                                      | Use when                                    |
-//! |--------------|------------------------------------------------------------------|---------------------------------------------|
-//! | Minimal      | [`crate::simple_pnl_bridge`]                        | You just want total P&L, no decomposition   |
-//! | Linear       | [`crate::attribute_pnl_metrics_based`]              | Fast daily attribution for small moves      |
-//! | Parallel     | [`crate::attribute_pnl_parallel`]                   | Factor isolation with a residual line       |
-//! | Waterfall    | [`crate::attribute_pnl_waterfall`]                  | Sum-preserving, path-ordered decomposition  |
-//! | Taylor       | [`crate::attribute_pnl_taylor`]                     | Second-order sensitivity-based breakdown    |
+//! # Residuals and errors
 //!
-//! The simple bridge is a single function (~30 LOC). The linear path uses
-//! pre-computed metrics (DV01, theta, etc.) and is the right default for most
-//! daily batch jobs. Parallel/waterfall/taylor are **opt-in** advanced paths
-//! reserved for scenarios where factor attribution genuinely drives a business
-//! decision; they all involve non-trivial per-factor repricing and should be
-//! benchmarked before being wired into hot paths.
+//! Every result reconciles `total_pnl` to its aggregate factor fields plus the
+//! residual. A waterfall residual should be near zero when its order covers all
+//! material factors; parallel residuals contain interactions and nonlinearity;
+//! metrics-based residuals contain approximation and missing-sensitivity effects;
+//! Taylor residuals also contain truncation, uncovered scalars, and soft factor
+//! failures.
 //!
-//! # Interpretation conventions
+//! The four decomposition methods reject reversed date ranges; same-day ranges
+//! are valid. Waterfall also requires a nonempty, duplicate-free order beginning
+//! with carry, and Taylor validates its bump ranges. Repricing, market-data,
+//! currency, and FX failures propagate except on documented best-effort factor
+//! paths, which record failures in metadata and residual instead.
 //!
-//! Positive P&L is a gain to the long-position holder. Every factor contribution
-//! is reported in the same currency as `total_pnl`; date-specific FX conversion
-//! uses the T₀ market for T₀ values and the T₁ market for T₁ values. Residuals
-//! have method-specific meanings: waterfall residuals should be small, parallel
-//! residuals capture cross-effects, and metrics-based residuals scale with move
-//! size and convexity.
+//! # Example
 //!
-//! # Reporting currency
-//!
-//! Every attribution method reports in the instrument's **native pricing
-//! currency** (`val_t1.currency()`). Cross-currency translation into a
-//! non-native portfolio reporting currency (e.g. an EUR bond reported in USD)
-//! is out of scope for the per-instrument attribution surface — it is the
-//! responsibility of the portfolio layer (`finstack-quant-portfolio`) to handle
-//! base-currency rollups with explicit FX policy stamping. The `fx_pnl`
-//! component captures pricing-impact FX P&L for cross-currency instruments
-//! (FX options, cross-currency swaps, foreign-currency bonds) where the FX
-//! matrix feeds into the instrument's own pricing.
-//!
-//! # Doctrine: date roll first
-//!
-//! Every methodology treats the **date roll** — pricing today's position with
-//! yesterday's market — as the foundational first step before any factor-level
-//! market move is layered in. Parallel and Taylor implement this implicitly;
-//! Waterfall enforces it at the entry point by rejecting any `factor_order`
-//! that does not start with [`AttributionFactor::Carry`]. MetricsBased reports
-//! carry as the first attribution line via the `Theta × days` (or
-//! `CarryTotal × days`) sensitivity-based approximation.
-//!
-//! # Methodologies
-//!
-//! Four attribution methodologies are supported:
-//!
-//! - **Parallel Attribution**: Independent factor isolation. Each factor is analyzed
-//!   in isolation by restoring T₀ values while keeping all other factors at T₁.
-//!   Residual captures cross-effects and non-linearities.
-//!
-//! - **Waterfall Attribution**: Sequential factor application. Factors are applied
-//!   one-by-one in a specified order, with each factor's P&L computed after applying
-//!   all previous factors. Guarantees sum = total P&L (minimal residual by construction).
-//!
-//! - **Metrics-Based Attribution**: Linear approximation using existing metrics
-//!   (Theta, DV01, CS01, etc.). Fast but less accurate for large market moves.
-//!
-//! - **Taylor Attribution**: Sensitivity-based Taylor expansion. Computes first-order
-//!   (and optionally second-order) sensitivities at T₀ via bump-and-reprice, then
-//!   multiplies by observed market moves. Complements the waterfall approach with
-//!   an independent, factor-additive decomposition.
-//!
-//! # Attribution Factors
-//!
-//! The following factors are supported:
-//!
-//! - **Carry**: Time decay (theta) and accruals
-//! - **RatesCurves**: Discount and forward curve shifts (IR risk)
-//! - **CreditCurves**: Hazard curve shifts (credit spread risk)
-//! - **InflationCurves**: Inflation curve shifts
-//! - **Correlations**: Base correlation curve changes (structured credit)
-//! - **Fx**: FX rate changes
-//! - **Volatility**: Implied volatility changes
-//! - **ModelParameters**: Model-specific parameters (prepayment, default, recovery, conversion)
-//! - **MarketScalars**: Dividends, equity/commodity prices, inflation indices
-//!
-//! # Examples
-//!
-//! ## Basic Parallel Attribution
-//!
-//! ```ignore
+//! ```rust
 //! use finstack_quant_attribution::{attribute_pnl_parallel, ExecutionPolicy};
-//! use finstack_quant_valuations::instruments::Instrument;
-//! use finstack_quant_valuations::instruments::rates::deposit::Deposit;
-//! use finstack_quant_core::config::FinstackConfig;
-//! use finstack_quant_core::currency::Currency;
-//! use finstack_quant_core::market_data::context::MarketContext;
-//! use finstack_quant_core::money::Money;
+//! use finstack_quant_core::{
+//!     config::FinstackConfig,
+//!     currency::Currency,
+//!     market_data::{context::MarketContext, scalars::MarketScalar},
+//!     money::Money,
+//! };
+//! use finstack_quant_valuations::instruments::{equity::spot::Equity, Instrument};
 //! use std::sync::Arc;
 //! use time::macros::date;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let as_of_t0 = date!(2025-01-15);
-//! let as_of_t1 = date!(2025-01-16);
-//! let market_t0 = MarketContext::new();
-//! let market_t1 = MarketContext::new();
-//! let config = FinstackConfig::default();
-//!
-//! let instrument = Arc::new(
-//!     Deposit::builder()
-//!         .id("DEP-1D".into())
-//!         .notional(Money::new(1_000_000.0, Currency::USD))
-//!         .start_date(as_of_t0)
-//!         .maturity(as_of_t1)
-//!         .day_count(finstack_quant_core::dates::DayCount::Act360)
-//!         .discount_curve_id("USD-OIS".into())
-//!         .build()
-//!         .expect("deposit builder should succeed"),
-//! ) as Arc<dyn Instrument>;
+//! let instrument: Arc<dyn Instrument> = Arc::new(
+//!     Equity::new("AAPL", "AAPL", Currency::USD)
+//!         .with_price_id("AAPL-SPOT")
+//!         .with_shares(100.0),
+//! );
+//! let market_t0 = MarketContext::new().insert_price(
+//!     "AAPL-SPOT",
+//!     MarketScalar::Price(Money::new(180.0, Currency::USD)),
+//! );
+//! let market_t1 = MarketContext::new().insert_price(
+//!     "AAPL-SPOT",
+//!     MarketScalar::Price(Money::new(185.0, Currency::USD)),
+//! );
 //!
 //! let attribution = attribute_pnl_parallel(
 //!     &instrument,
 //!     &market_t0,
 //!     &market_t1,
-//!     as_of_t0,
-//!     as_of_t1,
-//!     &config,
-//!     ExecutionPolicy::Parallel,
+//!     date!(2025 - 01 - 15),
+//!     date!(2025 - 01 - 16),
+//!     &FinstackConfig::default(),
+//!     ExecutionPolicy::Serial,
 //! )?;
 //!
-//! println!("Total P&L: {}", attribution.total_pnl);
-//! println!("Carry: {}", attribution.carry);
-//! println!("Rates: {}", attribution.rates_curves_pnl);
-//! println!("Residual: {} ({:.2}%)",
-//!     attribution.residual,
-//!     attribution.meta.residual_pct
+//! assert_eq!(attribution.total_pnl, Money::new(500.0, Currency::USD));
+//! assert_eq!(
+//!     attribution.market_scalars_pnl,
+//!     Money::new(500.0, Currency::USD),
 //! );
 //! # Ok(())
 //! # }
 //! ```
-//!
-//! ## Waterfall Attribution
-//!
-//! ```ignore
-//! use finstack_quant_attribution::{
-//!     attribute_pnl_waterfall, AttributionFactor
-//! };
-//! use finstack_quant_valuations::instruments::Instrument;
-//! use finstack_quant_valuations::instruments::rates::deposit::Deposit;
-//! use finstack_quant_core::config::FinstackConfig;
-//! use finstack_quant_core::currency::Currency;
-//! use finstack_quant_core::market_data::context::MarketContext;
-//! use finstack_quant_core::money::Money;
-//! use std::sync::Arc;
-//! use time::macros::date;
-//!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let factor_order = vec![
-//!     AttributionFactor::Carry,
-//!     AttributionFactor::RatesCurves,
-//!     AttributionFactor::CreditCurves,
-//!     AttributionFactor::Fx,
-//! ];
-//!
-//! let as_of_t0 = date!(2025-01-15);
-//! let as_of_t1 = date!(2025-01-16);
-//! let market_t0 = MarketContext::new();
-//! let market_t1 = MarketContext::new();
-//! let config = FinstackConfig::default();
-//! let instrument = Arc::new(
-//!     Deposit::builder()
-//!         .id("DEP-1D".into())
-//!         .notional(Money::new(1_000_000.0, Currency::USD))
-//!         .start_date(as_of_t0)
-//!         .maturity(as_of_t1)
-//!         .day_count(finstack_quant_core::dates::DayCount::Act360)
-//!         .discount_curve_id("USD-OIS".into())
-//!         .build()
-//!         .expect("deposit builder should succeed"),
-//! ) as Arc<dyn Instrument>;
-//!
-//! let attribution = attribute_pnl_waterfall(
-//!     &instrument,
-//!     &market_t0,
-//!     &market_t1,
-//!     as_of_t0,
-//!     as_of_t1,
-//!     &config,
-//!     factor_order,
-//!     false, // strict validation
-//!     None,
-//! )?;
-//!
-//! // Residual should be minimal (< 0.01%)
-//! assert!(attribution.residual_within_tolerance(0.01, 1.0));
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! ## Metrics-Based Attribution
-//!
-//! ```ignore
-//! use finstack_quant_attribution::attribute_pnl_metrics_based;
-//! use finstack_quant_attribution::default_attribution_metrics;
-//! use finstack_quant_valuations::instruments::Instrument;
-//! use finstack_quant_valuations::instruments::PricingOptions;
-//! use finstack_quant_valuations::instruments::rates::deposit::Deposit;
-//! use finstack_quant_core::currency::Currency;
-//! use finstack_quant_core::market_data::context::MarketContext;
-//! use finstack_quant_core::money::Money;
-//! use std::sync::Arc;
-//! use time::macros::date;
-//!
-//! // Requires pre-computed valuations with metrics
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let as_of_t0 = date!(2025-01-15);
-//! let as_of_t1 = date!(2025-01-16);
-//! let market_t0 = MarketContext::new();
-//! let market_t1 = MarketContext::new();
-//! let metrics = default_attribution_metrics();
-//!
-//! let instrument = Arc::new(
-//!     Deposit::builder()
-//!         .id("DEP-1D".into())
-//!         .notional(Money::new(1_000_000.0, Currency::USD))
-//!         .start_date(as_of_t0)
-//!         .maturity(as_of_t1)
-//!         .day_count(finstack_quant_core::dates::DayCount::Act360)
-//!         .discount_curve_id("USD-OIS".into())
-//!         .build()
-//!         .expect("deposit builder should succeed"),
-//! ) as Arc<dyn Instrument>;
-//!
-//! let val_t0 = instrument.price_with_metrics(&market_t0, as_of_t0, &metrics, PricingOptions::default())?;
-//! let val_t1 = instrument.price_with_metrics(&market_t1, as_of_t1, &metrics, PricingOptions::default())?;
-//!
-//! let attribution = attribute_pnl_metrics_based(
-//!     &instrument,
-//!     &market_t0,
-//!     &market_t1,
-//!     &val_t0,
-//!     &val_t1,
-//!     as_of_t0,
-//!     as_of_t1,
-//! )?;
-//! # let _ = attribution;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! # Per-Tenor Curve Attribution
-//!
-//! ```ignore
-//! use finstack_quant_attribution::{attribute_pnl_parallel, ExecutionPolicy};
-//! use finstack_quant_valuations::instruments::Instrument;
-//! use finstack_quant_valuations::instruments::rates::deposit::Deposit;
-//! use finstack_quant_core::config::FinstackConfig;
-//! use finstack_quant_core::currency::Currency;
-//! use finstack_quant_core::market_data::context::MarketContext;
-//! use finstack_quant_core::money::Money;
-//! use std::sync::Arc;
-//! use time::macros::date;
-//!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let as_of_t0 = date!(2025-01-15);
-//! let as_of_t1 = date!(2025-01-16);
-//! let market_t0 = MarketContext::new();
-//! let market_t1 = MarketContext::new();
-//! let config = FinstackConfig::default();
-//!
-//! let instrument = Arc::new(
-//!     Deposit::builder()
-//!         .id("DEP-1D".into())
-//!         .notional(Money::new(1_000_000.0, Currency::USD))
-//!         .start_date(as_of_t0)
-//!         .maturity(as_of_t1)
-//!         .day_count(finstack_quant_core::dates::DayCount::Act360)
-//!         .discount_curve_id("USD-OIS".into())
-//!         .build()
-//!         .expect("deposit builder should succeed"),
-//! ) as Arc<dyn Instrument>;
-//!
-//! let attribution = attribute_pnl_parallel(
-//!     &instrument,
-//!     &market_t0,
-//!     &market_t1,
-//!     as_of_t0,
-//!     as_of_t1,
-//!     &config,
-//!     ExecutionPolicy::Parallel,
-//! )?;
-//!
-//! if let Some(rates_detail) = &attribution.rates_detail {
-//!     for ((curve_id, tenor), pnl) in &rates_detail.by_tenor {
-//!         println!("{} {}: {}", curve_id, tenor, pnl);
-//!     }
-//! }
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! # References
-//!
-//! - Fixed-income sensitivity intuition: `docs/REFERENCES.md#tuckman-serrat-fixed-income`
-//! - Risk decomposition and factor attribution: `docs/REFERENCES.md#meucci-risk-and-asset-allocation`
 
 pub(crate) mod credit_cascade;
 pub(crate) mod credit_decomposition;
