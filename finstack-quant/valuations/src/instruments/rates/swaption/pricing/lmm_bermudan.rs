@@ -30,6 +30,7 @@
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 use finstack_quant_monte_carlo::discretization::lmm_predictor_corrector::LmmPredictorCorrector;
+use finstack_quant_monte_carlo::engine::MAX_NUM_PATHS;
 use finstack_quant_monte_carlo::online_stats::OnlineStats;
 use finstack_quant_monte_carlo::pricer::lsq::solve_least_squares;
 use finstack_quant_monte_carlo::process::lmm::{LmmParams, LmmProcess};
@@ -38,10 +39,18 @@ use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_monte_carlo::time_grid::TimeGrid;
 use finstack_quant_monte_carlo::traits::{Discretization, RandomStream};
 
+const EXERCISE_TIME_TOLERANCE: f64 = 1e-10;
+
 /// Configuration for the LMM Bermudan swaption pricer.
 #[derive(Debug, Clone)]
 pub struct LmmBermudanConfig {
-    /// Number of Monte Carlo paths.
+    /// Number of simulated Monte Carlo paths.
+    ///
+    /// The count must not exceed [`MAX_NUM_PATHS`]. Antithetic sampling
+    /// requires an even count. The pricer also requires at least two
+    /// independent pricing observations, so the minimum is 2 for ordinary
+    /// in-sample pricing, 4 with either antithetic or out-of-sample pricing,
+    /// and 8 when both modes are enabled.
     pub num_paths: usize,
     /// Random seed for reproducibility.
     pub seed: u64,
@@ -98,7 +107,9 @@ impl Default for LmmBermudanConfig {
 /// # Arguments
 ///
 /// * `params` — Calibrated LMM parameters.
-/// * `exercise_times` — Times (year fractions) at which the holder may exercise.
+/// * `exercise_times` — Strictly increasing, unique year fractions at which
+///   the holder may exercise. Every time must be finite and lie strictly
+///   between zero and the terminal LMM tenor.
 /// * `strike` — Fixed rate K of the underlying swap.
 /// * `payer` — `true` for payer swaption, `false` for receiver.
 /// * `notional` — Swap notional.
@@ -112,8 +123,11 @@ impl Default for LmmBermudanConfig {
 ///
 /// # Errors
 ///
-/// Returns an error if no valid exercise dates are given or if the LMM
-/// parameters are inconsistent.
+/// Returns an error if the terminal tenor is not finite and positive, if the
+/// exercise schedule is empty, unordered, duplicated within `1e-10`, or has a
+/// time outside `(0, maturity)`, if the path configuration cannot provide at
+/// least two independent pricing observations, or if the LMM parameters are
+/// inconsistent.
 #[allow(clippy::too_many_arguments)]
 pub fn price_bermudan_lmm(
     params: &LmmParams,
@@ -125,11 +139,13 @@ pub fn price_bermudan_lmm(
     currency: Currency,
     config: &LmmBermudanConfig,
 ) -> Result<MoneyEstimate> {
-    if exercise_times.is_empty() {
-        return Err(finstack_quant_core::Error::Validation(
-            "No exercise dates provided".to_string(),
-        ));
-    }
+    let maturity = *params
+        .tenors
+        .last()
+        .ok_or_else(|| finstack_quant_core::Error::Validation("empty tenors".to_string()))?;
+    validate_path_config(config)?;
+    let (time_grid, exercise_step_indices) =
+        build_exercise_aligned_grid(exercise_times, maturity, config.min_steps_between_exercises)?;
 
     // Guard: refuse uncalibrated structural defaults when enforcement is enabled
     // (as the pricer registry does).  The factor loading shape (α=0.4 linear
@@ -157,14 +173,6 @@ pub fn price_bermudan_lmm(
     // Build time grid aligned to exercise dates and the final maturity
     // (forward fixing dates are NOT inserted as grid nodes; exercise dates
     // are snapped to the nearest node of the sub-divided grid).
-    let maturity = *params
-        .tenors
-        .last()
-        .ok_or_else(|| finstack_quant_core::Error::Validation("empty tenors".to_string()))?;
-
-    let (time_grid, exercise_step_indices) =
-        build_exercise_aligned_grid(exercise_times, maturity, config.min_steps_between_exercises)?;
-
     let num_steps = time_grid.num_steps();
     let work_size = disc.work_size(&process);
 
@@ -448,56 +456,144 @@ pub fn price_bermudan_lmm(
 ///
 /// Public so reference simulations (e.g. no-arbitrage bound tests) can
 /// replay the *identical* grid the [`price_bermudan_lmm`] engine uses.
+///
+/// # Arguments
+///
+/// * `exercise_times` — Strictly increasing, unique exercise times in year
+///   fractions. Every time must be finite and lie in `(0, maturity)`.
+/// * `maturity` — Finite positive terminal maturity in years.
+/// * `min_steps_between` — Minimum number of simulation intervals between
+///   adjacent critical dates. Values below one are treated as one.
+///
+/// # Returns
+///
+/// The simulation grid and the exact grid index corresponding to each input
+/// exercise time, in caller-supplied order.
+///
+/// # Errors
+///
+/// Returns an error if `maturity` is not finite and positive, or if the
+/// exercise schedule is empty, unordered, duplicated within `1e-10`, or has a
+/// time outside `(0, maturity)`.
 pub fn build_exercise_aligned_grid(
+    exercise_times: &[f64],
+    maturity: f64,
+    min_steps_between: usize,
+) -> Result<(TimeGrid, Vec<usize>)> {
+    validate_exercise_schedule(exercise_times, maturity)?;
+    build_exercise_aligned_grid_validated(exercise_times, maturity, min_steps_between)
+}
+
+fn validate_exercise_schedule(exercise_times: &[f64], maturity: f64) -> Result<()> {
+    if !maturity.is_finite() || maturity <= 0.0 {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "LMM Bermudan maturity must be finite and positive, got {maturity}"
+        )));
+    }
+    if exercise_times.is_empty() {
+        return Err(finstack_quant_core::Error::Validation(
+            "LMM Bermudan exercise schedule must not be empty".to_string(),
+        ));
+    }
+
+    for (index, &exercise_time) in exercise_times.iter().enumerate() {
+        if !exercise_time.is_finite() {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "LMM Bermudan exercise time at index {index} must be finite, got {exercise_time}"
+            )));
+        }
+        if exercise_time <= 0.0 || exercise_time >= maturity {
+            return Err(finstack_quant_core::Error::Validation(format!(
+                "LMM Bermudan exercise time at index {index} must lie strictly inside (0, {maturity}), got {exercise_time}"
+            )));
+        }
+
+        if let Some(&previous) = index.checked_sub(1).and_then(|i| exercise_times.get(i)) {
+            let separation = exercise_time - previous;
+            if separation.abs() <= EXERCISE_TIME_TOLERANCE {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "LMM Bermudan exercise times at indices {} and {index} are duplicates within {EXERCISE_TIME_TOLERANCE:e}",
+                    index - 1
+                )));
+            }
+            if separation < 0.0 {
+                return Err(finstack_quant_core::Error::Validation(format!(
+                    "LMM Bermudan exercise times must be strictly increasing; index {} is {previous} but index {index} is {exercise_time}",
+                    index - 1
+                )));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_path_config(config: &LmmBermudanConfig) -> Result<()> {
+    if config.num_paths > MAX_NUM_PATHS {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "LMM Bermudan num_paths {} exceeds maximum {MAX_NUM_PATHS}",
+            config.num_paths
+        )));
+    }
+    if config.antithetic && !config.num_paths.is_multiple_of(2) {
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "LMM Bermudan antithetic sampling requires an even num_paths, got {}",
+            config.num_paths
+        )));
+    }
+
+    let multiplicity = if config.antithetic { 2 } else { 1 };
+    let raw_streams = config.num_paths / multiplicity;
+    let pricing_observations = if config.oos_lsmc {
+        raw_streams / 2
+    } else {
+        raw_streams
+    };
+    if pricing_observations < 2 {
+        let minimum_paths = if config.oos_lsmc {
+            4 * multiplicity
+        } else {
+            2 * multiplicity
+        };
+        return Err(finstack_quant_core::Error::Validation(format!(
+            "LMM Bermudan pricing requires at least two independent pricing observations; num_paths must be at least {minimum_paths} for antithetic={} and oos_lsmc={}, got {}",
+            config.antithetic, config.oos_lsmc, config.num_paths
+        )));
+    }
+
+    Ok(())
+}
+
+fn build_exercise_aligned_grid_validated(
     exercise_times: &[f64],
     maturity: f64,
     min_steps_between: usize,
 ) -> Result<(TimeGrid, Vec<usize>)> {
     let min_steps = min_steps_between.max(1);
 
-    // Collect all critical times (exercise dates + maturity)
-    let mut critical_times: Vec<f64> = exercise_times
-        .iter()
-        .copied()
-        .filter(|&t| t > 0.0 && t < maturity)
-        .collect();
+    // Validation preserves caller order and guarantees every gap is positive.
+    let mut critical_times = exercise_times.to_vec();
     critical_times.push(maturity);
-    critical_times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    critical_times.dedup_by(|a, b| (*a - *b).abs() < 1e-10);
 
     // Build uniform sub-grids between critical times
     let mut times = vec![0.0_f64];
+    let mut exercise_indices = Vec::with_capacity(exercise_times.len());
     let mut prev = 0.0;
-    for &ct in &critical_times {
+    for (critical_index, &ct) in critical_times.iter().enumerate() {
         let gap = ct - prev;
-        if gap < 1e-12 {
-            continue;
-        }
         let n_sub = min_steps.max((gap * 12.0).ceil() as usize); // ~monthly steps
         let dt = gap / n_sub as f64;
         for k in 1..=n_sub {
-            times.push(prev + k as f64 * dt);
-        }
-        prev = ct;
-    }
-
-    // Snap exercise times to grid steps
-    let mut exercise_indices = Vec::with_capacity(exercise_times.len());
-    for &ex_t in exercise_times {
-        if ex_t <= 0.0 || ex_t >= maturity {
-            continue;
-        }
-        // Find nearest grid point
-        let mut best_idx = 0;
-        let mut best_dist = f64::MAX;
-        for (idx, &t) in times.iter().enumerate() {
-            let d = (t - ex_t).abs();
-            if d < best_dist {
-                best_dist = d;
-                best_idx = idx;
+            if k == n_sub {
+                times.push(ct);
+            } else {
+                times.push(prev + k as f64 * dt);
             }
         }
-        exercise_indices.push(best_idx);
+        if critical_index < exercise_times.len() {
+            exercise_indices.push(times.len() - 1);
+        }
+        prev = ct;
     }
 
     let grid = TimeGrid::from_times(times).map_err(|e| {
@@ -605,6 +701,28 @@ mod tests {
         .expect("valid params")
     }
 
+    fn test_config(num_paths: usize, antithetic: bool, oos_lsmc: bool) -> LmmBermudanConfig {
+        LmmBermudanConfig {
+            num_paths,
+            seed: 7,
+            basis_degree: 2,
+            antithetic,
+            min_steps_between_exercises: 1,
+            oos_lsmc,
+            enforce_calibration: false,
+        }
+    }
+
+    fn assert_validation_contains<T: std::fmt::Debug>(result: Result<T>, expected: &str) {
+        match result {
+            Err(finstack_quant_core::Error::Validation(message)) => assert!(
+                message.contains(expected),
+                "validation message {message:?} did not contain {expected:?}"
+            ),
+            other => panic!("expected validation error containing {expected:?}, got {other:?}"),
+        }
+    }
+
     #[test]
     fn test_swap_rate_computation() {
         let forwards = vec![0.03, 0.035, 0.04];
@@ -644,15 +762,95 @@ mod tests {
         let (grid, indices) = build_exercise_aligned_grid(&exercise_times, 4.0, 4).expect("ok");
         assert!(grid.num_steps() >= 4);
         assert_eq!(indices.len(), 3);
-        // Each index should point to a time close to the exercise time
+        // Every exercise time is an exact critical grid point.
         for (i, &idx) in indices.iter().enumerate() {
-            let t = grid.time(idx);
-            assert!(
-                (t - exercise_times[i]).abs() < 0.15,
-                "grid time {t} far from exercise time {}",
-                exercise_times[i]
+            assert_eq!(grid.time(idx), exercise_times[i]);
+        }
+    }
+
+    #[test]
+    fn exercise_schedule_rejects_invalid_times_without_normalizing() {
+        let cases = [
+            (Vec::new(), 4.0, "must not be empty"),
+            (vec![f64::NAN], 4.0, "must be finite"),
+            (vec![f64::INFINITY], 4.0, "must be finite"),
+            (vec![0.0], 4.0, "strictly inside"),
+            (vec![-0.5], 4.0, "strictly inside"),
+            (vec![4.0], 4.0, "strictly inside"),
+            (vec![4.5], 4.0, "strictly inside"),
+            (vec![1.0, 1.0], 4.0, "duplicates"),
+            (vec![1.0, 1.0 + 5e-11], 4.0, "duplicates"),
+            (vec![2.0, 1.0], 4.0, "strictly increasing"),
+        ];
+
+        for (exercise_times, maturity, expected) in cases {
+            assert_validation_contains(
+                build_exercise_aligned_grid(&exercise_times, maturity, 1),
+                expected,
             );
         }
+    }
+
+    #[test]
+    fn exercise_schedule_rejects_invalid_maturity() {
+        for maturity in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert_validation_contains(
+                build_exercise_aligned_grid(&[0.5], maturity, 1),
+                "maturity must be finite and positive",
+            );
+        }
+    }
+
+    #[test]
+    fn path_config_requires_two_independent_pricing_observations() {
+        let invalid = [
+            (test_config(0, false, false), "at least two"),
+            (test_config(1, false, false), "at least two"),
+            (test_config(2, false, true), "at least two"),
+            (test_config(3, false, true), "at least two"),
+            (test_config(2, true, false), "at least two"),
+            (test_config(4, true, true), "at least two"),
+            (test_config(6, true, true), "at least two"),
+            (test_config(3, true, false), "even num_paths"),
+            (
+                test_config(MAX_NUM_PATHS + 1, false, false),
+                "exceeds maximum",
+            ),
+        ];
+        for (config, expected) in invalid {
+            assert_validation_contains(validate_path_config(&config), expected);
+        }
+
+        for config in [
+            test_config(2, false, false),
+            test_config(4, true, false),
+            test_config(4, false, true),
+            test_config(8, true, true),
+        ] {
+            assert!(
+                validate_path_config(&config).is_ok(),
+                "minimum valid configuration should be accepted: {config:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn public_pricer_rejects_invalid_path_config_before_simulation() {
+        let params = test_lmm_params();
+        let config = test_config(0, false, false);
+        assert_validation_contains(
+            price_bermudan_lmm(
+                &params,
+                &[1.0],
+                0.03,
+                true,
+                1_000_000.0,
+                0.9,
+                Currency::USD,
+                &config,
+            ),
+            "at least two independent pricing observations",
+        );
     }
 
     #[test]
