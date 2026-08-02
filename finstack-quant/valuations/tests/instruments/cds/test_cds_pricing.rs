@@ -204,10 +204,14 @@ fn test_par_spread_errors_when_expired() {
             finstack_quant_valuations::instruments::PricingOptions::default(),
         )
         .expect_err("expired CDS should error");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("expired") || msg.contains("denominator"),
-        "expected expired/denominator error, got {msg}"
+    assert_eq!(
+        err,
+        finstack_quant_core::Error::Calibration {
+            message: format!(
+                "Validation error: CDS 'EXPIRED_PAR' is expired: protection end {end} is on or before valuation date {as_of}"
+            ),
+            category: "pricing_model".to_string(),
+        }
     );
 }
 

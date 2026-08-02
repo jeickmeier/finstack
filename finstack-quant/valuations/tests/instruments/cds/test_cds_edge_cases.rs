@@ -7,6 +7,7 @@ use finstack_quant_core::dates::{Date, DayCount};
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::term_structures::{DiscountCurve, HazardCurve};
 use finstack_quant_core::money::Money;
+use finstack_quant_core::Error;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
 use time::macros::date;
@@ -290,20 +291,15 @@ fn test_maturity_equals_valuation_date() {
     )
     .expect("CDS construction should succeed");
 
-    let npv = cds.value(&market, as_of);
-
-    // CDS with maturity = valuation date may error (no future cashflows) or have zero value
-    if let Ok(value) = npv {
-        // Expired CDS at maturity should have near-zero value (no future cashflows)
-        assert!(
-            value.amount().abs() < 100.0,
-            "Expired CDS should have near-zero value, got {}",
-            value.amount()
-        );
-    } else {
-        // It's acceptable for expired CDS to return an error
-        assert!(npv.is_err(), "Expired CDS valuation may error");
-    }
+    let error = cds
+        .value(&market, as_of)
+        .expect_err("a CDS ending on the valuation date is expired");
+    assert_eq!(
+        error,
+        Error::Validation(format!(
+            "CDS 'EXPIRED' is expired: protection end {end} is on or before valuation date {as_of}"
+        ))
+    );
 }
 
 #[test]
@@ -326,23 +322,15 @@ fn test_valuation_after_maturity() {
     )
     .expect("CDS construction should succeed");
 
-    let npv = cds.value(&market, as_of);
-
-    // Valuation past maturity may error or return zero value
-    // Both are acceptable behaviors for expired instruments
-    match npv {
-        Ok(value) => {
-            // Past-maturity CDS should have zero value (all cashflows have expired)
-            assert!(
-                value.amount().abs() < 100.0,
-                "Past maturity CDS should have near-zero value, got {}",
-                value.amount()
-            );
-        }
-        Err(_) => {
-            // Acceptable - past maturity instruments may error
-        }
-    }
+    let error = cds
+        .value(&market, as_of)
+        .expect_err("a CDS valued after protection ends is expired");
+    assert_eq!(
+        error,
+        Error::Validation(format!(
+            "CDS 'PAST_MATURITY' is expired: protection end {end} is on or before valuation date {as_of}"
+        ))
+    );
 }
 
 #[test]
