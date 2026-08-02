@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Managed toolchain versions are pinned in mise.toml.
-# CI uses jdx/mise-action@v2 to provision them, then runs raw commands.
+# CI uses jdx/mise-action@v2 to provision them, then runs canonical mise tasks.
 
 env:
   UV_PYTHON_DOWNLOADS: never
@@ -126,7 +126,7 @@ jobs:
           cache: true
 
       - name: Run Rust lib and integration tests
-        run: cargo nextest run --workspace --exclude finstack-quant-py --lib --tests --no-fail-fast
+        run: mise run rust-test
 
   # ============================================
   # Documentation — strict rustdoc and public input-doc contract
@@ -174,10 +174,7 @@ jobs:
         working-directory: finstack-quant-wasm
 
       - name: Build and verify documentation
-        run: |
-          mise run rust-doc
-          mise run python-doc
-          mise run wasm-doc
+        run: mise run all-doc
 
   # ============================================
   # Test Python — maturin build + pytest
@@ -217,11 +214,8 @@ jobs:
           echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
           uv sync --no-install-project
 
-      - name: Build Python extension
-        run: uv run maturin develop
-
-      - name: Run Python tests
-        run: uv run pytest -v
+      - name: Build extension and run Python tests
+        run: mise run python-test-all
 
   # ============================================
   # Test WASM — wasm-pack build + test
@@ -256,7 +250,7 @@ jobs:
         working-directory: finstack-quant-wasm
 
       - name: Run WASM tests
-        run: npm --prefix finstack-quant-wasm run test
+        run: mise run wasm-test
 
 
   # ============================================
@@ -279,7 +273,7 @@ jobs:
           cache_save: false
 
       - name: Run cargo-deny
-        run: cargo deny check
+        run: mise run rust-audit
 
   # ============================================
   # Rust publish packaging checks
