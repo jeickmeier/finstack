@@ -352,7 +352,7 @@ fn test_cashflow_provider_trait() {
 }
 
 #[test]
-fn test_schedule_generation_performance() {
+fn long_dated_semiannual_schedule_has_expected_cashflow_count() {
     // Arrange - long dated bond
     let mut ilb = sample_tips();
     ilb.issue_date = d(2020, 1, 1);

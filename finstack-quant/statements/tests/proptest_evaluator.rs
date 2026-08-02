@@ -151,14 +151,3 @@ proptest! {
         prop_assert!(diff < 0.01, "Growth calculation incorrect: expected {}, got {}", expected_q2, q2_value);
     }
 }
-
-#[test]
-fn test_proptest_evaluator_infrastructure_works() {
-    // Smoke test to ensure proptest is properly configured
-    let model = ModelBuilder::new("test")
-        .periods("2025Q1..Q1", None)
-        .unwrap()
-        .build()
-        .unwrap();
-    assert_eq!(model.id, "test");
-}

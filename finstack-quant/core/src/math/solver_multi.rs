@@ -1468,8 +1468,8 @@ mod tests {
     }
 
     #[test]
-    fn test_analytic_vs_finite_diff_performance() {
-        // Test that analytic derivatives converge faster than finite differences
+    fn analytic_and_finite_difference_solvers_converge_to_same_solution() {
+        // Test that analytic and finite-difference derivatives converge equivalently.
         struct SimpleGradient;
         impl AnalyticalDerivatives for SimpleGradient {
             fn gradient(&self, params: &[f64], gradient: &mut [f64]) {
