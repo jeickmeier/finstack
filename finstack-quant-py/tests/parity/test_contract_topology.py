@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections import Counter
 import importlib
 import inspect
 from pathlib import Path
@@ -57,6 +58,62 @@ def test_contract_uses_known_module_statuses() -> None:
         if spec["status"] not in VALID_MODULE_STATUSES
     ]
     assert unknown == []
+
+
+def _umbrella_reexports() -> list[tuple[str, str]]:
+    """Return ``(alias, rust_crate)`` pairs from the canonical umbrella crate."""
+    umbrella_path = CONTRACT_PATH.parents[1] / CONTRACT["meta"]["umbrella_lib"]
+    source = umbrella_path.read_text()
+    return [
+        (match.group("alias"), match.group("crate"))
+        for match in re.finditer(
+            r"^\s*pub\s+use\s+(?P<crate>finstack_quant_[A-Za-z0-9_]+)"
+            r"\s+as\s+(?P<alias>[A-Za-z_][A-Za-z0-9_]*)\s*;",
+            source,
+            re.MULTILINE,
+        )
+    ]
+
+
+def _contract_umbrella_reexports() -> dict[str, str]:
+    """Return the public contract's expected umbrella alias-to-crate mapping."""
+    return {
+        alias: spec["rust_crate"].replace("-", "_")
+        for alias, spec in CONTRACT["crates"].items()
+        if spec.get("visibility") == "pub" and spec.get("rust_crate") and spec.get("rust_lib")
+    }
+
+
+def test_rust_umbrella_reexports_match_contract() -> None:
+    """Rust umbrella aliases and public parity-contract crates must agree exactly."""
+    parsed = _umbrella_reexports()
+    expected = _contract_umbrella_reexports()
+
+    alias_counts = Counter(alias for alias, _ in parsed)
+    crate_counts = Counter(rust_crate for _, rust_crate in parsed)
+    duplicate_aliases = sorted(alias for alias, count in alias_counts.items() if count > 1)
+    duplicate_crates = sorted(rust_crate for rust_crate, count in crate_counts.items() if count > 1)
+    expected_crate_counts = Counter(expected.values())
+    duplicate_contract_crates = sorted(rust_crate for rust_crate, count in expected_crate_counts.items() if count > 1)
+
+    actual = dict(parsed)
+    missing = sorted(expected.keys() - actual.keys())
+    extra = sorted(actual.keys() - expected.keys())
+    mismapped = {
+        alias: {"expected": expected[alias], "actual": actual[alias]}
+        for alias in sorted(expected.keys() & actual.keys())
+        if expected[alias] != actual[alias]
+    }
+
+    assert not any((duplicate_aliases, duplicate_crates, duplicate_contract_crates, missing, extra, mismapped)), (
+        "Rust umbrella re-exports diverged from the parity contract.\n"
+        f"  duplicate aliases: {duplicate_aliases}\n"
+        f"  duplicate umbrella crates: {duplicate_crates}\n"
+        f"  duplicate contract crates: {duplicate_contract_crates}\n"
+        f"  missing aliases: {missing}\n"
+        f"  extra aliases: {extra}\n"
+        f"  mismapped aliases: {mismapped}"
+    )
 
 
 @pytest.mark.parametrize(("crate_name", "package_name"), ROOT_PACKAGES)

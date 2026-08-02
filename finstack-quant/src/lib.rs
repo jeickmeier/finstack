@@ -74,11 +74,4 @@ mod umbrella_surface {
         assert_type::<crate::attribution::PnlAttribution>();
         assert_type::<crate::attribution::AttributionFactor>();
     }
-
-    /// The umbrella must alias every domain crate.
-    #[test]
-    fn umbrella_exposes_every_domain_module() {
-        assert_type::<crate::core::currency::Currency>();
-        assert_type::<crate::attribution::AttributionMethod>();
-    }
 }

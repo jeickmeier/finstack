@@ -1832,10 +1832,9 @@ instruments = [
 # ---------------------------------------------------------------------------
 # Intentionally NOT covered by parity tests
 #
-# - Rust public surface. The umbrella `finstack-quant/src/lib.rs` is short enough
-#   that PR review is sufficient. If drift becomes a recurring problem here,
-#   revisit by adding a `cargo public-api` snapshot test under
-#   `finstack-quant/tests/`.
+# - Rust symbol-level public surface. Umbrella crate aliases are covered
+#   bidirectionally against this contract by `test_contract_topology.py`; full
+#   per-crate symbol inventories remain outside this structural parity check.
 # - `.pyi` symbol-level signatures. Stub-checker tools (`mypy --strict`,
 #   `ty`) already exercise these from the consumer side.
 # - WASM `index.d.ts` signature shape. Covered by the existing
