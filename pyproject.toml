@@ -293,7 +293,6 @@ exclude = [
     "finstack-quant-py/tests",
     "scripts",
     "outputs",
-    "concatenate_script.py",
 ]
 
 [tool.ty.analysis]
