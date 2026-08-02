@@ -1170,67 +1170,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_gauss_hermite_quadrature_normalization() {
-        let quad = GaussHermiteQuadrature::new(5).expect("Order 5 is supported");
-
-        // Test that integrating 1 over standard normal gives approximately 1
-        let integral = quad.integrate(|_x| 1.0);
-        assert!((integral - 1.0).abs() < 1e-6);
-    }
-
-    #[test]
-    fn test_gauss_hermite_quadrature_polynomial() {
-        let quad = GaussHermiteQuadrature::new(7).expect("Order 7 is supported");
-
-        // Test that integrating x^2 over standard normal gives 1 (variance)
-        let integral = quad.integrate(|x| x * x);
-        assert!(
-            (integral - 1.0).abs() < 0.1,
-            "Integral of x² should be ~1, got {}",
-            integral
-        );
-    }
-
-    #[test]
-    fn test_different_quadrature_orders() {
-        // Test that higher order gives better accuracy for polynomial
-        let f = |x: f64| x * x * x * x; // x^4 function
-
-        let quad5 = GaussHermiteQuadrature::new(5).expect("Order 5 is supported");
-        let quad7 = GaussHermiteQuadrature::new(7).expect("Order 7 is supported");
-        let quad10 = GaussHermiteQuadrature::new(10).expect("Order 10 is supported");
-
-        let integral5 = quad5.integrate(f);
-        let integral7 = quad7.integrate(f);
-        let integral10 = quad10.integrate(f);
-
-        // Higher order should be more accurate for polynomials
-        // For x^4 over standard normal, the integral should be 3
-        let expected = 3.0;
-
-        // Just check that all integrals are reasonable (close to expected)
-        // The convergence ordering may not always hold for this specific test
-        assert!(
-            (integral5 - expected).abs() < 1.0,
-            "5-point: {} vs expected {}",
-            integral5,
-            expected
-        );
-        assert!(
-            (integral7 - expected).abs() < 0.5,
-            "7-point: {} vs expected {}",
-            integral7,
-            expected
-        );
-        assert!(
-            (integral10 - expected).abs() < 0.2,
-            "10-point: {} vs expected {}",
-            integral10,
-            expected
-        );
-    }
-
-    #[test]
     fn test_simpson_rule() {
         // Test Simpson's rule on a simple polynomial x² on [0, 1]
         // Exact integral = 1/3

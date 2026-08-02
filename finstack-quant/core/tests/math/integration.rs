@@ -157,79 +157,77 @@ fn test_financial_yield_curve_integration() {
 // ==========================================
 
 #[test]
-fn test_gauss_hermite_adaptive_low_tolerance() {
-    let quad = GaussHermiteQuadrature::new(5).expect("valid order");
-    let f = |x: f64| x * x;
+fn gauss_hermite_supported_orders_match_standard_normal_moments() {
+    let moments = [(0, 1.0), (1, 0.0), (2, 1.0), (4, 3.0), (6, 15.0)];
 
-    let result = quad.integrate_adaptive(f, 1e-10);
-    // x² over standard normal should be 1.0
+    for order in [5, 7, 10, 15, 20] {
+        let quad = GaussHermiteQuadrature::new(order).expect("supported order");
+        for (power, expected) in moments {
+            let actual = quad.integrate(|x| x.powi(power));
+            assert!(
+                (actual - expected).abs() <= 1e-12,
+                "order {order}, E[X^{power}]: got {actual:.16e}, expected {expected:.16e}"
+            );
+        }
+    }
+}
+
+fn assert_gauss_hermite_adaptive_branch(start: usize, next: usize, fallback: usize) {
+    let f = |x: f64| 1.0 / (1.0 + x * x);
+    let start_quad = GaussHermiteQuadrature::new(start).expect("supported start order");
+    let next_value = GaussHermiteQuadrature::new(next)
+        .expect("supported next order")
+        .integrate(f);
+    let fallback_value = GaussHermiteQuadrature::new(fallback)
+        .expect("supported fallback order")
+        .integrate(f);
+    let base_value = start_quad.integrate(f);
+    let promotion_gap = (next_value - base_value).abs();
     assert!(
-        (result - 1.0).abs() < 1e-8,
-        "E[X^2] should be 1.0, got {}",
-        result
+        promotion_gap > 0.0,
+        "order {start} and order {next} must differ for the branch oracle"
+    );
+
+    let loose = promotion_gap.next_up();
+    let tight = promotion_gap.next_down();
+    assert_eq!(
+        start_quad.integrate_adaptive(f, loose).to_bits(),
+        next_value.to_bits(),
+        "order {start} should accept order {next} just above the promotion gap"
+    );
+    assert_eq!(
+        start_quad.integrate_adaptive(f, tight).to_bits(),
+        fallback_value.to_bits(),
+        "order {start} should fall back to order {fallback} just below the promotion gap"
     );
 }
 
 #[test]
-fn test_gauss_hermite_adaptive_high_tolerance() {
-    let quad = GaussHermiteQuadrature::new(7).expect("valid order");
-    let f = |x: f64| x * x * x * x; // x^4
-
-    let result = quad.integrate_adaptive(f, 1e-2);
-    // x^4 over standard normal should be 3.0
-    assert!(
-        (result - 3.0).abs() < 1e-6,
-        "E[X^4] should be 3.0, got {}",
-        result
-    );
+fn gauss_hermite_adaptive_tolerance_selects_documented_order() {
+    assert_gauss_hermite_adaptive_branch(5, 7, 10);
+    assert_gauss_hermite_adaptive_branch(7, 10, 15);
+    assert_gauss_hermite_adaptive_branch(10, 15, 20);
 }
 
 #[test]
-fn test_gauss_hermite_adaptive_order_10_no_refinement() {
-    // Order 10 shouldn't refine (it's already the highest)
-    let quad = GaussHermiteQuadrature::new(10).expect("valid order");
-    let f = |x: f64| x * x;
+fn gauss_hermite_orders_15_and_20_are_terminal() {
+    let f = |x: f64| 1.0 / (1.0 + x * x);
+    let quad15 = GaussHermiteQuadrature::new(15).expect("supported order");
+    let quad20 = GaussHermiteQuadrature::new(20).expect("supported order");
+    let value20 = quad20.integrate(f);
 
-    let base = quad.integrate(f);
-    let adaptive = quad.integrate_adaptive(f, 1e-10);
-
-    // Should return the same result (no refinement)
-    assert!((base - adaptive).abs() < 1e-12);
-}
-
-#[test]
-fn test_gauss_hermite_constant_function() {
-    let quad = GaussHermiteQuadrature::new(7).expect("valid order");
-
-    // Integrate constant function
-    let result = quad.integrate(|_x| 5.0);
-
-    // Should equal 5.0 (constant * 1.0)
-    assert!((result - 5.0).abs() < 1e-6);
-}
-
-#[test]
-fn test_gauss_hermite_linear_function() {
-    let quad = GaussHermiteQuadrature::new(7).expect("valid order");
-
-    // Integrate odd function x over symmetric domain
-    let result = quad.integrate(|x| x);
-
-    // Should be 0 (odd function)
-    assert!(result.abs() < 1e-12);
-}
-
-#[test]
-fn test_gauss_hermite_high_order_polynomial() {
-    let quad = GaussHermiteQuadrature::new(10).expect("valid order");
-
-    // x^6 over standard normal = 15 (formula: (2n-1)!! for x^(2n))
-    let result = quad.integrate(|x| x.powi(6));
-    assert!(
-        (result - 15.0).abs() < 1e-6,
-        "E[X^6] should be 15.0, got {}",
-        result
-    );
+    for tolerance in [f64::NEG_INFINITY, 0.0, f64::INFINITY, f64::NAN] {
+        assert_eq!(
+            quad15.integrate_adaptive(f, tolerance).to_bits(),
+            value20.to_bits(),
+            "order 15 must promote to order 20 regardless of tolerance"
+        );
+        assert_eq!(
+            quad20.integrate_adaptive(f, tolerance).to_bits(),
+            value20.to_bits(),
+            "order 20 must return its base estimate regardless of tolerance"
+        );
+    }
 }
 
 #[test]
