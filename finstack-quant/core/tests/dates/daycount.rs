@@ -461,6 +461,23 @@ fn act365l_single_day_not_feb29() {
 }
 
 // =============================================================================
+// Act/Act ISDA - Gregorian Leap-Year Boundaries
+// =============================================================================
+
+#[test]
+fn actact_isda_applies_gregorian_century_leap_rule() {
+    let leap_century = DayCount::ActAct
+        .year_fraction(d(2000, 2, 1), d(2000, 3, 1), DayCountContext::default())
+        .unwrap();
+    let non_leap_century = DayCount::ActAct
+        .year_fraction(d(2100, 2, 1), d(2100, 3, 1), DayCountContext::default())
+        .unwrap();
+
+    assert!((leap_century - 29.0 / 366.0).abs() < TOL);
+    assert!((non_leap_century - 28.0 / 365.0).abs() < TOL);
+}
+
+// =============================================================================
 // Act/Act ISMA - Frequency-Dependent
 // =============================================================================
 
