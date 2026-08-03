@@ -103,8 +103,7 @@ impl StochasticPricer {
         let terminal_paths = self
             .config
             .tree_config
-            .branching
-            .estimate_terminal_nodes(self.config.tree_config.num_periods);
+            .terminal_path_count(self.config.tree_config.num_periods);
         if terminal_paths > self.config.max_tree_paths {
             return Err(finstack_quant_core::Error::Validation(format!(
                 "structured_credit_stochastic tree requires {terminal_paths} terminal paths, \
@@ -113,12 +112,7 @@ impl StochasticPricer {
             )));
         }
 
-        let branch_count = self
-            .config
-            .tree_config
-            .branching
-            .branches_at_node(self.branching_variance_proxy())
-            .max(1);
+        let branch_count = self.config.tree_config.branch_count.max(1);
         let path_count = terminal_paths.max(1);
         let per_name_simulator = self.per_name_simulator()?;
         // Tree mode draws no antithetic pairs: every path is an independent
@@ -189,17 +183,11 @@ impl StochasticPricer {
             ));
         }
 
-        let branch_count = self
-            .config
-            .tree_config
-            .branching
-            .branches_at_node(self.branching_variance_proxy())
-            .max(1);
+        let branch_count = self.config.tree_config.branch_count.max(1);
         let prefix_count = self
             .config
             .tree_config
-            .branching
-            .estimate_terminal_nodes(tree_periods)
+            .terminal_path_count(tree_periods)
             .max(1);
         let total_paths = prefix_count.checked_mul(mc_paths).ok_or_else(|| {
             finstack_quant_core::Error::Validation("Hybrid pricing path count overflow".to_string())
@@ -508,31 +496,22 @@ impl StochasticPricer {
         let branch_count = branch_count.max(1);
         let original_path_index = path_index;
         let mut factors = Vec::with_capacity(month_count);
-        let stratified = matches!(
-            self.config.tree_config.branching,
-            super::super::tree::BranchingSpec::Stratified { .. }
-        );
 
         // Number of leading months the base-`branch_count` digits of the path
         // index can actually resolve: the largest `m` with
         // `branch_count^m <= path_count`. Trailing months beyond that are drawn
         // from a per-path Philox substream so the tail continues to diffuse.
-        let resolved_months = if stratified {
-            month_count
-        } else {
-            let mut resolved = 0usize;
-            let mut capacity = 1usize;
-            while resolved < month_count {
-                match capacity.checked_mul(branch_count) {
-                    Some(next) if next <= path_count => {
-                        capacity = next;
-                        resolved += 1;
-                    }
-                    _ => break,
+        let mut resolved_months = 0usize;
+        let mut capacity = 1usize;
+        while resolved_months < month_count {
+            match capacity.checked_mul(branch_count) {
+                Some(next) if next <= path_count => {
+                    capacity = next;
+                    resolved_months += 1;
                 }
+                _ => break,
             }
-            resolved
-        };
+        }
         let mut tail_rng =
             (resolved_months < month_count && self.has_stochastic_rates()).then(|| {
                 PhiloxRng::new(self.config.seed ^ TREE_TAIL_SEED_SALT)
@@ -542,9 +521,6 @@ impl StochasticPricer {
         for month in 0..month_count {
             let z = if !self.has_stochastic_rates() {
                 0.0
-            } else if stratified {
-                let p = (((path_index + month) % path_count) as f64 + 0.5) / path_count as f64;
-                finstack_quant_core::math::standard_normal_inv_cdf(p)
             } else if month < resolved_months {
                 let branch = path_index % branch_count;
                 path_index /= branch_count;
@@ -683,9 +659,8 @@ impl StochasticPricer {
         // prepayment and default were driven by the same realization and their
         // implied correlation was +1 (or -1 through a negative loading),
         // regardless of the -0.30 configured in the shipped RMBS/CLO
-        // calibrations. `LatentFactorSpec::TwoFactor`'s correlation was read
-        // only by `branching_variance_proxy` for branch counting, so a user
-        // calibrating a two-factor model got a single-factor one.
+        // calibrations, so a user calibrating a two-factor model got a
+        // single-factor one.
         //
         // Construction is the standard two-factor decomposition
         //     Z_prepay = rho * Z_credit + sqrt(1 - rho^2) * Z_indep
@@ -1025,43 +1000,6 @@ impl StochasticPricer {
             / months_per_period;
         base_periods.saturating_add(2).max(1)
     }
-
-    fn branching_variance_proxy(&self) -> f64 {
-        let factor_var = match &self.config.tree_config.factor_spec {
-            LatentFactorSpec::SingleFactor { volatility, .. } => volatility * volatility,
-            LatentFactorSpec::TwoFactor {
-                credit_vol,
-                prepay_vol,
-                ..
-            } => credit_vol * credit_vol + prepay_vol * prepay_vol,
-            LatentFactorSpec::MultiFactor { volatilities, .. } => {
-                volatilities.iter().map(|v| v * v).sum::<f64>()
-            }
-        };
-        let prepay_loading = self
-            .config
-            .tree_config
-            .prepay_spec
-            .factor_loading()
-            .unwrap_or(0.0);
-        let default_loading = self
-            .config
-            .tree_config
-            .default_spec
-            .correlation()
-            .unwrap_or(0.0);
-        let recovery_loading = match &self.config.tree_config.recovery_spec {
-            RecoverySpec::Constant { .. } => 0.0,
-            RecoverySpec::MarketCorrelated {
-                factor_correlation,
-                recovery_volatility,
-                ..
-            } => factor_correlation * recovery_volatility,
-        };
-
-        (factor_var * (prepay_loading.abs() + default_loading.abs() + recovery_loading.abs()))
-            .clamp(0.0, 1.0)
-    }
 }
 
 struct PathScenarioOutput {
@@ -1375,9 +1313,7 @@ fn expected_shortfall(losses: &mut [f64], confidence: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::{
-        BranchingSpec, ScenarioTreeConfig,
-    };
+    use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::ScenarioTreeConfig;
     use crate::instruments::fixed_income::structured_credit::{
         AssetPool, DealType, DefaultModelSpec, PoolAsset, RecoveryModelSpec, Tranche,
         TrancheCashflows, TrancheCoupon, TrancheSeniority, TrancheStructure,
@@ -1481,7 +1417,7 @@ mod tests {
         let config = StochasticPricerConfig::new(
             test_date(),
             test_discount_curve(),
-            ScenarioTreeConfig::new(12, 1.0, BranchingSpec::fixed(2)),
+            ScenarioTreeConfig::new(12, 2),
         )
         .with_pricing_mode(PricingMode::MonteCarlo {
             num_paths: 1,
@@ -1503,7 +1439,7 @@ mod tests {
         let config = StochasticPricerConfig::new(
             test_date(),
             test_discount_curve(),
-            ScenarioTreeConfig::new(12, 1.0, BranchingSpec::fixed(2)),
+            ScenarioTreeConfig::new(12, 2),
         )
         .with_pricing_mode(PricingMode::Hybrid {
             tree_periods: 3,
@@ -1569,14 +1505,12 @@ mod tests {
 
         // Extract the deal-level variance directly via the finalize path.
         // We use a minimal StochasticPricer config just to call finalize.
-        use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::{
-            BranchingSpec, ScenarioTreeConfig,
-        };
+        use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::ScenarioTreeConfig;
         use crate::instruments::fixed_income::structured_credit::pricing::stochastic::pricer::config::StochasticPricerConfig;
         let config = StochasticPricerConfig::new(
             test_date(),
             test_discount_curve(),
-            ScenarioTreeConfig::new(12, 1.0, BranchingSpec::fixed(2)),
+            ScenarioTreeConfig::new(12, 2),
         );
         let pricer = StochasticPricer::new(config);
         let result = collector.finalize(&pricer, PricingMode::Tree);
@@ -1721,7 +1655,7 @@ mod tests {
         let instrument = test_instrument();
         let market = MarketContext::new().insert((*test_discount_curve()).clone());
         let price_with_kappa = |kappa: f64| {
-            let mut tree_config = ScenarioTreeConfig::new(24, 2.0, BranchingSpec::fixed(2));
+            let mut tree_config = ScenarioTreeConfig::new(24, 2);
             tree_config.factor_spec = LatentFactorSpec::single_factor(1.0, kappa);
             tree_config.default_spec =
                 StochasticDefaultSpec::intensity_process(0.10, 1.0, 0.5, 0.8);
@@ -1751,16 +1685,25 @@ mod tests {
         );
     }
 
-    /// M2.13 — canonical sign convention invariant for the MC engine: on the
-    /// shipped RMBS/CLO configs, defaults and recoveries must co-move
-    /// NEGATIVELY across systematic-factor realizations (stress = low factor
-    /// ⇒ high MDR and low recovery).
+    /// M2.13 — canonical sign convention invariant for the MC engine: under
+    /// the shipped RMBS/CLO default and recovery calibrations, the two must
+    /// co-move NEGATIVELY across systematic-factor realizations (stress = low
+    /// factor ⇒ high MDR and low recovery).
     #[test]
     fn mc_engine_defaults_and_recoveries_co_move_negatively() {
-        for (label, tree_config) in [
-            ("rmbs", ScenarioTreeConfig::rmbs_standard(2.0, 0.045)),
-            ("clo", ScenarioTreeConfig::clo_standard(2.0)),
-        ] {
+        let mut rmbs = ScenarioTreeConfig::new(24, 3);
+        rmbs.default_spec = StochasticDefaultSpec::rmbs_standard();
+        rmbs.recovery_spec = RecoverySpec::market_standard_stochastic();
+
+        let mut clo = ScenarioTreeConfig::new(24, 3);
+        clo.default_spec = StochasticDefaultSpec::clo_standard();
+        clo.recovery_spec = RecoverySpec::MarketCorrelated {
+            mean_recovery: 0.40,
+            recovery_volatility: 0.30,
+            factor_correlation: 0.50,
+        };
+
+        for (label, tree_config) in [("rmbs", rmbs), ("clo", clo)] {
             let config =
                 StochasticPricerConfig::new(test_date(), test_discount_curve(), tree_config);
             let pricer = StochasticPricer::new(config);
@@ -1844,9 +1787,7 @@ mod per_name_copula_tests {
 
     use super::*;
     use crate::instruments::fixed_income::structured_credit::pricing::stochastic::default::PoolGranularity;
-    use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::{
-        BranchingSpec, ScenarioTreeConfig,
-    };
+    use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::ScenarioTreeConfig;
     use crate::instruments::fixed_income::structured_credit::{
         AssetPool, DealType, DefaultModelSpec, PoolAsset, RecoveryModelSpec, Tranche,
         TrancheCoupon, TrancheSeniority, TrancheStructure,
@@ -1963,11 +1904,7 @@ mod per_name_copula_tests {
         granularity: PoolGranularity,
         num_paths: usize,
     ) -> StochasticPricerConfig {
-        let mut tree_config = ScenarioTreeConfig::new(
-            num_periods,
-            num_periods as f64 / 12.0,
-            BranchingSpec::fixed(2),
-        );
+        let mut tree_config = ScenarioTreeConfig::new(num_periods, 2);
         tree_config.default_spec = StochasticDefaultSpec::gaussian_copula(base_cdr, correlation);
         tree_config.initial_balance = 100_000_000.0;
         StochasticPricerConfig::new(close(), discount_curve(), tree_config)
@@ -2002,11 +1939,7 @@ mod per_name_copula_tests {
         granularity: PoolGranularity,
         num_paths: usize,
     ) -> StochasticPricerConfig {
-        let mut tree_config = ScenarioTreeConfig::new(
-            num_periods,
-            num_periods as f64 / 12.0,
-            BranchingSpec::fixed(2),
-        );
+        let mut tree_config = ScenarioTreeConfig::new(num_periods, 2);
         tree_config.default_spec = default_spec;
         tree_config.initial_balance = 100_000_000.0;
         StochasticPricerConfig::new(close(), discount_curve(), tree_config)
@@ -2367,9 +2300,8 @@ mod per_name_copula_tests {
     /// `monthly_shock` built `let factors = [factor]` — one scalar handed to
     /// both `conditional_smm` and `conditional_mdr` — so the implied
     /// prepay/default correlation was +/-1 regardless of the -0.30 configured
-    /// in the shipped RMBS/CLO calibrations. `TwoFactor.correlation` was read
-    /// only by `branching_variance_proxy` for branch counting, so a user
-    /// calibrating a two-factor model silently got a single-factor one.
+    /// in the shipped RMBS/CLO calibrations, so a user calibrating a two-factor
+    /// model silently got a single-factor one.
     ///
     /// The correlation is measured ACROSS PATHS, not across months. Under the
     /// canonical single-draw copula (SC-C05: kappa = 0 is a random walk) each

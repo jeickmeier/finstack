@@ -6,4 +6,4 @@
 
 mod config;
 
-pub(crate) use config::{BranchingSpec, ScenarioTreeConfig};
+pub(crate) use config::ScenarioTreeConfig;

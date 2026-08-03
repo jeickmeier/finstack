@@ -110,7 +110,6 @@ impl PricingMode {
 }
 
 /// Configuration for stochastic pricer.
-#[derive(Clone)]
 pub(crate) struct StochasticPricerConfig {
     /// Valuation date
     pub valuation_date: Date,
@@ -232,11 +231,14 @@ mod tests {
     /// Pricer config adopts the scenario-tree seed (not a hardcoded constant).
     #[test]
     fn pricer_config_adopts_the_scenario_tree_seed() {
-        use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::BranchingSpec;
         use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::ScenarioTreeConfig;
 
-        let seeded =
-            ScenarioTreeConfig::new(12, 1.0, BranchingSpec::fixed(3)).with_seed(987_654_321);
+        let tree_config_with_seed = |seed| {
+            let mut config = ScenarioTreeConfig::new(12, 3);
+            config.seed = seed;
+            config
+        };
+        let seeded = tree_config_with_seed(987_654_321);
         let config = StochasticPricerConfig::new(test_date(), test_discount_curve(), seeded);
         assert_eq!(
             config.seed, 987_654_321,
@@ -247,12 +249,12 @@ mod tests {
         let a = StochasticPricerConfig::new(
             test_date(),
             test_discount_curve(),
-            ScenarioTreeConfig::new(12, 1.0, BranchingSpec::fixed(3)).with_seed(1),
+            tree_config_with_seed(1),
         );
         let b = StochasticPricerConfig::new(
             test_date(),
             test_discount_curve(),
-            ScenarioTreeConfig::new(12, 1.0, BranchingSpec::fixed(3)).with_seed(2),
+            tree_config_with_seed(2),
         );
         assert_ne!(
             a.seed, b.seed,
@@ -298,13 +300,7 @@ mod tests {
     fn test_config_creation() {
         let today = test_date();
         let curve = test_discount_curve();
-        let tree_config = ScenarioTreeConfig::new(
-            12,
-            1.0,
-            crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::BranchingSpec::fixed(
-                3,
-            ),
-        );
+        let tree_config = ScenarioTreeConfig::new(12, 3);
 
         let config = StochasticPricerConfig::new(today, curve, tree_config);
 
@@ -320,13 +316,7 @@ mod tests {
     fn test_builder_pattern() {
         let today = test_date();
         let curve = test_discount_curve();
-        let tree_config = ScenarioTreeConfig::new(
-            12,
-            1.0,
-            crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::BranchingSpec::fixed(
-                3,
-            ),
-        );
+        let tree_config = ScenarioTreeConfig::new(12, 3);
 
         let config = StochasticPricerConfig::new(today, curve, tree_config)
             .with_pricing_mode(PricingMode::monte_carlo(10000));

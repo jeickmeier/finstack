@@ -96,9 +96,7 @@ use crate::instruments::fixed_income::structured_credit::assumptions::embedded_r
 use crate::instruments::fixed_income::structured_credit::pricing::stochastic::pricer::{
     PricingMode, StochasticPricer, StochasticPricerConfig, StochasticPricingResult,
 };
-use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::{
-    BranchingSpec, ScenarioTreeConfig,
-};
+use crate::instruments::fixed_income::structured_credit::pricing::stochastic::tree::ScenarioTreeConfig;
 use crate::instruments::fixed_income::structured_credit::utils::rates::{
     clamped_cdr_to_mdr, clamped_cpr_to_smm,
 };
@@ -1123,13 +1121,7 @@ impl StructuredCredit {
         as_of: Date,
     ) -> finstack_quant_core::Result<ScenarioTreeConfig> {
         let months_to_maturity = as_of.months_until(self.maturity).max(1) as usize;
-        let horizon_years = DayCount::Act365F
-            .year_fraction(as_of, self.maturity, DayCountContext::default())?
-            .abs()
-            .max(0.25);
-
-        let mut tree_config =
-            ScenarioTreeConfig::new(months_to_maturity, horizon_years, BranchingSpec::fixed(3));
+        let mut tree_config = ScenarioTreeConfig::new(months_to_maturity, 3);
 
         let (prepay, default, correlation) = self.effective_stochastic_specs();
         correlation
@@ -1140,7 +1132,6 @@ impl StructuredCredit {
         tree_config.recovery_spec =
             StochasticRecoverySpec::constant(self.credit_model.recovery_spec.rate)
                 .map_err(|err| finstack_quant_core::Error::Validation(err.to_string()))?;
-        tree_config.pool_coupon = self.pool.weighted_avg_coupon();
         // Explicit deal correlation overrides the copula spec's scalar.
         // The engine consumes only this scalar override; per-pair
         // Matrix/Sectored correlation in the copula is a deferred feature.
@@ -1178,7 +1169,7 @@ impl StructuredCredit {
             0
         };
         tree_config.initial_seasoning = seasoning;
-        tree_config = tree_config.with_seed(self.derive_seed(as_of));
+        tree_config.seed = self.derive_seed(as_of);
         Ok(tree_config)
     }
 

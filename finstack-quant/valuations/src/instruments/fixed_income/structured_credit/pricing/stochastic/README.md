@@ -29,9 +29,7 @@ stochastic/
 │
 ├── tree/               # Scenario tree infrastructure
 │   ├── mod.rs          # Re-exports
-│   ├── config.rs       # ScenarioTreeConfig, BranchingSpec
-│   ├── node.rs         # ScenarioNode, ScenarioNodeId
-│   └── tree.rs         # ScenarioTree, ScenarioPath
+│   └── config.rs       # ScenarioTreeConfig
 │
 ├── pricer/             # Stochastic pricing engine
 │   ├── mod.rs          # Re-exports
