@@ -32,11 +32,6 @@ def scroll(inner_html: str) -> str:
     str
         Result of scroll for the binding in the annotated representation.
 
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples:
     --------
     >>> from finstack_quant.reporting.tables import scroll
@@ -58,11 +53,6 @@ def kv_table(rows: list[tuple[str, str, str]]) -> str:
     -------
     str
         Result of kv table for the binding in the annotated representation.
-
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples:
     --------
@@ -101,11 +91,6 @@ def data_table(
     -------
     str
         Result of data table for the binding in the annotated representation.
-
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples:
     --------
@@ -147,11 +132,6 @@ def heatmap(rows: list[tuple[int, list[Any], Any]], *, theme: Theme) -> str:
     -------
     str
         Result of heatmap for the binding in the annotated representation.
-
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples:
     --------

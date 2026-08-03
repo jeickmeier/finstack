@@ -52,7 +52,8 @@ def rgba(hex_color: str, alpha: float) -> str:
     Raises:
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If a parsed red, green, or blue component is empty or contains
+        non-hexadecimal characters.
 
     Examples:
     --------
@@ -81,11 +82,6 @@ def nice_ticks(vmin: float, vmax: float, target: int = 4) -> list[float]:
     -------
     list[float]
         Result of nice ticks for the binding in the annotated representation.
-
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples:
     --------
@@ -131,11 +127,6 @@ def color_scale(v: Any, theme: Theme, cap: float = 8.0) -> tuple[str, str]:
     -------
     tuple[str, str]
         Result of color scale for the binding in the annotated representation.
-
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples:
     --------
@@ -257,11 +248,6 @@ def line_chart(
     str
         Result of line chart for the binding in the annotated representation.
 
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import line_chart
@@ -377,11 +363,6 @@ def cashflow_ladder(
     str
         Result of cashflow ladder for the binding in the annotated representation.
 
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import cashflow_ladder
@@ -480,11 +461,6 @@ def waterfall_chart(
     -------
     str
         Result of waterfall chart for the binding in the annotated representation.
-
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples:
     --------
@@ -595,11 +571,6 @@ def bar_chart(labels: list[str], values: list[Any], *, theme: Theme, y_pct: bool
     str
         Result of bar chart for the binding in the annotated representation.
 
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import bar_chart
@@ -692,11 +663,6 @@ def tornado_chart(
     -------
     str
         Result of tornado chart for the binding in the annotated representation.
-
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples:
     --------
@@ -807,11 +773,6 @@ def fan_chart(
     -------
     str
         Result of fan chart for the binding in the annotated representation.
-
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples:
     --------

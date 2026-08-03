@@ -105,11 +105,6 @@ def recommended_metrics(instrument_type: str) -> list[str]:
     list[str]
         Result of recommended metrics for the binding in the annotated representation.
 
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples:
     --------
     >>> from finstack_quant.reporting.instrument import recommended_metrics
@@ -726,7 +721,14 @@ def instrument_tearsheet(
     Raises:
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``sections`` contains an unknown name, or if pricing an instrument
+        envelope without ``market`` and ``as_of`` or with a noncanonical envelope.
+    json.JSONDecodeError
+        If an instrument, valuation result, or requested definition contains
+        malformed JSON.
+    AttributeError
+        If a requested definition or payoff section receives a definition that
+        does not decode to a JSON object.
 
     Examples:
     --------

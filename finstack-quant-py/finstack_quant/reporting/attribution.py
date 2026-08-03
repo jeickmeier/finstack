@@ -230,7 +230,10 @@ def attribution_tearsheet(
     Raises:
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If neither a precomputed attribution nor an instrument is supplied, if
+        inline attribution omits either market snapshot or valuation date, if
+        ``sections`` contains an unknown name, or if an attribution JSON payload
+        cannot be decoded.
 
     Examples:
     --------

@@ -57,10 +57,6 @@ class Theme:
         str
             Result of to css for this `Theme` in the annotated representation.
 
-        Raises:
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         s = f".{scope}"
         return f"""<style>

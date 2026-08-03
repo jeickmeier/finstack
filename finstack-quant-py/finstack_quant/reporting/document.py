@@ -197,8 +197,9 @@ class TearSheet:
 
         Raises:
         ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        OSError
+            If the destination cannot be opened or the HTML cannot be written.
+
         """
         with Path(path).open("w", encoding="utf-8") as fh:
             fh.write(self.to_html())

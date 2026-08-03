@@ -55,11 +55,6 @@ def pct(x: Any, dp: int = 1, signed: bool = False) -> str:
     str
         Result of pct for the binding in the annotated representation.
 
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples:
     --------
     >>> from finstack_quant.reporting.format import pct
@@ -86,11 +81,6 @@ def ratio(x: Any, dp: int = 2) -> str:
     -------
     str
         Result of ratio for the binding in the annotated representation.
-
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples:
     --------
@@ -120,11 +110,6 @@ def money(amount: Any, currency: str | None = None, dp: int = 2) -> str:
     str
         Result of money for the binding in the annotated representation.
 
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples:
     --------
     >>> from finstack_quant.reporting.format import money
@@ -150,11 +135,6 @@ def sign_class(x: Any) -> str:
     str
         Result of sign class for the binding in the annotated representation.
 
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples:
     --------
     >>> from finstack_quant.reporting.format import sign_class
@@ -178,11 +158,6 @@ def fmt_date(d: Any) -> str:
     -------
     str
         Result of fmt date for the binding in the annotated representation.
-
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples:
     --------

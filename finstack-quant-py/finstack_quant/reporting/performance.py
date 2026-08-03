@@ -182,7 +182,9 @@ def performance_tearsheet(
     Raises:
     ------
     ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
+        If ``sections`` contains an unknown section name.
+    IndexError
+        If ``ticker`` is outside the available performance-series columns.
 
     Examples:
     --------

@@ -43,10 +43,6 @@ class StatementView:
         nodes : dict[str, dict[str, float]]
             Mapping from statement node ID to period-label/value mappings.
 
-        Raises:
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         self._nodes = nodes
 
@@ -65,10 +61,6 @@ class StatementView:
         float | None
             Result of get for this `StatementView` in the annotated representation.
 
-        Raises:
-        ------
-        ValueError
-            If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
         """
         node = self._nodes.get(node_id)
         return node.get(period) if node else None
@@ -201,11 +193,6 @@ def pl_matrix_table(
     str
         Result of pl matrix table for the binding in the annotated representation.
 
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
-
     Examples:
     --------
     >>> from finstack_quant.reporting.statements_common import pl_matrix_table
@@ -236,11 +223,6 @@ def variance_table(variance: Any) -> str | None:
     -------
     str | None
         Result of variance table for the binding in the annotated representation.
-
-    Raises:
-    ------
-    ValueError
-        If supplied inputs violate the documented type, shape, finite-value, or domain constraints.
 
     Examples:
     --------
