@@ -10,6 +10,7 @@ use super::types::{CompanyId, CompanyMetrics, Multiple};
 use finstack_quant_core::math::stats::OnlineStats;
 use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 /// Rich/cheap sign convention for a scoring dimension's Y metric.
 ///
@@ -31,6 +32,20 @@ pub enum ScoreDirection {
     HigherIsCheap,
     /// Higher Y than peers means the subject is rich (multiple-like metrics).
     HigherIsRich,
+}
+
+impl FromStr for ScoreDirection {
+    type Err = String;
+
+    fn from_str(value: &str) -> std::result::Result<Self, Self::Err> {
+        match value {
+            "higher_is_cheap" => Ok(Self::HigherIsCheap),
+            "higher_is_rich" => Ok(Self::HigherIsRich),
+            _ => Err(format!(
+                "unknown direction '{value}' (expected 'higher_is_cheap' or 'higher_is_rich')"
+            )),
+        }
+    }
 }
 
 /// Configuration for a single rich/cheap scoring dimension.
@@ -60,6 +75,20 @@ pub enum MetricExtractor {
     Multiple(Multiple),
     /// A custom metric key from the `custom` map.
     Custom(String),
+}
+
+impl FromStr for MetricExtractor {
+    type Err = String;
+
+    fn from_str(name: &str) -> std::result::Result<Self, Self::Err> {
+        if let Some(multiple) = name.strip_prefix("multiple:") {
+            multiple.parse().map(Self::Multiple)
+        } else if CompanyMetrics::is_named_metric(name) {
+            Ok(Self::Named(name.to_string()))
+        } else {
+            Ok(Self::Custom(name.to_string()))
+        }
+    }
 }
 
 /// Decomposed score for a single dimension.
@@ -312,27 +341,7 @@ fn extract_subject_value(peer_set: &PeerSet, extractor: &MetricExtractor) -> Opt
 /// Extract a single metric value from a `CompanyMetrics`.
 fn extract_single(metrics: &CompanyMetrics, extractor: &MetricExtractor) -> Option<f64> {
     match extractor {
-        MetricExtractor::Named(name) => match name.as_str() {
-            "enterprise_value" => metrics.enterprise_value,
-            "market_cap" => metrics.market_cap,
-            "share_price" => metrics.share_price,
-            "oas_bp" => metrics.oas_bp,
-            "yield_pct" => metrics.yield_pct,
-            "ebitda" => metrics.ebitda,
-            "revenue" => metrics.revenue,
-            "ebit" => metrics.ebit,
-            "ufcf" => metrics.ufcf,
-            "lfcf" => metrics.lfcf,
-            "net_income" => metrics.net_income,
-            "book_value" => metrics.book_value,
-            "tangible_book_value" => metrics.tangible_book_value,
-            "dividends_per_share" => metrics.dividends_per_share,
-            "leverage" => metrics.leverage,
-            "interest_coverage" => metrics.interest_coverage,
-            "revenue_growth" => metrics.revenue_growth,
-            "ebitda_margin" => metrics.ebitda_margin,
-            _ => None,
-        },
+        MetricExtractor::Named(name) => metrics.named_metric(name),
         MetricExtractor::Multiple(multiple) => compute_multiple(metrics, *multiple),
         MetricExtractor::Custom(key) => metrics.custom.get(key).copied(),
     }

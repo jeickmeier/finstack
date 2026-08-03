@@ -169,7 +169,7 @@ fn compute_multiple(company_metrics: &Bound<'_, PyDict>, multiple: &str) -> PyRe
 /// stored in the `custom` map. ``None`` values are treated as missing;
 /// any other non-numeric value raises ``ValueError`` naming the key.
 fn dict_to_company_metrics(id: &str, d: &Bound<'_, PyDict>) -> PyResult<CompanyMetrics> {
-    let mut m = CompanyMetrics::new(id);
+    let mut values = Vec::with_capacity(d.len());
     for (key, val) in d.iter() {
         let name: String = key.extract()?;
         if val.is_none() {
@@ -184,57 +184,9 @@ fn dict_to_company_metrics(id: &str, d: &Bound<'_, PyDict>) -> PyResult<CompanyM
                 )
             )));
         };
-        match name.as_str() {
-            "enterprise_value" => m.enterprise_value = Some(v),
-            "market_cap" => m.market_cap = Some(v),
-            "share_price" => m.share_price = Some(v),
-            "oas_bp" => m.oas_bp = Some(v),
-            "yield_pct" => m.yield_pct = Some(v),
-            "ebitda" => m.ebitda = Some(v),
-            "revenue" => m.revenue = Some(v),
-            "ebit" => m.ebit = Some(v),
-            "ufcf" => m.ufcf = Some(v),
-            "lfcf" => m.lfcf = Some(v),
-            "net_income" => m.net_income = Some(v),
-            "book_value" => m.book_value = Some(v),
-            "tangible_book_value" => m.tangible_book_value = Some(v),
-            "dividends_per_share" => m.dividends_per_share = Some(v),
-            "leverage" => m.leverage = Some(v),
-            "interest_coverage" => m.interest_coverage = Some(v),
-            "revenue_growth" => m.revenue_growth = Some(v),
-            "ebitda_margin" => m.ebitda_margin = Some(v),
-            _ => {
-                m.custom.insert(name, v);
-            }
-        }
+        values.push((name, v));
     }
-    Ok(m)
-}
-
-/// Whether ``name`` maps onto a named field on `CompanyMetrics` (vs. a
-/// custom-map entry). Used to pick the right `MetricExtractor` variant.
-fn is_named_field(name: &str) -> bool {
-    matches!(
-        name,
-        "enterprise_value"
-            | "market_cap"
-            | "share_price"
-            | "oas_bp"
-            | "yield_pct"
-            | "ebitda"
-            | "revenue"
-            | "ebit"
-            | "ufcf"
-            | "lfcf"
-            | "net_income"
-            | "book_value"
-            | "tangible_book_value"
-            | "dividends_per_share"
-            | "leverage"
-            | "interest_coverage"
-            | "revenue_growth"
-            | "ebitda_margin"
-    )
+    Ok(CompanyMetrics::from_flat_metrics(id, values))
 }
 
 /// Map a metric selector string onto a `MetricExtractor`.
@@ -244,14 +196,7 @@ fn is_named_field(name: &str) -> bool {
 /// - Known field names select the dedicated optional field.
 /// - Anything else selects an entry in the `custom` map.
 fn metric_extractor(name: &str) -> PyResult<MetricExtractor> {
-    if let Some(multiple) = name.strip_prefix("multiple:") {
-        let multiple: Multiple = multiple.parse().map_err(display_to_py)?;
-        Ok(MetricExtractor::Multiple(multiple))
-    } else if is_named_field(name) {
-        Ok(MetricExtractor::Named(name.to_string()))
-    } else {
-        Ok(MetricExtractor::Custom(name.to_string()))
-    }
+    name.parse().map_err(display_to_py)
 }
 
 /// Parse an optional ``direction`` key (``"higher_is_cheap"`` /
@@ -262,13 +207,7 @@ fn parse_direction(dict: &Bound<'_, PyDict>) -> PyResult<ScoreDirection> {
         None => Ok(ScoreDirection::default()),
         Some(value) => {
             let s: String = value.extract()?;
-            match s.as_str() {
-                "higher_is_cheap" => Ok(ScoreDirection::HigherIsCheap),
-                "higher_is_rich" => Ok(ScoreDirection::HigherIsRich),
-                other => Err(crate::errors::value_error(format!(
-                    "unknown direction '{other}' (expected 'higher_is_cheap' or 'higher_is_rich')"
-                ))),
-            }
+            s.parse().map_err(display_to_py)
         }
     }
 }

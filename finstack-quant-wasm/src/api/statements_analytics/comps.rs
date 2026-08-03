@@ -5,38 +5,7 @@
 
 use crate::utils::to_js_err;
 use finstack_quant_statements_analytics::analysis as fc;
-use std::collections::BTreeMap;
 use wasm_bindgen::prelude::*;
-
-fn map_to_company_metrics(values: BTreeMap<String, f64>) -> fc::CompanyMetrics {
-    let mut metrics = fc::CompanyMetrics::new("subject");
-    for (name, value) in values {
-        match name.as_str() {
-            "enterprise_value" => metrics.enterprise_value = Some(value),
-            "market_cap" => metrics.market_cap = Some(value),
-            "share_price" => metrics.share_price = Some(value),
-            "oas_bp" => metrics.oas_bp = Some(value),
-            "yield_pct" => metrics.yield_pct = Some(value),
-            "ebitda" => metrics.ebitda = Some(value),
-            "revenue" => metrics.revenue = Some(value),
-            "ebit" => metrics.ebit = Some(value),
-            "ufcf" => metrics.ufcf = Some(value),
-            "lfcf" => metrics.lfcf = Some(value),
-            "net_income" => metrics.net_income = Some(value),
-            "book_value" => metrics.book_value = Some(value),
-            "tangible_book_value" => metrics.tangible_book_value = Some(value),
-            "dividends_per_share" => metrics.dividends_per_share = Some(value),
-            "leverage" => metrics.leverage = Some(value),
-            "interest_coverage" => metrics.interest_coverage = Some(value),
-            "revenue_growth" => metrics.revenue_growth = Some(value),
-            "ebitda_margin" => metrics.ebitda_margin = Some(value),
-            _ => {
-                metrics.custom.insert(name, value);
-            }
-        }
-    }
-    metrics
-}
 
 /// Percentile rank of `value` within `data` on a 0-1 scale.
 ///
@@ -135,9 +104,9 @@ pub fn regression_fair_value(
 /// @param multiple - Supported valuation multiple identifier, such as EV/EBITDA or P/E.
 #[wasm_bindgen(js_name = computeMultiple)]
 pub fn compute_multiple(company_metrics: JsValue, multiple: &str) -> Result<JsValue, JsValue> {
-    let metrics_map: BTreeMap<String, f64> =
+    let metrics_map: std::collections::BTreeMap<String, f64> =
         serde_wasm_bindgen::from_value(company_metrics).map_err(to_js_err)?;
-    let metrics = map_to_company_metrics(metrics_map);
+    let metrics = fc::CompanyMetrics::from_flat_metrics("subject", metrics_map);
     let multiple = multiple.parse::<fc::Multiple>().map_err(to_js_err)?;
     match fc::compute_multiple(&metrics, multiple) {
         Some(result) => serde_wasm_bindgen::to_value(&result).map_err(to_js_err),

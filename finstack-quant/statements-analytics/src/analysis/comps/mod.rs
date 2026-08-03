@@ -413,6 +413,43 @@ mod tests {
     }
 
     #[test]
+    fn flat_metrics_and_selectors_use_canonical_field_registry() {
+        let metrics = CompanyMetrics::from_flat_metrics(
+            "SUBJECT",
+            [
+                ("enterprise_value".to_string(), 100.0),
+                ("ebitda".to_string(), 20.0),
+                ("custom_signal".to_string(), 3.0),
+            ],
+        );
+
+        assert_eq!(metrics.named_metric("enterprise_value"), Some(100.0));
+        assert_eq!(metrics.named_metric("ebitda"), Some(20.0));
+        assert_eq!(metrics.named_metric("custom_signal"), None);
+        assert_eq!(metrics.custom.get("custom_signal"), Some(&3.0));
+        assert!(CompanyMetrics::is_named_metric("ebitda_margin"));
+        assert!(!CompanyMetrics::is_named_metric("custom_signal"));
+
+        assert!(matches!(
+            "leverage".parse::<MetricExtractor>(),
+            Ok(MetricExtractor::Named(name)) if name == "leverage"
+        ));
+        assert!(matches!(
+            "custom_signal".parse::<MetricExtractor>(),
+            Ok(MetricExtractor::Custom(name)) if name == "custom_signal"
+        ));
+        assert!(matches!(
+            "multiple:ev_ebitda".parse::<MetricExtractor>(),
+            Ok(MetricExtractor::Multiple(Multiple::EvEbitda))
+        ));
+        assert!("multiple:not_real".parse::<MetricExtractor>().is_err());
+        assert_eq!(
+            "higher_is_rich".parse::<ScoreDirection>(),
+            Ok(ScoreDirection::HigherIsRich)
+        );
+    }
+
+    #[test]
     fn compute_multiple_negative_denominator() {
         let mut c = CompanyMetrics::new("NEG");
         c.enterprise_value = Some(1000.0);

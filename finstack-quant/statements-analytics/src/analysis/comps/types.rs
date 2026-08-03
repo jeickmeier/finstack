@@ -209,7 +209,64 @@ pub struct CompanyMetrics {
     pub custom: IndexMap<String, f64>,
 }
 
+macro_rules! company_metric_accessors {
+    ($($field:ident),+ $(,)?) => {
+        /// Return whether `name` is a canonical named metric field.
+        ///
+        /// # Arguments
+        ///
+        /// * `name` - Exact snake_case field name to classify.
+        pub fn is_named_metric(name: &str) -> bool {
+            matches!(name, $(stringify!($field))|+)
+        }
+
+        fn insert_flat_metric(&mut self, name: String, value: f64) {
+            match name.as_str() {
+                $(stringify!($field) => self.$field = Some(value),)+
+                _ => {
+                    self.custom.insert(name, value);
+                }
+            }
+        }
+
+        /// Return one canonical named metric field.
+        ///
+        /// Unknown names and named fields with no value both return `None`.
+        ///
+        /// # Arguments
+        ///
+        /// * `name` - Exact snake_case field name to read.
+        pub fn named_metric(&self, name: &str) -> Option<f64> {
+            match name {
+                $(stringify!($field) => self.$field,)+
+                _ => None,
+            }
+        }
+    };
+}
+
 impl CompanyMetrics {
+    company_metric_accessors!(
+        enterprise_value,
+        market_cap,
+        share_price,
+        oas_bp,
+        yield_pct,
+        ebitda,
+        revenue,
+        ebit,
+        ufcf,
+        lfcf,
+        net_income,
+        book_value,
+        tangible_book_value,
+        dividends_per_share,
+        leverage,
+        interest_coverage,
+        revenue_growth,
+        ebitda_margin,
+    );
+
     /// Create a new `CompanyMetrics` with only the company ID set.
     /// All other fields default to `None` / empty.
     pub fn new(id: impl Into<String>) -> Self {
@@ -236,5 +293,27 @@ impl CompanyMetrics {
             ebitda_margin: None,
             custom: IndexMap::new(),
         }
+    }
+
+    /// Construct metrics from a flat host-language field map.
+    ///
+    /// Canonical named fields populate their dedicated slots. Unknown names
+    /// are retained in [`CompanyMetrics::custom`].
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Company identifier stored on the resulting record.
+    /// * `values` - Flat snake_case metric names and finite or non-finite
+    ///   numeric values supplied by the caller. Numeric validation remains the
+    ///   responsibility of the consuming analysis.
+    pub fn from_flat_metrics(
+        id: impl Into<String>,
+        values: impl IntoIterator<Item = (String, f64)>,
+    ) -> Self {
+        let mut metrics = Self::new(id);
+        for (name, value) in values {
+            metrics.insert_flat_metric(name, value);
+        }
+        metrics
     }
 }

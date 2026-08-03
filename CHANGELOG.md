@@ -4,6 +4,9 @@
 
 ### Changed
 
+- Comparable-company flat field construction, named-field access, and metric
+  selector parsing now share one canonical Rust implementation across scoring,
+  Python, and WASM; accepted fields and scoring behavior are unchanged.
 - **Breaking (Rust, Python, WASM):** Statement-model Monte Carlo now belongs
   exclusively to `finstack-quant-statements`. Import `MonteCarloConfig`,
   `MonteCarloResults`, and `run_monte_carlo` from `finstack_quant.statements`,

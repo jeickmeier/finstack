@@ -85,6 +85,19 @@ fn backtest_forecast_returns_metrics() {
 }
 
 #[wasm_bindgen_test]
+fn compute_multiple_uses_canonical_company_metric_fields() {
+    let metrics = std::collections::BTreeMap::from([
+        ("enterprise_value".to_string(), 8_500.0),
+        ("ebitda".to_string(), 1_000.0),
+        ("custom_signal".to_string(), 3.0),
+    ]);
+    let metrics = serde_wasm_bindgen::to_value(&metrics).unwrap();
+    let result = compute_multiple(metrics, "ev_ebitda").unwrap();
+    let multiple: Option<f64> = serde_wasm_bindgen::from_value(result).unwrap();
+    assert_eq!(multiple, Some(8.5));
+}
+
+#[wasm_bindgen_test]
 fn pl_summary_report_returns_text() {
     let results_json = evaluated_results_json();
     let line_items: JsValue = serde_wasm_bindgen::to_value(&vec![
