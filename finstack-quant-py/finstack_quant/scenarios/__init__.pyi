@@ -32,7 +32,6 @@ __all__ = [
     "OperationSpec",
     "RateBindingSpec",
     "CurveKind",
-    "VolSurfaceKind",
     "TenorMatchMode",
     "TimeRollMode",
     "Compounding",
@@ -767,95 +766,6 @@ class CurveKind:
     def value(self) -> str:
         """
         Serialized wire value, e.g. ``"discount"`` or ``"par_cds"``.
-
-        Returns
-        -------
-        str
-            Snake-case wire value used in JSON serialization.
-        """
-        ...
-
-class VolSurfaceKind:
-    """
-    Category of volatility surface targeted by a scenario operation.
-
-    Examples
-    --------
-    >>> from finstack_quant.scenarios import VolSurfaceKind
-    >>> VolSurfaceKind.equity().value
-    'equity'
-    """
-
-    @classmethod
-    def equity(cls) -> VolSurfaceKind:
-        """
-        Equity volatility surface.
-
-        Returns
-        -------
-        VolSurfaceKind
-            The ``equity`` variant.
-
-        Examples
-        --------
-        >>> from finstack_quant.scenarios import VolSurfaceKind
-        >>> str(VolSurfaceKind.equity())
-        'VolSurfaceKind.Equity'
-        """
-        ...
-
-    @classmethod
-    def credit(cls) -> VolSurfaceKind:
-        """
-        Credit volatility surface.
-
-        Returns
-        -------
-        VolSurfaceKind
-            The ``credit`` variant.
-
-        Examples
-        --------
-        >>> from finstack_quant.scenarios import VolSurfaceKind
-        >>> str(VolSurfaceKind.credit())
-        'VolSurfaceKind.Credit'
-        """
-        ...
-
-    @classmethod
-    def swaption(cls) -> VolSurfaceKind:
-        """
-        Swaption volatility surface.
-
-        Returns
-        -------
-        VolSurfaceKind
-            The ``swaption`` variant.
-
-        Examples
-        --------
-        >>> from finstack_quant.scenarios import VolSurfaceKind
-        >>> str(VolSurfaceKind.swaption())
-        'VolSurfaceKind.Swaption'
-        """
-        ...
-
-    @property
-    def name(self) -> str:
-        """
-        Variant name, e.g. ``"Equity"``.
-
-        Returns
-        -------
-        str
-            Pascal-case variant name.
-        """
-        ...
-
-    @property
-    def value(self) -> str:
-        """
-        Serialized wire value, e.g. ``"equity"``.
 
         Returns
         -------
@@ -1601,14 +1511,12 @@ class OperationSpec:
         ...
 
     @classmethod
-    def vol_surface_parallel_pct(cls, surface_kind: VolSurfaceKind, vol_surface_id: str, pct: float) -> OperationSpec:
+    def vol_surface_parallel_pct(cls, vol_surface_id: str, pct: float) -> OperationSpec:
         """
         Parallel percent shift to a volatility surface.
 
         Parameters
         ----------
-        surface_kind : VolSurfaceKind
-            Category of volatility surface.
         vol_surface_id : str
             Volatility-surface identifier.
         pct : float
@@ -1621,8 +1529,8 @@ class OperationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.scenarios import OperationSpec, VolSurfaceKind
-        >>> OperationSpec.vol_surface_parallel_pct(VolSurfaceKind.equity(), "SPX", 10.0).kind
+        >>> from finstack_quant.scenarios import OperationSpec
+        >>> OperationSpec.vol_surface_parallel_pct("SPX", 10.0).kind
         'vol_surface_parallel_pct'
         """
         ...
@@ -1630,7 +1538,6 @@ class OperationSpec:
     @classmethod
     def vol_surface_bucket_pct(
         cls,
-        surface_kind: VolSurfaceKind,
         vol_surface_id: str,
         pct: float,
         tenors: list[str] | None = None,
@@ -1641,8 +1548,6 @@ class OperationSpec:
 
         Parameters
         ----------
-        surface_kind : VolSurfaceKind
-            Category of volatility surface.
         vol_surface_id : str
             Volatility-surface identifier.
         pct : float
@@ -1659,8 +1564,8 @@ class OperationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.scenarios import OperationSpec, VolSurfaceKind
-        >>> OperationSpec.vol_surface_bucket_pct(VolSurfaceKind.equity(), "SPX", 10.0).kind
+        >>> from finstack_quant.scenarios import OperationSpec
+        >>> OperationSpec.vol_surface_bucket_pct("SPX", 10.0).kind
         'vol_surface_bucket_pct'
         """
         ...
@@ -1914,16 +1819,12 @@ class OperationSpec:
         ...
 
     @classmethod
-    def hierarchy_vol_surface_parallel_pct(
-        cls, surface_kind: VolSurfaceKind, target_json: str, pct: float
-    ) -> OperationSpec:
+    def hierarchy_vol_surface_parallel_pct(cls, target_json: str, pct: float) -> OperationSpec:
         """
         Hierarchy-targeted vol-surface percent shift.
 
         Parameters
         ----------
-        surface_kind : VolSurfaceKind
-            Category of volatility surface.
         target_json : str
             JSON-serialized ``HierarchyTarget``.
         pct : float
@@ -1941,8 +1842,8 @@ class OperationSpec:
 
         Examples
         --------
-        >>> from finstack_quant.scenarios import OperationSpec, VolSurfaceKind
-        >>> OperationSpec.hierarchy_vol_surface_parallel_pct(VolSurfaceKind.equity(), '{"path":["Equity"]}', 10.0).kind
+        >>> from finstack_quant.scenarios import OperationSpec
+        >>> OperationSpec.hierarchy_vol_surface_parallel_pct('{"path":["Equity"]}', 10.0).kind
         'hierarchy_vol_surface_parallel_pct'
         """
         ...

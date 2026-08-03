@@ -1635,7 +1635,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Parallel percent shift to volatility surface.\n\n`pct` may be `<= -100`: vol-to-zero is sometimes used in degenerate\nstress (post-shock arbitrage detection emits a warning).\n\n# Example\n```rust\nuse finstack_quant_scenarios::{OperationSpec, VolSurfaceKind};\n\nlet op = OperationSpec::VolSurfaceParallelPct {\n    surface_kind: VolSurfaceKind::Equity,\n    vol_surface_id: \"SPX\".into(),\n    pct: 10.0, // +10% volatility increase\n};\n```",
+          "description": "Parallel percent shift to volatility surface.\n\n`pct` may be `<= -100`: vol-to-zero is sometimes used in degenerate\nstress (post-shock arbitrage detection emits a warning).\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::VolSurfaceParallelPct {\n    vol_surface_id: \"SPX\".into(),\n    pct: 10.0, // +10% volatility increase\n};\n```",
           "properties": {
             "kind": {
               "const": "vol_surface_parallel_pct",
@@ -1646,10 +1646,6 @@
               "format": "double",
               "type": "number"
             },
-            "surface_kind": {
-              "$ref": "#/$defs/VolSurfaceKind",
-              "description": "Type of volatility surface (Equity, FX, IR, etc.)."
-            },
             "vol_surface_id": {
               "$ref": "#/$defs/Id",
               "description": "Volatility-surface identifier."
@@ -1657,7 +1653,6 @@
           },
           "required": [
             "kind",
-            "surface_kind",
             "vol_surface_id",
             "pct"
           ],
@@ -1665,7 +1660,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Bucketed volatility surface shock.\n\n# Example\n```rust\nuse finstack_quant_scenarios::{OperationSpec, VolSurfaceKind};\n\nlet op = OperationSpec::VolSurfaceBucketPct {\n    surface_kind: VolSurfaceKind::Equity,\n    vol_surface_id: \"SPX\".into(),\n    tenors: Some(vec![\"1M\".into(), \"3M\".into()]),\n    strikes: Some(vec![90.0, 95.0, 100.0]),\n    pct: 15.0,\n};\n```",
+          "description": "Bucketed volatility surface shock.\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::VolSurfaceBucketPct {\n    vol_surface_id: \"SPX\".into(),\n    tenors: Some(vec![\"1M\".into(), \"3M\".into()]),\n    strikes: Some(vec![90.0, 95.0, 100.0]),\n    pct: 15.0,\n};\n```",
           "properties": {
             "kind": {
               "const": "vol_surface_bucket_pct",
@@ -1687,10 +1682,6 @@
                 "null"
               ]
             },
-            "surface_kind": {
-              "$ref": "#/$defs/VolSurfaceKind",
-              "description": "Type of volatility surface (Equity, FX, IR, etc.)."
-            },
             "tenors": {
               "description": "Optional tenor strings (e.g., \"1M\", \"3M\").",
               "items": {
@@ -1708,7 +1699,6 @@
           },
           "required": [
             "kind",
-            "surface_kind",
             "vol_surface_id",
             "pct"
           ],
@@ -1950,7 +1940,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Hierarchy-targeted vol-surface parallel shift.\n\nResolution follows the same hierarchy-expansion rules as\n[`OperationSpec::HierarchyCurveParallelBp`], but targets volatility\nsurfaces of the requested [`VolSurfaceKind`].",
+          "description": "Hierarchy-targeted vol-surface parallel shift.\n\nResolution follows the same hierarchy-expansion rules as\n[`OperationSpec::HierarchyCurveParallelBp`], but targets volatility\nsurfaces.",
           "properties": {
             "kind": {
               "const": "hierarchy_vol_surface_parallel_pct",
@@ -1961,10 +1951,6 @@
               "format": "double",
               "type": "number"
             },
-            "surface_kind": {
-              "$ref": "#/$defs/VolSurfaceKind",
-              "description": "Type of volatility surface."
-            },
             "target": {
               "$ref": "#/$defs/HierarchyTarget",
               "description": "Hierarchy target to resolve to surfaces."
@@ -1972,7 +1958,6 @@
           },
           "required": [
             "kind",
-            "surface_kind",
             "target",
             "pct"
           ],
@@ -2305,26 +2290,6 @@
         {
           "const": "approximate",
           "description": "Explicit approximate mode using fixed day counts and rounded `365 / 12` months.\n\nSee the enum-level \"Non-additivity\" note: composed rolls in this mode\ndo not commute with calendar arithmetic (`6M + 6M = 366d != 1Y`).",
-          "type": "string"
-        }
-      ]
-    },
-    "VolSurfaceKind": {
-      "description": "Labels which category of volatility surface an operation represents.\n\nThe current market context stores volatility surfaces in a single collection,\nso scenario adapters look up surfaces by `vol_surface_id`; `VolSurfaceKind` is\nretained as explicit metadata for serde contracts, template discovery, and\nfuture validation.\n\n# Examples\n```rust\nuse finstack_quant_scenarios::VolSurfaceKind;\n\nassert!(matches!(VolSurfaceKind::Swaption, VolSurfaceKind::Swaption));\n```",
-      "oneOf": [
-        {
-          "const": "equity",
-          "description": "Equity volatility surface.",
-          "type": "string"
-        },
-        {
-          "const": "credit",
-          "description": "Credit volatility surface.",
-          "type": "string"
-        },
-        {
-          "const": "swaption",
-          "description": "Swaption volatility surface.",
           "type": "string"
         }
       ]

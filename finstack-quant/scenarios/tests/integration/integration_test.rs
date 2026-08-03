@@ -9,7 +9,7 @@ use finstack_quant_core::market_data::term_structures::BaseCorrelationCurve;
 use finstack_quant_core::market_data::term_structures::DiscountCurve;
 use finstack_quant_core::money::Money;
 use finstack_quant_scenarios::{
-    CurveKind, ExecutionContext, OperationSpec, ScenarioEngine, ScenarioSpec, VolSurfaceKind,
+    CurveKind, ExecutionContext, OperationSpec, ScenarioEngine, ScenarioSpec,
 };
 use finstack_quant_statements::FinancialModelSpec;
 use time::Month;
@@ -182,7 +182,6 @@ fn test_vol_surface_parallel_shock() {
         name: Some("Vol Parallel Shock".into()),
         description: None,
         operations: vec![OperationSpec::VolSurfaceParallelPct {
-            surface_kind: VolSurfaceKind::Equity,
             vol_surface_id: "SPX".into(),
             pct: 15.0, // +15% vol increase
         }],

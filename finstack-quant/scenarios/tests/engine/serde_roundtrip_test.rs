@@ -2,9 +2,9 @@
 
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::{ContractError, LoadLimits};
+use finstack_quant_scenarios::engine::ScenarioMarketTarget;
 use finstack_quant_scenarios::{
     CurveKind, OperationSpec, ScenarioEnvelope, ScenarioSpec, TenorMatchMode, TimeRollMode,
-    VolSurfaceKind,
 };
 use indexmap::IndexMap;
 
@@ -155,7 +155,6 @@ fn test_all_operation_types_serialize() {
             points: 0.05,
         },
         OperationSpec::VolSurfaceParallelPct {
-            surface_kind: VolSurfaceKind::Equity,
             vol_surface_id: "SPX".into(),
             pct: 20.0,
         },
@@ -342,7 +341,6 @@ fn test_optional_fields_serialize() {
                 points: 0.05,
             },
             OperationSpec::VolSurfaceBucketPct {
-                surface_kind: VolSurfaceKind::Equity,
                 vol_surface_id: "SPX".into(),
                 tenors: None,
                 strikes: Some(vec![100.0, 110.0]),
@@ -370,6 +368,55 @@ fn base_corr_bucket_rejects_removed_maturities_field() {
     });
 
     assert!(serde_json::from_value::<OperationSpec>(legacy).is_err());
+}
+
+#[test]
+fn vol_surface_contracts_reject_removed_surface_kind() {
+    let legacy_operations = [
+        serde_json::json!({
+            "kind": "vol_surface_parallel_pct",
+            "surface_kind": "equity",
+            "vol_surface_id": "SPX",
+            "pct": 10.0,
+        }),
+        serde_json::json!({
+            "kind": "vol_surface_bucket_pct",
+            "surface_kind": "credit",
+            "vol_surface_id": "CDX-VOL",
+            "tenors": ["5Y"],
+            "strikes": null,
+            "pct": 10.0,
+        }),
+        serde_json::json!({
+            "kind": "hierarchy_vol_surface_parallel_pct",
+            "surface_kind": "swaption",
+            "target": {"path": ["Rates"]},
+            "pct": 10.0,
+        }),
+    ];
+
+    for legacy in legacy_operations {
+        let mut canonical = legacy.clone();
+        canonical
+            .as_object_mut()
+            .expect("operation JSON object")
+            .remove("surface_kind");
+        assert!(serde_json::from_value::<OperationSpec>(canonical).is_ok());
+        assert!(serde_json::from_value::<OperationSpec>(legacy).is_err());
+    }
+
+    let legacy_target = serde_json::json!({
+        "kind": "vol_surface",
+        "surface_kind": "equity",
+        "vol_surface_id": "SPX",
+    });
+    let mut canonical_target = legacy_target.clone();
+    canonical_target
+        .as_object_mut()
+        .expect("market target JSON object")
+        .remove("surface_kind");
+    assert!(serde_json::from_value::<ScenarioMarketTarget>(canonical_target).is_ok());
+    assert!(serde_json::from_value::<ScenarioMarketTarget>(legacy_target).is_err());
 }
 
 #[test]

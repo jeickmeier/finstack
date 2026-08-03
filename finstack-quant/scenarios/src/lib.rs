@@ -115,7 +115,7 @@ pub use error::{Error, Result};
 pub use horizon::{HorizonAnalysis, HorizonResult};
 pub use spec::{
     Compounding, CurveKind, HierarchyTarget, InstrumentType, NodeId, OperationSpec,
-    RateBindingSpec, ScenarioSpec, TenorMatchMode, TimeRollMode, VolSurfaceKind,
+    RateBindingSpec, ScenarioSpec, TenorMatchMode, TimeRollMode,
 };
 pub use templates::{
     AssetClass, RegisteredTemplate, ScenarioSpecBuilder, Severity, TemplateMetadata,

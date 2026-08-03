@@ -1,9 +1,7 @@
 //! Supporting enum wrappers for scenario operations.
 
 use crate::errors::display_to_py;
-use finstack_quant_scenarios::spec::{
-    Compounding, CurveKind, TenorMatchMode, TimeRollMode, VolSurfaceKind,
-};
+use finstack_quant_scenarios::spec::{Compounding, CurveKind, TenorMatchMode, TimeRollMode};
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
@@ -86,67 +84,6 @@ impl PyCurveKind {
 
     fn __repr__(&self) -> String {
         format!("CurveKind.{:?}", self.inner)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// VolSurfaceKind
-// ---------------------------------------------------------------------------
-
-/// Category of volatility surface targeted by a scenario operation.
-#[pyclass(
-    name = "VolSurfaceKind",
-    module = "finstack_quant.scenarios",
-    eq,
-    hash,
-    frozen,
-    from_py_object
-)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PyVolSurfaceKind {
-    pub(crate) inner: VolSurfaceKind,
-}
-
-#[pymethods]
-impl PyVolSurfaceKind {
-    /// Equity volatility surface.
-    #[classmethod]
-    fn equity(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: VolSurfaceKind::Equity,
-        }
-    }
-
-    /// Credit volatility surface.
-    #[classmethod]
-    fn credit(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: VolSurfaceKind::Credit,
-        }
-    }
-
-    /// Swaption volatility surface.
-    #[classmethod]
-    fn swaption(_cls: &Bound<'_, PyType>) -> Self {
-        Self {
-            inner: VolSurfaceKind::Swaption,
-        }
-    }
-
-    #[getter]
-    fn name(&self) -> String {
-        format!("{:?}", self.inner)
-    }
-
-    #[getter]
-    fn value(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner)
-            .map(|s| s.trim_matches('"').to_string())
-            .map_err(display_to_py)
-    }
-
-    fn __repr__(&self) -> String {
-        format!("VolSurfaceKind.{:?}", self.inner)
     }
 }
 

@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyType;
 
 use super::helpers::{parse_attrs, parse_currency, parse_hierarchy_target, parse_instrument_types};
-use super::kinds::{PyCurveKind, PyTenorMatchMode, PyTimeRollMode, PyVolSurfaceKind};
+use super::kinds::{PyCurveKind, PyTenorMatchMode, PyTimeRollMode};
 use super::rate_binding::PyRateBindingSpec;
 
 // ---------------------------------------------------------------------------
@@ -186,16 +186,10 @@ impl PyOperationSpec {
 
     /// Parallel percent shift to a volatility surface.
     #[classmethod]
-    #[pyo3(signature = (surface_kind, vol_surface_id, pct))]
-    fn vol_surface_parallel_pct(
-        _cls: &Bound<'_, PyType>,
-        surface_kind: PyRef<'_, PyVolSurfaceKind>,
-        vol_surface_id: &str,
-        pct: f64,
-    ) -> Self {
+    #[pyo3(signature = (vol_surface_id, pct))]
+    fn vol_surface_parallel_pct(_cls: &Bound<'_, PyType>, vol_surface_id: &str, pct: f64) -> Self {
         Self {
             inner: OperationSpec::VolSurfaceParallelPct {
-                surface_kind: surface_kind.inner,
                 vol_surface_id: CurveId::from(vol_surface_id),
                 pct,
             },
@@ -204,10 +198,9 @@ impl PyOperationSpec {
 
     /// Bucketed volatility surface percent shock.
     #[classmethod]
-    #[pyo3(signature = (surface_kind, vol_surface_id, pct, tenors=None, strikes=None))]
+    #[pyo3(signature = (vol_surface_id, pct, tenors=None, strikes=None))]
     fn vol_surface_bucket_pct(
         _cls: &Bound<'_, PyType>,
-        surface_kind: PyRef<'_, PyVolSurfaceKind>,
         vol_surface_id: &str,
         pct: f64,
         tenors: Option<Vec<String>>,
@@ -215,7 +208,6 @@ impl PyOperationSpec {
     ) -> Self {
         Self {
             inner: OperationSpec::VolSurfaceBucketPct {
-                surface_kind: surface_kind.inner,
                 vol_surface_id: CurveId::from(vol_surface_id),
                 tenors,
                 strikes,
@@ -355,20 +347,15 @@ impl PyOperationSpec {
 
     /// Hierarchy-targeted vol-surface percent shift.
     #[classmethod]
-    #[pyo3(signature = (surface_kind, target_json, pct))]
+    #[pyo3(signature = (target_json, pct))]
     fn hierarchy_vol_surface_parallel_pct(
         _cls: &Bound<'_, PyType>,
-        surface_kind: PyRef<'_, PyVolSurfaceKind>,
         target_json: &str,
         pct: f64,
     ) -> PyResult<Self> {
         let target = parse_hierarchy_target(target_json)?;
         Ok(Self {
-            inner: OperationSpec::HierarchyVolSurfaceParallelPct {
-                surface_kind: surface_kind.inner,
-                target,
-                pct,
-            },
+            inner: OperationSpec::HierarchyVolSurfaceParallelPct { target, pct },
         })
     }
 

@@ -703,7 +703,7 @@ fn most_specific_wins_deduplicates_per_operation_family_not_raw_identifier() {
     };
     use finstack_quant_core::market_data::scalars::MarketScalar;
     use finstack_quant_core::market_data::surfaces::VolSurface;
-    use finstack_quant_scenarios::{ExecutionContext, ScenarioEngine, VolSurfaceKind};
+    use finstack_quant_scenarios::{ExecutionContext, ScenarioEngine};
     use finstack_quant_statements::FinancialModelSpec;
     use time::macros::date;
 
@@ -736,7 +736,6 @@ fn most_specific_wins_deduplicates_per_operation_family_not_raw_identifier() {
         description: None,
         operations: vec![
             OperationSpec::HierarchyVolSurfaceParallelPct {
-                surface_kind: VolSurfaceKind::Equity,
                 target: HierarchyTarget {
                     path: vec!["Equity".into()],
                     tag_filter: None,
@@ -761,7 +760,6 @@ fn most_specific_wins_deduplicates_per_operation_family_not_raw_identifier() {
         description: None,
         operations: vec![
             OperationSpec::VolSurfaceParallelPct {
-                surface_kind: VolSurfaceKind::Equity,
                 vol_surface_id: "SPX".into(),
                 pct: 10.0,
             },

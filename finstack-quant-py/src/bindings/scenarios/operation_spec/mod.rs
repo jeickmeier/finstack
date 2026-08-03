@@ -20,7 +20,7 @@ mod kinds;
 mod rate_binding;
 mod spec;
 
-pub use kinds::{PyCompounding, PyCurveKind, PyTenorMatchMode, PyTimeRollMode, PyVolSurfaceKind};
+pub use kinds::{PyCompounding, PyCurveKind, PyTenorMatchMode, PyTimeRollMode};
 pub use rate_binding::PyRateBindingSpec;
 pub use spec::PyOperationSpec;
 
@@ -33,7 +33,6 @@ use pyo3::prelude::*;
 /// Register `OperationSpec` and supporting enums on the scenarios submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCurveKind>()?;
-    m.add_class::<PyVolSurfaceKind>()?;
     m.add_class::<PyTenorMatchMode>()?;
     m.add_class::<PyTimeRollMode>()?;
     m.add_class::<PyCompounding>()?;

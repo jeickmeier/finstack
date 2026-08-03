@@ -363,7 +363,7 @@ mod tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
     use super::*;
-    use crate::{CurveKind, OperationSpec, VolSurfaceKind};
+    use crate::{CurveKind, OperationSpec};
     use finstack_quant_core::currency::Currency;
     use finstack_quant_core::market_data::hierarchy::ResolutionMode;
 
@@ -599,12 +599,10 @@ mod tests {
     fn test_builder_vol_surface_override() {
         let spec = ScenarioSpecBuilder::new("test")
             .with_operation(OperationSpec::VolSurfaceParallelPct {
-                surface_kind: VolSurfaceKind::Equity,
                 vol_surface_id: "SPX_VOL".into(),
                 pct: 50.0,
             })
             .with_operation(OperationSpec::VolSurfaceBucketPct {
-                surface_kind: VolSurfaceKind::Equity,
                 vol_surface_id: "SPX_VOL".into(),
                 tenors: Some(vec!["1M".into()]),
                 strikes: Some(vec![100.0]),

@@ -31,7 +31,6 @@ HorizonResult = _scenarios.HorizonResult
 OperationSpec = _scenarios.OperationSpec
 RateBindingSpec = _scenarios.RateBindingSpec
 CurveKind = _scenarios.CurveKind
-VolSurfaceKind = _scenarios.VolSurfaceKind
 TenorMatchMode = _scenarios.TenorMatchMode
 TimeRollMode = _scenarios.TimeRollMode
 Compounding = _scenarios.Compounding
@@ -44,7 +43,6 @@ __all__: list[str] = [
     "RateBindingSpec",
     "TenorMatchMode",
     "TimeRollMode",
-    "VolSurfaceKind",
     "apply_scenario",
     "apply_scenario_to_market",
     "build_from_template",

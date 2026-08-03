@@ -13,7 +13,7 @@
 
 use crate::adapters::traits::ScenarioEffect;
 use crate::error::Result;
-use crate::spec::{CurveKind, OperationSpec, RateBindingSpec, ScenarioSpec, VolSurfaceKind};
+use crate::spec::{CurveKind, OperationSpec, RateBindingSpec, ScenarioSpec};
 use crate::warning::Warning;
 use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::bumps::MarketBump;
@@ -100,7 +100,7 @@ pub struct ExecutionContext<'a> {
 /// identifier is a resolved market identifier rather than an unresolved
 /// hierarchy path or a best-effort reconstruction of the original spec.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ScenarioMarketTarget {
     /// A discount, forward, credit, inflation, or commodity curve.
     Curve {
@@ -121,8 +121,6 @@ pub enum ScenarioMarketTarget {
     },
     /// A volatility surface.
     VolSurface {
-        /// Surface family from the expanded operation.
-        surface_kind: VolSurfaceKind,
         /// Concrete volatility-surface identifier.
         vol_surface_id: CurveId,
     },
@@ -312,7 +310,6 @@ enum HierarchyExpansionKey {
         curve_id: CurveId,
     },
     VolSurface {
-        surface_kind: VolSurfaceKind,
         vol_surface_id: CurveId,
     },
     EquityPrice {
@@ -567,11 +564,7 @@ fn expand_hierarchy_operations<'a>(
                 });
                 slots.push(Slot::Expanded(exps));
             }
-            OperationSpec::HierarchyVolSurfaceParallelPct {
-                surface_kind,
-                target,
-                pct,
-            } => {
+            OperationSpec::HierarchyVolSurfaceParallelPct { target, pct } => {
                 let matches = resolve_hierarchy_matches(hierarchy, target);
                 if matches.is_empty() {
                     warnings.push(Warning::HierarchyNoMatch {
@@ -588,11 +581,9 @@ fn expand_hierarchy_operations<'a>(
                 let exps = expand_matches(matches, |curve_id| {
                     (
                         HierarchyExpansionKey::VolSurface {
-                            surface_kind: *surface_kind,
                             vol_surface_id: curve_id.clone(),
                         },
                         OperationSpec::VolSurfaceParallelPct {
-                            surface_kind: *surface_kind,
                             vol_surface_id: curve_id,
                             pct: *pct,
                         },
@@ -1301,10 +1292,8 @@ fn market_target_for_id(op: &OperationSpec, id: &CurveId) -> Option<ScenarioMark
                 surface_id: id.clone(),
             })
         }
-        OperationSpec::VolSurfaceParallelPct { surface_kind, .. }
-        | OperationSpec::VolSurfaceBucketPct { surface_kind, .. } => {
+        OperationSpec::VolSurfaceParallelPct { .. } | OperationSpec::VolSurfaceBucketPct { .. } => {
             Some(ScenarioMarketTarget::VolSurface {
-                surface_kind: *surface_kind,
                 vol_surface_id: id.clone(),
             })
         }

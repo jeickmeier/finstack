@@ -409,7 +409,7 @@ mod tests {
     #[test]
     fn test_vol_surface_parallel_pct_integration() -> crate::error::Result<()> {
         use crate::engine::ScenarioEngine;
-        use crate::spec::{OperationSpec, ScenarioSpec, VolSurfaceKind};
+        use crate::spec::{OperationSpec, ScenarioSpec};
 
         let surface = VolSurface::builder("VOL")
             .expiries(&[0.5, 1.0])
@@ -426,7 +426,6 @@ mod tests {
             description: None,
             operations: vec![OperationSpec::VolSurfaceParallelPct {
                 vol_surface_id: "VOL".into(),
-                surface_kind: VolSurfaceKind::Equity,
                 pct: 10.0,
             }],
             priority: 0,

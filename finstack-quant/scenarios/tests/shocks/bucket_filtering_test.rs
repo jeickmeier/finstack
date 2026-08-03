@@ -4,9 +4,7 @@ use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 use finstack_quant_core::market_data::surfaces::VolSurface;
 use finstack_quant_core::market_data::term_structures::BaseCorrelationCurve;
-use finstack_quant_scenarios::{
-    ExecutionContext, OperationSpec, ScenarioEngine, ScenarioSpec, VolSurfaceKind,
-};
+use finstack_quant_scenarios::{ExecutionContext, OperationSpec, ScenarioEngine, ScenarioSpec};
 use finstack_quant_statements::FinancialModelSpec;
 use time::Month;
 
@@ -34,7 +32,6 @@ fn test_vol_bucket_filtering_by_tenor() {
         name: Some("Vol Bucket by Tenor".into()),
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
-            surface_kind: VolSurfaceKind::Equity,
             vol_surface_id: "SPX".into(),
             tenors: Some(vec!["1Y".into()]),
             strikes: None, // All strikes at 1Y
@@ -104,7 +101,6 @@ fn test_vol_bucket_filtering_by_strike() {
         name: Some("Vol Bucket by Strike".into()),
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
-            surface_kind: VolSurfaceKind::Equity,
             vol_surface_id: "SPX".into(),
             tenors: None,
             strikes: Some(vec![100.0]),
@@ -166,7 +162,6 @@ fn test_vol_bucket_unfiltered_is_multiplicative() {
         name: Some("Vol Bucket All".into()),
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
-            surface_kind: VolSurfaceKind::Equity,
             vol_surface_id: "SPX".into(),
             tenors: None,
             strikes: None,

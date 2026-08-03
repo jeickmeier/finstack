@@ -7,6 +7,9 @@
 - Canonicalized editor and agent rules under `.agents/rules`. Cursor and
   Claude now resolve the same reviewed rule tree through checkout-relative
   `.cursor/rules` and `.claude/rules` symlinks.
+- **Breaking (Rust, Python, JSON):** Removed `VolSurfaceKind` and the redundant
+  `surface_kind` field from direct and hierarchy volatility-surface shocks;
+  `vol_surface_id` now fully identifies the target surface.
 - **Breaking (Rust, Python, JSON):** Removed the unused
   `OperationSpec::BaseCorrBucketPts.maturities` field and Python argument;
   base-correlation shocks target the supported detachment dimension only.

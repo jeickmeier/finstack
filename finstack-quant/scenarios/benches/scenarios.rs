@@ -22,7 +22,7 @@ use finstack_quant_core::money::fx::SimpleFxProvider;
 use finstack_quant_core::money::Money;
 use finstack_quant_scenarios::{
     Compounding, CurveKind, ExecutionContext, OperationSpec, RateBindingSpec, ScenarioEngine,
-    ScenarioSpec, TenorMatchMode, VolSurfaceKind,
+    ScenarioSpec, TenorMatchMode,
 };
 use finstack_quant_statements::types::{AmountOrScalar, NodeSpec, NodeType};
 use finstack_quant_statements::FinancialModelSpec;
@@ -450,7 +450,6 @@ fn bench_vol_surface_shock(c: &mut Criterion) {
         name: None,
         description: None,
         operations: vec![OperationSpec::VolSurfaceParallelPct {
-            surface_kind: VolSurfaceKind::Equity,
             vol_surface_id: "SPX_VOL".into(),
             pct: 10.0,
         }],
@@ -485,7 +484,6 @@ fn bench_vol_surface_shock(c: &mut Criterion) {
         name: None,
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
-            surface_kind: VolSurfaceKind::Equity,
             vol_surface_id: "SPX_VOL".into(),
             tenors: Some(vec!["3M".into(), "6M".into()]),
             strikes: Some(vec![90.0, 100.0, 110.0]),
@@ -707,7 +705,6 @@ fn bench_complex_multi_operation(c: &mut Criterion) {
                     pct: (i as f64 + 1.0) * 2.0,
                 }),
                 4 => operations.push(OperationSpec::VolSurfaceParallelPct {
-                    surface_kind: VolSurfaceKind::Equity,
                     vol_surface_id: "SPX_VOL".into(),
                     pct: (i as f64 + 1.0) * 3.0,
                 }),
@@ -795,13 +792,11 @@ fn bench_serde_roundtrip(c: &mut Criterion) {
             },
             // Equity vol
             OperationSpec::VolSurfaceParallelPct {
-                surface_kind: VolSurfaceKind::Equity,
                 vol_surface_id: "SPX_VOL".into(),
                 pct: 15.0,
             },
             // Credit vol
             OperationSpec::VolSurfaceParallelPct {
-                surface_kind: VolSurfaceKind::Credit,
                 vol_surface_id: "CDX_IG_VOL".into(),
                 pct: 20.0,
             },
@@ -994,7 +989,6 @@ fn bench_credit_vol_shock(c: &mut Criterion) {
         name: None,
         description: None,
         operations: vec![OperationSpec::VolSurfaceParallelPct {
-            surface_kind: VolSurfaceKind::Credit,
             vol_surface_id: "CDX_IG_VOL".into(),
             pct: 20.0, // +20% credit vol increase
         }],
@@ -1029,7 +1023,6 @@ fn bench_credit_vol_shock(c: &mut Criterion) {
         name: None,
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
-            surface_kind: VolSurfaceKind::Credit,
             vol_surface_id: "CDX_IG_VOL".into(),
             tenors: Some(vec!["3M".into(), "1Y".into()]),
             strikes: Some(vec![90.0, 100.0]),
@@ -1138,7 +1131,6 @@ fn bench_comprehensive_credit_scenario(c: &mut Criterion) {
             },
             // Increase credit vol
             OperationSpec::VolSurfaceParallelPct {
-                surface_kind: VolSurfaceKind::Credit,
                 vol_surface_id: "CDX_IG_VOL".into(),
                 pct: 30.0,
             },

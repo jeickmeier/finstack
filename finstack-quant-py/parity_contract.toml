@@ -1370,8 +1370,8 @@ status = "exists"
 # NOTE: ``finstack_quant.scenarios`` now exposes a typed authoring path alongside the
 # original JSON helpers — ``OperationSpec`` (typed classmethod constructors,
 # one per Rust enum variant), ``RateBindingSpec``, and the supporting enums
-# (``CurveKind``, ``VolSurfaceKind``, ``TenorMatchMode``, ``TimeRollMode``,
-# ``Compounding``). Round-trip is delegated to serde on the Rust types so the
+# (``CurveKind``, ``TenorMatchMode``, ``TimeRollMode``, ``Compounding``).
+# Round-trip is delegated to serde on the Rust types so the
 # wire contract (``tag = "kind"``, snake_case, with ``forward`` / ``par_cds``
 # renames preserved) matches what the engine parses. These symbols remain flat
 # on the package root rather than living under a ``spec`` submodule to keep a

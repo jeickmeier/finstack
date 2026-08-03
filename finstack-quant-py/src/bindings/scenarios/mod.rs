@@ -245,7 +245,6 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "OperationSpec",
             "RateBindingSpec",
             "CurveKind",
-            "VolSurfaceKind",
             "TenorMatchMode",
             "TimeRollMode",
             "Compounding",

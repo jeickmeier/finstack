@@ -399,17 +399,14 @@ pub enum OperationSpec {
     ///
     /// # Example
     /// ```rust
-    /// use finstack_quant_scenarios::{OperationSpec, VolSurfaceKind};
+    /// use finstack_quant_scenarios::OperationSpec;
     ///
     /// let op = OperationSpec::VolSurfaceParallelPct {
-    ///     surface_kind: VolSurfaceKind::Equity,
     ///     vol_surface_id: "SPX".into(),
     ///     pct: 10.0, // +10% volatility increase
     /// };
     /// ```
     VolSurfaceParallelPct {
-        /// Type of volatility surface (Equity, FX, IR, etc.).
-        surface_kind: VolSurfaceKind,
         /// Volatility-surface identifier.
         vol_surface_id: CurveId,
         /// Percentage change in volatility.
@@ -420,10 +417,9 @@ pub enum OperationSpec {
     ///
     /// # Example
     /// ```rust
-    /// use finstack_quant_scenarios::{OperationSpec, VolSurfaceKind};
+    /// use finstack_quant_scenarios::OperationSpec;
     ///
     /// let op = OperationSpec::VolSurfaceBucketPct {
-    ///     surface_kind: VolSurfaceKind::Equity,
     ///     vol_surface_id: "SPX".into(),
     ///     tenors: Some(vec!["1M".into(), "3M".into()]),
     ///     strikes: Some(vec![90.0, 95.0, 100.0]),
@@ -431,8 +427,6 @@ pub enum OperationSpec {
     /// };
     /// ```
     VolSurfaceBucketPct {
-        /// Type of volatility surface (Equity, FX, IR, etc.).
-        surface_kind: VolSurfaceKind,
         /// Volatility-surface identifier.
         vol_surface_id: CurveId,
         /// Optional tenor strings (e.g., "1M", "3M").
@@ -662,10 +656,8 @@ pub enum OperationSpec {
     ///
     /// Resolution follows the same hierarchy-expansion rules as
     /// [`OperationSpec::HierarchyCurveParallelBp`], but targets volatility
-    /// surfaces of the requested [`VolSurfaceKind`].
+    /// surfaces.
     HierarchyVolSurfaceParallelPct {
-        /// Type of volatility surface.
-        surface_kind: VolSurfaceKind,
         /// Hierarchy target to resolve to surfaces.
         target: HierarchyTarget,
         /// Percentage change in volatility.
@@ -794,30 +786,6 @@ pub enum CurveKind {
     Inflation,
     /// Commodity forward curve.
     Commodity,
-}
-
-/// Labels which category of volatility surface an operation represents.
-///
-/// The current market context stores volatility surfaces in a single collection,
-/// so scenario adapters look up surfaces by `vol_surface_id`; `VolSurfaceKind` is
-/// retained as explicit metadata for serde contracts, template discovery, and
-/// future validation.
-///
-/// # Examples
-/// ```rust
-/// use finstack_quant_scenarios::VolSurfaceKind;
-///
-/// assert!(matches!(VolSurfaceKind::Swaption, VolSurfaceKind::Swaption));
-/// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum VolSurfaceKind {
-    /// Equity volatility surface.
-    Equity,
-    /// Credit volatility surface.
-    Credit,
-    /// Swaption volatility surface.
-    Swaption,
 }
 
 /// Strategy for aligning requested tenor bumps with curve pillars.

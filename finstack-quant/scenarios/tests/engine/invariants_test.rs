@@ -431,7 +431,6 @@ fn test_vol_surface_non_negative_after_parallel_shock() {
         name: None,
         description: None,
         operations: vec![OperationSpec::VolSurfaceParallelPct {
-            surface_kind: finstack_quant_scenarios::VolSurfaceKind::Equity,
             vol_surface_id: "SPX_VOL".into(),
             pct: 20.0,
         }],
@@ -497,7 +496,6 @@ fn test_vol_surface_non_negative_after_bucket_shock() {
         name: None,
         description: None,
         operations: vec![OperationSpec::VolSurfaceBucketPct {
-            surface_kind: finstack_quant_scenarios::VolSurfaceKind::Equity,
             vol_surface_id: "SPX_VOL".into(),
             tenors: Some(vec!["3M".into(), "1Y".into()]),
             strikes: Some(vec![95.0, 100.0]),

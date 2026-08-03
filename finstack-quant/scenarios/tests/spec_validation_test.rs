@@ -4,7 +4,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::market_data::hierarchy::ResolutionMode;
 use finstack_quant_scenarios::{
     Compounding, CurveKind, HierarchyTarget, InstrumentType, OperationSpec, RateBindingSpec,
-    ScenarioSpec, TenorMatchMode, TimeRollMode, VolSurfaceKind,
+    ScenarioSpec, TenorMatchMode, TimeRollMode,
 };
 #[test]
 fn scenario_validate_rejects_empty_id() {
@@ -234,7 +234,6 @@ fn operation_validate_rejects_non_finite_and_fx_floor_violation() {
     // tail-risk stress (and `check_arbitrage` flags downstream issues). Only
     // FX retains the strict floor.
     let vol_floor_relaxed = OperationSpec::VolSurfaceBucketPct {
-        surface_kind: VolSurfaceKind::Equity,
         vol_surface_id: "SPX".into(),
         tenors: None,
         strikes: Some(vec![100.0]),
@@ -288,7 +287,6 @@ fn scenario_validate_accepts_mixed_valid_operations() {
                 points: 0.02,
             },
             OperationSpec::VolSurfaceBucketPct {
-                surface_kind: VolSurfaceKind::Equity,
                 vol_surface_id: "SPX".into(),
                 tenors: Some(vec!["1Y".into()]),
                 strikes: Some(vec![95.0, 105.0]),
@@ -308,7 +306,6 @@ fn scenario_validate_accepts_mixed_valid_operations() {
                 bp: 25.0,
             },
             OperationSpec::HierarchyVolSurfaceParallelPct {
-                surface_kind: VolSurfaceKind::Equity,
                 target: HierarchyTarget {
                     path: vec!["Vol".into(), "Equity".into()],
                     tag_filter: None,
