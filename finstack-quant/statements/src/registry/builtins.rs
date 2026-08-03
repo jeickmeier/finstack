@@ -12,23 +12,18 @@
 //!   - `fin_returns.json` - Return metrics (ROE, ROA, ROIC, etc.)
 //!   - `fin_leverage.json` - Leverage ratios
 //!
-//! ## Input convention (BREAKING CHANGE, 2026-07)
+//! ## Operating-expense convention
 //!
-//! All bundled P&L and return metrics assume the `opex` input **excludes**
-//! depreciation and amortization, which are supplied as the separate
-//! `depreciation` and `amortization` nodes:
+//! Bundled metrics treat `opex` as excluding depreciation and amortization;
+//! provide those amounts through the separate `depreciation` and `amortization` nodes.
+//! Consequently:
 //!
-//! - `fin.ebitda = revenue - cogs - opex` (no D&A add-back)
-//! - `fin.operating_income = fin.ebit = revenue - cogs - opex - depreciation - amortization`
-//! - `fin.ebt`, `fin.net_income`, `fin.roe`, `fin.roa`, `fin.roic`, `fin.roce`
-//!   subtract D&A explicitly on the same basis.
+//! - `fin.ebitda = revenue - cogs - opex`
+//! - `fin.operating_income = revenue - cogs - opex - depreciation - amortization`
+//! - `fin.ebit = fin.ebitda - depreciation - amortization`
 //!
-//! **Migration:** models that previously fed `opex` *including* D&A must
-//! split D&A out into the `depreciation` / `amortization` nodes, otherwise
-//! D&A is double-counted and EBITDA/EBIT/net income are understated. Under
-//! the old formulas EBITDA added D&A back onto an `opex` that was assumed to
-//! contain it; the formulas above are the standard presentation and make
-//! `ebitda - D - A == ebit == operating_income` articulate exactly.
+//! Thus `fin.ebit == fin.operating_income`; bundled downstream earnings and return
+//! formulas deduct the separate D&A nodes under the same convention.
 //!
 //! ## Usage
 //!
