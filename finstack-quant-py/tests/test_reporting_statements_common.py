@@ -42,13 +42,20 @@ def test_parse_statement_passthrough_view() -> None:
 
 
 def test_parse_statement_rejects_bad_type() -> None:
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError) as exc_info:
         sc.parse_statement(123)
+    assert str(exc_info.value) == "results must be a StatementResult, JSON string, dict, or StatementView; got int"
+
+
+def test_parse_statement_preserves_malformed_json_error() -> None:
+    with pytest.raises(json.JSONDecodeError):
+        sc.parse_statement("{")
 
 
 def test_parse_statement_rejects_non_dict_json() -> None:
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError) as exc_info:
         sc.parse_statement("[1, 2, 3]")
+    assert str(exc_info.value) == "results JSON must decode to an object; got list"
 
 
 def test_pl_matrix_table_lays_out_items_and_periods() -> None:

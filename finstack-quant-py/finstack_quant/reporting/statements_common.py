@@ -168,18 +168,11 @@ def parse_statement(results: Any) -> StatementView:
     """
     if isinstance(results, StatementView):
         return results
-    if isinstance(results, str):
-        data = json.loads(results)
-    elif isinstance(results, dict):
-        data = results
-    elif hasattr(results, "to_json"):
-        data = json.loads(results.to_json())
-    else:
+    if not isinstance(results, (str, dict)) and not hasattr(results, "to_json"):
         raise TypeError(
             f"results must be a StatementResult, JSON string, dict, or StatementView; got {type(results).__name__}"
         )
-    if not isinstance(data, dict):
-        raise TypeError(f"results JSON must decode to an object; got {type(data).__name__}")
+    data = json_or_dict(results, noun="results")
     return StatementView(data.get("nodes", {}))
 
 
