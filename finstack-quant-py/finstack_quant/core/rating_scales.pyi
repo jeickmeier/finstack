@@ -9,9 +9,10 @@ the ordered state set of a credit-migration transition matrix.
 
 Examples
 --------
->>> import finstack_quant.core.rating_scales as rating_scales
->>> rating_scales.__name__
-'finstack_quant.core.rating_scales'
+>>> from finstack_quant.core.rating_scales import RatingLevel
+>>> RatingLevel("BBB", 70.0, 65.0).name
+'BBB'
+
 """
 
 from __future__ import annotations
@@ -25,8 +26,9 @@ class UnknownScalePolicy:
     Examples
     --------
     >>> from finstack_quant.core.rating_scales import UnknownScalePolicy
-    >>> UnknownScalePolicy.ERROR.name  # doctest: +SKIP
+    >>> UnknownScalePolicy.from_name("error").name
     'error'
+
     """
 
     ERROR: UnknownScalePolicy
@@ -62,8 +64,9 @@ class UnknownScalePolicy:
         Examples
         --------
         >>> from finstack_quant.core.rating_scales import UnknownScalePolicy
-        >>> UnknownScalePolicy.from_name("error").name  # doctest: +SKIP
+        >>> UnknownScalePolicy.from_name("error").name
         'error'
+
         """
 
     @property
@@ -76,10 +79,6 @@ class UnknownScalePolicy:
         str
             Policy identifier string.
 
-        Examples
-        --------
-        >>> UnknownScalePolicy.ERROR.name  # doctest: +SKIP
-        'error'
         """
 
     def to_json(self) -> str:
@@ -114,8 +113,9 @@ class UnknownScalePolicy:
         Examples
         --------
         >>> from finstack_quant.core.rating_scales import UnknownScalePolicy
-        >>> callable(UnknownScalePolicy.from_json)
-        True
+        >>> UnknownScalePolicy.from_json(UnknownScalePolicy.ERROR.to_json()).name
+        'error'
+
         """
         ...
     def __repr__(self) -> str:
@@ -158,9 +158,10 @@ class RatingLevel:
     Examples
     --------
     >>> from finstack_quant.core.rating_scales import RatingLevel
-    >>> lvl = RatingLevel("BBB", 70.0, 65.0)  # doctest: +SKIP
-    >>> lvl.name  # doctest: +SKIP
-    'BBB'
+    >>> level = RatingLevel("BBB", 70.0, 65.0)
+    >>> (level.name, level.score, level.min_score)
+    ('BBB', 70.0, 65.0)
+
     """
 
     def __init__(self, name: str, score: float, min_score: float) -> None:
@@ -176,11 +177,6 @@ class RatingLevel:
         min_score : float
             Minimum score threshold required to qualify for this rating.
 
-        Examples
-        --------
-        >>> from finstack_quant.core.rating_scales import RatingLevel
-        >>> lvl = RatingLevel("BBB", 70.0, 65.0)  # doctest: +SKIP
-
         """
         ...
     @property
@@ -193,11 +189,6 @@ class RatingLevel:
         str
             Rating label.
 
-        Examples
-        --------
-        >>> lvl = RatingLevel("BBB", 70.0, 65.0)  # doctest: +SKIP
-        >>> lvl.name  # doctest: +SKIP
-        'BBB'
         """
 
     @property
@@ -210,11 +201,6 @@ class RatingLevel:
         float
             Representative score for the rating.
 
-        Examples
-        --------
-        >>> lvl = RatingLevel("BBB", 70.0, 65.0)  # doctest: +SKIP
-        >>> lvl.score  # doctest: +SKIP
-        70.0
         """
 
     @property
@@ -227,11 +213,6 @@ class RatingLevel:
         float
             Lower bound on the scorecard scale.
 
-        Examples
-        --------
-        >>> lvl = RatingLevel("BBB", 70.0, 65.0)  # doctest: +SKIP
-        >>> lvl.min_score  # doctest: +SKIP
-        65.0
         """
 
     def to_json(self) -> str:
@@ -267,8 +248,10 @@ class RatingLevel:
         Examples
         --------
         >>> from finstack_quant.core.rating_scales import RatingLevel
-        >>> callable(RatingLevel.from_json)
-        True
+        >>> level = RatingLevel("BBB", 70.0, 65.0)
+        >>> RatingLevel.from_json(level.to_json()).name
+        'BBB'
+
         """
         ...
     def __repr__(self) -> str:
@@ -289,10 +272,11 @@ class ScorecardScale:
 
     Examples
     --------
-    >>> from finstack_quant.core.rating_scales import ScorecardScale, RatingLevel
-    >>> scale = ScorecardScale("custom", [RatingLevel("A", 90.0, 85.0)])  # doctest: +SKIP
-    >>> scale.scale_name  # doctest: +SKIP
-    'custom'
+    >>> from finstack_quant.core.rating_scales import RatingLevel, ScorecardScale
+    >>> scale = ScorecardScale("custom", [RatingLevel("BBB", 70.0, 65.0)], description="Example")
+    >>> (scale.scale_name, scale.description, len(scale.ratings))
+    ('custom', 'Example', 1)
+
     """
 
     def __init__(
@@ -313,11 +297,6 @@ class ScorecardScale:
         description : str, optional
             Human-readable description of the scale.
 
-        Examples
-        --------
-        >>> from finstack_quant.core.rating_scales import ScorecardScale, RatingLevel
-        >>> scale = ScorecardScale("custom", [RatingLevel("A", 90.0, 85.0)])  # doctest: +SKIP
-
         """
         ...
     @property
@@ -330,11 +309,6 @@ class ScorecardScale:
         str
             Scale identifier.
 
-        Examples
-        --------
-        >>> scale = ScorecardScale("custom", [])  # doctest: +SKIP
-        >>> scale.scale_name  # doctest: +SKIP
-        'custom'
         """
 
     @property
@@ -347,11 +321,6 @@ class ScorecardScale:
         str or None
             Description text when set.
 
-        Examples
-        --------
-        >>> scale = ScorecardScale("custom", [], description="My scale")  # doctest: +SKIP
-        >>> scale.description  # doctest: +SKIP
-        'My scale'
         """
 
     @property
@@ -364,11 +333,6 @@ class ScorecardScale:
         list[RatingLevel]
             Rating threshold rows.
 
-        Examples
-        --------
-        >>> scale = ScorecardScale("custom", [RatingLevel("A", 90.0, 85.0)])  # doctest: +SKIP
-        >>> len(scale.ratings)  # doctest: +SKIP
-        1
         """
 
     def to_json(self) -> str:
@@ -403,9 +367,11 @@ class ScorecardScale:
 
         Examples
         --------
-        >>> from finstack_quant.core.rating_scales import ScorecardScale
-        >>> callable(ScorecardScale.from_json)
-        True
+        >>> from finstack_quant.core.rating_scales import RatingLevel, ScorecardScale
+        >>> scale = ScorecardScale("custom", [RatingLevel("BBB", 70.0, 65.0)])
+        >>> ScorecardScale.from_json(scale.to_json()).ratings[0].name
+        'BBB'
+
         """
         ...
     def __len__(self) -> int:
@@ -431,10 +397,14 @@ class RatingScaleRegistry:
 
     Examples
     --------
-    >>> from finstack_quant.core.rating_scales import embedded_registry
-    >>> reg = embedded_registry()  # doctest: +SKIP
-    >>> reg.is_known_rating_scale("sp")  # doctest: +SKIP
-    True
+    >>> from finstack_quant.core.config import FinstackConfig
+    >>> from finstack_quant.core.rating_scales import registry_from_config
+    >>> registry = registry_from_config(FinstackConfig())
+    >>> (registry.default_scale_id(), registry.default_scorecard_score(), registry.unknown_scale_policy().name)
+    ('sp', 50.0, 'fallback_to_default')
+    >>> (registry.is_known_rating_scale("S&P"), registry.rating_scale("S&P").scale_name)
+    (True, 'S&P')
+
     """
 
     def default_scorecard_score(self) -> float:
@@ -447,11 +417,6 @@ class RatingScaleRegistry:
             Default score on the 0–100 scale used when interpolating between
             published rating thresholds.
 
-        Examples
-        --------
-        >>> reg = embedded_registry()  # doctest: +SKIP
-        >>> reg.default_scorecard_score()  # doctest: +SKIP
-        50.0
         """
 
     def default_scale_id(self) -> str:
@@ -463,11 +428,6 @@ class RatingScaleRegistry:
         str
             Default scale identifier (e.g. ``"sp"``).
 
-        Examples
-        --------
-        >>> reg = embedded_registry()  # doctest: +SKIP
-        >>> reg.default_scale_id()  # doctest: +SKIP
-        'sp'
         """
 
     def unknown_scale_policy(self) -> UnknownScalePolicy:
@@ -479,11 +439,6 @@ class RatingScaleRegistry:
         UnknownScalePolicy
             Error, fallback, or warn-and-fallback policy.
 
-        Examples
-        --------
-        >>> reg = embedded_registry()  # doctest: +SKIP
-        >>> reg.unknown_scale_policy().name  # doctest: +SKIP
-        'error'
         """
 
     def is_known_rating_scale(self, name: str) -> bool:
@@ -500,12 +455,6 @@ class RatingScaleRegistry:
         bool
             ``True`` when the name resolves without applying the unknown-scale
             policy.
-
-        Examples
-        --------
-        >>> reg = embedded_registry()  # doctest: +SKIP
-        >>> reg.is_known_rating_scale("sp")  # doctest: +SKIP
-        True
 
         """
 
@@ -531,12 +480,6 @@ class RatingScaleRegistry:
         ValueError
             When policy is ``ERROR`` and ``name`` is unknown.
 
-        Examples
-        --------
-        >>> reg = embedded_registry()  # doctest: +SKIP
-        >>> scale = reg.rating_scale("sp")  # doctest: +SKIP
-        >>> scale.scale_name  # doctest: +SKIP
-        'S&P'
         """
 
     def to_json(self) -> str:
@@ -570,9 +513,12 @@ class RatingScaleRegistry:
 
         Examples
         --------
-        >>> from finstack_quant.core.rating_scales import RatingScaleRegistry
-        >>> callable(RatingScaleRegistry.from_json)
-        True
+        >>> from finstack_quant.core.config import FinstackConfig
+        >>> from finstack_quant.core.rating_scales import RatingScaleRegistry, registry_from_config
+        >>> registry = registry_from_config(FinstackConfig())
+        >>> RatingScaleRegistry.from_json(registry.to_json()).default_scale_id()
+        'sp'
+
         """
         ...
     def __repr__(self) -> str:
@@ -628,7 +574,11 @@ def registry_from_config(config: FinstackConfig) -> RatingScaleRegistry:
     --------
     >>> from finstack_quant.core.config import FinstackConfig
     >>> from finstack_quant.core.rating_scales import registry_from_config
-    >>> reg = registry_from_config(FinstackConfig.default())  # doctest: +SKIP
+    >>> registry = registry_from_config(FinstackConfig())
+    >>> (registry.default_scale_id(), registry.default_scorecard_score(), registry.unknown_scale_policy().name)
+    ('sp', 50.0, 'fallback_to_default')
+    >>> (registry.is_known_rating_scale("S&P"), registry.rating_scale("S&P").scale_name)
+    (True, 'S&P')
 
     """
 

@@ -22,9 +22,10 @@ Example::
 
 Examples
 --------
->>> import finstack_quant.cashflows.primitives as primitives
->>> primitives.__name__
-'finstack_quant.cashflows.primitives'
+>>> from finstack_quant.cashflows.primitives import CFKind
+>>> CFKind.parse("fixed") == CFKind.FIXED
+True
+
 """
 
 from __future__ import annotations

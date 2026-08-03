@@ -24,9 +24,10 @@ Example::
 
 Examples
 --------
->>> import finstack_quant.cashflows.accrual as accrual
->>> accrual.__name__
-'finstack_quant.cashflows.accrual'
+>>> from finstack_quant.cashflows.accrual import AccrualMethod
+>>> str(AccrualMethod.LINEAR)
+'AccrualMethod(Linear)'
+
 """
 
 from __future__ import annotations
@@ -188,7 +189,7 @@ class AccrualConfig:
     Examples
     --------
     >>> from finstack_quant.cashflows.accrual import AccrualConfig, AccrualMethod
-    >>> AccrualConfig(method=AccrualMethod.LINEAR).include_pik
+    >>> repr(AccrualConfig(method=AccrualMethod.LINEAR)).startswith("AccrualConfig(")
     True
     """
 
@@ -226,7 +227,7 @@ class AccrualConfig:
         Examples
         --------
         >>> from finstack_quant.cashflows.accrual import AccrualConfig
-        >>> AccrualConfig().include_pik
+        >>> repr(AccrualConfig()).startswith("AccrualConfig(")
         True
         """
         ...

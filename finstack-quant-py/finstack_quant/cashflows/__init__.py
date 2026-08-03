@@ -1,10 +1,12 @@
 """Cashflow schedules: typed builder, primitives, accrual, aggregation, JSON bridge.
 
 Examples:
---------
->>> import finstack_quant.cashflows as cashflows
->>> cashflows.__name__
-'finstack_quant.cashflows'
+>>> import datetime
+>>> from finstack_quant.cashflows.primitives import CFKind, CashFlow
+>>> from finstack_quant.core.money import Money
+>>> CashFlow(datetime.date(2025, 6, 15), Money(100.0, "USD"), CFKind.FIXED).amount.amount
+100.0
+
 """
 
 from __future__ import annotations

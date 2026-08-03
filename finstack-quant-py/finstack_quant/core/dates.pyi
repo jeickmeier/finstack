@@ -10,13 +10,14 @@ Example::
     >>> from finstack_quant.core.dates import DayCount, Tenor, ScheduleBuilder
     >>> day_count = DayCount.ACT_365F
     >>> day_count.year_fraction(datetime.date(2024, 1, 1), datetime.date(2025, 1, 1))
-    1.0
+    1.0027397260273974
 
 Examples
 --------
->>> import finstack_quant.core.dates as dates
->>> dates.__name__
-'finstack_quant.core.dates'
+>>> from finstack_quant.core.dates import Tenor
+>>> Tenor.parse("3M").months
+3
+
 """
 
 from __future__ import annotations
@@ -71,8 +72,9 @@ class SifmaSettlementClass:
     Examples
     --------
     >>> from finstack_quant.core.dates import SifmaSettlementClass
-    >>> SifmaSettlementClass.__name__
-    'SifmaSettlementClass'
+    >>> SifmaSettlementClass.from_agency_term("FNMA", 30) == SifmaSettlementClass.A
+    True
+
     """
 
     A: SifmaSettlementClass
@@ -102,8 +104,9 @@ class SifmaSettlementClass:
         Examples
         --------
         >>> from finstack_quant.core.dates import SifmaSettlementClass
-        >>> callable(SifmaSettlementClass.from_agency_term)
+        >>> SifmaSettlementClass.from_agency_term("FNMA", 30) == SifmaSettlementClass.A
         True
+
         """
         ...
 
@@ -131,9 +134,11 @@ def sifma_settlement_date(month: int, year: int) -> datetime.date | None:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.dates import sifma_settlement_date
-    >>> callable(sifma_settlement_date)
-    True
+    >>> sifma_settlement_date(1, 2026)
+    datetime.date(2026, 1, 14)
+
     """
     ...
 
@@ -155,7 +160,9 @@ def sifma_settlement_date_for_class(
     Returns
     -------
     datetime.date | None
-        Result of sifma settlement date for class for the binding in the annotated representation.
+        The exact published settlement date for the requested month, year,
+        and settlement class, or ``None`` when the embedded SIFMA calendar
+        has no date for that combination.
 
     Raises
     ------
@@ -165,9 +172,11 @@ def sifma_settlement_date_for_class(
 
     Examples
     --------
-    >>> from finstack_quant.core.dates import sifma_settlement_date_for_class
-    >>> callable(sifma_settlement_date_for_class)
-    True
+    >>> import datetime
+    >>> from finstack_quant.core.dates import sifma_settlement_date_for_class, SifmaSettlementClass
+    >>> sifma_settlement_date_for_class(1, 2026, SifmaSettlementClass.B)
+    datetime.date(2026, 1, 20)
+
     """
     ...
 
@@ -199,9 +208,11 @@ def estimated_sifma_settlement_date_for_class(
 
     Examples
     --------
-    >>> from finstack_quant.core.dates import estimated_sifma_settlement_date_for_class
-    >>> callable(estimated_sifma_settlement_date_for_class)
-    True
+    >>> import datetime
+    >>> from finstack_quant.core.dates import estimated_sifma_settlement_date_for_class, SifmaSettlementClass
+    >>> estimated_sifma_settlement_date_for_class(1, 2030, SifmaSettlementClass.C)
+    datetime.date(2030, 1, 22)
+
     """
     ...
 
@@ -222,9 +233,11 @@ def next_sifma_settlement(date: datetime.date) -> datetime.date | None:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.dates import next_sifma_settlement
-    >>> callable(next_sifma_settlement)
-    True
+    >>> next_sifma_settlement(datetime.date(2026, 1, 15))
+    datetime.date(2026, 2, 12)
+
     """
     ...
 
@@ -245,7 +258,7 @@ class DayCount:
     >>> from finstack_quant.core.dates import DayCount
     >>> day_count = DayCount.ACT_360
     >>> day_count.year_fraction(datetime.date(2024, 1, 1), datetime.date(2024, 7, 1))
-    0.5027777777777778
+    0.5055555555555555
     """
 
     ACT_360: DayCount
@@ -298,8 +311,9 @@ class DayCount:
         Examples
         --------
         >>> from finstack_quant.core.dates import DayCount
-        >>> callable(DayCount.from_name)
+        >>> DayCount.from_name("act_360") == DayCount.ACT_360
         True
+
         """
         ...
 
@@ -384,9 +398,11 @@ class DayCount:
 
         Examples
         --------
+        >>> import datetime
         >>> from finstack_quant.core.dates import DayCount
-        >>> callable(DayCount.calendar_days)
-        True
+        >>> DayCount.calendar_days(datetime.date(2024, 1, 1), datetime.date(2024, 1, 31))
+        30
+
         """
         ...
 
@@ -416,9 +432,11 @@ class DayCountContext:
 
     Examples
     --------
-    >>> from finstack_quant.core.dates import DayCountContext
-    >>> DayCountContext.__name__
-    'DayCountContext'
+    >>> from finstack_quant.core.dates import DayCountContext, Tenor
+    >>> context = DayCountContext("usny", Tenor.quarterly(), 252)
+    >>> (context.calendar_id, context.frequency.months, context.bus_basis, context.to_state().calendar_id)
+    ('usny', 3, 252, 'usny')
+
     """
 
     def __init__(
@@ -539,9 +557,11 @@ class DayCountContextState:
 
     Examples
     --------
-    >>> from finstack_quant.core.dates import DayCountContextState
-    >>> DayCountContextState.__name__
-    'DayCountContextState'
+    >>> from finstack_quant.core.dates import DayCountContextState, Tenor
+    >>> state = DayCountContextState("usny", Tenor.quarterly(), 252)
+    >>> (state.calendar_id, state.to_context().frequency.months)
+    ('usny', 3)
+
     """
 
     def __init__(
@@ -652,8 +672,9 @@ class Thirty360Convention:
     Examples
     --------
     >>> from finstack_quant.core.dates import Thirty360Convention
-    >>> Thirty360Convention.__name__
-    'Thirty360Convention'
+    >>> str(Thirty360Convention.US_SIA)
+    'us_sia'
+
     """
 
     US_SIA: Thirty360Convention
@@ -682,8 +703,9 @@ class TenorUnit:
     Examples
     --------
     >>> from finstack_quant.core.dates import TenorUnit
-    >>> TenorUnit.__name__
-    'TenorUnit'
+    >>> (str(TenorUnit.MONTHS), TenorUnit.from_char("M") == TenorUnit.MONTHS)
+    ('M', True)
+
     """
 
     DAYS: TenorUnit
@@ -718,8 +740,9 @@ class TenorUnit:
         Examples
         --------
         >>> from finstack_quant.core.dates import TenorUnit
-        >>> callable(TenorUnit.from_char)
+        >>> TenorUnit.from_char("W") == TenorUnit.WEEKS
         True
+
         """
         ...
 
@@ -745,8 +768,9 @@ class Tenor:
     Examples
     --------
     >>> from finstack_quant.core.dates import Tenor
-    >>> Tenor.__name__
-    'Tenor'
+    >>> (Tenor.parse("3M").months, Tenor.biweekly().days)
+    (3, 14)
+
     """
 
     def __init__(self, count: int, unit: TenorUnit) -> None:
@@ -792,8 +816,9 @@ class Tenor:
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
-        >>> callable(Tenor.parse)
-        True
+        >>> Tenor.parse("3M").months
+        3
+
         """
         ...
 
@@ -811,8 +836,9 @@ class Tenor:
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
-        >>> callable(Tenor.daily)
-        True
+        >>> Tenor.daily().days
+        1
+
         """
         ...
 
@@ -830,8 +856,9 @@ class Tenor:
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
-        >>> callable(Tenor.weekly)
-        True
+        >>> Tenor.weekly().days
+        7
+
         """
         ...
 
@@ -849,8 +876,9 @@ class Tenor:
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
-        >>> callable(Tenor.biweekly)
-        True
+        >>> Tenor.biweekly().days
+        14
+
         """
         ...
 
@@ -868,8 +896,9 @@ class Tenor:
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
-        >>> callable(Tenor.monthly)
-        True
+        >>> Tenor.monthly().months
+        1
+
         """
         ...
 
@@ -887,8 +916,9 @@ class Tenor:
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
-        >>> callable(Tenor.bimonthly)
-        True
+        >>> Tenor.bimonthly().months
+        2
+
         """
         ...
 
@@ -905,8 +935,9 @@ class Tenor:
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
-        >>> callable(Tenor.quarterly)
-        True
+        >>> Tenor.quarterly().months
+        3
+
         """
         ...
 
@@ -923,8 +954,9 @@ class Tenor:
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
-        >>> callable(Tenor.semi_annual)
-        True
+        >>> Tenor.semi_annual().months
+        6
+
         """
         ...
 
@@ -941,8 +973,9 @@ class Tenor:
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
-        >>> callable(Tenor.annual)
-        True
+        >>> Tenor.annual().months
+        12
+
         """
         ...
 
@@ -969,8 +1002,9 @@ class Tenor:
         Examples
         --------
         >>> from finstack_quant.core.dates import Tenor
-        >>> callable(Tenor.from_payments_per_year)
-        True
+        >>> Tenor.from_payments_per_year(4).months
+        3
+
         """
         ...
 
@@ -1064,8 +1098,9 @@ class PeriodKind:
     Examples
     --------
     >>> from finstack_quant.core.dates import PeriodKind
-    >>> PeriodKind.__name__
-    'PeriodKind'
+    >>> (str(PeriodKind.QUARTERLY), PeriodKind.QUARTERLY.periods_per_year)
+    ('quarterly', 4)
+
     """
 
     DAILY: PeriodKind
@@ -1104,8 +1139,9 @@ class PeriodKind:
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodKind
-        >>> callable(PeriodKind.from_name)
+        >>> PeriodKind.from_name("quarterly") == PeriodKind.QUARTERLY
         True
+
         """
         ...
 
@@ -1148,8 +1184,9 @@ class PeriodId:
     Examples
     --------
     >>> from finstack_quant.core.dates import PeriodId
-    >>> PeriodId.__name__
-    'PeriodId'
+    >>> (PeriodId.parse("2025Q2").code, PeriodId.parse("2025Q2").next().code)
+    ('2025Q2', '2025Q3')
+
     """
 
     @classmethod
@@ -1176,8 +1213,9 @@ class PeriodId:
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
-        >>> callable(PeriodId.parse)
-        True
+        >>> PeriodId.parse("2025Q2").code
+        '2025Q2'
+
         """
         ...
 
@@ -1207,8 +1245,9 @@ class PeriodId:
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
-        >>> callable(PeriodId.month)
-        True
+        >>> PeriodId.month(2025, 2).code
+        '2025M02'
+
         """
         ...
 
@@ -1238,8 +1277,9 @@ class PeriodId:
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
-        >>> callable(PeriodId.quarter)
-        True
+        >>> PeriodId.quarter(2025, 2).code
+        '2025Q2'
+
         """
         ...
 
@@ -1262,8 +1302,9 @@ class PeriodId:
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
-        >>> callable(PeriodId.annual)
-        True
+        >>> PeriodId.annual(2025).code
+        '2025'
+
         """
         ...
 
@@ -1293,8 +1334,9 @@ class PeriodId:
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
-        >>> callable(PeriodId.half)
-        True
+        >>> PeriodId.half(2025, 2).code
+        '2025H2'
+
         """
         ...
 
@@ -1324,8 +1366,9 @@ class PeriodId:
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
-        >>> callable(PeriodId.week)
-        True
+        >>> PeriodId.week(2025, 2).code
+        '2025W02'
+
         """
         ...
 
@@ -1355,8 +1398,9 @@ class PeriodId:
         Examples
         --------
         >>> from finstack_quant.core.dates import PeriodId
-        >>> callable(PeriodId.day)
-        True
+        >>> PeriodId.day(2025, 2).code
+        '2025D002'
+
         """
         ...
 
@@ -1531,9 +1575,11 @@ class Period:
 
     Examples
     --------
-    >>> from finstack_quant.core.dates import Period
-    >>> Period.__name__
-    'Period'
+    >>> from finstack_quant.core.dates import build_periods
+    >>> period = build_periods("2024Q1..Q1").periods[0]
+    >>> (period.id.code, period.start, period.end)
+    ('2024Q1', datetime.date(2024, 1, 1), datetime.date(2024, 4, 1))
+
     """
 
     @property
@@ -1595,9 +1641,10 @@ class PeriodPlan:
 
     Examples
     --------
-    >>> from finstack_quant.core.dates import PeriodPlan
-    >>> PeriodPlan.__name__
-    'PeriodPlan'
+    >>> from finstack_quant.core.dates import build_periods
+    >>> [period.id.code for period in build_periods("2024Q1..Q2").periods]
+    ['2024Q1', '2024Q2']
+
     """
 
     @property
@@ -1634,8 +1681,9 @@ class FiscalConfig:
     Examples
     --------
     >>> from finstack_quant.core.dates import FiscalConfig
-    >>> FiscalConfig.__name__
-    'FiscalConfig'
+    >>> (FiscalConfig.us_federal().start_month, FiscalConfig.uk().start_day)
+    (10, 6)
+
     """
 
     def __init__(self, start_month: int, start_day: int) -> None:
@@ -1671,8 +1719,10 @@ class FiscalConfig:
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
-        >>> callable(FiscalConfig.calendar_year)
-        True
+        >>> config = FiscalConfig.calendar_year()
+        >>> (config.start_month, config.start_day)
+        (1, 1)
+
         """
         ...
 
@@ -1689,8 +1739,10 @@ class FiscalConfig:
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
-        >>> callable(FiscalConfig.us_federal)
-        True
+        >>> config = FiscalConfig.us_federal()
+        >>> (config.start_month, config.start_day)
+        (10, 1)
+
         """
         ...
 
@@ -1707,8 +1759,10 @@ class FiscalConfig:
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
-        >>> callable(FiscalConfig.uk)
-        True
+        >>> config = FiscalConfig.uk()
+        >>> (config.start_month, config.start_day)
+        (4, 6)
+
         """
         ...
 
@@ -1725,8 +1779,10 @@ class FiscalConfig:
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
-        >>> callable(FiscalConfig.japan)
-        True
+        >>> config = FiscalConfig.japan()
+        >>> (config.start_month, config.start_day)
+        (4, 1)
+
         """
         ...
 
@@ -1743,8 +1799,10 @@ class FiscalConfig:
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
-        >>> callable(FiscalConfig.canada)
-        True
+        >>> config = FiscalConfig.canada()
+        >>> (config.start_month, config.start_day)
+        (4, 1)
+
         """
         ...
 
@@ -1761,8 +1819,10 @@ class FiscalConfig:
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
-        >>> callable(FiscalConfig.australia)
-        True
+        >>> config = FiscalConfig.australia()
+        >>> (config.start_month, config.start_day)
+        (7, 1)
+
         """
         ...
 
@@ -1779,8 +1839,10 @@ class FiscalConfig:
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
-        >>> callable(FiscalConfig.germany)
-        True
+        >>> config = FiscalConfig.germany()
+        >>> (config.start_month, config.start_day)
+        (1, 1)
+
         """
         ...
 
@@ -1797,8 +1859,10 @@ class FiscalConfig:
         Examples
         --------
         >>> from finstack_quant.core.dates import FiscalConfig
-        >>> callable(FiscalConfig.france)
-        True
+        >>> config = FiscalConfig.france()
+        >>> (config.start_month, config.start_day)
+        (1, 1)
+
         """
         ...
 
@@ -1855,8 +1919,9 @@ def build_periods(
     Examples
     --------
     >>> from finstack_quant.core.dates import build_periods
-    >>> callable(build_periods)
-    True
+    >>> [(period.id.code, period.is_actual) for period in build_periods("2024Q1..Q4", "2024Q2").periods]
+    [('2024Q1', True), ('2024Q2', True), ('2024Q3', False), ('2024Q4', False)]
+
     """
     ...
 
@@ -1889,9 +1954,10 @@ def build_fiscal_periods(
 
     Examples
     --------
-    >>> from finstack_quant.core.dates import build_fiscal_periods
-    >>> callable(build_fiscal_periods)
-    True
+    >>> from finstack_quant.core.dates import FiscalConfig, build_fiscal_periods
+    >>> build_fiscal_periods("2024Q1..Q1", FiscalConfig.us_federal()).periods[0].start
+    datetime.date(2023, 10, 1)
+
     """
     ...
 
@@ -1908,8 +1974,9 @@ class BusinessDayConvention:
     Examples
     --------
     >>> from finstack_quant.core.dates import BusinessDayConvention
-    >>> BusinessDayConvention.__name__
-    'BusinessDayConvention'
+    >>> str(BusinessDayConvention.MODIFIED_FOLLOWING)
+    'ModifiedFollowing'
+
     """
 
     UNADJUSTED: BusinessDayConvention
@@ -1946,8 +2013,9 @@ class BusinessDayConvention:
         Examples
         --------
         >>> from finstack_quant.core.dates import BusinessDayConvention
-        >>> callable(BusinessDayConvention.from_name)
-        True
+        >>> str(BusinessDayConvention.from_name("following"))
+        'Following'
+
         """
         ...
 
@@ -1965,9 +2033,11 @@ class CalendarMetadata:
 
     Examples
     --------
-    >>> from finstack_quant.core.dates import CalendarMetadata
-    >>> CalendarMetadata.__name__
-    'CalendarMetadata'
+    >>> from finstack_quant.core.dates import HolidayCalendar
+    >>> metadata = HolidayCalendar("usny").metadata
+    >>> (metadata.id, metadata.name)
+    ('usny', 'United States (New York Federal) Holidays')
+
     """
 
     @property
@@ -2037,9 +2107,12 @@ class HolidayCalendar:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.dates import HolidayCalendar
-    >>> HolidayCalendar.__name__
-    'HolidayCalendar'
+    >>> calendar = HolidayCalendar("usny")
+    >>> (calendar.is_holiday(datetime.date(2025, 1, 1)), calendar.is_business_day(datetime.date(2025, 1, 6)))
+    (True, True)
+
     """
 
     def __init__(self, code: str) -> None:
@@ -2148,9 +2221,11 @@ def adjust(
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.dates import adjust
-    >>> callable(adjust)
-    True
+    >>> adjust(datetime.date(2025, 1, 4), "following", "usny")
+    datetime.date(2025, 1, 6)
+
     """
     ...
 
@@ -2166,8 +2241,9 @@ def available_calendars() -> list[str]:
     Examples
     --------
     >>> from finstack_quant.core.dates import available_calendars
-    >>> callable(available_calendars)
+    >>> "usny" in available_calendars()
     True
+
     """
     ...
 
@@ -2184,8 +2260,9 @@ class StubKind:
     Examples
     --------
     >>> from finstack_quant.core.dates import StubKind
-    >>> StubKind.__name__
-    'StubKind'
+    >>> str(StubKind.SHORT_FRONT)
+    'short_front'
+
     """
 
     NONE: StubKind
@@ -2222,8 +2299,9 @@ class StubKind:
         Examples
         --------
         >>> from finstack_quant.core.dates import StubKind
-        >>> callable(StubKind.from_name)
+        >>> StubKind.from_name("short_front") == StubKind.SHORT_FRONT
         True
+
         """
         ...
 
@@ -2242,8 +2320,9 @@ class ScheduleErrorPolicy:
     Examples
     --------
     >>> from finstack_quant.core.dates import ScheduleErrorPolicy
-    >>> ScheduleErrorPolicy.__name__
-    'ScheduleErrorPolicy'
+    >>> ScheduleErrorPolicy.STRICT != ScheduleErrorPolicy.GRACEFUL_EMPTY
+    True
+
     """
 
     STRICT: ScheduleErrorPolicy
@@ -2266,9 +2345,12 @@ class Schedule:
 
     Examples
     --------
-    >>> from finstack_quant.core.dates import Schedule
-    >>> Schedule.__name__
-    'Schedule'
+    >>> import datetime
+    >>> from finstack_quant.core.dates import ScheduleBuilder
+    >>> schedule = ScheduleBuilder(datetime.date(2025, 1, 15), datetime.date(2025, 7, 15)).frequency("3M").build()
+    >>> schedule.dates
+    [datetime.date(2025, 1, 15), datetime.date(2025, 4, 15), datetime.date(2025, 7, 15)]
+
     """
 
     @property
@@ -2537,8 +2619,7 @@ def create_date(year: int, month: int, day: int) -> datetime.date:
     Returns
     -------
     datetime.date
-
-        Result of create date for the binding in the annotated representation.
+        The calendar date represented by *year*, *month*, and *day*.
     Raises
     ------
     ValueError
@@ -2546,9 +2627,11 @@ def create_date(year: int, month: int, day: int) -> datetime.date:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.dates import create_date
-    >>> callable(create_date)
-    True
+    >>> create_date(2025, 2, 28)
+    datetime.date(2025, 2, 28)
+
     """
     ...
 
@@ -2569,9 +2652,11 @@ def days_since_epoch(date: datetime.date) -> int:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.dates import days_since_epoch
-    >>> callable(days_since_epoch)
-    True
+    >>> days_since_epoch(datetime.date(1970, 1, 2))
+    1
+
     """
     ...
 
@@ -2587,8 +2672,8 @@ def date_from_epoch_days(days: int) -> datetime.date:
     Returns
     -------
     datetime.date
-
-        Result of date from epoch days for the binding in the annotated representation.
+        The calendar date exactly *days* days from 1970-01-01; negative values
+        denote dates before the Unix epoch.
     Raises
     ------
     ValueError
@@ -2596,8 +2681,10 @@ def date_from_epoch_days(days: int) -> datetime.date:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.dates import date_from_epoch_days
-    >>> callable(date_from_epoch_days)
-    True
+    >>> date_from_epoch_days(-1)
+    datetime.date(1969, 12, 31)
+
     """
     ...

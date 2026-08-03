@@ -7,9 +7,10 @@ numerical tolerance thresholds across the library.
 
 Examples
 --------
->>> import finstack_quant.core.config as config
->>> config.__name__
-'finstack_quant.core.config'
+>>> from finstack_quant.core.config import RoundingMode
+>>> RoundingMode.from_name("bankers") == RoundingMode.BANKERS
+True
+
 """
 
 from __future__ import annotations
@@ -28,17 +29,12 @@ class RoundingMode:
 
     Enum-style class with class-level constants for each supported mode.
 
-    Example
-    -------
-    >>> from finstack_quant.core.config import RoundingMode
-    >>> RoundingMode.BANKERS  # doctest: +ELLIPSIS
-    <finstack_quant.core.config.RoundingMode ...>
-
     Examples
     --------
     >>> from finstack_quant.core.config import RoundingMode
-    >>> RoundingMode.__name__
-    'RoundingMode'
+    >>> RoundingMode.from_name("bankers") == RoundingMode.BANKERS
+    True
+
     """
 
     BANKERS: RoundingMode
@@ -75,8 +71,8 @@ class RoundingMode:
         Examples
         --------
         >>> from finstack_quant.core.config import RoundingMode
-        >>> RoundingMode.from_name("bankers")  # doctest: +ELLIPSIS
-        <finstack_quant.core.config.RoundingMode ...>
+        >>> str(RoundingMode.from_name("bankers"))
+        'bankers'
         """
         ...
 
@@ -126,16 +122,13 @@ class ToleranceConfig:
         Epsilon for generic floating-point comparisons. If ``None``,
         the library default is used.
 
-    Example
-    -------
-    >>> from finstack_quant.core.config import ToleranceConfig
-    >>> tol = ToleranceConfig(rate_epsilon=1e-9)  # doctest: +SKIP
-
     Examples
     --------
     >>> from finstack_quant.core.config import ToleranceConfig
-    >>> ToleranceConfig.__name__
-    'ToleranceConfig'
+    >>> tolerances = ToleranceConfig(rate_epsilon=1e-9, generic_epsilon=1e-12)
+    >>> (tolerances.rate_epsilon, tolerances.generic_epsilon)
+    (1e-09, 1e-12)
+
     """
 
     def __init__(
@@ -158,11 +151,6 @@ class ToleranceConfig:
         ValueError
             If either supplied epsilon is non-finite or not strictly positive.
 
-        Examples
-        --------
-        >>> from finstack_quant.core.config import ToleranceConfig
-        >>> tol = ToleranceConfig(rate_epsilon=1e-9, generic_epsilon=1e-12)  # doctest: +SKIP
-
         """
         ...
 
@@ -176,11 +164,6 @@ class ToleranceConfig:
         float
 
             The rate epsilon exposed by this `ToleranceConfig`.
-        Examples
-        --------
-        >>> tol = ToleranceConfig(rate_epsilon=1e-9)  # doctest: +SKIP
-        >>> tol.rate_epsilon  # doctest: +SKIP
-        1e-09
         """
         ...
 
@@ -194,11 +177,6 @@ class ToleranceConfig:
         float
 
             The generic epsilon exposed by this `ToleranceConfig`.
-        Examples
-        --------
-        >>> tol = ToleranceConfig(generic_epsilon=1e-12)  # doctest: +SKIP
-        >>> tol.generic_epsilon  # doctest: +SKIP
-        1e-12
         """
         ...
 
@@ -223,16 +201,20 @@ class FinstackConfig:
         Tolerance configuration override. If ``None``, the library default
         is used.
 
-    Example
-    -------
-    >>> from finstack_quant.core.config import FinstackConfig
-    >>> cfg = FinstackConfig()  # doctest: +SKIP
-
     Examples
     --------
     >>> from finstack_quant.core.config import FinstackConfig
-    >>> FinstackConfig.__name__
-    'FinstackConfig'
+    >>> config = FinstackConfig()
+    >>> config.set_extension("example.settings.v1", {"enabled": True})
+    >>> (config.output_scale("USD"), config.ingest_scale("JPY"), config.extension_keys())
+    (2, 6, ['example.settings.v1'])
+    >>> (config.get_extension("example.settings.v1"), config.get_extension_json("example.settings.v1"))
+    ({'enabled': True}, '{"enabled":true}')
+    >>> (config.remove_extension("example.settings.v1"), config.get_extension("example.settings.v1"))
+    (True, None)
+    >>> FinstackConfig.from_json(config.to_json()).output_scale("USD")
+    2
+
     """
 
     def __init__(
@@ -249,11 +231,6 @@ class FinstackConfig:
             Rounding mode.
         tolerances : ToleranceConfig | None
             Tolerance configuration.
-
-        Examples
-        --------
-        >>> from finstack_quant.core.config import FinstackConfig, RoundingMode
-        >>> cfg = FinstackConfig(rounding_mode=RoundingMode.BANKERS)  # doctest: +SKIP
 
         """
         ...
@@ -277,11 +254,6 @@ class FinstackConfig:
         ValueError
             If *currency* is not recognised.
 
-        Examples
-        --------
-        >>> cfg = FinstackConfig()  # doctest: +SKIP
-        >>> cfg.output_scale("USD")  # doctest: +SKIP
-        2
         """
         ...
 
@@ -304,11 +276,6 @@ class FinstackConfig:
         ValueError
             If *currency* is not recognised.
 
-        Examples
-        --------
-        >>> cfg = FinstackConfig()  # doctest: +SKIP
-        >>> cfg.ingest_scale("USD")  # doctest: +SKIP
-        2
         """
         ...
 
@@ -331,11 +298,6 @@ class FinstackConfig:
             ``namespace.domain.vN``, or if *value* cannot be represented as
             JSON data.
 
-        Examples
-        --------
-        >>> cfg = FinstackConfig()  # doctest: +SKIP
-        >>> cfg.set_extension("custom_key", '{"v":1}')  # doctest: +SKIP
-
         """
         ...
 
@@ -353,12 +315,6 @@ class FinstackConfig:
         bool
             ``True`` when an extension was present.
 
-        Examples
-        --------
-        >>> cfg = FinstackConfig()  # doctest: +SKIP
-        >>> cfg.remove_extension("custom_key")  # doctest: +SKIP
-        False
-
         """
         ...
 
@@ -371,11 +327,6 @@ class FinstackConfig:
         list[str]
             Extension key list.
 
-        Examples
-        --------
-        >>> cfg = FinstackConfig()  # doctest: +SKIP
-        >>> cfg.extension_keys()  # doctest: +SKIP
-        []
         """
         ...
 
@@ -392,12 +343,6 @@ class FinstackConfig:
         -------
         str or None
             JSON string, or ``None``.
-
-        Examples
-        --------
-        >>> cfg = FinstackConfig()  # doctest: +SKIP
-        >>> cfg.get_extension_json("custom_key")  # doctest: +SKIP
-        None
 
         """
         ...
@@ -416,12 +361,6 @@ class FinstackConfig:
         Any or None
             Python data, or ``None``.
 
-        Examples
-        --------
-        >>> cfg = FinstackConfig()  # doctest: +SKIP
-        >>> cfg.get_extension("custom_key")  # doctest: +SKIP
-        None
-
         """
         ...
 
@@ -435,11 +374,6 @@ class FinstackConfig:
             JSON text.
 
             Canonical JSON representation of this `FinstackConfig`, suitable for a matching `from_json` call.
-        Examples
-        --------
-        >>> cfg = FinstackConfig()  # doctest: +SKIP
-        >>> '"rounding_mode"' in cfg.to_json()  # doctest: +SKIP
-        True
         """
         ...
 
@@ -465,7 +399,10 @@ class FinstackConfig:
 
         Examples
         --------
-        >>> cfg = FinstackConfig.from_json('{"rounding_mode":"bankers"}')  # doctest: +SKIP
+        >>> from finstack_quant.core.config import FinstackConfig
+        >>> FinstackConfig.from_json(FinstackConfig().to_json()).output_scale("USD")
+        2
+
         """
         ...
 

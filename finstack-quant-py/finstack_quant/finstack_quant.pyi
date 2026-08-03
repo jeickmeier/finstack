@@ -7,9 +7,10 @@ job.
 
 Examples
 --------
->>> import finstack_quant.finstack_quant as finstack_quant
->>> finstack_quant.__name__
-'finstack_quant.finstack_quant'
+>>> from finstack_quant import core
+>>> core.dates.Tenor.parse("3M").months
+3
+
 """
 
 from __future__ import annotations

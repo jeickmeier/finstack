@@ -15,9 +15,10 @@ the full build pipeline as well.
 
 Examples
 --------
->>> import finstack_quant.cashflows.builder as builder
->>> builder.__name__
-'finstack_quant.cashflows.builder'
+>>> from finstack_quant.cashflows.builder import Notional
+>>> Notional.par(1_000_000.0, "USD").initial.amount
+1000000.0
+
 """
 
 from __future__ import annotations

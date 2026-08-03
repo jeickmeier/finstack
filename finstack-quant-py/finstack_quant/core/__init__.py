@@ -3,10 +3,10 @@
 Bindings for the ``finstack-quant-core`` Rust crate.
 
 Examples:
---------
->>> import finstack_quant.core as core
->>> core.__name__
-'finstack_quant.core'
+>>> from finstack_quant.core import dates
+>>> dates.Tenor.parse("3M").months
+3
+
 """
 
 from __future__ import annotations

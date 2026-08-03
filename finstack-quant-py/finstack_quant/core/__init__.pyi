@@ -8,9 +8,10 @@ work transparently.
 
 Examples
 --------
->>> import finstack_quant.core as core
->>> core.__name__
-'finstack_quant.core'
+>>> from finstack_quant.core import dates
+>>> dates.Tenor.parse("3M").months
+3
+
 """
 
 from finstack_quant.core import config as config

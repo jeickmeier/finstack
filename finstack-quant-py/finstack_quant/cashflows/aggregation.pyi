@@ -9,9 +9,14 @@ rejecting any flow whose currency does not match the target.
 
 Examples
 --------
->>> import finstack_quant.cashflows.aggregation as aggregation
->>> aggregation.__name__
-'finstack_quant.cashflows.aggregation'
+>>> import datetime
+>>> from finstack_quant.cashflows.aggregation import aggregate_by_period
+>>> from finstack_quant.core.dates import build_periods
+>>> from finstack_quant.core.money import Money
+>>> flows = [(datetime.date(2025, 1, 1), Money(10.0, "USD")), (datetime.date(2025, 1, 2), Money(5.0, "USD"))]
+>>> aggregate_by_period(flows, build_periods("2025M01..M01").periods)["2025M01"]["USD"].amount
+15.0
+
 """
 
 from __future__ import annotations

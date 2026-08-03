@@ -19,9 +19,10 @@ Example::
 
 Examples
 --------
->>> import finstack_quant.core.types as types
->>> types.__name__
-'finstack_quant.core.types'
+>>> from finstack_quant.core.types import Rate
+>>> Rate.from_percent(5.0).as_decimal
+0.05
+
 """
 
 from __future__ import annotations
@@ -109,8 +110,9 @@ class Rate:
         Examples
         --------
         >>> from finstack_quant.core.types import Rate
-        >>> callable(Rate.from_percent)
-        True
+        >>> Rate.from_percent(5.0).as_decimal
+        0.05
+
         """
         ...
 
@@ -133,8 +135,9 @@ class Rate:
         Examples
         --------
         >>> from finstack_quant.core.types import Rate
-        >>> callable(Rate.from_bp)
-        True
+        >>> Rate.from_bp(25).as_decimal
+        0.0025
+
         """
         ...
 
@@ -253,6 +256,7 @@ class Bps:
             The as decimal exposed by this `Bps`.
         Examples
         --------
+        >>> from finstack_quant.core.types import Bps
         >>> Bps(250).as_decimal
         0.025
         """
@@ -270,6 +274,7 @@ class Bps:
             The as bp exposed by this `Bps`.
         Examples
         --------
+        >>> from finstack_quant.core.types import Bps
         >>> Bps(250).as_bp
         250
         """
@@ -352,6 +357,7 @@ class Percentage:
             The as decimal exposed by this `Percentage`.
         Examples
         --------
+        >>> from finstack_quant.core.types import Percentage
         >>> Percentage(12.5).as_decimal
         0.125
         """
@@ -369,6 +375,7 @@ class Percentage:
             The as percent exposed by this `Percentage`.
         Examples
         --------
+        >>> from finstack_quant.core.types import Percentage
         >>> Percentage(12.5).as_percent
         12.5
         """
@@ -494,6 +501,7 @@ class CreditRating:
             The name exposed by this `CreditRating`.
         Examples
         --------
+        >>> from finstack_quant.core.types import CreditRating
         >>> CreditRating.AAA.name
         'AAA'
         """
@@ -564,6 +572,7 @@ class CurveId:
             Result of as str for this `CurveId` in the annotated representation.
         Examples
         --------
+        >>> from finstack_quant.core.types import CurveId
         >>> CurveId("USD-OIS").as_str()
         'USD-OIS'
         """
@@ -657,6 +666,7 @@ class InstrumentId:
             Result of as str for this `InstrumentId` in the annotated representation.
         Examples
         --------
+        >>> from finstack_quant.core.types import InstrumentId
         >>> InstrumentId("BOND_A").as_str()
         'BOND_A'
         """
@@ -712,20 +722,17 @@ class Attributes:
     Examples
     --------
     >>> from finstack_quant.core.types import Attributes
-    >>> attrs = Attributes()  # doctest: +SKIP
-    >>> attrs.set_meta("sector", "tech")  # doctest: +SKIP
-    >>> attrs.get_meta("sector")  # doctest: +SKIP
-    'tech'
+    >>> attributes = Attributes()
+    >>> attributes.set_meta("desk", "credit")
+    >>> (attributes.get_meta("desk"), attributes.contains_meta_key("desk"), attributes.keys())
+    ('credit', True, ['desk'])
+
     """
 
     def __init__(self) -> None:
         """
         Create an empty attribute set.
 
-        Examples
-        --------
-        >>> from finstack_quant.core.types import Attributes
-        >>> attrs = Attributes()  # doctest: +SKIP
         """
         ...
 
@@ -743,12 +750,6 @@ class Attributes:
         str | None
             Value if present, otherwise ``None``.
 
-        Examples
-        --------
-        >>> attrs = Attributes()  # doctest: +SKIP
-        >>> attrs.get_meta("missing")  # doctest: +SKIP
-        None
-
         """
         ...
 
@@ -762,11 +763,6 @@ class Attributes:
             Metadata key.
         value : str
             Metadata value.
-
-        Examples
-        --------
-        >>> attrs = Attributes()  # doctest: +SKIP
-        >>> attrs.set_meta("sector", "tech")  # doctest: +SKIP
 
         """
         ...
@@ -785,12 +781,6 @@ class Attributes:
         bool
 
             Result of contains meta key for this `Attributes` in the annotated representation.
-        Examples
-        --------
-        >>> attrs = Attributes()  # doctest: +SKIP
-        >>> attrs.contains_meta_key("sector")  # doctest: +SKIP
-        False
-
         """
         ...
 
@@ -803,11 +793,6 @@ class Attributes:
         list[str]
 
             Result of keys for this `Attributes` in the annotated representation.
-        Examples
-        --------
-        >>> attrs = Attributes()  # doctest: +SKIP
-        >>> attrs.keys()  # doctest: +SKIP
-        []
         """
         ...
 

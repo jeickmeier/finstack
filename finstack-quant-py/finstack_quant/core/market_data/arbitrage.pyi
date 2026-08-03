@@ -9,9 +9,12 @@ callers can pass numpy-friendly grids without first constructing a
 
 Examples
 --------
->>> import finstack_quant.core.market_data.arbitrage as arbitrage
->>> arbitrage.__name__
-'finstack_quant.core.market_data.arbitrage'
+>>> from finstack_quant.core.market_data.arbitrage import check_surface_grid
+>>> strikes, expiries = [90.0, 100.0, 110.0], [1.0, 2.0]
+>>> vols, forwards = [[0.2, 0.2, 0.2], [0.2, 0.2, 0.2]], [100.0, 100.0]
+>>> check_surface_grid(strikes, expiries, vols, forwards)["passed"]
+True
+
 """
 
 from __future__ import annotations
@@ -94,7 +97,11 @@ def check_butterfly_grid(
     Examples
     --------
     >>> from finstack_quant.core.market_data.arbitrage import check_butterfly_grid
-    >>> violations = check_butterfly_grid(strikes, expiries, vols, [100.0])  # doctest: +SKIP
+    >>> strikes, expiries = [90.0, 100.0, 110.0], [1.0, 2.0]
+    >>> vols, forwards = [[0.2, 0.2, 0.2], [0.2, 0.2, 0.2]], [100.0, 100.0]
+    >>> check_butterfly_grid(strikes, expiries, vols, forwards)
+    []
+
     """
     ...
 
@@ -134,7 +141,11 @@ def check_calendar_spread_grid(
     Examples
     --------
     >>> from finstack_quant.core.market_data.arbitrage import check_calendar_spread_grid
-    >>> violations = check_calendar_spread_grid(strikes, expiries, vols, [100.0])  # doctest: +SKIP
+    >>> strikes, expiries = [90.0, 100.0, 110.0], [1.0, 2.0]
+    >>> vols, forwards = [[0.2, 0.2, 0.2], [0.2, 0.2, 0.2]], [100.0, 100.0]
+    >>> check_calendar_spread_grid(strikes, expiries, vols, forwards)
+    []
+
     """
     ...
 
@@ -175,7 +186,11 @@ def check_local_vol_density_grid(
     Examples
     --------
     >>> from finstack_quant.core.market_data.arbitrage import check_local_vol_density_grid
-    >>> violations = check_local_vol_density_grid(strikes, expiries, vols, [100.0])  # doctest: +SKIP
+    >>> strikes, expiries = [90.0, 100.0, 110.0], [1.0, 2.0]
+    >>> vols, forwards = [[0.2, 0.2, 0.2], [0.2, 0.2, 0.2]], [100.0, 100.0]
+    >>> check_local_vol_density_grid(strikes, expiries, vols, forwards)
+    []
+
     """
     ...
 
@@ -216,8 +231,10 @@ def check_surface_grid(
     Examples
     --------
     >>> from finstack_quant.core.market_data.arbitrage import check_surface_grid
-    >>> report = check_surface_grid(strikes, expiries, vols, forward_prices=[100.0])  # doctest: +SKIP
-    >>> report["passed"]  # doctest: +SKIP
+    >>> strikes, expiries = [90.0, 100.0, 110.0], [1.0, 2.0]
+    >>> vols, forwards = [[0.2, 0.2, 0.2], [0.2, 0.2, 0.2]], [100.0, 100.0]
+    >>> check_surface_grid(strikes, expiries, vols, forwards)["passed"]
     True
+
     """
     ...

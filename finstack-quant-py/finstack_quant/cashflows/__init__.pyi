@@ -7,9 +7,12 @@ and compute accrued interest.
 
 Examples
 --------
->>> import finstack_quant.cashflows as cashflows
->>> cashflows.__name__
-'finstack_quant.cashflows'
+>>> import datetime
+>>> from finstack_quant.cashflows.primitives import CFKind, CashFlow
+>>> from finstack_quant.core.money import Money
+>>> CashFlow(datetime.date(2025, 6, 15), Money(100.0, "USD"), CFKind.FIXED).amount.amount
+100.0
+
 """
 
 from __future__ import annotations
@@ -59,8 +62,33 @@ def build_cashflow_schedule_json(spec_json: str, market_json: str | None = None)
 
     Examples
     --------
+    >>> import json
+    >>> spec = {
+    ...     "notional": {"initial": {"amount": "1000000", "currency": "USD"}, "amort": "none"},
+    ...     "issue": "2024-08-31",
+    ...     "maturity": "2025-08-31",
+    ...     "coupon_program": [
+    ...         {
+    ...             "kind": "fixed",
+    ...             "spec": {
+    ...                 "coupon_type": "cash",
+    ...                 "rate": "0.06",
+    ...                 "frequency": {"count": 12, "unit": "months"},
+    ...                 "day_count": "30_360",
+    ...                 "business_day_convention": "following",
+    ...                 "calendar_id": "weekends_only",
+    ...                 "stub": "none",
+    ...                 "end_of_month": False,
+    ...                 "payment_lag_days": 0,
+    ...             },
+    ...         }
+    ...     ],
+    ... }
     >>> from finstack_quant.cashflows import build_cashflow_schedule_json
-    >>> schedule_json = build_cashflow_schedule_json(spec_json)  # doctest: +SKIP
+    >>> schedule_json = build_cashflow_schedule_json(json.dumps(spec))
+    >>> json.loads(schedule_json)["meta"]["issue_date"]
+    '2024-08-31'
+
     """
 
 def validate_cashflow_schedule_json(schedule_json: str) -> str:
@@ -84,8 +112,22 @@ def validate_cashflow_schedule_json(schedule_json: str) -> str:
 
     Examples
     --------
+    >>> import datetime
+    >>> from decimal import Decimal
+    >>> from finstack_quant.cashflows.builder import CashFlowSchedule, FixedCouponSpec, ScheduleParams
+    >>> from finstack_quant.core.money import Money
+    >>> schedule = (
+    ...     CashFlowSchedule
+    ...     .builder()
+    ...     .principal(Money(1_000_000.0, "USD"), datetime.date(2025, 1, 15), datetime.date(2026, 1, 15))
+    ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.semiannual_30360()))
+    ...     .build()
+    ... )
+    >>> import json
     >>> from finstack_quant.cashflows import validate_cashflow_schedule_json
-    >>> canonical = validate_cashflow_schedule_json(schedule_json)  # doctest: +SKIP
+    >>> json.loads(validate_cashflow_schedule_json(schedule.to_json()))["meta"]["issue_date"]
+    '2025-01-15'
+
     """
 
 def dated_flows_json(schedule_json: str) -> str:
@@ -111,8 +153,22 @@ def dated_flows_json(schedule_json: str) -> str:
 
     Examples
     --------
+    >>> import datetime
+    >>> from decimal import Decimal
+    >>> from finstack_quant.cashflows.builder import CashFlowSchedule, FixedCouponSpec, ScheduleParams
+    >>> from finstack_quant.core.money import Money
+    >>> schedule = (
+    ...     CashFlowSchedule
+    ...     .builder()
+    ...     .principal(Money(1_000_000.0, "USD"), datetime.date(2025, 1, 15), datetime.date(2026, 1, 15))
+    ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.semiannual_30360()))
+    ...     .build()
+    ... )
+    >>> import json
     >>> from finstack_quant.cashflows import dated_flows_json
-    >>> flows_json = dated_flows_json(schedule_json)  # doctest: +SKIP
+    >>> len(json.loads(dated_flows_json(schedule.to_json()))) == len(schedule.get_flows())
+    True
+
     """
 
 def accrued_interest_json(schedule_json: str, as_of: str, config_json: str | None = None) -> float:
@@ -146,6 +202,19 @@ def accrued_interest_json(schedule_json: str, as_of: str, config_json: str | Non
 
     Examples
     --------
+    >>> import datetime
+    >>> from decimal import Decimal
+    >>> from finstack_quant.cashflows.builder import CashFlowSchedule, FixedCouponSpec, ScheduleParams
+    >>> from finstack_quant.core.money import Money
+    >>> schedule = (
+    ...     CashFlowSchedule
+    ...     .builder()
+    ...     .principal(Money(1_000_000.0, "USD"), datetime.date(2025, 1, 15), datetime.date(2026, 1, 15))
+    ...     .fixed_cf(FixedCouponSpec(rate=Decimal("0.05"), schedule=ScheduleParams.semiannual_30360()))
+    ...     .build()
+    ... )
     >>> from finstack_quant.cashflows import accrued_interest_json
-    >>> ai = accrued_interest_json(schedule_json, "2025-06-15")  # doctest: +SKIP
+    >>> accrued_interest_json(schedule.to_json(), "2025-04-15") > 0.0
+    True
+
     """

@@ -9,9 +9,20 @@ and ``pandas`` can consume finstack tabular results directly.
 
 Examples
 --------
->>> import finstack_quant.core.table as table
->>> table.__name__
-'finstack_quant.core.table'
+>>> import json
+>>> from finstack_quant.core.market_data import MarketContext
+>>> from finstack_quant.portfolio import Portfolio, value_portfolio
+>>> bundle = {
+...     "schema": "finstack_quant.portfolio_materialization/1",
+...     "portfolio": {"id": "empty", "base_currency": "USD", "as_of": "2025-01-01", "entities": {}},
+...     "instruments": [],
+...     "positions": [],
+... }
+>>> portfolio, _ = Portfolio.from_materialization(json.dumps(bundle))
+>>> table = value_portfolio(portfolio, MarketContext()).to_arrow_positions()
+>>> (table.num_rows, table.num_columns, table.column_names())
+(0, 6, ['position_id', 'entity_id', 'value_native', 'value_base', 'currency_native', 'currency_base'])
+
 """
 
 from __future__ import annotations
@@ -31,9 +42,20 @@ class ArrowTable:
 
     Examples
     --------
-    >>> from finstack_quant.core.table import ArrowTable
-    >>> ArrowTable.__name__
-    'ArrowTable'
+    >>> import json
+    >>> from finstack_quant.core.market_data import MarketContext
+    >>> from finstack_quant.portfolio import Portfolio, value_portfolio
+    >>> bundle = {
+    ...     "schema": "finstack_quant.portfolio_materialization/1",
+    ...     "portfolio": {"id": "empty", "base_currency": "USD", "as_of": "2025-01-01", "entities": {}},
+    ...     "instruments": [],
+    ...     "positions": [],
+    ... }
+    >>> portfolio, _ = Portfolio.from_materialization(json.dumps(bundle))
+    >>> table = value_portfolio(portfolio, MarketContext()).to_arrow_positions()
+    >>> (table.num_rows, table.num_columns, table.column_names())
+    (0, 6, ['position_id', 'entity_id', 'value_native', 'value_base', 'currency_native', 'currency_base'])
+
     """
 
     @property
@@ -69,11 +91,6 @@ class ArrowTable:
         list[str]
             Field names of the underlying Arrow schema, in column order.
 
-        Examples
-        --------
-        >>> from finstack_quant.core.table import ArrowTable
-        >>> callable(ArrowTable.column_names)
-        True
         """
         ...
 

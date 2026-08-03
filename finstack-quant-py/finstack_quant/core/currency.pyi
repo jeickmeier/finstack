@@ -18,9 +18,10 @@ Example::
 
 Examples
 --------
->>> import finstack_quant.core.currency as currency
->>> currency.__name__
-'finstack_quant.core.currency'
+>>> from finstack_quant.core.currency import Currency
+>>> Currency.from_numeric(840).code
+'USD'
+
 """
 
 from __future__ import annotations
@@ -256,8 +257,9 @@ class Currency:
         Examples
         --------
         >>> from finstack_quant.core.currency import Currency
-        >>> callable(Currency.from_numeric)
-        True
+        >>> Currency.from_numeric(840).code
+        'USD'
+
         """
         ...
 
@@ -336,8 +338,9 @@ class Currency:
         Examples
         --------
         >>> from finstack_quant.core.currency import Currency
-        >>> callable(Currency.from_json)
-        True
+        >>> Currency.from_json(Currency.from_numeric(840).to_json()).code
+        'USD'
+
         """
         ...
 

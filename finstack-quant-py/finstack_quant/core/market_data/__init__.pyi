@@ -19,9 +19,11 @@ Example::
 
 Examples
 --------
->>> import finstack_quant.core.market_data as market_data
->>> market_data.__name__
-'finstack_quant.core.market_data'
+>>> import datetime
+>>> from finstack_quant.core.market_data import DiscountCurve
+>>> round(DiscountCurve.flat("USD-OIS", datetime.date(2025, 1, 1), 0.05).df(1.0), 6)
+0.951229
+
 """
 
 from __future__ import annotations
@@ -193,9 +195,11 @@ class DiscountCurve:
 
         Examples
         --------
+        >>> import datetime
         >>> from finstack_quant.core.market_data import DiscountCurve
-        >>> callable(DiscountCurve.flat)
-        True
+        >>> round(DiscountCurve.flat("USD-OIS", datetime.date(2025, 1, 1), 0.05).df(1.0), 6)
+        0.951229
+
         """
         ...
 
@@ -317,9 +321,12 @@ class ForwardCurve:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.market_data import ForwardCurve
-    >>> ForwardCurve.__name__
-    'ForwardCurve'
+    >>> curve = ForwardCurve("SOFR", 0.25, [(0.0, 0.03), (2.0, 0.04)], datetime.date(2025, 1, 1))
+    >>> curve.rate(1.0)
+    0.035
+
     """
 
     def __init__(
@@ -417,9 +424,14 @@ class ForwardCurve:
 
         Examples
         --------
+        >>> import datetime
         >>> from finstack_quant.core.market_data import ForwardCurve
-        >>> callable(ForwardCurve.from_knots)
-        True
+        >>> curve = ForwardCurve.from_knots(
+        ...     "SOFR", tenor=0.25, base_date=datetime.date(2025, 1, 1), knots=[(0.0, 0.03), (2.0, 0.04)]
+        ... )
+        >>> curve.rate(1.0)
+        0.035
+
         """
         ...
 
@@ -541,9 +553,12 @@ class HazardCurve:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.market_data import HazardCurve
-    >>> HazardCurve.__name__
-    'HazardCurve'
+    >>> curve = HazardCurve("ACME", datetime.date(2025, 1, 1), [(0.0, 0.02), (5.0, 0.03)])
+    >>> curve.hazard_rate(1.0)
+    0.02
+
     """
 
     def __init__(
@@ -647,8 +662,9 @@ class BaseCorrelationCurve:
     Examples
     --------
     >>> from finstack_quant.core.market_data import BaseCorrelationCurve
-    >>> BaseCorrelationCurve.__name__
-    'BaseCorrelationCurve'
+    >>> round(BaseCorrelationCurve("CDX", [(0.03, 0.2), (0.10, 0.4)]).correlation(0.05), 6)
+    0.257143
+
     """
 
     def __init__(self, id: str, knots: list[tuple[float, float]]) -> None:
@@ -710,9 +726,13 @@ class CreditIndexData:
 
     Examples
     --------
-    >>> from finstack_quant.core.market_data import CreditIndexData
-    >>> CreditIndexData.__name__
-    'CreditIndexData'
+    >>> import datetime
+    >>> from finstack_quant.core.market_data import BaseCorrelationCurve, CreditIndexData, HazardCurve
+    >>> hazard = HazardCurve("CDX-HZ", datetime.date(2025, 1, 1), [(0.0, 0.02), (5.0, 0.03)])
+    >>> data = CreditIndexData(125, 0.4, hazard, BaseCorrelationCurve("CDX-CORR", [(0.03, 0.2), (0.10, 0.4)]))
+    >>> (data.num_constituents, data.recovery_rate)
+    (125, 0.4)
+
     """
 
     def __init__(
@@ -797,9 +817,11 @@ class PriceCurve:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.market_data import PriceCurve
-    >>> PriceCurve.__name__
-    'PriceCurve'
+    >>> PriceCurve("OIL", datetime.date(2025, 1, 1), [(0.0, 70.0), (2.0, 80.0)]).price(1.0)
+    75.0
+
     """
 
     def __init__(
@@ -909,9 +931,12 @@ class InflationCurve:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.market_data import InflationCurve
-    >>> InflationCurve.__name__
-    'InflationCurve'
+    >>> curve = InflationCurve("CPI", datetime.date(2025, 1, 1), 300.0, [(0.0, 300.0), (1.0, 306.0)])
+    >>> curve.cpi(1.0)
+    306.0
+
     """
 
     def __init__(
@@ -1147,8 +1172,10 @@ class VolSurface:
     Examples
     --------
     >>> from finstack_quant.core.market_data import VolSurface
-    >>> VolSurface.__name__
-    'VolSurface'
+    >>> surface = VolSurface("EQ-VOL", [1.0, 2.0], [90.0, 100.0], [0.20, 0.21, 0.22, 0.23])
+    >>> (surface.grid_shape, surface.value_checked(1.0, 100.0))
+    ((2, 2), 0.21)
+
     """
 
     def __init__(
@@ -1331,8 +1358,10 @@ class FxDeltaVolSurface:
     Examples
     --------
     >>> from finstack_quant.core.market_data import FxDeltaVolSurface
-    >>> FxDeltaVolSurface.__name__
-    'FxDeltaVolSurface'
+    >>> surface = FxDeltaVolSurface("EURUSD", [1.0], [0.12], [0.01], [0.005])
+    >>> (surface.pillar_vols(0), surface.implied_vol(1.0, 1.0, 1.1))
+    ((0.12, 0.12, 0.13), 0.12)
+
     """
 
     def __init__(
@@ -1514,8 +1543,9 @@ class FxDeltaVolSurface:
         Examples
         --------
         >>> from finstack_quant.core.market_data import FxDeltaVolSurface
-        >>> callable(FxDeltaVolSurface.delta_to_strike)
-        True
+        >>> round(FxDeltaVolSurface.delta_to_strike(0.25, 1.1, 0.12, 1.0), 6)
+        1.201354
+
         """
         ...
 
@@ -1544,8 +1574,9 @@ class FxDeltaVolSurface:
         Examples
         --------
         >>> from finstack_quant.core.market_data import FxDeltaVolSurface
-        >>> callable(FxDeltaVolSurface.strike_to_delta)
-        True
+        >>> round(FxDeltaVolSurface.strike_to_delta(1.2, 1.1, 0.12, 1.0), 6)
+        0.252995
+
         """
         ...
 
@@ -1585,8 +1616,11 @@ class VolCube:
     Examples
     --------
     >>> from finstack_quant.core.market_data import VolCube
-    >>> VolCube.__name__
-    'VolCube'
+    >>> params = [{"alpha": 0.01, "beta": 0.5, "rho": -0.2, "nu": 0.3, "shift": 0.02}]
+    >>> cube = VolCube("SWPT", [1.0], [5.0], params, [0.03])
+    >>> (cube.grid_shape, round(cube.vol(1.0, 5.0, 0.03), 6))
+    ((1, 1), 0.045023)
+
     """
 
     def __init__(
@@ -1924,9 +1958,11 @@ class VolatilityIndexCurve:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.market_data import VolatilityIndexCurve
-    >>> VolatilityIndexCurve.__name__
-    'VolatilityIndexCurve'
+    >>> VolatilityIndexCurve("VIX", datetime.date(2025, 1, 1), [(0.0, 20.0), (1.0, 22.0)]).forward_level(0.5)
+    21.0
+
     """
 
     def __init__(
@@ -2019,8 +2055,9 @@ class FxConversionPolicy:
     Examples
     --------
     >>> from finstack_quant.core.market_data import FxConversionPolicy
-    >>> FxConversionPolicy.__name__
-    'FxConversionPolicy'
+    >>> str(FxConversionPolicy.from_name("cashflow_date"))
+    'cashflow_date'
+
     """
 
     CASHFLOW_DATE: FxConversionPolicy
@@ -2054,8 +2091,9 @@ class FxConversionPolicy:
         Examples
         --------
         >>> from finstack_quant.core.market_data import FxConversionPolicy
-        >>> callable(FxConversionPolicy.from_name)
-        True
+        >>> str(FxConversionPolicy.from_name("cashflow_date"))
+        'cashflow_date'
+
         """
         ...
 
@@ -2070,9 +2108,14 @@ class FxRateResult:
 
     Examples
     --------
-    >>> from finstack_quant.core.market_data import FxRateResult
-    >>> FxRateResult.__name__
-    'FxRateResult'
+    >>> import datetime
+    >>> from finstack_quant.core.market_data import FxMatrix
+    >>> matrix = FxMatrix()
+    >>> matrix.set_quote("EUR", "USD", 1.1)
+    >>> result = matrix.rate("EUR", "USD", datetime.date(2025, 1, 1))
+    >>> (result.rate, result.triangulated)
+    (1.1, False)
+
     """
 
     @property
@@ -2110,9 +2153,14 @@ class FxMatrix:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.market_data import FxMatrix
-    >>> FxMatrix.__name__
-    'FxMatrix'
+    >>> matrix = FxMatrix()
+    >>> matrix.set_quote("EUR", "USD", 1.1)
+    >>> result = matrix.rate("EUR", "USD", datetime.date(2025, 1, 1))
+    >>> (result.rate, result.triangulated)
+    (1.1, False)
+
     """
 
     def __init__(self) -> None:
@@ -2233,9 +2281,12 @@ class ScalarTimeSeries:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.market_data import ScalarTimeSeries
-    >>> ScalarTimeSeries.__name__
-    'ScalarTimeSeries'
+    >>> series = ScalarTimeSeries("SOFR", [(datetime.date(2025, 1, 1), 0.03), (datetime.date(2025, 1, 3), 0.04)])
+    >>> ScalarTimeSeries.from_json(series.to_json()).value_on(datetime.date(2025, 1, 1))
+    0.03
+
     """
 
     def __init__(
@@ -2374,9 +2425,12 @@ class ScalarTimeSeries:
 
         Examples
         --------
+        >>> import datetime
         >>> from finstack_quant.core.market_data import ScalarTimeSeries
-        >>> callable(ScalarTimeSeries.from_json)
-        True
+        >>> series = ScalarTimeSeries("SOFR", [(datetime.date(2025, 1, 1), 0.03), (datetime.date(2025, 1, 3), 0.04)])
+        >>> ScalarTimeSeries.from_json(series.to_json()).value_on(datetime.date(2025, 1, 1))
+        0.03
+
         """
         ...
     def __len__(self) -> int: ...
@@ -2388,9 +2442,12 @@ class InflationIndex:
 
     Examples
     --------
+    >>> import datetime
     >>> from finstack_quant.core.market_data import InflationIndex
-    >>> InflationIndex.__name__
-    'InflationIndex'
+    >>> index = InflationIndex("CPI", [(datetime.date(2025, 1, 1), 300.0), (datetime.date(2025, 2, 1), 301.0)], "USD")
+    >>> InflationIndex.from_json(index.to_json()).value_on(datetime.date(2025, 1, 1))
+    300.0
+
     """
 
     def __init__(
@@ -2531,9 +2588,14 @@ class InflationIndex:
 
         Examples
         --------
+        >>> import datetime
         >>> from finstack_quant.core.market_data import InflationIndex
-        >>> callable(InflationIndex.from_json)
-        True
+        >>> index = InflationIndex(
+        ...     "CPI", [(datetime.date(2025, 1, 1), 300.0), (datetime.date(2025, 2, 1), 301.0)], "USD"
+        ... )
+        >>> InflationIndex.from_json(index.to_json()).value_on(datetime.date(2025, 1, 1))
+        300.0
+
         """
         ...
     def __len__(self) -> int: ...
@@ -2553,9 +2615,12 @@ class MarketContext:
 
     Examples
     --------
-    >>> from finstack_quant.core.market_data import MarketContext
-    >>> MarketContext.__name__
-    'MarketContext'
+    >>> import datetime
+    >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
+    >>> context = MarketContext().insert(DiscountCurve.flat("USD-OIS", datetime.date(2025, 1, 1), 0.05))
+    >>> MarketContext.from_json(context.to_json()).get_discount("USD-OIS").id
+    'USD-OIS'
+
     """
 
     def __init__(self) -> None:
@@ -3029,9 +3094,12 @@ class MarketContext:
 
         Examples
         --------
-        >>> from finstack_quant.core.market_data import MarketContext
-        >>> callable(MarketContext.from_json)
-        True
+        >>> import datetime
+        >>> from finstack_quant.core.market_data import DiscountCurve, MarketContext
+        >>> context = MarketContext().insert(DiscountCurve.flat("USD-OIS", datetime.date(2025, 1, 1), 0.05))
+        >>> MarketContext.from_json(context.to_json()).get_discount("USD-OIS").id
+        'USD-OIS'
+
         """
         ...
 

@@ -9,9 +9,10 @@ transparently.
 
 Examples
 --------
->>> import finstack_quant.core.credit as credit
->>> credit.__name__
-'finstack_quant.core.credit'
+>>> from finstack_quant.core.credit import pd
+>>> pd.central_tendency([0.01, 0.02, 0.03])
+0.02
+
 """
 
 from __future__ import annotations
@@ -25,8 +26,10 @@ class liability_management:
     Examples
     --------
     >>> from finstack_quant.core.credit import liability_management
-    >>> liability_management.__name__
-    'liability_management'
+    >>> analysis = liability_management.analyze_exchange_offer(60.0, 75.0, consent_fee=2.0)
+    >>> (analysis.delta_npv, analysis.tender_recommended)
+    (17.0, True)
+
     """
 
     class ExchangeOfferAnalysis:
@@ -35,9 +38,11 @@ class liability_management:
 
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.liability_management.ExchangeOfferAnalysis.__name__
-        'ExchangeOfferAnalysis'
+        >>> from finstack_quant.core.credit import liability_management
+        >>> analysis = liability_management.analyze_exchange_offer(60.0, 75.0, consent_fee=2.0)
+        >>> (analysis.delta_npv, analysis.tender_recommended)
+        (17.0, True)
+
         """
 
         @property
@@ -154,9 +159,11 @@ class liability_management:
 
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.liability_management.LeverageImpact.__name__
-        'LeverageImpact'
+        >>> from finstack_quant.core.credit import liability_management
+        >>> impact = liability_management.analyze_lme("open_market_repurchase", 100.0, 0.70, 0.50, 20.0).leverage_impact
+        >>> (impact.pre_leverage, impact.post_leverage)
+        (5.0, 2.5)
+
         """
 
         @property
@@ -225,9 +232,11 @@ class liability_management:
 
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.liability_management.LmeAnalysis.__name__
-        'LmeAnalysis'
+        >>> from finstack_quant.core.credit import liability_management
+        >>> analysis = liability_management.analyze_lme("open_market_repurchase", 100.0, 0.70, 0.50)
+        >>> (analysis.notional_reduction, analysis.discount_capture)
+        (50.0, 15.0)
+
         """
 
         @property
@@ -360,8 +369,9 @@ class liability_management:
         Examples
         --------
         >>> from finstack_quant.core.credit import liability_management
-        >>> callable(liability_management.analyze_exchange_offer)
-        True
+        >>> liability_management.analyze_exchange_offer(60.0, 75.0, consent_fee=2.0).tender_total
+        77.0
+
         """
         ...
 
@@ -413,8 +423,9 @@ class liability_management:
         Examples
         --------
         >>> from finstack_quant.core.credit import liability_management
-        >>> callable(liability_management.analyze_lme)
-        True
+        >>> liability_management.analyze_lme("open_market_repurchase", 100.0, 0.70, 0.50).discount_capture
+        15.0
+
         """
         ...
 
@@ -425,8 +436,11 @@ class recovery_waterfall:
     Examples
     --------
     >>> from finstack_quant.core.credit import recovery_waterfall
-    >>> recovery_waterfall.__name__
-    'recovery_waterfall'
+    >>> claim = recovery_waterfall.RecoveryClaim("SEN", "secured", 1, 100.0)
+    >>> result = recovery_waterfall.allocate_recovery(40.0, [claim])
+    >>> (result.total_distributed, result.undistributed_estate, result.apr_satisfied)
+    (40.0, 0.0, True)
+
     """
 
     class RecoveryClaim:
@@ -435,9 +449,11 @@ class recovery_waterfall:
 
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.recovery_waterfall.RecoveryClaim.__name__
-        'RecoveryClaim'
+        >>> from finstack_quant.core.credit import recovery_waterfall
+        >>> claim = recovery_waterfall.RecoveryClaim("SEN", "secured", 1, 100.0, accrued=5.0)
+        >>> (claim.id, claim.total_claim)
+        ('SEN', 105.0)
+
         """
 
         def __init__(
@@ -588,9 +604,12 @@ class recovery_waterfall:
 
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.recovery_waterfall.RecoveryAllocation.__name__
-        'RecoveryAllocation'
+        >>> from finstack_quant.core.credit import recovery_waterfall
+        >>> claim = recovery_waterfall.RecoveryClaim("SEN", "secured", 1, 100.0)
+        >>> allocation = recovery_waterfall.allocate_recovery(40.0, [claim]).allocations[0]
+        >>> (allocation.id, allocation.total_recovery, allocation.recovery_rate)
+        ('SEN', 40.0, 0.4)
+
         """
 
         @property
@@ -707,9 +726,12 @@ class recovery_waterfall:
 
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.recovery_waterfall.RecoveryWaterfallResult.__name__
-        'RecoveryWaterfallResult'
+        >>> from finstack_quant.core.credit import recovery_waterfall
+        >>> claim = recovery_waterfall.RecoveryClaim("SEN", "secured", 1, 100.0)
+        >>> result = recovery_waterfall.allocate_recovery(40.0, [claim])
+        >>> (result.total_distributed, result.undistributed_estate, result.apr_satisfied)
+        (40.0, 0.0, True)
+
         """
 
         @property
@@ -797,8 +819,10 @@ class recovery_waterfall:
         Examples
         --------
         >>> from finstack_quant.core.credit import recovery_waterfall
-        >>> callable(recovery_waterfall.allocate_recovery)
-        True
+        >>> claims = [recovery_waterfall.RecoveryClaim("SEN", "secured", 1, 100.0)]
+        >>> recovery_waterfall.allocate_recovery(40.0, claims).allocations[0].recovery_rate
+        0.4
+
         """
         ...
 
@@ -809,8 +833,9 @@ class scoring:
     Examples
     --------
     >>> from finstack_quant.core.credit import scoring
-    >>> scoring.__name__
-    'scoring'
+    >>> round(scoring.altman_z_score(0.2, 0.3, 0.15, 1.5, 1.0)[0], 3)
+    3.055
+
     """
 
     class AltmanPdCalibration:
@@ -819,9 +844,11 @@ class scoring:
 
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.scoring.AltmanPdCalibration.__name__
-        'AltmanPdCalibration'
+        >>> from finstack_quant.core.credit import scoring
+        >>> result = scoring.altman_z_score(0.2, 0.3, 0.15, 1.5, 1.0, scoring.AltmanPdCalibration.HEURISTIC_V1)
+        >>> result[2] is not None
+        True
+
         """
 
         HEURISTIC_V1: scoring.AltmanPdCalibration
@@ -1018,6 +1045,7 @@ class scoring:
 
         Examples
         --------
+        >>> from finstack_quant.core.credit import scoring
         >>> score, zone, pd = scoring.altman_em_score(0.2, 0.3, 0.15, 1.2)
         >>> round(score, 3), zone
         (7.808, 'safe')
@@ -1134,8 +1162,9 @@ class pd:
     Examples
     --------
     >>> from finstack_quant.core.credit import pd
-    >>> pd.__name__
-    'pd'
+    >>> pd.central_tendency([0.01, 0.02, 0.03])
+    0.02
+
     """
 
     @staticmethod
@@ -1169,7 +1198,8 @@ class pd:
         Examples
         --------
         >>> from finstack_quant.core.credit import pd
-        >>> ttc = pd.pit_to_ttc(0.02, 0.12, 0.0)  # doctest: +SKIP
+        >>> round(pd.pit_to_ttc(0.02, 0.12, 0.0), 6)
+        0.027016
 
         """
         ...
@@ -1205,7 +1235,8 @@ class pd:
         Examples
         --------
         >>> from finstack_quant.core.credit import pd
-        >>> pit = pd.ttc_to_pit(0.02, 0.12, 1.0)  # doctest: +SKIP
+        >>> round(pd.ttc_to_pit(0.02, 0.12, 0.0), 6)
+        0.014287
 
         """
         ...
@@ -1234,8 +1265,8 @@ class pd:
         Examples
         --------
         >>> from finstack_quant.core.credit import pd
-        >>> pd.central_tendency([0.01, 0.02, 0.015])  # doctest: +SKIP
-        0.015
+        >>> pd.central_tendency([0.01, 0.02, 0.03])
+        0.02
 
         """
         ...
@@ -1247,8 +1278,9 @@ class lgd:
     Examples
     --------
     >>> from finstack_quant.core.credit import lgd
-    >>> lgd.__name__
-    'lgd'
+    >>> lgd.ead_revolver(60.0, 40.0, 0.5)
+    80.0
+
     """
 
     @staticmethod
@@ -1284,9 +1316,8 @@ class lgd:
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
-        >>> stats = lgd.seniority_recovery_stats("senior_secured")  # doctest: +SKIP
-        >>> "mean" in stats
-        True
+        >>> lgd.seniority_recovery_stats("senior_secured")["mean"]
+        0.52
 
         """
         ...
@@ -1326,7 +1357,8 @@ class lgd:
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
-        >>> samples = lgd.beta_recovery_sample(0.4, 0.2, 100, 42)  # doctest: +SKIP
+        >>> [round(value, 6) for value in lgd.beta_recovery_sample(0.4, 0.2, 3, 42)]
+        [0.217125, 0.329273, 0.244662]
 
         """
         ...
@@ -1359,7 +1391,8 @@ class lgd:
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
-        >>> lgd.beta_recovery_quantile(0.4, 0.2, 0.95)  # doctest: +SKIP
+        >>> round(lgd.beta_recovery_quantile(0.4, 0.2, 0.5), 6)
+        0.385728
 
         """
         ...
@@ -1407,7 +1440,9 @@ class lgd:
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
-        >>> net_rec, loss = lgd.workout_lgd(100.0, [("cash", 40.0, 1.0)], 0.02, 0.01, 1.5, 0.05)  # doctest: +SKIP
+        >>> recovery, loss = lgd.workout_lgd(100.0, [("cash", 40.0, 1.0)], 0.02, 0.01, 1.5, 0.05)
+        >>> 0.0 <= loss <= 1.0
+        True
 
         """
         ...
@@ -1452,7 +1487,8 @@ class lgd:
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
-        >>> lgd.downturn_lgd_stressed(0.4, 0.12, 0.3, 0.999)  # doctest: +SKIP
+        >>> round(lgd.downturn_lgd_stressed(0.4, 0.12, 0.3, 0.999), 6)
+        0.557329
 
         """
         ...
@@ -1489,7 +1525,8 @@ class lgd:
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
-        >>> lgd.downturn_lgd_regulatory_floor(0.4, 0.05, 0.45)  # doctest: +SKIP
+        >>> lgd.downturn_lgd_regulatory_floor(0.4, 0.05, 0.45)
+        0.45
 
         """
         ...
@@ -1517,8 +1554,8 @@ class lgd:
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
-        >>> lgd.ead_term_loan(1_000_000.0)  # doctest: +SKIP
-        1000000.0
+        >>> lgd.ead_term_loan(100.0)
+        100.0
 
         """
         ...
@@ -1551,8 +1588,8 @@ class lgd:
         Examples
         --------
         >>> from finstack_quant.core.credit import lgd
-        >>> lgd.ead_revolver(50.0, 50.0, 0.5)  # doctest: +SKIP
-        75.0
+        >>> lgd.ead_revolver(60.0, 40.0, 0.5)
+        80.0
 
         """
         ...
@@ -1561,18 +1598,12 @@ class migration:
     """
     Credit migration: rating scales, transition matrices, generators, and CTMC simulation.
 
-    Example
-    -------
-    >>> from finstack_quant.core.credit import migration
-    >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
-    >>> scale.n_states()  # doctest: +SKIP
-    8
-
     Examples
     --------
     >>> from finstack_quant.core.credit import migration
-    >>> migration.__name__
-    'migration'
+    >>> migration.RatingScale.custom_with_default(["A", "D"], "D").labels()
+    ['A', 'D']
+
     """
 
     class RatingScale:
@@ -1582,18 +1613,15 @@ class migration:
         Provides standard agency scales (S&P/Moody's/Fitch) or custom scales
         with an optional default absorbing state.
 
-        Example
-        -------
-        >>> from finstack_quant.core.credit import migration
-        >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
-        >>> scale.labels()  # doctest: +SKIP
-        ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'D']
-
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.migration.RatingScale.__name__
-        'RatingScale'
+        >>> from finstack_quant.core.credit import migration
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> (scale.n_states(), scale.index_of("A"), scale.default_state(), scale.labels())
+        (2, 0, 1, ['A', 'D'])
+        >>> (scale.warf("A"), scale.rating_from_warf(120.0))
+        (120.0, 'A')
+
         """
 
         @staticmethod
@@ -1606,15 +1634,12 @@ class migration:
             migration.RatingScale
                 Scale with labels ``AAA, AA, A, BBB, BB, B, CCC, D``.
 
-            Example
-            -------
-            >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
-
             Examples
             --------
-            >>> import finstack_quant.core.credit as binding
-            >>> callable(binding.migration.RatingScale.standard)
-            True
+            >>> from finstack_quant.core.credit import migration
+            >>> migration.RatingScale.standard().n_states()
+            10
+
             """
             ...
 
@@ -1628,15 +1653,12 @@ class migration:
             migration.RatingScale
                 Scale with labels ``AAA, AA, A, BBB, BB, B, CCC, D, NR``.
 
-            Example
-            -------
-            >>> scale = migration.RatingScale.standard_with_nr()  # doctest: +SKIP
-
             Examples
             --------
-            >>> import finstack_quant.core.credit as binding
-            >>> callable(binding.migration.RatingScale.standard_with_nr)
-            True
+            >>> from finstack_quant.core.credit import migration
+            >>> migration.RatingScale.standard_with_nr().n_states()
+            11
+
             """
             ...
 
@@ -1650,15 +1672,12 @@ class migration:
             migration.RatingScale
                 Scale with notched sub-grades.
 
-            Example
-            -------
-            >>> scale = migration.RatingScale.notched()  # doctest: +SKIP
-
             Examples
             --------
-            >>> import finstack_quant.core.credit as binding
-            >>> callable(binding.migration.RatingScale.notched)
-            True
+            >>> from finstack_quant.core.credit import migration
+            >>> migration.RatingScale.notched().n_states()
+            22
+
             """
             ...
 
@@ -1683,16 +1702,12 @@ class migration:
             ValueError
                 If fewer than two labels are supplied or any label is duplicated.
 
-            Example
-            -------
-            >>> scale = migration.RatingScale.custom(["A", "B", "C", "D"])  # doctest: +SKIP
-
-
             Examples
             --------
-            >>> import finstack_quant.core.credit as binding
-            >>> callable(binding.migration.RatingScale.custom)
-            True
+            >>> from finstack_quant.core.credit import migration
+            >>> migration.RatingScale.custom(["A", "B"]).labels()
+            ['A', 'B']
+
             """
             ...
 
@@ -1720,16 +1735,12 @@ class migration:
             KeyError
                 If *default_label* is not present in *labels*.
 
-            Example
-            -------
-            >>> scale = migration.RatingScale.custom_with_default(["A", "B", "C"], "DEFAULT")  # doctest: +SKIP
-
-
             Examples
             --------
-            >>> import finstack_quant.core.credit as binding
-            >>> callable(binding.migration.RatingScale.custom_with_default)
-            True
+            >>> from finstack_quant.core.credit import migration
+            >>> migration.RatingScale.custom_with_default(["A", "D"], "D").default_state()
+            1
+
             """
             ...
 
@@ -1742,11 +1753,6 @@ class migration:
             int
                 State count.
 
-            Example
-            -------
-            >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
-            >>> scale.n_states()  # doctest: +SKIP
-            8
             """
             ...
 
@@ -1764,12 +1770,6 @@ class migration:
             int or None
                 State index, or ``None`` when the label is not on this scale.
 
-            Example
-            -------
-            >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
-            >>> scale.index_of("BBB")  # doctest: +SKIP
-            3
-
             """
             ...
 
@@ -1782,11 +1782,6 @@ class migration:
             int or None
                 Default state index, or ``None`` if no default state exists.
 
-            Example
-            -------
-            >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
-            >>> scale.default_state()  # doctest: +SKIP
-            7
             """
             ...
 
@@ -1799,11 +1794,6 @@ class migration:
             list[str]
                 Ordered label list.
 
-            Example
-            -------
-            >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
-            >>> scale.labels()  # doctest: +SKIP
-            ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'D']
             """
             ...
 
@@ -1826,11 +1816,6 @@ class migration:
             ValueError
                 If ``label`` is not on this scale.
 
-            Example
-            -------
-            >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
-            >>> scale.warf("BBB")  # doctest: +SKIP
-            250.0
             """
             ...
 
@@ -1854,12 +1839,6 @@ class migration:
                 If *warf* is non-finite or the scale contains no label with a
                 known Moody's WARF factor.
 
-            Example
-            -------
-            >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
-            >>> scale.rating_from_warf(250.0)  # doctest: +SKIP
-            'BBB'
-
             """
             ...
 
@@ -1882,17 +1861,16 @@ class migration:
             If ``data`` length does not match ``scale.n_states() ** 2`` or rows
             do not sum to 1.
 
-        Example
-        -------
-        >>> from finstack_quant.core.credit import migration
-        >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
-        >>> tm = migration.TransitionMatrix(scale, [...], 1.0)  # doctest: +SKIP
-
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.migration.TransitionMatrix.__name__
-        'TransitionMatrix'
+        >>> from finstack_quant.core.credit import migration
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> matrix = migration.TransitionMatrix(scale, [0.9, 0.1, 0.0, 1.0], 1.0)
+        >>> (matrix.probability("A", "D"), matrix.row("A"), matrix.horizon(), matrix.n_states())
+        (0.1, [0.9, 0.1], 1.0, 2)
+        >>> (matrix.to_matrix(), matrix.default_probabilities())
+        ([[0.9, 0.1], [0.0, 1.0]], [0.1, 1.0])
+
         """
 
         def __init__(self, scale: migration.RatingScale, data: list[float], horizon: float) -> None:
@@ -1940,11 +1918,6 @@ class migration:
             KeyError
                 If *from_* or *to* is not a label on the matrix's rating scale.
 
-            Example
-            -------
-            >>> tm.probability("BBB", "BB")  # doctest: +SKIP
-            0.04
-
             """
             ...
 
@@ -1967,11 +1940,6 @@ class migration:
             KeyError
                 If *from_* is not a label on the matrix's rating scale.
 
-            Example
-            -------
-            >>> tm.row("BBB")  # doctest: +SKIP
-            [0.9, 0.05, 0.04, ...]
-
             """
             ...
 
@@ -1984,10 +1952,6 @@ class migration:
             list[list[float]]
                 Row-major matrix of transition probabilities.
 
-            Example
-            -------
-            >>> tm.to_matrix()  # doctest: +SKIP
-            [[0.95, 0.04, ...], ...]
             """
             ...
 
@@ -2000,10 +1964,6 @@ class migration:
             float
                 Horizon (e.g. ``1.0``).
 
-            Example
-            -------
-            >>> tm.horizon()  # doctest: +SKIP
-            1.0
             """
             ...
 
@@ -2016,10 +1976,6 @@ class migration:
             int
                 State count.
 
-            Example
-            -------
-            >>> tm.n_states()  # doctest: +SKIP
-            8
             """
             ...
 
@@ -2033,10 +1989,6 @@ class migration:
                 Probability of default from each state, or ``None`` when the
                 scale has no default absorbing state.
 
-            Example
-            -------
-            >>> tm.default_probabilities()  # doctest: +SKIP
-            [0.0, 0.001, 0.005, ...]
             """
             ...
 
@@ -2057,17 +2009,16 @@ class migration:
             If ``data`` length does not match ``scale.n_states() ** 2`` or rows
             do not sum to zero.
 
-        Example
-        -------
-        >>> from finstack_quant.core.credit import migration
-        >>> scale = migration.RatingScale.standard()  # doctest: +SKIP
-        >>> gm = migration.GeneratorMatrix(scale, [...])  # doctest: +SKIP
-
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.migration.GeneratorMatrix.__name__
-        'GeneratorMatrix'
+        >>> from finstack_quant.core.credit import migration
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> generator = migration.GeneratorMatrix(scale, [-0.1, 0.1, 0.0, 0.0])
+        >>> (generator.intensity("A", "D"), generator.exit_rate("A"), generator.n_states())
+        (0.1, 0.1, 2)
+        >>> (generator.to_matrix(), generator.regularization_l1, generator.round_trip_error)
+        ([[-0.1, 0.1], [0.0, 0.0]], 0.0, 0.0)
+
         """
 
         def __init__(self, scale: migration.RatingScale, data: list[float]) -> None:
@@ -2116,16 +2067,14 @@ class migration:
                 reconstructed transition matrix exceeds the round-trip
                 tolerance.
 
-            Example
-            -------
-            >>> gm = migration.GeneratorMatrix.from_transition_matrix(tm)  # doctest: +SKIP
-
-
             Examples
             --------
-            >>> import finstack_quant.core.credit as binding
-            >>> callable(binding.migration.GeneratorMatrix.from_transition_matrix)
+            >>> from finstack_quant.core.credit import migration
+            >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+            >>> matrix = migration.TransitionMatrix(scale, [0.9, 0.1, 0.0, 1.0], 1.0)
+            >>> migration.GeneratorMatrix.from_transition_matrix(matrix).round_trip_error < 1e-12
             True
+
             """
             ...
 
@@ -2150,11 +2099,6 @@ class migration:
             KeyError
                 If *from_* or *to* is not a label on the generator's rating scale.
 
-            Example
-            -------
-            >>> gm.intensity("BBB", "BB")  # doctest: +SKIP
-            0.04
-
             """
             ...
 
@@ -2178,11 +2122,6 @@ class migration:
             KeyError
                 If *state* is not a label on the generator's rating scale.
 
-            Example
-            -------
-            >>> gm.exit_rate("BBB")  # doctest: +SKIP
-            0.06
-
             """
             ...
 
@@ -2195,10 +2134,6 @@ class migration:
             list[list[float]]
                 Row-major generator matrix.
 
-            Example
-            -------
-            >>> gm.to_matrix()  # doctest: +SKIP
-            [[-0.06, 0.01, ...], ...]
             """
             ...
 
@@ -2211,10 +2146,6 @@ class migration:
             int
                 State count.
 
-            Example
-            -------
-            >>> gm.n_states()  # doctest: +SKIP
-            8
             """
             ...
 
@@ -2252,17 +2183,17 @@ class migration:
 
         Produced by :meth:`migration.MigrationSimulator.simulate`.
 
-        Example
-        -------
-        >>> path = simulator.simulate(3, 1, 42)[0]  # doctest: +SKIP
-        >>> path.label_at(0.5)  # doctest: +SKIP
-        'BBB'
-
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.migration.RatingPath.__name__
-        'RatingPath'
+        >>> from finstack_quant.core.credit import migration
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> generator = migration.GeneratorMatrix(scale, [0.0, 0.0, 0.0, 0.0])
+        >>> path = migration.MigrationSimulator(generator, 1.0).simulate(0, 1, 42)[0]
+        >>> (path.state_at(0.5), path.label_at(0.5), path.defaulted(), path.default_time())
+        (0, 'A', False, None)
+        >>> (path.n_transitions(), path.transitions(), path.horizon())
+        (0, [(0.0, 0)], 1.0)
+
         """
 
         def state_at(self, t: float) -> int:
@@ -2278,11 +2209,6 @@ class migration:
             -------
             int
                 State index at time ``t``.
-
-            Example
-            -------
-            >>> path.state_at(0.5)  # doctest: +SKIP
-            3
 
             """
             ...
@@ -2301,11 +2227,6 @@ class migration:
             str
                 Rating label at time ``t``.
 
-            Example
-            -------
-            >>> path.label_at(0.5)  # doctest: +SKIP
-            'BBB'
-
             """
             ...
 
@@ -2318,10 +2239,6 @@ class migration:
             bool
                 ``True`` if the path defaulted at any point.
 
-            Example
-            -------
-            >>> path.defaulted()  # doctest: +SKIP
-            False
             """
             ...
 
@@ -2334,10 +2251,6 @@ class migration:
             float or None
                 Default time in years, or ``None``.
 
-            Example
-            -------
-            >>> path.default_time()  # doctest: +SKIP
-            None
             """
             ...
 
@@ -2350,10 +2263,6 @@ class migration:
             int
                 Transition count (excluding the initial state).
 
-            Example
-            -------
-            >>> path.n_transitions()  # doctest: +SKIP
-            2
             """
             ...
 
@@ -2366,10 +2275,6 @@ class migration:
             list[tuple[float, int]]
                 Ordered list of transition events.
 
-            Example
-            -------
-            >>> path.transitions()  # doctest: +SKIP
-            [(0.3, 4), (0.7, 3)]
             """
             ...
 
@@ -2380,12 +2285,9 @@ class migration:
             Returns
             -------
             float
-                Horizon.
+                Simulation horizon in years over which this rating path is
+                defined.
 
-            Example
-            -------
-            >>> path.horizon()  # doctest: +SKIP
-            1.0
             """
             ...
 
@@ -2400,17 +2302,17 @@ class migration:
         horizon:
             Simulation horizon in years.
 
-        Example
-        -------
-        >>> from finstack_quant.core.credit import migration
-        >>> gm = migration.GeneratorMatrix(scale, [...])  # doctest: +SKIP
-        >>> sim = migration.MigrationSimulator(gm, 1.0)  # doctest: +SKIP
-
         Examples
         --------
-        >>> import finstack_quant.core.credit as binding
-        >>> binding.migration.MigrationSimulator.__name__
-        'MigrationSimulator'
+        >>> from finstack_quant.core.credit import migration
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> generator = migration.GeneratorMatrix(scale, [0.0, 0.0, 0.0, 0.0])
+        >>> simulator = migration.MigrationSimulator(generator, 1.0)
+        >>> (len(simulator.simulate(0, 2, 42)), simulator.horizon())
+        (2, 1.0)
+        >>> simulator.empirical_matrix(2, 42).to_matrix()
+        [[1.0, 0.0], [0.0, 1.0]]
+
         """
 
         def __init__(self, generator: migration.GeneratorMatrix, horizon: float) -> None:
@@ -2460,12 +2362,6 @@ class migration:
             ValueError
                 If *initial_state* is outside the generator's state range.
 
-            Example
-            -------
-            >>> paths = sim.simulate(3, 1000, 42)  # doctest: +SKIP
-            >>> len(paths)  # doctest: +SKIP
-            1000
-
             """
             ...
 
@@ -2493,10 +2389,6 @@ class migration:
             ValueError
                 If *n_paths_per_state* is zero.
 
-            Example
-            -------
-            >>> tm = sim.empirical_matrix(5000, 42)  # doctest: +SKIP
-
             """
             ...
 
@@ -2507,12 +2399,8 @@ class migration:
             Returns
             -------
             float
-                Horizon.
+                Configured simulation horizon in years.
 
-            Example
-            -------
-            >>> sim.horizon()  # doctest: +SKIP
-            1.0
             """
             ...
 
@@ -2544,15 +2432,13 @@ class migration:
             If the matrix exponential encounters a singular or numerically
             degenerate system.
 
-        Example
-        -------
-        >>> tm = migration.project(gm, 5.0)  # doctest: +SKIP
-
-
         Examples
         --------
         >>> from finstack_quant.core.credit import migration
-        >>> callable(migration.project)
-        True
+        >>> scale = migration.RatingScale.custom_with_default(["A", "D"], "D")
+        >>> generator = migration.GeneratorMatrix(scale, [-0.1, 0.1, 0.0, 0.0])
+        >>> round(migration.project(generator, 1.0).probability("A", "D"), 6)
+        0.095163
+
         """
         ...

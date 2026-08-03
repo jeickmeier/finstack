@@ -6,9 +6,10 @@ Provides pure-function submodules for numerical computation backed by
 
 Examples
 --------
->>> import finstack_quant.core.math as math
->>> math.__name__
-'finstack_quant.core.math'
+>>> from finstack_quant.core.math import stats
+>>> stats.mean([1.0, 2.0, 3.0])
+2.0
+
 """
 
 from __future__ import annotations
@@ -49,8 +50,9 @@ class linalg:
     Examples
     --------
     >>> from finstack_quant.core.math import linalg
-    >>> linalg.__name__
-    'linalg'
+    >>> linalg.apply_lower_triangular([[2.0, 0.0], [1.0, 3.0]], [1.0, 2.0])
+    [2.0, 7.0]
+
     """
 
     SINGULAR_THRESHOLD: float
@@ -71,9 +73,10 @@ class linalg:
 
         Examples
         --------
-        >>> import finstack_quant.core.math as binding
-        >>> binding.linalg.CholeskyError.__name__
-        'CholeskyError'
+        >>> from finstack_quant.core.math import linalg
+        >>> str(linalg.CholeskyError("matrix is not positive definite"))
+        'matrix is not positive definite'
+
         """
 
         ...
@@ -112,7 +115,9 @@ class linalg:
         Examples
         --------
         >>> from finstack_quant.core.math import linalg
-        >>> correlated = linalg.apply_lower_triangular(L, [1.0, 0.0])  # doctest: +SKIP
+        >>> linalg.apply_lower_triangular([[2.0, 0.0], [1.0, 3.0]], [1.0, 2.0])
+        [2.0, 7.0]
+
         """
         ...
 
@@ -143,7 +148,9 @@ class linalg:
         Examples
         --------
         >>> from finstack_quant.core.math import linalg
-        >>> L = linalg.cholesky_decomposition([[1.0, 0.5], [0.5, 1.0]])  # doctest: +SKIP
+        >>> [[round(value, 6) for value in row] for row in linalg.cholesky_decomposition([[4.0, 2.0], [2.0, 3.0]])]
+        [[2.0, 0.0], [1.0, 1.414214]]
+
         """
         ...
 
@@ -175,7 +182,9 @@ class linalg:
         Examples
         --------
         >>> from finstack_quant.core.math import linalg
-        >>> x = linalg.cholesky_solve(L, [1.0, 2.0])  # doctest: +SKIP
+        >>> [round(value, 6) for value in linalg.cholesky_solve([[2.0, 0.0], [1.0, 2**0.5]], [6.0, 5.0])]
+        [1.0, 1.0]
+
         """
         ...
 
@@ -202,7 +211,9 @@ class linalg:
         Examples
         --------
         >>> from finstack_quant.core.math import linalg
-        >>> linalg.validate_correlation_matrix([[1.0, 0.5], [0.5, 1.0]])  # doctest: +SKIP
+        >>> linalg.validate_correlation_matrix([[1.0, 0.2], [0.2, 1.0]]) is None
+        True
+
         """
         ...
 
@@ -213,8 +224,9 @@ class stats:
     Examples
     --------
     >>> from finstack_quant.core.math import stats
-    >>> stats.__name__
-    'stats'
+    >>> (stats.mean([1.0, 2.0, 3.0]), stats.quantile([1.0, 2.0, 3.0], 0.5))
+    (2.0, 2.0)
+
     """
 
     @staticmethod
@@ -529,7 +541,7 @@ class special_functions:
         --------
         >>> from finstack_quant.core.math import special_functions
         >>> round(special_functions.ln_gamma(1.0), 10)
-        0.0
+        -0.0
         """
         ...
 
@@ -603,8 +615,9 @@ class summation:
     Examples
     --------
     >>> from finstack_quant.core.math import summation
-    >>> summation.__name__
-    'summation'
+    >>> summation.kahan_sum([1.0, 2.0, 3.0])
+    6.0
+
     """
 
     @staticmethod

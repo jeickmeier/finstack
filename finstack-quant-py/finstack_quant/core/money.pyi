@@ -13,13 +13,14 @@ Example::
     >>> m.currency.code
     'USD'
     >>> m + Money(50.0, "USD")
-    Money(150.0, 'USD')
+    Money(150, 'USD')
 
 Examples
 --------
->>> import finstack_quant.core.money as money
->>> money.__name__
-'finstack_quant.core.money'
+>>> from finstack_quant.core.money import Money
+>>> Money(25.0, "USD").format()
+'USD 25.00'
+
 """
 
 from __future__ import annotations
@@ -114,9 +115,11 @@ class Money:
 
         Examples
         --------
+        >>> from decimal import Decimal
         >>> from finstack_quant.core.money import Money
-        >>> callable(Money.from_decimal)
-        True
+        >>> Money.from_decimal(Decimal("1.25"), "USD").format()
+        'USD 1.25'
+
         """
         ...
 
@@ -143,8 +146,9 @@ class Money:
         Examples
         --------
         >>> from finstack_quant.core.money import Money
-        >>> callable(Money.zero)
-        True
+        >>> Money.zero("EUR").amount
+        0.0
+
         """
         ...
 
@@ -249,8 +253,10 @@ class Money:
         Examples
         --------
         >>> from finstack_quant.core.money import Money
-        >>> callable(Money.from_json)
-        True
+        >>> money = Money(25.0, "USD")
+        >>> Money.from_json(money.to_json()).format()
+        'USD 25.00'
+
         """
         ...
 
@@ -318,8 +324,9 @@ class Money:
         Examples
         --------
         >>> from finstack_quant.core.money import Money
-        >>> callable(Money.from_tuple)
-        True
+        >>> Money.from_tuple((25.0, "EUR")).currency.code
+        'EUR'
+
         """
         ...
 

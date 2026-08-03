@@ -13,9 +13,10 @@ form (e.g. ``0.045`` for 4.5%). Tenors are in years unless you also rescale
 
 Examples
 --------
->>> import finstack_quant.core.market_data.dtsm as dtsm
->>> dtsm.__name__
-'finstack_quant.core.market_data.dtsm'
+>>> from finstack_quant.core.market_data.dtsm import nelson_siegel_yields
+>>> len(nelson_siegel_yields(0.7308, (0.03, -0.01, 0.005), [1.0, 5.0, 10.0]))
+3
+
 """
 
 from __future__ import annotations
@@ -75,7 +76,11 @@ def diebold_li_fit_factors(
     Examples
     --------
     >>> from finstack_quant.core.market_data.dtsm import diebold_li_fit_factors
-    >>> factors = diebold_li_fit_factors(tenors, yields_matrix)  # doctest: +SKIP
+    >>> tenors = [1.0, 2.0, 5.0, 10.0]
+    >>> yields = [[0.02, 0.025, 0.03, 0.035], [0.021, 0.026, 0.031, 0.036]]
+    >>> len(diebold_li_fit_factors(tenors, yields)["beta1"])
+    2
+
     """
     ...
 
@@ -129,7 +134,21 @@ def diebold_li_forecast(
     Examples
     --------
     >>> from finstack_quant.core.market_data.dtsm import diebold_li_forecast
-    >>> fc = diebold_li_forecast(tenors, yields_matrix, horizon=6)  # doctest: +SKIP
+    >>> tenors = [1.0, 2.0, 5.0, 10.0]
+    >>> yields = [
+    ...     [0.02, 0.025, 0.03, 0.035],
+    ...     [0.021, 0.024, 0.031, 0.034],
+    ...     [0.019, 0.026, 0.029, 0.036],
+    ...     [0.022, 0.025, 0.032, 0.033],
+    ...     [0.020, 0.027, 0.030, 0.037],
+    ...     [0.023, 0.026, 0.033, 0.035],
+    ... ]
+    >>> (
+    ...     diebold_li_forecast(tenors, yields, 2)["horizon"],
+    ...     len(diebold_li_forecast(tenors, yields, 2)["forecast_yields"]),
+    ... )
+    (2, 4)
+
     """
     ...
 
@@ -185,7 +204,9 @@ def nelson_siegel_yields(
     Examples
     --------
     >>> from finstack_quant.core.market_data.dtsm import nelson_siegel_yields
-    >>> ys = nelson_siegel_yields(0.7308, (0.06, -0.02, 0.01), [1.0, 10.0])  # doctest: +SKIP
+    >>> len(nelson_siegel_yields(0.7308, (0.03, -0.01, 0.005), [1.0, 5.0, 10.0]))
+    3
+
     """
     ...
 
@@ -218,7 +239,10 @@ def yield_pca_fit(
     Examples
     --------
     >>> from finstack_quant.core.market_data.dtsm import yield_pca_fit
-    >>> pca = yield_pca_fit(changes, n_components=3)  # doctest: +SKIP
+    >>> changes = [[0.001, 0.002, 0.003], [0.002, 0.001, 0.002], [-0.001, 0.0, 0.001]]
+    >>> len(yield_pca_fit(changes, 2)["eigenvalues"])
+    2
+
     """
     ...
 
@@ -257,6 +281,9 @@ def yield_pca_scenario(
     Examples
     --------
     >>> from finstack_quant.core.market_data.dtsm import yield_pca_scenario
-    >>> shift = yield_pca_scenario(changes, component_index=0, sigma_shock=-2.0)  # doctest: +SKIP
+    >>> changes = [[0.001, 0.002, 0.003], [0.002, 0.001, 0.002], [-0.001, 0.0, 0.001]]
+    >>> len(yield_pca_scenario(changes, 0, 1.0, 2))
+    3
+
     """
     ...
