@@ -299,10 +299,8 @@ fn test_tranche_loss_allocation_no_loss() {
     )
     .unwrap();
 
-    let pool_balance = Money::new(1_000_000_000.0, Currency::USD);
-
     // Act: Loss below attachment
-    let loss = tranche.loss_allocation(5.0, pool_balance);
+    let loss = tranche.loss_allocation(5.0);
 
     // Assert
     assert_eq!(loss.amount(), 0.0);
@@ -322,10 +320,8 @@ fn test_tranche_loss_allocation_partial_loss() {
     )
     .unwrap();
 
-    let pool_balance = Money::new(1_000_000_000.0, Currency::USD);
-
     // Act: 12% loss (2% into the tranche)
-    let loss = tranche.loss_allocation(12.0, pool_balance);
+    let loss = tranche.loss_allocation(12.0);
 
     // Assert: 2% / 5% = 40% of tranche = $20M
     assert_eq!(loss.amount(), 20_000_000.0);
@@ -345,10 +341,8 @@ fn test_tranche_loss_allocation_full_loss() {
     )
     .unwrap();
 
-    let pool_balance = Money::new(1_000_000_000.0, Currency::USD);
-
     // Act: 20% loss (beyond detachment)
-    let loss = tranche.loss_allocation(20.0, pool_balance);
+    let loss = tranche.loss_allocation(20.0);
 
     // Assert: Full tranche wiped out
     assert_eq!(loss.amount(), 50_000_000.0);
@@ -368,10 +362,8 @@ fn test_tranche_current_balance_after_losses() {
     )
     .unwrap();
 
-    let pool_balance = Money::new(1_000_000_000.0, Currency::USD);
-
     // Act: 12% loss
-    let balance = tranche.current_balance_after_losses(12.0, pool_balance);
+    let balance = tranche.current_balance_after_losses(12.0);
 
     // Assert: Original $50M - $20M loss = $30M
     assert_eq!(balance.amount(), 30_000_000.0);

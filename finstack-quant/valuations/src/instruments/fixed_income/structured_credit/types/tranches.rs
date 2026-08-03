@@ -410,12 +410,13 @@ impl Tranche {
 
     /// Check if tranche is currently impaired by losses.
     ///
-    /// A tranche is impaired when cumulative pool losses (as a fraction of
-    /// performing pool balance) exceed the tranche's attachment point.
+    /// A tranche is impaired when cumulative pool losses, expressed in
+    /// percentage points of performing pool balance, exceed the tranche's
+    /// attachment point.
     ///
     /// # Arguments
-    /// * `cumulative_loss_pct` - Cumulative net loss as a fraction of total
-    ///   performing pool balance (0.0 to 1.0). E.g., 0.05 means 5% losses.
+    /// * `cumulative_loss_pct` - Cumulative net loss in percentage points of
+    ///   performing pool balance, in `[0, 100]` (for example, `5.0` means 5%).
     pub fn is_impaired(&self, cumulative_loss_pct: f64) -> bool {
         cumulative_loss_pct > self.attachment_point
     }
@@ -428,12 +429,9 @@ impl Tranche {
     /// - Losses above detachment: tranche fully impaired (loss = original balance)
     ///
     /// # Arguments
-    /// * `cumulative_loss_pct` - Cumulative net loss as fraction of performing pool balance.
-    /// * `total_pool_balance` - Performing pool balance (denominator for loss pct).
-    ///   Used to cross-check loss amounts, though the primary computation uses
-    ///   the tranche's `original_balance` directly.
-    pub fn loss_allocation(&self, cumulative_loss_pct: f64, total_pool_balance: Money) -> Money {
-        let _ = total_pool_balance; // Reserved for future cross-check
+    /// * `cumulative_loss_pct` - Cumulative net loss in percentage points of
+    ///   performing pool balance, in `[0, 100]` (for example, `12.0` means 12%).
+    pub fn loss_allocation(&self, cumulative_loss_pct: f64) -> Money {
         if cumulative_loss_pct <= self.attachment_point {
             // Losses have not reached this tranche's subordination
             Money::new(0.0, self.original_balance.currency())
@@ -451,12 +449,13 @@ impl Tranche {
     /// Current tranche balance after applying cumulative losses.
     ///
     /// Returns `max(0, current_balance - loss_allocation)`.
-    pub fn current_balance_after_losses(
-        &self,
-        cumulative_loss_pct: f64,
-        total_pool_balance: Money,
-    ) -> Money {
-        let loss_amount = self.loss_allocation(cumulative_loss_pct, total_pool_balance);
+    ///
+    /// # Arguments
+    ///
+    /// * `cumulative_loss_pct` - Cumulative net loss in percentage points of
+    ///   performing pool balance, in `[0, 100]` (for example, `12.0` means 12%).
+    pub fn current_balance_after_losses(&self, cumulative_loss_pct: f64) -> Money {
+        let loss_amount = self.loss_allocation(cumulative_loss_pct);
         Money::new(
             (self.current_balance.amount() - loss_amount.amount()).max(0.0),
             self.current_balance.currency(),
@@ -921,19 +920,17 @@ mod tests {
         )
         .expect("should succeed");
 
-        let pool_balance = Money::new(1_000_000_000.0, Currency::USD);
-
         // No loss case
-        let loss = tranche.loss_allocation(5.0, pool_balance);
+        let loss = tranche.loss_allocation(5.0);
         assert_eq!(loss.amount(), 0.0);
 
         // Partial loss case (12% cumulative loss)
-        let loss = tranche.loss_allocation(12.0, pool_balance);
+        let loss = tranche.loss_allocation(12.0);
         assert!(loss.amount() > 0.0);
         assert!(loss.amount() < tranche.original_balance.amount());
 
         // Full loss case (20% cumulative loss)
-        let loss = tranche.loss_allocation(20.0, pool_balance);
+        let loss = tranche.loss_allocation(20.0);
         assert_eq!(loss.amount(), tranche.original_balance.amount());
     }
 
