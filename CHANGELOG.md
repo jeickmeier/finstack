@@ -4,6 +4,11 @@
 
 ### Changed
 
+- **Breaking (Python):** `reporting.attribution_tearsheet` is now
+  presentation-only and accepts only a precomputed `PnlAttribution` or its
+  canonical JSON/dict payload. Inline instrument/market attribution parameters
+  were removed; compute attribution through `finstack_quant.attribution` before
+  rendering.
 - **Breaking (Python):** `reporting.instrument_tearsheet` is now presentation-only
   and requires a precomputed `ValuationResult`; its `market`, `as_of`, `model`,
   and `market_price` parameters were removed. The presentation-owned

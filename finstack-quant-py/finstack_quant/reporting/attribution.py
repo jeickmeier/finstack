@@ -2,18 +2,15 @@
 
 Pure formatter — reads an already-computed ``attribution`` (a
 ``finstack_quant.attribution.PnlAttribution``) and renders a contribution waterfall
-plus factor and carry/credit detail tables. It can also compute the attribution
-inline from an instrument + two market snapshots (the engine import is confined to
-``_attribute_path``). It never re-derives analytics otherwise.
+plus factor and carry/credit detail tables. It never computes attribution.
 
 Examples:
 --------
 >>> from finstack_quant.reporting.attribution import attribution_tearsheet
->>> try:
-...     attribution_tearsheet()
-... except ValueError as exc:
-...     "requires a PnlAttribution" in str(exc)
-True
+>>> attribution_tearsheet(None)
+Traceback (most recent call last):
+...
+ValueError: attribution_tearsheet requires a precomputed PnlAttribution
 """
 
 from __future__ import annotations
@@ -153,36 +150,9 @@ def _build_sections(attribution: Any, wanted: list[str], theme: Theme) -> list[S
     return out
 
 
-def _attribute_path(
-    instrument: Any,
-    market_t0: Any,
-    market_t1: Any,
-    as_of_t0: str | None,
-    as_of_t1: str | None,
-    method: Any,
-    config: Any,
-) -> Any:
-    if market_t0 is None or market_t1 is None or as_of_t0 is None or as_of_t1 is None:
-        raise ValueError("compute-inline attribution requires market_t0, market_t1, as_of_t0, and as_of_t1")
-    from finstack_quant.attribution import PnlAttribution, attribute_pnl
-
-    inst_json = instrument if isinstance(instrument, str) else json.dumps(instrument)
-    m0 = market_t0 if isinstance(market_t0, str) else market_t0.to_json()
-    m1 = market_t1 if isinstance(market_t1, str) else market_t1.to_json()
-    out = attribute_pnl(inst_json, m0, m1, as_of_t0, as_of_t1, method, config)
-    return PnlAttribution.from_json(out)
-
-
 def attribution_tearsheet(
-    attribution: Any = None,
+    attribution: Any,
     *,
-    instrument: Any = None,
-    market_t0: Any = None,
-    market_t1: Any = None,
-    as_of_t0: str | None = None,
-    as_of_t1: str | None = None,
-    method: Any = "parallel",
-    config: Any = None,
     title: str | None = None,
     subtitle: str | None = None,
     sections: list[str] | None = None,
@@ -191,29 +161,13 @@ def attribution_tearsheet(
 ) -> TearSheet:
     """Render a single instrument's T0->T1 P&L attribution as a tear sheet.
 
-    Pass a ``PnlAttribution`` via ``attribution=`` (pure formatter), or compute one
-    inline by passing ``instrument=`` plus ``market_t0``/``market_t1``/``as_of_t0``/
-    ``as_of_t1`` (and optional ``method``/``config``). ``sections`` selects a subset
-    of ``ALL_SECTIONS``.
+    Pass a precomputed ``PnlAttribution`` object or its canonical JSON/dict
+    payload. ``sections`` selects a subset of ``ALL_SECTIONS``.
 
     Parameters
     ----------
     attribution : Any
         Precomputed ``PnlAttribution`` object or equivalent canonical payload.
-    instrument : Any
-        Instrument JSON/object to attribute inline instead of supplying results.
-    market_t0 : Any
-        Opening market context or JSON used for inline attribution.
-    market_t1 : Any
-        Closing market context or JSON used for inline attribution.
-    as_of_t0 : str or None
-        ISO-8601 opening valuation date required for inline attribution.
-    as_of_t1 : str or None
-        ISO-8601 closing valuation date required for inline attribution.
-    method : Any
-        Attribution-method identifier or configuration passed to the core API.
-    config : Any
-        Optional method-specific attribution configuration.
     title : str or None
         Optional main report heading; ``None`` uses the attributed instrument.
     subtitle : str or None
@@ -233,28 +187,20 @@ def attribution_tearsheet(
     Raises:
     ------
     ValueError
-        If neither a precomputed attribution nor an instrument is supplied, if
-        inline attribution omits either market snapshot or valuation date, if
-        ``sections`` contains an unknown name, or if an attribution JSON payload
-        cannot be decoded.
+        If no precomputed attribution is supplied, ``sections`` contains an
+        unknown name, or an attribution JSON payload cannot be decoded.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.attribution import attribution_tearsheet
-    >>> try:
-    ...     attribution_tearsheet()
-    ... except ValueError as exc:
-    ...     "requires a PnlAttribution" in str(exc)
-    True
+    >>> attribution_tearsheet(None)
+    Traceback (most recent call last):
+    ...
+    ValueError: attribution_tearsheet requires a precomputed PnlAttribution
     """
-    if instrument is not None:
-        attribution = _attribute_path(instrument, market_t0, market_t1, as_of_t0, as_of_t1, method, config)
-    elif attribution is None:
-        raise ValueError(
-            "attribution_tearsheet requires a PnlAttribution (pass `attribution=`) or an instrument "
-            "+ two markets (pass `instrument=`, `market_t0=`, `market_t1=`, `as_of_t0=`, `as_of_t1=`)"
-        )
-    elif isinstance(attribution, (str, dict)):
+    if attribution is None:
+        raise ValueError("attribution_tearsheet requires a precomputed PnlAttribution")
+    if isinstance(attribution, (str, dict)):
         from finstack_quant.attribution import PnlAttribution
 
         payload = attribution if isinstance(attribution, str) else json.dumps(attribution)

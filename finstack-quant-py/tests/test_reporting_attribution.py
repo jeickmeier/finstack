@@ -83,8 +83,8 @@ def test_attribution_tearsheet_requires_inputs() -> None:
 
     from finstack_quant.reporting import attribution_tearsheet
 
-    with pytest.raises(ValueError, match=r"requires a PnlAttribution|instrument"):
-        attribution_tearsheet()
+    with pytest.raises(ValueError, match="requires a precomputed PnlAttribution"):
+        attribution_tearsheet(None)
 
 
 def test_reporting_import_is_engine_light() -> None:
