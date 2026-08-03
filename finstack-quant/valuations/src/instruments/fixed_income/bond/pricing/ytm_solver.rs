@@ -75,7 +75,7 @@ pub struct YtmPricingSpec {
 /// y_guess = current_yield + 0.5 × (1/price_pct - 1) / years_to_maturity
 /// ```
 #[derive(Debug, Clone)]
-pub struct YtmSolverConfig {
+struct YtmSolverConfig {
     /// Convergence tolerance for YTM solver (on the yield axis).
     ///
     /// Default: `1e-12` for maximum precision and determinism.
@@ -85,14 +85,14 @@ pub struct YtmSolverConfig {
     ///
     /// The solver stops when `|f(y)| < tolerance × target_price`, ensuring
     /// the price residual is proportionally small regardless of notional size.
-    pub tolerance: f64,
+    tolerance: f64,
 
     /// Maximum solver iterations before failing.
     ///
     /// Brent's method typically converges in 5-15 iterations for well-behaved
     /// bonds. The cap prevents infinite loops on pathological inputs (e.g.,
     /// bonds with negative cashflows or multiple IRR solutions).
-    pub max_iterations: usize,
+    max_iterations: usize,
 
     /// Use smart initial guess based on current yield and pull-to-par.
     ///
@@ -101,7 +101,7 @@ pub struct YtmSolverConfig {
     ///
     /// This typically reduces iterations by 30-50% compared to a naive
     /// starting point (e.g., coupon rate).
-    pub use_smart_guess: bool,
+    use_smart_guess: bool,
 }
 
 impl Default for YtmSolverConfig {
@@ -118,30 +118,7 @@ impl Default for YtmSolverConfig {
 ///
 /// Provides robust YTM calculation with intelligent initial guesses. Configured via
 /// `YtmSolverConfig`.
-///
-/// # Examples
-///
-/// ```ignore
-/// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::ytm_solver::{YtmSolver, YtmPricingSpec};
-/// use finstack_quant_core::dates::{Date, DayCount, Tenor};
-/// use finstack_quant_core::money::Money;
-/// use finstack_quant_core::currency::Currency;
-///
-/// # let cashflows = vec![];
-/// # let as_of = Date::from_calendar_date(2024, time::Month::January, 1).unwrap();
-/// # let target_price = Money::new(1000.0, Currency::USD);
-/// let solver = YtmSolver::new();
-/// let spec = YtmPricingSpec {
-///     day_count: DayCount::Act365F,
-///     notional: Money::new(1000.0, Currency::USD),
-///     coupon_rate: 0.05,
-///     compounding: finstack_quant_valuations::instruments::fixed_income::bond::pricing::quote_conversions::YieldCompounding::Street,
-///     frequency: Tenor::semi_annual(),
-/// };
-/// let ytm = solver.solve(&cashflows, as_of, target_price, spec)?;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
-pub struct YtmSolver {
+struct YtmSolver {
     config: YtmSolverConfig,
 }
 
@@ -157,15 +134,7 @@ impl YtmSolver {
     /// # Returns
     ///
     /// A `YtmSolver` with default configuration (sub-penny precision, Brent solver).
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::ytm_solver::YtmSolver;
-    ///
-    /// let solver = YtmSolver::new();
-    /// ```
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             config: YtmSolverConfig::default(),
         }
@@ -180,20 +149,8 @@ impl YtmSolver {
     /// # Returns
     ///
     /// A `YtmSolver` with the specified configuration.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::ytm_solver::{YtmSolver, YtmSolverConfig};
-    ///
-    /// let config = YtmSolverConfig {
-    ///     tolerance: 1e-10,      // Faster convergence
-    ///     max_iterations: 100,
-    ///     use_smart_guess: true,
-    /// };
-    /// let solver = YtmSolver::with_config(config);
-    /// ```
-    pub fn with_config(config: YtmSolverConfig) -> Self {
+    #[cfg(test)]
+    fn with_config(config: YtmSolverConfig) -> Self {
         Self { config }
     }
 
@@ -219,30 +176,7 @@ impl YtmSolver {
     /// - Target price is non-positive
     /// - Cashflows are empty
     /// - Solver fails to converge
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// use finstack_quant_valuations::instruments::fixed_income::bond::pricing::ytm_solver::{YtmSolver, YtmPricingSpec};
-    /// use finstack_quant_core::dates::{Date, DayCount, Tenor};
-    /// use finstack_quant_core::money::Money;
-    /// use finstack_quant_core::currency::Currency;
-    ///
-    /// # let cashflows = vec![];
-    /// # let as_of = Date::from_calendar_date(2024, time::Month::January, 1).unwrap();
-    /// # let target_price = Money::new(1000.0, Currency::USD);
-    /// let solver = YtmSolver::new();
-    /// let spec = YtmPricingSpec {
-    ///     day_count: DayCount::Act365F,
-    ///     notional: Money::new(1000.0, Currency::USD),
-    ///     coupon_rate: 0.05,
-    ///     compounding: finstack_quant_valuations::instruments::fixed_income::bond::pricing::quote_conversions::YieldCompounding::Street,
-    ///     frequency: Tenor::semi_annual(),
-    /// };
-    /// let ytm = solver.solve(&cashflows, as_of, target_price, spec)?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn solve(
+    fn solve(
         &self,
         cashflows: &[(Date, Money)],
         as_of: Date,
@@ -396,7 +330,7 @@ impl YtmSolver {
 
 /// Convenience function to solve for YTM with default configuration.
 ///
-/// Wrapper around `YtmSolver::new().solve()` for simple use cases.
+/// Uses the default Brent solver configuration.
 ///
 /// # Arguments
 ///
