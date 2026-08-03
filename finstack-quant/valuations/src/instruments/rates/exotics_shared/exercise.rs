@@ -96,10 +96,10 @@ pub fn extended_basis(t_years: f64, short_rate: f64) -> Vec<f64> {
 }
 
 /// Select the LSMC regression basis for a configured polynomial degree
-/// ([`RateExoticMcConfig::basis_degree`], clamped to `[1, 4]` at parse time).
+/// ([`RateExoticMcConfig::basis_degree`]).
 ///
-/// Degrees 1–2 map to the degree-2 [`standard_basis`]; degrees 3+ map to the
-/// degree-3 [`extended_basis`]. This is the single consumption point that
+/// Degrees below 3 map to the degree-2 [`standard_basis`]; degrees 3+ map to
+/// the degree-3 [`extended_basis`]. This is the single consumption point that
 /// keeps `mc_basis_degree` a live configuration surface for payoffs built on
 /// the shared HW1F LSMC harness.
 ///
@@ -108,8 +108,8 @@ pub fn extended_basis(t_years: f64, short_rate: f64) -> Vec<f64> {
 /// # Arguments
 ///
 /// * `degree` - Configured polynomial degree from
-///   [`RateExoticMcConfig::basis_degree`] (clamped to `[1, 4]` at parse time).
-///   Values `1`–`2` select [`standard_basis`]; `3`–`4` select [`extended_basis`].
+///   [`RateExoticMcConfig::basis_degree`]. Values below `3` select
+///   [`standard_basis`]; values of `3` or greater select [`extended_basis`].
 /// * `t_years` - Time from valuation to the exercise date in year fractions
 ///   under the instrument day-count convention, matching the shared HW1F
 ///   LSMC harness time basis.

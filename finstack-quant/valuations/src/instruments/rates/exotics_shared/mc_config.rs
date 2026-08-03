@@ -1,9 +1,7 @@
 //! Monte Carlo configuration for rate exotic products.
 //!
-//! Resolves numeric MC settings (num_paths, seed, antithetic, time-step density)
-//! from a set of pricing overrides, falling back to production defaults.
+//! Defines typed runtime settings and derives effective path and RNG-stream counts.
 
-use finstack_quant_core::Result;
 use serde::{Deserialize, Serialize};
 
 /// Runtime Monte Carlo configuration shared across rate exotic pricers.
@@ -53,47 +51,6 @@ impl Default for RateExoticMcConfig {
 }
 
 impl RateExoticMcConfig {
-    /// Parse an `RateExoticMcConfig` from a `serde_json::Value` blob, falling
-    /// back to the default for any missing field.
-    ///
-    /// Recognized keys (any may be omitted):
-    /// - `mc_num_paths`: `usize`
-    /// - `mc_seed`: `u64`
-    /// - `mc_antithetic`: `bool`
-    /// - `mc_min_steps_between_events`: `usize`
-    /// - `mc_basis_degree`: `usize`
-    ///
-    /// Currently infallible; the `Result` return is reserved for future validation
-    /// (e.g. range or parse errors).
-    pub fn from_overrides(overrides: Option<&serde_json::Value>) -> Result<Self> {
-        let mut cfg = Self::default();
-        let Some(obj) = overrides.and_then(|v| v.as_object()) else {
-            return Ok(cfg);
-        };
-        if let Some(v) = obj.get("mc_num_paths").and_then(|x| x.as_u64()) {
-            cfg.num_paths = v as usize;
-        }
-        if let Some(v) = obj.get("mc_seed").and_then(|x| x.as_u64()) {
-            cfg.seed = v;
-        }
-        if let Some(v) = obj.get("mc_antithetic").and_then(|x| x.as_bool()) {
-            cfg.antithetic = v;
-        }
-        if let Some(v) = obj
-            .get("mc_min_steps_between_events")
-            .and_then(|x| x.as_u64())
-        {
-            cfg.min_steps_between_events = (v as usize).max(1);
-        }
-        if let Some(v) = obj.get("mc_basis_degree").and_then(|x| x.as_u64()) {
-            cfg.basis_degree = (v as usize).clamp(1, 4);
-        }
-        if let Some(v) = obj.get("mc_oos_lsmc").and_then(|x| x.as_bool()) {
-            cfg.oos_lsmc = v;
-        }
-        Ok(cfg)
-    }
-
     /// Total effective Monte Carlo paths generated. With `antithetic = true`,
     /// returns `num_paths` rounded **down to the nearest even number** (antithetic
     /// paths come in pairs); with `antithetic = false`, returns `num_paths`
@@ -121,7 +78,6 @@ impl RateExoticMcConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     #[test]
     fn default_values() {
@@ -131,29 +87,6 @@ mod tests {
         assert!(cfg.antithetic);
         assert_eq!(cfg.min_steps_between_events, 4);
         assert_eq!(cfg.basis_degree, 2);
-    }
-
-    #[test]
-    fn from_overrides_partial() {
-        let overrides = json!({ "mc_num_paths": 5000, "mc_seed": 7 });
-        let cfg = RateExoticMcConfig::from_overrides(Some(&overrides)).expect("ok");
-        assert_eq!(cfg.num_paths, 5000);
-        assert_eq!(cfg.seed, 7);
-        assert!(cfg.antithetic);
-        assert_eq!(cfg.basis_degree, 2);
-    }
-
-    #[test]
-    fn from_overrides_none_returns_default() {
-        let cfg = RateExoticMcConfig::from_overrides(None).expect("ok");
-        assert_eq!(cfg, RateExoticMcConfig::default());
-    }
-
-    #[test]
-    fn basis_degree_clamped() {
-        let overrides = json!({ "mc_basis_degree": 99 });
-        let cfg = RateExoticMcConfig::from_overrides(Some(&overrides)).expect("ok");
-        assert_eq!(cfg.basis_degree, 4);
     }
 
     #[test]
@@ -181,19 +114,5 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(b.raw_stream_count(), 100);
-    }
-
-    #[test]
-    fn basis_degree_clamped_low_side() {
-        let overrides = serde_json::json!({ "mc_basis_degree": 0 });
-        let cfg = RateExoticMcConfig::from_overrides(Some(&overrides)).expect("ok");
-        assert_eq!(cfg.basis_degree, 1);
-    }
-
-    #[test]
-    fn min_steps_between_events_floored_at_one() {
-        let overrides = serde_json::json!({ "mc_min_steps_between_events": 0 });
-        let cfg = RateExoticMcConfig::from_overrides(Some(&overrides)).expect("ok");
-        assert_eq!(cfg.min_steps_between_events, 1);
     }
 }
