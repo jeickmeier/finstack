@@ -2396,7 +2396,7 @@ class EcfSweepSpec:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or cannot be deserialized as an excess-cash-flow sweep specification.
 
         Examples
         --------
@@ -2514,7 +2514,7 @@ class PikToggleSpec:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or cannot be deserialized as a PIK-toggle specification.
 
         Examples
         --------
@@ -2638,7 +2638,7 @@ class WaterfallSpec:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or cannot be deserialized as a waterfall specification.
 
         Examples
         --------

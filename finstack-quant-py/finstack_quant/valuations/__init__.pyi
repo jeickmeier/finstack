@@ -172,7 +172,7 @@ class ValuationResult:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or cannot be deserialized as a valuation result.
         """
         ...
 
@@ -478,7 +478,7 @@ class CalibrationResult:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or cannot be deserialized as a calibration result.
 
         Examples
         --------

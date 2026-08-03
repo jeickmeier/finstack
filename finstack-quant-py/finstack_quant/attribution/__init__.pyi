@@ -82,7 +82,8 @@ class PnlAttribution:
         Raises
         ------
         ValueError
-            If the JSON payload cannot be parsed or does not satisfy the `ValueError` schema and invariants.
+            If ``json`` is malformed or omits fields required by the P&L
+            attribution schema.
         """
         ...
 
