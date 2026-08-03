@@ -5369,8 +5369,9 @@ class SaCcrEngine:
     ----------
     alpha : float or None, optional
         Supervisory alpha factor; defaults to 1.4 when ``None``.
-    reporting_currency : str, default "USD"
-        ISO currency code for EAD reporting.
+
+    Monetary values in a calculation must already use one consistent currency;
+    the engine does not perform currency conversion.
 
     Examples
     --------
@@ -5380,23 +5381,20 @@ class SaCcrEngine:
     0.0
     """
 
-    def __init__(self, alpha: float | None = None, reporting_currency: str = "USD") -> None:
+    def __init__(self, alpha: float | None = None) -> None:
         """
-        Configure the supervisory multiplier and reporting currency for SA-CCR.
+        Configure the supervisory multiplier for SA-CCR.
 
         Parameters
         ----------
         alpha : float or None, default None
             Supervisory alpha multiplier; ``None`` uses the regulatory default
             of ``1.4`` and explicit values must be at least ``1.0``.
-        reporting_currency : str, default "USD"
-            Recognized ISO-4217 code for notional, MtM, add-on, and EAD amounts.
 
         Raises
         ------
         ValueError
-            If ``reporting_currency`` is unrecognized, or a supplied ``alpha``
-            is non-finite or less than ``1.0``.
+            If a supplied ``alpha`` is non-finite or less than ``1.0``.
         """
         ...
 

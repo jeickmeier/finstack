@@ -8,17 +8,16 @@ use super::maturity_factor::{maturity_factor_margined, maturity_factor_unmargine
 use super::pfe::pfe;
 use super::replacement_cost::replacement_cost;
 use super::types::{EadResult, SaCcrNettingSetConfig, SaCcrTrade};
-use finstack_quant_core::currency::Currency;
 use finstack_quant_core::Result;
 
 /// SA-CCR engine for computing Exposure at Default.
+///
+/// All monetary inputs must use one consistent currency. The engine performs no
+/// currency conversion.
 #[derive(Debug)]
 pub struct SaCcrEngine {
     /// Alpha multiplier (regulatory: 1.4, supervisory override possible).
     alpha: f64,
-    /// Reporting currency.
-    #[allow(dead_code)]
-    reporting_currency: Currency,
 }
 
 impl SaCcrEngine {
@@ -106,7 +105,6 @@ impl SaCcrEngine {
 #[derive(Default)]
 pub struct SaCcrEngineBuilder {
     alpha: Option<f64>,
-    reporting_currency: Option<Currency>,
 }
 
 impl SaCcrEngineBuilder {
@@ -114,13 +112,6 @@ impl SaCcrEngineBuilder {
     #[must_use]
     pub fn alpha(mut self, alpha: f64) -> Self {
         self.alpha = Some(alpha);
-        self
-    }
-
-    /// Set reporting currency (default: USD).
-    #[must_use]
-    pub fn reporting_currency(mut self, ccy: Currency) -> Self {
-        self.reporting_currency = Some(ccy);
         self
     }
 
@@ -136,10 +127,7 @@ impl SaCcrEngineBuilder {
                 "SA-CCR alpha must be finite and >= 1.0".into(),
             ));
         }
-        Ok(SaCcrEngine {
-            alpha,
-            reporting_currency: self.reporting_currency.unwrap_or(Currency::USD),
-        })
+        Ok(SaCcrEngine { alpha })
     }
 }
 

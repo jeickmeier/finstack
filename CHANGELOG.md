@@ -19,6 +19,10 @@
   and `market_price` parameters were removed. The presentation-owned
   `recommended_metrics` helper was also removed, so callers select metrics in
   the valuations API before rendering.
+- **Breaking (Rust/Python):** Removed the unused SA-CCR engine
+  `reporting_currency` field, builder option, and Python constructor argument.
+  SA-CCR monetary inputs must already use one consistent currency; the engine
+  does not perform currency conversion.
 - **Breaking (Rust):** Removed the unused FRTB SBA engine
   `reporting_currency` field and builder option. Currency remains explicit on
   `FrtbSensitivities`, where it participates in the regulatory input contract.

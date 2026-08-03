@@ -545,10 +545,9 @@ pub struct PySaCcrEngine {
 impl PySaCcrEngine {
     /// Create an SA-CCR engine.
     #[new]
-    #[pyo3(signature = (alpha = None, reporting_currency = "USD"))]
-    fn new(alpha: Option<f64>, reporting_currency: &str) -> PyResult<Self> {
-        let mut builder =
-            SaCcrEngine::builder().reporting_currency(parse_currency(reporting_currency)?);
+    #[pyo3(signature = (alpha = None))]
+    fn new(alpha: Option<f64>) -> PyResult<Self> {
+        let mut builder = SaCcrEngine::builder();
         if let Some(a) = alpha {
             builder = builder.alpha(a);
         }
