@@ -82,6 +82,23 @@ pub(crate) fn mean(values: &[f64]) -> Option<f64> {
     Some(values.iter().sum::<f64>() / values.len() as f64)
 }
 
+/// Return the Type-7 continuous quantile of an ascending, total-ordered slice.
+pub(crate) fn quantile_cont(sorted: &[f64], probability: f64) -> Option<f64> {
+    if sorted.is_empty() {
+        return None;
+    }
+    if sorted.len() == 1 {
+        return Some(sorted[0]);
+    }
+    let pos = probability * (sorted.len() - 1) as f64;
+    let lower_idx = pos.floor() as usize;
+    let upper_idx = pos.ceil() as usize;
+    let weight = pos - lower_idx as f64;
+    let lower = sorted[lower_idx];
+    let upper = sorted[upper_idx];
+    Some(lower + weight * (upper - lower))
+}
+
 pub(crate) fn sample_std(values: &[f64]) -> Option<f64> {
     if values.len() < 2 {
         return None;

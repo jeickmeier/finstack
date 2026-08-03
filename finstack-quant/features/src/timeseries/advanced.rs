@@ -1,7 +1,7 @@
 //! Advanced rolling time-series helpers.
 
 use crate::types::{
-    f64_param, finite, required_f64_param, sample_std, usize_param, ZERO_TOLERANCE,
+    f64_param, finite, quantile_cont, required_f64_param, sample_std, usize_param, ZERO_TOLERANCE,
 };
 use finstack_quant_core::{Error, Result};
 use serde_json::Value;
@@ -260,18 +260,4 @@ fn hampel_value(
     } else {
         Ok(Some(current))
     }
-}
-
-fn quantile_cont(sorted: &[f64], probability: f64) -> Option<f64> {
-    if sorted.is_empty() {
-        return None;
-    }
-    if sorted.len() == 1 {
-        return Some(sorted[0]);
-    }
-    let pos = probability * (sorted.len() - 1) as f64;
-    let lower_idx = pos.floor() as usize;
-    let upper_idx = pos.ceil() as usize;
-    let weight = pos - lower_idx as f64;
-    Some(sorted[lower_idx] + weight * (sorted[upper_idx] - sorted[lower_idx]))
 }

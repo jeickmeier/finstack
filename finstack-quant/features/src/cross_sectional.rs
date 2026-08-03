@@ -1,7 +1,8 @@
 //! Cross-sectional panel transforms partitioned by timestamp.
 
 use crate::types::{
-    f64_param, finite, mean, population_std, usize_param, validate_lengths, ZERO_TOLERANCE,
+    f64_param, finite, mean, population_std, quantile_cont, usize_param, validate_lengths,
+    ZERO_TOLERANCE,
 };
 use finstack_quant_core::math::standard_normal_inv_cdf;
 use finstack_quant_core::{Error, Result};
@@ -536,20 +537,4 @@ fn winsorize(
         output[idx] = Some(value.clamp(lower_bound, upper_bound));
     }
     Ok(())
-}
-
-fn quantile_cont(sorted: &[f64], probability: f64) -> Option<f64> {
-    if sorted.is_empty() {
-        return None;
-    }
-    if sorted.len() == 1 {
-        return Some(sorted[0]);
-    }
-    let pos = probability * (sorted.len() - 1) as f64;
-    let lower_idx = pos.floor() as usize;
-    let upper_idx = pos.ceil() as usize;
-    let weight = pos - lower_idx as f64;
-    let lower = sorted[lower_idx];
-    let upper = sorted[upper_idx];
-    Some(lower + weight * (upper - lower))
 }
