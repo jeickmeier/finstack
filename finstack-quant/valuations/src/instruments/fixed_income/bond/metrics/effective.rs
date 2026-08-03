@@ -25,16 +25,11 @@ use finstack_quant_core::Result;
 
 const DEFAULT_SHOCK_BPS: f64 = 25.0;
 
-/// Effective duration and convexity result.
+/// Internal effective duration and convexity result.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // public API result struct
 pub(crate) struct EffectiveDurationResult {
     pub duration: f64,
     pub convexity: f64,
-    pub base_price: f64,
-    pub price_up: f64,
-    pub price_down: f64,
-    pub shock_bp: f64,
 }
 
 /// Calculate effective duration for a bond using parallel curve bumps.
@@ -77,10 +72,6 @@ pub(crate) fn effective_duration_convexity(
         return Ok(EffectiveDurationResult {
             duration: 0.0,
             convexity: 0.0,
-            base_price,
-            price_up: 0.0,
-            price_down: 0.0,
-            shock_bp,
         });
     }
 
@@ -103,10 +94,6 @@ pub(crate) fn effective_duration_convexity(
     Ok(EffectiveDurationResult {
         duration,
         convexity,
-        base_price,
-        price_up,
-        price_down,
-        shock_bp,
     })
 }
 
@@ -337,14 +324,6 @@ mod tests {
             result.convexity,
             expected_convexity
         );
-        // The base price the calculator reports must be the as_of value.
-        assert!(
-            (result.base_price - base).abs() < 1e-9,
-            "reported base price must be the as_of-anchored risk-bond value: \
-             got {}, expected {}",
-            result.base_price,
-            base
-        );
     }
 
     /// Item 10 regression for the OAS-quote path: with a settlement lag, the
@@ -422,13 +401,6 @@ mod tests {
              got {}, expected {}",
             result.duration,
             expected_duration
-        );
-        assert!(
-            (result.base_price - base).abs() < 1e-9,
-            "reported base price (OAS quote) must be the as_of-anchored value: \
-             got {}, expected {}",
-            result.base_price,
-            base
         );
     }
 
