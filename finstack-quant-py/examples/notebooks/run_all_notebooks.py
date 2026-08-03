@@ -10,11 +10,13 @@ import argparse
 import os
 from pathlib import Path
 import sys
+from tempfile import TemporaryDirectory
 import time
 
 from nbclient import NotebookClient
 from nbclient.exceptions import CellExecutionError
 import nbformat
+from traitlets.config import Config
 
 NOTEBOOKS_DIR = Path(__file__).resolve().parent
 
@@ -50,9 +52,7 @@ def find_notebooks(base_dir: Path, subdirectory: str | None = None) -> list[Path
     return [nb for nb in notebooks if ".ipynb_checkpoints" not in str(nb)]
 
 
-def run_notebook(
-    notebook_path: Path, timeout: int, save_outputs: bool = False
-) -> tuple[bool, str, float]:
+def run_notebook(notebook_path: Path, timeout: int, save_outputs: bool = False) -> tuple[bool, str, float]:
     """Run a single notebook; return (success, message, elapsed_seconds).
 
     When *save_outputs* is set, a successfully executed notebook is written back
@@ -65,13 +65,18 @@ def run_notebook(
         with open(notebook_path, encoding="utf-8") as f:
             nb = nbformat.read(f, as_version=4)
 
-        client = NotebookClient(
-            nb,
-            timeout=timeout,
-            kernel_name="python3",
-            resources={"metadata": {"path": str(notebook_path.parent)}},
-        )
-        client.execute()
+        with TemporaryDirectory(prefix="finstack-notebook-") as ipc_dir:
+            config = Config()
+            config.KernelManager.transport = "ipc"
+            config.KernelManager.ip = str(Path(ipc_dir) / "kernel")
+            client = NotebookClient(
+                nb,
+                timeout=timeout,
+                kernel_name="python3",
+                resources={"metadata": {"path": str(notebook_path.parent)}},
+                config=config,
+            )
+            client.execute()
 
         elapsed = time.time() - start
         cell_count = sum(1 for c in nb.cells if c.cell_type == "code")

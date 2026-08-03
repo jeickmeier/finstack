@@ -59,6 +59,20 @@ def test_run_notebook_reports_success(module: ModuleType, tmp_path: Path) -> Non
     assert elapsed >= 0
 
 
+def test_run_notebook_uses_ipc_transport(module: ModuleType, tmp_path: Path) -> None:
+    """Notebook kernels should communicate over local IPC rather than plaintext TCP."""
+    notebook = tmp_path / "ipc_transport.ipynb"
+    _write_notebook(
+        notebook,
+        "from ipykernel.connect import get_connection_info\n"
+        "assert get_connection_info(unpack=True)['transport'] == 'ipc'",
+    )
+
+    ok, message, _elapsed = module.run_notebook(notebook, timeout=30)
+
+    assert ok is True, message
+
+
 def test_run_notebook_reports_failure(module: ModuleType, tmp_path: Path) -> None:
     """A failing notebook should return a concise error message."""
     notebook = tmp_path / "failure.ipynb"
