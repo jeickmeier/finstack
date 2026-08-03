@@ -65,24 +65,6 @@ macro_rules! try_include_schema {
     };
 }
 
-/// Get JSON-Schema for Bond configuration.
-///
-/// Sourced from the generated instrument schemas under `schemas/instruments/1/`.
-///
-/// # Errors
-///
-/// Returns `Error::Validation` if the embedded schema JSON is malformed.
-#[allow(dead_code)] // Public API, used in tests
-pub fn bond_schema() -> finstack_quant_core::Result<&'static Value> {
-    static SCHEMA: OnceLock<Result<Value, String>> = OnceLock::new();
-    SCHEMA
-        .get_or_init(|| {
-            try_include_schema!("../schemas/instruments/1/fixed_income/bond.schema.json")
-        })
-        .as_ref()
-        .map_err(|e| finstack_quant_core::Error::Validation(e.clone()))
-}
-
 /// Get the JSON Schema for the instrument envelope.
 ///
 /// # Errors
@@ -405,7 +387,7 @@ mod tests {
     #[test]
     fn test_schema_stubs() {
         // Verify stub schemas are valid JSON and have expected structure
-        let bond = bond_schema().expect("bond schema should parse");
+        let bond = instrument_schema("bond").expect("bond schema should parse");
         assert_eq!(bond["$schema"], JSON_SCHEMA_DIALECT);
         assert_eq!(bond["title"], "bond");
 
@@ -421,7 +403,10 @@ mod tests {
     fn test_all_schemas_parse_successfully() {
         // Ensure all embedded schemas parse without error.
         // This test catches invalid JSON at CI time rather than runtime.
-        assert!(bond_schema().is_ok(), "bond_schema() should return Ok");
+        assert!(
+            instrument_schema("bond").is_ok(),
+            "instrument_schema(\"bond\") should return Ok"
+        );
         assert!(
             instrument_envelope_schema().is_ok(),
             "instrument_envelope_schema() should return Ok"
@@ -491,7 +476,7 @@ mod tests {
 
     #[test]
     fn test_validate_instrument_json_accepts_valid_envelope() {
-        let valid = first_schema_example(bond_schema().expect("bond schema"));
+        let valid = first_schema_example(&instrument_schema("bond").expect("bond schema"));
         assert!(
             validate_instrument_envelope_json(&valid).is_ok(),
             "valid bond example should pass validation"
