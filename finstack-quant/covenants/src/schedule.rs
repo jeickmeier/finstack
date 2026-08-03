@@ -92,7 +92,7 @@ impl ThresholdSchedule {
 ///   order; an empty schedule returns `None`.
 /// * `test_date` - Covenant test date for which the latest threshold effective
 ///   on or before that date is required.
-pub fn threshold_for_date(schedule: &ThresholdSchedule, test_date: Date) -> Option<f64> {
+pub(crate) fn threshold_for_date(schedule: &ThresholdSchedule, test_date: Date) -> Option<f64> {
     if schedule.0.is_empty() {
         return None;
     }

@@ -93,4 +93,4 @@ pub use json::{
 };
 pub use metric::{CovenantMetricId, CovenantMetricSource, HashMapMetricSource};
 pub use report::CovenantReport;
-pub use schedule::{threshold_for_date, ThresholdSchedule};
+pub use schedule::ThresholdSchedule;
