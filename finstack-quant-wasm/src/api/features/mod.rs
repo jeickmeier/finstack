@@ -9,6 +9,12 @@ use serde_json::Value;
 use wasm_bindgen::prelude::*;
 
 /// Transform a time-series panel column per entity.
+///
+/// # Errors
+///
+/// Rejects values that cannot be decoded into the declared arrays or JSON
+/// parameters, unequal row counts, an unsupported `op`, malformed operation
+/// parameters, or a result that cannot be serialized to JavaScript.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param entity - Entity identifier used to group ordered time-series observations.
 /// @param order - Observation-order key used to sort each entity time series.
@@ -38,6 +44,13 @@ pub fn transform_timeseries(
 }
 
 /// Transform a cross-section per timestamp.
+///
+/// # Errors
+///
+/// Rejects values that cannot be decoded into the declared arrays or JSON
+/// parameters, unequal `values` and `time_key` lengths, an unsupported `op`,
+/// malformed operation parameters, or a result that cannot be serialized to
+/// JavaScript.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
 /// @param op - Transformation operation identifier supported by the feature-engineering API.
@@ -59,6 +72,13 @@ pub fn transform_cross_sectional(
 }
 
 /// Transform a cross-section within each time/group sub-partition.
+///
+/// # Errors
+///
+/// Rejects values that cannot be decoded into the declared arrays or JSON
+/// parameters, unequal `values`, `time_key`, and `groups` lengths, an
+/// unsupported `op`, malformed operation parameters, or a result that cannot
+/// be serialized to JavaScript.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
 /// @param groups - Group labels aligned with values for within-group cross-sectional operations.
@@ -88,6 +108,13 @@ pub fn transform_cross_sectional_grouped(
 }
 
 /// Remove cross-sectional exposure effects by OLS residualization.
+///
+/// # Errors
+///
+/// Rejects values that cannot be decoded into the declared arrays or JSON
+/// parameters, unequal row counts, exposure columns whose lengths differ from
+/// `values`, a non-boolean `fit_intercept`, or a result that cannot be
+/// serialized to JavaScript.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
 /// @param exposures - Factor-exposure matrix aligned with the supplied observations.
@@ -111,6 +138,13 @@ pub fn neutralize(
 }
 
 /// Transform two time-series panel columns per entity.
+///
+/// # Errors
+///
+/// Rejects values that cannot be decoded into the declared arrays or JSON
+/// parameters, unequal row counts, an unsupported `op`, non-positive or
+/// non-integer `window` or `min_periods` parameters, or a result that cannot be
+/// serialized to JavaScript.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param other - Second value series aligned with the primary series for a pairwise transformation.
 /// @param entity - Entity identifier used to group ordered time-series observations.
@@ -144,6 +178,13 @@ pub fn transform_timeseries_pairwise(
 }
 
 /// Return rolling OLS residuals per entity.
+///
+/// # Errors
+///
+/// Rejects values that cannot be decoded into the declared arrays or JSON
+/// parameters, unequal row counts, exposure columns whose lengths differ from
+/// `values`, malformed `window`, `min_periods`, or `fit_intercept` parameters,
+/// or a result that cannot be serialized to JavaScript.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param exposures - Factor-exposure matrix aligned with the supplied observations.
 /// @param entity - Entity identifier used to group ordered time-series observations.
@@ -175,6 +216,12 @@ pub fn rolling_regression_residual(
 }
 
 /// Convert a signal to inverse-risk-scaled weights per timestamp.
+///
+/// # Errors
+///
+/// Rejects inputs that cannot be decoded into the declared arrays, unequal
+/// `values`, `time_key`, and `volatility` lengths, or a result that cannot be
+/// serialized to JavaScript.
 /// @param values - Numeric signal observations aligned with `timeKey` and `volatility`.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
 /// @param volatility - Row-aligned risk estimates used as `signal / volatility`; zero, missing, or non-finite values yield missing weights.
@@ -194,6 +241,12 @@ pub fn risk_scaled_weights(
 }
 
 /// Apply the default signal cleaning pass.
+///
+/// # Errors
+///
+/// Rejects values that cannot be decoded into the declared arrays or JSON
+/// parameters, unequal `values` and `time_key` lengths, malformed clipping
+/// bounds, or a result that cannot be serialized to JavaScript.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
 /// @param params - Operation-specific parameter object defining transformation settings.
@@ -212,6 +265,13 @@ pub fn clean_signal(
 }
 
 /// Normalize a signal cross-sectionally.
+///
+/// # Errors
+///
+/// Rejects values that cannot be decoded into the declared arrays or JSON
+/// parameters, unequal `values` and `time_key` lengths, a non-string or
+/// unsupported normalization method, malformed operation parameters, or a
+/// result that cannot be serialized to JavaScript.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
 /// @param params - Operation-specific parameter object defining transformation settings.
@@ -230,6 +290,12 @@ pub fn normalize_signal(
 }
 
 /// Convert ranks into long/short weights.
+///
+/// # Errors
+///
+/// Rejects inputs that cannot be decoded into the declared arrays, unequal
+/// `values` and `time_key` lengths, or a result that cannot be serialized to
+/// JavaScript.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
 #[wasm_bindgen(js_name = rankToWeights)]
@@ -241,6 +307,13 @@ pub fn rank_to_weights(values: JsValue, time_key: JsValue) -> Result<JsValue, Js
 }
 
 /// Neutralize a signal and z-score residuals.
+///
+/// # Errors
+///
+/// Rejects values that cannot be decoded into the declared arrays or JSON
+/// parameters, unequal row counts, exposure columns whose lengths differ from
+/// `values`, a non-boolean `fit_intercept`, or a result that cannot be
+/// serialized to JavaScript.
 /// @param values - Numeric observations in the shape and order required by the selected transformation.
 /// @param time_key - Cross-sectional time key shared by values evaluated in the same slice.
 /// @param exposures - Factor-exposure matrix aligned with the supplied observations.
@@ -268,6 +341,13 @@ pub fn neutralize_and_zscore(
 }
 
 /// Apply a JSON panel transform pipeline.
+///
+/// # Errors
+///
+/// Rejects malformed JSON or panel specifications, blank or duplicate
+/// operation names, missing partition columns, unequal row counts, malformed
+/// operation parameters, operations that cannot be evaluated, or a result that
+/// cannot be serialized to JSON.
 /// @param spec_json - Canonical panel-transformation JSON specifying input columns, operations, and parameters.
 #[wasm_bindgen(js_name = transformPanel)]
 pub fn transform_panel(spec_json: &str) -> Result<String, JsValue> {

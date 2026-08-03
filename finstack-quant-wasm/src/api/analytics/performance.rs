@@ -216,6 +216,10 @@ impl JsPerformance {
     // ── Mutators ──
 
     /// Restrict subsequent analytics to `[start, end]`.
+    ///
+    /// # Errors
+    ///
+    /// Rejects `start` or `end` when it is not a valid ISO-8601 calendar date.
     /// @param start - Inclusive ISO-8601 start date for the active analysis window.
     /// @param end - Inclusive ISO-8601 end date for the active analysis window.
     #[wasm_bindgen(js_name = resetDateRange)]
@@ -226,6 +230,10 @@ impl JsPerformance {
     }
 
     /// Change the benchmark ticker.
+    ///
+    /// # Errors
+    ///
+    /// Rejects `ticker` when it does not match a loaded ticker name.
     /// @param ticker - Existing ticker label to use as the benchmark return series.
     #[wasm_bindgen(js_name = resetBenchTicker)]
     pub fn reset_bench_ticker(&mut self, ticker: &str) -> Result<(), JsValue> {
@@ -235,6 +243,10 @@ impl JsPerformance {
     // ── Accessors ──
 
     /// Ticker names in column order.
+    ///
+    /// # Errors
+    ///
+    /// Rejects if the ticker-name vector cannot be serialized to JavaScript.
     #[wasm_bindgen(js_name = tickerNames)]
     pub fn ticker_names(&self) -> Result<JsValue, JsValue> {
         to_js(&self.inner.ticker_names().to_vec())
@@ -271,6 +283,10 @@ impl JsPerformance {
     }
 
     /// Date grid for one ticker's active return series as ISO date strings.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when `ticker_idx` is outside the loaded ticker columns.
     /// @param ticker_idx - Zero-based ticker column index in tickerNames order.
     #[wasm_bindgen(js_name = activeDatesForTicker)]
     pub fn active_dates_for_ticker(&self, ticker_idx: usize) -> Result<Vec<String>, JsValue> {
@@ -286,6 +302,10 @@ impl JsPerformance {
     // ── Scalar metrics ──
 
     /// Compound annual growth rate per asset.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when any ticker's active range has no positive holding period.
     pub fn cagr(&self) -> Result<JsValue, JsValue> {
         result_vec_f64_to_js(self.inner.cagr())
     }
@@ -316,6 +336,11 @@ impl JsPerformance {
     }
 
     /// Calmar ratio (CAGR over max drawdown) per asset.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when any ticker's active range has no positive holding period
+    /// and therefore cannot produce CAGR.
     pub fn calmar(&self) -> Result<JsValue, JsValue> {
         result_vec_f64_to_js(self.inner.calmar())
     }
@@ -384,6 +409,10 @@ impl JsPerformance {
 
     /// Per-asset skewness and kurtosis from one moments pass, as
     /// `{ skewness: Float64Array, kurtosis: Float64Array }`.
+    ///
+    /// # Errors
+    ///
+    /// Rejects if the JavaScript result object's properties cannot be created.
     #[wasm_bindgen(js_name = skewKurt)]
     pub fn skew_kurt(&self) -> Result<JsValue, JsValue> {
         let (skew, kurt) = self.inner.skew_kurt();
@@ -395,6 +424,10 @@ impl JsPerformance {
 
     /// Per-asset historical VaR and expected shortfall from one tail pass, as
     /// `{ value_at_risk: Float64Array, expected_shortfall: Float64Array }`.
+    ///
+    /// # Errors
+    ///
+    /// Rejects if the JavaScript result object's properties cannot be created.
     /// @param confidence - Tail confidence as a decimal probability; defaults to 0.95.
     #[wasm_bindgen(js_name = valueAtRiskAndEs)]
     pub fn value_at_risk_and_es(&self, confidence: Option<f64>) -> Result<JsValue, JsValue> {
@@ -415,6 +448,10 @@ impl JsPerformance {
     }
 
     /// Longest drawdown duration (in periods) per asset.
+    ///
+    /// # Errors
+    ///
+    /// Rejects if the duration vector cannot be serialized to JavaScript.
     #[wasm_bindgen(js_name = maxDrawdownDuration)]
     pub fn max_drawdown_duration(&self) -> Result<JsValue, JsValue> {
         // `usize` does not fit a typed array; keep the serde path.
@@ -465,6 +502,11 @@ impl JsPerformance {
     }
 
     /// Martin ratio (excess return over ulcer index) per asset.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when any ticker's active range has no positive holding period
+    /// and therefore cannot produce CAGR.
     #[wasm_bindgen(js_name = martinRatio)]
     pub fn martin_ratio(&self) -> Result<JsValue, JsValue> {
         result_vec_f64_to_js(self.inner.martin_ratio())
@@ -483,6 +525,11 @@ impl JsPerformance {
     }
 
     /// Pain ratio (excess return over pain index) per asset.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when any ticker's active range has no positive holding period
+    /// and therefore cannot produce CAGR.
     /// @param risk_free_rate - Annualized decimal risk-free rate; defaults to 0.0.
     #[wasm_bindgen(js_name = painRatio)]
     pub fn pain_ratio(&self, risk_free_rate: Option<f64>) -> Result<JsValue, JsValue> {
@@ -559,6 +606,11 @@ impl JsPerformance {
     }
 
     /// Sterling ratio over the `n` largest drawdowns per asset.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when any ticker's active range has no positive holding period
+    /// and therefore cannot produce CAGR.
     /// @param risk_free_rate - Annualized decimal risk-free rate; defaults to 0.0.
     /// @param n - Number of largest drawdowns to include; defaults to 5.
     #[wasm_bindgen(js_name = sterlingRatio)]
@@ -574,6 +626,11 @@ impl JsPerformance {
     }
 
     /// Burke ratio over the `n` largest drawdowns per asset.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when any ticker's active range has no positive holding period
+    /// and therefore cannot produce CAGR.
     /// @param risk_free_rate - Annualized decimal risk-free rate; defaults to 0.0.
     /// @param n - Number of largest drawdowns to include; defaults to 5.
     #[wasm_bindgen(js_name = burkeRatio)]
@@ -602,6 +659,10 @@ impl JsPerformance {
     }
 
     /// Per-period simple return series for one asset, as decimal fractions.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when `ticker_idx` is outside the loaded ticker columns.
     /// @param ticker_idx - Zero-based ticker column index in tickerNames order.
     #[wasm_bindgen(js_name = returnsForTicker)]
     pub fn returns_for_ticker(&self, ticker_idx: usize) -> Result<JsValue, JsValue> {
@@ -643,6 +704,11 @@ impl JsPerformance {
     }
 
     /// Excess returns over the supplied risk-free series per asset.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when `rf` is neither a numeric JavaScript array nor a
+    /// `Float64Array`.
     /// @param rf - Risk-free return series as decimal values aligned with active observations.
     /// @param nperiods - Optional periods per year used to annualize excess returns.
     #[wasm_bindgen(js_name = excessReturns)]
@@ -654,17 +720,30 @@ impl JsPerformance {
     // ── Benchmark ──
 
     /// OLS beta versus the benchmark per asset, with standard error and 95% CI.
+    ///
+    /// # Errors
+    ///
+    /// Rejects if the beta results cannot be serialized to JavaScript.
     pub fn beta(&self) -> Result<JsValue, JsValue> {
         to_js(&self.inner.beta())
     }
 
     /// Benchmark regression annualized Jensen alpha/beta statistics per asset.
+    ///
+    /// # Errors
+    ///
+    /// Rejects if the regression results cannot be serialized to JavaScript.
     /// @param risk_free_rate - Annualized decimal risk-free rate; defaults to 0.0.
     pub fn greeks(&self, risk_free_rate: Option<f64>) -> Result<JsValue, JsValue> {
         to_js(&self.inner.greeks(risk_free_rate.unwrap_or(0.0)))
     }
 
     /// Rolling benchmark annualized Jensen alpha/beta for one asset over a window.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when `ticker_idx` is outside the loaded ticker columns or the
+    /// JavaScript result object's properties cannot be created.
     /// @param ticker_idx - Zero-based ticker column index in tickerNames order.
     /// @param window - Observation window length; defaults to 63 periods.
     /// @param risk_free_rate - Annualized decimal risk-free rate; defaults to 0.0.
@@ -687,6 +766,11 @@ impl JsPerformance {
     }
 
     /// Rolling volatility series for one asset over a window.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when `ticker_idx` is outside the loaded ticker columns or the
+    /// JavaScript result object's properties cannot be created.
     /// @param ticker_idx - Zero-based ticker column index in tickerNames order.
     /// @param window - Observation window length; defaults to 63 periods.
     #[wasm_bindgen(js_name = rollingVolatility)]
@@ -703,6 +787,11 @@ impl JsPerformance {
     }
 
     /// Rolling Sortino ratio series for one asset over a window.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when `ticker_idx` is outside the loaded ticker columns or the
+    /// JavaScript result object's properties cannot be created.
     /// @param ticker_idx - Zero-based ticker column index in tickerNames order.
     /// @param window - Observation window length; defaults to 63 periods.
     /// @param mar - Per-period minimum acceptable return as a decimal; defaults to 0.0.
@@ -725,6 +814,11 @@ impl JsPerformance {
     }
 
     /// Rolling Sharpe ratio series for one asset over a window.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when `ticker_idx` is outside the loaded ticker columns or the
+    /// JavaScript result object's properties cannot be created.
     /// @param ticker_idx - Zero-based ticker column index in tickerNames order.
     /// @param window - Observation window length; defaults to 63 periods.
     /// @param risk_free_rate - Annualized decimal risk-free rate; defaults to 0.0.
@@ -747,6 +841,12 @@ impl JsPerformance {
     }
 
     /// Rolling compounded return series for one asset over a window.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when `ticker_idx` is outside the loaded ticker columns or the
+    /// JavaScript result object's properties cannot be created. A zero or
+    /// overlong `window` returns an empty series rather than rejecting.
     /// @param ticker_idx - Zero-based ticker column index in tickerNames order.
     /// @param window - Positive number of observations to compound in each window.
     #[wasm_bindgen(js_name = rollingReturns)]
@@ -759,6 +859,11 @@ impl JsPerformance {
     }
 
     /// Details of the `n` largest drawdown episodes for one asset.
+    ///
+    /// # Errors
+    ///
+    /// Rejects when `ticker_idx` is outside the loaded ticker columns or the
+    /// drawdown details cannot be serialized to JavaScript.
     /// @param ticker_idx - Zero-based ticker column index in tickerNames order.
     /// @param n - Number of largest drawdown episodes to return; defaults to 5.
     #[wasm_bindgen(js_name = drawdownDetails)]
@@ -776,6 +881,13 @@ impl JsPerformance {
     }
 
     /// Multi-factor regression statistics for one asset.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a non-numeric `factor_returns` matrix, an out-of-range
+    /// `ticker_idx`, no factors, too few observations, non-finite or
+    /// length-mismatched inputs, a singular factor design, or a result that
+    /// cannot be serialized to JavaScript.
     /// @param ticker_idx - Zero-based ticker column index in tickerNames order.
     /// @param factor_returns - Matrix of aligned decimal factor-return series, one row per factor.
     #[wasm_bindgen(js_name = multiFactorGreeks)]
@@ -802,6 +914,13 @@ impl JsPerformance {
     /// (`fiscalYearStartMonth` / `fiscalYearStartDay`) adjusted to the next
     /// business day on `calendar` (default `"nyse"`); pass the calendar id
     /// matching your market for non-US panels.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an invalid ISO `ref_date`, a fiscal month outside `1..=12`, a
+    /// fiscal day outside `1..=31`, an unknown `calendar`, a fiscal start that
+    /// cannot be business-day-adjusted, or a result that cannot be serialized
+    /// to JavaScript.
     /// @param ref_date - ISO-8601 date on which MTD, QTD, YTD, and FYTD windows end.
     /// @param fiscal_year_start_month - Optional fiscal-year start month from 1 through 12; defaults to January.
     /// @param fiscal_year_start_day - Optional fiscal-year start day; defaults to the first day.
@@ -822,6 +941,12 @@ impl JsPerformance {
     }
 
     /// Aggregated period statistics for one asset at the given frequency.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an unsupported `aggregation_frequency`, a fiscal month outside
+    /// `1..=12`, a fiscal day outside `1..=31`, an out-of-range `ticker_idx`,
+    /// or period statistics that cannot be serialized to JavaScript.
     /// @param ticker_idx - Zero-based ticker column index in tickerNames order.
     /// @param aggregation_frequency - Optional aggregation frequency token; defaults to monthly.
     /// @param fiscal_year_start_month - Optional fiscal-year start month from 1 through 12.
