@@ -31,6 +31,11 @@ impl JsCopulaSpec {
 
     /// Student-t copula with specified degrees of freedom (must be > 2).
     /// @param df - Positive Student-t copula degrees of freedom controlling tail thickness.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `df` is not finite and strictly greater
+    /// than two.
     #[wasm_bindgen(js_name = studentT)]
     pub fn student_t(df: f64) -> Result<JsCopulaSpec, JsValue> {
         CopulaSpec::student_t(df)
@@ -57,6 +62,11 @@ impl JsCopulaSpec {
     }
 
     /// Build a concrete copula from this specification.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if a Student-t specification contains
+    /// non-finite degrees of freedom or a value at most two.
     #[wasm_bindgen(js_name = build)]
     pub fn build(&self) -> Result<JsCopula, JsValue> {
         self.inner
@@ -112,6 +122,12 @@ impl JsCopula {
     /// @param default_threshold - Latent-variable default threshold corresponding to the marginal default probability.
     /// @param factor_realization - Realized systematic-factor value conditioning the default probability.
     /// @param correlation - Dependence correlation from -1 through 1 under the selected copula or recovery model.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if the factor count does not match the
+    /// copula, any input is non-finite, `correlation` is outside `[0, 1]`, or
+    /// the model produces a probability outside `[0, 1]`.
     #[wasm_bindgen(js_name = conditionalDefaultProb)]
     pub fn conditional_default_prob(
         &self,
@@ -155,9 +171,12 @@ impl JsCopula {
     /// `λ_L` (which has no closed form for RFL — `tailDependence` returns
     /// `NaN`). It gauges the extra correlation mass in the high-loading
     /// tail and vanishes in the Gaussian (`loadingVol = 0`) limit.
-    ///
-    /// Throws for non-RFL copulas.
     /// @param correlation - Dependence correlation from -1 through 1 under the selected copula or recovery model.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if this copula is not a Random Factor
+    /// Loading model.
     #[wasm_bindgen(js_name = stressCorrelationProxy)]
     pub fn stress_correlation_proxy(&self, correlation: f64) -> Result<f64, JsValue> {
         match &self.spec {
@@ -187,9 +206,12 @@ pub struct JsRecoverySpec {
 #[wasm_bindgen(js_class = RecoverySpec)]
 impl JsRecoverySpec {
     /// Constant recovery rate.
-    ///
-    /// Throws if `rate` is not finite or lies outside `[0, 1]`.
     /// @param rate - Constant recovery rate expressed as a fraction from 0 through 1.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `rate` is not finite or lies outside
+    /// `[0, 1]`.
     #[wasm_bindgen(js_name = constant)]
     pub fn constant(rate: f64) -> Result<JsRecoverySpec, JsValue> {
         corr::RecoverySpec::constant(rate)
@@ -198,12 +220,15 @@ impl JsRecoverySpec {
     }
 
     /// Market-correlated (Andersen-Sidenius) stochastic recovery.
-    ///
-    /// Throws if `mean` is not finite or lies outside `[0, 1]`, or if `vol` /
-    /// `correlation` are not finite.
     /// @param mean - Mean recovery rate expressed as a fraction from 0 through 1.
     /// @param vol - Recovery-rate volatility scale in the correlated recovery model.
     /// @param correlation - Dependence correlation from -1 through 1 under the selected copula or recovery model.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `mean` is not finite or lies outside
+    /// `[0, 1]`, or if `vol` or `correlation` is non-finite. Finite volatility
+    /// and correlation inputs are clamped to their supported ranges.
     #[wasm_bindgen(js_name = marketCorrelated)]
     pub fn market_correlated(
         mean: f64,
@@ -313,6 +338,11 @@ impl JsRecoveryModel {
 /// Returns `[rho_min, rho_max]`.
 /// @param p1 - First marginal default probability from 0 through 1.
 /// @param p2 - Second marginal default probability from 0 through 1.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either marginal probability is non-finite
+/// or outside `[0, 1]`.
 #[wasm_bindgen(js_name = correlationBounds)]
 pub fn correlation_bounds(p1: f64, p2: f64) -> Result<Vec<f64>, JsValue> {
     let (lo, hi) = corr::correlation_bounds(p1, p2).map_err(to_js_err)?;
@@ -325,6 +355,11 @@ pub fn correlation_bounds(p1: f64, p2: f64) -> Result<Vec<f64>, JsValue> {
 /// @param p1 - First marginal default probability from 0 through 1.
 /// @param p2 - Second marginal default probability from 0 through 1.
 /// @param correlation - Dependence correlation from -1 through 1 under the selected copula or recovery model.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if either marginal probability is non-finite
+/// or outside `[0, 1]`, or `correlation` is non-finite or outside `[-1, 1]`.
 #[wasm_bindgen(js_name = jointProbabilities)]
 pub fn joint_probabilities(p1: f64, p2: f64, correlation: f64) -> Result<Vec<f64>, JsValue> {
     let (p11, p10, p01, p00) = corr::joint_probabilities(p1, p2, correlation).map_err(to_js_err)?;
@@ -339,6 +374,12 @@ pub fn joint_probabilities(p1: f64, p2: f64, correlation: f64) -> Result<Vec<f64
 /// (including the failing dimension or constraint) otherwise.
 /// @param matrix - Square numeric matrix in the nested or row-major shape required by this callable.
 /// @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the flat length is not `n * n`, a diagonal
+/// entry is not one, an entry is outside the correlation bounds, the matrix is
+/// not symmetric, or the matrix is not positive semidefinite.
 #[wasm_bindgen(js_name = validateCorrelationMatrix)]
 pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<(), JsValue> {
     corr::validate_correlation_matrix(matrix, n).map_err(to_js_err)
@@ -354,6 +395,12 @@ pub fn validate_correlation_matrix(matrix: &[f64], n: usize) -> Result<(), JsVal
 /// @param n - Positive square-matrix dimension; flat arrays must contain n × n entries.
 /// @param max_iter - Maximum number of Higham nearest-correlation projection iterations.
 /// @param tol - Positive convergence tolerance for the nearest-correlation projection.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the flat length is not `n * n`, the input
+/// has a gross diagonal or symmetry violation, or the projection does not
+/// converge within `maxIter` iterations at `tol`.
 #[wasm_bindgen(js_name = nearestCorrelation)]
 pub fn nearest_correlation(
     matrix: Vec<f64>,
@@ -388,6 +435,13 @@ pub fn nearest_correlation(
 /// @param attachment - Lower tranche boundary as a fraction of pool notional from 0 through 1.
 /// @param detachment - Upper tranche boundary as a fraction of pool notional, strictly above the attachment and at most 1.
 /// @param pool_notional - Total pool notional, finite and strictly positive, in the same unit as the losses.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the loss distribution is empty or contains
+/// a non-finite or negative loss; `confidence` is outside `(0, 1)`; tranche
+/// boundaries are invalid; `poolNotional` is not finite and positive; a derived
+/// statistic is non-finite; allocation fails; or conversion to JavaScript fails.
 #[wasm_bindgen(js_name = trancheLossStatistics)]
 pub fn tranche_loss_statistics(
     losses: Vec<f64>,

@@ -31,6 +31,12 @@ impl JsSabrParameters {
     /// @param nu - Positive SABR volatility-of-volatility parameter.
     /// @param rho - Instantaneous correlation between the asset and variance shocks.
     /// @param shift - Additive SABR rate shift applied to forward and strike before modelling.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `alpha` is not finite and positive,
+    /// `beta` is outside `[0, 1]`, `nu` is negative or non-finite, `rho` is
+    /// outside `[-1, 1]`, or a supplied `shift` is not finite and positive.
     #[wasm_bindgen(constructor)]
     pub fn new(
         alpha: f64,
@@ -131,6 +137,12 @@ impl JsSabrModel {
     /// @param forward - Forward price or rate in the same quote convention as the strike.
     /// @param strike - Option strike price in the same price units as the underlying.
     /// @param t - Time from the curve base date in years on the documented day-count basis.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if `t` is not positive, the forward or
+    /// strike lies outside the selected shifted or unshifted SABR domain, or
+    /// the Hagan expansion produces an undefined or non-finite volatility.
     #[wasm_bindgen(js_name = impliedVol)]
     pub fn implied_vol(&self, forward: f64, strike: f64, t: f64) -> Result<f64, JsValue> {
         self.inner
@@ -178,6 +190,12 @@ impl JsSabrSmile {
     }
 
     /// At-the-money implied volatility.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if the smile's expiry or effective forward
+    /// is outside the model domain, or the ATM calculation produces an invalid
+    /// volatility.
     #[wasm_bindgen(js_name = atmVol)]
     pub fn atm_vol(&self) -> Result<f64, JsValue> {
         self.inner.atm_vol().map_err(to_js_err)
@@ -185,6 +203,12 @@ impl JsSabrSmile {
 
     /// Black implied volatility for the given strike.
     /// @param strike - Option strike price in the same price units as the underlying.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if the smile's expiry, forward, or
+    /// requested `strike` is outside the model domain, the Hagan expansion
+    /// fails, or no volatility is returned for the strike.
     #[wasm_bindgen(js_name = impliedVol)]
     pub fn implied_vol(&self, strike: f64) -> Result<f64, JsValue> {
         self.inner
@@ -199,6 +223,12 @@ impl JsSabrSmile {
 
     /// Implied volatilities for a strike grid.
     /// @param strikes - Option strikes at which to evaluate the SABR volatility smile.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if the smile's expiry or forward, or any
+    /// supplied strike, is outside the model domain, or the Hagan expansion
+    /// produces an invalid volatility.
     #[wasm_bindgen(js_name = generateSmile)]
     pub fn generate_smile(&self, strikes: Vec<f64>) -> Result<Vec<f64>, JsValue> {
         self.inner.generate_smile(&strikes).map_err(to_js_err)
@@ -212,6 +242,12 @@ impl JsSabrSmile {
     /// @param strikes - Ordered option strikes used to test the calibrated smile for static arbitrage.
     /// @param r - Continuously compounded risk-free rate, expressed as a decimal.
     /// @param q - Continuous dividend yield or foreign rate, expressed as a decimal.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if volatility generation fails for the
+    /// stored smile and supplied strikes, or the diagnostics cannot be
+    /// converted to a JavaScript value.
     #[wasm_bindgen(js_name = arbitrageDiagnostics)]
     pub fn arbitrage_diagnostics(
         &self,
@@ -303,6 +339,12 @@ impl JsSabrCalibrator {
     /// @param market_vols - Market-implied annualized volatilities aligned one-for-one with strikes.
     /// @param t - Time from the curve base date in years on the documented day-count basis.
     /// @param beta - SABR CEV elasticity parameter held fixed during calibration.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if the strike and volatility lengths
+    /// differ, the quote arrays are empty, the SABR inputs or fitted parameters
+    /// are invalid, or the calibration solver does not converge.
     pub fn calibrate(
         &self,
         forward: f64,
@@ -328,6 +370,13 @@ impl JsSabrCalibrator {
     /// @param market_vols - Market-implied annualized volatilities aligned one-for-one with strikes.
     /// @param t - Time from the curve base date in years on the documented day-count basis.
     /// @param beta - SABR CEV elasticity parameter held fixed during calibration.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if the strike and volatility lengths
+    /// differ, the quote arrays are empty, the required shift exceeds the
+    /// supported standardized ladder, the SABR inputs or fitted parameters are
+    /// invalid, or the calibration solver does not converge.
     #[wasm_bindgen(js_name = calibrateAutoShift)]
     pub fn calibrate_auto_shift(
         &self,

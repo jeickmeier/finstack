@@ -167,6 +167,13 @@ pub fn bs_implied_vol(
 /// @param t - Time from the curve base date in years on the documented day-count basis.
 /// @param price - Price in the documented quote convention for this instrument.
 /// @param is_call - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if an input is non-finite; `forward`,
+/// `strike`, `df`, or `price` is not positive; the price is not above intrinsic
+/// value or cannot be bracketed; or the implied-volatility solver does not
+/// converge. A non-positive `t` returns zero volatility.
 #[wasm_bindgen(js_name = black76ImpliedVol)]
 pub fn black76_implied_vol(
     forward: f64,
@@ -203,6 +210,11 @@ pub fn black76_implied_vol(
 /// @param t - Time from the curve base date in years on the documented day-count basis.
 /// @param direction - Barrier direction: `"up"` for an upper barrier or `"down"` for a lower barrier.
 /// @param knock - Barrier activation: `"in"` for knock-in or `"out"` for knock-out.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `direction` or `knock` is unsupported, or
+/// the supplied model inputs produce a non-finite barrier price.
 #[wasm_bindgen(js_name = barrierCall)]
 #[allow(clippy::too_many_arguments)]
 pub fn barrier_call(
@@ -244,6 +256,12 @@ pub fn barrier_call(
 /// @param num_fixings - Positive number of equally spaced averaging observations before expiry.
 /// @param averaging - Asian averaging convention: `"arithmetic"` (default) or `"geometric"`.
 /// @param is_call - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `averaging` is not `"arithmetic"` or
+/// `"geometric"`, or the supplied model inputs produce a non-finite option
+/// price.
 #[wasm_bindgen(js_name = asianOptionPrice)]
 #[allow(clippy::too_many_arguments)]
 pub fn asian_option_price(
@@ -286,6 +304,12 @@ pub fn asian_option_price(
 /// @param extremum - Observed running minimum for a call or maximum for a put, in spot-price units.
 /// @param strike_type - Lookback payoff convention: `"fixed"` (default) or `"floating"`.
 /// @param is_call - Whether to value a call (`true`) or put (`false`); defaults follow the callable's contract.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `strikeType` is not `"fixed"` or
+/// `"floating"`, or the supplied model inputs produce a non-finite option
+/// price.
 #[wasm_bindgen(js_name = lookbackOptionPrice)]
 #[allow(clippy::too_many_arguments)]
 pub fn lookback_option_price(
