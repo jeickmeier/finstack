@@ -62,6 +62,7 @@ pub(crate) mod cecl;
 pub(crate) mod engine;
 pub(crate) mod policy;
 pub(crate) mod portfolio;
+pub(crate) mod request;
 pub(crate) mod staging;
 pub(crate) mod types;
 
@@ -73,22 +74,21 @@ pub use staging::{classify_stage, StageResult, StagingConfig, StagingTrigger};
 
 // Re-export ECL engine API.
 pub use engine::{
-    compute_ecl_single, compute_ecl_weighted, compute_ecl_weighted_from_schedules, EclBucket,
-    EclConfig, EclConfigBuilder, EclEngine, EclResult, ExposureEclResult, LgdType, MacroScenario,
-    WeightedEclResult,
+    compute_ecl_single, compute_ecl_weighted, EclBucket, EclConfig, EclConfigBuilder, EclEngine,
+    EclResult, ExposureEclResult, LgdType, MacroScenario, WeightedEclResult,
 };
+
+// Re-export canonical simplified request API.
+pub use request::{EclRequest, EclStageRequest};
 
 // Re-export CECL API.
 pub use cecl::{CeclConfig, CeclEngine, CeclMethodology, CeclResult, ReversionMethod};
 
-// Re-export policy-backed defaults for bindings and downstream default construction.
+// Re-export policy-backed defaults for downstream default construction.
 pub use policy::{
-    binding_default_classify_stage_dpd_30_trigger, binding_default_classify_stage_dpd_90_trigger,
-    binding_default_classify_stage_pd_delta_absolute,
-    binding_default_compute_ecl_bucket_width_years, binding_default_cure_periods_stage2_to_1,
-    binding_default_cure_periods_stage3_to_2, binding_default_exposure_dpd, default_cecl_config,
-    default_cecl_config_from_config, default_ecl_config, default_ecl_config_from_config,
-    default_staging_config, default_staging_config_from_config, ECL_POLICY_EXTENSION_KEY,
+    default_cecl_config, default_cecl_config_from_config, default_ecl_config,
+    default_ecl_config_from_config, default_staging_config, default_staging_config_from_config,
+    ECL_POLICY_EXTENSION_KEY,
 };
 
 // Re-export portfolio aggregation.

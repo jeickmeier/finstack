@@ -88,8 +88,7 @@ fn trigger_reason(trigger: &rust_ecl::StagingTrigger) -> String {
 /// origination_pd : float
 ///     Lifetime PD at initial recognition, in decimal.
 /// dpd : int | None
-///     Current days past due. If omitted, the binding uses the configured
-///     accounting-policy default.
+///     Current days past due. If omitted, the canonical request uses zero days.
 #[pyclass(
     name = "Exposure",
     module = "finstack_quant.statements_analytics",
@@ -111,8 +110,7 @@ pub struct PyExposure {
     pub current_pd: f64,
     #[pyo3(get, set)]
     pub origination_pd: f64,
-    #[pyo3(get, set)]
-    pub dpd: u32,
+    dpd: Option<u32>,
 }
 
 #[pymethods]
@@ -138,8 +136,19 @@ impl PyExposure {
             remaining_maturity,
             current_pd,
             origination_pd,
-            dpd: dpd.unwrap_or_else(rust_ecl::binding_default_exposure_dpd),
+            dpd,
         }
+    }
+
+    #[getter]
+    fn dpd(&self) -> u32 {
+        self.stage_request(None, None, None)
+            .resolved_days_past_due()
+    }
+
+    #[setter]
+    fn set_dpd(&mut self, dpd: u32) {
+        self.dpd = Some(dpd);
     }
 
     fn __repr__(&self) -> String {
@@ -153,33 +162,27 @@ impl PyExposure {
             self.remaining_maturity,
             self.current_pd,
             self.origination_pd,
-            self.dpd,
+            self.dpd(),
         )
     }
 }
 
 impl PyExposure {
-    /// Build the underlying [`rust_ecl::Exposure`] for binding internals.
-    ///
-    /// Uses synthetic rating labels ("current"/"origination") so the caller
-    /// can supply lifetime PDs directly without constructing full rating
-    /// curves. A flat PD curve carrying the caller-supplied PD at the
-    /// remaining-maturity horizon is used for SICR evaluation.
-    fn to_rust(&self) -> rust_ecl::Exposure {
-        rust_ecl::Exposure {
-            id: self.id.clone(),
-            segments: vec![],
-            ead: self.ead,
-            eir: self.eir,
+    fn stage_request(
+        &self,
+        pd_delta_absolute: Option<f64>,
+        dpd_stage2_trigger: Option<bool>,
+        dpd_stage3_trigger: Option<bool>,
+    ) -> rust_ecl::EclStageRequest {
+        rust_ecl::EclStageRequest {
+            exposure_id: self.id.clone(),
             remaining_maturity_years: self.remaining_maturity,
-            lgd: self.lgd,
+            current_pd: self.current_pd,
+            origination_pd: self.origination_pd,
             days_past_due: self.dpd,
-            current_rating: Some("current".to_string()),
-            origination_rating: Some("origination".to_string()),
-            qualitative_flags: rust_ecl::QualitativeFlags::default(),
-            consecutive_performing_periods: 0,
-            previous_stage: None,
-            ead_schedule: None,
+            pd_delta_absolute,
+            dpd_stage2_trigger,
+            dpd_stage3_trigger,
         }
     }
 }
@@ -187,26 +190,6 @@ impl PyExposure {
 // ---------------------------------------------------------------------------
 // Staging
 // ---------------------------------------------------------------------------
-
-/// A lightweight two-rating PD source wrapping the current/origination PDs
-/// attached to a [`PyExposure`] for SICR comparison.
-struct FlatPdSource {
-    current_pd: f64,
-    origination_pd: f64,
-}
-
-impl rust_ecl::PdTermStructure for FlatPdSource {
-    fn cumulative_pd(&self, rating: &str, _t: f64) -> finstack_quant_core::Result<f64> {
-        match rating {
-            "current" => Ok(self.current_pd),
-            "origination" => Ok(self.origination_pd),
-            other => Err(finstack_quant_core::Error::Validation(format!(
-                "FlatPdSource: unknown rating '{}'",
-                other
-            ))),
-        }
-    }
-}
 
 /// Classify an exposure into an IFRS 9 stage.
 ///
@@ -235,42 +218,10 @@ fn classify_stage(
     dpd_30_trigger: Option<bool>,
     dpd_90_trigger: Option<bool>,
 ) -> PyResult<(String, String)> {
-    let rust_exp = exposure.to_rust();
-    let pd_source = FlatPdSource {
-        current_pd: exposure.current_pd,
-        origination_pd: exposure.origination_pd,
-    };
-    let dpd_30_trigger =
-        dpd_30_trigger.unwrap_or_else(rust_ecl::binding_default_classify_stage_dpd_30_trigger);
-    let dpd_90_trigger =
-        dpd_90_trigger.unwrap_or_else(rust_ecl::binding_default_classify_stage_dpd_90_trigger);
-    let default_staging = rust_ecl::default_staging_config();
-
-    let staging_config = rust_ecl::StagingConfig {
-        pd_delta_absolute: pd_delta_stage2
-            .unwrap_or_else(rust_ecl::binding_default_classify_stage_pd_delta_absolute),
-        // Disable relative PD trigger by setting ratio threshold effectively out of reach.
-        pd_delta_relative: f64::INFINITY,
-        rating_downgrade_notches: u32::MAX,
-        rating_scale_labels: None,
-        dpd_stage2_threshold: if dpd_30_trigger {
-            default_staging.dpd_stage2_threshold
-        } else {
-            u32::MAX
-        },
-        dpd_stage3_threshold: if dpd_90_trigger {
-            default_staging.dpd_stage3_threshold
-        } else {
-            u32::MAX
-        },
-        qualitative_triggers_enabled: false,
-        stage3_qualitative_triggers_enabled: false,
-        cure_periods_stage2_to_1: rust_ecl::binding_default_cure_periods_stage2_to_1(),
-        cure_periods_stage3_to_2: rust_ecl::binding_default_cure_periods_stage3_to_2(),
-    };
-
-    let result =
-        rust_ecl::classify_stage(&rust_exp, &pd_source, &staging_config).map_err(display_to_py)?;
+    let result = exposure
+        .stage_request(pd_delta_stage2, dpd_30_trigger, dpd_90_trigger)
+        .classify()
+        .map_err(display_to_py)?;
 
     let reason = result
         .triggers
@@ -284,31 +235,6 @@ fn classify_stage(
 // ---------------------------------------------------------------------------
 // ECL computation
 // ---------------------------------------------------------------------------
-
-fn build_pd_curve(pd_schedule: Vec<(f64, f64)>) -> PyResult<rust_ecl::RawPdCurve> {
-    // Anchor the curve at (0.0, 0.0) via the canonical Rust helper so
-    // marginal PDs are well-defined from the reporting date.
-    let knots = rust_ecl::RawPdCurve::anchor_knots(pd_schedule);
-    rust_ecl::RawPdCurve::new("scenario", knots).map_err(display_to_py)
-}
-
-fn build_ecl_config(
-    bucket_width_years: f64,
-    stage3_time_to_recovery_years: Option<f64>,
-) -> PyResult<rust_ecl::EclConfig> {
-    let mut builder = rust_ecl::EclConfigBuilder::new().bucket_width(bucket_width_years);
-    if let Some(years) = stage3_time_to_recovery_years {
-        builder = builder.stage3_time_to_recovery(years);
-    }
-    builder.build().map_err(display_to_py)
-}
-
-fn cap_maturity(exposure: &rust_ecl::Exposure, max_horizon_years: f64) -> rust_ecl::Exposure {
-    rust_ecl::Exposure {
-        remaining_maturity_years: exposure.remaining_maturity_years.min(max_horizon_years),
-        ..exposure.clone()
-    }
-}
 
 /// Compute single-scenario ECL for one exposure.
 ///
@@ -354,33 +280,22 @@ fn compute_ecl(
     ead_schedule: Option<Vec<(f64, f64)>>,
     stage3_time_to_recovery_years: Option<f64>,
 ) -> PyResult<f64> {
-    let stage = parse_stage(stage)?;
-    let curve = build_pd_curve(pd_schedule)?;
-    let config = build_ecl_config(
-        bucket_width_years.unwrap_or_else(rust_ecl::binding_default_compute_ecl_bucket_width_years),
-        stage3_time_to_recovery_years,
-    )?;
-
-    let exposure = rust_ecl::Exposure {
-        id: "single".to_string(),
-        segments: vec![],
+    let request = rust_ecl::EclRequest {
+        exposure_id: "single".to_string(),
         ead,
+        lgd,
         eir,
         remaining_maturity_years: max_horizon_years,
-        lgd,
-        days_past_due: 0,
-        current_rating: Some("scenario".to_string()),
-        origination_rating: Some("scenario".to_string()),
-        qualitative_flags: rust_ecl::QualitativeFlags::default(),
-        consecutive_performing_periods: 0,
-        previous_stage: None,
+        stage: parse_stage(stage)?,
+        scenarios: vec![(1.0, pd_schedule)],
+        bucket_width_years,
         ead_schedule,
+        stage3_time_to_recovery_years,
     };
-    let exposure = cap_maturity(&exposure, max_horizon_years);
-
-    let result =
-        rust_ecl::compute_ecl_single(&exposure, stage, &curve, &config).map_err(display_to_py)?;
-    Ok(result.ecl)
+    request
+        .compute()
+        .map(|result| result.ecl)
+        .map_err(display_to_py)
 }
 
 /// Compute probability-weighted ECL across macro scenarios.
@@ -424,39 +339,22 @@ fn compute_ecl_weighted(
     ead_schedule: Option<Vec<(f64, f64)>>,
     stage3_time_to_recovery_years: Option<f64>,
 ) -> PyResult<f64> {
-    let stage = parse_stage(stage)?;
-
-    let config = build_ecl_config(
-        rust_ecl::binding_default_compute_ecl_bucket_width_years(),
-        stage3_time_to_recovery_years,
-    )?;
-    // Anchor each scenario PD schedule at (0.0, 0.0) via the same canonical
-    // helper used by `compute_ecl`, so both entry points accept identical
-    // curve inputs.
-    let scenarios: Vec<(f64, Vec<(f64, f64)>)> = scenarios
-        .into_iter()
-        .map(|(weight, schedule)| (weight, rust_ecl::RawPdCurve::anchor_knots(schedule)))
-        .collect();
-    let exposure = rust_ecl::Exposure {
-        id: "weighted".to_string(),
-        segments: vec![],
+    let request = rust_ecl::EclRequest {
+        exposure_id: "weighted".to_string(),
         ead,
+        lgd,
         eir,
         remaining_maturity_years: max_horizon,
-        lgd,
-        days_past_due: 0,
-        current_rating: Some("scenario".to_string()),
-        origination_rating: Some("scenario".to_string()),
-        qualitative_flags: rust_ecl::QualitativeFlags::default(),
-        consecutive_performing_periods: 0,
-        previous_stage: None,
+        stage: parse_stage(stage)?,
+        scenarios,
+        bucket_width_years: None,
         ead_schedule,
+        stage3_time_to_recovery_years,
     };
-
-    let result =
-        rust_ecl::compute_ecl_weighted_from_schedules(&exposure, stage, &scenarios, &config)
-            .map_err(display_to_py)?;
-    Ok(result.ecl)
+    request
+        .compute()
+        .map(|result| result.ecl)
+        .map_err(display_to_py)
 }
 
 // ---------------------------------------------------------------------------

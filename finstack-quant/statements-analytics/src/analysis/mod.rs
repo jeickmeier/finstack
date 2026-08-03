@@ -91,17 +91,14 @@ pub use checks::{
 // ---- ECL re-exports ----
 
 pub use ecl::{
-    binding_default_classify_stage_dpd_30_trigger, binding_default_classify_stage_dpd_90_trigger,
-    binding_default_classify_stage_pd_delta_absolute,
-    binding_default_compute_ecl_bucket_width_years, binding_default_cure_periods_stage2_to_1,
-    binding_default_cure_periods_stage3_to_2, binding_default_exposure_dpd, classify_stage,
-    compute_ecl_single, compute_ecl_weighted, compute_ecl_weighted_from_schedules,
-    compute_waterfall, default_cecl_config, default_cecl_config_from_config, default_ecl_config,
+    classify_stage, compute_ecl_single, compute_ecl_weighted, compute_waterfall,
+    default_cecl_config, default_cecl_config_from_config, default_ecl_config,
     default_ecl_config_from_config, default_staging_config, default_staging_config_from_config,
     CeclConfig, CeclEngine, CeclMethodology, CeclResult, EclBucket, EclConfig, EclConfigBuilder,
-    EclEngine, EclResult, Exposure, ExposureEclResult, LgdType, MacroScenario, PdTermStructure,
-    PortfolioEclResult, ProvisionWaterfall, QualitativeFlags, RawPdCurve, ReversionMethod, Stage,
-    StageResult, StagingConfig, StagingTrigger, WeightedEclResult, ECL_POLICY_EXTENSION_KEY,
+    EclEngine, EclRequest, EclResult, EclStageRequest, Exposure, ExposureEclResult, LgdType,
+    MacroScenario, PdTermStructure, PortfolioEclResult, ProvisionWaterfall, QualitativeFlags,
+    RawPdCurve, ReversionMethod, Stage, StageResult, StagingConfig, StagingTrigger,
+    WeightedEclResult, ECL_POLICY_EXTENSION_KEY,
 };
 
 // ---- Comps re-exports ----

@@ -43,14 +43,5 @@
       "base_scenario_lgd_override": null,
       "methodology": "pd_lgd_ead"
     }
-  ],
-  "binding_defaults": {
-    "exposure_dpd": 0,
-    "classify_stage_pd_delta_absolute": 0.01,
-    "classify_stage_dpd_30_trigger": true,
-    "classify_stage_dpd_90_trigger": true,
-    "classify_stage_cure_periods_stage2_to_1": 3,
-    "classify_stage_cure_periods_stage3_to_2": 12,
-    "compute_ecl_bucket_width_years": 0.25
-  }
+  ]
 }

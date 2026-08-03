@@ -24,6 +24,12 @@
   rewriting, including `ModelBuilder::with_name_normalization`. Formulas and
   `where` clauses now require exact node IDs; unknown IDs retain the dependency
   graph's nearest-name diagnostics.
+- **Breaking (Rust, ECL policy JSON):** Simplified ECL staging and
+  schedule-based calculation now use canonical `EclStageRequest` and
+  `EclRequest` surfaces. The duplicate binding-default policy block, its seven
+  Rust getters, and `compute_ecl_weighted_from_schedules` were removed; Python
+  retains its established signatures and error types while delegating all
+  policy, exposure, scenario, and configuration construction to Rust.
 - **Breaking (Rust, JSON, Python):** Removed the unused
   `ScenarioDefinition.model_id` field and Python `ScenarioSet.model_ids`
   constructor input. Scenario-set JSON containing `model_id` is now rejected

@@ -24,7 +24,6 @@ pub(crate) struct EclPolicyRegistry {
     default_cecl_policy_id: String,
     ifrs9_policies: Vec<Ifrs9PolicyRecord>,
     cecl_policies: Vec<CeclPolicyRecord>,
-    binding_defaults: BindingDefaultsRecord,
 }
 
 impl EclPolicyRegistry {
@@ -77,7 +76,7 @@ impl EclPolicyRegistry {
         for record in &self.cecl_policies {
             record.validate()?;
         }
-        self.binding_defaults.validate()
+        Ok(())
     }
 }
 
@@ -226,31 +225,6 @@ fn default_cecl_discount_expected_losses() -> bool {
     true
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct BindingDefaultsRecord {
-    exposure_dpd: u32,
-    classify_stage_pd_delta_absolute: f64,
-    classify_stage_dpd_30_trigger: bool,
-    classify_stage_dpd_90_trigger: bool,
-    classify_stage_cure_periods_stage2_to_1: u32,
-    classify_stage_cure_periods_stage3_to_2: u32,
-    compute_ecl_bucket_width_years: f64,
-}
-
-impl BindingDefaultsRecord {
-    fn validate(&self) -> Result<()> {
-        validate_unit_interval(
-            self.classify_stage_pd_delta_absolute,
-            "binding classify-stage PD absolute delta",
-        )?;
-        validate_positive(
-            self.compute_ecl_bucket_width_years,
-            "binding ECL bucket width years",
-        )
-    }
-}
-
 /// Return the default IFRS 9 ECL configuration from the embedded policy registry.
 pub fn default_ecl_config() -> EclConfig {
     let policy = required_policy(registry().default_ifrs9_policy());
@@ -357,45 +331,6 @@ fn cecl_config_from_policy(policy: &CeclPolicyRecord) -> CeclConfig {
         methodology: policy.methodology,
         warm_annual_loss_rate: None,
     }
-}
-
-/// Return the Python binding default DPD value for new exposures.
-pub fn binding_default_exposure_dpd() -> u32 {
-    registry().binding_defaults.exposure_dpd
-}
-
-/// Return the Python binding default absolute PD delta for stage classification.
-pub fn binding_default_classify_stage_pd_delta_absolute() -> f64 {
-    registry().binding_defaults.classify_stage_pd_delta_absolute
-}
-
-/// Return the Python binding default for the 30-DPD Stage 2 trigger toggle.
-pub fn binding_default_classify_stage_dpd_30_trigger() -> bool {
-    registry().binding_defaults.classify_stage_dpd_30_trigger
-}
-
-/// Return the Python binding default for the 90-DPD Stage 3 trigger toggle.
-pub fn binding_default_classify_stage_dpd_90_trigger() -> bool {
-    registry().binding_defaults.classify_stage_dpd_90_trigger
-}
-
-/// Return the Python binding default Stage 2 to Stage 1 cure period.
-pub fn binding_default_cure_periods_stage2_to_1() -> u32 {
-    registry()
-        .binding_defaults
-        .classify_stage_cure_periods_stage2_to_1
-}
-
-/// Return the Python binding default Stage 3 to Stage 2 cure period.
-pub fn binding_default_cure_periods_stage3_to_2() -> u32 {
-    registry()
-        .binding_defaults
-        .classify_stage_cure_periods_stage3_to_2
-}
-
-/// Return the Python binding default ECL bucket width in years.
-pub fn binding_default_compute_ecl_bucket_width_years() -> f64 {
-    registry().binding_defaults.compute_ecl_bucket_width_years
 }
 
 #[allow(clippy::expect_used)]
@@ -544,23 +479,13 @@ mod tests {
     }
 
     #[test]
-    fn embedded_registry_preserves_cecl_and_binding_defaults() {
+    fn embedded_registry_preserves_cecl_defaults() {
         let config = default_cecl_config();
         assert_eq!(config.bucket_width_years, 0.25);
         assert_eq!(config.forecast_horizon_years, 2.0);
         assert_eq!(config.reversion_method, ReversionMethod::Immediate);
         assert_eq!(config.historical_annual_pd, 0.02);
         assert_eq!(config.methodology, CeclMethodology::PdLgdEad);
-
-        assert_eq!(binding_default_exposure_dpd(), 0);
-        assert_eq!(binding_default_classify_stage_pd_delta_absolute(), 0.01);
-        assert!(binding_default_classify_stage_dpd_30_trigger());
-        assert!(binding_default_classify_stage_dpd_90_trigger());
-        assert_eq!(binding_default_cure_periods_stage2_to_1(), 3);
-        // Aligned with the core IFRS 9 staging default (EBA GL 12-month
-        // probation).
-        assert_eq!(binding_default_cure_periods_stage3_to_2(), 12);
-        assert_eq!(binding_default_compute_ecl_bucket_width_years(), 0.25);
     }
 
     #[test]

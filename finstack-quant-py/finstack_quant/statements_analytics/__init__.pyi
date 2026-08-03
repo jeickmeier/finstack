@@ -2144,7 +2144,8 @@ class Exposure:
         origination_pd : float
             Origination probability of default as a decimal fraction.
         dpd : int or None, default None
-            Days past due used by staging backstops; ``None`` means unavailable.
+            Days past due used by staging backstops; ``None`` applies the
+            canonical performing-exposure default of zero days.
 
         """
         ...

@@ -42,7 +42,7 @@ use finstack_quant_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 
 use super::staging::{classify_stage, StageResult, StagingConfig};
-use super::types::{Exposure, PdTermStructure, RawPdCurve, Stage};
+use super::types::{Exposure, PdTermStructure, Stage};
 
 // ---------------------------------------------------------------------------
 // Macro scenario
@@ -855,65 +855,6 @@ pub fn compute_ecl_weighted(
         ecl: weighted_ecl,
         scenario_breakdown: scenario_results,
     })
-}
-
-/// Compute weighted ECL from serde-friendly scenario PD schedules.
-///
-/// This is the canonical binding path for Python/WASM-style callers that hold
-/// each macro scenario as `(weight, raw_pd_curve)` pairs rather than
-/// lifetime-bound `(&MacroScenario, &dyn PdTermStructure)` references.
-///
-/// Each scenario curve is labelled with the exposure's own rating
-/// (`current_rating`, or `"NR"` when unrated) so the lookup performed by
-/// [`compute_ecl_single`] matches without requiring any magic rating label
-/// on the exposure.
-///
-/// # Arguments
-///
-/// * `exposure` - Credit exposure providing EAD, LGD, EIR, maturity, and the
-///   rating used to label each generated raw PD curve.
-/// * `stage` - Assigned IFRS 9 stage used for every scenario calculation.
-/// * `scenarios` - Non-empty `(weight, raw_pd_curve)` pairs; each curve holds
-///   `(time_years, cumulative_pd)` knots and weights must be valid probabilities.
-/// * `config` - ECL bucketing and recovery-time calculation parameters.
-///
-/// # Errors
-///
-/// Returns an error if scenario weights are invalid, any raw PD curve is
-/// malformed, or ECL calculation fails for any scenario.
-pub fn compute_ecl_weighted_from_schedules(
-    exposure: &Exposure,
-    stage: Stage,
-    scenarios: &[(f64, Vec<(f64, f64)>)],
-    config: &EclConfig,
-) -> Result<WeightedEclResult> {
-    if scenarios.is_empty() {
-        return Err(Error::Validation(
-            "At least one scenario is required for weighted ECL".to_string(),
-        ));
-    }
-
-    let scenario_defs = scenarios
-        .iter()
-        .enumerate()
-        .map(|(idx, (weight, _))| MacroScenario {
-            id: format!("scenario_{idx}"),
-            weight: *weight,
-            lgd_override: None,
-        })
-        .collect::<Vec<_>>();
-    let rating = exposure.current_rating.as_deref().unwrap_or("NR");
-    let curves = scenarios
-        .iter()
-        .map(|(_, schedule)| RawPdCurve::new(rating, schedule.clone()))
-        .collect::<Result<Vec<_>>>()?;
-    let pd_sources = scenario_defs
-        .iter()
-        .zip(curves.iter())
-        .map(|(scenario, curve)| (scenario, curve as &dyn PdTermStructure))
-        .collect::<Vec<_>>();
-
-    compute_ecl_weighted(exposure, stage, &pd_sources, config)
 }
 
 /// Validate that scenario weights are finite, non-negative, and sum to 1.0.
