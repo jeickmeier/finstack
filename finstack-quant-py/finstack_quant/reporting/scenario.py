@@ -23,7 +23,7 @@ from typing import Any
 
 from . import charts, format as fmt
 from .document import KPI, Section, TearSheet
-from .statements_common import variance_table
+from .statements_common import _section_variance
 from .theme import INSTITUTIONAL, Theme
 
 ALL_SECTIONS = ["tornado", "scenarios", "montecarlo", "variance"]
@@ -71,11 +71,6 @@ def _section_montecarlo(monte_carlo: Any, breach_probability: Any, theme: Theme)
     if isinstance(breach_probability, (int, float)):
         subtitle = f"Breach probability: {fmt.pct(breach_probability * 100)}"
     return Section("Monte Carlo Distribution", body, subtitle=subtitle)
-
-
-def _section_variance(variance: Any, theme: Theme) -> Section | None:
-    body = variance_table(variance, theme=theme)
-    return Section("Variance vs Baseline", body) if body is not None else None
 
 
 def _mc_last(monte_carlo: Any, key: str) -> float | None:

@@ -19,6 +19,7 @@ import json
 from typing import Any
 
 from . import format as fmt, tables
+from .document import Section
 from .theme import Theme
 
 
@@ -294,3 +295,8 @@ def variance_table(variance: Any, *, theme: Theme) -> str | None:
         neg_columns={"Abs Δ", "% Δ"},
         theme=theme,
     )
+
+
+def _section_variance(variance: Any, theme: Theme) -> Section | None:
+    body = variance_table(variance, theme=theme)
+    return Section("Variance vs Baseline", body) if body is not None else None

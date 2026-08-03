@@ -20,7 +20,7 @@ from typing import Any
 
 from . import charts, format as fmt
 from .document import KPI, Section, TearSheet
-from .statements_common import parse_statement, pl_matrix_table, variance_table
+from .statements_common import _section_variance, parse_statement, pl_matrix_table
 from .theme import INSTITUTIONAL, Theme
 
 ALL_SECTIONS = ["summary", "trend", "margins", "variance"]
@@ -67,11 +67,6 @@ def _section_margins(view: Any, periods: list[str], theme: Theme) -> Section | N
     gm_svg = charts.line_chart(list(periods), gm, theme=theme, y_pct=True, color=theme.ink)
     em_svg = charts.line_chart(list(periods), em, theme=theme, y_pct=True, color="#3a5a82")
     return Section("Margins", f'<div class="grid2"><div>{gm_svg}</div><div>{em_svg}</div></div>')
-
-
-def _section_variance(variance: Any, theme: Theme) -> Section | None:
-    body = variance_table(variance, theme=theme)
-    return Section("Variance vs Baseline", body) if body is not None else None
 
 
 def statement_tearsheet(
