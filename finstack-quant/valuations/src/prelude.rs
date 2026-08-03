@@ -14,6 +14,12 @@
 //! # Example
 //!
 //! ```rust
+//! use finstack_quant_core::{
+//!     currency::Currency,
+//!     dates::create_date,
+//!     money::Money,
+//!     types::Rate,
+//! };
 //! use finstack_quant_valuations::prelude::*;
 //!
 //! let registry = finstack_quant_valuations::pricer::standard_registry();
@@ -50,5 +56,3 @@ pub use crate::instruments::{
     PayReceive, PricingOptions, Repo, RevolvingCredit, SettlementType, StructuredCredit, Swaption,
     TermLoan, VarianceSwap,
 };
-
-pub use finstack_quant_core::prelude::*;
