@@ -9,9 +9,7 @@ use crate::utils::to_js_err;
 use finstack_quant_valuations::correlation::{self as corr, Copula, CopulaSpec, RecoveryModel};
 use wasm_bindgen::prelude::*;
 
-// ---------------------------------------------------------------------------
 // CopulaSpec
-// ---------------------------------------------------------------------------
 
 /// Copula model specification for configuration and deferred construction.
 #[wasm_bindgen(js_name = CopulaSpec)]
@@ -103,9 +101,7 @@ impl JsCopulaSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Copula (trait object wrapper)
-// ---------------------------------------------------------------------------
 
 /// Concrete copula model for portfolio default correlation.
 #[wasm_bindgen(js_name = Copula)]
@@ -193,9 +189,7 @@ impl JsCopula {
     }
 }
 
-// ---------------------------------------------------------------------------
 // RecoverySpec
-// ---------------------------------------------------------------------------
 
 /// Recovery model specification for configuration and deferred construction.
 #[wasm_bindgen(js_name = RecoverySpec)]
@@ -272,9 +266,7 @@ impl JsRecoverySpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // RecoveryModel (trait object wrapper)
-// ---------------------------------------------------------------------------
 
 /// Concrete recovery model for credit portfolio pricing.
 #[wasm_bindgen(js_name = RecoveryModel)]
@@ -329,9 +321,7 @@ impl JsRecoveryModel {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Module-level functions
-// ---------------------------------------------------------------------------
 
 /// Fréchet-Hoeffding correlation bounds for two Bernoulli marginals.
 ///

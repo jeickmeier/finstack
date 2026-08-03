@@ -344,9 +344,7 @@ def test_cashflow_blocks_from_dataframe() -> None:
     assert "Date" in schedule[0]
 
 
-# ---------------------------------------------------------------------------
 # Task 8: Bond golden test + CDS/option smoke tests
-# ---------------------------------------------------------------------------
 
 DATA = Path(__file__).parent / "data"
 

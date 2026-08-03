@@ -11,7 +11,6 @@ use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
 // PyPriceCurve
-// ---------------------------------------------------------------------------
 
 /// Forward price curve for commodities and other price-based assets.
 ///
@@ -104,5 +103,3 @@ impl PyPriceCurve {
         format!("PriceCurve(id={:?})", self.inner.id().as_str())
     }
 }
-
-// ---------------------------------------------------------------------------

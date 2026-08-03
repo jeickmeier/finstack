@@ -15,9 +15,7 @@ use finstack_quant_valuations::correlation::{
     PortfolioLossResult, RecoveryModel, RecoverySpec, TrancheLossStatistics,
 };
 
-// ---------------------------------------------------------------------------
 // CopulaSpec
-// ---------------------------------------------------------------------------
 
 /// Copula model specification for configuration and deferred construction.
 ///
@@ -118,9 +116,7 @@ impl PyCopulaSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Copula (trait object wrapper)
-// ---------------------------------------------------------------------------
 
 /// Concrete copula model for portfolio default correlation.
 ///
@@ -209,9 +205,7 @@ impl PyCopula {
     }
 }
 
-// ---------------------------------------------------------------------------
 // RecoverySpec
-// ---------------------------------------------------------------------------
 
 /// Recovery model specification for configuration and deferred construction.
 #[pyclass(
@@ -297,9 +291,7 @@ impl PyRecoverySpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // RecoveryModel (trait object wrapper)
-// ---------------------------------------------------------------------------
 
 /// Concrete recovery model for credit portfolio pricing.
 ///
@@ -367,9 +359,7 @@ impl PyRecoveryModel {
     }
 }
 
-// ---------------------------------------------------------------------------
 // LatentFactorSpec
-// ---------------------------------------------------------------------------
 
 /// Factor model specification for configuration and deferred construction.
 #[pyclass(
@@ -438,9 +428,7 @@ impl PyLatentFactorSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // LatentFactorKind (concrete dispatch wrapper)
-// ---------------------------------------------------------------------------
 
 /// Concrete factor model for correlated behavior.
 ///
@@ -502,9 +490,7 @@ impl PyLatentFactorKind {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Concrete factor models with extra methods
-// ---------------------------------------------------------------------------
 
 /// Single-factor model (common market factor).
 #[pyclass(
@@ -723,9 +709,7 @@ impl PyLatentMultiFactor {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CorrelatedBernoulli
-// ---------------------------------------------------------------------------
 
 /// Correlated Bernoulli distribution for two binary events.
 ///
@@ -835,9 +819,7 @@ impl PyCorrelatedBernoulli {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Portfolio credit-loss simulation
-// ---------------------------------------------------------------------------
 
 /// One name in a finite credit portfolio.
 #[pyclass(
@@ -1122,9 +1104,7 @@ fn simulate_portfolio_loss(
     .map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Module-level functions
-// ---------------------------------------------------------------------------
 
 /// Fréchet-Hoeffding correlation bounds for two Bernoulli marginals.
 ///
@@ -1232,9 +1212,7 @@ fn cholesky_decompose(py: Python<'_>, matrix: Vec<f64>, n: usize) -> PyResult<Ve
         .map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Module registration
-// ---------------------------------------------------------------------------
 
 /// Register the `correlation` submodule on the parent module.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

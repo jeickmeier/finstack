@@ -3,9 +3,7 @@
 use crate::errors::display_to_py;
 use pyo3::prelude::*;
 
-// ---------------------------------------------------------------------------
 // CheckSuiteSpec
-// ---------------------------------------------------------------------------
 
 /// A serializable suite specification describing which checks to run.
 #[pyclass(
@@ -63,9 +61,7 @@ impl PyCheckSuiteSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CheckReport
-// ---------------------------------------------------------------------------
 
 /// Validation check report aggregating results and summary statistics.
 #[pyclass(

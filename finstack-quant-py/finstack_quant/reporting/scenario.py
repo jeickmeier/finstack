@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/scenario.py
 """Scenario & sensitivity tear sheet.
 
 Driver tornado, scenario comparison, Monte-Carlo percentile fan, and variance

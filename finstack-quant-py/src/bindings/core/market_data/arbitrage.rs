@@ -66,9 +66,7 @@ fn violations_to_pylist<'py>(
     PyList::new(py, items)
 }
 
-// ---------------------------------------------------------------------------
 // Public functions
-// ---------------------------------------------------------------------------
 
 /// Check butterfly arbitrage via Durrleman's g(k) density condition.
 ///
@@ -255,9 +253,7 @@ fn check_surface_grid<'py>(
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register the `finstack_quant.core.market_data.arbitrage` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

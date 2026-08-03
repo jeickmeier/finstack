@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/dcf.py
 """Corporate valuation (DCF) tear sheet.
 
 EV→equity bridge, UFCF projection, sensitivity tornado, and a forecast summary.

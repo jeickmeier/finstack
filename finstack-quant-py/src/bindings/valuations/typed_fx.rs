@@ -19,9 +19,7 @@ type FxForwardBuilderInner =
     finstack_quant_valuations::instruments::fx::fx_forward::FxForwardBuilder;
 type FxOptionBuilderInner = finstack_quant_valuations::instruments::fx::fx_option::FxOptionBuilder;
 
-// ---------------------------------------------------------------------------
 // FxForward
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `FxForward` instrument.
 #[pyclass(
@@ -407,9 +405,7 @@ impl PyFxForwardBuilder {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FxOption
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `FxOption` instrument.
 #[pyclass(

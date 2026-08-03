@@ -12,9 +12,7 @@ use finstack_quant_margin::xva::mva;
 use crate::bindings::core::market_data::curves::{PyDiscountCurve, PyHazardCurve};
 use crate::bindings::margin::im::{PySimmCalculator, PySimmSensitivities};
 
-// ---------------------------------------------------------------------------
 // FundingConfig
-// ---------------------------------------------------------------------------
 
 /// Funding cost/benefit configuration for FVA and MVA calculation.
 #[pyclass(
@@ -119,9 +117,7 @@ impl PyFundingConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // XvaConfig
-// ---------------------------------------------------------------------------
 
 /// XVA calculation configuration.
 #[pyclass(
@@ -200,9 +196,7 @@ impl PyXvaConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ExposureDiagnostics
-// ---------------------------------------------------------------------------
 
 /// Diagnostics from exposure simulation.
 #[pyclass(
@@ -245,9 +239,7 @@ impl PyExposureDiagnostics {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ExposureProfile
-// ---------------------------------------------------------------------------
 
 /// Exposure profile at each time grid point.
 #[pyclass(
@@ -339,9 +331,7 @@ impl PyExposureProfile {
     }
 }
 
-// ---------------------------------------------------------------------------
 // XvaResult
-// ---------------------------------------------------------------------------
 
 /// Result of XVA calculations (CVA, DVA, FVA, MVA, exposure profiles).
 #[pyclass(
@@ -471,9 +461,7 @@ impl PyXvaResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CsaTerms (XVA)
-// ---------------------------------------------------------------------------
 
 /// Credit Support Annex terms for XVA collateralization.
 #[pyclass(
@@ -536,9 +524,7 @@ impl PyCsaTerms {
     }
 }
 
-// ---------------------------------------------------------------------------
 // NettingSet (XVA)
-// ---------------------------------------------------------------------------
 
 /// XVA netting set: collection of trades under a single ISDA master agreement.
 #[pyclass(
@@ -608,9 +594,7 @@ impl PyXvaNettingSet {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ImDecayProfile
-// ---------------------------------------------------------------------------
 
 /// Deterministic IM decay profile for MVA (Green 2015, ch. 10).
 #[pyclass(
@@ -671,9 +655,7 @@ impl PyImDecayProfile {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ImProfile
-// ---------------------------------------------------------------------------
 
 /// Expected initial-margin profile E[IM(t)] on a time grid.
 #[pyclass(
@@ -749,9 +731,7 @@ impl PyImProfile {
     }
 }
 
-// ---------------------------------------------------------------------------
 // MvaResult
-// ---------------------------------------------------------------------------
 
 /// Result of an MVA computation.
 #[pyclass(
@@ -814,9 +794,7 @@ impl PyMvaResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // MVA functions
-// ---------------------------------------------------------------------------
 
 /// Build a deterministic IM profile from SIMM sensitivities:
 /// ``IM(t) = SIMM(sensitivities) * decay(t)``.

@@ -21,9 +21,7 @@ use super::curves::{
 use super::fx::PyFxMatrix;
 use super::scalars::{extract_exact_f64, PyInflationIndex, PyScalarTimeSeries};
 
-// ---------------------------------------------------------------------------
 // PyMarketContext
-// ---------------------------------------------------------------------------
 
 /// Unified market data container for curves, surfaces, and FX.
 ///
@@ -326,9 +324,7 @@ impl PyMarketContext {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Module registration
-// ---------------------------------------------------------------------------
 
 pub(super) const EXPORTS: &[&str] = &["MarketContext"];
 

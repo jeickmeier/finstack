@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/performance.py
 """Performance tear sheet: render an analytics.Performance into HTML.
 
 Reads only the engine's exported DataFrames — it never recomputes analytics.

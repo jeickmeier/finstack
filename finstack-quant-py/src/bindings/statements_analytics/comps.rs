@@ -28,9 +28,7 @@ use pyo3::types::{PyAny, PyDict, PyList};
 
 use crate::errors::{core_to_py, display_to_py};
 
-// ---------------------------------------------------------------------------
 // Statistics
-// ---------------------------------------------------------------------------
 
 /// Percentile rank of ``value`` within ``peer_values`` (0-1 scale).
 ///
@@ -134,9 +132,7 @@ fn regression_fair_value<'py>(
     Ok(d)
 }
 
-// ---------------------------------------------------------------------------
 // Multiples
-// ---------------------------------------------------------------------------
 
 /// Compute a canonical valuation multiple for one company.
 ///
@@ -158,9 +154,7 @@ fn compute_multiple(company_metrics: &Bound<'_, PyDict>, multiple: &str) -> PyRe
     Ok(core_compute_multiple(&metrics, multiple))
 }
 
-// ---------------------------------------------------------------------------
 // Composite relative-value scoring
-// ---------------------------------------------------------------------------
 
 /// Convert a ``{metric_name: value}`` dict into a `CompanyMetrics`.
 ///
@@ -343,9 +337,7 @@ fn score_relative_value<'py>(
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register comps bindings on the analytics submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -250,9 +250,7 @@ pub fn decompose_factor_risk(
     serde_json::to_string(&output).map_err(to_js_err)
 }
 
-// ---------------------------------------------------------------------------
 // Validation helpers
-// ---------------------------------------------------------------------------
 
 /// Validate that `data` has exactly `n_positions` rows and that every row has
 /// exactly `n_factors` columns.

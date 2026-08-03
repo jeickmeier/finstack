@@ -16,9 +16,7 @@ use finstack_quant_margin::NettingSetId;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 fn parse_currency(code: &str) -> PyResult<Currency> {
     code.parse::<Currency>().map_err(display_to_py)
@@ -66,9 +64,7 @@ fn parse_date(year: i32, month: u8, day: u8) -> PyResult<finstack_quant_core::da
         .map_err(|e| crate::errors::value_error(format!("invalid date: {e}")))
 }
 
-// ---------------------------------------------------------------------------
 // FrtbSensitivities wrapper
-// ---------------------------------------------------------------------------
 
 /// FRTB sensitivity portfolio for the Sensitivity-Based Approach.
 ///
@@ -292,9 +288,7 @@ impl PyFrtbSbaEngine {
     }
 }
 
-// ---------------------------------------------------------------------------
 // SaCcrTrade wrapper
-// ---------------------------------------------------------------------------
 
 /// A single derivative trade for SA-CCR EAD computation.
 ///
@@ -501,9 +495,7 @@ impl PySaCcrEngine {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Module-level functions
-// ---------------------------------------------------------------------------
 
 fn frtb_result_to_py(
     py: Python<'_>,

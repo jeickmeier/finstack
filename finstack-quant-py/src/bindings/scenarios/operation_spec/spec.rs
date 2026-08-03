@@ -11,9 +11,7 @@ use super::helpers::{parse_attrs, parse_currency, parse_hierarchy_target, parse_
 use super::kinds::{PyCurveKind, PyTenorMatchMode, PyTimeRollMode};
 use super::rate_binding::PyRateBindingSpec;
 
-// ---------------------------------------------------------------------------
 // OperationSpec
-// ---------------------------------------------------------------------------
 
 /// Typed builder for [`finstack_quant_scenarios::OperationSpec`].
 ///

@@ -285,9 +285,7 @@ impl PyInterestRateSwapBuilder {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Swaption
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `Swaption` instrument.
 #[pyclass(
@@ -723,9 +721,7 @@ impl PySwaptionBuilder {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CapFloor
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `CapFloor` instrument.
 #[pyclass(

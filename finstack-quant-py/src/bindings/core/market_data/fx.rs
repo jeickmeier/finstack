@@ -12,9 +12,7 @@ use crate::bindings::core::currency::extract_currency;
 use crate::bindings::core::dates::utils::py_to_date;
 use crate::errors::core_to_py;
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Parse an [`FxConversionPolicy`] from a string.
 fn parse_fx_policy(s: &str) -> PyResult<FxConversionPolicy> {
@@ -34,9 +32,7 @@ fn extract_fx_policy(value: &Bound<'_, PyAny>) -> PyResult<FxConversionPolicy> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PyFxConversionPolicy
-// ---------------------------------------------------------------------------
 
 /// FX conversion policy enum.
 ///
@@ -99,9 +95,7 @@ impl PyFxConversionPolicy {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PyFxRateResult
-// ---------------------------------------------------------------------------
 
 /// Result of an FX rate query.
 ///
@@ -140,9 +134,7 @@ impl PyFxRateResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PyFxMatrix
-// ---------------------------------------------------------------------------
 
 /// Foreign-exchange rate matrix for currency conversion.
 ///
@@ -259,9 +251,7 @@ impl PyFxMatrix {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Module registration
-// ---------------------------------------------------------------------------
 
 pub(super) const EXPORTS: &[&str] = &["FxConversionPolicy", "FxRateResult", "FxMatrix"];
 

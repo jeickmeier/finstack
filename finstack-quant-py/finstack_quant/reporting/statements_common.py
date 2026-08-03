@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/statements_common.py
 """Shared statement-result access + the P&L matrix table (items × periods).
 
 Pure presentation: this module only reads pre-computed values and lays them out.

@@ -1,4 +1,3 @@
-# finstack-quant-py/tests/test_reporting_tables.py
 from __future__ import annotations
 
 from xml.dom import minidom

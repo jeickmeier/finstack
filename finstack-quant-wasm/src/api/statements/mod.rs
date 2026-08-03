@@ -16,9 +16,7 @@
 use crate::utils::to_js_err;
 use wasm_bindgen::prelude::*;
 
-// ---------------------------------------------------------------------------
 // Validators
-// ---------------------------------------------------------------------------
 
 /// Validate a `FinancialModelSpec` JSON string.
 ///
@@ -136,9 +134,7 @@ pub fn validate_pik_toggle_spec(json: &str) -> Result<String, JsValue> {
     serde_json::to_string(&spec).map_err(to_js_err)
 }
 
-// ---------------------------------------------------------------------------
 // Evaluator
-// ---------------------------------------------------------------------------
 
 /// Evaluate a `FinancialModelSpec` and return the `StatementResult` JSON.
 ///
@@ -217,9 +213,7 @@ pub fn run_monte_carlo(model_json: &str, config_json: &str) -> Result<String, Js
     serde_json::to_string(&results).map_err(to_js_err)
 }
 
-// ---------------------------------------------------------------------------
 // DSL
-// ---------------------------------------------------------------------------
 
 /// Parse a DSL formula and return a debug string for its AST.
 ///

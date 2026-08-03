@@ -194,9 +194,7 @@ pub fn black76_implied_vol(
     .map_err(to_js_err)
 }
 
-// ---------------------------------------------------------------------------
 // Closed-form exotics: barrier / asian / lookback / quanto
-// ---------------------------------------------------------------------------
 
 /// Reiner-Rubinstein continuous-monitoring barrier call price.
 ///

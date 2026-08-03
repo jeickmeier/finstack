@@ -22,9 +22,7 @@ use js_sys::Float64Array;
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Parse a day-count string.
 fn parse_day_count(s: &str) -> Result<DayCount, JsValue> {
@@ -41,9 +39,7 @@ fn parse_extrapolation(s: &str) -> Result<ExtrapolationPolicy, JsValue> {
     s.parse::<ExtrapolationPolicy>().map_err(to_js_err)
 }
 
-// ---------------------------------------------------------------------------
 // JsDiscountCurve
-// ---------------------------------------------------------------------------
 
 /// Discount factor curve for present-value calculations.
 ///
@@ -212,9 +208,7 @@ impl JsDiscountCurve {
     }
 }
 
-// ---------------------------------------------------------------------------
 // JsHazardCurve
-// ---------------------------------------------------------------------------
 
 /// Credit hazard-rate curve for default-probability modelling.
 ///
@@ -321,9 +315,7 @@ impl JsHazardCurve {
     }
 }
 
-// ---------------------------------------------------------------------------
 // JsForwardCurve
-// ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -510,9 +502,7 @@ impl JsForwardCurve {
     }
 }
 
-// ---------------------------------------------------------------------------
 // JsFxConversionPolicy / JsFxRateResult
-// ---------------------------------------------------------------------------
 
 /// Typed FX conversion policy wrapper for WASM callers.
 #[wasm_bindgen(js_name = FxConversionPolicy)]
@@ -598,9 +588,7 @@ impl JsFxRateResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // JsFxMatrix
-// ---------------------------------------------------------------------------
 
 /// Foreign-exchange rate matrix for currency conversion.
 #[wasm_bindgen(js_name = FxMatrix)]
@@ -735,9 +723,7 @@ impl JsFxMatrix {
     }
 }
 
-// ---------------------------------------------------------------------------
 // JsVolCube
-// ---------------------------------------------------------------------------
 
 /// SABR volatility cube for swaption pricing.
 ///
@@ -903,9 +889,7 @@ impl JsVolCube {
     }
 }
 
-// ---------------------------------------------------------------------------
 // JsFxDeltaVolSurface
-// ---------------------------------------------------------------------------
 
 /// FX vol surface quoted in **delta space** (ATM, 25-delta RR/BF, optional
 /// 10-delta wings).
@@ -1057,9 +1041,7 @@ impl JsFxDeltaVolSurface {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Dynamic term structures (Nelson-Siegel / Diebold-Li)
-// ---------------------------------------------------------------------------
 
 /// Evaluate the static Nelson-Siegel (1987) yield curve for one factor triple.
 ///

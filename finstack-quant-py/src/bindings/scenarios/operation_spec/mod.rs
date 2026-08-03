@@ -26,9 +26,7 @@ pub use spec::PyOperationSpec;
 
 use pyo3::prelude::*;
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register `OperationSpec` and supporting enums on the scenarios submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/format.py
 """Deterministic value formatters for rendered reports.
 
 All helpers return display strings; non-finite / missing inputs render as the

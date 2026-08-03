@@ -4,9 +4,7 @@ use crate::bindings::module_utils::py_to_json_string;
 use crate::errors::{core_to_py, display_to_py, serde_json_to_py};
 use pyo3::prelude::*;
 
-// ---------------------------------------------------------------------------
 // Ergonomic entry point
-// ---------------------------------------------------------------------------
 
 /// Run P&L attribution for a single instrument and return JSON.
 ///
@@ -101,9 +99,7 @@ pub(crate) fn attribute_pnl(
     serde_json::to_string(&result.attribution).map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Raw JSON envelope entry point (power-user / round-trip)
-// ---------------------------------------------------------------------------
 
 /// Run attribution from a full JSON ``AttributionEnvelope`` and return JSON.
 ///
@@ -146,9 +142,7 @@ pub(crate) fn attribute_return_contribution(spec_json: &str) -> PyResult<String>
     finstack_quant_attribution::attribute_return_contribution(spec_json).map_err(core_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Validate an attribution specification JSON.
 ///

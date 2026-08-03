@@ -37,9 +37,7 @@ const { valuations } = facade;
 
 await init({ module_or_path: readFileSync(WASM_BG) });
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 /** Minimal 5-year flat discount market context for bond pricing. */
 const MARKET_JSON = JSON.stringify({
@@ -110,9 +108,7 @@ function bondInstrumentJson(returnFloor = null) {
   });
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Price a bond and return the parsed ValuationResult.
@@ -139,9 +135,7 @@ function numericAmount(result) {
   return typeof a === 'number' ? a : parseFloat(a);
 }
 
-// ---------------------------------------------------------------------------
 // Tests: metric registration
-// ---------------------------------------------------------------------------
 
 test('return-floor metrics appear in listStandardMetrics', () => {
   const metrics = valuations.instruments.listStandardMetrics();
@@ -151,9 +145,7 @@ test('return-floor metrics appear in listStandardMetrics', () => {
   }
 });
 
-// ---------------------------------------------------------------------------
 // Tests: JSON round-trip with return_floor
-// ---------------------------------------------------------------------------
 
 test('validateInstrumentJson accepts bond with MOIC return_floor', () => {
   const inst = bondInstrumentJson({
@@ -181,9 +173,7 @@ test('validateInstrumentJson accepts bond with XIRR return_floor and pct_of_par 
   assert.deepEqual(parsed.instrument.spec.return_floor.kind, { xirr: 0.12 });
 });
 
-// ---------------------------------------------------------------------------
 // Tests: metric computation
-// ---------------------------------------------------------------------------
 
 test('10% 5Y par bullet: MOIC ≈ 1.50 (5 × 0.10 coupons + 1.0 principal)', () => {
   const result = priceWithMetrics(bondInstrumentJson(), ['moic', 'moic_to_worst', 'xirr']);

@@ -55,9 +55,7 @@ fn date_money_pairs(items: Vec<(Bound<'_, PyAny>, PyMoney)>) -> PyResult<Vec<(Da
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // RollRule
-// ---------------------------------------------------------------------------
 
 /// Wrapper for [`RollRule`] (`finstack_quant.cashflows.builder.RollRule`).
 #[pyclass(
@@ -97,9 +95,7 @@ impl PyRollRule {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CouponType
-// ---------------------------------------------------------------------------
 
 /// Wrapper for [`CouponType`] (`finstack_quant.cashflows.builder.CouponType`).
 #[pyclass(
@@ -146,9 +142,7 @@ impl PyCouponType {
     }
 }
 
-// ---------------------------------------------------------------------------
 // OvernightCompoundingMethod / constraints / fallback / fee accrual basis
-// ---------------------------------------------------------------------------
 
 /// Wrapper for [`OvernightCompoundingMethod`].
 #[pyclass(
@@ -324,9 +318,7 @@ impl PyFeeAccrualBasis {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ScheduleParams
-// ---------------------------------------------------------------------------
 
 /// Wrapper for [`ScheduleParams`] (`finstack_quant.cashflows.builder.ScheduleParams`).
 #[pyclass(
@@ -487,9 +479,7 @@ impl PyScheduleParams {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Coupon specs
-// ---------------------------------------------------------------------------
 
 /// Wrapper for [`FixedCouponSpec`].
 #[pyclass(
@@ -772,9 +762,7 @@ impl PyStepUpCouponSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Amortization / Notional
-// ---------------------------------------------------------------------------
 
 /// Wrapper for [`AmortizationSpec`].
 #[pyclass(
@@ -975,9 +963,7 @@ impl PyNotional {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Fees
-// ---------------------------------------------------------------------------
 
 /// Wrapper for [`FeeBase`].
 #[pyclass(
@@ -1085,9 +1071,7 @@ impl PyFeeSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Credit behavior models
-// ---------------------------------------------------------------------------
 
 /// Wrapper for [`PrepaymentModelSpec`].
 #[pyclass(

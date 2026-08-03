@@ -14,9 +14,7 @@ use crate::errors::display_to_py;
 use finstack_quant_statements_analytics::extensions::scorecards as rust_scorecards;
 use pyo3::prelude::*;
 
-// ---------------------------------------------------------------------------
 // ScorecardMetric
-// ---------------------------------------------------------------------------
 
 /// A single scorecard metric definition.
 ///
@@ -112,9 +110,7 @@ impl PyScorecardMetric {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ScorecardConfig
-// ---------------------------------------------------------------------------
 
 /// Configuration for credit scorecard analysis.
 ///
@@ -215,9 +211,7 @@ impl PyScorecardConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ScorecardReport
-// ---------------------------------------------------------------------------
 
 /// Report produced by [`PyCreditScorecardExtension.execute`].
 #[pyclass(
@@ -290,9 +284,7 @@ impl PyScorecardReport {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CreditScorecardExtension
-// ---------------------------------------------------------------------------
 
 /// Credit scorecard extension for rating assignment and stress testing.
 #[pyclass(
@@ -357,9 +349,7 @@ impl Default for PyCreditScorecardExtension {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Free function: validate_scorecard_config
-// ---------------------------------------------------------------------------
 
 /// Validate a [`ScorecardConfig`] payload (typed object) without executing.
 #[pyfunction]
@@ -367,9 +357,7 @@ fn validate_scorecard_config(config: &PyScorecardConfig) -> PyResult<()> {
     rust_scorecards::CreditScorecardExtension::validate_config(&config.inner).map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register scorecard types and functions on the parent module.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

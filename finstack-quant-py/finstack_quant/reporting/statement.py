@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/statement.py
 """Statement (P&L) tear sheet: render statement results into HTML.
 
 Pure presentation — reads pre-computed node values (including margin/growth

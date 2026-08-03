@@ -5,9 +5,7 @@ use crate::utils::to_js_err;
 use finstack_quant_core::math::{self, linalg, special_functions, stats, summation};
 use wasm_bindgen::prelude::*;
 
-// ---------------------------------------------------------------------------
 // Linear algebra
-// ---------------------------------------------------------------------------
 
 /// Cholesky decomposition of a symmetric positive-definite matrix.
 ///
@@ -144,9 +142,7 @@ pub fn validate_correlation_matrix_flat(matrix: &[f64], n: usize) -> Result<(), 
     linalg::validate_correlation_matrix(matrix, n).map_err(to_js_err)
 }
 
-// ---------------------------------------------------------------------------
 // Statistics
-// ---------------------------------------------------------------------------
 
 /// Arithmetic mean.
 /// @param data - Non-empty numeric observation array used by the requested statistic.
@@ -273,9 +269,7 @@ pub fn quantile_array(data: &[f64], q: f64) -> f64 {
     stats::quantile(&mut v, q)
 }
 
-// ---------------------------------------------------------------------------
 // Special functions
-// ---------------------------------------------------------------------------
 
 /// Standard normal CDF Φ(x).
 /// @param x - Real-valued input to the requested scalar mathematical function.
@@ -312,9 +306,7 @@ pub fn ln_gamma(x: f64) -> f64 {
     special_functions::ln_gamma(x)
 }
 
-// ---------------------------------------------------------------------------
 // Summation
-// ---------------------------------------------------------------------------
 
 /// Kahan compensated summation.
 /// @param values - Numeric values in the order used by the requested numerical operation.
@@ -376,9 +368,7 @@ pub fn count_consecutive_array(values: &[f64]) -> usize {
     math::count_consecutive(values, |x| x > 0.0)
 }
 
-// ---------------------------------------------------------------------------
 // Internal helpers
-// ---------------------------------------------------------------------------
 
 fn validate_flat_matrix_len(matrix: &[f64], n: usize) -> Result<(), JsValue> {
     let expected = n

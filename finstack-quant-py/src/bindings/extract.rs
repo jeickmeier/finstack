@@ -26,9 +26,7 @@ use crate::bindings::valuations::typed_rates::{PyCapFloor, PyInterestRateSwap, P
 use crate::bindings::valuations::typed_structured_credit::PyStructuredCredit;
 use crate::errors::{display_to_py as to_py, portfolio_to_py};
 
-// ---------------------------------------------------------------------------
 // Instrument — typed-or-JSON extraction to a canonical instrument envelope
-// ---------------------------------------------------------------------------
 
 /// Extract a canonical instrument envelope from a typed instrument object
 /// (fast path) or a pre-serialized envelope string (fallback).
@@ -98,9 +96,7 @@ pub fn extract_instrument_json(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     })
 }
 
-// ---------------------------------------------------------------------------
 // Zero-clone access types (available for callers that only need &T)
-// ---------------------------------------------------------------------------
 
 /// Access to a [`FinancialModelSpec`] without cloning on the typed fast path.
 ///
@@ -186,9 +182,7 @@ pub fn extract_results_ref<'py>(obj: &Bound<'py, PyAny>) -> PyResult<ResultAcces
     Ok(ResultAccess::Owned(Box::new(inner)))
 }
 
-// ---------------------------------------------------------------------------
 // Owned extraction (for callers that need mutable or owned values)
-// ---------------------------------------------------------------------------
 
 /// Extract a [`FinancialModelSpec`] — always produces an owned value.
 ///
@@ -233,9 +227,7 @@ pub fn extract_market_opt(
     }
 }
 
-// ---------------------------------------------------------------------------
 // MarketContext — borrow-preferring access
-// ---------------------------------------------------------------------------
 
 /// Access to a [`MarketContext`] without cloning on the typed fast path.
 ///
@@ -274,9 +266,7 @@ pub fn extract_market_ref<'py>(
     Ok(MarketAccess::Owned(Box::new(inner)))
 }
 
-// ---------------------------------------------------------------------------
 // Portfolio — borrow-preferring access
-// ---------------------------------------------------------------------------
 
 /// Access to a [`Portfolio`] without rebuilding from spec on the typed path.
 ///
@@ -319,9 +309,7 @@ pub fn extract_portfolio_ref<'py>(
     Ok(PortfolioAccess::Owned(Box::new(portfolio)))
 }
 
-// ---------------------------------------------------------------------------
 // PortfolioValuation — borrow-preferring access
-// ---------------------------------------------------------------------------
 
 /// Access to a [`PortfolioValuation`] without re-parsing JSON when a typed
 /// Python object is passed.
@@ -355,9 +343,7 @@ pub fn extract_valuation_ref<'py>(
     Ok(ValuationAccess::Owned(Box::new(inner)))
 }
 
-// ---------------------------------------------------------------------------
 // PortfolioResult — borrow-preferring access
-// ---------------------------------------------------------------------------
 
 /// Access to a [`PortfolioResult`] without re-parsing JSON when a typed
 /// Python object is passed.

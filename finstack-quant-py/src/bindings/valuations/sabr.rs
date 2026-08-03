@@ -25,9 +25,7 @@ use finstack_quant_valuations::models::volatility::sabr::{
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-// ---------------------------------------------------------------------------
 // SabrParameters
-// ---------------------------------------------------------------------------
 
 /// SABR model parameters ``(alpha, beta, nu, rho)`` with optional ``shift``.
 ///
@@ -130,9 +128,7 @@ impl PySabrParameters {
     }
 }
 
-// ---------------------------------------------------------------------------
 // SabrModel
-// ---------------------------------------------------------------------------
 
 /// Hagan-2002 SABR model wrapping a :class:`SabrParameters` instance.
 #[pyclass(name = "SabrModel", module = "finstack_quant.valuations")]
@@ -198,9 +194,7 @@ impl PySabrModel {
     }
 }
 
-// ---------------------------------------------------------------------------
 // SabrSmile
-// ---------------------------------------------------------------------------
 
 /// Volatility smile generator for a fixed ``(forward, t)`` pair.
 #[pyclass(name = "SabrSmile", module = "finstack_quant.valuations")]
@@ -318,9 +312,7 @@ impl PySabrSmile {
     }
 }
 
-// ---------------------------------------------------------------------------
 // SabrCalibrator
-// ---------------------------------------------------------------------------
 
 /// SABR calibrator using Levenberg-Marquardt with beta fixed.
 #[pyclass(name = "SabrCalibrator", module = "finstack_quant.valuations")]
@@ -461,9 +453,7 @@ fn check_smile_lengths(strikes: &[f64], market_vols: &[f64]) -> PyResult<()> {
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register the SABR classes on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

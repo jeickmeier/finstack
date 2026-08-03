@@ -34,10 +34,8 @@ pub(crate) fn serialize_typed_instrument_json(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Shared helpers for typed instrument builders (bond/term_loan today; every
 // later typed-instrument task reuses these three).
-// ---------------------------------------------------------------------------
 
 /// Parse a serde-tagged unit-enum value from its snake_case string form.
 ///
@@ -66,9 +64,7 @@ pub(crate) fn json_field<T: serde::de::DeserializeOwned>(json: &str, what: &str)
         .map_err(|err| crate::errors::serde_json_to_py(err, &format!("invalid {what} JSON")))
 }
 
-// ---------------------------------------------------------------------------
 // Bond
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `Bond` instrument.
 #[pyclass(
@@ -306,9 +302,7 @@ impl PyBond {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TermLoan
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `TermLoan` instrument.
 ///

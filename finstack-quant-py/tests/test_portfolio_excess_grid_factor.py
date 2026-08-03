@@ -33,9 +33,7 @@ from finstack_quant.portfolio import (
     grid_carino_link,
 )
 
-# ---------------------------------------------------------------------------
 # Shared fixtures
-# ---------------------------------------------------------------------------
 
 _BASE_DATE = date(2024, 1, 1)
 
@@ -116,9 +114,7 @@ def _factor_brinson_binary_input() -> dict[str, object]:
     }
 
 
-# ---------------------------------------------------------------------------
 # cell_returns_from_reference tests
-# ---------------------------------------------------------------------------
 
 
 def test_cell_returns_from_reference_matches_rust_interpolation_golden() -> None:
@@ -188,9 +184,7 @@ def test_cell_returns_from_reference_denies_unknown_fields() -> None:
         cell_returns_from_reference(json.dumps(bad_reference), "UST", json.dumps({"width": 0.5}))
 
 
-# ---------------------------------------------------------------------------
 # cell_returns_from_curves tests
-# ---------------------------------------------------------------------------
 
 
 def _flat_ust_curve() -> DiscountCurve:
@@ -270,9 +264,7 @@ def test_cell_returns_from_curves_denies_unknown_config_fields() -> None:
         cell_returns_from_curves(curve, curve, 0.25, 2.0, "UST", json.dumps({"width": 1.0, "surprise": 1.0}))
 
 
-# ---------------------------------------------------------------------------
 # excess_returns tests
-# ---------------------------------------------------------------------------
 
 
 def test_excess_returns_matches_lehman_figure_b2_golden() -> None:
@@ -366,9 +358,7 @@ def test_excess_returns_denies_unknown_position_fields() -> None:
         excess_returns(json.dumps(bad_positions), table_json)
 
 
-# ---------------------------------------------------------------------------
 # grid_attribution tests
-# ---------------------------------------------------------------------------
 
 
 def test_grid_attribution_matches_hand_derived_golden() -> None:
@@ -454,9 +444,7 @@ def test_grid_attribution_denies_unknown_position_fields() -> None:
         grid_attribution(json.dumps(bad_portfolio), json.dumps(_grid_golden_benchmark()))
 
 
-# ---------------------------------------------------------------------------
 # grid_carino_link tests
-# ---------------------------------------------------------------------------
 
 
 def _grid_golden_period_json() -> str:
@@ -532,9 +520,7 @@ def test_grid_carino_link_denies_unknown_period_fields() -> None:
         grid_carino_link(json.dumps([bad_period]))
 
 
-# ---------------------------------------------------------------------------
 # factor_brinson_attribution tests
-# ---------------------------------------------------------------------------
 
 
 def test_factor_brinson_attribution_matches_binary_golden() -> None:
@@ -583,9 +569,7 @@ def test_factor_brinson_attribution_denies_unknown_input_fields() -> None:
         factor_brinson_attribution(json.dumps(bad_input), [0.02, 0.31 / 7.0])
 
 
-# ---------------------------------------------------------------------------
 # analytics constrained_least_squares tests
-# ---------------------------------------------------------------------------
 
 
 def test_constrained_least_squares_matches_binary_golden() -> None:
@@ -646,9 +630,7 @@ def test_constrained_least_squares_rejects_dimension_mismatch() -> None:
         constrained_least_squares(x, 2, [0.05, 0.02, 0.01], [0.6, 0.4])
 
 
-# ---------------------------------------------------------------------------
 # End-to-end: constrained_least_squares feeding factor_brinson_attribution
-# ---------------------------------------------------------------------------
 
 
 def test_constrained_factor_returns_satisfy_factor_brinson_completeness() -> None:

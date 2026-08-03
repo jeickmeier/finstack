@@ -49,9 +49,7 @@ fn model_node_ids_multiple_nodes() {
     assert_eq!(ids.len(), 3);
 }
 
-// ---------------------------------------------------------------------------
 // Evaluator
-// ---------------------------------------------------------------------------
 
 #[wasm_bindgen_test]
 fn evaluate_model_produces_computed_nodes() {
@@ -91,9 +89,7 @@ fn evaluate_model_produces_computed_nodes() {
     assert!((gp_q1 - 40.0).abs() < 1e-9);
 }
 
-// ---------------------------------------------------------------------------
 // DSL
-// ---------------------------------------------------------------------------
 
 #[wasm_bindgen_test]
 fn parse_formula_returns_non_empty_ast() {
@@ -106,9 +102,7 @@ fn validate_formula_accepts_valid() {
     assert!(validate_formula("a + b").unwrap());
 }
 
-// ---------------------------------------------------------------------------
 // Capital structure / waterfall validators
-// ---------------------------------------------------------------------------
 
 #[wasm_bindgen_test]
 fn validate_waterfall_spec_roundtrips_default() {

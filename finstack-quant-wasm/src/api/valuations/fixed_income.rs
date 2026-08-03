@@ -22,9 +22,7 @@ fn parse_envelope(json: &str) -> Result<InstrumentJson, JsValue> {
     finstack_quant_valuations::pricer::json::parse_instrument_json(json).map_err(to_js_err)
 }
 
-// ---------------------------------------------------------------------------
 // Bond
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `Bond` instrument.
 #[wasm_bindgen(js_name = Bond)]
@@ -149,9 +147,7 @@ impl JsBond {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TermLoan
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `TermLoan` instrument.
 ///

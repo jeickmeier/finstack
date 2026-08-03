@@ -8,9 +8,7 @@ use finstack_quant_core::dates::{
 };
 use wasm_bindgen::prelude::*;
 
-// ---------------------------------------------------------------------------
 // JsDayCountContext
-// ---------------------------------------------------------------------------
 
 /// Optional context for day-count conventions that need market metadata.
 #[wasm_bindgen(js_name = DayCountContext)]
@@ -118,9 +116,7 @@ impl JsDayCountContext {
     }
 }
 
-// ---------------------------------------------------------------------------
 // JsDayCount
-// ---------------------------------------------------------------------------
 
 /// Day-count convention for computing year fractions and day counts.
 ///
@@ -349,9 +345,7 @@ impl JsDayCount {
     }
 }
 
-// ---------------------------------------------------------------------------
 // JsTenor
-// ---------------------------------------------------------------------------
 
 /// A financial tenor such as `3M`, `1Y`, or `2W`.
 ///
@@ -459,9 +453,7 @@ impl JsTenor {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Free functions
-// ---------------------------------------------------------------------------
 
 /// Create a date and return it as epoch days (days since 1970-01-01).
 /// @param year - Four-digit calendar year component of the supplied date.
@@ -526,9 +518,7 @@ pub fn available_calendars() -> Vec<String> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Convert epoch days to a `time::Date`.
 fn epoch_to_date(days: i32) -> Result<time::Date, JsValue> {

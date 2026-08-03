@@ -14,9 +14,7 @@ use pyo3::types::{PyDict, PyModule};
 
 use crate::errors::{display_to_py, portfolio_to_py};
 
-// ---------------------------------------------------------------------------
 // PyPortfolio
-// ---------------------------------------------------------------------------
 
 /// Python wrapper around a built [`finstack_quant_portfolio::Portfolio`].
 ///
@@ -105,9 +103,7 @@ impl PyPortfolio {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PyPortfolioValuation
-// ---------------------------------------------------------------------------
 
 /// Python wrapper around a [`finstack_quant_portfolio::valuation::PortfolioValuation`].
 ///
@@ -200,9 +196,7 @@ impl PyPortfolioValuation {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PyPortfolioResult
-// ---------------------------------------------------------------------------
 
 /// Python wrapper around a [`finstack_quant_portfolio::results::PortfolioResult`].
 ///
@@ -275,9 +269,7 @@ impl PyPortfolioResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PyPortfolioMetrics
-// ---------------------------------------------------------------------------
 
 type PyMetricSeriesEntry = (Vec<String>, f64, Py<PyDict>);
 
@@ -337,9 +329,7 @@ impl PyPortfolioMetrics {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PyPortfolioCashflows
-// ---------------------------------------------------------------------------
 
 /// Python wrapper around a
 /// [`finstack_quant_portfolio::cashflows::PortfolioCashflows`] ladder.
@@ -464,9 +454,7 @@ impl PyPortfolioCashflows {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPortfolio>()?;

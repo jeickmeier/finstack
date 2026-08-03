@@ -64,9 +64,7 @@ def case(model: str, cid: str, **kw) -> None:
 # 5e-9 covers both with ~2x headroom; tightening requires upgrading norm_cdf.
 CLOSED_FORM_TOL = 5e-9
 
-# ---------------------------------------------------------------------------
 # Black-76 (undiscounted, unit annuity). Also used for implied-vol round-trip.
-# ---------------------------------------------------------------------------
 R_BLACK = 0.03
 for t in (0.25, 1.0, 5.0):
     for sigma in (0.1, 0.2, 0.5):
@@ -87,9 +85,7 @@ for t in (0.25, 1.0, 5.0):
                 expected={"call": call, "put": put, "tolerance_rel": CLOSED_FORM_TOL},
             )
 
-# ---------------------------------------------------------------------------
 # Black-Scholes-Merton (spot-based, q != 0, discounted)
-# ---------------------------------------------------------------------------
 BSM_CASES = [
     # (spot, strike, r, q, sigma, t, label)
     (100.0, 100.0, 0.05, 0.02, 0.20, 1.0, "atm"),
@@ -117,9 +113,7 @@ for spot, strike, r, q, sigma, t, label in BSM_CASES:
         expected={"call": call, "put": put, "tolerance_rel": CLOSED_FORM_TOL},
     )
 
-# ---------------------------------------------------------------------------
 # Bachelier (normal model, undiscounted; includes negative rates)
-# ---------------------------------------------------------------------------
 BACHELIER_CASES = [
     # (forward, strike, sigma_n, t, label)
     (0.02, 0.02, 0.005, 1.0, "rates_atm"),
@@ -145,10 +139,8 @@ for f, k, sn, t, label in BACHELIER_CASES:
         expected={"call": call, "put": put, "tolerance_rel": CLOSED_FORM_TOL},
     )
 
-# ---------------------------------------------------------------------------
 # SABR — Hagan lognormal (Black) vol via ql.sabrVolatility
 # QuantLib argument order: (strike, forward, expiryTime, alpha, beta, nu, rho)
-# ---------------------------------------------------------------------------
 SABR_GRIDS = [
     # (forward, alpha, beta, rho, nu, t, strikes, label)
     (0.03, 0.20, 0.0, -0.30, 0.40, 2.0, [0.02, 0.028, 0.03, 0.032, 0.05], "beta0"),
@@ -195,9 +187,7 @@ for f, k, shift, alpha, beta, rho, nu, t, label in SHIFTED_CASES:
         expected={"vol": vol, "tolerance_rel": 1e-10},
     )
 
-# ---------------------------------------------------------------------------
 # SABR — Hagan normal (Bachelier) vol via ql.sabrVolatility(..., ql.Normal)
-# ---------------------------------------------------------------------------
 SABR_NORMAL_CASES = [
     (0.03, 0.02, 0.06, 0.5, -0.30, 0.40, 2.0, "beta05_low_k"),
     (0.03, 0.03, 0.06, 0.5, -0.30, 0.40, 2.0, "beta05_atm"),
@@ -221,9 +211,7 @@ for f, k, alpha, beta, rho, nu, t, label in SABR_NORMAL_CASES:
         expected={"vol": vol, "tolerance_rel": 1e-10},
     )
 
-# ---------------------------------------------------------------------------
 # Heston — AnalyticHestonEngine (Gatheral / little-trap formulation)
-# ---------------------------------------------------------------------------
 TODAY = ql.Date(11, 6, 2026)
 ql.Settings.instance().evaluationDate = TODAY
 DC = ql.Actual365Fixed()
@@ -311,10 +299,8 @@ for sigma_v, rho in ((0.3, -0.5), (0.5, -0.9)):
                 expected={"call": call, "put": put, "tolerance_rel": 1e-6},
             )
 
-# ---------------------------------------------------------------------------
 # SVI total variance — mpmath 50-digit independent evaluation (raw SVI,
 # Gatheral 2004). No QuantLib analytic exists.
-# ---------------------------------------------------------------------------
 SVI_PARAM_SETS = [
     # (a, b, rho, m, sigma, t, label) — Gatheral-style raw parameterisation
     (0.04, 0.40, -0.40, 0.00, 0.20, 1.0, "gatheral_style"),
@@ -343,10 +329,8 @@ for a, b, rho, m, sig, t, label in SVI_PARAM_SETS:
             },
         )
 
-# ---------------------------------------------------------------------------
 # Rough Heston classical limit (H -> 0.5): expected = classical QuantLib
 # Heston price; Rust prices with H = 0.499. Tolerance 0.5% relative.
-# ---------------------------------------------------------------------------
 RH = dict(v0=0.04, kappa=1.5, theta=0.04, sigma=0.3, rho=-0.7)
 for strike in (90.0, 100.0, 110.0):
     call = heston_price(
@@ -375,9 +359,7 @@ for strike in (90.0, 100.0, 110.0):
         **RH,
     )
 
-# ---------------------------------------------------------------------------
 # Write suite
-# ---------------------------------------------------------------------------
 suite = {
     "meta": {
         "suite_id": "vol_models_quantlib_parity",

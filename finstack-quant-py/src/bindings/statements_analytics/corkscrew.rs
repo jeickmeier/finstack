@@ -13,9 +13,7 @@ use crate::errors::display_to_py;
 use finstack_quant_statements_analytics::extensions::corkscrew as rust_corkscrew;
 use pyo3::prelude::*;
 
-// ---------------------------------------------------------------------------
 // AccountType
-// ---------------------------------------------------------------------------
 
 /// Account type label: ``"asset"``, ``"liability"``, or ``"equity"``.
 #[pyclass(
@@ -81,9 +79,7 @@ impl PyAccountType {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CorkscrewAccount
-// ---------------------------------------------------------------------------
 
 /// Configuration for a single corkscrew account.
 ///
@@ -170,9 +166,7 @@ impl PyCorkscrewAccount {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CorkscrewConfig
-// ---------------------------------------------------------------------------
 
 /// Configuration for corkscrew (roll-forward) validation.
 ///
@@ -251,9 +245,7 @@ impl PyCorkscrewConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CorkscrewReport
-// ---------------------------------------------------------------------------
 
 /// Report produced by [`PyCorkscrewExtension.execute`].
 #[pyclass(
@@ -322,9 +314,7 @@ impl PyCorkscrewReport {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CorkscrewExtension
-// ---------------------------------------------------------------------------
 
 /// Corkscrew extension for balance-sheet roll-forward validation.
 #[pyclass(
@@ -389,9 +379,7 @@ impl Default for PyCorkscrewExtension {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register corkscrew types on the parent module.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

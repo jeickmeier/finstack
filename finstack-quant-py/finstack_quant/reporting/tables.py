@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/tables.py
 """HTML table primitives: key/value fact tables, generic data tables, heatmaps.
 
 Examples:

@@ -26,9 +26,7 @@ use finstack_quant_valuations::instruments::rates::exotics_shared::coupon_profil
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// ---------------------------------------------------------------------------
 // TARN
-// ---------------------------------------------------------------------------
 
 /// Simulate a TARN coupon profile along a deterministic floating-rate path.
 ///
@@ -102,9 +100,7 @@ fn tarn_coupon_profile<'py>(
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
 // Snowball / Inverse Floater
-// ---------------------------------------------------------------------------
 
 /// Compute the coupon schedule for a snowball note.
 ///
@@ -168,9 +164,7 @@ fn inverse_floater_coupon_profile(
     .map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // CMS Spread Option (intrinsic)
-// ---------------------------------------------------------------------------
 
 /// Intrinsic (undiscounted, unhedged) payoff of a CMS spread option.
 ///
@@ -208,9 +202,7 @@ fn cms_spread_option_intrinsic(
         .map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Callable Range Accrual (accrued coupon)
-// ---------------------------------------------------------------------------
 
 /// Accrued coupon on a range-accrual leg over a set of observations.
 ///
@@ -262,9 +254,7 @@ fn callable_range_accrual_accrued(
     .map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Module registration
-// ---------------------------------------------------------------------------
 
 /// Register exotic rate helpers on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -4,9 +4,7 @@ use finstack_quant_core::math::summation;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
-// ---------------------------------------------------------------------------
 // Module-level functions
-// ---------------------------------------------------------------------------
 
 /// Kahan compensated summation — reduces floating-point rounding errors.
 ///
@@ -27,9 +25,7 @@ fn neumaier_sum(values: Vec<f64>) -> f64 {
     summation::neumaier_sum(values)
 }
 
-// ---------------------------------------------------------------------------
 // Register
-// ---------------------------------------------------------------------------
 
 /// Build the `finstack_quant.core.math.summation` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

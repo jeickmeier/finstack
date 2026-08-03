@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/document.py
 """Composition layer: assemble a header, KPI strip, and sections into HTML.
 
 A :class:`TearSheet` renders a scoped fragment for Jupyter (``_repr_html_``) and a

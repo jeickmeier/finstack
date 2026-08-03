@@ -17,9 +17,7 @@
 use crate::utils::to_js_err;
 use wasm_bindgen::prelude::*;
 
-// ---------------------------------------------------------------------------
 // Horizon helper (shared by CreditCalibrator and FactorCovarianceForecast)
-// ---------------------------------------------------------------------------
 
 /// Parse a horizon descriptor string into a [`VolHorizon`].
 ///
@@ -31,13 +29,11 @@ fn parse_vol_horizon(
     finstack_quant_portfolio::factor_model::VolHorizon::parse(s).map_err(to_js_err)
 }
 
-// ---------------------------------------------------------------------------
 // Output finiteness validation
 //
 // `serde_json` silently serializes NaN/Inf as `null`, so risk outputs are
 // checked for finiteness at the boundary and rejected with an error naming
 // the offending field instead of emitting `null`.
-// ---------------------------------------------------------------------------
 
 /// Reject a non-finite numeric output, naming the field in the error.
 fn ensure_finite(field: &str, v: f64) -> Result<(), JsValue> {
@@ -98,9 +94,7 @@ fn ensure_period_finite(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // CreditFactorModel
-// ---------------------------------------------------------------------------
 
 /// Calibrated credit factor hierarchy artifact.
 ///
@@ -148,9 +142,7 @@ impl JsCreditFactorModel {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CreditCalibrator
-// ---------------------------------------------------------------------------
 
 /// Deterministic calibrator that produces a [`JsCreditFactorModel`].
 ///
@@ -191,9 +183,7 @@ impl JsCreditCalibrator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // LevelsAtDate  (opaque handle — not exposed as a JS class, just passed through)
-// ---------------------------------------------------------------------------
 
 /// Snapshot of all hierarchy-level factor values at a single date.
 ///
@@ -219,9 +209,7 @@ impl JsLevelsAtDate {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PeriodDecomposition  (opaque handle)
-// ---------------------------------------------------------------------------
 
 /// Component-wise difference between two [`JsLevelsAtDate`] snapshots.
 ///
@@ -246,9 +234,7 @@ impl JsPeriodDecomposition {
     }
 }
 
-// ---------------------------------------------------------------------------
 // decompose_levels  (free function)
-// ---------------------------------------------------------------------------
 
 /// Decompose observed issuer spreads at a point in time into per-level factor
 /// values and per-issuer residual adders.
@@ -305,9 +291,7 @@ pub fn decompose_levels(
     Ok(JsLevelsAtDate { inner })
 }
 
-// ---------------------------------------------------------------------------
 // decompose_period  (free function)
-// ---------------------------------------------------------------------------
 
 /// Difference two `LevelsAtDate` snapshots component-wise.
 ///
@@ -332,9 +316,7 @@ pub fn decompose_period(
     Ok(JsPeriodDecomposition { inner })
 }
 
-// ---------------------------------------------------------------------------
 // FactorCovarianceForecast
-// ---------------------------------------------------------------------------
 
 /// Vol-forecast view over a calibrated `CreditFactorModel`.
 ///
@@ -426,13 +408,11 @@ impl JsFactorCovarianceForecast {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
 //
 // Native tests call underlying Rust APIs directly — WASM wrapper methods that
 // invoke `js_sys::Error::new` cannot run on non-wasm32 targets.  The WASM
 // surface is exercised end-to-end by `wasm-pack test`.
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -450,9 +430,7 @@ mod tests {
     use std::collections::BTreeMap;
     use time::Month;
 
-    // -----------------------------------------------------------------------
     // Fixture helpers
-    // -----------------------------------------------------------------------
 
     fn d(year: i32, month: Month, day: u8) -> finstack_quant_core::dates::Date {
         create_date(year, month, day).expect("valid date")
@@ -542,9 +520,7 @@ mod tests {
         }
     }
 
-    // -----------------------------------------------------------------------
     // Smoke test: calibrate → serialize → deserialize round-trip
-    // -----------------------------------------------------------------------
 
     #[test]
     fn calibrate_serialize_deserialize_roundtrip() {

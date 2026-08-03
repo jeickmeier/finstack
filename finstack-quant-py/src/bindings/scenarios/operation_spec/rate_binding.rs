@@ -10,9 +10,7 @@ use pyo3::types::PyType;
 
 use super::kinds::PyCompounding;
 
-// ---------------------------------------------------------------------------
 // RateBindingSpec
-// ---------------------------------------------------------------------------
 
 /// Configuration linking a statement rate node to a market curve.
 ///

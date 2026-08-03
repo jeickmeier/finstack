@@ -14,9 +14,7 @@ use pyo3::types::{PyList, PyModule};
 
 use crate::errors::display_to_py;
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Convert a `ScoringZone` into a lowercase Python string.
 fn zone_to_str(zone: ScoringZone) -> &'static str {
@@ -27,9 +25,7 @@ fn zone_to_str(zone: ScoringZone) -> &'static str {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Altman Z-Score family
-// ---------------------------------------------------------------------------
 
 /// Explicit versioned Altman score-to-PD heuristics.
 #[pyclass(
@@ -186,9 +182,7 @@ fn altman_em_score(
     Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
 }
 
-// ---------------------------------------------------------------------------
 // Ohlson O-Score
-// ---------------------------------------------------------------------------
 
 /// Compute the Ohlson O-Score (1980) nine-predictor logistic bankruptcy model.
 ///
@@ -231,9 +225,7 @@ fn ohlson_o_score(
     Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
 }
 
-// ---------------------------------------------------------------------------
 // Zmijewski probit
-// ---------------------------------------------------------------------------
 
 /// Compute the Zmijewski (1984) probit bankruptcy score.
 ///
@@ -261,9 +253,7 @@ fn zmijewski_score(
     Ok((r.score, zone_to_str(r.zone).to_string(), r.implied_pd))
 }
 
-// ---------------------------------------------------------------------------
 // Register
-// ---------------------------------------------------------------------------
 
 /// Build the `finstack_quant.core.credit.scoring` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

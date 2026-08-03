@@ -27,9 +27,7 @@ use finstack_quant_valuations::models::closed_form::{
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// ---------------------------------------------------------------------------
 // bs_price
-// ---------------------------------------------------------------------------
 
 /// Black-Scholes / Garman-Kohlhagen per-unit price of a European option.
 ///
@@ -74,9 +72,7 @@ fn bs_price_wrapper(
         .map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // bs_greeks
-// ---------------------------------------------------------------------------
 
 /// Black-Scholes / Garman-Kohlhagen Greeks for a European option.
 ///
@@ -133,9 +129,7 @@ fn bs_greeks_wrapper<'py>(
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
 // bs_implied_vol
-// ---------------------------------------------------------------------------
 
 /// Solve for Black-Scholes / Garman-Kohlhagen implied volatility.
 ///
@@ -169,9 +163,7 @@ fn bs_implied_vol_wrapper(
         .map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // black76_implied_vol
-// ---------------------------------------------------------------------------
 
 /// Solve for Black-76 (forward-based) implied volatility.
 ///
@@ -220,9 +212,7 @@ fn black76_implied_vol_wrapper(
     .map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Closed-form exotics: barrier / asian / lookback / quanto
-// ---------------------------------------------------------------------------
 
 /// Reiner-Rubinstein continuous-monitoring barrier call price.
 ///
@@ -430,9 +420,7 @@ fn quanto_option_wrapper(
     checked_closed_form_value(price, "quanto option price").map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register the analytic option primitives on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

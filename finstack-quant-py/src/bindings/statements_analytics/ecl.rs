@@ -14,9 +14,7 @@ use crate::errors::display_to_py;
 use finstack_quant_statements_analytics::analysis as rust_ecl;
 use pyo3::prelude::*;
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Parse a stage label (case-insensitive: "stage1"/"1", "stage2"/"2", "stage3"/"3").
 fn parse_stage(s: &str) -> PyResult<rust_ecl::Stage> {
@@ -65,9 +63,7 @@ fn trigger_reason(trigger: &rust_ecl::StagingTrigger) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PyExposure
-// ---------------------------------------------------------------------------
 
 /// A single credit exposure at a reporting date.
 ///
@@ -187,9 +183,7 @@ impl PyExposure {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Staging
-// ---------------------------------------------------------------------------
 
 /// Classify an exposure into an IFRS 9 stage.
 ///
@@ -232,9 +226,7 @@ fn classify_stage(
     Ok((result.stage.to_string(), reason))
 }
 
-// ---------------------------------------------------------------------------
 // ECL computation
-// ---------------------------------------------------------------------------
 
 /// Compute single-scenario ECL for one exposure.
 ///
@@ -357,9 +349,7 @@ fn compute_ecl_weighted(
         .map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register ECL types and functions on the `statements_analytics` submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

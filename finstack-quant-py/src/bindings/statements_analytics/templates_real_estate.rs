@@ -17,17 +17,13 @@ use pyo3::prelude::*;
 
 use super::templates_common::{finalize_json, rebuild_builder};
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 fn parse_period(s: &str) -> PyResult<PeriodId> {
     s.parse().map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // SimpleLeaseSpec
-// ---------------------------------------------------------------------------
 
 /// Lightweight per-lease rent schedule.
 ///
@@ -133,9 +129,7 @@ impl PySimpleLeaseSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // RentStepSpec / FreeRentWindowSpec / RenewalSpec
-// ---------------------------------------------------------------------------
 
 /// Rent step that resets the base rent starting at ``start`` (inclusive).
 #[pyclass(
@@ -299,9 +293,7 @@ impl PyRenewalSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // LeaseGrowthConvention
-// ---------------------------------------------------------------------------
 
 /// Compounding convention for lease rent growth.
 #[pyclass(
@@ -365,9 +357,7 @@ impl PyLeaseGrowthConvention {
     }
 }
 
-// ---------------------------------------------------------------------------
 // LeaseSpec
-// ---------------------------------------------------------------------------
 
 /// Rich lease spec for rent-roll generation.
 #[pyclass(
@@ -489,9 +479,7 @@ impl PyLeaseSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // RentRollOutputNodes
-// ---------------------------------------------------------------------------
 
 /// Standard aggregated output node ids for a rent roll.
 #[pyclass(
@@ -561,9 +549,7 @@ impl PyRentRollOutputNodes {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ManagementFeeBase / ManagementFeeSpec
-// ---------------------------------------------------------------------------
 
 /// Basis for management fee calculation.
 #[pyclass(
@@ -668,9 +654,7 @@ impl PyManagementFeeSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PropertyTemplateNodes
-// ---------------------------------------------------------------------------
 
 /// Standard node ids for the full property operating-statement template.
 #[pyclass(
@@ -775,9 +759,7 @@ impl PyPropertyTemplateNodes {
     }
 }
 
-// ---------------------------------------------------------------------------
 // add_noi_buildup
-// ---------------------------------------------------------------------------
 
 /// Apply the NOI buildup template to a model spec.
 #[pyfunction]
@@ -805,9 +787,7 @@ fn add_noi_buildup(
     finalize_json(builder, meta, capital_structure)
 }
 
-// ---------------------------------------------------------------------------
 // add_ncf_buildup
-// ---------------------------------------------------------------------------
 
 /// Apply the NCF buildup template to a model spec.
 #[pyfunction]
@@ -825,9 +805,7 @@ fn add_ncf_buildup(
     finalize_json(builder, meta, capital_structure)
 }
 
-// ---------------------------------------------------------------------------
 // add_rent_roll
-// ---------------------------------------------------------------------------
 
 /// Apply the rich rent-roll template to a model spec.
 #[pyfunction]
@@ -846,9 +824,7 @@ fn add_rent_roll(
     finalize_json(builder, meta, capital_structure)
 }
 
-// ---------------------------------------------------------------------------
 // add_rent_roll_rental_revenue
-// ---------------------------------------------------------------------------
 
 /// Apply the simple rent-roll rental revenue template to a model spec.
 #[pyfunction]
@@ -865,9 +841,7 @@ fn add_rent_roll_rental_revenue(
     finalize_json(builder, meta, capital_structure)
 }
 
-// ---------------------------------------------------------------------------
 // add_property_operating_statement
-// ---------------------------------------------------------------------------
 
 /// Apply the full property operating-statement template to a model spec.
 #[pyfunction]
@@ -910,9 +884,7 @@ fn add_property_operating_statement(
     finalize_json(builder, meta, capital_structure)
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register real-estate template types and functions on the parent module.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

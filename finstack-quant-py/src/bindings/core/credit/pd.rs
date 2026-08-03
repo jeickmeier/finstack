@@ -9,9 +9,7 @@ use pyo3::types::{PyList, PyModule};
 
 use crate::errors::pd_calibration_to_py;
 
-// ---------------------------------------------------------------------------
 // PiT / TtC conversion
-// ---------------------------------------------------------------------------
 
 /// Convert a Point-in-Time PD to a Through-the-Cycle PD.
 ///
@@ -66,9 +64,7 @@ fn central_tendency(annual_default_rates: Vec<f64>) -> PyResult<f64> {
     core_central_tendency(&annual_default_rates).map_err(pd_calibration_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Register
-// ---------------------------------------------------------------------------
 
 /// Build the `finstack_quant.core.credit.pd` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

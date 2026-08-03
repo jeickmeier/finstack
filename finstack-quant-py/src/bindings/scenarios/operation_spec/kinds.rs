@@ -5,9 +5,7 @@ use finstack_quant_scenarios::spec::{Compounding, CurveKind, TenorMatchMode, Tim
 use pyo3::prelude::*;
 use pyo3::types::PyType;
 
-// ---------------------------------------------------------------------------
 // CurveKind
-// ---------------------------------------------------------------------------
 
 /// Type of market curve targeted by a scenario operation.
 ///
@@ -87,9 +85,7 @@ impl PyCurveKind {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TenorMatchMode
-// ---------------------------------------------------------------------------
 
 /// Tenor-pillar alignment strategy for curve-node operations.
 #[pyclass(
@@ -140,9 +136,7 @@ impl PyTenorMatchMode {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TimeRollMode
-// ---------------------------------------------------------------------------
 
 /// Calendar-vs-business-day semantics for time-roll operations.
 #[pyclass(
@@ -201,9 +195,7 @@ impl PyTimeRollMode {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Compounding
-// ---------------------------------------------------------------------------
 
 /// Compounding convention for rate-extraction operations.
 #[pyclass(

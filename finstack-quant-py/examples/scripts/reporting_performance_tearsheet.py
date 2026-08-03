@@ -1,4 +1,3 @@
-# finstack-quant-py/examples/scripts/reporting_performance_tearsheet.py
 """Build a publication-quality performance tear sheet from a price DataFrame.
 
 Run: uv run python finstack-quant-py/examples/scripts/reporting_performance_tearsheet.py

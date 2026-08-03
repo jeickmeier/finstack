@@ -15,9 +15,7 @@ from finstack_quant.portfolio import (
     decompose_factor_risk,
 )
 
-# ---------------------------------------------------------------------------
 # Shared helpers
-# ---------------------------------------------------------------------------
 
 
 def _market_and_positions() -> tuple[MarketContext, str]:
@@ -68,9 +66,7 @@ def _market_and_positions() -> tuple[MarketContext, str]:
     return mc, positions_json
 
 
-# ---------------------------------------------------------------------------
 # C20 — zero-factor matrix must not abort
-# ---------------------------------------------------------------------------
 
 
 def test_decompose_factor_risk_zero_factors_returns_zero_risk() -> None:

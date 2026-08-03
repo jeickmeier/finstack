@@ -1,4 +1,3 @@
-# finstack-quant-py/examples/scripts/reporting_instrument_tearsheet.py
 """Price a bond and render an instrument tear sheet.
 
 Run: uv run python finstack-quant-py/examples/scripts/reporting_instrument_tearsheet.py

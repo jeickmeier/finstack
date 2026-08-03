@@ -17,9 +17,7 @@ use finstack_quant_valuations::pricer::cos::{
 };
 use pyo3::prelude::*;
 
-// ---------------------------------------------------------------------------
 // Black-Scholes
-// ---------------------------------------------------------------------------
 
 /// Price a European option under the Black-Scholes model using the COS method.
 ///
@@ -75,9 +73,7 @@ fn bs_cos_price(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Variance Gamma
-// ---------------------------------------------------------------------------
 
 /// Price a European option under the Variance Gamma model using the COS method.
 ///
@@ -141,9 +137,7 @@ fn vg_cos_price(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Merton jump-diffusion
-// ---------------------------------------------------------------------------
 
 /// Price a European option under Merton (1976) jump-diffusion using the COS method.
 ///
@@ -212,9 +206,7 @@ fn merton_jump_cos_price(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Module registration
-// ---------------------------------------------------------------------------
 
 /// Register Fourier pricing functions on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

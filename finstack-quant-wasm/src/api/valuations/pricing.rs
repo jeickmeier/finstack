@@ -349,9 +349,7 @@ pub fn list_models_grouped() -> Result<JsValue, JsValue> {
     to_js_value(&grouped)
 }
 
-// ---------------------------------------------------------------------------
 // JsMarket overloads — parse market once, reuse across pricing calls
-// ---------------------------------------------------------------------------
 
 /// Price an instrument using a pre-parsed [`JsMarket`].
 ///

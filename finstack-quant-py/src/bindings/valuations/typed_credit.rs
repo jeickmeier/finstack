@@ -31,9 +31,7 @@ type CdsTrancheBuilderInner =
 type ConvertibleBondBuilderInner =
     finstack_quant_valuations::instruments::fixed_income::convertible::ConvertibleBondBuilder;
 
-// ---------------------------------------------------------------------------
 // CreditDefaultSwap
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `CreditDefaultSwap` instrument.
 #[pyclass(
@@ -373,9 +371,7 @@ impl PyCreditDefaultSwapBuilder {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CDSIndex
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `CDSIndex` instrument.
 #[pyclass(
@@ -822,9 +818,7 @@ impl PyCDSIndexBuilder {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CDSTranche
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `CDSTranche` instrument.
 #[pyclass(
@@ -1340,9 +1334,7 @@ impl PyCDSTrancheBuilder {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ConvertibleBond
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `ConvertibleBond` instrument.
 #[pyclass(

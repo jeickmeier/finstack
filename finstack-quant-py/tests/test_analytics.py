@@ -35,9 +35,7 @@ from finstack_quant.statements_analytics import (
     z_score,
 )
 
-# ---------------------------------------------------------------------------
 # Fixtures
-# ---------------------------------------------------------------------------
 
 
 def _daily_dates(n: int, start: date = date(2024, 1, 1)) -> list[date]:
@@ -75,9 +73,7 @@ def perf_returns() -> Performance:
     )
 
 
-# ---------------------------------------------------------------------------
 # Construction
-# ---------------------------------------------------------------------------
 
 
 class TestConstruction:
@@ -159,9 +155,7 @@ class TestConstruction:
             assert a == pytest.approx(b, rel=1e-12, abs=1e-12)
 
 
-# ---------------------------------------------------------------------------
 # Return / risk metrics
-# ---------------------------------------------------------------------------
 
 
 class TestReturnRiskMetrics:
@@ -204,9 +198,7 @@ class TestReturnRiskMetrics:
         assert "max_drawdown" in summary.columns
 
 
-# ---------------------------------------------------------------------------
 # Periodic returns
-# ---------------------------------------------------------------------------
 
 
 class TestPeriodicReturns:
@@ -238,9 +230,7 @@ class TestPeriodicReturns:
         assert len(rr.values) > 0
 
 
-# ---------------------------------------------------------------------------
 # Benchmark comparison
-# ---------------------------------------------------------------------------
 
 
 class TestBenchmark:
@@ -316,9 +306,7 @@ class TestBenchmark:
         assert perf_prices.benchmark_idx == 0
 
 
-# ---------------------------------------------------------------------------
 # Multi-factor
-# ---------------------------------------------------------------------------
 
 
 class TestMultiFactor:
@@ -338,9 +326,7 @@ class TestMultiFactor:
             perf_prices.multi_factor_greeks(0, [bad])
 
 
-# ---------------------------------------------------------------------------
 # Date window mutation
-# ---------------------------------------------------------------------------
 
 
 class TestDateRange:
@@ -353,9 +339,7 @@ class TestDateRange:
         assert len(perf_prices.dates()) == 59
 
 
-# ---------------------------------------------------------------------------
 # Stubs
-# ---------------------------------------------------------------------------
 
 
 class TestStubs:
@@ -379,9 +363,7 @@ class TestStubs:
         assert "def classify_breaches" not in stub_text
 
 
-# ---------------------------------------------------------------------------
 # Cross-binding sanity (comps live in statements_analytics)
-# ---------------------------------------------------------------------------
 
 
 class TestCompsBindings:

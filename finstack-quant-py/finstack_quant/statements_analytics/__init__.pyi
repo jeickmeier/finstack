@@ -2304,9 +2304,7 @@ def compute_ecl_weighted(
     """
     ...
 
-# ---------------------------------------------------------------------------
 # Comparable-company analysis
-# ---------------------------------------------------------------------------
 
 def percentile_rank(value: float, peer_values: list[float]) -> float | None:
     """
@@ -2502,9 +2500,7 @@ def score_relative_value(
     """
     ...
 
-# ---------------------------------------------------------------------------
 # Credit scorecard extension
-# ---------------------------------------------------------------------------
 
 class ScorecardMetric:
     """
@@ -3031,9 +3027,7 @@ def validate_scorecard_config(config: ScorecardConfig) -> None:
     """
     ...
 
-# ---------------------------------------------------------------------------
 # Corkscrew (balance-sheet roll-forward) extension
-# ---------------------------------------------------------------------------
 
 class AccountType:
     """
@@ -3537,9 +3531,7 @@ class CorkscrewExtension:
         """
         ...
 
-# ---------------------------------------------------------------------------
 # Vintage template
-# ---------------------------------------------------------------------------
 
 def add_vintage_buildup(
     model: FinancialModelSpec | str,
@@ -3590,9 +3582,7 @@ def add_vintage_buildup(
     """
     ...
 
-# ---------------------------------------------------------------------------
 # Roll-forward template
-# ---------------------------------------------------------------------------
 
 def add_roll_forward(
     model: FinancialModelSpec | str,
@@ -3695,9 +3685,7 @@ def add_roll_forward_with_opening(
     """
     ...
 
-# ---------------------------------------------------------------------------
 # Real-estate template
-# ---------------------------------------------------------------------------
 
 class SimpleLeaseSpec:
     """

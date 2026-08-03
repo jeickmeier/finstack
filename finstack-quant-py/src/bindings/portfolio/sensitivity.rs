@@ -24,9 +24,7 @@ fn py_to_serde<'py, T: serde::de::DeserializeOwned + Send>(
         .map_err(|e| serde_json_to_py(e, &format!("invalid {label}")))
 }
 
-// ---------------------------------------------------------------------------
 // SensitivityMatrix
-// ---------------------------------------------------------------------------
 
 /// Positions-by-factors sensitivity matrix.
 ///
@@ -154,9 +152,7 @@ impl PySensitivityMatrix {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FactorPnlProfile
-// ---------------------------------------------------------------------------
 
 /// P&L profile for one factor across a scenario grid.
 ///
@@ -251,9 +247,7 @@ impl PyFactorPnlProfile {
     }
 }
 
-// ---------------------------------------------------------------------------
 // compute_factor_sensitivities
-// ---------------------------------------------------------------------------
 
 /// Compute first-order factor sensitivities using central finite differences.
 ///
@@ -305,9 +299,7 @@ fn compute_factor_sensitivities(
     .map_err(core_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // compute_pnl_profiles
-// ---------------------------------------------------------------------------
 
 /// Compute scenario P&L profiles via full repricing across a factor grid.
 ///
@@ -367,9 +359,7 @@ fn compute_pnl_profiles(
     .map_err(core_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // RiskDecomposition
-// ---------------------------------------------------------------------------
 
 /// Portfolio-level decomposition of total risk across factors and positions.
 ///
@@ -549,9 +539,7 @@ impl PyFactorRiskDecomposition {
     }
 }
 
-// ---------------------------------------------------------------------------
 // decompose_factor_risk
-// ---------------------------------------------------------------------------
 
 /// Decompose portfolio risk into factor and position contributions.
 ///
@@ -624,9 +612,7 @@ fn decompose_factor_risk(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Module registration
-// ---------------------------------------------------------------------------
 
 /// Register factor-model functions on the valuations submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

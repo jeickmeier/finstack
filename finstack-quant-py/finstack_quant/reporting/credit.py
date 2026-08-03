@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/credit.py
 """Credit profile tear sheet.
 
 Renders leverage/coverage trend, per-instrument coverage, covenant compliance,

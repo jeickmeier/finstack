@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/portfolio_risk.py
 """Portfolio risk tear sheet: Euler VaR/ES contributions and risk budget.
 
 Pure presentation — reads pre-computed ``*_var_decomposition`` /

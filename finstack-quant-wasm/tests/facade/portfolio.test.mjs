@@ -372,10 +372,8 @@ test('portfolio.campisiReconciliationCheck reports the residual and fails closed
   assert.throws(() => portfolio.campisiCarinoLink(`[${withBogus}]`));
 });
 
-// ---------------------------------------------------------------------------
 // Credit excess returns, hierarchical grid attribution, and factor-Brinson
 // (Dynkin, Hyman & Vankudre 1998; Carino 1999; Jeet & Partani 2023).
-// ---------------------------------------------------------------------------
 
 // Lehman Brothers Fixed Income Research (1998), Figure B-1: populated
 // duration cells of May 1997 Treasury returns by duration, width 0.5y.

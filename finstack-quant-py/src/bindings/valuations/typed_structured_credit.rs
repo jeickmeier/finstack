@@ -42,9 +42,7 @@ type TrancheBuilderInner =
 type StructuredCreditBuilderInner =
     finstack_quant_valuations::instruments::fixed_income::structured_credit::StructuredCreditBuilder;
 
-// ---------------------------------------------------------------------------
 // RepLine
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `RepLine` (aggregated representative pool line).
 #[pyclass(
@@ -172,9 +170,7 @@ spread_bp=None, index_id=None, cpr=None, cdr=None, recovery_rate=None)"
     }
 }
 
-// ---------------------------------------------------------------------------
 // AssetPool
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `AssetPool` (structured-credit collateral pool).
 #[pyclass(
@@ -306,9 +302,7 @@ impl PyAssetPool {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tranche
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `Tranche`.
 #[pyclass(
@@ -688,9 +682,7 @@ impl PyTrancheBuilder {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TrancheStructure
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `TrancheStructure` (capital structure).
 #[pyclass(
@@ -780,9 +772,7 @@ impl PyTrancheStructure {
     }
 }
 
-// ---------------------------------------------------------------------------
 // StructuredCredit
-// ---------------------------------------------------------------------------
 
 /// Typed wrapper for the Rust `StructuredCredit` instrument (ABS/CLO/CMBS/RMBS).
 #[pyclass(

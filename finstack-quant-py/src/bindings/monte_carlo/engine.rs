@@ -125,9 +125,7 @@ impl PyMcEngine {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Process helpers
-// ---------------------------------------------------------------------------
 
 /// Simulate a compact set of GBM spot paths through Rust path capture.
 #[pyfunction]

@@ -12,9 +12,7 @@ fn slice_to_pyarray<'py>(py: Python<'py>, values: &[f64]) -> Bound<'py, PyArray1
     PyArray1::from_slice(py, values)
 }
 
-// ---------------------------------------------------------------------------
 // PeriodStats
-// ---------------------------------------------------------------------------
 
 /// Aggregated statistics for grouped periodic returns.
 #[pyclass(name = "PeriodStats", module = "finstack_quant.analytics", frozen)]
@@ -93,9 +91,7 @@ impl PyPeriodStats {
     }
 }
 
-// ---------------------------------------------------------------------------
 // BetaResult
-// ---------------------------------------------------------------------------
 
 /// Regression beta with confidence interval.
 #[pyclass(name = "BetaResult", module = "finstack_quant.analytics", frozen)]
@@ -134,9 +130,7 @@ impl PyBetaResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // GreeksResult
-// ---------------------------------------------------------------------------
 
 /// Alpha, beta, and R-squared from a single-index regression.
 #[pyclass(name = "GreeksResult", module = "finstack_quant.analytics", frozen)]
@@ -175,9 +169,7 @@ impl PyGreeksResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // RollingGreeks
-// ---------------------------------------------------------------------------
 
 /// Rolling alpha and beta time series.
 #[pyclass(name = "RollingGreeks", module = "finstack_quant.analytics", frozen)]
@@ -222,9 +214,7 @@ impl PyRollingGreeks {
     }
 }
 
-// ---------------------------------------------------------------------------
 // MultiFactorResult
-// ---------------------------------------------------------------------------
 
 /// Multi-factor regression result.
 #[pyclass(
@@ -272,9 +262,7 @@ impl PyMultiFactorResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // DrawdownEpisode
-// ---------------------------------------------------------------------------
 
 /// A single drawdown episode with timing and depth information.
 #[pyclass(name = "DrawdownEpisode", module = "finstack_quant.analytics", frozen)]
@@ -332,9 +320,7 @@ impl PyDrawdownEpisode {
     }
 }
 
-// ---------------------------------------------------------------------------
 // LookbackReturns
-// ---------------------------------------------------------------------------
 
 /// Period-to-date returns for each ticker.
 #[pyclass(name = "LookbackReturns", module = "finstack_quant.analytics", frozen)]
@@ -393,9 +379,7 @@ impl PyLookbackReturns {
     }
 }
 
-// ---------------------------------------------------------------------------
 // DatedSeries
-// ---------------------------------------------------------------------------
 
 /// Date-indexed numeric series returned by the rolling-window analytics.
 ///
@@ -461,9 +445,7 @@ impl PyDatedSeries {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 pub fn register(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPeriodStats>()?;

@@ -26,9 +26,7 @@ from finstack_quant.factor_model.credit import (
     decompose_period,
 )
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 _N_MONTHS = 24
 
@@ -122,10 +120,8 @@ def _calibrate() -> CreditFactorModel:
     return cal.calibrate(json.dumps(inputs))
 
 
-# ---------------------------------------------------------------------------
 # Minimal golden JSON — just enough for from_json / to_json tests.
 # We use a trivial model with no issuers and no factors.
-# ---------------------------------------------------------------------------
 
 _MINIMAL_MODEL_JSON = json.dumps({
     "schema": "finstack_quant.credit_factor_model/1",
@@ -158,9 +154,7 @@ _MINIMAL_MODEL_JSON = json.dumps({
 })
 
 
-# ---------------------------------------------------------------------------
 # T1 — CreditFactorModel JSON round-trip
-# ---------------------------------------------------------------------------
 
 
 def test_credit_factor_model_from_json_minimal() -> None:
@@ -197,9 +191,7 @@ def test_credit_factor_model_bad_json_raises() -> None:
         CreditFactorModel.from_json('{"not": "a model"}')
 
 
-# ---------------------------------------------------------------------------
 # T2 — CreditCalibrator.calibrate produces a valid artifact
-# ---------------------------------------------------------------------------
 
 
 def test_calibrator_produces_valid_artifact() -> None:
@@ -300,9 +292,7 @@ def test_calibrator_bad_inputs_raises() -> None:
         cal.calibrate('{"not_inputs": true}')
 
 
-# ---------------------------------------------------------------------------
 # T3 — decompose_levels
-# ---------------------------------------------------------------------------
 
 
 def _simple_decompose_model_and_spreads() -> tuple[CreditFactorModel, dict[str, float]]:
@@ -377,9 +367,7 @@ def test_decompose_levels_runtime_tags_resolves_unknown_issuer() -> None:
     assert "RUNTIME-ISSUER" in adder
 
 
-# ---------------------------------------------------------------------------
 # T4 — decompose_period
-# ---------------------------------------------------------------------------
 
 
 def test_decompose_period_runs_without_error() -> None:
@@ -417,9 +405,7 @@ def test_decompose_period_date_order_error() -> None:
         decompose_period(snap_t1, snap_t0)
 
 
-# ---------------------------------------------------------------------------
 # T5 — FactorCovarianceForecast
-# ---------------------------------------------------------------------------
 
 
 def test_factor_covariance_forecast_one_step_returns_valid_json() -> None:

@@ -13,9 +13,7 @@ use finstack_quant_portfolio::liquidity::{self, KyleLambdaModel};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// ---------------------------------------------------------------------------
 // Spread / illiquidity estimators
-// ---------------------------------------------------------------------------
 
 /// Estimate the effective bid-ask spread via Roll's (1984) serial covariance
 /// estimator.
@@ -65,9 +63,7 @@ fn amihud_illiquidity(py: Python<'_>, returns: Vec<f64>, volumes: Vec<f64>) -> O
     py.detach(move || liquidity::amihud_illiquidity(&returns, &volumes))
 }
 
-// ---------------------------------------------------------------------------
 // Position sizing / tiering
-// ---------------------------------------------------------------------------
 
 /// Days required to liquidate a dollar-denominated position at the given
 /// participation rate.
@@ -116,9 +112,7 @@ fn liquidity_tier(days_to_liquidate: f64) -> &'static str {
     liquidity::classify_tier(days_to_liquidate, &config.tier_thresholds).as_binding_str()
 }
 
-// ---------------------------------------------------------------------------
 // LVaR (Bangia et al. 1999)
-// ---------------------------------------------------------------------------
 
 /// Liquidity-adjusted VaR following Bangia, Diebold, Schuermann & Stroughair (1999).
 ///
@@ -172,9 +166,7 @@ fn lvar_bangia<'py>(
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
 // Market impact (Almgren-Chriss)
-// ---------------------------------------------------------------------------
 
 /// Almgren-Chriss (2001) market impact decomposition for a uniform execution
 /// over a fixed horizon.
@@ -246,9 +238,7 @@ fn almgren_chriss_impact<'py>(
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
 // Kyle's lambda
-// ---------------------------------------------------------------------------
 
 /// Estimate Kyle's (1985) linear price impact coefficient lambda from
 /// observed volumes and returns.
@@ -283,9 +273,7 @@ fn kyle_lambda(
     py.detach(move || KyleLambdaModel::lambda_from_series(&volumes, &returns, reference_price))
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register liquidity-risk functions on the portfolio submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

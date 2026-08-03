@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/portfolio.py
 """Portfolio book-summary tear sheet: holdings, exposure, sensitivities, cashflows.
 
 Pure presentation — reads pre-computed ``value_portfolio`` / ``aggregate_metrics``

@@ -4,9 +4,7 @@ use crate::errors::{core_to_py, display_to_py};
 use finstack_quant_margin as fm;
 use pyo3::prelude::*;
 
-// ---------------------------------------------------------------------------
 // ImMethodology
-// ---------------------------------------------------------------------------
 
 /// Initial margin calculation methodology.
 #[pyclass(
@@ -80,9 +78,7 @@ impl PyImMethodology {
     }
 }
 
-// ---------------------------------------------------------------------------
 // MarginTenor
-// ---------------------------------------------------------------------------
 
 /// Margin call frequency.
 #[pyclass(
@@ -148,9 +144,7 @@ impl PyMarginTenor {
     }
 }
 
-// ---------------------------------------------------------------------------
 // MarginCallType
-// ---------------------------------------------------------------------------
 
 /// Type of margin call.
 #[pyclass(
@@ -211,9 +205,7 @@ impl PyMarginCallType {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ClearingStatus
-// ---------------------------------------------------------------------------
 
 /// Clearing status for OTC derivatives.
 #[pyclass(
@@ -268,9 +260,7 @@ impl PyClearingStatus {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CollateralAssetClass
-// ---------------------------------------------------------------------------
 
 /// Collateral asset class per BCBS-IOSCO standards.
 #[pyclass(
@@ -368,9 +358,7 @@ impl PyCollateralAssetClass {
     }
 }
 
-// ---------------------------------------------------------------------------
 // NettingSetId
-// ---------------------------------------------------------------------------
 
 /// Identifies a margin netting set.
 #[pyclass(
@@ -435,9 +423,7 @@ impl PyNettingSetId {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CsaSpec — JSON round-trip wrapper
-// ---------------------------------------------------------------------------
 
 /// Credit Support Annex specification (ISDA standard).
 #[pyclass(
@@ -513,9 +499,7 @@ impl PyCsaSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // EligibleCollateralSchedule
-// ---------------------------------------------------------------------------
 
 /// Eligible collateral schedule with haircuts.
 #[pyclass(

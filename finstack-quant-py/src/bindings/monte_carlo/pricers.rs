@@ -120,9 +120,7 @@ impl PyEuropeanPricer {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Path-dependent pricer
-// ---------------------------------------------------------------------------
 
 /// Path-dependent Monte Carlo pricer for exotic payoffs (Asian, barrier, etc.).
 #[pyclass(
@@ -270,9 +268,7 @@ impl PyPathDependentPricer {
     }
 }
 
-// ---------------------------------------------------------------------------
 // LSMC pricer
-// ---------------------------------------------------------------------------
 
 /// Longstaff-Schwartz Monte Carlo pricer for American options.
 #[pyclass(name = "LsmcPricer", module = "finstack_quant.monte_carlo", frozen)]

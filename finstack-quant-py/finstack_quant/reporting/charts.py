@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/charts.py
 """Hand-built inline-SVG chart primitives (no matplotlib).
 
 Every chart returns a self-contained ``<svg>`` string sized via ``viewBox`` with

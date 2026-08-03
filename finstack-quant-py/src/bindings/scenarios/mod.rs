@@ -45,9 +45,7 @@ fn template_entry<'a>(
         .ok_or_else(|| crate::errors::value_error(format!("Unknown template: '{template_id}'")))
 }
 
-// ---------------------------------------------------------------------------
 // ScenarioSpec JSON round-trip
-// ---------------------------------------------------------------------------
 
 #[pyfunction]
 fn parse_scenario_spec(json_str: &str) -> PyResult<String> {
@@ -148,9 +146,7 @@ fn validate_scenario_spec(json_str: &str) -> PyResult<bool> {
     Ok(true)
 }
 
-// ---------------------------------------------------------------------------
 // Template registry
-// ---------------------------------------------------------------------------
 
 #[pyfunction]
 fn list_builtin_templates() -> PyResult<Vec<String>> {
@@ -202,9 +198,7 @@ fn build_template_component(template_id: &str, component_id: &str) -> PyResult<S
     to_json(&spec, "Failed to serialize component spec")
 }
 
-// ---------------------------------------------------------------------------
 // Module registration
-// ---------------------------------------------------------------------------
 
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "scenarios")?;

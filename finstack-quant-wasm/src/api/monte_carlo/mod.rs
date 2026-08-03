@@ -308,9 +308,7 @@ pub fn price_heston_put(
     )
 }
 
-// ---------------------------------------------------------------------------
 // Analytical
-// ---------------------------------------------------------------------------
 
 /// Black-Scholes call price.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
@@ -354,9 +352,7 @@ pub fn black_scholes_put(
     )
 }
 
-// ---------------------------------------------------------------------------
 // Path-dependent pricing
-// ---------------------------------------------------------------------------
 
 #[allow(clippy::too_many_arguments)]
 /// Price an Asian call via Monte Carlo under GBM dynamics.
@@ -831,9 +827,7 @@ where
     estimate_to_js(&est)
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 struct LsmcGbmRun {
     pricer: LsmcPricer,

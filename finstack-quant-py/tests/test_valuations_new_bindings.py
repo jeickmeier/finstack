@@ -48,9 +48,7 @@ def _instrument_json(instrument: dict[str, object]) -> str:
     return json.dumps({"schema": "finstack_quant.instrument/1", "instrument": instrument})
 
 
-# ---------------------------------------------------------------------------
 # B1 — Black-Scholes / Black-76 primitives
-# ---------------------------------------------------------------------------
 
 
 def test_bs_price_call_atm_is_positive() -> None:
@@ -76,9 +74,7 @@ def test_black76_implied_vol_runs() -> None:
     assert iv > 0.0
 
 
-# ---------------------------------------------------------------------------
 # B2 — nearest_correlation
-# ---------------------------------------------------------------------------
 
 
 def test_nearest_correlation_passes_through_valid_matrix() -> None:
@@ -95,9 +91,7 @@ def test_nearest_correlation_rejects_bad_diagonal() -> None:
         nearest_correlation([0.5, 0.5, 0.3, 0.5, 0.5, 0.4, 0.3, 0.4, 0.5], 3)
 
 
-# ---------------------------------------------------------------------------
 # B3 — SABR
-# ---------------------------------------------------------------------------
 
 
 def test_sabr_equity_default_and_model_implied_vol() -> None:
@@ -159,9 +153,7 @@ def test_sabr_calibrate_auto_shift_negative_rates_uses_shift() -> None:
     assert fitted.is_shifted()
 
 
-# ---------------------------------------------------------------------------
 # B4 — instrument_cashflows
-# ---------------------------------------------------------------------------
 
 
 def _build_deposit_market() -> tuple[str, MarketContext]:
@@ -327,9 +319,7 @@ def test_revolving_credit_credit_cashflows_fail_closed() -> None:
         )
 
 
-# ---------------------------------------------------------------------------
 # B5 — Closed-form exotics
-# ---------------------------------------------------------------------------
 
 
 def test_barrier_knock_in_plus_knock_out_equals_vanilla() -> None:

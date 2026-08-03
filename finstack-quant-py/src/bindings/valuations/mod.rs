@@ -26,9 +26,7 @@ use crate::errors::display_to_py;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-// ---------------------------------------------------------------------------
 // ValuationResult
-// ---------------------------------------------------------------------------
 
 #[pyclass(
     name = "ValuationResult",
@@ -144,9 +142,7 @@ impl PyValuationResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // InstrumentJson — tagged-union loader
-// ---------------------------------------------------------------------------
 
 #[pyfunction]
 fn validate_instrument_json(json: &str) -> PyResult<String> {
@@ -178,9 +174,7 @@ fn bond_from_cashflows_json(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Module registration
-// ---------------------------------------------------------------------------
 
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "valuations")?;

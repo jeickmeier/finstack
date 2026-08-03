@@ -14,9 +14,7 @@ use pyo3::types::{PyDict, PyList, PyModule};
 
 use crate::errors::core_to_py;
 
-// ---------------------------------------------------------------------------
 // Seniority recovery stats
-// ---------------------------------------------------------------------------
 
 /// Return historical recovery statistics for a given seniority class.
 ///
@@ -51,9 +49,7 @@ fn seniority_recovery_stats<'py>(
     Ok(d)
 }
 
-// ---------------------------------------------------------------------------
 // Beta recovery sampling / quantiles
-// ---------------------------------------------------------------------------
 
 /// Draw ``n_samples`` recovery rates from a Beta(alpha, beta) distribution
 /// parameterized by (``mean``, ``std``) using a deterministic PCG64 RNG.
@@ -89,9 +85,7 @@ fn beta_recovery_quantile(mean: f64, std: f64, q: f64) -> PyResult<f64> {
     lgd::beta_recovery_quantile(mean, std, q).map_err(core_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Workout LGD
-// ---------------------------------------------------------------------------
 
 /// Compute workout LGD from a collateral waterfall, costs, and a
 /// time-to-resolution discount.
@@ -132,9 +126,7 @@ fn workout_lgd(
     .map_err(core_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Downturn LGD
-// ---------------------------------------------------------------------------
 
 /// Apply a stressed downturn adjustment to a base LGD.
 ///
@@ -190,9 +182,7 @@ fn downturn_lgd_regulatory_floor(base_lgd: f64, add_on: f64, floor: f64) -> PyRe
     lgd::downturn_lgd_regulatory_floor(base_lgd, add_on, floor).map_err(core_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // EAD
-// ---------------------------------------------------------------------------
 
 /// Exposure at default for a fully drawn term loan.
 ///
@@ -219,9 +209,7 @@ fn ead_revolver(drawn: f64, undrawn: f64, ccf: f64) -> PyResult<f64> {
     lgd::ead_revolver(drawn, undrawn, ccf).map_err(core_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Register
-// ---------------------------------------------------------------------------
 
 /// Build the `finstack_quant.core.credit.lgd` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

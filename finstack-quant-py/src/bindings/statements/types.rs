@@ -4,9 +4,7 @@ use crate::errors::display_to_py;
 use indexmap::IndexMap;
 use pyo3::prelude::*;
 
-// ---------------------------------------------------------------------------
 // ForecastMethod
-// ---------------------------------------------------------------------------
 
 /// Available forecast methods for projecting node values.
 #[pyclass(
@@ -83,9 +81,7 @@ impl PyForecastMethod {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ForecastSpec
-// ---------------------------------------------------------------------------
 
 /// Forecast configuration for a statement model node.
 #[pyclass(
@@ -175,9 +171,7 @@ fn parse_params_json(params_json: Option<&str>) -> PyResult<IndexMap<String, ser
     }
 }
 
-// ---------------------------------------------------------------------------
 // NodeType
-// ---------------------------------------------------------------------------
 
 /// Node computation type.
 #[pyclass(
@@ -219,9 +213,7 @@ impl PyNodeType {
     }
 }
 
-// ---------------------------------------------------------------------------
 // NodeId
-// ---------------------------------------------------------------------------
 
 /// Type-safe identifier for a node in a financial model.
 #[pyclass(
@@ -258,9 +250,7 @@ impl PyNodeId {
     }
 }
 
-// ---------------------------------------------------------------------------
 // NumericMode
-// ---------------------------------------------------------------------------
 
 /// Numeric evaluation mode.
 #[pyclass(
@@ -296,9 +286,7 @@ impl PyNumericMode {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FinancialModelSpec — JSON round-trip
-// ---------------------------------------------------------------------------
 
 /// Top-level financial model specification.
 #[pyclass(

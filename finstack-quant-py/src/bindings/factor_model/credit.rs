@@ -10,9 +10,7 @@ use crate::errors::{core_to_py, display_to_py};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// ---------------------------------------------------------------------------
 // PyCreditFactorModel
-// ---------------------------------------------------------------------------
 
 /// Calibrated credit factor hierarchy artifact.
 ///
@@ -176,9 +174,7 @@ impl PyCreditFactorModel {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PyCreditCalibrator
-// ---------------------------------------------------------------------------
 
 /// Deterministic calibrator that produces a :class:`CreditFactorModel`.
 ///
@@ -255,9 +251,7 @@ impl PyCreditCalibrator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PyLevelsAtDate
-// ---------------------------------------------------------------------------
 
 /// Snapshot of all hierarchy-level factor values at a single date.
 ///
@@ -370,9 +364,7 @@ impl PyLevelsAtDate {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PyPeriodDecomposition
-// ---------------------------------------------------------------------------
 
 /// Component-wise difference between two :class:`LevelsAtDate` snapshots.
 ///
@@ -503,9 +495,7 @@ impl PyPeriodDecomposition {
     }
 }
 
-// ---------------------------------------------------------------------------
 // decompose_levels  (free function)
-// ---------------------------------------------------------------------------
 
 /// Decompose observed issuer spreads at a point in time into per-level factor
 /// values and per-issuer residual adders.
@@ -580,9 +570,7 @@ fn decompose_levels(
     Ok(PyLevelsAtDate::from_inner(result))
 }
 
-// ---------------------------------------------------------------------------
 // decompose_period  (free function)
-// ---------------------------------------------------------------------------
 
 /// Difference two :class:`LevelsAtDate` snapshots component-wise.
 ///
@@ -633,9 +621,7 @@ fn decompose_period(
     Ok(PyPeriodDecomposition::from_inner(result))
 }
 
-// ---------------------------------------------------------------------------
 // PyFactorCovarianceForecast
-// ---------------------------------------------------------------------------
 
 /// Vol-forecast view over a calibrated :class:`CreditFactorModel`.
 ///
@@ -803,9 +789,7 @@ impl PyFactorCovarianceForecast {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Module registration
-// ---------------------------------------------------------------------------
 
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCreditFactorModel>()?;

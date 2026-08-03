@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/benchmark.py
 """Benchmark-relative tear sheet: alpha/beta, capture, rolling greeks, relative series.
 
 Pure presentation over ``analytics.Performance`` (the engine computes; this

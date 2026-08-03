@@ -9,9 +9,7 @@ use crate::errors::{display_to_py, statements_to_py};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-// ---------------------------------------------------------------------------
 // StatementResult
-// ---------------------------------------------------------------------------
 
 /// Results from evaluating a financial model.
 #[pyclass(
@@ -242,9 +240,7 @@ impl PyStatementResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Evaluator
-// ---------------------------------------------------------------------------
 
 /// Evaluator for financial models.
 #[pyclass(
@@ -327,9 +323,7 @@ impl PyEvaluator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 fn parse_period_id(s: &str) -> PyResult<finstack_quant_core::dates::PeriodId> {
     s.parse().map_err(crate::errors::core_to_py)

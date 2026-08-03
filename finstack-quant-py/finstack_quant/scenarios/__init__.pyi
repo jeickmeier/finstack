@@ -640,14 +640,12 @@ def compute_horizon_return(
     """
     ...
 
-# ---------------------------------------------------------------------------
 # Typed operation builders
 #
 # These mirror the Rust ``OperationSpec`` enum and its supporting enums. They
 # replace the raw-JSON authoring path so quants can write
 # ``OperationSpec.curve_parallel_bp(...)`` and feed the result straight into
 # ``build_scenario_spec`` via ``op.to_json()``.
-# ---------------------------------------------------------------------------
 
 class CurveKind:
     """

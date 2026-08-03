@@ -11,7 +11,6 @@ use crate::bindings::core::dates::utils::{date_to_py, py_to_date};
 use crate::errors::core_to_py;
 
 // PyInflationCurve
-// ---------------------------------------------------------------------------
 
 /// CPI inflation curve for inflation-linked pricing and breakeven analysis.
 ///
@@ -139,5 +138,3 @@ impl PyInflationCurve {
         format!("InflationCurve(id={:?})", self.inner.id().as_str())
     }
 }
-
-// ---------------------------------------------------------------------------

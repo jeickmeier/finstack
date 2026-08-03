@@ -1,4 +1,3 @@
-# finstack-quant-py/tests/test_reporting_statements_common.py
 from __future__ import annotations
 
 import json

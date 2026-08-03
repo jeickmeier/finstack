@@ -13,9 +13,7 @@ use pyo3::types::{PyDict, PyList, PyModule};
 
 use crate::errors::core_to_py;
 
-// ---------------------------------------------------------------------------
 // Diebold-Li: factor extraction
-// ---------------------------------------------------------------------------
 
 /// Extract time-varying Nelson-Siegel factors (level, slope, curvature) from a
 /// yield panel using the Diebold-Li (2006) parameterization.
@@ -79,9 +77,7 @@ fn diebold_li_fit_factors<'py>(
     Ok(d)
 }
 
-// ---------------------------------------------------------------------------
 // Diebold-Li: forecast
-// ---------------------------------------------------------------------------
 
 /// Extract Diebold-Li factors, fit VAR(1) dynamics, and forecast the yield
 /// curve ``horizon`` steps ahead.
@@ -141,9 +137,7 @@ fn diebold_li_forecast<'py>(
     Ok(d)
 }
 
-// ---------------------------------------------------------------------------
 // PCA: fit
-// ---------------------------------------------------------------------------
 
 /// Fit PCA to a matrix of yield changes (first differences of a yield panel).
 ///
@@ -240,9 +234,7 @@ fn yield_pca_fit<'py>(
     Ok(d)
 }
 
-// ---------------------------------------------------------------------------
 // PCA: scenario
-// ---------------------------------------------------------------------------
 
 /// Generate a single-component N-sigma PCA scenario shift to the yield curve.
 ///
@@ -272,9 +264,7 @@ fn yield_pca_scenario(
         .map_err(core_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Nelson-Siegel: static cross-section
-// ---------------------------------------------------------------------------
 
 /// Evaluate the static Nelson-Siegel (1987) yield curve for a given decay
 /// parameter, factor triple, and tenor grid.
@@ -304,9 +294,7 @@ fn nelson_siegel_yields(lambda: f64, factors: [f64; 3], tenors: Vec<f64>) -> PyR
         .map_err(core_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Register
-// ---------------------------------------------------------------------------
 
 /// Build the `finstack_quant.core.market_data.dtsm` submodule.
 pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {

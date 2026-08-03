@@ -51,9 +51,7 @@ use wasm_bindgen::prelude::*;
 pub mod materialization;
 pub mod sensitivity;
 
-// ---------------------------------------------------------------------------
 // Typed handle: Portfolio
-// ---------------------------------------------------------------------------
 
 /// Handle to a built [`finstack_quant_portfolio::Portfolio`] that can be reused
 /// across WASM calls without re-parsing and rebuilding from the spec.
@@ -915,9 +913,7 @@ pub fn replay_portfolio(
     serde_json::to_string(&result).map_err(to_js_err)
 }
 
-// =============================================================================
 // Position-level VaR / ES decomposition and risk budgeting
-// =============================================================================
 
 /// Decompose portfolio VaR into position contributions via parametric Euler
 /// allocation. Inputs mirror the Python binding's signature.
@@ -1124,9 +1120,7 @@ fn flatten_square_matrix(
         .map_err(to_js_err)
 }
 
-// =============================================================================
 // Liquidity: spread estimators, tiering, LVaR, market impact
-// =============================================================================
 
 /// Effective bid-ask spread via Roll (1984). Returns `undefined` when the
 /// serial covariance is non-negative (Roll assumption violated) or inputs too short.
@@ -1639,9 +1633,7 @@ mod tests {
         assert!((result - 0.10).abs() < 1e-6);
     }
 
-    // -----------------------------------------------------------------
     // Campisi fixed-income attribution
-    // -----------------------------------------------------------------
 
     /// Mirrors the hand-worked golden fixture in
     /// `finstack-quant/portfolio/src/fi_attribution.rs`.

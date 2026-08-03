@@ -291,9 +291,7 @@ fn structured_credit_tranche_scenario_table(
     })
 }
 
-// ---------------------------------------------------------------------------
 // OasResult
-// ---------------------------------------------------------------------------
 
 /// Result of an option-adjusted-spread calculation for a structured-credit
 /// tranche ([`structured_credit_tranche_oas`]'s decoded return value).
@@ -396,9 +394,7 @@ impl PyOasResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TrancheMetrics
-// ---------------------------------------------------------------------------
 
 /// Summary risk/pricing metrics for a structured-credit tranche
 /// ([`structured_credit_tranche_metrics`]'s decoded return value).
@@ -541,9 +537,7 @@ impl PyTrancheMetrics {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ScenarioTable
-// ---------------------------------------------------------------------------
 
 /// Scenario/yield table for a single structured-credit tranche
 /// ([`structured_credit_tranche_scenario_table`]'s decoded return value).

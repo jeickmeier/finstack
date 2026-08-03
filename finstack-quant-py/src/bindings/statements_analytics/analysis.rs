@@ -73,9 +73,7 @@ fn dcf_equity_result_dict<'py>(
     Ok(dict)
 }
 
-// ---------------------------------------------------------------------------
 // Sensitivity analysis
-// ---------------------------------------------------------------------------
 
 /// Run sensitivity analysis on a financial model.
 ///
@@ -140,9 +138,7 @@ fn generate_tornado_entries(
     serde_json::to_string(&entries).map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Variance analysis
-// ---------------------------------------------------------------------------
 
 /// Run variance analysis comparing two statement results.
 ///
@@ -174,9 +170,7 @@ fn run_variance(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Scenario set
-// ---------------------------------------------------------------------------
 
 /// Evaluate all scenarios in a scenario set.
 ///
@@ -205,9 +199,7 @@ fn evaluate_scenario_set(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Backtesting
-// ---------------------------------------------------------------------------
 
 /// Compute forecast accuracy metrics (MAE, MAPE, RMSE).
 #[pyfunction]
@@ -227,9 +219,7 @@ fn backtest_forecast<'py>(
     Ok(dict)
 }
 
-// ---------------------------------------------------------------------------
 // Goal seek
-// ---------------------------------------------------------------------------
 
 /// Find the driver value that makes a target node reach a target value.
 ///
@@ -299,9 +289,7 @@ fn goal_seek(
     })
 }
 
-// ---------------------------------------------------------------------------
 // DCF Valuation
-// ---------------------------------------------------------------------------
 
 /// Evaluate DCF valuation on a financial model.
 ///
@@ -404,9 +392,7 @@ fn evaluate_dcf<'py>(
     dcf_equity_result_dict(py, &result)
 }
 
-// ---------------------------------------------------------------------------
 // DCF sensitivity, LBO, and cost of capital
-// ---------------------------------------------------------------------------
 
 /// Rank the headline DCF assumptions by enterprise-value impact.
 ///
@@ -704,9 +690,7 @@ fn wacc(
     .map_err(display_to_py)
 }
 
-// ---------------------------------------------------------------------------
 // Corporate analysis (orchestrator)
-// ---------------------------------------------------------------------------
 
 /// Run the full corporate analysis pipeline.
 ///
@@ -815,9 +799,7 @@ fn run_corporate_analysis<'py>(
     Ok(dict)
 }
 
-// ---------------------------------------------------------------------------
 // Reports
-// ---------------------------------------------------------------------------
 
 /// Generate a P&L summary report as formatted text.
 ///
@@ -927,9 +909,7 @@ fn credit_assessment<'py>(
     Ok(dict)
 }
 
-// ---------------------------------------------------------------------------
 // Introspection — DependencyTracer (class)
-// ---------------------------------------------------------------------------
 
 /// Cached dependency tracer that builds the model graph once.
 ///
@@ -1101,9 +1081,7 @@ fn dependents(model: &Bound<'_, PyAny>, node_id: &str) -> PyResult<Vec<String>> 
     Ok(deps.into_iter().map(String::from).collect())
 }
 
-// ---------------------------------------------------------------------------
 // Introspection — FormulaExplainer
-// ---------------------------------------------------------------------------
 
 /// Explain a formula for a specific node and period.
 ///
@@ -1196,9 +1174,7 @@ fn explain_formula_text(
     Ok(explanation.to_string_detailed())
 }
 
-// ---------------------------------------------------------------------------
 // Checks
-// ---------------------------------------------------------------------------
 
 /// Run checks from a suite spec against a model (JSON in/out).
 ///

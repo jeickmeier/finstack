@@ -116,9 +116,7 @@ from finstack_quant.valuations.correlation import (
 )
 from finstack_quant.valuations.instruments import list_standard_metrics, validate_instrument_json
 
-# ---------------------------------------------------------------------------
 # Shared data
-# ---------------------------------------------------------------------------
 
 RETURNS_10K: list[float] = [0.0004 + (i % 17) * 1e-5 for i in range(10_000)]
 RETURNS_10K_ALT: list[float] = [0.0003 + (i % 13) * 1.2e-5 for i in range(10_000)]
@@ -448,9 +446,7 @@ SCENARIO_SET_JSON = json.dumps({
 })
 
 
-# ===================================================================
 # Core domain
-# ===================================================================
 
 
 @pytest.mark.perf
@@ -527,9 +523,7 @@ class TestCoreBenchmarks:
         benchmark(_round_trip)
 
 
-# ===================================================================
 # Analytics domain
-# ===================================================================
 
 
 @pytest.mark.perf
@@ -596,9 +590,7 @@ class TestAnalyticsBenchmarks:
         benchmark(count_consecutive, RETURNS_10K)
 
 
-# ===================================================================
 # Correlation domain
-# ===================================================================
 
 
 @pytest.mark.perf
@@ -645,9 +637,7 @@ class TestCorrelationBenchmarks:
         benchmark(validate_correlation_matrix, CORR_5X5_FLAT, 5)
 
 
-# ===================================================================
 # Monte Carlo domain
-# ===================================================================
 
 
 @pytest.mark.perf
@@ -717,9 +707,7 @@ class TestMonteCarloBenchmarks:
         benchmark(black_scholes_put, 100.0, 100.0, 0.05, 0.0, 0.2, 1.0)
 
 
-# ===================================================================
 # Margin domain
-# ===================================================================
 
 
 @pytest.mark.perf
@@ -752,9 +740,7 @@ class TestMarginBenchmarks:
         benchmark(MarginUtilization, 1_200_000.0, 1_000_000.0, "USD")
 
 
-# ===================================================================
 # Statements domain
-# ===================================================================
 
 
 @pytest.mark.perf
@@ -794,9 +780,7 @@ class TestStatementsBenchmarks:
         benchmark(_normalize)
 
 
-# ===================================================================
 # Statements Analytics domain
-# ===================================================================
 
 
 @pytest.mark.perf
@@ -907,9 +891,7 @@ class TestStatementsAnalyticsBenchmarks:
         benchmark(explain_formula, _MODEL_SPEC, _EVAL_RESULT, "gross_profit", "2025Q1")
 
 
-# ===================================================================
 # Portfolio domain
-# ===================================================================
 
 
 @pytest.mark.perf
@@ -1169,9 +1151,7 @@ class TestPortfolioRiskInputBenchmarks:
         )
 
 
-# ===================================================================
 # Valuations domain
-# ===================================================================
 
 
 @pytest.mark.perf
@@ -1189,9 +1169,7 @@ class TestValuationsBenchmarks:
         benchmark(validate_instrument_json, validated)
 
 
-# ===================================================================
 # Scenarios domain
-# ===================================================================
 
 
 @pytest.mark.perf

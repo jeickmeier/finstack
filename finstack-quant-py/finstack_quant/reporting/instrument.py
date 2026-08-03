@@ -1,4 +1,3 @@
-# finstack-quant-py/finstack_quant/reporting/instrument.py
 """Instrument tear sheet: render a priced valuations.ValuationResult as HTML.
 
 Pure formatter — reads the already-priced ``result`` (scalar metrics incl.
@@ -289,9 +288,7 @@ def _cashflow_blocks(
     return ladder, schedule
 
 
-# ---------------------------------------------------------------------------
 # Task 6: Assembly — instrument_tearsheet public API
-# ---------------------------------------------------------------------------
 
 ALL_SECTIONS = ["definition", "valuation", "keyrate", "cashflows", "schedule", "payoff", "survival", "covenants"]
 _MISSING_DEFINITION = object()

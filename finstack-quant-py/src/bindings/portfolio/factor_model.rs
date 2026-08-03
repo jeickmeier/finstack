@@ -39,9 +39,7 @@ use crate::errors::{core_to_py, display_to_py, portfolio_to_py, serde_json_to_py
 use super::json_bridge::{deserialize_json, serialize_json};
 use super::matrix_input::{extract_position_pnls, extract_square_matrix};
 
-// ---------------------------------------------------------------------------
 // Small helpers
-// ---------------------------------------------------------------------------
 
 /// Convert `Vec<String>` of position ids into the Rust newtype.
 fn to_position_ids(ids: Vec<String>) -> Vec<PositionId> {
@@ -104,9 +102,7 @@ fn decomposition_method_label(method: DecompositionMethod) -> &'static str {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FactorContribution
-// ---------------------------------------------------------------------------
 
 /// Aggregate contribution of a single factor to portfolio risk.
 #[pyclass(
@@ -173,9 +169,7 @@ impl PyFactorContribution {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PositionFactorContribution
-// ---------------------------------------------------------------------------
 
 /// Per-position contribution to a specific factor bucket.
 #[pyclass(
@@ -234,9 +228,7 @@ impl PyPositionFactorContribution {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PositionResidualContribution
-// ---------------------------------------------------------------------------
 
 /// Annualized residual variance contributed by a single position.
 #[pyclass(
@@ -310,9 +302,7 @@ impl PyPositionResidualContribution {
     }
 }
 
-// ---------------------------------------------------------------------------
 // RiskDecomposition
-// ---------------------------------------------------------------------------
 
 /// Portfolio-level decomposition of total risk across common factors and residuals.
 #[pyclass(
@@ -404,9 +394,7 @@ impl PyRiskDecomposition {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PositionVarContribution / PositionEsContribution
-// ---------------------------------------------------------------------------
 
 /// Per-position component VaR and marginal VaR.
 #[pyclass(
@@ -540,9 +528,7 @@ impl PyPositionEsContribution {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PositionRiskDecomposition
-// ---------------------------------------------------------------------------
 
 /// Complete position-level risk decomposition.
 #[pyclass(
@@ -640,9 +626,7 @@ impl PyPositionRiskDecomposition {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PositionBudgetEntry / RiskBudgetResult
-// ---------------------------------------------------------------------------
 
 /// Per-position budget comparison entry.
 #[pyclass(
@@ -775,9 +759,7 @@ impl PyRiskBudgetResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FactorContributionDelta
-// ---------------------------------------------------------------------------
 
 /// Per-factor contribution change between a baseline and a scenario.
 #[pyclass(
@@ -836,9 +818,7 @@ impl PyFactorContributionDelta {
     }
 }
 
-// ---------------------------------------------------------------------------
 // WhatIfResult
-// ---------------------------------------------------------------------------
 
 /// Result of a position what-if scenario.
 #[pyclass(
@@ -902,9 +882,7 @@ impl PyWhatIfResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // StressResult
-// ---------------------------------------------------------------------------
 
 /// Result of a factor-stress scenario.
 #[pyclass(
@@ -968,9 +946,7 @@ impl PyStressResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // StressPositionEntry / TailScenarioBreakdown / StressAttribution
-// ---------------------------------------------------------------------------
 
 /// Single position's contribution to tail stress.
 #[pyclass(
@@ -1180,9 +1156,7 @@ impl PyStressAttribution {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PositionAssignment / UnmatchedEntry / FactorAssignmentReport
-// ---------------------------------------------------------------------------
 
 /// Matched factor assignments for a single portfolio position.
 ///
@@ -1369,10 +1343,8 @@ impl PyFactorAssignmentReport {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CreditVolReport / LevelVolContribution / PositionVolContribution
 // (These types do not derive Serialize/Deserialize, so no JSON round-trip.)
-// ---------------------------------------------------------------------------
 
 /// Aggregated risk contribution for a single hierarchy level.
 #[pyclass(
@@ -1550,9 +1522,7 @@ impl PyCreditVolReport {
     }
 }
 
-// ---------------------------------------------------------------------------
 // VolHorizon
-// ---------------------------------------------------------------------------
 
 /// Forecast horizon used to scale a calibrated `Sample` vol estimate.
 ///
@@ -1659,9 +1629,7 @@ impl PyVolHorizon {
     }
 }
 
-// ---------------------------------------------------------------------------
 // DecompositionConfig
-// ---------------------------------------------------------------------------
 
 /// Configuration for position-level VaR decomposition.
 #[pyclass(
@@ -1746,9 +1714,7 @@ impl PyDecompositionConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Typed risk functions
-// ---------------------------------------------------------------------------
 
 /// Decompose portfolio VaR/ES into position contributions via parametric
 /// Euler allocation, returning a typed :class:`PositionRiskDecomposition`.
@@ -2025,9 +1991,7 @@ fn position_component_var(
         })
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register factor_model typed result classes and typed-sibling functions on
 /// the portfolio submodule.

@@ -37,9 +37,7 @@ use crate::errors::display_to_py;
 
 use super::json_bridge::{deserialize_json, serialize_json};
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 fn parse_metric_id(id: &str) -> MetricId {
     // `FromStr::from_str` never fails for `MetricId` — it falls back to a
@@ -75,11 +73,9 @@ fn parse_comparison_op(op: &str) -> PyResult<ComparisonOp> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Unit-style enums: WeightingScheme, MissingMetricPolicy, Inequality,
 // OptimizationStatus (Optimal/Feasible variants only — others carry data and
 // are constructed via dedicated classmethods), TradeDirection, TradeType.
-// ---------------------------------------------------------------------------
 
 /// How optimization weights are defined.
 #[pyclass(
@@ -507,9 +503,7 @@ impl PyPerPositionMetric {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PositionFilter
-// ---------------------------------------------------------------------------
 
 /// Declarative filter selecting which positions a rule applies to.
 #[pyclass(
@@ -628,9 +622,7 @@ impl PyPositionFilter {
     }
 }
 
-// ---------------------------------------------------------------------------
 // MetricExpr
-// ---------------------------------------------------------------------------
 
 /// Portfolio-level metric expression (`WeightedSum` / `ValueWeightedAverage`).
 #[pyclass(
@@ -707,9 +699,7 @@ impl PyMetricExpr {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Objective
-// ---------------------------------------------------------------------------
 
 /// Optimization direction and target.
 #[pyclass(
@@ -777,9 +767,7 @@ impl PyObjective {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Constraint
-// ---------------------------------------------------------------------------
 
 /// Declarative constraint specification.
 #[pyclass(
@@ -942,14 +930,12 @@ impl PyConstraint {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CandidatePosition / TradeUniverse
 //
 // Both hold `Arc<DynInstrument>` and cannot be safely constructed from
 // Python without the wider instrument-binding surface. They remain opaque
 // wrappers here so callers can pass them through pipelines once a future
 // slice wires the instrument bridge.
-// ---------------------------------------------------------------------------
 
 /// Candidate instrument that could be added to the portfolio.
 ///
@@ -1076,9 +1062,7 @@ impl PyTradeUniverse {
     }
 }
 
-// ---------------------------------------------------------------------------
 // OptimizationStatus (enum with structured variants)
-// ---------------------------------------------------------------------------
 
 /// Status of an optimization run (mirrors `OptimizationStatus`).
 #[pyclass(
@@ -1185,9 +1169,7 @@ impl PyOptimizationStatus {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TradeSpec
-// ---------------------------------------------------------------------------
 
 /// Trade specification for a single position.
 #[pyclass(
@@ -1285,9 +1267,7 @@ impl PyTradeSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PortfolioOptimizationSpec
-// ---------------------------------------------------------------------------
 
 /// JSON-serializable portfolio optimization specification, mirroring the
 /// Rust builder pattern.
@@ -1435,9 +1415,7 @@ impl PyPortfolioOptimizationSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PortfolioOptimizationResult
-// ---------------------------------------------------------------------------
 
 /// Result of an optimization run.
 ///
@@ -1587,9 +1565,7 @@ impl PyPortfolioOptimizationResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Free helper
-// ---------------------------------------------------------------------------
 
 /// Run the optimizer against a typed :class:`PortfolioOptimizationSpec`.
 #[pyfunction]
@@ -1612,9 +1588,7 @@ fn optimize_portfolio(
     Ok(PyPortfolioOptimizationResult::from_inner(result))
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 
 /// Register optimization spec/result classes on the portfolio submodule.
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -1,4 +1,3 @@
-# finstack-quant-py/tests/test_reporting_dcf.py
 from __future__ import annotations
 
 import datetime as dt

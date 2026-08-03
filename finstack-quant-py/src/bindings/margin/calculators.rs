@@ -7,9 +7,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_margin as fm;
 use pyo3::prelude::*;
 
-// ---------------------------------------------------------------------------
 // VmResult
-// ---------------------------------------------------------------------------
 
 /// Variation margin calculation result.
 #[pyclass(
@@ -70,9 +68,7 @@ impl PyVmResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // VmCalculator
-// ---------------------------------------------------------------------------
 
 /// Variation margin calculator following ISDA CSA rules.
 #[pyclass(
@@ -125,9 +121,7 @@ impl PyVmCalculator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ImResult
-// ---------------------------------------------------------------------------
 
 /// Initial margin calculation result.
 #[pyclass(
