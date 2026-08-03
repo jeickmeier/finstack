@@ -63,7 +63,7 @@ impl DatedSeries {
     /// Allocate an empty series with capacity for `cap` points.
     #[inline]
     #[must_use]
-    pub fn with_capacity(cap: usize) -> Self {
+    pub(crate) fn with_capacity(cap: usize) -> Self {
         Self {
             values: Vec::with_capacity(cap),
             dates: Vec::with_capacity(cap),
