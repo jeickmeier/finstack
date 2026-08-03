@@ -76,9 +76,7 @@ pub fn curvature_charge(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Per-risk-class drivers
-// ---------------------------------------------------------------------------
 
 fn girr_curvature(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     if sens.girr_curvature.is_empty() {
@@ -160,9 +158,7 @@ fn fx_curvature(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 
     curvature_inter_bucket(&[(k_b, s_b)], rho)
 }
 
-// ---------------------------------------------------------------------------
 // Generic bucketed curvature
-// ---------------------------------------------------------------------------
 
 fn generic_curvature_bucketed(
     curvatures: &HashMap<(String, u8), (f64, f64)>,
@@ -190,9 +186,7 @@ fn generic_curvature_bucketed(
     curvature_inter_bucket(&bucket_results, scaled_inter)
 }
 
-// ---------------------------------------------------------------------------
 // MAR21.5 helpers
-// ---------------------------------------------------------------------------
 
 /// Psi indicator per MAR21.5.
 ///

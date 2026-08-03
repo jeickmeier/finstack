@@ -743,9 +743,7 @@ mod tests {
         );
     }
 
-    // =====================================================================
     // NGR factor for Schedule IM
-    // =====================================================================
 
     /// Perfectly-offset netting set (Σ MtM = 0 → NGR = 0): IM reduces
     /// to 40% of the gross value. BCBS-IOSCO: `0.4 + 0.6·NGR = 0.4`.

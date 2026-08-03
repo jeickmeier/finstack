@@ -761,9 +761,7 @@ impl SimmSensitivities {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Symmetric-map ordering helpers
-// ---------------------------------------------------------------------------
 
 /// Canonical ordering of a risk-class pair for symmetric correlation lookups.
 ///

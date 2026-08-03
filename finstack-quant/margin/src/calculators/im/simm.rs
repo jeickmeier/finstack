@@ -1792,9 +1792,7 @@ mod tests {
         assert!(actual.breakdown.contains_key("FX_Delta"));
     }
 
-    // -------------------------------------------------------------------------
     // Bucketed credit qualifying delta tests
-    // -------------------------------------------------------------------------
 
     #[test]
     fn bucketed_single_bucket_uses_sector_weight_and_concentration() {

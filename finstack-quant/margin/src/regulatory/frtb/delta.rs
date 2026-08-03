@@ -75,9 +75,7 @@ pub fn delta_charge(
     }
 }
 
-// ---------------------------------------------------------------------------
 // GIRR delta
-// ---------------------------------------------------------------------------
 
 /// Internal tag discriminating the three kinds of GIRR risk factor.
 ///
@@ -176,9 +174,7 @@ fn intra_girr_correlation(
     scenario.scale_correlation(base_rho)
 }
 
-// ---------------------------------------------------------------------------
 // CSR Non-Sec delta
-// ---------------------------------------------------------------------------
 
 fn csr_nonsec_delta(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     if sens.csr_nonsec_delta.is_empty() {
@@ -226,9 +222,7 @@ fn csr_sec_nonctp_delta(sens: &FrtbSensitivities, scenario: CorrelationScenario)
     )
 }
 
-// ---------------------------------------------------------------------------
 // Equity delta
-// ---------------------------------------------------------------------------
 
 fn equity_delta(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     if sens.equity_delta.is_empty() {
@@ -250,9 +244,7 @@ fn equity_delta(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 
     inter_bucket(&bucket_results, inter_gamma)
 }
 
-// ---------------------------------------------------------------------------
 // Commodity delta
-// ---------------------------------------------------------------------------
 
 fn commodity_delta(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     if sens.commodity_delta.is_empty() {
@@ -273,9 +265,7 @@ fn commodity_delta(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f
     inter_bucket(&bucket_results, inter_gamma)
 }
 
-// ---------------------------------------------------------------------------
 // FX delta
-// ---------------------------------------------------------------------------
 
 fn fx_delta(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     if sens.fx_delta.is_empty() {
@@ -297,9 +287,7 @@ fn fx_delta(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     k_squared.max(0.0).sqrt()
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// GIRR risk weight lookup by tenor label.
 ///

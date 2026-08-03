@@ -7,9 +7,7 @@ use finstack_quant_core::currency::Currency;
 use finstack_quant_core::HashMap;
 use std::collections::BTreeMap;
 
-// ---------------------------------------------------------------------------
 // Risk class enum
-// ---------------------------------------------------------------------------
 
 /// FRTB risk classes per BCBS d457.
 ///
@@ -64,9 +62,7 @@ impl std::fmt::Display for FrtbRiskClass {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Correlation scenario
-// ---------------------------------------------------------------------------
 
 /// FRTB correlation scenario for capital charge aggregation.
 ///
@@ -131,9 +127,7 @@ mod correlation_scenario_tests {
     }
 }
 
-// ---------------------------------------------------------------------------
 // DRC types
-// ---------------------------------------------------------------------------
 
 /// DRC sector classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -223,9 +217,7 @@ pub struct DrcPosition {
     pub pnl_adjustment: f64,
 }
 
-// ---------------------------------------------------------------------------
 // RRAO types
-// ---------------------------------------------------------------------------
 
 /// A position subject to the Residual Risk Add-On.
 ///
@@ -243,9 +235,7 @@ pub struct RraoPosition {
     pub is_exotic: bool,
 }
 
-// ---------------------------------------------------------------------------
 // Sensitivity inputs
-// ---------------------------------------------------------------------------
 
 /// FRTB sensitivity inputs organized by risk class.
 ///
@@ -746,9 +736,7 @@ impl FrtbSensitivities {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Result
-// ---------------------------------------------------------------------------
 
 /// Complete FRTB SBA capital charge result.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

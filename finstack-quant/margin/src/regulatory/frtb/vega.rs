@@ -44,9 +44,7 @@ pub fn vega_charge(
     }
 }
 
-// ---------------------------------------------------------------------------
 // GIRR vega
-// ---------------------------------------------------------------------------
 
 fn girr_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     if sens.girr_vega.is_empty() {
@@ -114,9 +112,7 @@ fn exp_decay_rho(t_i: f64, t_j: f64, alpha: f64) -> f64 {
     (-alpha * (t_i - t_j).abs() / min_t).exp()
 }
 
-// ---------------------------------------------------------------------------
 // CSR vega (non-sec, sec CTP, sec non-CTP)
-// ---------------------------------------------------------------------------
 
 fn csr_nonsec_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     generic_bucketed_vega(
@@ -148,9 +144,7 @@ fn csr_sec_nonctp_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) 
     )
 }
 
-// ---------------------------------------------------------------------------
 // Equity vega
-// ---------------------------------------------------------------------------
 
 fn equity_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     if sens.equity_vega.is_empty() {
@@ -170,9 +164,7 @@ fn equity_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     inter_bucket(&bucket_results, inter_gamma)
 }
 
-// ---------------------------------------------------------------------------
 // Commodity vega
-// ---------------------------------------------------------------------------
 
 fn commodity_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     if sens.commodity_vega.is_empty() {
@@ -192,9 +184,7 @@ fn commodity_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f6
     inter_bucket(&bucket_results, inter_gamma)
 }
 
-// ---------------------------------------------------------------------------
 // FX vega
-// ---------------------------------------------------------------------------
 
 fn fx_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     if sens.fx_vega.is_empty() {
@@ -215,9 +205,7 @@ fn fx_vega(sens: &FrtbSensitivities, scenario: CorrelationScenario) -> f64 {
     k_squared.max(0.0).sqrt()
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Generic bucketed vega aggregation for (name, bucket, tenor) keys.
 fn generic_bucketed_vega(
