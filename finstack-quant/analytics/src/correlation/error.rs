@@ -2,7 +2,7 @@
 //!
 //! This module contains the structured diagnostics returned by
 //! [`crate::correlation::validate_correlation_matrix`] and
-//! [`crate::correlation::nearest_correlation::nearest_correlation_matrix`].
+//! [`crate::correlation::nearest_correlation_matrix`].
 //!
 //! The errors focus on caller-fixable input problems:
 //! - wrong flattened matrix size
@@ -111,7 +111,7 @@ pub enum Error {
     /// Iterative algorithm exhausted its iteration budget before converging.
     ///
     /// Returned by
-    /// [`crate::correlation::nearest_correlation::nearest_correlation_matrix`]
+    /// [`crate::correlation::nearest_correlation_matrix`]
     /// when the alternating-projection iteration does not reach the requested
     /// tolerance within `max_iter` iterations. Distinct from
     /// [`Error::NotPositiveSemiDefinite`], which reports a *validation*

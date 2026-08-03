@@ -72,10 +72,9 @@ use crate::{
     FactorCovarianceMatrix, FactorDefinition, FactorId, FactorModelConfig, FactorType,
     MarketMapping, MatchingConfig, PricingMode,
 };
-use finstack_quant_analytics::correlation::nearest_correlation::{
-    nearest_correlation_matrix, NearestCorrelationOpts,
+use finstack_quant_analytics::correlation::{
+    nearest_correlation_matrix, validate_correlation_matrix, NearestCorrelationOpts,
 };
-use finstack_quant_analytics::correlation::validate_correlation_matrix;
 use finstack_quant_core::market_data::bumps::BumpUnits;
 use finstack_quant_core::types::IssuerId;
 

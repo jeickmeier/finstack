@@ -7,15 +7,15 @@
 //!
 //! # Components
 //!
-//! - [`error::Error`]: Structured validation diagnostics
-//! - [`nearest_correlation::nearest_correlation_matrix`][]: Higham (2002)
+//! - [`Error`]: Structured validation diagnostics
+//! - [`nearest_correlation_matrix`][]: Higham (2002)
 //!   alternating-projection PSD repair
 //! - [`validate_correlation_matrix`]: Thin wrapper over
 //!   [`finstack_quant_core::math::linalg::validate_correlation_matrix`] that
-//!   classifies failures into [`error::Error`] variants
+//!   classifies failures into [`Error`] variants
 
-pub mod error;
-pub mod nearest_correlation;
+mod error;
+mod nearest_correlation;
 
 pub use error::{Error, Result};
 pub use nearest_correlation::{nearest_correlation_matrix, NearestCorrelationOpts};
@@ -28,7 +28,7 @@ pub(crate) const CORRELATION_TOLERANCE: f64 = 1e-10;
 ///
 /// Delegates to [`finstack_quant_core::math::linalg::validate_correlation_matrix`]
 /// for the actual checks and classifies the first failure into an
-/// [`error::Error`] variant for diagnostics.
+/// [`Error`] variant for diagnostics.
 ///
 /// Checks performed:
 /// - Correct size (`matrix.len() == n * n`)
@@ -46,7 +46,7 @@ pub(crate) const CORRELATION_TOLERANCE: f64 = 1e-10;
 ///
 /// # Errors
 ///
-/// Returns the first [`error::Error`] variant detected.
+/// Returns the first [`Error`] variant detected.
 ///
 /// # Examples
 ///
