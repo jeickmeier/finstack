@@ -64,41 +64,6 @@ pub fn validate_node_id(node_id: &str) -> Result<()> {
     Ok(())
 }
 
-fn normalize_formula_aliases(
-    formula: &str,
-    registry: &crate::registry::AliasRegistry,
-    available_nodes: &IndexSet<String>,
-) -> Result<String> {
-    let identifiers = crate::utils::formula::extract_all_identifiers(formula)?;
-    let mut normalized = formula.to_string();
-    let mut ordered: Vec<_> = identifiers.into_iter().collect();
-    ordered.sort_by_key(|id| std::cmp::Reverse(id.len()));
-
-    for identifier in ordered {
-        // An identifier that is itself a defined node is never an alias for a
-        // different node: skip it. Otherwise a model with its own `sales` node
-        // (distinct from `revenue`) would have `sales` silently rewritten to
-        // `revenue` by the standard alias table.
-        if available_nodes.contains(&identifier) {
-            continue;
-        }
-        let replacement = registry
-            .normalize(&identifier)
-            .or_else(|| registry.normalize_fuzzy(&identifier, available_nodes));
-        if let Some(replacement) = replacement {
-            if replacement != identifier {
-                normalized = crate::utils::formula::replace_standalone_identifier(
-                    &normalized,
-                    &identifier,
-                    &replacement,
-                );
-            }
-        }
-    }
-
-    Ok(normalized)
-}
-
 /// Type-state marker: Periods not yet defined
 #[derive(Debug)]
 pub struct NeedPeriods;
@@ -139,7 +104,6 @@ pub struct ModelBuilder<State> {
     pub(crate) nodes: IndexMap<NodeId, NodeSpec>,
     meta: IndexMap<String, serde_json::Value>,
     pub(crate) capital_structure: Option<crate::types::CapitalStructureSpec>,
-    alias_registry: Option<crate::registry::AliasRegistry>,
     _state: PhantomData<State>,
 }
 
@@ -196,7 +160,6 @@ impl ModelBuilder<NeedPeriods> {
             nodes: IndexMap::new(),
             meta: IndexMap::new(),
             capital_structure: None,
-            alias_registry: None,
             _state: PhantomData,
         }
     }
@@ -233,7 +196,6 @@ impl ModelBuilder<NeedPeriods> {
             nodes: self.nodes,
             meta: self.meta,
             capital_structure: self.capital_structure,
-            alias_registry: self.alias_registry,
             _state: PhantomData,
         })
     }
@@ -266,7 +228,6 @@ impl ModelBuilder<NeedPeriods> {
             nodes: self.nodes,
             meta: self.meta,
             capital_structure: self.capital_structure,
-            alias_registry: self.alias_registry,
             _state: PhantomData,
         })
     }
@@ -853,22 +814,19 @@ impl ModelBuilder<Ready> {
 
     /// Build and validate the final financial-model specification.
     ///
-    /// When name normalization is enabled, aliases in formulas and `where`
-    /// clauses are resolved against the nodes already in this builder before
-    /// validation. A defined node name always wins over an alias, so adding a
-    /// node named `sales` does not silently rewrite it to `revenue`.
-    ///
     /// The returned [`FinancialModelSpec`] is the immutable input to the
-    /// evaluator; use it only after this method succeeds.
+    /// evaluator. Formula and `where` references retain the exact node IDs
+    /// supplied by the caller; unknown identifiers are diagnosed by the
+    /// dependency graph instead of being rewritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if alias normalization cannot parse a formula, or if
-    /// the completed specification violates semantic invariants such as
-    /// invalid node definitions, incompatible values, or unresolved model
-    /// dependencies. Builder calls may accept intermediate state, so this is
-    /// the authoritative whole-model validation boundary.
-    pub fn build(mut self) -> Result<FinancialModelSpec> {
+    /// Returns an error if the completed specification violates semantic
+    /// invariants such as invalid node definitions or incompatible values.
+    /// Builder calls may accept intermediate state, so this is the authoritative
+    /// whole-model validation boundary. Unknown formula references are surfaced
+    /// when the dependency graph is prepared for evaluation.
+    pub fn build(self) -> Result<FinancialModelSpec> {
         let _span = tracing::info_span!(
             "statements.build",
             model_id = self.id.as_str(),
@@ -876,24 +834,6 @@ impl ModelBuilder<Ready> {
             nodes = self.nodes.len(),
         )
         .entered();
-
-        if let Some(alias_registry) = &self.alias_registry {
-            let available_nodes: IndexSet<String> = self
-                .nodes
-                .keys()
-                .map(|id| id.as_str().to_string())
-                .collect();
-            for node in self.nodes.values_mut() {
-                if let Some(formula) = node.formula_text.as_mut() {
-                    *formula =
-                        normalize_formula_aliases(formula, alias_registry, &available_nodes)?;
-                }
-                if let Some(where_text) = node.where_text.as_mut() {
-                    *where_text =
-                        normalize_formula_aliases(where_text, alias_registry, &available_nodes)?;
-                }
-            }
-        }
 
         // Create the model spec
         let mut spec = FinancialModelSpec::new(self.id, self.periods);
@@ -1104,57 +1044,31 @@ impl MixedNodeBuilder {
     }
 }
 
-impl ModelBuilder<Ready> {
-    /// Enable name normalization with standard aliases.
-    ///
-    /// Loads standard accounting term aliases (e.g., "rev" → "revenue", "sales" → "revenue").
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use finstack_quant_statements::builder::ModelBuilder;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let model = ModelBuilder::new("demo")
-    ///     .periods("2025Q1..Q2", None)?
-    ///     .with_name_normalization()
-    ///     .compute("revenue", "100000")?
-    ///     .build()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[must_use = "builder methods take self by value and return the modified value"]
-    pub fn with_name_normalization(mut self) -> Self {
-        let mut registry = crate::registry::AliasRegistry::new();
-        registry.load_standard_aliases();
-        self.alias_registry = Some(registry);
-        self
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::evaluator::Evaluator;
 
     #[test]
-    fn test_name_normalization_rewrites_formula_aliases() {
+    fn test_formula_references_require_exact_node_ids() {
         let period = PeriodId::quarter(2025, 1);
         let model = ModelBuilder::new("alias-test")
             .periods("2025Q1..Q1", None)
             .expect("valid periods")
-            .with_name_normalization()
             .value("revenue", &[(period, AmountOrScalar::scalar(100_000.0))])
             .value("cogs", &[(period, AmountOrScalar::scalar(40_000.0))])
             .compute("gross_profit", "rev - cogs")
             .expect("valid formula")
             .build()
-            .expect("valid model");
+            .expect("formula references are checked when preparing evaluation");
 
         let mut evaluator = Evaluator::new();
-        let results = evaluator
+        let error = evaluator
             .evaluate(&model)
-            .expect("evaluation should succeed");
-        assert_eq!(results.get("gross_profit", &period), Some(60_000.0));
+            .expect_err("the alias must not be rewritten to revenue");
+        let message = error.to_string();
+        assert!(message.contains("Unknown identifier 'rev'"));
+        assert!(message.contains("Did you mean one of: revenue"));
     }
 
     #[test]

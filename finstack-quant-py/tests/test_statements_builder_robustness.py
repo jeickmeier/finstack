@@ -1,4 +1,4 @@
-"""Regression tests for statements binding robustness.
+"""Regression tests for statements binding robustness and exact-ID behavior.
 
 Covers two quant-review findings:
 
@@ -15,6 +15,12 @@ from __future__ import annotations
 import pytest
 
 from finstack_quant import statements
+
+
+def test_name_normalization_surface_is_removed() -> None:
+    builder = statements.ModelBuilder("exact-ids")
+
+    assert not hasattr(builder, "with_name_normalization")
 
 
 class TestBuilderSurvivesBadInput:

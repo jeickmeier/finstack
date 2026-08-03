@@ -1336,13 +1336,6 @@ class ModelBuilder:
         """
         ...
 
-    def with_name_normalization(self) -> None:
-        """
-        Enable standard accounting term alias normalization.
-
-        """
-        ...
-
     def with_builtin_metrics(self) -> None:
         """
         Add all built-in statement metrics to the model.

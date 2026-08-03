@@ -74,12 +74,10 @@
 //! - [`ModelBuilder::with_builtin_metrics`](crate::builder::ModelBuilder::with_builtin_metrics)
 //! - Metric files in `finstack-quant/statements/data/metrics/`
 
-pub(crate) mod aliases;
 pub(crate) mod builtins;
 pub mod dynamic;
 pub(crate) mod schema;
 pub(crate) mod validation;
 
-pub(crate) use aliases::AliasRegistry;
 pub use dynamic::Registry;
 pub use schema::{MetricDefinition, MetricRegistry, UnitType};

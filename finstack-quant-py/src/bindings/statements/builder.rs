@@ -352,15 +352,6 @@ impl PyModelBuilder {
         Ok(())
     }
 
-    /// Enable standard accounting name normalization.
-    #[pyo3(text_signature = "($self)")]
-    fn with_name_normalization(&mut self) -> PyResult<()> {
-        let state = self.take_ready()?;
-        let ready = state.with_name_normalization();
-        self.inner = Some(BuilderState::Ready(ready));
-        Ok(())
-    }
-
     /// Add all built-in statement metrics.
     #[pyo3(text_signature = "($self)")]
     fn with_builtin_metrics(&mut self) -> PyResult<()> {

@@ -4,6 +4,10 @@
 
 ### Changed
 
+- **Breaking (Rust, Python):** Removed statement formula alias and fuzzy-name
+  rewriting, including `ModelBuilder::with_name_normalization`. Formulas and
+  `where` clauses now require exact node IDs; unknown IDs retain the dependency
+  graph's nearest-name diagnostics.
 - **Breaking (Rust):** Removed the unused
   `CreditScoringError::OutOfRange` variant. Credit scoring input failures
   continue to use `NonFiniteInput` and `InvalidBinaryIndicator`.
