@@ -1220,7 +1220,8 @@ class PortfolioResult:
         Returns
         -------
         float | None
-            Requested metric resolved from this `PortfolioResult` in the annotated representation.
+            Aggregated scalar stored under ``metric_id``, or ``None`` when the
+            result contains no matching metric.
         """
         ...
 

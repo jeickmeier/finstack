@@ -678,7 +678,8 @@ class SensitivityResult:
         Returns
         -------
         float | None
-            Requested parameter value resolved from this `SensitivityResult` in the annotated representation.
+            Shocked value of ``parameter`` in the selected scenario, or
+            ``None`` when that parameter was not recorded.
 
         Raises
         ------
@@ -703,7 +704,8 @@ class SensitivityResult:
         Returns
         -------
         float | None
-            Requested value resolved from this `SensitivityResult` in the annotated representation.
+            Simulated value for ``node_id`` and ``period`` in the selected
+            scenario, or ``None`` when no value was recorded.
 
         Raises
         ------
@@ -1078,7 +1080,8 @@ class MonteCarloResults:
         Returns
         -------
         dict[str, float] | None
-            Requested percentile series resolved from this `MonteCarloResults` in the annotated representation.
+            Mapping from forecast-period labels to values for the requested
+            metric and percentile, or ``None`` when that series is absent.
 
         """
         ...
