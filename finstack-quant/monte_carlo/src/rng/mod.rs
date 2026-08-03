@@ -63,12 +63,10 @@
 //!   equidistributed uniform pseudo-random number generator."
 //!   ACM TOMACS 8(1):3-30.
 
-pub mod brownian_bridge;
 pub mod fbm;
 pub mod philox;
-pub mod poisson;
 pub mod sobol;
 pub mod volterra;
 
-pub use brownian_bridge::BrownianBridge;
+pub use finstack_quant_core::math::random::{brownian_bridge, poisson, BrownianBridge};
 pub use philox::PhiloxRng;

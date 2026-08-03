@@ -11,12 +11,12 @@ use crate::estimate::Estimate;
 use crate::online_stats::OnlineStats;
 use crate::process::gbm::GbmProcess;
 use crate::process::metadata::ProcessMetadata;
-use crate::rng::brownian_bridge::BrownianBridge;
 use crate::rng::philox::PhiloxRng;
 use crate::rng::sobol::{SobolRng, MAX_SOBOL_DIMENSION};
 use crate::time_grid::TimeGrid;
 use crate::traits::{Discretization, RandomStream, StochasticProcess};
 use finstack_quant_core::currency::Currency;
+use finstack_quant_core::math::random::BrownianBridge;
 use finstack_quant_core::{Error, Result};
 
 /// Domain-separation salt for the per-path auxiliary-uniform Philox streams

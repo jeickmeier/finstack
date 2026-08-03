@@ -37,9 +37,9 @@
 //!   Financial Studies*, 9(1), 69–107.
 
 use super::super::process::bates::BatesProcess;
-use super::super::rng::poisson::poisson_from_normal;
 use super::super::traits::Discretization;
 use super::qe_heston::{IntegratedVarianceMethod, QeHeston};
+use finstack_quant_core::math::random::poisson::poisson_from_normal;
 
 /// QE discretization for the Bates model.
 ///

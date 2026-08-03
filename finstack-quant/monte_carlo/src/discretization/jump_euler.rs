@@ -12,8 +12,8 @@
 //! 4. Multiply spot by jump product: S *= ∏J_i
 
 use super::super::process::jump_diffusion::MertonJumpProcess;
-use super::super::rng::poisson::poisson_from_normal;
 use super::super::traits::Discretization;
+use finstack_quant_core::math::random::poisson::poisson_from_normal;
 
 /// Jump-augmented Euler for Merton jump-diffusion.
 ///
