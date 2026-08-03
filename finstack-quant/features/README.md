@@ -88,10 +88,8 @@ processed in sorted-key order).
 | `minmax_scale` | — | Scale finite values to `[0, 1]` within the partition |
 | `clip` | `lower` (`-inf`), `upper` (`inf`) | Clamp to explicit value bounds |
 | `clip_by_sigma` | `sigma` (3.0) | Clamp to `mean ± sigma * population_std` |
-| `clip_by_quantile` | `lower` (0.01), `upper` (0.99) | Alias for `winsorize` |
 | `normal_score_transform` | — | Map open-interval percentile ranks to standard-normal scores |
 | `long_short_weights` | — | Demean signal values and normalize by gross absolute exposure |
-| `dollar_neutral_weights` | — | Alias for dollar-neutral long/short weights |
 | `cap_weights` | `max_abs` (1.0) | Cap centered weights before gross normalization |
 | `fill_missing` | `value` (0.0) | Replace missing or non-finite values with a constant |
 | `is_finite` | — | Emit `1.0` for finite inputs and `0.0` otherwise |

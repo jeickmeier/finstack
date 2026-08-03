@@ -35,14 +35,10 @@ pub enum CrossSectionalOp {
     Clip,
     /// Clamp values to `mean ± sigma * population_std`.
     ClipBySigma,
-    /// Alias for [`Self::Winsorize`]: clamp to partition quantile bounds.
-    ClipByQuantile,
     /// Map open-interval percentile ranks to standard-normal scores.
     NormalScoreTransform,
     /// Demean signal values and normalize by gross absolute exposure.
     LongShortWeights,
-    /// Alias for [`Self::LongShortWeights`] (dollar-neutral long/short weights).
-    DollarNeutralWeights,
     /// Cap absolute centered weights before gross normalization.
     CapWeights,
     /// Fill missing and non-finite values with a constant.
@@ -69,10 +65,8 @@ impl CrossSectionalOp {
             Self::MinmaxScale => "minmax_scale",
             Self::Clip => "clip",
             Self::ClipBySigma => "clip_by_sigma",
-            Self::ClipByQuantile => "clip_by_quantile",
             Self::NormalScoreTransform => "normal_score_transform",
             Self::LongShortWeights => "long_short_weights",
-            Self::DollarNeutralWeights => "dollar_neutral_weights",
             Self::CapWeights => "cap_weights",
             Self::FillMissing => "fill_missing",
             Self::IsFinite => "is_finite",
@@ -96,10 +90,8 @@ impl FromStr for CrossSectionalOp {
             "minmax_scale" => Ok(Self::MinmaxScale),
             "clip" => Ok(Self::Clip),
             "clip_by_sigma" => Ok(Self::ClipBySigma),
-            "clip_by_quantile" => Ok(Self::ClipByQuantile),
             "normal_score_transform" => Ok(Self::NormalScoreTransform),
             "long_short_weights" => Ok(Self::LongShortWeights),
-            "dollar_neutral_weights" => Ok(Self::DollarNeutralWeights),
             "cap_weights" => Ok(Self::CapWeights),
             "fill_missing" => Ok(Self::FillMissing),
             "is_finite" => Ok(Self::IsFinite),
@@ -180,13 +172,11 @@ pub fn transform_cross_sectional_with_op(
             CrossSectionalOp::MinmaxScale => minmax_scale(values, indices, &mut output),
             CrossSectionalOp::Clip => clip(values, indices, params, &mut output)?,
             CrossSectionalOp::ClipBySigma => clip_by_sigma(values, indices, params, &mut output)?,
-            CrossSectionalOp::ClipByQuantile | CrossSectionalOp::Winsorize => {
-                winsorize(values, indices, params, &mut output)?
-            }
+            CrossSectionalOp::Winsorize => winsorize(values, indices, params, &mut output)?,
             CrossSectionalOp::NormalScoreTransform => {
                 normal_score_transform(values, indices, &mut output)
             }
-            CrossSectionalOp::LongShortWeights | CrossSectionalOp::DollarNeutralWeights => {
+            CrossSectionalOp::LongShortWeights => {
                 long_short_weights(values, indices, None, &mut output)?
             }
             CrossSectionalOp::CapWeights => cap_weights(values, indices, params, &mut output)?,

@@ -4,6 +4,12 @@
 
 ### Changed
 
+- **Breaking (Rust, JSON, Python, WASM):** Removed the duplicate feature-operation
+  names `clip_by_quantile` / `ClipByQuantile` and
+  `dollar_neutral_weights` / `DollarNeutralWeights`. Use `winsorize` /
+  `CrossSectionalOp::Winsorize` and `long_short_weights` /
+  `CrossSectionalOp::LongShortWeights` in typed Rust calls, JSON panel specs,
+  and Python or WASM string-dispatched calls.
 - **Breaking (Rust):** Removed the public `CagrBasis` and
   `AnnualizationConvention` configuration types. `Performance::cagr()` keeps
   its existing date-based Act/365.25 behavior.

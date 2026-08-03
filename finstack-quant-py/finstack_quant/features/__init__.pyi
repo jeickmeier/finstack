@@ -132,16 +132,16 @@ def transform_cross_sectional(
         Operation name. Supported values are ``"zscore"``, ``"rank"``,
         ``"percentile_rank"``, ``"quantile_bucket"``, ``"demean"``,
         ``"robust_zscore"``, ``"minmax_scale"``, ``"clip"``,
-        ``"clip_by_sigma"``, ``"clip_by_quantile"``,
+        ``"clip_by_sigma"``,
         ``"normal_score_transform"``, ``"long_short_weights"``,
-        ``"dollar_neutral_weights"``, ``"cap_weights"``,
+        ``"cap_weights"``,
         ``"fill_missing"``, ``"is_finite"``, ``"nan_mask"``, and
         ``"winsorize"``.
     params : TransformParams or None
         Optional operation parameters. ``quantile_bucket`` accepts
         ``buckets``; ``clip`` accepts explicit ``lower`` and ``upper``;
-        ``clip_by_sigma`` accepts ``sigma``; ``clip_by_quantile`` and
-        ``winsorize`` accept ``lower`` and ``upper`` quantile
+        ``clip_by_sigma`` accepts ``sigma``; ``winsorize`` accepts ``lower``
+        and ``upper`` quantile
         probabilities; ``cap_weights`` accepts ``max_abs``;
         ``fill_missing`` accepts ``value``.
 
@@ -459,7 +459,7 @@ def clean_signal(
     Apply the default cross-sectional signal-cleaning pass.
 
     Delegates to :func:`transform_cross_sectional` with the
-    ``"clip_by_quantile"`` operation, clamping each timestamp partition to its
+    ``"winsorize"`` operation, clamping each timestamp partition to its
     ``lower``/``upper`` sample quantiles.
 
     Parameters

@@ -371,7 +371,7 @@ pub fn risk_scaled_weights(
 
 /// Apply the default signal cleaning pass: cross-sectional quantile clipping.
 ///
-/// Parameters are forwarded to `clip_by_quantile` (`lower`, `upper`).
+/// Parameters are forwarded to `winsorize` (`lower`, `upper`).
 ///
 /// # Arguments
 ///
@@ -379,7 +379,7 @@ pub fn risk_scaled_weights(
 ///   partition.
 /// * `time_key` - Row-aligned labels defining the cross-sections to clean.
 /// * `params` - Optional `lower` and `upper` quantile bounds forwarded to
-///   `clip_by_quantile`.
+///   `winsorize`.
 ///
 /// # Errors
 ///
@@ -390,7 +390,7 @@ pub fn clean_signal(
     time_key: &[String],
     params: Option<&Value>,
 ) -> Result<Vec<Option<f64>>> {
-    transform_cross_sectional(values, time_key, "clip_by_quantile", params)
+    transform_cross_sectional(values, time_key, "winsorize", params)
 }
 
 /// Normalize a signal cross-sectionally with a selected method.

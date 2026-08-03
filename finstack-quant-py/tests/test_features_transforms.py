@@ -56,7 +56,7 @@ def test_transform_entrypoints_accept_expanded_feature_ops() -> None:
     clipped = transform_cross_sectional(
         values,
         time_key,
-        "clip_by_quantile",
+        "winsorize",
         {"lower": 0.25, "upper": 0.75},
     )
     assert clipped == [1.75, 2.0, 2.0, 2.5]
@@ -85,6 +85,12 @@ def test_transform_entrypoints_accept_expanded_feature_ops() -> None:
         {"span": 3.0},
     )
     assert ewma_mean == pytest.approx([1.0, 2.0, 3.5])
+
+
+@pytest.mark.parametrize("alias", ["clip_by_quantile", "dollar_neutral_weights"])
+def test_transform_cross_sectional_rejects_removed_aliases(alias: str) -> None:
+    with pytest.raises(ValueError, match=alias):
+        transform_cross_sectional([1.0, 2.0], ["2026-01-01"] * 2, alias)
 
 
 def test_finance_specific_transform_entrypoints() -> None:

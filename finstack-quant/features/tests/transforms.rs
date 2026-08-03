@@ -396,17 +396,40 @@ fn transform_cross_sectional_supports_mvp_signal_cleaning_ops() {
         ],
     );
 
-    let clip_by_quantile = transform_cross_sectional(
+    let winsorized = transform_cross_sectional(
         &values,
         &time_key,
-        "clip_by_quantile",
+        "winsorize",
         Some(&json!({"lower": 0.25, "upper": 0.75})),
     )
-    .expect("clip by quantile");
+    .expect("winsorize");
     assert_eq!(
-        clip_by_quantile,
+        winsorized,
         vec![Some(1.75), Some(2.0), Some(2.0), Some(2.5), None, None]
     );
+}
+
+#[test]
+fn transform_cross_sectional_rejects_removed_aliases() {
+    let values = vec![Some(1.0), Some(2.0)];
+    let time_key = vec!["2026-01-01".to_string(), "2026-01-01".to_string()];
+
+    for alias in ["clip_by_quantile", "dollar_neutral_weights"] {
+        let err = transform_cross_sectional(&values, &time_key, alias, None)
+            .expect_err("removed alias must be rejected");
+        assert!(err.to_string().contains(alias));
+
+        let spec = json!({
+            "values": [1.0, 2.0],
+            "time_key": ["2026-01-01", "2026-01-01"],
+            "operations": [
+                {"name": "removed", "family": "cross_sectional", "op": alias}
+            ]
+        });
+        let err = transform_panel(&spec.to_string())
+            .expect_err("removed alias must be rejected in panel JSON");
+        assert!(err.to_string().contains(alias));
+    }
 }
 
 #[test]
@@ -447,20 +470,6 @@ fn transform_cross_sectional_supports_weight_and_missing_ops() {
         .expect("long short weights");
     assert_close_options(
         &long_short,
-        &[
-            Some(-0.357_142_857_142_857_15),
-            Some(-0.142_857_142_857_142_85),
-            Some(0.5),
-            None,
-            None,
-        ],
-    );
-
-    let dollar_neutral =
-        transform_cross_sectional(&values, &time_key, "dollar_neutral_weights", None)
-            .expect("dollar neutral weights");
-    assert_close_options(
-        &dollar_neutral,
         &[
             Some(-0.357_142_857_142_857_15),
             Some(-0.142_857_142_857_142_85),

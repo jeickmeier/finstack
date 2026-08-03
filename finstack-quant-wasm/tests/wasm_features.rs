@@ -84,6 +84,17 @@ fn transform_expanded_feature_ops_return_js_arrays() {
 }
 
 #[wasm_bindgen_test]
+fn transform_cross_sectional_rejects_removed_aliases() {
+    for alias in ["clip_by_quantile", "dollar_neutral_weights"] {
+        let values = serde_wasm_bindgen::to_value(&vec![Some(1.0), Some(2.0)])
+            .expect("values");
+        let time_key = serde_wasm_bindgen::to_value(&vec!["2026-01-01", "2026-01-01"])
+            .expect("time key");
+        assert!(transform_cross_sectional(values, time_key, alias, None).is_err());
+    }
+}
+
+#[wasm_bindgen_test]
 fn finance_specific_feature_ops_return_js_arrays() {
     let values = serde_wasm_bindgen::to_value(&vec![Some(1.0), Some(3.0), Some(10.0), Some(14.0)])
         .expect("values");
