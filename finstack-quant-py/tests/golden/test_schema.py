@@ -81,7 +81,7 @@ def _metadata() -> dict:
         "last_reviewed_by": "test",
         "last_reviewed_on": "2026-04-30",
         "review_interval_months": 6,
-        "regen_command": "uv run scripts/goldens/regen.py --kind irs-par",
+        "regen_command": "uv run python -m scripts.golden.quantlib.generate --product irs",
     }
 
 

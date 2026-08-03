@@ -23,8 +23,8 @@ repos:
         args: [--allow-multiple-documents]
       - id: check-toml
       - id: check-json
-        # Exclude: tsconfig (JSONC with comments), generated audit files, pkg dirs
-        exclude: ^(finstack-quant-wasm/pkg|node_modules|package-lock\.json|.*tsconfig.*\.json|scripts/audits/.*\.json)
+        # Exclude: tsconfig (JSONC with comments), pkg dirs
+        exclude: ^(finstack-quant-wasm/pkg|node_modules|package-lock\.json|.*tsconfig.*\.json)
       - id: check-merge-conflict
       - id: check-added-large-files
         args: [--maxkb=500]

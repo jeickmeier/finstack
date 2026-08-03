@@ -212,9 +212,8 @@ mise install
 ```
 
 Windows users should run `mise run <task>` from a POSIX shell such as Git Bash,
-MSYS2, or WSL. mise itself works natively on Windows, and every task in
-`mise.toml` is cross-platform except `docs-all`, which shells out to a bash
-script under `scripts/`.
+MSYS2, or WSL. mise itself works natively on Windows, and the tasks in
+`mise.toml` are written for POSIX shells.
 
 ## Common Commands
 
