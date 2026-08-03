@@ -1,6 +1,6 @@
 //! Comprehensive unit tests for Fixed Income Index Total Return Swaps.
 //!
-//! Tests cover instrument creation, validation, pricing, carry and roll calculations,
+//! Tests cover instrument creation, validation, pricing, carry calculations,
 //! duration sensitivity, and index-specific behaviors.
 
 use super::test_utils::*;

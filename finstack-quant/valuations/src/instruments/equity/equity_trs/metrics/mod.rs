@@ -1,10 +1,10 @@
 //! Risk metrics for Equity Total Return Swaps.
 //!
 //! This module provides equity TRS-specific risk metrics:
-//! - **Delta**: Sensitivity to underlying equity price
+//! - **IndexDelta**: Lifecycle-aware spot sensitivity with reset fixings held constant
 //! - **Dividend01**: Sensitivity to dividend yield changes
 //! - **ParSpread**: Spread that makes NPV = 0
-//! - **FinancingAnnuity**: PV01 of the financing leg
+//! - **FinancingAnnuity**: Discounted notional-weighted financing accrual sum
 
 mod annuity;
 mod delta;

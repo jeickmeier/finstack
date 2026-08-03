@@ -3,7 +3,7 @@
 //! This module provides FI TRS-specific risk metrics:
 //! - **DurationDv01**: Duration-based yield sensitivity (`N × D × 1bp`)
 //! - **ParSpread**: Spread that makes NPV = 0
-//! - **FinancingAnnuity**: PV01 of the financing leg
+//! - **FinancingAnnuity**: Discounted notional-weighted financing accrual sum
 //! - **Dv01 / BucketedDv01**: Financing curve rate sensitivity
 
 mod annuity;

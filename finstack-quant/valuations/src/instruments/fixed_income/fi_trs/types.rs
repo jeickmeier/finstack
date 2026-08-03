@@ -1,7 +1,4 @@
-//! Fixed Income Index Total Return Swap instrument definitions.
-//!
-//! This module provides the [`FIIndexTotalReturnSwap`] instrument for synthetic
-//! fixed income index exposure.
+//! Fixed-income index total-return swap contract.
 
 use crate::impl_instrument_base;
 use crate::{
@@ -23,26 +20,67 @@ use finstack_quant_core::{
 use finstack_quant_margin::types::OtcMarginSpec;
 use rust_decimal::Decimal;
 
-/// Fixed Income Index Total Return Swap instrument.
+/// Fixed-income index total-return swap priced with a carry analytic.
 ///
-/// A TRS where the total return leg is based on a fixed income index (e.g., corporate bond index).
-/// The holder receives the total return (carry + roll) of the underlying index in exchange
-/// for paying a floating rate plus spread on the notional amount.
+/// For each scheduled period, the total-return leg uses
+/// `exp(y × accrual_fraction) - 1`, where `y` is an annual continuously
+/// compounded decimal yield and the accrual fraction uses the schedule day
+/// count. Both legs are discounted with `financing.discount_curve_id`; the
+/// financing leg projects `financing.forward_curve_id` plus `spread_bp`.
+/// Receive-total-return value is `PV(total return) - PV(financing)`;
+/// pay-total-return value reverses that sign.
 ///
-/// # Use Cases
+/// # Model limitations
 ///
-/// - **Synthetic bond exposure**: Gain bond index exposure without buying bonds
-/// - **Duration management**: Adjust portfolio duration synthetically
-/// - **ETF replication**: Replicate bond ETF returns synthetically
-/// - **Credit exposure**: Access corporate bond index returns
+/// This deterministic carry analytic omits realized index price returns,
+/// roll-down, underlying rate/spread mark-to-market, stochastic credit,
+/// constituent decomposition, early termination, and bespoke fees. Pricing
+/// rejects an in-progress total-return accrual period. Cashflow-schedule APIs
+/// return payment dates with zero amounts; use
+/// [`Self::pv_total_return_leg`] and [`Self::pv_financing_leg`] for projected
+/// leg values.
 ///
-/// # Example
+/// # Construction
 ///
 /// ```
+/// use finstack_quant_core::{
+///     currency::Currency, dates::DayCount, money::Money, types::InstrumentId,
+/// };
+/// use finstack_quant_cashflows::builder::ScheduleParams;
+/// use finstack_quant_valuations::instruments::{
+///     Attributes, FinancingLegSpec, IndexUnderlyingParams,
+/// };
 /// use finstack_quant_valuations::instruments::fixed_income::fi_trs::FIIndexTotalReturnSwap;
+/// use finstack_quant_valuations::instruments::fixed_income::fi_trs::{
+///     TrsScheduleSpec, TrsSide,
+/// };
+/// use rust_decimal::Decimal;
+/// use time::macros::date;
 ///
-/// let trs = FIIndexTotalReturnSwap::example().unwrap();
-/// // let pv = trs.value(&market_context, as_of_date)?;
+/// # fn main() -> finstack_quant_core::Result<()> {
+/// let trs = FIIndexTotalReturnSwap::builder()
+///     .id(InstrumentId::new("CORP-TRS"))
+///     .notional(Money::new(10_000_000.0, Currency::USD))
+///     .underlying(
+///         IndexUnderlyingParams::new("US-CORP", Currency::USD)
+///             .with_yield("US-CORP-YIELD")
+///             .with_duration("US-CORP-DURATION"),
+///     )
+///     .financing(FinancingLegSpec::new(
+///         "USD-OIS", "USD-SOFR-3M", Decimal::from(35), DayCount::Act360,
+///     ))
+///     .schedule(TrsScheduleSpec::from_params(
+///         date!(2026 - 01 - 02),
+///         date!(2027 - 01 - 02),
+///         ScheduleParams::quarterly_act360(),
+///     ))
+///     .side(TrsSide::ReceiveTotalReturn)
+///     .initial_level_opt(None)
+///     .attributes(Attributes::new())
+///     .build()?;
+/// assert_eq!(trs.notional.currency(), Currency::USD);
+/// # Ok(())
+/// # }
 /// ```
 #[derive(
     Clone,
@@ -66,7 +104,9 @@ pub struct FIIndexTotalReturnSwap {
     pub schedule: TrsScheduleSpec,
     /// Trade side (receive/pay total return).
     pub side: TrsSide,
-    /// Initial index level (if known, otherwise fetched from market).
+    /// Optional reference level retained with the contract.
+    ///
+    /// The deterministic carry pricer does not consume or fetch this value.
     pub initial_level: Option<f64>,
     /// Optional OTC margin specification for VM/IM.
     ///
@@ -228,7 +268,7 @@ impl FIIndexTotalReturnSwap {
     ///
     /// # Arguments
     /// * `curves` — Market context containing curves and market data
-    /// * `as_of` — Valuation date
+    /// * `as_of` — Date that selects remaining return periods and anchors discounting
     ///
     /// # Returns
     /// Present value of the total return leg in the instrument's currency.
@@ -241,7 +281,7 @@ impl FIIndexTotalReturnSwap {
     ///
     /// # Arguments
     /// * `curves` — Market context containing curves and market data
-    /// * `as_of` — Valuation date
+    /// * `as_of` — Date that selects remaining financing periods and anchors discounting
     ///
     /// # Returns
     /// Present value of the financing leg in the instrument's currency.
@@ -261,7 +301,7 @@ impl FIIndexTotalReturnSwap {
     ///
     /// # Arguments
     /// * `curves` — Market context containing curves and market data
-    /// * `as_of` — Valuation date
+    /// * `as_of` — Date that selects remaining financing periods and anchors discounting
     ///
     /// # Returns
     /// Financing annuity (sum of discounted year fractions × notional).

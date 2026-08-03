@@ -6,9 +6,9 @@ use finstack_quant_core::Result;
 
 /// Calculates the financing annuity for an equity TRS.
 ///
-/// The financing annuity is the sum of discounted year fractions over all payment periods,
-/// multiplied by the notional amount. This represents the present value of a 1 basis point
-/// spread over the floating rate.
+/// The annuity is the discounted notional-weighted accrual sum used by the
+/// par-spread solve. Multiplying it by `0.0001` gives the PV of one basis point
+/// of financing spread.
 pub(crate) struct FinancingAnnuityCalculator;
 
 impl MetricCalculator for FinancingAnnuityCalculator {

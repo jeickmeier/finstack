@@ -1,7 +1,4 @@
-//! Equity Total Return Swap instrument definitions.
-//!
-//! This module provides the [`EquityTotalReturnSwap`] instrument for synthetic
-//! equity index or single-stock exposure.
+//! Equity total-return swap contract.
 
 use crate::impl_instrument_base;
 use crate::{
@@ -24,26 +21,52 @@ use finstack_quant_margin::types::OtcMarginSpec;
 use rust_decimal::Decimal;
 use time::macros::date;
 
-/// Equity Total Return Swap instrument.
+/// Equity total-return swap exchanging price and net dividend return against
+/// floating-rate financing plus a contractual spread.
 ///
-/// A TRS where the total return leg is based on an equity index or single stock.
-/// The holder receives the total return (price appreciation + dividends) of the underlying
-/// equity in exchange for paying a floating rate plus spread on the notional amount.
+/// Seasoned trades require the observed level at the current period start in
+/// `past_fixings`, except that `initial_level` may anchor the first period.
 ///
-/// # Use Cases
-///
-/// - **Synthetic long exposure**: Gain equity index exposure without buying assets
-/// - **Leverage**: Minimize upfront capital requirements
-/// - **ETF replication**: Replicate equity ETF returns synthetically
-/// - **Short exposure**: Easier than borrowing securities
-///
-/// # Example
+/// # Construction
 ///
 /// ```
+/// use finstack_quant_core::{
+///     currency::Currency, dates::DayCount, money::Money, types::InstrumentId,
+/// };
+/// use finstack_quant_cashflows::builder::ScheduleParams;
+/// use finstack_quant_valuations::instruments::{
+///     Attributes, EquityUnderlyingParams, FinancingLegSpec,
+/// };
 /// use finstack_quant_valuations::instruments::equity::equity_trs::EquityTotalReturnSwap;
+/// use finstack_quant_valuations::instruments::equity::equity_trs::{
+///     TrsScheduleSpec, TrsSide,
+/// };
+/// use rust_decimal::Decimal;
+/// use time::macros::date;
 ///
-/// let trs = EquityTotalReturnSwap::example().unwrap();
-/// // let pv = trs.value(&market_context, as_of_date)?;
+/// # fn main() -> finstack_quant_core::Result<()> {
+/// let trs = EquityTotalReturnSwap::builder()
+///     .id(InstrumentId::new("SPX-TRS"))
+///     .notional(Money::new(10_000_000.0, Currency::USD))
+///     .underlying(
+///         EquityUnderlyingParams::new("SPX", "SPX-SPOT", Currency::USD)
+///             .with_dividend_yield("SPX-DIV"),
+///     )
+///     .financing(FinancingLegSpec::new(
+///         "USD-OIS", "USD-SOFR-3M", Decimal::from(50), DayCount::Act360,
+///     ))
+///     .schedule(TrsScheduleSpec::from_params(
+///         date!(2026 - 01 - 02),
+///         date!(2027 - 01 - 02),
+///         ScheduleParams::quarterly_act360(),
+///     ))
+///     .side(TrsSide::ReceiveTotalReturn)
+///     .initial_level_opt(None)
+///     .attributes(Attributes::new())
+///     .build()?;
+/// assert_eq!(trs.notional.currency(), Currency::USD);
+/// # Ok(())
+/// # }
 /// ```
 #[derive(
     Clone,
@@ -68,7 +91,10 @@ pub struct EquityTotalReturnSwap {
     pub schedule: TrsScheduleSpec,
     /// Trade side (receive/pay total return).
     pub side: TrsSide,
-    /// Initial index level (if known, otherwise fetched from market).
+    /// Optional first-period start level.
+    ///
+    /// Pricing uses this only when the first period is in progress and no
+    /// matching entry exists in `past_fixings`. Future periods use live spot.
     pub initial_level: Option<f64>,
     /// Observed underlying levels at past reset (period-start) dates.
     ///
@@ -408,7 +434,7 @@ impl EquityTotalReturnSwap {
     ///
     /// # Arguments
     /// * `curves` — Market context containing curves and market data
-    /// * `as_of` — Valuation date
+    /// * `as_of` — Date that selects remaining return periods and anchors discounting
     ///
     /// # Returns
     /// Present value of the total return leg in the instrument's currency.
@@ -429,7 +455,7 @@ impl EquityTotalReturnSwap {
     ///
     /// # Arguments
     /// * `curves` — Market context containing curves and market data
-    /// * `as_of` — Valuation date
+    /// * `as_of` — Date that selects remaining financing periods and anchors discounting
     ///
     /// # Returns
     /// Present value of the financing leg in the instrument's currency.
@@ -449,7 +475,7 @@ impl EquityTotalReturnSwap {
     ///
     /// # Arguments
     /// * `curves` — Market context containing curves and market data
-    /// * `as_of` — Valuation date
+    /// * `as_of` — Date that selects remaining financing periods and anchors discounting
     ///
     /// # Returns
     /// Financing annuity (sum of discounted year fractions × notional).
