@@ -46,15 +46,13 @@ def scroll(inner_html: str) -> str:
     return f'<div class="fq-scroll">{inner_html}</div>'
 
 
-def kv_table(rows: list[tuple[str, str, str]], *, theme: Theme) -> str:  # noqa: ARG001
+def kv_table(rows: list[tuple[str, str, str]]) -> str:
     """Render a key/value HTML table.
 
     Parameters
     ----------
     rows : list[tuple[str, str, str]]
         ``(label, display_value, CSS_class)`` rows in desired display order.
-    theme : Theme
-        Report theme retained for a consistent chart/table helper interface.
 
     Returns:
     -------
@@ -83,7 +81,6 @@ def data_table(
     rows: list[dict[str, Any]],
     *,
     columns: list[str],
-    theme: Theme,  # noqa: ARG001
     formats: dict[str, Callable[[Any], str]] | None = None,
     neg_columns: set[str] | None = None,
 ) -> str:
@@ -95,8 +92,6 @@ def data_table(
         Display rows whose keys are selected by ``columns``.
     columns : list[str]
         Ordered column names to render from every row dictionary.
-    theme : Theme
-        Report theme retained for a consistent chart/table helper interface.
     formats : dict[str, Callable[[Any], str]] or None
         Optional per-column display functions; unlisted values are HTML escaped.
     neg_columns : set[str] or None

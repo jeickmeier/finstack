@@ -77,7 +77,7 @@ def _waterfall_section(attribution: Any, theme: Theme) -> Section | None:
     )
 
 
-def _factors_section(attribution: Any, theme: Theme) -> Section | None:
+def _factors_section(attribution: Any) -> Section | None:
     rows = _factor_rows(attribution)
     if not rows:
         return None
@@ -91,7 +91,6 @@ def _factors_section(attribution: Any, theme: Theme) -> Section | None:
     body = tables.data_table(
         data,
         columns=["Factor", "Amount", "% of Total"],
-        theme=theme,
         formats={
             "Factor": str,
             "Amount": lambda x: fmt.money(x, cur, dp=0),
@@ -102,7 +101,7 @@ def _factors_section(attribution: Any, theme: Theme) -> Section | None:
     return Section("Factor Contributions", body)
 
 
-def _detail_section(df: Any, title: str, theme: Theme, drop_total_kind: str, currency: str) -> Section | None:
+def _detail_section(df: Any, title: str, drop_total_kind: str, currency: str) -> Section | None:
     if df is None or len(df) == 0:
         return None
     data: list[dict[str, Any]] = []
@@ -117,7 +116,6 @@ def _detail_section(df: Any, title: str, theme: Theme, drop_total_kind: str, cur
     body = tables.data_table(
         data,
         columns=["Component", "Amount"],
-        theme=theme,
         formats={"Component": str, "Amount": lambda x: fmt.money(x, currency, dp=0)},
         neg_columns={"Amount"},
     )
@@ -131,12 +129,12 @@ def _build_sections(attribution: Any, wanted: list[str], theme: Theme) -> list[S
         if s is not None:
             out.append(s)
     if "factors" in wanted:
-        s = _factors_section(attribution, theme)
+        s = _factors_section(attribution)
         if s is not None:
             out.append(s)
     if "carry" in wanted:
         s = _detail_section(
-            attribution.to_carry_detail_dataframe(), "Carry & Roll-Down", theme, "carry.total", attribution.currency
+            attribution.to_carry_detail_dataframe(), "Carry & Roll-Down", "carry.total", attribution.currency
         )
         if s is not None:
             out.append(s)
@@ -144,7 +142,6 @@ def _build_sections(attribution: Any, wanted: list[str], theme: Theme) -> list[S
         s = _detail_section(
             attribution.to_credit_factor_dataframe(),
             "Credit Factor Detail",
-            theme,
             "credit_factor.total",
             attribution.currency,
         )

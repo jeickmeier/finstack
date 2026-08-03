@@ -127,12 +127,12 @@ def statement_tearsheet(
     secs: list[Section] = []
     if "summary" in wanted:
         rows = _summary_rows(view, line_items)
-        secs.append(Section("Income Statement", pl_matrix_table(view, rows, pers, theme=theme)))
+        secs.append(Section("Income Statement", pl_matrix_table(view, rows, pers)))
     if "trend" in wanted:
         secs.append(_section_trend(view, pers, theme))
     if "margins" in wanted and (s := _section_margins(view, pers, theme)) is not None:
         secs.append(s)
-    if "variance" in wanted and (s := _section_variance(variance, theme)) is not None:
+    if "variance" in wanted and (s := _section_variance(variance)) is not None:
         secs.append(s)
 
     latest = pers[-1] if pers else None

@@ -147,7 +147,7 @@ def scenario_tearsheet(
         secs.append(s)
     if "montecarlo" in wanted and (s := _section_montecarlo(monte_carlo, breach_probability, theme)) is not None:
         secs.append(s)
-    if "variance" in wanted and (s := _section_variance(variance, theme)) is not None:
+    if "variance" in wanted and (s := _section_variance(variance)) is not None:
         secs.append(s)
 
     kpis: list[KPI] = []

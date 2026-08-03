@@ -63,7 +63,7 @@ def _tenor_years(tenor: str) -> float:
     return 1e9  # unknown tenors sort last
 
 
-def _section_holdings(val: dict[str, Any], theme: Theme) -> Section | None:
+def _section_holdings(val: dict[str, Any]) -> Section | None:
     pvs = val.get("position_values") or {}
     if not pvs:
         return None
@@ -82,7 +82,6 @@ def _section_holdings(val: dict[str, Any], theme: Theme) -> Section | None:
         columns=["Position", "Entity", "Native", "Base"],
         formats={"Base": fmt.money},
         neg_columns={"Base"},
-        theme=theme,
     )
     sub = f"Top {len(shown)} of {len(rows)} positions by base value." if len(rows) > len(shown) else None
     return Section("Holdings", body, subtitle=sub)
@@ -99,12 +98,11 @@ def _section_exposure(val: dict[str, Any], theme: Theme) -> Section | None:
         columns=["Entity", "Base"],
         formats={"Base": fmt.money},
         neg_columns={"Base"},
-        theme=theme,
     )
     return Section("Exposure by Entity", f'<div class="grid2"><div>{chart}</div><div>{table}</div></div>')
 
 
-def _section_sensitivities(metrics: dict[str, Any] | None, theme: Theme) -> Section | None:
+def _section_sensitivities(metrics: dict[str, Any] | None) -> Section | None:
     agg = (metrics or {}).get("aggregated") or {}
     present = [m for m in _HEADLINE_METRICS if m in agg]
     if not present:
@@ -127,7 +125,7 @@ def _section_sensitivities(metrics: dict[str, Any] | None, theme: Theme) -> Sect
         rows.append(row)
     return Section(
         "Aggregated Sensitivities",
-        tables.data_table(rows, columns=["Metric", "Total", *entities], theme=theme),
+        tables.data_table(rows, columns=["Metric", "Total", *entities]),
     )
 
 
@@ -235,11 +233,11 @@ def portfolio_tearsheet(
     base_amt, base_currency = _money(val.get("total_base_currency"))
 
     secs: list[Section] = []
-    if "holdings" in wanted and (s := _section_holdings(val, theme)) is not None:
+    if "holdings" in wanted and (s := _section_holdings(val)) is not None:
         secs.append(s)
     if "exposure" in wanted and (s := _section_exposure(val, theme)) is not None:
         secs.append(s)
-    if "sensitivities" in wanted and (s := _section_sensitivities(metrics_d, theme)) is not None:
+    if "sensitivities" in wanted and (s := _section_sensitivities(metrics_d)) is not None:
         secs.append(s)
     if "buckets" in wanted and (s := _section_buckets(metrics_d, theme)) is not None:
         secs.append(s)

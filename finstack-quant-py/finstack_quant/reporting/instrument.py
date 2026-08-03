@@ -452,24 +452,22 @@ def _analytics_section(result: Any, itype: str) -> Section:
         # generic: one column of every present non-composite metric
         present = [(m, result.get_metric(m)) for m in result.metric_keys() if "::" not in m]
         rows = [_metric_cell(m, v) for m, v in present]
-        cols_html = "".join(
-            tables.kv_table([(lbl, val, cls) for lbl, val, cls in rows[i::3]], theme=INSTITUTIONAL) for i in range(3)
-        )
+        cols_html = "".join(tables.kv_table([(lbl, val, cls) for lbl, val, cls in rows[i::3]]) for i in range(3))
         return Section("Valuation & Analytics", f'<div class="statgrid">{cols_html}</div>')
     cols_html = ""
     for group in groups:
         rows = [_metric_cell(m, result.get_metric(m)) for m in group if result.get_metric(m) is not None]
-        cols_html += tables.kv_table([(lbl, val, cls) for lbl, val, cls in rows], theme=INSTITUTIONAL)
+        cols_html += tables.kv_table([(lbl, val, cls) for lbl, val, cls in rows])
     return Section("Valuation & Analytics", f'<div class="statgrid">{cols_html}</div>')
 
 
-def _definition_section(definition: Any, theme: Theme) -> Section | None:
+def _definition_section(definition: Any) -> Section | None:
     if definition is None:
         return None
     if isinstance(definition, str):
         definition = json.loads(definition)
     cols = _definition_terms(definition)
-    cols_html = "".join(tables.kv_table([(k, v, "") for k, v in col], theme=theme) for col in cols if col)
+    cols_html = "".join(tables.kv_table([(k, v, "") for k, v in col]) for col in cols if col)
     return Section("Definition", f'<div class="statgrid">{cols_html}</div>')
 
 
@@ -503,7 +501,7 @@ def _cashflow_sections(cashflows: Any, theme: Theme) -> list[Section]:
         out.append(Section("Cashflow Ladder", charts.cashflow_ladder(periods, coupon, principal, theme=theme, pv=pv)))
     if schedule:
         cols = ["Date", "Kind", "Amount", "Rate", "DF", "PV"]
-        out.append(Section("Cashflow Schedule", tables.scroll(tables.data_table(schedule, columns=cols, theme=theme))))
+        out.append(Section("Cashflow Schedule", tables.scroll(tables.data_table(schedule, columns=cols))))
     return out
 
 
@@ -561,7 +559,7 @@ def _survival_section(_result: Any, cashflows: Any, theme: Theme) -> Section | N
     )
 
 
-def _covenants_section(parsed: dict[str, Any], theme: Theme) -> Section | None:
+def _covenants_section(parsed: dict[str, Any]) -> Section | None:
     cov = parsed.get("covenants")
     if not cov:
         return None
@@ -576,7 +574,7 @@ def _covenants_section(parsed: dict[str, Any], theme: Theme) -> Section | None:
             "Status": "PASS" if c.get("passed") else "BREACH",
         })
     cols = ["Covenant", "Type", "Actual", "Threshold", "Headroom", "Status"]
-    return Section("Covenants", tables.data_table(rows, columns=cols, theme=theme))
+    return Section("Covenants", tables.data_table(rows, columns=cols))
 
 
 def _build_sections(
@@ -590,7 +588,7 @@ def _build_sections(
 ) -> list[Section]:
     """Dispatch section builders and collect the ordered list of Section objects."""
     secs: list[Section] = []
-    if "definition" in wanted and (s := _definition_section(definition, theme)):
+    if "definition" in wanted and (s := _definition_section(definition)):
         secs.append(s)
     if "valuation" in wanted:
         secs.append(_analytics_section(result, itype))
@@ -607,7 +605,7 @@ def _build_sections(
             if (s.title == "Cashflow Ladder" and "cashflows" in wanted)
             or (s.title == "Cashflow Schedule" and "schedule" in wanted)
         )
-    if "covenants" in wanted and (s := _covenants_section(parsed, theme)):
+    if "covenants" in wanted and (s := _covenants_section(parsed)):
         secs.append(s)
     return secs
 

@@ -8,7 +8,7 @@ from finstack_quant.reporting.theme import INSTITUTIONAL
 
 
 def test_kv_table_renders_rows() -> None:
-    html = tables.kv_table([("Sharpe", "1.42", ""), ("Max DD", "-14.6%", "neg")], theme=INSTITUTIONAL)
+    html = tables.kv_table([("Sharpe", "1.42", ""), ("Max DD", "-14.6%", "neg")])
     minidom.parseString(html)  # noqa: S318
     assert "Sharpe" in html and "1.42" in html  # noqa: PT018
     assert 'class="v neg"' in html
@@ -32,7 +32,6 @@ def test_data_table_applies_formats() -> None:
         columns=["Peak → Trough", "Depth"],
         formats={"Depth": lambda v: f"{v:.1f}%"},
         neg_columns={"Depth"},
-        theme=INSTITUTIONAL,
     )
     minidom.parseString(html)  # noqa: S318
     assert "-14.6%" in html

@@ -73,7 +73,7 @@ def _section_sensitivity(sensitivity: Any, theme: Theme) -> Section | None:
     )
 
 
-def _section_pl(results: Any, theme: Theme) -> Section | None:
+def _section_pl(results: Any) -> Section | None:
     if results is None:
         return None
     view = parse_statement(results)
@@ -81,7 +81,7 @@ def _section_pl(results: Any, theme: Theme) -> Section | None:
     rows = [row for row in _PL_ROWS if row[1] in present]
     if not rows:
         return None
-    return Section("Forecast Summary", pl_matrix_table(view, rows, view.periods(), theme=theme))
+    return Section("Forecast Summary", pl_matrix_table(view, rows, view.periods()))
 
 
 def dcf_tearsheet(
@@ -151,7 +151,7 @@ def dcf_tearsheet(
         secs.append(s)
     if "sensitivity" in wanted and (s := _section_sensitivity(sensitivity, theme)) is not None:
         secs.append(s)
-    if "pl" in wanted and (s := _section_pl(results, theme)) is not None:
+    if "pl" in wanted and (s := _section_pl(results)) is not None:
         secs.append(s)
 
     ccy = val.get("equity_currency")

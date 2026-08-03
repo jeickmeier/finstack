@@ -20,7 +20,6 @@ from typing import Any
 
 from . import format as fmt, tables
 from .document import Section
-from .theme import Theme
 
 
 class StatementView:
@@ -180,8 +179,6 @@ def pl_matrix_table(
     view: StatementView,
     rows: list[tuple[str, str, Callable[[Any], str]]],
     periods: list[str],
-    *,
-    theme: Theme,  # noqa: ARG001  (styling comes from the scoped `table.dd` CSS)
 ) -> str:
     """Render line items × periods as a ``<table class="dd">``.
 
@@ -198,8 +195,6 @@ def pl_matrix_table(
         Ordered ``(display_label, node_id, formatter)`` line-item definitions.
     periods : list[str]
         Ordered model period labels rendered as table columns.
-    theme : Theme
-        Report theme retained for a consistent chart/table helper interface.
 
     Returns:
     -------
@@ -226,7 +221,7 @@ def pl_matrix_table(
     return f'<table class="dd"><thead><tr>{head}</tr></thead><tbody>{"".join(body_rows)}</tbody></table>'
 
 
-def variance_table(variance: Any, *, theme: Theme) -> str | None:
+def variance_table(variance: Any) -> str | None:
     """Render a ``run_variance`` result (``{"rows": [...]}``) as an HTML table.
 
     Returns ``None`` when there are no rows. Pure presentation; ``pct_var`` is
@@ -236,8 +231,6 @@ def variance_table(variance: Any, *, theme: Theme) -> str | None:
     ----------
     variance : Any
         Variance-report mapping or compatible object containing a ``rows`` list.
-    theme : Theme
-        Report palette and typography passed to the generic data-table renderer.
 
     Returns:
     -------
@@ -286,10 +279,9 @@ def variance_table(variance: Any, *, theme: Theme) -> str | None:
             "% Δ": lambda v: fmt.pct(v, signed=True),
         },
         neg_columns={"Abs Δ", "% Δ"},
-        theme=theme,
     )
 
 
-def _section_variance(variance: Any, theme: Theme) -> Section | None:
-    body = variance_table(variance, theme=theme)
+def _section_variance(variance: Any) -> Section | None:
+    body = variance_table(variance)
     return Section("Variance vs Baseline", body) if body is not None else None

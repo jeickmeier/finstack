@@ -51,9 +51,7 @@ def _section_contributions(decomp: dict[str, Any], theme: Theme) -> Section | No
         }
         for c in contribs
     ]
-    table = tables.data_table(
-        rows, columns=["Position", "Component VaR", "% of Total", "Marginal", "Incremental"], theme=theme
-    )
+    table = tables.data_table(rows, columns=["Position", "Component VaR", "% of Total", "Marginal", "Incremental"])
     sub = (
         f"Chart shows the {len(top)} largest of {len(contribs)} positions by component VaR."
         if len(contribs) > len(top)
@@ -62,7 +60,7 @@ def _section_contributions(decomp: dict[str, Any], theme: Theme) -> Section | No
     return Section("VaR Contributions", f"{chart}{table}", subtitle=sub)
 
 
-def _section_es(es: dict[str, Any] | None, theme: Theme) -> Section | None:
+def _section_es(es: dict[str, Any] | None) -> Section | None:
     contribs = [c for c in (es or {}).get("contributions") or [] if isinstance(c, dict)]
     if not contribs:
         return None
@@ -76,12 +74,10 @@ def _section_es(es: dict[str, Any] | None, theme: Theme) -> Section | None:
         }
         for c in contribs
     ]
-    return Section(
-        "ES Contributions", tables.data_table(rows, columns=["Position", "Component ES", "% of Total"], theme=theme)
-    )
+    return Section("ES Contributions", tables.data_table(rows, columns=["Position", "Component ES", "% of Total"]))
 
 
-def _section_budget(budget: dict[str, Any] | None, theme: Theme) -> Section | None:
+def _section_budget(budget: dict[str, Any] | None) -> Section | None:
     positions = [p for p in (budget or {}).get("positions") or [] if isinstance(p, dict)]
     if not positions:
         return None
@@ -96,9 +92,7 @@ def _section_budget(budget: dict[str, Any] | None, theme: Theme) -> Section | No
         }
         for p in positions
     ]
-    table = tables.data_table(
-        rows, columns=["Position", "Actual", "Target", "Utilization", "Excess", "Status"], theme=theme
-    )
+    table = tables.data_table(rows, columns=["Position", "Actual", "Target", "Utilization", "Excess", "Status"])
     b = budget or {}
     sub = None
     if b.get("has_breach"):
@@ -166,9 +160,9 @@ def portfolio_risk_tearsheet(
     secs: list[Section] = []
     if "contributions" in wanted and (s := _section_contributions(decomp, theme)) is not None:
         secs.append(s)
-    if "es" in wanted and (s := _section_es(es_d, theme)) is not None:
+    if "es" in wanted and (s := _section_es(es_d)) is not None:
         secs.append(s)
-    if "budget" in wanted and (s := _section_budget(budget_d, theme)) is not None:
+    if "budget" in wanted and (s := _section_budget(budget_d)) is not None:
         secs.append(s)
 
     conf = decomp.get("confidence")

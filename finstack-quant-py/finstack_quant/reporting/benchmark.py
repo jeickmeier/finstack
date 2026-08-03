@@ -32,7 +32,7 @@ def _mf_get(mf: Any, key: str) -> Any:
     return mf.get(key) if isinstance(mf, dict) else getattr(mf, key, None)
 
 
-def _section_summary(perf: Any, t: int, rf: float, theme: Theme) -> Section:
+def _section_summary(perf: Any, t: int, rf: float) -> Section:
     g = perf.greeks(rf)[t]
     b = perf.beta()[t]
     regression = tables.kv_table(
@@ -43,7 +43,6 @@ def _section_summary(perf: Any, t: int, rf: float, theme: Theme) -> Section:
             ("R-Squared", fmt.ratio(g.r_squared), ""),
             ("Adjusted R-Squared", fmt.ratio(g.adjusted_r_squared), ""),
         ],
-        theme=theme,
     )
     active = tables.kv_table(
         [
@@ -52,7 +51,6 @@ def _section_summary(perf: Any, t: int, rf: float, theme: Theme) -> Section:
             ("Treynor", fmt.pct(perf.treynor(rf)[t] * 100.0, signed=True), ""),
             ("M-Squared", fmt.pct(perf.m_squared(rf)[t] * 100.0, signed=True), ""),
         ],
-        theme=theme,
     )
     capture = tables.kv_table(
         [
@@ -61,7 +59,6 @@ def _section_summary(perf: Any, t: int, rf: float, theme: Theme) -> Section:
             ("Capture Ratio", fmt.ratio(perf.capture_ratio()[t]), ""),
             ("Batting Average", fmt.pct(perf.batting_average()[t] * 100.0), ""),
         ],
-        theme=theme,
     )
     return Section("Benchmark-Relative Statistics", f'<div class="statgrid">{regression}{active}{capture}</div>')
 
@@ -117,7 +114,7 @@ def _section_rolling(perf: Any, t: int, window: int, theme: Theme) -> Section | 
     )
 
 
-def _section_multifactor(mf: Any, factor_names: list[str] | None, theme: Theme) -> Section | None:
+def _section_multifactor(mf: Any, factor_names: list[str] | None) -> Section | None:
     if mf is None:
         return None
     alpha = _mf_get(mf, "alpha")
@@ -139,7 +136,7 @@ def _section_multifactor(mf: Any, factor_names: list[str] | None, theme: Theme) 
     rows.append(("Adjusted R-Squared", fmt.ratio(_mf_get(mf, "adjusted_r_squared")), ""))
     rv = _mf_get(mf, "residual_vol")
     rows.append(("Residual Vol", fmt.pct(rv * 100.0) if isinstance(rv, (int, float)) else "·", ""))
-    return Section("Multi-Factor Attribution", tables.kv_table(rows, theme=theme))
+    return Section("Multi-Factor Attribution", tables.kv_table(rows))
 
 
 def benchmark_tearsheet(
@@ -207,12 +204,12 @@ def benchmark_tearsheet(
 
     secs: list[Section] = []
     if "summary" in wanted:
-        secs.append(_section_summary(perf, t, risk_free_rate, theme))
+        secs.append(_section_summary(perf, t, risk_free_rate))
     if "relative" in wanted:
         secs.append(_section_relative(perf, t, theme))
     if "rolling" in wanted and (s := _section_rolling(perf, t, window, theme)) is not None:
         secs.append(s)
-    if "multifactor" in wanted and (s := _section_multifactor(multi_factor, factor_names, theme)) is not None:
+    if "multifactor" in wanted and (s := _section_multifactor(multi_factor, factor_names)) is not None:
         secs.append(s)
 
     g = perf.greeks(risk_free_rate)[t]

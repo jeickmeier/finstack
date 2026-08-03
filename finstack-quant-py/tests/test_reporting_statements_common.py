@@ -8,7 +8,6 @@ import pytest
 
 from finstack_quant import statements
 from finstack_quant.reporting import format as fmt, statements_common as sc
-from finstack_quant.reporting.theme import INSTITUTIONAL
 
 
 def _results() -> object:
@@ -64,7 +63,6 @@ def test_pl_matrix_table_lays_out_items_and_periods() -> None:
         v,
         [("Revenue", "revenue", fmt.money), ("EBITDA", "ebitda", fmt.money)],
         ["2025Q1", "2025Q2"],
-        theme=INSTITUTIONAL,
     )
     assert 'class="dd"' in out
     assert "<th>2025Q1</th>" in out
@@ -77,5 +75,5 @@ def test_pl_matrix_table_lays_out_items_and_periods() -> None:
 
 def test_pl_matrix_table_missing_value_is_placeholder() -> None:
     v = sc.parse_statement(_results())
-    out = sc.pl_matrix_table(v, [("Missing", "nope", fmt.money)], ["2025Q1"], theme=INSTITUTIONAL)
+    out = sc.pl_matrix_table(v, [("Missing", "nope", fmt.money)], ["2025Q1"])
     assert "·" in out  # fmt.money(None) -> placeholder

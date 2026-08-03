@@ -54,7 +54,7 @@ def _section_ratios(assessment: dict[str, Any], theme: Theme) -> Section | None:
     )
 
 
-def _section_coverage(coverage: Any, theme: Theme) -> Section | None:
+def _section_coverage(coverage: Any) -> Section | None:
     if not coverage:
         return None
     rows = [
@@ -75,12 +75,11 @@ def _section_coverage(coverage: Any, theme: Theme) -> Section | None:
             rows,
             columns=["Instrument", "DSCR", "Int. Cov.", "LTV"],
             formats={"DSCR": fmt.ratio, "Int. Cov.": fmt.ratio, "LTV": fmt.pct},
-            theme=theme,
         ),
     )
 
 
-def _section_covenants(covenants: Any, theme: Theme) -> Section | None:
+def _section_covenants(covenants: Any) -> Section | None:
     if not covenants:
         return None
     rows = [
@@ -103,12 +102,11 @@ def _section_covenants(covenants: Any, theme: Theme) -> Section | None:
             columns=["Covenant", "Threshold", "Current", "Headroom", "Status"],
             formats={"Threshold": fmt.ratio, "Current": fmt.ratio, "Headroom": fmt.ratio},
             neg_columns={"Headroom"},
-            theme=theme,
         ),
     )
 
 
-def _section_pl(results: Any, theme: Theme) -> Section | None:
+def _section_pl(results: Any) -> Section | None:
     if results is None:
         return None
     view = parse_statement(results)
@@ -116,7 +114,7 @@ def _section_pl(results: Any, theme: Theme) -> Section | None:
     rows = [row for row in _EBITDA_BUILD if row[1] in present]
     if not rows:
         return None
-    return Section("EBITDA Build", pl_matrix_table(view, rows, view.periods(), theme=theme))
+    return Section("EBITDA Build", pl_matrix_table(view, rows, view.periods()))
 
 
 def credit_tearsheet(
@@ -181,11 +179,11 @@ def credit_tearsheet(
     secs: list[Section] = []
     if "ratios" in wanted and (s := _section_ratios(asmt, theme)) is not None:
         secs.append(s)
-    if "coverage" in wanted and (s := _section_coverage(coverage, theme)) is not None:
+    if "coverage" in wanted and (s := _section_coverage(coverage)) is not None:
         secs.append(s)
-    if "covenants" in wanted and (s := _section_covenants(covenants, theme)) is not None:
+    if "covenants" in wanted and (s := _section_covenants(covenants)) is not None:
         secs.append(s)
-    if "pl" in wanted and (s := _section_pl(results, theme)) is not None:
+    if "pl" in wanted and (s := _section_pl(results)) is not None:
         secs.append(s)
 
     lev = asmt.get("leverage_ratio")

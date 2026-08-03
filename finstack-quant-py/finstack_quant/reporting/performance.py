@@ -40,7 +40,7 @@ def _section_cumulative(cum_dates: list[Any], cum_series: list[float], theme: Th
     )
 
 
-def _section_stats(row: Any, total_return: float, theme: Theme) -> Section:
+def _section_stats(row: Any, total_return: float) -> Section:
     col_a = tables.kv_table(
         [
             ("Total Return", fmt.pct(total_return, signed=True), fmt.sign_class(total_return)),
@@ -52,7 +52,6 @@ def _section_stats(row: Any, total_return: float, theme: Theme) -> Section:
             ),
             ("Mean Return", fmt.pct(row["mean_return"] * 100, signed=True), fmt.sign_class(row["mean_return"])),
         ],
-        theme=theme,
     )
     col_b = tables.kv_table(
         [
@@ -62,7 +61,6 @@ def _section_stats(row: Any, total_return: float, theme: Theme) -> Section:
             ("Calmar Ratio", fmt.ratio(row["calmar"]), ""),
             ("Max Drawdown", fmt.pct(row["max_drawdown"] * 100, signed=True), "neg"),
         ],
-        theme=theme,
     )
     col_c = tables.kv_table(
         [
@@ -72,7 +70,6 @@ def _section_stats(row: Any, total_return: float, theme: Theme) -> Section:
             ("Expected Shortfall", fmt.pct(row["expected_shortfall"] * 100, signed=True), "neg"),
             ("Ulcer Index", fmt.ratio(row["ulcer_index"]), ""),
         ],
-        theme=theme,
     )
     return Section("Risk & Return Statistics", f'<div class="statgrid">{col_a}{col_b}{col_c}</div>')
 
@@ -126,7 +123,7 @@ def _build_heatmap_data(perf: Any, ticker: int) -> tuple[dict[int, list[Any]], d
     return by_year, annual_by_year
 
 
-def _section_drawdowns(perf: Any, ticker: int, theme: Theme) -> Section:
+def _section_drawdowns(perf: Any, ticker: int) -> Section:
     det = perf.drawdown_details_to_dataframe(ticker, n=5)
     dd_rows = []
     for _, r in det.iterrows():
@@ -144,7 +141,6 @@ def _section_drawdowns(perf: Any, ticker: int, theme: Theme) -> Section:
             columns=["Peak → Trough", "Depth", "Length", "Recovery"],
             formats={"Depth": lambda v: fmt.pct(v, signed=True)},
             neg_columns={"Depth"},
-            theme=theme,
         ),
     )
 
@@ -210,7 +206,7 @@ def performance_tearsheet(
     if "cumulative" in wanted:
         secs.append(_section_cumulative(cum_dates, cum_series, theme))
     if "stats" in wanted:
-        secs.append(_section_stats(row, total_return, theme))
+        secs.append(_section_stats(row, total_return))
     if "drawdown" in wanted:
         secs.append(_section_drawdown(perf, ticker, theme))
     if "rolling" in wanted:
@@ -234,7 +230,7 @@ def performance_tearsheet(
             secs.append(Section("Annual Returns", charts.bar_chart(labels, values, theme=theme, y_pct=True)))
 
     if "drawdowns" in wanted:
-        secs.append(_section_drawdowns(perf, ticker, theme))
+        secs.append(_section_drawdowns(perf, ticker))
 
     # Header / KPIs
     start_d, end_d = (cum_dates[0], cum_dates[-1]) if cum_dates else (None, None)
