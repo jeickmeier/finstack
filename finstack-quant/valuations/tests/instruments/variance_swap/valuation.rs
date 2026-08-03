@@ -8,9 +8,7 @@ use finstack_quant_valuations::instruments::equity::variance_swap::PayReceive;
 use finstack_quant_valuations::instruments::Instrument;
 use time::macros::date;
 
-// ============================================================================
 // Pre-Start Valuation Tests
-// ============================================================================
 
 #[test]
 fn test_npv_before_start_uses_forward_variance_and_discounting() {
@@ -87,9 +85,7 @@ fn test_npv_before_start_pay_side_opposite_sign() {
     assert!((pv_receive.amount() + pv_pay.amount()).abs() < LOOSE_EPSILON);
 }
 
-// ============================================================================
 // Mid-Period Valuation Tests
-// ============================================================================
 
 #[test]
 fn test_npv_mid_period_blends_realized_and_forward_components() {
@@ -230,9 +226,7 @@ fn test_daily_observation_dates_skip_weekends() {
     );
 }
 
-// ============================================================================
 // At Maturity Valuation Tests
-// ============================================================================
 
 #[test]
 fn test_npv_at_maturity_recovers_realized_payoff() {
@@ -301,9 +295,7 @@ fn test_npv_at_maturity_without_prices_errors() {
     );
 }
 
-// ============================================================================
 // Post-Maturity Valuation Tests
-// ============================================================================
 
 #[test]
 fn test_npv_after_settlement_is_zero() {
@@ -320,13 +312,9 @@ fn test_npv_after_settlement_is_zero() {
     assert!(pv.amount().abs() < LOOSE_EPSILON);
 }
 
-// ============================================================================
 // Instrument Trait Value Method Tests
-// ============================================================================
 
-// ============================================================================
 // Time Progression Tests
-// ============================================================================
 
 #[test]
 fn test_npv_time_progression_from_pre_start_to_maturity() {

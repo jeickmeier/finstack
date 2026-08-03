@@ -39,9 +39,7 @@ use finstack_quant_core::math::interp::InterpStyle;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::Instrument as PublicInstrument;
 
-// =============================================================================
 // Contract Verification
-// =============================================================================
 
 /// Verifies `CashflowProvider` contract properties.
 ///
@@ -205,9 +203,7 @@ fn minimal_market() -> MarketContext {
     MarketContext::new().insert(disc).insert(fwd)
 }
 
-// =============================================================================
 // Bond Contract Tests
-// =============================================================================
 
 mod bond_contract {
     use super::*;
@@ -269,9 +265,7 @@ mod bond_contract {
     }
 }
 
-// =============================================================================
 // IRS Contract Tests
-// =============================================================================
 
 mod irs_contract {
     use super::*;
@@ -322,9 +316,7 @@ mod irs_contract {
     }
 }
 
-// =============================================================================
 // Repo Contract Tests
-// =============================================================================
 
 mod repo_contract {
     use super::*;
@@ -428,9 +420,7 @@ mod empty_schedule_contract {
     }
 }
 
-// =============================================================================
 // Term Loan Contract Tests
-// =============================================================================
 
 mod term_loan_contract {
     use super::*;

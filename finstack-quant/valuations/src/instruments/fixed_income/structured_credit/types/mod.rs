@@ -8,9 +8,7 @@
 //! - Behavioral model specifications
 //! - Result types for valuation
 
-// ============================================================================
 // TYPE DEFINITION MODULES
-// ============================================================================
 
 pub(crate) mod constants;
 pub(crate) mod enums;
@@ -22,17 +20,13 @@ pub(crate) mod setup;
 pub(crate) mod tranches;
 pub(crate) mod waterfall;
 
-// ============================================================================
 // INTERNAL MODULES
-// ============================================================================
 
 mod constructors;
 mod reinvestment;
 mod stochastic;
 
-// ============================================================================
 // RE-EXPORTS FROM TYPE MODULES
-// ============================================================================
 
 // Enums
 pub use enums::TrancheSeniority;
@@ -76,16 +70,12 @@ pub use crate::instruments::fixed_income::structured_credit::pricing::{
     CorrelationStructure, StochasticDefaultSpec, StochasticPrepaySpec,
 };
 
-// ============================================================================
 // BEHAVIORAL MODEL SPECS
-// ============================================================================
 
 // Re-export deterministic model specs from cashflow builder
 pub use crate::cashflow::builder::{DefaultModelSpec, PrepaymentModelSpec, RecoveryModelSpec};
 
-// ============================================================================
 // IMPORTS FOR STRUCTUREDCREDIT
-// ============================================================================
 
 use crate::cashflow::traits::CashflowProvider;
 use crate::cashflow::traits::{schedule_from_classified_flows, ScheduleBuildOpts};
@@ -117,9 +107,7 @@ use indexmap::IndexMap;
 use crate::impl_instrument_base;
 use serde::{Deserialize, Serialize};
 
-// ============================================================================
 // MARKET CONDITIONS AND CREDIT FACTORS
-// ============================================================================
 
 /// Market conditions that affect prepayment behavior.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
@@ -177,9 +165,7 @@ pub struct CreditFactors {
     pub custom_factors: IndexMap<String, f64>,
 }
 
-// ============================================================================
 // DEAL METADATA AND OVERRIDES
-// ============================================================================
 
 /// Deal metadata (counterparties and identifiers).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
@@ -219,9 +205,7 @@ pub struct Overrides {
     pub reinvestment_price: Option<f64>,
 }
 
-// ============================================================================
 // CREDIT MODEL CONFIGURATION
-// ============================================================================
 
 /// Configuration for deterministic + optional stochastic credit behavior models.
 ///
@@ -282,9 +266,7 @@ impl CreditModelConfig {
     }
 }
 
-// ============================================================================
 // STRUCTURED CREDIT INSTRUMENT
-// ============================================================================
 
 /// Unified structured credit instrument representation.
 ///
@@ -1374,9 +1356,7 @@ impl StructuredCredit {
     }
 }
 
-// ============================================================================
 // TRAIT IMPLEMENTATIONS
-// ============================================================================
 
 impl finstack_quant_cashflows::CashflowScheduleSource for StructuredCredit {
     fn notional(&self) -> Option<Money> {

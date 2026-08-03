@@ -266,9 +266,7 @@ impl VolatilityIndexFuture {
     }
 }
 
-// =============================================================================
 // Trait Implementations
-// =============================================================================
 
 impl crate::instruments::common_impl::traits::Instrument for VolatilityIndexFuture {
     impl_instrument_base!(crate::pricer::InstrumentType::VolatilityIndexFuture);
@@ -375,9 +373,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for VolatilityIndexFuture 
     }
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {

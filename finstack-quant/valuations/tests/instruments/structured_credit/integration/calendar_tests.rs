@@ -19,9 +19,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
-// ============================================================================
 // Test Helpers
-// ============================================================================
 
 fn closing_date() -> Date {
     Date::from_calendar_date(2024, Month::January, 1).unwrap()
@@ -82,9 +80,7 @@ fn create_test_market() -> MarketContext {
         .insert(forward_curve)
 }
 
-// ============================================================================
 // Calendar Validation Tests
-// ============================================================================
 
 #[test]
 fn test_missing_calendar_fails_with_helpful_message() {
@@ -203,9 +199,7 @@ fn test_valid_target2_calendar_succeeds() {
     );
 }
 
-// ============================================================================
 // Holiday-Aware Schedule Tests
-// ============================================================================
 
 #[test]
 fn test_clo_schedule_avoids_us_holidays() {

@@ -97,9 +97,7 @@ fn dec(value: f64) -> Decimal {
     Decimal::try_from(value).expect("valid literal")
 }
 
-// =============================================================================
 // Test 1: Standard FRA Valuation
-// =============================================================================
 // QuantLib reference: forwardrateagreement.cpp, testFRAvaluation()
 //
 // Tests basic FRA NPV calculation with flat curves. At-market FRA (strike = forward)
@@ -209,9 +207,7 @@ fn quantlib_parity_fra_off_market_valuation() {
     );
 }
 
-// =============================================================================
 // Test 2: FRA Implied Rate (Par Rate)
-// =============================================================================
 // QuantLib reference: forwardrateagreement.cpp, testFRAimpliedRate()
 //
 // Tests that the par rate (rate that makes NPV = 0) equals the forward rate
@@ -271,9 +267,7 @@ fn quantlib_parity_fra_implied_rate() {
     );
 }
 
-// =============================================================================
 // Test 3: Settlement Adjustment Validation
-// =============================================================================
 // QuantLib reference: forwardrateagreement.cpp, testFRAsettlementAdjustment()
 //
 // Validates that the settlement adjustment factor 1/(1 + F×τ) is correctly
@@ -347,9 +341,7 @@ fn quantlib_parity_fra_settlement_adjustment() {
     );
 }
 
-// =============================================================================
 // Test 4: Buy/Sell Symmetry
-// =============================================================================
 // QuantLib reference: forwardrateagreement.cpp, testFRAbuySell()
 //
 // Tests that buying and selling FRAs produce opposite NPVs (zero-sum game).
@@ -424,9 +416,7 @@ fn quantlib_parity_fra_buy_sell_symmetry() {
     );
 }
 
-// =============================================================================
 // Test 5: Standard Tenors
-// =============================================================================
 // QuantLib reference: forwardrateagreement.cpp, testFRAconsistency()
 //
 // Tests FRA valuation across standard market tenors (3x6, 6x9, 6x12, etc.)
@@ -545,9 +535,7 @@ fn quantlib_parity_fra_standard_tenor_6x12() {
     );
 }
 
-// =============================================================================
 // Test 6: DV01 Consistency
-// =============================================================================
 // QuantLib reference: forwardrateagreement.cpp (DV01 tests)
 //
 // Tests that DV01 has correct sign and magnitude
@@ -638,9 +626,7 @@ fn quantlib_parity_fra_dv01_sign_convention() {
     );
 }
 
-// =============================================================================
 // Test 7: Day Count Convention Impact
-// =============================================================================
 // QuantLib reference: forwardrateagreement.cpp (day count tests)
 //
 // Tests that different day count conventions produce expected differences

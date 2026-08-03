@@ -19,9 +19,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
-// ============================================================================
 // Helpers
-// ============================================================================
 
 fn as_of() -> Date {
     Date::from_calendar_date(2025, Month::January, 15).unwrap()
@@ -136,9 +134,7 @@ fn build_clo(cpr: f64, cdr: f64, recovery: f64, lag: u32) -> StructuredCredit {
     clo
 }
 
-// ============================================================================
 // Feature 1: Tranche Write-Down / Loss Allocation
-// ============================================================================
 
 #[test]
 fn writedown_recorded_under_severe_stress() {
@@ -263,9 +259,7 @@ fn writedown_non_negative_and_bounded() {
     }
 }
 
-// ============================================================================
 // Feature 4: Clean-Up Call Modeling
-// ============================================================================
 
 #[test]
 fn cleanup_call_triggers_when_pool_factor_below_threshold() {
@@ -347,9 +341,7 @@ fn cleanup_call_does_not_trigger_for_low_cpr() {
     );
 }
 
-// ============================================================================
 // Feature 3: OC/IC Cure Amount (Integration-level)
-// ============================================================================
 
 #[test]
 fn waterfall_with_coverage_triggers_still_works() {

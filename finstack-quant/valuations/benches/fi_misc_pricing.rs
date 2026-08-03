@@ -194,9 +194,7 @@ fn bench_agency_mbs_pv(c: &mut Criterion) {
     group.finish();
 }
 
-// ================================================================================================
 // FI Index TRS
-// ================================================================================================
 
 /// Market context for FI TRS: discount, forward, and scalar yield/duration data.
 fn fi_trs_market(as_of: Date) -> MarketContext {
@@ -252,9 +250,7 @@ fn bench_fi_trs_pv(c: &mut Criterion) {
     group.finish();
 }
 
-// ================================================================================================
 // CMO
-// ================================================================================================
 
 /// Scale CMO waterfall allocation vs tranche count (3, 5, 8 tranches).
 ///
@@ -333,9 +329,7 @@ fn bench_cmo_structure_type(c: &mut Criterion) {
     group.finish();
 }
 
-// ================================================================================================
 // Dollar Roll
-// ================================================================================================
 
 /// Dollar roll NPV and implied-financing computation.
 ///

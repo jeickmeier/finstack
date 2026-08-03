@@ -17,9 +17,7 @@ use finstack_quant_valuations::instruments::fixed_income::bond_future::{
 use finstack_quant_valuations::instruments::Attributes;
 use time::Month;
 
-// ============================================================================
 // Helper Functions
-// ============================================================================
 
 /// Create a test deliverable bond.
 fn create_test_deliverable_bond() -> DeliverableBond {
@@ -82,9 +80,7 @@ fn create_bond_future_with_basket() -> BondFuture {
         .expect("Valid bond future")
 }
 
-// ============================================================================
 // DeliverableBond Serialization Tests
-// ============================================================================
 
 #[test]
 fn test_deliverable_bond_serde_roundtrip() {
@@ -137,9 +133,7 @@ fn test_deliverable_bond_array_roundtrip() {
     }
 }
 
-// ============================================================================
 // BondFutureSpecs Serialization Tests
-// ============================================================================
 
 #[test]
 fn test_bond_future_specs_default_roundtrip() {
@@ -227,9 +221,7 @@ fn test_bond_future_specs_json_structure() {
     assert!(json.contains("settlement_days"));
 }
 
-// ============================================================================
 // BondFuture Serialization Tests
-// ============================================================================
 
 #[test]
 fn test_bond_future_minimal_roundtrip() {
@@ -425,9 +417,7 @@ fn test_bond_future_different_currencies() {
     }
 }
 
-// ============================================================================
 // deny_unknown_fields Tests
-// ============================================================================
 
 #[test]
 fn test_bond_future_deny_unknown_fields() {
@@ -501,9 +491,7 @@ fn test_bond_future_specs_rejects_unknown_field() {
     );
 }
 
-// ============================================================================
 // Deserialization Default Tests
-// ============================================================================
 
 #[test]
 fn test_bond_future_minimal_json() {
@@ -578,9 +566,7 @@ fn test_bond_future_compact_json() {
     assert_eq!(future.quoted_price, deserialized.quoted_price);
 }
 
-// ============================================================================
 // Edge Cases
-// ============================================================================
 
 #[test]
 fn test_bond_future_large_notional() {

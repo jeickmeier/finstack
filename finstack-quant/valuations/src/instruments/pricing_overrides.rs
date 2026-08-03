@@ -120,9 +120,7 @@ pub enum OasPriceBasis {
     ForwardAccruedClean,
 }
 
-// ---------------------------------------------------------------------------
 // Shared numeric validation helper
-// ---------------------------------------------------------------------------
 
 /// Check a batch of optional scalars for finiteness (and optional non-negativity).
 ///
@@ -147,9 +145,7 @@ fn check_finite_fields(fields: &[(Option<f64>, bool)]) -> finstack_quant_core::R
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Sub-struct: Market quote overrides
-// ---------------------------------------------------------------------------
 
 /// Overrides for market-quoted values (prices, vols, spreads, upfront payments).
 ///
@@ -320,9 +316,7 @@ impl MarketQuoteOverrides {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Sub-struct: Bump configuration
-// ---------------------------------------------------------------------------
 
 /// Bump sizes for finite-difference sensitivity calculations.
 #[derive(
@@ -388,9 +382,7 @@ impl BumpConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Sub-struct: Model configuration
-// ---------------------------------------------------------------------------
 
 /// Merton Monte Carlo configuration stored on the bond for registry-based pricing.
 ///
@@ -569,9 +561,7 @@ impl ModelConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Sub-struct: Instrument-owned pricing inputs
-// ---------------------------------------------------------------------------
 
 /// Instrument-owned pricing inputs that can materially change valuation.
 #[derive(
@@ -732,9 +722,7 @@ impl InstrumentPricingOverrides {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Sub-struct: Metric configuration
-// ---------------------------------------------------------------------------
 
 use super::breakeven::BreakevenConfig;
 
@@ -906,9 +894,7 @@ impl MetricPricingOverrides {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Sub-struct: Scenario adjustments
-// ---------------------------------------------------------------------------
 
 /// Scenario-only valuation adjustments.
 #[derive(

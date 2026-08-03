@@ -10,9 +10,7 @@ use finstack_quant_core::Result;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-// =============================================================================
 // Helper Types
-// =============================================================================
 
 /// A quote reference with its computed time, used for sorting.
 struct SortedQuote {
@@ -33,9 +31,7 @@ struct NoBracketContext<'a, Q> {
     first_eval_error: Option<String>,
 }
 
-// =============================================================================
 // Helper Functions
-// =============================================================================
 
 /// Sort quotes by time, validating each quote produces a valid time.
 fn sort_quotes_by_time<T: BootstrapTarget>(
@@ -327,9 +323,7 @@ fn record_iteration(
     );
 }
 
-// =============================================================================
 // Main Bootstrapper
-// =============================================================================
 
 /// Generic sequential bootstrapper.
 ///

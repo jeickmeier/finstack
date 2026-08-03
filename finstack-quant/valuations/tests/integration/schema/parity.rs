@@ -59,9 +59,7 @@ fn assert_enum_parity(schema_name: &str, mut actual: Vec<&str>, expected: &[&str
     }
 }
 
-// =============================================================================
 // Attribution Schema Parity
-// =============================================================================
 
 /// Canonical list of attribution factors.
 ///
@@ -103,9 +101,7 @@ fn test_attribution_factors_schema_parity() {
     }
 }
 
-// =============================================================================
 // Calibration Schema Parity
-// =============================================================================
 
 /// Canonical list of calibration step kinds.
 ///
@@ -170,9 +166,7 @@ fn test_calibration_step_kinds_schema_parity() {
     }
 }
 
-// =============================================================================
 // Cashflow Amortization Schema Parity
-// =============================================================================
 
 /// Canonical list of amortization spec variants.
 ///

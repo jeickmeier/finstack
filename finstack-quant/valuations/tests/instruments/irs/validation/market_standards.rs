@@ -1242,9 +1242,7 @@ fn test_sofr_ois_par_rate_matches_quantlib_identity() {
     );
 }
 
-// ============================================================================
 // End-of-month convention tests
-// ============================================================================
 
 /// Verify that the pricer and the cashflow schedule builder produce consistent
 /// period boundaries when `end_of_month = true` and the start date falls on

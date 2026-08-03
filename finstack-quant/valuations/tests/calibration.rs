@@ -26,9 +26,7 @@
 //! cargo test --test calibration
 //! ```
 
-// ============================================================================
 // Shared Test Utilities
-// ============================================================================
 
 /// Common test utilities: fixtures, tolerances, assertions, builders
 #[path = "common/mod.rs"]
@@ -38,9 +36,7 @@ mod common;
 #[allow(dead_code, unused_imports)]
 mod calibration_support;
 
-// ============================================================================
 // Calibration Tests
-// ============================================================================
 
 #[path = "calibration/mod.rs"]
 mod calibration;

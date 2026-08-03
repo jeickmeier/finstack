@@ -48,9 +48,7 @@ impl TreeValuator for ZeroCouponValuator {
     }
 }
 
-// =============================================================================
 // Test 1: Tree Calibration to Discount Curve
-// =============================================================================
 // Validate that tree-implied discount factors match the input discount curve
 
 #[test]
@@ -96,9 +94,7 @@ fn test_tree_calibrates_to_curve() {
     }
 }
 
-// =============================================================================
 // Test 2: Callable Bond Tree Pricing Works
-// =============================================================================
 // Verify that tree pricing produces reasonable values
 
 #[test]
@@ -176,9 +172,7 @@ fn test_callable_bond_tree_pricing_reasonable() {
     );
 }
 
-// =============================================================================
 // Test 3: Tree Steps Convergence
-// =============================================================================
 // Verify that pricing converges as tree steps increase
 
 #[test]
@@ -226,9 +220,7 @@ fn test_tree_convergence_with_steps() {
     assert!(pv_100.amount() < 120.0, "PV should be reasonable");
 }
 
-// =============================================================================
 // Test 4: Putable Bond Tree Pricing
-// =============================================================================
 
 #[test]
 fn test_putable_bond_tree_pricing_reasonable() {
@@ -299,9 +291,7 @@ fn test_putable_bond_tree_pricing_reasonable() {
     );
 }
 
-// =============================================================================
 // Test 5: Hull-White Mean Reversion Default Behavior
-// =============================================================================
 // With mean_reversion = None, tree should produce results equivalent to Ho-Lee.
 
 #[test]
@@ -366,9 +356,7 @@ fn test_mean_reversion_none_matches_ho_lee() {
     }
 }
 
-// =============================================================================
 // Test 6: Hull-White Mean Reversion Reduces Rate Dispersion
-// =============================================================================
 // With positive mean reversion, rates at terminal nodes should be less dispersed.
 
 #[test]

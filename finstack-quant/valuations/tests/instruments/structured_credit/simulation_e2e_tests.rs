@@ -21,9 +21,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
-// ============================================================================
 // Test Infrastructure
-// ============================================================================
 
 fn as_of() -> Date {
     Date::from_calendar_date(2025, Month::January, 15).unwrap()
@@ -153,9 +151,7 @@ fn build_simple_clo(
     clo
 }
 
-// ============================================================================
 // E2E: Bullet AssetPool, No Defaults, No Prepayments
-// ============================================================================
 
 #[test]
 fn e2e_bullet_no_defaults_all_principal_returns() {
@@ -267,9 +263,7 @@ fn e2e_bullet_no_defaults_all_principal_returns() {
     );
 }
 
-// ============================================================================
 // E2E: Cash Conservation Invariant
-// ============================================================================
 
 #[test]
 fn e2e_cash_conservation_total_distributed_equals_pool_cash() {
@@ -392,9 +386,7 @@ fn e2e_cash_conservation_total_distributed_equals_pool_cash() {
     }
 }
 
-// ============================================================================
 // E2E: Defaults Reduce Senior Interest Over Time
-// ============================================================================
 
 #[test]
 fn e2e_defaults_erode_pool_reducing_interest_over_time() {
@@ -443,9 +435,7 @@ fn e2e_defaults_erode_pool_reducing_interest_over_time() {
     }
 }
 
-// ============================================================================
 // E2E: PIK Mechanics Under Cash Stress
-// ============================================================================
 
 #[test]
 fn e2e_pik_accretes_when_cash_insufficient() {
@@ -531,9 +521,7 @@ fn e2e_pik_accretes_when_cash_insufficient() {
     }
 }
 
-// ============================================================================
 // E2E: Recovery Cash Flows Through Waterfall Correctly
-// ============================================================================
 
 #[test]
 fn e2e_recovery_cash_reaches_tranches() {
@@ -595,9 +583,7 @@ fn e2e_recovery_cash_reaches_tranches() {
     );
 }
 
-// ============================================================================
 // E2E: TrancheSeniority Protection Under Stress
-// ============================================================================
 
 #[test]
 fn e2e_seniority_protects_senior_under_moderate_stress() {
@@ -658,9 +644,7 @@ fn e2e_seniority_protects_senior_under_moderate_stress() {
     );
 }
 
-// ============================================================================
 // E2E: Chronological Ordering of Cashflows
-// ============================================================================
 
 #[test]
 fn e2e_cashflows_are_chronologically_ordered() {
@@ -706,9 +690,7 @@ fn e2e_cashflows_are_chronologically_ordered() {
     }
 }
 
-// ============================================================================
 // E2E: Waterfall Priority Ordering
-// ============================================================================
 
 #[test]
 fn e2e_waterfall_pays_senior_before_mezz() {
@@ -746,9 +728,7 @@ fn e2e_waterfall_pays_senior_before_mezz() {
     }
 }
 
-// ============================================================================
 // E2E: Loss Allocation Through Capital Structure
-// ============================================================================
 
 #[test]
 fn e2e_loss_allocation_equity_first_then_mezz() {
@@ -919,9 +899,7 @@ fn e2e_no_loss_full_recovery_all_tranches() {
     }
 }
 
-// ============================================================================
 // E2E: Multi-Asset AssetPool Aggregation
-// ============================================================================
 
 #[test]
 fn e2e_multi_asset_pool_aggregates_correctly() {

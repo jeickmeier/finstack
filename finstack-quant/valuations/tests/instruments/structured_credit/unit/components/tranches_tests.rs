@@ -23,9 +23,7 @@ fn maturity_date() -> Date {
     Date::from_calendar_date(2030, Month::December, 31).unwrap()
 }
 
-// ============================================================================
 // Tranche Creation Tests
-// ============================================================================
 
 #[test]
 fn test_tranche_creation_basic() {
@@ -164,9 +162,7 @@ fn test_tranche_floating_coupon() {
     }
 }
 
-// ============================================================================
 // Tranche Builder Tests
-// ============================================================================
 
 #[test]
 fn test_tranche_builder_complete() {
@@ -206,9 +202,7 @@ fn test_tranche_builder_missing_required_field() {
     assert!(result.is_err());
 }
 
-// ============================================================================
 // Tranche Characteristics Tests
-// ============================================================================
 
 #[test]
 fn test_tranche_thickness() {
@@ -281,9 +275,7 @@ fn test_tranche_is_impaired() {
     assert!(tranche.is_impaired(20.0)); // Loss above detachment
 }
 
-// ============================================================================
 // Loss Allocation Tests
-// ============================================================================
 
 #[test]
 fn test_tranche_loss_allocation_no_loss() {
@@ -369,9 +361,7 @@ fn test_tranche_current_balance_after_losses() {
     assert_eq!(balance.amount(), 30_000_000.0);
 }
 
-// ============================================================================
 // TrancheStructure Tests
-// ============================================================================
 
 #[test]
 fn test_tranche_structure_creation() {
@@ -565,9 +555,7 @@ fn test_tranche_structure_subordination_amount() {
     assert_eq!(sub_amount.amount(), 15_000_000.0);
 }
 
-// ============================================================================
 // Coverage Trigger Tests
-// ============================================================================
 
 #[test]
 fn test_coverage_trigger_creation() {
@@ -603,9 +591,7 @@ fn test_coverage_trigger_is_cured() {
     assert!(trigger.is_cured(1.30)); // Above cure level
 }
 
-// ============================================================================
 // Helper Functions
-// ============================================================================
 
 fn create_tranche(id: &str, attach: f64, detach: f64, seniority: TrancheSeniority) -> Tranche {
     Tranche::new(

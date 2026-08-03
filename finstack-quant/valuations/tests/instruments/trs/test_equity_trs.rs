@@ -16,9 +16,7 @@ use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::TrsSide;
 use rust_decimal::Decimal;
 
-// ================================================================================================
 // Construction and Validation Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_builder_defaults() {
@@ -61,9 +59,7 @@ fn test_equity_trs_with_no_dividend_yield() {
     assert!(trs.underlying.div_yield_id.is_none());
 }
 
-// ================================================================================================
 // NPV and Pricing Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_npv_receive_side() {
@@ -151,9 +147,7 @@ fn test_equity_trs_pricing_with_different_spreads() {
     );
 }
 
-// ================================================================================================
 // Leg Decomposition Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_total_return_leg_pv() {
@@ -353,9 +347,7 @@ fn test_equity_trs_financing_leg_increases_with_spread() {
     );
 }
 
-// ================================================================================================
 // Market Sensitivity Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_sensitivity_to_spot_price() {
@@ -465,9 +457,7 @@ fn test_equity_trs_sensitivity_to_interest_rates() {
     assert!(npv_shifted.amount().is_finite());
 }
 
-// ================================================================================================
 // Initial Level Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_with_custom_initial_level() {
@@ -512,9 +502,7 @@ fn test_equity_trs_initial_level_vs_spot() {
     );
 }
 
-// ================================================================================================
 // Cashflow Schedule Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_cashflow_schedule_generation() {
@@ -561,9 +549,7 @@ fn test_equity_trs_cashflow_schedule_dates_ordered() {
     }
 }
 
-// ================================================================================================
 // Tenor Variation Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_short_tenor_3_months() {
@@ -607,9 +593,7 @@ fn test_equity_trs_long_tenor_5_years() {
     assert!(npv.amount().is_finite());
 }
 
-// ================================================================================================
 // Notional Size Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_notional_scaling() {

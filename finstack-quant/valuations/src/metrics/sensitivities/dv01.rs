@@ -49,9 +49,7 @@ use finstack_quant_core::types::CurveId;
 use std::borrow::Cow;
 use std::marker::PhantomData;
 
-// =============================================================================
 // Configuration Types
-// =============================================================================
 
 /// DV01 calculation mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -192,9 +190,7 @@ impl Dv01CalculatorConfig {
     }
 }
 
-// =============================================================================
 // Unified DV01 Calculator
-// =============================================================================
 
 /// Unified DV01 calculator supporting all computation modes.
 ///

@@ -200,9 +200,7 @@ fn simulation_rejects_invalid_paths_confidence_exposures_and_loadings() {
     assert!(simulate_portfolio_loss(&[valid], &cfg).is_err());
 }
 
-// ---------------------------------------------------------------------------
 // Tranche loss statistics
-// ---------------------------------------------------------------------------
 
 /// Five-path pool distribution used by the tranche cases below.
 ///

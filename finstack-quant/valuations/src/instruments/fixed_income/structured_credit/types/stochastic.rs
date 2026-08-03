@@ -10,9 +10,7 @@ use crate::instruments::fixed_income::structured_credit::pricing::{
 };
 
 impl StructuredCredit {
-    // =========================================================================
     // Stochastic configuration helpers
-    // =========================================================================
 
     /// Check if stochastic modeling is enabled.
     ///

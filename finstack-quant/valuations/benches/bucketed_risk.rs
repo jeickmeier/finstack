@@ -32,9 +32,7 @@ mod rates_support;
 use std::hint::black_box;
 use time::Month;
 
-// ============================================================================
 // Test Instrument Creation
-// ============================================================================
 
 fn create_bond(tenor_years: i32) -> Bond {
     let issue = Date::from_calendar_date(2025, Month::January, 1).unwrap();
@@ -82,9 +80,7 @@ fn create_cds(tenor_years: i32) -> CreditDefaultSwap {
     .unwrap()
 }
 
-// ============================================================================
 // Market Data Creation
-// ============================================================================
 
 fn create_ir_market() -> MarketContext {
     let base = Date::from_calendar_date(2025, Month::January, 1).unwrap();
@@ -182,9 +178,7 @@ fn create_credit_market() -> MarketContext {
     MarketContext::new().insert(disc).insert(hazard)
 }
 
-// ============================================================================
 // Bucketed DV01 Benchmarks
-// ============================================================================
 
 fn bench_bond_bucketed_dv01(c: &mut Criterion) {
     let mut group = c.benchmark_group("bond_bucketed_dv01");
@@ -293,9 +287,7 @@ fn bench_bond_bucketed_dv01_by_tenor(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Bucketed CS01 Benchmarks
-// ============================================================================
 
 fn bench_cds_bucketed_cs01(c: &mut Criterion) {
     let mut group = c.benchmark_group("cds_bucketed_cs01");
@@ -359,9 +351,7 @@ fn bench_cds_bucketed_cs01_by_tenor(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Combined Risk Calculations
-// ============================================================================
 
 fn bench_combined_metrics(c: &mut Criterion) {
     let mut group = c.benchmark_group("combined_risk_metrics");
@@ -444,9 +434,7 @@ fn bench_combined_metrics(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Criterion Configuration
-// ============================================================================
 
 criterion_group!(
     benches,

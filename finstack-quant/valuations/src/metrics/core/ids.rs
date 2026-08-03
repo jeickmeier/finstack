@@ -227,9 +227,7 @@ impl MetricId {
         }
     }
 
-    // ========================================================================
     // Core Risk Metrics
-    // ========================================================================
 
     /// Time decay (theta) - 1D Day Time decay P&L
     pub const Theta: Self = Self(Cow::Borrowed("theta"));
@@ -350,9 +348,7 @@ impl MetricId {
     /// Units: currency per 1bp hazard-rate bucket move.
     pub const BucketedCs01Hazard: Self = Self(Cow::Borrowed("bucketed_cs01_hazard"));
 
-    // ========================================================================
     // FX Spot Metrics
-    // ========================================================================
 
     /// Spot rate
     pub const SpotRate: Self = Self(Cow::Borrowed("spot_rate"));
@@ -366,9 +362,7 @@ impl MetricId {
     /// Inverse rate
     pub const InverseRate: Self = Self(Cow::Borrowed("inverse_rate"));
 
-    // ========================================================================
     // Equity Metrics
-    // ========================================================================
 
     /// Equity price per share (spot price).
     ///
@@ -414,9 +408,7 @@ impl MetricId {
     /// Futures basis, typically futures price less spot or CTD-implied fair value.
     pub const Basis: Self = Self(Cow::Borrowed("basis"));
 
-    // ========================================================================
     // Bond Metrics
-    // ========================================================================
 
     /// Dirty price (includes accrued interest)
     pub const DirtyPrice: Self = Self(Cow::Borrowed("dirty_price"));
@@ -482,9 +474,7 @@ impl MetricId {
     /// Distinct from `IrConvexity`, which is used for swap/rates contexts.
     pub const Convexity: Self = Self(Cow::Borrowed("convexity"));
 
-    // ========================================================================
     // Spread Metrics
-    // ========================================================================
 
     /// Z-spread - Zero-vol spread
     pub const ZSpread: Self = Self(Cow::Borrowed("z_spread"));
@@ -514,9 +504,7 @@ impl MetricId {
     /// Market (price-based) asset swap spread
     pub const ASWMarket: Self = Self(Cow::Borrowed("asw_market"));
 
-    // ========================================================================
     // IRS Metrics
-    // ========================================================================
 
     /// Annuity factor for fixed leg
     pub const Annuity: Self = Self(Cow::Borrowed("annuity"));
@@ -550,9 +538,7 @@ impl MetricId {
     /// Units: currency.
     pub const PvFloat: Self = Self(Cow::Borrowed("pv_float"));
 
-    // ========================================================================
     // Deposit Metrics
-    // ========================================================================
     // These metrics are used for deposit instrument valuation and curve
     // calibration. They provide transparency into the intermediate values
     // used in pricing calculations.
@@ -638,9 +624,7 @@ impl MetricId {
     pub const FloatingFirstAccrualFactor: Self =
         Self(Cow::Borrowed("floating_first_accrual_factor"));
 
-    // ========================================================================
     // CDS Metrics
-    // ========================================================================
 
     /// CDS par spread under the instrument's premium-leg convention.
     ///
@@ -706,9 +690,7 @@ impl MetricId {
     /// Expected recovery rate
     pub const Recovery01: Self = Self(Cow::Borrowed("recovery_01"));
 
-    // ========================================================================
     // Option Metrics
-    // ========================================================================
 
     /// Cash delta with respect to the instrument's chosen spot driver.
     ///
@@ -821,9 +803,7 @@ impl MetricId {
     /// Measures how DV01 with respect to one curve changes when the other moves.
     pub const IrCrossGamma: Self = Self(Cow::Borrowed("ir_cross_gamma"));
 
-    // ========================================================================
     // Cross-Factor Gamma Metrics
-    // ========================================================================
 
     /// Cross-gamma between interest rates and credit spreads.
     ///
@@ -928,9 +908,7 @@ impl MetricId {
     /// states a different convention.
     pub const ImpliedVol: Self = Self(Cow::Borrowed("implied_vol"));
 
-    // ========================================================================
     // Variance Swap Metrics
-    // ========================================================================
 
     /// Vega expressed per variance point (variance swap sensitivity)
     pub const VarianceVega: Self = Self(Cow::Borrowed("variance_vega"));
@@ -950,9 +928,7 @@ impl MetricId {
     /// Time to maturity as used in the variance swap conventions
     pub const VarianceTimeToMaturity: Self = Self(Cow::Borrowed("variance_time_to_maturity"));
 
-    // ========================================================================
     // Other Risk Metrics
-    // ========================================================================
 
     /// Dividend yield sensitivity per basis point
     pub const Dividend01: Self = Self(Cow::Borrowed("dividend01"));
@@ -1035,9 +1011,7 @@ impl MetricId {
     /// Convexity adjustment risk (CMS options)
     pub const ConvexityAdjustmentRisk: Self = Self(Cow::Borrowed("convexity_adjustment_risk"));
 
-    // ========================================================================
     // TRS Metrics
-    // ========================================================================
 
     /// Financing annuity for TRS
     pub const FinancingAnnuity: Self = Self(Cow::Borrowed("financing_annuity"));
@@ -1054,9 +1028,7 @@ impl MetricId {
     /// and from `Dv01` (which measures sensitivity to a parallel shift in the financing curve).
     pub const DurationDv01: Self = Self(Cow::Borrowed("duration_dv01"));
 
-    // ========================================================================
     // Basis Swap Metrics
-    // ========================================================================
 
     /// PV of primary floating leg (includes spread)
     pub const PvPrimary: Self = Self(Cow::Borrowed("pv_primary"));
@@ -1086,9 +1058,7 @@ impl MetricId {
     /// current spread is below par; negative values indicate above par.
     pub const IncrementalParSpread: Self = Self(Cow::Borrowed("incremental_par_spread"));
 
-    // ========================================================================
     // Repo Metrics
-    // ========================================================================
 
     /// Market value of collateral
     pub const CollateralValue: Self = Self(Cow::Borrowed("collateral_value"));
@@ -1114,9 +1084,7 @@ impl MetricId {
     /// Implied collateral return
     pub const ImpliedCollateralReturn: Self = Self(Cow::Borrowed("implied_collateral_return"));
 
-    // ========================================================================
     // Basket/ETF Metrics
-    // ========================================================================
 
     /// Net Asset Value per share
     pub const Nav: Self = Self(Cow::Borrowed("nav"));
@@ -1139,9 +1107,7 @@ impl MetricId {
     /// Premium/discount to NAV
     pub const PremiumDiscount: Self = Self(Cow::Borrowed("premium_discount"));
 
-    // ========================================================================
     // Structured Credit Metrics
-    // ========================================================================
 
     /// Weighted Average Life (WAL), the expected principal repayment life.
     ///
@@ -1191,9 +1157,7 @@ impl MetricId {
     /// Units: currency per 1bp discount-margin move.
     pub const Dm01: Self = Self(Cow::Borrowed("dm01"));
 
-    // ========================================================================
     // ABS-specific Metrics
-    // ========================================================================
 
     /// Delinquency rate - Percentage of pool in delinquency
     pub const AbsDelinquency: Self = Self(Cow::Borrowed("abs_delinquency"));
@@ -1207,9 +1171,7 @@ impl MetricId {
     /// Credit enhancement level - Subordination as % of pool
     pub const AbsCreditEnhancement: Self = Self(Cow::Borrowed("abs_ce_level"));
 
-    // ========================================================================
     // CLO-specific Metrics
-    // ========================================================================
 
     /// Weighted Average Rating Factor
     pub const CloWarf: Self = Self(Cow::Borrowed("clo_warf"));
@@ -1232,9 +1194,7 @@ impl MetricId {
     /// Average recovery rate on defaults
     pub const CloRecoveryRate: Self = Self(Cow::Borrowed("clo_recovery_rate"));
 
-    // ========================================================================
     // CMBS-specific Metrics
-    // ========================================================================
 
     /// Debt Service Coverage Ratio
     pub const CmbsDscr: Self = Self(Cow::Borrowed("cmbs_dscr"));
@@ -1245,9 +1205,7 @@ impl MetricId {
     /// Credit Enhancement Level
     pub const CmbsCreditEnhancement: Self = Self(Cow::Borrowed("cmbs_ce_level"));
 
-    // ========================================================================
     // RMBS-specific Metrics
-    // ========================================================================
 
     /// PSA prepayment speed (e.g., 100% PSA)
     pub const RmbsPsaSpeed: Self = Self(Cow::Borrowed("rmbs_psa_speed"));
@@ -1261,9 +1219,7 @@ impl MetricId {
     /// Weighted Average FICO score
     pub const RmbsWafico: Self = Self(Cow::Borrowed("rmbs_wafico"));
 
-    // ========================================================================
     // Inflation-Linked Bond Metrics
-    // ========================================================================
 
     /// Real yield (inflation-adjusted)
     pub const RealYield: Self = Self(Cow::Borrowed("real_yield"));
@@ -1277,9 +1233,7 @@ impl MetricId {
     /// Breakeven inflation rate
     pub const BreakevenInflation: Self = Self(Cow::Borrowed("breakeven_inflation"));
 
-    // ========================================================================
     // Private Equity / Private Markets Fund Metrics
-    // ========================================================================
 
     /// LP (Limited Partner) internal rate of return.
     ///
@@ -1312,9 +1266,7 @@ impl MetricId {
     /// Units: currency.
     pub const CarryAccrued: Self = Self(Cow::Borrowed("carry_accrued"));
 
-    // ========================================================================
     // DCF / Corporate Valuation Metrics
-    // ========================================================================
 
     /// Enterprise value (present value of all operating cashflows + terminal value)
     pub const EnterpriseValue: Self = Self(Cow::Borrowed("enterprise_value"));
@@ -1325,9 +1277,7 @@ impl MetricId {
     /// Present value of terminal value
     pub const TerminalValuePV: Self = Self(Cow::Borrowed("terminal_value_pv"));
 
-    // ========================================================================
     // VaR Metrics
-    // ========================================================================
 
     /// Conditional second-order theta (gamma of theta)
     pub const ThetaGamma: Self = Self(Cow::Borrowed("theta_gamma"));
@@ -1338,9 +1288,7 @@ impl MetricId {
     /// Expected Shortfall / Conditional VaR (CVaR)
     pub const ExpectedShortfall: Self = Self(Cow::Borrowed("expected_shortfall"));
 
-    // ========================================================================
     // Dollar Roll / TBA Carry Metrics
-    // ========================================================================
 
     /// Implied financing rate from dollar roll drop (annualized, ACT/360).
     pub const ImpliedFinancingRate: Self = Self(Cow::Borrowed("implied_financing_rate"));
@@ -1348,9 +1296,7 @@ impl MetricId {
     /// Roll specialness vs. repo rate (basis points).
     pub const RollSpecialness: Self = Self(Cow::Borrowed("roll_specialness"));
 
-    // ========================================================================
     // Pricer registry: spread / yield metrics on cash-equivalent cashflows
-    // ========================================================================
 
     /// Metrics computed on **cash-equivalent** cashflows when pricing with a
     /// non-discounting model (hazard, tree, Monte Carlo, etc.).
@@ -1372,9 +1318,7 @@ impl MetricId {
         MetricId::EmbeddedOptionValue,
     ];
 
-    // ========================================================================
     // ALL_STANDARD Array
-    // ========================================================================
 
     /// All standard (non-custom) metric IDs, ordered by group.
     pub const ALL_STANDARD: &'static [MetricId] = &[
@@ -1633,9 +1577,7 @@ const fn decode_hex(byte: u8) -> Option<u8> {
     }
 }
 
-// ============================================================================
 // Metric Groups
-// ============================================================================
 
 /// Logical grouping of standard metrics for discovery and display.
 ///
@@ -1742,8 +1684,6 @@ impl fmt::Display for MetricGroup {
         write!(f, "{}", self.display_name())
     }
 }
-
-// ============================================================================
 
 impl fmt::Display for MetricId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

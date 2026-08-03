@@ -372,9 +372,7 @@ impl QuantoOption {
     }
 }
 
-// ================================================================================================
 // Option risk metric providers (metrics adapters)
-// ================================================================================================
 
 impl crate::instruments::common_impl::traits::OptionGreeksProvider for QuantoOption {
     // QuantoOption's analytical pricer does not support Theta; fail fast so the

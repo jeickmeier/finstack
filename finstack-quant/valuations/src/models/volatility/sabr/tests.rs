@@ -424,9 +424,7 @@ fn test_sabr_z_over_chi_uses_series_not_fabricated_one() {
     );
 }
 
-// ===================================================================
 // Market Standards Validation Tests (Priority 1, Task 1.2)
-// ===================================================================
 
 #[test]
 fn test_sabr_rejects_negative_alpha() {
@@ -528,9 +526,7 @@ fn test_sabr_accepts_boundary_values() {
     assert!(SABRParameters::new(0.001, 0.5, 0.0, 0.0).is_ok());
 }
 
-// ===================================================================
 // Inverse Normal CDF Precision Tests
-// ===================================================================
 
 #[test]
 fn test_normal_inverse_cdf_precision() {
@@ -599,9 +595,7 @@ fn test_normal_inverse_cdf_boundary_behavior() {
     assert!(near_one > 30.0, "CDF^-1(1-1e-300) should be very positive");
 }
 
-// ===================================================================
 // Arbitrage Validation Tests
-// ===================================================================
 
 #[test]
 fn test_sabr_arbitrage_validation_clean_smile() {
@@ -1247,9 +1241,7 @@ fn test_sabr_strike_from_delta_round_trip_at_25_delta() {
     );
 }
 
-// ===================================================================
 // Hagan (1-beta) exponent in the vol denominator
-// ===================================================================
 
 /// At β=1 (lognormal SABR), ν=0 (no vol-of-vol), ρ=0, the model reduces to
 /// dF = α·F·dW, i.e. a pure GBM with constant log-vol α.

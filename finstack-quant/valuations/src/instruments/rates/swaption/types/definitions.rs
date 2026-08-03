@@ -250,9 +250,7 @@ impl std::str::FromStr for SwaptionExercise {
     }
 }
 
-// ============================================================================
 // Bermudan Swaption Types
-// ============================================================================
 
 /// Bermudan exercise schedule specification.
 ///

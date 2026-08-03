@@ -51,9 +51,7 @@ use super::monte_carlo_lsmc::{SwaptionLsmcConfig, SwaptionLsmcPricer};
 use super::monte_carlo_payoff::{BermudanSwaptionPayoff, SwapSchedule, SwaptionType};
 use super::swap_rate_utils::{ForwardSwapRate, HullWhiteBondPrice};
 
-// ===========================================================================
 // LMM / BGM — numéraire-consistent co-terminal European reference
-// ===========================================================================
 
 /// 4 annual forwards, 2 factors, ~12% loadings — mirrors the `lmm_bermudan`
 /// unit-test parameter set so the failure is reproducible against the
@@ -329,9 +327,7 @@ fn lmm_bermudan_respects_coterminal_lower_bound() {
     assert!(bermudan_pv > 0.0, "ITM Bermudan should be positive");
 }
 
-// ===========================================================================
 // LSMC / Hull-White 1F — pathwise money-market numéraire
-// ===========================================================================
 
 /// Exercise-aligned swap schedule used by both the LSMC engine and the
 /// reference: a co-terminal payer swap maturing at 5y with annual periods.

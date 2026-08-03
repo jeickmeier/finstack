@@ -2390,9 +2390,7 @@ fn normal_caplet_vega(forward: f64, strike: f64, vol: f64, expiry: f64) -> f64 {
     expiry.sqrt() * norm_pdf(d)
 }
 
-// =============================================================================
 // Futures convexity adjustment
-// =============================================================================
 
 /// Compute the Hull-White 1-factor futures convexity adjustment.
 ///
@@ -2444,9 +2442,7 @@ pub fn hw1f_convexity_adjustment(kappa: f64, sigma: f64, t_settle: f64, t_end: f
     sigma * sigma / (4.0 * kappa) * (b_se / tau) * bracket
 }
 
-// =============================================================================
 // Internal helpers
-// =============================================================================
 
 /// B(t₁, t₂) = (1 − e^{−κ(t₂−t₁)}) / κ
 fn hw_b(kappa: f64, t1: f64, t2: f64) -> f64 {
@@ -2929,9 +2925,7 @@ fn hw1f_swaption_price_inner(
     }
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -3246,9 +3240,7 @@ mod tests {
         assert!(result.is_err(), "Should reject < 2 quotes");
     }
 
-    // ========================================================================
     // HW1F vega-weighted calibration + multi-start
-    // ========================================================================
 
     /// Wide-grid round-trip: generate ATM normal vols from a known
     /// `(κ*, σ*) = (0.08, 0.012)` on a 10-swaption co-terminal-style

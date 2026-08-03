@@ -16,9 +16,7 @@
 use finstack_quant_core::{Error, InputError, Result};
 use serde::{Deserialize, Serialize};
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 /// Map from leverage to hazard rate.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -59,9 +57,7 @@ pub struct EndogenousHazardSpec {
     leverage_hazard_map: LeverageHazardMap,
 }
 
-// ---------------------------------------------------------------------------
 // Implementation
-// ---------------------------------------------------------------------------
 
 impl EndogenousHazardSpec {
     // -- Convenience constructors -------------------------------------------
@@ -224,9 +220,7 @@ impl EndogenousHazardSpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Helper: tabular linear interpolation with flat extrapolation
-// ---------------------------------------------------------------------------
 
 /// Linear interpolation between tabular points with flat extrapolation at
 /// the edges.
@@ -285,9 +279,7 @@ fn tabular_interpolate(xs: &[f64], ys: &[f64], x: f64) -> f64 {
     last_y
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

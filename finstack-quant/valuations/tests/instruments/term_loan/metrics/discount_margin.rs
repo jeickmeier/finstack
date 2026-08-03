@@ -193,11 +193,9 @@ fn test_dm_callable_with_quoted_price_succeeds() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Flat, self-consistent market: discount curve == projection curve, both at
 // `rate` with quarterly compounding on the Act/360 axis. On this market a
 // loan quoted at par must solve to DM == contractual margin.
-// ---------------------------------------------------------------------------
 
 fn flat_consistent_market(as_of: time::Date, rate: f64) -> MarketContext {
     // DF(t) = (1 + rate/4)^(-4t): with log-linear interpolation two knots

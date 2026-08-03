@@ -14,9 +14,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_core::types::{CurveId, InstrumentId};
 use finstack_quant_core::Result;
 
-// ---------------------------------------------------------------------------
 // Monte Carlo types (feature-gated)
-// ---------------------------------------------------------------------------
 
 /// Monte Carlo configuration for commodity option pricing.
 ///

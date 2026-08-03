@@ -8,9 +8,7 @@ use finstack_quant_core::dates::Date;
 
 use serde::{Deserialize, Serialize};
 
-// ============================================================================
 // CORE DEAL TYPES
-// ============================================================================
 
 /// Primary structured credit deal classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
@@ -87,9 +85,7 @@ impl core::fmt::Display for TrancheSeniority {
     }
 }
 
-// ============================================================================
 // ASSET CLASSIFICATION
-// ============================================================================
 
 /// Asset type classification for pool composition (flattened hierarchy)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -248,9 +244,7 @@ pub enum AssetType {
     },
 }
 
-// ============================================================================
 // PAYMENT & WATERFALL
-// ============================================================================
 
 /// Payment distribution modes
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]

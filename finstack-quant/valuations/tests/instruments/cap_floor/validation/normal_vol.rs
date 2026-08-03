@@ -29,9 +29,7 @@ use finstack_quant_valuations::metrics::MetricId;
 use rust_decimal::Decimal;
 use time::macros::date;
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 fn flat_fwd(rate: f64, base: Date, id: &str) -> ForwardCurve {
     ForwardCurve::builder(id, 0.25)
@@ -113,9 +111,7 @@ fn context_from(as_of: Date, fwd_rate: f64, normal_sigma: f64) -> MarketContext 
         .insert_surface(flat_normal_vol_surface(normal_sigma, "VOL"))
 }
 
-// ---------------------------------------------------------------------------
 // Sign & non-negativity tests
-// ---------------------------------------------------------------------------
 
 /// Normal-model caplet delta must be positive.
 #[test]
@@ -251,9 +247,7 @@ fn normal_vega_positive() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Negative-rate environment: normal model handles it, black model fails
-// ---------------------------------------------------------------------------
 
 /// Normal model must price successfully with negative forward rate.
 #[test]
@@ -297,9 +291,7 @@ fn normal_model_prices_negative_forward() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Finite-difference cross-validation: Bachelier delta
-// ---------------------------------------------------------------------------
 
 /// Normal caplet delta matches finite-difference approximation within 2%.
 #[test]
@@ -420,10 +412,8 @@ fn normal_vega_matches_finite_difference() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Cap-floor delta parity: cap_delta + |floor_delta| ≈ 1 (ATM Black-Scholes property)
 // For Bachelier: cap_delta - floor_delta = 1 exactly (put-call parity on delta)
-// ---------------------------------------------------------------------------
 
 /// Bachelier delta satisfies: cap_delta - floor_delta = 1.
 ///

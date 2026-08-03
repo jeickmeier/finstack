@@ -17,9 +17,7 @@ fn base_context() -> MarketContext {
     )
 }
 
-// ============================================================================
 // Basic Metrics Tests
-// ============================================================================
 
 #[test]
 fn test_variance_notional_returns_correct_amount() {
@@ -163,9 +161,7 @@ fn test_time_to_maturity_decreases_over_time() {
     }
 }
 
-// ============================================================================
 // Realized and Expected Variance Metrics Tests
-// ============================================================================
 
 #[test]
 fn test_realized_variance_before_start_is_zero() {
@@ -304,9 +300,7 @@ fn test_expected_variance_blends_realized_and_forward_mid_period() {
     assert!((ev - expected).abs() < LOOSE_EPSILON);
 }
 
-// ============================================================================
 // Vega and Variance Vega Tests
-// ============================================================================
 
 #[test]
 fn test_vega_matches_formula() {
@@ -481,9 +475,7 @@ fn test_vega_decreases_as_maturity_approaches() {
     }
 }
 
-// ============================================================================
 // DV01 Tests
-// ============================================================================
 
 #[test]
 fn test_dv01_matches_bump_and_reprice() {
@@ -580,9 +572,7 @@ fn test_dv01_decreases_as_maturity_approaches() {
     }
 }
 
-// ============================================================================
 // Combined Metrics Tests
-// ============================================================================
 
 #[test]
 fn test_all_metrics_pre_start() {

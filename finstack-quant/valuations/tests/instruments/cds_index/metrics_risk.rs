@@ -468,7 +468,6 @@ fn test_risk_metrics_finite() {
     }
 }
 
-// ============================================================================
 // Recovery01 and Cs01Hazard
 //
 // Both are registered on the CDS Index metric calculator but were previously
@@ -477,7 +476,6 @@ fn test_risk_metrics_finite() {
 // shift (an alternative to the par-spread-rebootstrap `Cs01`). These tests
 // guard against either metric silently regressing to zero/NaN or losing its
 // linearity in notional.
-// ============================================================================
 
 #[test]
 fn test_recovery01_finite_and_nonzero() {

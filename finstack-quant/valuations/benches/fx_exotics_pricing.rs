@@ -37,9 +37,7 @@ use std::hint::black_box;
 use std::sync::Arc;
 use time::Month;
 
-// ================================================================================================
 // Market setup
-// ================================================================================================
 
 fn base_date() -> Date {
     Date::from_calendar_date(2024, Month::January, 2).unwrap()
@@ -177,9 +175,7 @@ fn create_market(as_of: Date) -> MarketContext {
         .insert_price("JPYUSD-SPOT", MarketScalar::Unitless(1.0 / 150.0))
 }
 
-// ================================================================================================
 // Instrument factories
-// ================================================================================================
 
 fn make_barrier(as_of: Date, tenor_years: i32, barrier_type: BarrierType) -> FxBarrierOption {
     let expiry =
@@ -309,9 +305,7 @@ fn make_quanto(as_of: Date, tenor_years: i32) -> QuantoOption {
         .unwrap()
 }
 
-// ================================================================================================
 // Benchmarks
-// ================================================================================================
 
 /// Scale barrier option pricing vs tenor (1Y, 2Y, 5Y).
 ///

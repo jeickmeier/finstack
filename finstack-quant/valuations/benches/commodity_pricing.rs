@@ -261,9 +261,7 @@ fn bench_commodity_option_greeks(c: &mut Criterion) {
     group.finish();
 }
 
-// ================================================================================================
 // Asian option benchmarks
-// ================================================================================================
 
 /// Scale commodity Asian option pricing vs number of fixing dates (3, 6, 12, 24 obs).
 ///
@@ -362,9 +360,7 @@ fn bench_commodity_asian_option_method(c: &mut Criterion) {
     group.finish();
 }
 
-// ================================================================================================
 // Spread option benchmarks
-// ================================================================================================
 
 /// Benchmark crack spread option (WTI vs RBOB) using Kirk's approximation.
 ///
@@ -404,9 +400,7 @@ fn bench_commodity_spread_option_pv(c: &mut Criterion) {
     group.finish();
 }
 
-// ================================================================================================
 // Swaption benchmarks
-// ================================================================================================
 
 /// Scale commodity swaption pricing vs underlying swap tenor (1Y, 2Y, 3Y).
 ///

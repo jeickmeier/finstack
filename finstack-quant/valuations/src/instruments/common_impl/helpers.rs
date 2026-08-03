@@ -1229,9 +1229,7 @@ pub fn collect_black_scholes_inputs(
     Ok((inputs.spot, r_eff, inputs.q, inputs.sigma, inputs.t))
 }
 
-// =============================================================================
 // Inflation Lag Helpers
-// =============================================================================
 
 use finstack_quant_core::dates::DateExt;
 use finstack_quant_core::market_data::scalars::InflationLag;

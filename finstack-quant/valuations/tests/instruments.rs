@@ -2,9 +2,7 @@
 //!
 //! This module organizes instrument tests by asset class and product type.
 
-// ============================================================================
 // Common Test Infrastructure
-// ============================================================================
 
 /// Common test utilities, helpers, models, and shared functionality.
 /// Includes a parity helper for documented reference-value comparisons.
@@ -26,9 +24,7 @@ mod test_support;
 // Re-export parity helpers for explicit imports and macro expansion.
 pub use common::parity;
 
-// ============================================================================
 // Fixed Income Instruments
-// ============================================================================
 
 /// Bond tests - Fixed coupon bonds, zero-coupon bonds, floating rate notes
 #[path = "instruments/bond/mod.rs"]
@@ -46,9 +42,7 @@ mod inflation_linked_bond;
 #[path = "instruments/bond_future/mod.rs"]
 mod bond_future;
 
-// ============================================================================
 // Interest Rate Derivatives
-// ============================================================================
 
 /// Basis swap tests - Multi-curve basis swaps (e.g., 3m vs 6m LIBOR)
 #[path = "instruments/basis_swap/mod.rs"]
@@ -93,9 +87,7 @@ mod swaption;
 #[path = "instruments/exotic_harness/mod.rs"]
 mod exotic_harness;
 
-// ============================================================================
 // Credit Derivatives
-// ============================================================================
 
 /// Credit Default Swap (CDS) tests - Single-name protection
 #[path = "instruments/cds/mod.rs"]
@@ -113,9 +105,7 @@ mod cds_option;
 #[path = "instruments/cds_tranche/mod.rs"]
 mod cds_tranche;
 
-// ============================================================================
 // Equity Derivatives
-// ============================================================================
 
 /// Equity tests - Equity spot instruments
 #[path = "instruments/equity/mod.rs"]
@@ -149,9 +139,7 @@ mod trs;
 #[path = "instruments/variance_swap/mod.rs"]
 mod variance_swap;
 
-// ============================================================================
 // FX Derivatives
-// ============================================================================
 
 /// FX forward tests - Outright FX forward contracts
 #[path = "instruments/fx_forward/mod.rs"]
@@ -189,9 +177,7 @@ mod ndf;
 #[path = "instruments/xccy_swap/mod.rs"]
 mod xccy_swap;
 
-// ============================================================================
 // Commodity Derivatives
-// ============================================================================
 
 #[path = "instruments/commodity/mod.rs"]
 mod commodity;
@@ -212,17 +198,13 @@ mod commodity_spread_option;
 #[path = "instruments/commodity_swaption/mod.rs"]
 mod commodity_swaption;
 
-// ============================================================================
 // Real Estate
-// ============================================================================
 
 /// Real estate asset tests
 #[path = "instruments/equity/real_estate/mod.rs"]
 mod real_estate;
 
-// ============================================================================
 // Structured Products
-// ============================================================================
 
 /// Autocallable tests - Path-dependent structured notes with early redemption
 #[path = "instruments/autocallable/mod.rs"]
@@ -240,9 +222,7 @@ mod private_market_fund;
 #[path = "instruments/structured_credit/mod.rs"]
 mod structured_credit;
 
-// ============================================================================
 // Repo and Financing
-// ============================================================================
 
 /// Repo tests - Repurchase agreements
 #[path = "instruments/repo/mod.rs"]
@@ -256,22 +236,16 @@ mod revolving_credit;
 #[path = "instruments/term_loan/mod.rs"]
 mod term_loan;
 
-// ============================================================================
 // Golden Test Vectors
-// ============================================================================
 
-// ============================================================================
 // Market Edge Case Tests
-// ============================================================================
 
 /// Market-edge tests for CDS and Bond instruments
 /// Tests for upfront conventions, accrual-on-default, ex-coupon, stub periods
 #[path = "instruments/market_edge_tests.rs"]
 mod market_edge_tests;
 
-// ============================================================================
 // Curve Dependency Completeness Tests
-// ============================================================================
 
 /// Curve dependency completeness tests
 /// Verifies that instruments correctly declare all their curve dependencies
@@ -293,17 +267,13 @@ mod forward_dependency_completeness;
 #[path = "instruments/fx_dependency_completeness.rs"]
 mod fx_dependency_completeness;
 
-// ============================================================================
 // Option Bounds Tests
-// ============================================================================
 
 /// Option bounds tests - arbitrage-free bounds for options
 #[path = "instruments/test_option_bounds.rs"]
 mod test_option_bounds;
 
-// ============================================================================
 // Serde Contract Tests
-// ============================================================================
 
 /// Cross-cutting serde contract tests - JSON round-trip and `deny_unknown_fields`
 /// rejection for every instrument with an `example()` constructor.

@@ -9,9 +9,7 @@ use finstack_quant_valuations::instruments::equity::variance_swap::PayReceive;
 use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::metrics::MetricId;
 
-// ============================================================================
 // Extreme Market Conditions
-// ============================================================================
 
 #[test]
 fn test_valuation_with_extreme_high_volatility() {
@@ -114,9 +112,7 @@ fn test_valuation_with_negative_rates() {
     assert!(pv.unwrap().amount().is_finite());
 }
 
-// ============================================================================
 // Extreme Notionals and Strike Values
-// ============================================================================
 
 #[test]
 fn test_valuation_with_very_large_notional() {
@@ -188,9 +184,7 @@ fn test_valuation_with_very_low_strike_variance() {
     assert!(pv.amount() > 0.0); // Market vol far above strike
 }
 
-// ============================================================================
 // Edge Cases in Time
-// ============================================================================
 
 #[test]
 fn test_valuation_with_very_short_tenor() {
@@ -260,9 +254,7 @@ fn test_valuation_one_day_before_maturity() {
     assert!(pv.unwrap().amount().is_finite());
 }
 
-// ============================================================================
 // Observation Tenor Edge Cases
-// ============================================================================
 
 #[test]
 fn test_valuation_with_single_observation() {
@@ -299,9 +291,7 @@ fn test_observation_dates_with_very_high_frequency() {
     }
 }
 
-// ============================================================================
 // Missing or Incomplete Data
-// ============================================================================
 
 #[test]
 fn test_valuation_with_missing_discount_curve_fails_gracefully() {
@@ -354,9 +344,7 @@ fn test_realized_variance_with_single_price_point() {
     assert_eq!(realized.unwrap(), 0.0); // Insufficient data => 0
 }
 
-// ============================================================================
 // Currency Edge Cases
-// ============================================================================
 
 #[test]
 fn test_valuation_preserves_currency() {
@@ -391,9 +379,7 @@ fn test_payoff_preserves_currency_across_calculations() {
     }
 }
 
-// ============================================================================
 // Numerical Stability
-// ============================================================================
 
 #[test]
 fn test_valuation_is_stable_under_repeated_calculations() {
@@ -468,9 +454,7 @@ fn test_payoff_is_linear_in_variance_difference() {
     }
 }
 
-// ============================================================================
 // As-Of Date Validation Tests
-// ============================================================================
 
 #[test]
 fn test_valuation_fails_when_as_of_before_discount_curve_base() {
@@ -526,9 +510,7 @@ fn test_valuation_succeeds_when_as_of_equals_discount_curve_base() {
     assert!(result.unwrap().amount().is_finite());
 }
 
-// ============================================================================
 // CashflowProvider Tests
-// ============================================================================
 
 #[test]
 fn test_cashflow_schedule_is_empty_placeholder() {

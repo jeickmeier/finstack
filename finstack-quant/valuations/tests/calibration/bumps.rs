@@ -82,9 +82,7 @@ fn bump_discount(curve: &DiscountCurve, bump: &BumpRequest) -> DiscountCurve {
         .expect("discount bump succeeds")
 }
 
-// ---------------------------------------------------------------------------
 // Discount curve — the path that carried the defect
-// ---------------------------------------------------------------------------
 
 /// A `0 bp` bump must be a no-op at every tenor, knot and non-knot.
 ///
@@ -296,9 +294,7 @@ fn discount_zero_shock_on_rolled_curve_is_identity() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Sibling bump paths
-// ---------------------------------------------------------------------------
 
 fn sample_inflation_curve() -> InflationCurve {
     InflationCurve::builder("USD-CPI")

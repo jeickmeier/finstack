@@ -692,9 +692,7 @@ impl StepParams {
     }
 }
 
-// =============================================================================
 // Step Parameter Structs
-// =============================================================================
 
 /// Parameters for discount curve calibration step.
 #[cfg_attr(feature = "ts_export", derive(TS))]
@@ -1387,9 +1385,7 @@ fn default_sabr_beta() -> f64 {
     0.5
 }
 
-// =============================================================================
 // XCCY Basis Curve
-// =============================================================================
 
 /// Parameters for cross-currency basis curve calibration step.
 ///
@@ -1436,9 +1432,7 @@ pub struct XccyBasisParams {
     pub basis_spread_curve_id: Option<CurveId>,
 }
 
-// =============================================================================
 // Parametric (NS / NSS) Curve
-// =============================================================================
 
 /// Parameters for parametric curve calibration step.
 ///

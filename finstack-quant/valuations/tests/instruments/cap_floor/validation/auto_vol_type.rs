@@ -21,9 +21,7 @@ use finstack_quant_valuations::instruments::Instrument;
 use rust_decimal::Decimal;
 use time::macros::date;
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 fn flat_fwd(rate: f64, base: Date, id: &str) -> ForwardCurve {
     ForwardCurve::builder(id, 0.25)
@@ -102,9 +100,7 @@ fn context_from(as_of: Date, fwd_rate: f64, sigma: f64) -> MarketContext {
         .insert_surface(flat_vol_surface(sigma, "VOL"))
 }
 
-// ---------------------------------------------------------------------------
 // Auto selects Black for positive rates
-// ---------------------------------------------------------------------------
 
 #[test]
 fn auto_selects_black_for_positive_rates() {
@@ -134,9 +130,7 @@ fn auto_selects_black_for_positive_rates() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Auto matches the lognormal fallback for negative rates
-// ---------------------------------------------------------------------------
 
 #[test]
 fn auto_matches_lognormal_fallback_for_negative_forward() {
@@ -222,9 +216,7 @@ fn lognormal_falls_back_to_normal_on_negative_forward() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Serde round-trip
-// ---------------------------------------------------------------------------
 
 #[test]
 fn auto_vol_type_serde_round_trip() {

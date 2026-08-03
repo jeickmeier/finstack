@@ -106,9 +106,7 @@ mod tests {
         (mu, var)
     }
 
-    // ===================================================================
     // Production estimator: conditional_min_loss_normal
-    // ===================================================================
 
     /// W-1 (item 1): the production normal-approximation tranchelet loss
     /// must lie in the analytic equity envelope `[0, k]`. The previous

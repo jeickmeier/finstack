@@ -11,9 +11,7 @@ use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::TrsSide;
 use finstack_quant_valuations::metrics::MetricId;
 
-// ================================================================================================
 // Par Spread Tests
-// ================================================================================================
 
 /// The reported par spread must REPRICE the swap to NPV ≈ 0 — the defining
 /// property of a par spread. This requires `base_value` and the par-spread
@@ -212,9 +210,7 @@ fn test_par_spread_sign_based_on_side() {
     );
 }
 
-// ================================================================================================
 // Financing Annuity Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_financing_annuity_positive() {
@@ -376,9 +372,7 @@ fn test_financing_annuity_scales_with_notional() {
     );
 }
 
-// ================================================================================================
 // IR01 Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_ir01_positive() {
@@ -474,9 +468,7 @@ fn test_ir01_scales_with_notional() {
     );
 }
 
-// ================================================================================================
 // Index Delta Tests (Equity TRS)
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_index_delta_zero_before_start_for_receive() {
@@ -623,9 +615,7 @@ fn test_fi_index_trs_duration_dv01_based_on_duration() {
     );
 }
 
-// ================================================================================================
 // Theta Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_theta_calculation() {
@@ -671,9 +661,7 @@ fn test_fi_index_trs_theta_calculation() {
     assert!(theta.is_finite(), "Theta should be finite");
 }
 
-// ================================================================================================
 // Bucketed DV01 Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_bucketed_dv01_calculation() {
@@ -719,9 +707,7 @@ fn test_fi_index_trs_bucketed_dv01_calculation() {
     assert!(bucketed.is_finite(), "Bucketed DV01 should be finite");
 }
 
-// ================================================================================================
 // Multiple Metrics Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_all_metrics_together() {
@@ -797,9 +783,7 @@ fn test_fi_index_trs_all_metrics_together() {
     assert!(result.measures.get("bucketed_dv01").unwrap().is_finite());
 }
 
-// ================================================================================================
 // Metric Consistency Tests
-// ================================================================================================
 
 #[test]
 fn test_par_spread_annuity_relationship() {
@@ -842,14 +826,12 @@ fn test_par_spread_annuity_relationship() {
     );
 }
 
-// ============================================================================
 // Dividend01
 //
 // `MetricId::Dividend01` (PV sensitivity to a dividend-yield bump, $/bp) is
 // registered for equity TRS but was previously unexercised. It must be finite
 // and non-zero when a dividend-yield curve is present, exactly zero when none
 // is referenced, and flip sign between the receive-TR and pay-TR sides.
-// ============================================================================
 
 fn dividend01(trs: &finstack_quant_valuations::instruments::EquityTotalReturnSwap) -> f64 {
     let market = create_market_context();

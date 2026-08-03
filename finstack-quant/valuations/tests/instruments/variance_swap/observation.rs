@@ -4,9 +4,7 @@ use super::common::*;
 use finstack_quant_core::dates::Tenor;
 use finstack_quant_valuations::instruments::equity::variance_swap::PayReceive;
 
-// ============================================================================
 // Observation Dates Tests
-// ============================================================================
 
 #[test]
 fn test_observation_dates_includes_start_and_maturity() {
@@ -109,9 +107,7 @@ fn test_realized_variance_rejects_missing_exact_observation() {
     assert!(error.to_string().contains(&dates[1].to_string()));
 }
 
-// ============================================================================
 // Annualization Factor Tests
-// ============================================================================
 
 #[test]
 fn test_annualization_factor_daily_equals_252() {
@@ -228,9 +224,7 @@ fn test_annualization_factor_specific_override_takes_precedence_over_global() {
     assert_eq!(factor, 260.0); // Specific takes precedence
 }
 
-// ============================================================================
 // Time Elapsed Fraction Tests
-// ============================================================================
 
 #[test]
 fn test_time_elapsed_fraction_boundaries() {
@@ -317,9 +311,7 @@ fn test_time_elapsed_fraction_is_monotonic() {
     }
 }
 
-// ============================================================================
 // Realized Fraction by Observations Tests
-// ============================================================================
 
 #[test]
 fn test_realized_fraction_by_observations_boundaries() {

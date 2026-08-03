@@ -129,9 +129,7 @@ fn create_quantlib_convertible(
     }
 }
 
-// =============================================================================
 // Test 1: Basic Convertible Bond Pricing
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testBond()
 // A convertible bond should price above max(bond_floor, conversion_value)
 
@@ -183,9 +181,7 @@ fn quantlib_parity_basic_convertible() {
     );
 }
 
-// =============================================================================
 // Test 2: Parity Calculation (At-The-Money)
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testParity()
 // Parity = (spot * conversion_ratio) / notional
 
@@ -213,9 +209,7 @@ fn quantlib_parity_at_the_money() {
     );
 }
 
-// =============================================================================
 // Test 3: Parity Calculation (In-The-Money)
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testParity()
 // ITM: spot price above conversion price
 
@@ -243,9 +237,7 @@ fn quantlib_parity_in_the_money() {
     );
 }
 
-// =============================================================================
 // Test 4: Parity Calculation (Out-Of-The-Money)
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testParity()
 // OTM: spot price below conversion price
 
@@ -273,9 +265,7 @@ fn quantlib_parity_out_of_the_money() {
     );
 }
 
-// =============================================================================
 // Test 5: Delta - Equity Sensitivity (ITM)
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testGreeks()
 // Delta measures sensitivity to equity price
 
@@ -321,9 +311,7 @@ fn quantlib_parity_delta_in_the_money() {
     );
 }
 
-// =============================================================================
 // Test 6: Delta - Equity Sensitivity (OTM)
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testGreeks()
 // OTM delta should be smaller (bond-like behavior)
 
@@ -368,9 +356,7 @@ fn quantlib_parity_delta_out_of_the_money() {
     );
 }
 
-// =============================================================================
 // Test 7: Gamma - Convexity
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testGreeks()
 // Gamma should be positive (convexity benefit)
 
@@ -404,9 +390,7 @@ fn quantlib_parity_gamma() {
     );
 }
 
-// =============================================================================
 // Test 8: Vega - Volatility Sensitivity
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testGreeks()
 // Vega should be positive (higher vol increases option value)
 
@@ -439,9 +423,7 @@ fn quantlib_parity_vega() {
     );
 }
 
-// =============================================================================
 // Test 9: Theta - Time Decay
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testGreeks()
 // Theta can be positive or negative for convertibles (coupon vs time decay)
 
@@ -480,9 +462,7 @@ fn quantlib_parity_theta() {
     );
 }
 
-// =============================================================================
 // Test 10: Rho - Interest Rate Sensitivity
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testGreeks()
 // Rho measures sensitivity to risk-free rate
 
@@ -515,9 +495,7 @@ fn quantlib_parity_rho() {
     );
 }
 
-// =============================================================================
 // Test 11: Callable Convertible Bond
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testCallableConvertible()
 // Callable convertible should be worth less than non-callable
 
@@ -569,9 +547,7 @@ fn quantlib_parity_callable_convertible() {
     );
 }
 
-// =============================================================================
 // Test 12: Puttable Convertible Bond
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testPutableConvertible()
 // Puttable convertible should be worth more than non-puttable
 
@@ -624,9 +600,7 @@ fn quantlib_parity_puttable_convertible() {
     );
 }
 
-// =============================================================================
 // Test 13: Zero Coupon Convertible
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testZeroCouponConvertible()
 // Zero coupon convertible pricing
 
@@ -691,9 +665,7 @@ fn quantlib_parity_zero_coupon_convertible() {
     );
 }
 
-// =============================================================================
 // Test 14: Volatility Impact on Price
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testVolatilitySensitivity()
 // Higher volatility should increase convertible value
 
@@ -735,9 +707,7 @@ fn quantlib_parity_volatility_sensitivity() {
     );
 }
 
-// =============================================================================
 // Test 15: Binomial vs Trinomial Tree Convergence
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testTreeConvergence()
 // Different tree methods should converge to similar values
 
@@ -768,9 +738,7 @@ fn quantlib_parity_tree_convergence() {
     );
 }
 
-// =============================================================================
 // Test 16: Conversion Premium Calculation
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testConversionPremium()
 // Conversion premium = (bond_price / conversion_value) - 1
 
@@ -807,9 +775,7 @@ fn quantlib_parity_conversion_premium() {
     );
 }
 
-// =============================================================================
 // Test 17: Deep ITM - Bond Behaves Like Stock
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testDeepITM()
 // Deep ITM convertible should track equity closely
 
@@ -847,9 +813,7 @@ fn quantlib_parity_deep_itm() {
     );
 }
 
-// =============================================================================
 // Test 18: Deep OTM - Bond Behaves Like Straight Bond
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testDeepOTM()
 // Deep OTM convertible should track bond floor
 
@@ -892,9 +856,7 @@ fn quantlib_parity_deep_otm() {
     );
 }
 
-// =============================================================================
 // Test 19: Mandatory Conversion Policy
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testMandatoryConversion()
 // Mandatory conversion at maturity
 
@@ -980,9 +942,7 @@ fn quantlib_parity_mandatory_conversion() {
     );
 }
 
-// =============================================================================
 // Test 20: Window Conversion Policy
-// =============================================================================
 // QuantLib reference: convertiblebonds.cpp, testWindowConversion()
 // Conversion allowed only within a window
 

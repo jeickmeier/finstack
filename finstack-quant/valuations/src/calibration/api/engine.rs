@@ -67,9 +67,7 @@ impl From<ExecuteError> for finstack_quant_core::Error {
     }
 }
 
-// =============================================================================
 // Helper Types
-// =============================================================================
 
 /// Quote lookup table built once per plan execution.
 struct QuoteIndex<'a> {
@@ -268,9 +266,7 @@ impl ExecutionState {
     }
 }
 
-// =============================================================================
 // Helper Functions
-// =============================================================================
 
 /// Merges explanation traces from individual calibration steps into a plan-level trace.
 fn merge_step_traces(
@@ -507,9 +503,7 @@ fn bad_fit_envelope_error(step_id: &str, report: &CalibrationReport) -> Envelope
     }
 }
 
-// =============================================================================
 // Public API
-// =============================================================================
 
 /// Execute a full [`CalibrationEnvelope`] plan.
 ///

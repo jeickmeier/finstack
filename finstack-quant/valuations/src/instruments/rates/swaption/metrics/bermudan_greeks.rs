@@ -72,9 +72,7 @@ fn validate_hw_greek_params(kappa: f64, sigma: f64) -> Result<()> {
     Ok(())
 }
 
-// ============================================================================
 // Bermudan Delta Calculator
-// ============================================================================
 
 /// Delta calculator for Bermudan swaptions.
 ///
@@ -195,9 +193,7 @@ impl MetricCalculator for BermudanDeltaCalculator {
     }
 }
 
-// ============================================================================
 // Bermudan Vega Calculator
-// ============================================================================
 
 /// Vega calculator for Bermudan swaptions.
 ///
@@ -307,9 +303,7 @@ impl MetricCalculator for BermudanVegaCalculator {
     }
 }
 
-// ============================================================================
 // Bermudan Gamma Calculator
-// ============================================================================
 
 /// Gamma calculator for Bermudan swaptions.
 ///
@@ -427,9 +421,7 @@ impl MetricCalculator for BermudanGammaCalculator {
     }
 }
 
-// ============================================================================
 // Exercise Probability Profile
-// ============================================================================
 
 /// Exercise timing summary for Bermudan swaptions.
 #[derive(Debug, Clone)]

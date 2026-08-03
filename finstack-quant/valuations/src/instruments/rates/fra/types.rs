@@ -20,9 +20,7 @@ use finstack_quant_core::types::{CalendarId, CurveId, InstrumentId, Rate};
 use rust_decimal::Decimal;
 use time::macros::date;
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 /// Minimum denominator for settlement adjustment to avoid division issues.
 /// When 1 + F × τ is below this threshold, the forward rate is considered invalid.

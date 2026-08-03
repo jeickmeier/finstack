@@ -106,9 +106,7 @@ fn flat_discount_curve(rate: f64, base: Date) -> DiscountCurve {
         .unwrap()
 }
 
-// ============================================================================
 // Basic Pricing Tests
-// ============================================================================
 
 #[test]
 fn test_structured_credit_value_computation() {
@@ -208,9 +206,7 @@ fn test_structured_credit_clean_price() {
     assert!(accrued >= 0.0);
 }
 
-// ============================================================================
 // Tranche Cashflow Tests
-// ============================================================================
 
 #[test]
 fn test_structured_credit_tranche_cashflows_generated() {
@@ -254,9 +250,7 @@ fn test_structured_credit_tranche_value_computation() {
     assert!(pv.amount() > 0.0);
 }
 
-// ============================================================================
 // Metrics Suite Tests
-// ============================================================================
 
 #[test]
 fn test_structured_credit_full_metric_suite() {
@@ -607,9 +601,7 @@ fn test_structured_credit_metric_dependency_resolution() {
     assert!(result.measures.contains_key("clean_price"));
 }
 
-// ============================================================================
 // Performance and Edge Cases
-// ============================================================================
 
 #[test]
 fn test_structured_credit_pool_balance_cleanup() {

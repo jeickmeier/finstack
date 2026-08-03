@@ -22,9 +22,7 @@ use finstack_quant_factor_model::credit::hierarchy::{
 use serde_json::{json, Value};
 use time::{Date, Month};
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 const ANNUALIZATION: f64 = 12.0; // monthly → annual
 
@@ -148,9 +146,7 @@ fn build_config(n_levels: usize) -> CreditCalibrationConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark entry point
-// ---------------------------------------------------------------------------
 
 fn bench_credit_factor_calibration(c: &mut Criterion) {
     let mut group = c.benchmark_group("credit_factor_calibration");

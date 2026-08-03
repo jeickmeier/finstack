@@ -74,9 +74,7 @@ fn create_bond_with_daycount(
         .unwrap()
 }
 
-// ============================================================================
 // YTM Day Count Consistency Tests
-// ============================================================================
 
 #[test]
 fn test_ytm_uses_bond_daycount() {
@@ -184,9 +182,7 @@ fn test_ytm_par_equals_coupon_for_matching_daycount() {
     }
 }
 
-// ============================================================================
 // Duration Day Count Consistency Tests
-// ============================================================================
 
 #[test]
 fn test_duration_consistent_with_ytm() {
@@ -232,9 +228,7 @@ fn test_duration_consistent_with_ytm() {
     );
 }
 
-// ============================================================================
 // Accrued Interest Day Count Tests
-// ============================================================================
 
 #[test]
 fn test_accrued_interest_uses_bond_daycount() {

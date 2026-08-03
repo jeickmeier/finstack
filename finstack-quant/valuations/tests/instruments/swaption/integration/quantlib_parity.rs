@@ -273,9 +273,7 @@ fn black76_pv(
     price * annuity * swaption.notional.amount()
 }
 
-// =============================================================================
 // Volatility Impact Tests
-// =============================================================================
 
 #[test]
 fn test_quantlib_parity_vol_impact() {
@@ -341,9 +339,7 @@ fn test_quantlib_parity_vol_smile() {
     }
 }
 
-// =============================================================================
 // Greeks / Sensitivities Tests
-// =============================================================================
 
 #[test]
 fn test_quantlib_parity_vega() {
@@ -502,9 +498,7 @@ fn test_quantlib_parity_rho() {
     assert_reasonable(rho.abs(), 0.1, 10_000.0, "Rho magnitude");
 }
 
-// =============================================================================
 // Implied Volatility Tests
-// =============================================================================
 
 #[test]
 fn test_quantlib_parity_implied_vol_recovery() {
@@ -573,9 +567,7 @@ fn test_quantlib_parity_implied_vol_stability() {
     }
 }
 
-// =============================================================================
 // Settlement Type Tests
-// =============================================================================
 
 #[test]
 fn test_quantlib_parity_physical_vs_cash_settlement() {
@@ -609,9 +601,7 @@ fn test_quantlib_parity_physical_vs_cash_settlement() {
     );
 }
 
-// =============================================================================
 // Extreme Cases / Edge Conditions
-// =============================================================================
 
 #[test]
 fn test_quantlib_parity_deep_itm() {
@@ -731,9 +721,7 @@ fn test_quantlib_parity_very_high_vol() {
     assert!(pv > pv_normal, "100% vol should exceed 20% vol value");
 }
 
-// =============================================================================
 // Put-Call Parity Tests
-// =============================================================================
 
 #[test]
 fn test_quantlib_parity_put_call_relationship() {
@@ -776,9 +764,7 @@ fn test_quantlib_parity_put_call_relationship() {
     );
 }
 
-// =============================================================================
 // Multiple Expiry/Tenor Combinations
-// =============================================================================
 
 #[test]
 fn test_quantlib_parity_expiry_tenor_grid() {
@@ -818,9 +804,7 @@ fn test_quantlib_parity_expiry_tenor_grid() {
     }
 }
 
-// =============================================================================
 // Summary Test: Full Greeks Suite
-// =============================================================================
 
 #[test]
 fn test_quantlib_parity_full_greeks_suite() {

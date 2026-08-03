@@ -73,9 +73,7 @@ pub const DEFAULT_NORMAL_VOL: f64 = 0.01; // 100 bp/yr
 /// This corresponds to ~100 bp normal vol at a 5% rate level.
 pub const DEFAULT_LOGNORMAL_VOL: f64 = 0.20; // 20%
 
-// ============================================================================
 // Short-Rate Model Types
-// ============================================================================
 
 /// Compounding convention for per-node discount factors in the short-rate tree.
 ///
@@ -2497,9 +2495,7 @@ mod tests {
         );
     }
 
-    // ========================================================================
     // Volatility Conversion Tests
-    // ========================================================================
 
     #[test]
     fn test_normal_to_lognormal_vol_conversion() {
@@ -2759,9 +2755,7 @@ mod tests {
         assert!(quality.is_acceptable(), "quality={quality:?}");
     }
 
-    // ========================================================================
     // Config Factory Tests
-    // ========================================================================
 
     #[test]
     fn test_config_ho_lee_factory() {
@@ -2845,9 +2839,7 @@ mod tests {
         assert_eq!(boundary.model, ShortRateModel::BlackDermanToy);
     }
 
-    // ========================================================================
     // Tree Factory Tests
-    // ========================================================================
 
     #[test]
     fn test_tree_default_ho_lee() {

@@ -19,9 +19,7 @@ use finstack_quant_factor_model::{
 };
 use time::Month;
 
-// ---------------------------------------------------------------------------
 // Test helpers
-// ---------------------------------------------------------------------------
 
 const TOL: f64 = 1e-10;
 
@@ -180,9 +178,7 @@ fn bucket_paths_for(tags: &IssuerTags, levels: &[HierarchyDimension]) -> Vec<Str
     paths
 }
 
-// ---------------------------------------------------------------------------
 // Test 1 (and zero-th sanity check): decompose_levels reconciles each issuer
-// ---------------------------------------------------------------------------
 
 #[test]
 fn decompose_levels_reconciles_each_issuer() {
@@ -223,9 +219,7 @@ fn decompose_levels_reconciles_each_issuer() {
     assert!(max_err < TOL);
 }
 
-// ---------------------------------------------------------------------------
 // Test 2: PR-3 named test — period reconciliation
-// ---------------------------------------------------------------------------
 
 #[test]
 fn decompose_period_reconciles_each_issuer() {
@@ -279,9 +273,7 @@ fn decompose_period_reconciles_each_issuer() {
     assert!(max_err < TOL);
 }
 
-// ---------------------------------------------------------------------------
 // Test 3: PR-3 named test — runtime issuer with tags is BucketOnly
-// ---------------------------------------------------------------------------
 
 #[test]
 fn new_issuer_with_tags_is_bucket_only() {
@@ -329,9 +321,7 @@ fn new_issuer_with_tags_is_bucket_only() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Test 4: PR-3 named test — missing tag returns error
-// ---------------------------------------------------------------------------
 
 #[test]
 fn missing_required_tag_returns_error() {
@@ -372,9 +362,7 @@ fn missing_required_tag_returns_error() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Test 5: PR-3 named test — empty bucket at as_of degrades gracefully
-// ---------------------------------------------------------------------------
 
 #[test]
 fn empty_bucket_at_as_of_degrades_to_zero_level() {
@@ -414,9 +402,7 @@ fn empty_bucket_at_as_of_degrades_to_zero_level() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Test 6: PR-3 named test — empty hierarchy
-// ---------------------------------------------------------------------------
 
 #[test]
 fn empty_hierarchy_decomposes_to_generic_and_adder() {
@@ -445,9 +431,7 @@ fn empty_hierarchy_decomposes_to_generic_and_adder() {
     assert!((b - (1.10 - 0.90 * 0.80)).abs() < TOL);
 }
 
-// ---------------------------------------------------------------------------
 // Test 7: round-trip — decompose_levels twice, then decompose_period
-// ---------------------------------------------------------------------------
 
 #[test]
 fn decompose_levels_then_decompose_period_round_trip() {
@@ -491,9 +475,7 @@ fn decompose_levels_then_decompose_period_round_trip() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Defensive structural tests — model inconsistency, snapshot shape mismatch
-// ---------------------------------------------------------------------------
 
 #[test]
 fn decompose_levels_rejects_inconsistent_betas_length() {
@@ -654,9 +636,7 @@ fn decompose_levels_excludes_folded_issuers_from_bucket_means() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // non-finite inputs are rejected before they poison bucket means
-// ---------------------------------------------------------------------------
 
 #[test]
 fn decompose_levels_rejects_non_finite_inputs() {

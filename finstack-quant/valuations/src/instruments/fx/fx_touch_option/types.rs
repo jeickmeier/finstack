@@ -599,9 +599,7 @@ mod tests {
         assert!(PayoutTiming::from_str("invalid").is_err());
     }
 
-    // -----------------------------------------------------------------------
     // Validation tests
-    // -----------------------------------------------------------------------
 
     fn base_touch_builder() -> crate::instruments::fx::fx_touch_option::types::FxTouchOptionBuilder
     {

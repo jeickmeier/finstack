@@ -51,9 +51,7 @@ pub(crate) fn register_cms_option_metrics(registry: &mut MetricRegistry) {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Delta Calculator
-// ---------------------------------------------------------------------------
 
 /// Delta calculator for CMS options.
 pub(crate) struct DeltaCalculator;
@@ -81,9 +79,7 @@ impl MetricCalculator for DeltaCalculator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Vega Calculator
-// ---------------------------------------------------------------------------
 
 /// Vega calculator for CMS options.
 pub(crate) struct VegaCalculator;
@@ -125,9 +121,7 @@ impl MetricCalculator for VegaCalculator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Rho Calculator
-// ---------------------------------------------------------------------------
 
 /// Rho calculator for CMS options.
 pub(crate) struct RhoCalculator;
@@ -163,9 +157,7 @@ impl MetricCalculator for RhoCalculator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Vanna Calculator
-// ---------------------------------------------------------------------------
 
 /// Vanna calculator for CMS options.
 pub(crate) struct VannaCalculator;
@@ -270,9 +262,7 @@ impl MetricCalculator for VannaCalculator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Volga Calculator
-// ---------------------------------------------------------------------------
 
 /// Volga calculator for CMS options.
 pub(crate) struct VolgaCalculator;
@@ -312,9 +302,7 @@ impl MetricCalculator for VolgaCalculator {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Convexity Adjustment Risk Calculator
-// ---------------------------------------------------------------------------
 
 /// Convexity adjustment risk calculator for CMS options.
 pub(crate) struct ConvexityAdjustmentRiskCalculator;

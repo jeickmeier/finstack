@@ -359,9 +359,7 @@ pub fn bond_tree_config(bond: &Bond) -> finstack_quant_core::Result<TreePricerCo
 }
 
 impl TreePricerConfig {
-    // ========================================================================
     // Model-Specific Factory Methods
-    // ========================================================================
 
     /// Create a production configuration for Ho-Lee model with normal volatility.
     ///

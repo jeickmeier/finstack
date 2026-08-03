@@ -240,9 +240,7 @@ fn has_credit_curve<I: Instrument>(instrument: &I) -> finstack_quant_core::Resul
         .is_empty())
 }
 
-// =============================================================================
 // Parallel z-spread CS01
-// =============================================================================
 
 /// Parallel CS01 via a z-spread bump for discounting-priced instruments.
 ///
@@ -331,9 +329,7 @@ where
     }
 }
 
-// =============================================================================
 // Bucketed (key-rate) z-spread CS01
-// =============================================================================
 
 /// Key-rate CS01 via per-tenor z-spread bumps for discounting-priced
 /// instruments.

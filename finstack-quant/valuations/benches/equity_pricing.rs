@@ -272,9 +272,7 @@ fn bench_variance_swap_pv(c: &mut Criterion) {
     group.finish();
 }
 
-// ================================================================================================
 // Volatility index benchmarks
-// ================================================================================================
 
 /// Benchmark VIX future pricing vs tenor (1M, 3M, 6M).
 ///

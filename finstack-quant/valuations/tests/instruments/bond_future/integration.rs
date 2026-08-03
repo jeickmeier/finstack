@@ -20,9 +20,7 @@ use finstack_quant_valuations::prelude::Instrument;
 use finstack_quant_valuations::pricer::{standard_registry, InstrumentType, ModelKey};
 use time::macros::date;
 
-// ========================================================================================
 // Helper Functions
-// ========================================================================================
 
 /// Create a realistic market context with a UST discount curve.
 ///
@@ -254,9 +252,7 @@ fn try_create_ust_10y_future(
         .build_validated()
 }
 
-// ========================================================================================
 // Integration Tests
-// ========================================================================================
 
 #[test]
 fn test_realistic_ust_10y_future_full_workflow() {
@@ -860,9 +856,7 @@ fn test_conversion_factor_calculation_accuracy() {
     assert!(cf_at < cf_above, "CF should increase with coupon rate");
 }
 
-// ========================================================================================
 // DV01 Calculation Tests
-// ========================================================================================
 
 /// Test that DV01 calculation works correctly for bond futures.
 ///

@@ -16,9 +16,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
-// ============================================================================
 // Test Helpers
-// ============================================================================
 
 fn test_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
@@ -28,9 +26,7 @@ fn maturity_date() -> Date {
     Date::from_calendar_date(2030, Month::December, 31).unwrap()
 }
 
-// ============================================================================
 // PoolAsset Creation Tests
-// ============================================================================
 
 #[test]
 fn test_pool_asset_floating_rate_loan_creation() {
@@ -153,9 +149,7 @@ fn test_pool_asset_remaining_term_calculation() {
     assert!((remaining - 5.0).abs() < 0.01);
 }
 
-// ============================================================================
 // AssetPool Creation and Basic Operations
-// ============================================================================
 
 #[test]
 fn test_asset_pool_creation() {
@@ -270,9 +264,7 @@ fn test_asset_pool_performing_balance_excludes_defaults() {
     assert_eq!(total.amount(), 15_000_000.0); // Both assets
 }
 
-// ============================================================================
 // AssetPool Statistics Tests (WAC, WAS, WAM)
-// ============================================================================
 
 #[test]
 fn test_pool_weighted_avg_coupon_single_asset() {
@@ -445,9 +437,7 @@ fn test_pool_weighted_avg_maturity() {
     assert!((wam - 5.0).abs() < 0.1);
 }
 
-// ============================================================================
 // AssetPool Diversity Score Tests
-// ============================================================================
 
 #[test]
 fn test_pool_diversity_score_single_obligor() {
@@ -529,9 +519,7 @@ fn test_pool_diversity_score_empty_pool() {
     assert_eq!(diversity, 0.0);
 }
 
-// ============================================================================
 // AssetPool Filtering and Grouping Tests
-// ============================================================================
 
 #[test]
 fn test_pool_assets_by_industry() {
@@ -616,9 +604,7 @@ fn test_pool_assets_by_obligor() {
     assert_eq!(ob1_assets.len(), 2);
 }
 
-// ============================================================================
 // calculate_pool_stats Function Tests
-// ============================================================================
 
 #[test]
 fn test_calculate_pool_stats_comprehensive() {
@@ -699,9 +685,7 @@ fn test_calculate_pool_stats_with_defaults() {
     assert!((stats.cumulative_default_rate - 10.0).abs() < 0.01);
 }
 
-// ============================================================================
 // Edge Cases and Boundary Conditions
-// ============================================================================
 
 #[test]
 fn test_pool_zero_balance_asset() {

@@ -13,9 +13,7 @@ use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::TrsSide;
 use rust_decimal::Decimal;
 
-// ================================================================================================
 // Construction and Validation Tests
-// ================================================================================================
 
 #[test]
 fn test_fi_index_trs_builder_defaults() {
@@ -97,9 +95,7 @@ fn test_fi_index_trs_currency_consistency() {
     assert_eq!(trs.notional.currency(), trs.underlying.base_currency);
 }
 
-// ================================================================================================
 // NPV and Pricing Tests
-// ================================================================================================
 
 #[test]
 fn test_fi_index_trs_npv_receive_side() {
@@ -187,9 +183,7 @@ fn test_fi_index_trs_pricing_with_different_spreads() {
     );
 }
 
-// ================================================================================================
 // Leg Decomposition Tests
-// ================================================================================================
 
 #[test]
 fn test_fi_index_trs_total_return_leg_pv() {
@@ -269,9 +263,7 @@ fn test_fi_index_trs_financing_leg_increases_with_spread() {
     );
 }
 
-// ================================================================================================
 // Index Characteristics Tests
-// ================================================================================================
 
 #[test]
 fn test_fi_index_trs_carry_component() {
@@ -344,9 +336,7 @@ fn test_fi_index_trs_sensitivity_to_duration() {
     assert!(npv_high_dur.amount().is_finite());
 }
 
-// ================================================================================================
 // Market Sensitivity Tests
-// ================================================================================================
 
 #[test]
 fn test_fi_index_trs_sensitivity_to_interest_rates() {
@@ -400,9 +390,7 @@ fn test_fi_index_trs_sensitivity_to_interest_rates() {
     assert!(npv_shifted.amount().is_finite());
 }
 
-// ================================================================================================
 // Cashflow Schedule Tests
-// ================================================================================================
 
 #[test]
 fn test_fi_index_trs_cashflow_schedule_generation() {
@@ -444,9 +432,7 @@ fn test_fi_index_trs_cashflow_schedule_dates_ordered() {
     }
 }
 
-// ================================================================================================
 // Tenor Variation Tests
-// ================================================================================================
 
 #[test]
 fn test_fi_index_trs_short_tenor_6_months() {
@@ -490,9 +476,7 @@ fn test_fi_index_trs_long_tenor_5_years() {
     assert!(npv.amount().is_finite());
 }
 
-// ================================================================================================
 // Notional Size Tests
-// ================================================================================================
 
 #[test]
 fn test_fi_index_trs_notional_scaling() {
@@ -521,9 +505,7 @@ fn test_fi_index_trs_notional_scaling() {
     );
 }
 
-// ================================================================================================
 // Comparison Tests: HY vs IG
-// ================================================================================================
 
 #[test]
 fn test_fi_index_trs_hy_vs_ig() {
@@ -554,9 +536,7 @@ fn test_fi_index_trs_hy_vs_ig() {
     assert!(tr_pv_ig.amount().is_finite());
 }
 
-// ================================================================================================
 // Analytical Verification Tests
-// ================================================================================================
 
 /// Verifies TRS pricing against a closed-form result under flat rates and flat yield.
 ///
@@ -677,9 +657,7 @@ fn test_fi_index_trs_analytical_flat_rate_flat_yield() {
     );
 }
 
-// ================================================================================================
 // Validation / Error Path Tests
-// ================================================================================================
 
 /// When `yield_id` is configured but the market context lacks the corresponding
 /// scalar, pricing must fail with a descriptive error rather than silently

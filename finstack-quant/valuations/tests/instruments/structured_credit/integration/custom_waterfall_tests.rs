@@ -23,9 +23,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
-// ============================================================================
 // Test Helpers
-// ============================================================================
 
 fn test_date() -> Date {
     Date::from_calendar_date(2025, Month::October, 5).unwrap()
@@ -192,9 +190,7 @@ fn sequential_waterfall_with(sub_b_interest: Option<PaymentCalculation>) -> Wate
         .expect("sequential waterfall")
 }
 
-// ============================================================================
 // Identity: custom waterfall equal to the template prices identically
-// ============================================================================
 
 #[test]
 fn attaching_the_template_waterfall_is_an_exact_identity() {
@@ -227,9 +223,7 @@ fn attaching_the_template_waterfall_is_an_exact_identity() {
     }
 }
 
-// ============================================================================
 // Config sensitivity: a different structure must move the output
-// ============================================================================
 
 #[test]
 fn by_class_waterfall_delays_subordinated_interest() {
@@ -289,9 +283,7 @@ fn by_class_waterfall_delays_subordinated_interest() {
     );
 }
 
-// ============================================================================
 // Claim definition (F3): the waterfall spec defines what interest is OWED
-// ============================================================================
 
 #[test]
 fn capped_interest_defines_the_claim_and_never_defers() {
@@ -396,9 +388,7 @@ fn duplicate_interest_recipient_is_rejected() {
     );
 }
 
-// ============================================================================
 // OAS rate path: allocation rides the same shifted coupon as recording
-// ============================================================================
 
 #[test]
 fn executor_allocates_floating_interest_on_the_shifted_path() {
@@ -501,9 +491,7 @@ fn executor_allocates_floating_interest_on_the_shifted_path() {
     );
 }
 
-// ============================================================================
 // Validation: malformed structures fail loudly
-// ============================================================================
 
 #[test]
 fn custom_waterfall_rejects_unknown_tranche_reference() {
@@ -600,9 +588,7 @@ fn duplicate_coverage_trigger_across_waterfall_and_deal_is_rejected() {
     );
 }
 
-// ============================================================================
 // Serde: the JSON path (Python/WASM bindings) carries the custom waterfall
-// ============================================================================
 
 #[test]
 fn custom_waterfall_survives_json_round_trip_and_prices_identically() {

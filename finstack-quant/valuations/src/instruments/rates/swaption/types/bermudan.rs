@@ -20,9 +20,7 @@ use super::definitions::{
 };
 use super::swaption::{vanilla_underlier, Swaption, VanillaSwaptionUnderlier};
 
-// ============================================================================
 // Bermudan Swaption Instrument
-// ============================================================================
 
 /// Bermudan swaption with multiple exercise dates.
 ///

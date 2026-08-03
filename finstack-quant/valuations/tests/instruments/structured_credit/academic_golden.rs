@@ -22,9 +22,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
-// ============================================================================
 // Market-Standard Tolerances
-// ============================================================================
 
 /// Tolerance for rate conversions (mathematically exact within f64)
 const RATE_TOLERANCE: f64 = 1e-10;
@@ -35,10 +33,8 @@ const METRIC_TOLERANCE: f64 = 1e-6;
 /// Tolerance for WAL calculations (0.01 years = ~3.65 days)
 const WAL_TOLERANCE: f64 = 0.01;
 
-// ============================================================================
 // PSA Model Golden Tests
 // Reference: PSA Standard Prepayment Model (1985)
-// ============================================================================
 
 #[test]
 fn test_psa_golden_100_percent() {
@@ -126,10 +122,8 @@ fn test_psa_golden_smm_conversion() {
     );
 }
 
-// ============================================================================
 // CDR/MDR Conversion Golden Tests
 // Reference: Industry standard formulas
-// ============================================================================
 
 #[test]
 fn test_cdr_mdr_golden_conversion() {
@@ -196,10 +190,8 @@ fn test_cdr_mdr_golden_2_percent() {
     );
 }
 
-// ============================================================================
 // Moody's WARF Golden Tests
 // Reference: Moody's "Approach to Rating Collateralized Loan Obligations"
-// ============================================================================
 
 #[test]
 fn test_warf_golden_moody_standard() {
@@ -278,10 +270,8 @@ fn test_warf_golden_pool_calculation() {
     );
 }
 
-// ============================================================================
 // WAL Golden Tests
 // Reference: Fabozzi "Fixed Income Mathematics", Chapter 6
-// ============================================================================
 
 #[test]
 fn test_wal_golden_uniform_amortization() {
@@ -415,10 +405,8 @@ fn test_wal_golden_back_loaded() {
     );
 }
 
-// ============================================================================
 // WAS (Weighted Average Spread) Golden Tests
 // Reference: CLO Industry Standard
-// ============================================================================
 
 #[test]
 fn test_was_golden_calculation() {
@@ -492,10 +480,8 @@ fn test_was_golden_calculation() {
     );
 }
 
-// ============================================================================
 // Recovery Rate Golden Tests
 // Reference: S&P and Moody's historical data
-// ============================================================================
 
 #[test]
 fn test_recovery_rate_golden_industry_standards() {

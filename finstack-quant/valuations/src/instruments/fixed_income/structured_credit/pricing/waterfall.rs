@@ -18,9 +18,7 @@ use finstack_quant_core::Error as CoreError;
 use finstack_quant_core::HashMap;
 use finstack_quant_core::Result;
 
-// ============================================================================
 // CURRENCY PRECISION HELPERS
-// ============================================================================
 
 /// Returns the number of decimal places for currency-aware penny-safe allocation.
 #[inline]
@@ -57,9 +55,7 @@ fn to_currency_units(amount: f64, scale: f64) -> Result<i64> {
     Ok(rounded as i64)
 }
 
-// ============================================================================
 // MAIN EXECUTION FUNCTIONS
-// ============================================================================
 
 /// Context for waterfall execution.
 pub struct WaterfallContext<'a> {
@@ -458,9 +454,7 @@ pub fn execute_waterfall_with_explanation(
     execute_waterfall_core(waterfall, tranches, pool, context, explain, None)
 }
 
-// ============================================================================
 // ALLOCATION CONTEXT
-// ============================================================================
 
 /// Immutable context for waterfall allocation operations.
 ///
@@ -526,9 +520,7 @@ impl AllocationOutput {
     }
 }
 
-// ============================================================================
 // ALLOCATION FUNCTIONS
-// ============================================================================
 
 /// Allocate cash sequentially to recipients.
 #[allow(clippy::too_many_arguments)]
@@ -958,9 +950,7 @@ fn water_fill_allocation(total_units: i64, weights: &[f64], caps: &[i64]) -> Vec
     alloc
 }
 
-// ============================================================================
 // HELPER FUNCTIONS
-// ============================================================================
 
 /// Evaluate coverage tests.
 ///

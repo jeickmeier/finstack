@@ -576,11 +576,9 @@ fn test_commitment_fees_use_correct_kind() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Margin step-up period semantics: LSTA convention says a margin change
 // applies from the start of the NEXT interest period, never mid-period, and
 // the fixed and floating branches must agree on this.
-// ---------------------------------------------------------------------------
 
 mod margin_stepup_period_semantics {
     use super::*;

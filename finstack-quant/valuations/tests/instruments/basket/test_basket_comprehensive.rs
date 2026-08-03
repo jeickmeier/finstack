@@ -27,9 +27,7 @@ use finstack_quant_valuations::metrics::{MetricCalculator, MetricContext};
 use std::sync::Arc;
 use time::Month;
 
-// ============================================================================
 // Test Fixtures and Helpers
-// ============================================================================
 
 fn date(year: i32, month: u8, day: u8) -> Date {
     Date::from_calendar_date(year, Month::try_from(month).unwrap(), day).unwrap()
@@ -139,9 +137,7 @@ fn simple_equity_basket() -> Basket {
     }
 }
 
-// ============================================================================
 // Type Construction and Validation Tests
-// ============================================================================
 
 #[test]
 fn test_basket_creation_with_minimal_fields() {
@@ -293,9 +289,7 @@ fn test_get_constituent_by_id_not_found() {
     assert!(constituent.is_none());
 }
 
-// ============================================================================
 // Pricing Configuration Tests
-// ============================================================================
 
 #[test]
 fn test_default_pricing_config() {
@@ -341,9 +335,7 @@ fn test_custom_pricing_config() {
     assert_eq!(basket.pricing_config.days_in_year, 360.0);
 }
 
-// ============================================================================
 // Units-Based Pricing Tests
-// ============================================================================
 
 #[test]
 fn test_pricing_with_explicit_units() {
@@ -440,9 +432,7 @@ fn test_nav_calculation_with_units() {
     assert_eq!(nav.amount(), 15.0);
 }
 
-// ============================================================================
 // Weight-Based Pricing Tests
-// ============================================================================
 
 #[test]
 fn test_pricing_with_weights_and_aum() {
@@ -488,9 +478,7 @@ fn test_nav_with_aum_calculation() {
     assert!((nav.amount() - expected_nav).abs() < 0.001);
 }
 
-// ============================================================================
 // Expense Ratio Tests
-// ============================================================================
 
 #[test]
 fn test_expense_ratio_zero_has_no_impact() {
@@ -558,9 +546,7 @@ fn test_expense_ratio_with_custom_days_in_year() {
     assert!((basket_value.amount() - (1_000_000.0 - expected_drag)).abs() < 1.0);
 }
 
-// ============================================================================
 // Multi-Currency and FX Conversion Tests
-// ============================================================================
 
 #[test]
 fn test_fx_conversion_eur_to_usd() {
@@ -709,9 +695,7 @@ fn test_fx_conversion_error_without_fx_provider() {
     );
 }
 
-// ============================================================================
 // Mixed Units and Weights Tests
-// ============================================================================
 
 #[test]
 fn test_mixed_units_and_weights_with_aum() {
@@ -767,9 +751,7 @@ fn test_mixed_units_and_weights_with_aum() {
     assert!((basket_value.amount() - 6500.0).abs() < 0.01);
 }
 
-// ============================================================================
 // Instrument Reference Tests
-// ============================================================================
 
 #[test]
 fn test_constituent_reference_with_bond_instrument() {
@@ -822,9 +804,7 @@ fn test_constituent_reference_with_bond_instrument() {
     assert_eq!(value.currency(), Currency::USD);
 }
 
-// ============================================================================
 // Asset Type Tests
-// ============================================================================
 
 #[test]
 fn test_basket_with_multiple_asset_types() {
@@ -879,9 +859,7 @@ fn test_basket_with_multiple_asset_types() {
     assert!(basket.validate().is_ok());
 }
 
-// ============================================================================
 // Metrics Tests
-// ============================================================================
 
 #[test]
 fn test_constituent_count_metric() {
@@ -1063,9 +1041,7 @@ fn test_asset_exposure_metric_bond() {
     assert!((result - 80.0).abs() < 0.01);
 }
 
-// ============================================================================
 // Instrument Trait Implementation Tests
-// ============================================================================
 
 #[test]
 fn test_instrument_trait_id() {
@@ -1143,9 +1119,7 @@ fn test_instrument_trait_clone_box() {
     assert_eq!(cloned.id(), "SIMPLE_BASKET");
 }
 
-// ============================================================================
 // Edge Cases and Error Handling Tests
-// ============================================================================
 
 #[test]
 fn test_basket_value_with_zero_shares() {
@@ -1373,9 +1347,7 @@ fn test_unitless_scalar_defaults_to_basket_currency() {
     assert_eq!(basket_value.currency(), Currency::USD);
 }
 
-// ============================================================================
 // Serialization Tests (if serde feature enabled)
-// ============================================================================
 
 #[test]
 fn test_basket_serialization_roundtrip() {
@@ -1601,9 +1573,7 @@ fn test_basket_envelope_roundtrip_with_instruments() {
     }
 }
 
-// ============================================================================
 // Calculator Reusability Tests
-// ============================================================================
 
 #[test]
 fn test_calculator_can_be_reused() {
@@ -1626,9 +1596,7 @@ fn test_calculator_can_be_reused() {
     assert_eq!(value1.amount(), value2.amount());
 }
 
-// ============================================================================
 // Integration Tests
-// ============================================================================
 
 #[test]
 fn test_full_pricing_workflow_units_based() {

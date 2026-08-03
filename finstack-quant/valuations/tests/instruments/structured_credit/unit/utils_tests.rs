@@ -15,9 +15,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
-// ============================================================================
 // Rating Factor Tests
-// ============================================================================
 
 #[test]
 fn test_moodys_warf_factor_aaa() {
@@ -121,9 +119,7 @@ fn test_moodys_warf_factor_notches() {
     assert_eq!(moodys_warf_factor(CreditRating::BBB).unwrap(), 360.0);
 }
 
-// ============================================================================
 // Reinvestment Manager Tests
-// ============================================================================
 
 #[test]
 fn test_reinvestment_manager_creation() {

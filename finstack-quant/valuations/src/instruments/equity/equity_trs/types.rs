@@ -492,9 +492,7 @@ impl EquityTotalReturnSwap {
     }
 }
 
-// ============================================================================
 // Trait Implementations
-// ============================================================================
 
 impl crate::instruments::common_impl::traits::Instrument for EquityTotalReturnSwap {
     impl_instrument_base!(crate::pricer::InstrumentType::EquityTotalReturnSwap);

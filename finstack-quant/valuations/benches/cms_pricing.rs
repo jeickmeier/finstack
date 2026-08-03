@@ -31,9 +31,7 @@ use rust_decimal::Decimal;
 use std::hint::black_box;
 use time::Month;
 
-// ---------------------------------------------------------------------------
 // Market context
-// ---------------------------------------------------------------------------
 
 fn base_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
@@ -82,9 +80,7 @@ fn create_market(as_of: Date) -> MarketContext {
         .insert_surface(vol_surface)
 }
 
-// ---------------------------------------------------------------------------
 // CMS Option builder — n quarterly fixing periods
-// ---------------------------------------------------------------------------
 
 fn make_cms_option(as_of: Date, n_periods: usize, cms_tenor: f64) -> CmsOption {
     let mut fixing_dates = Vec::with_capacity(n_periods);
@@ -126,9 +122,7 @@ fn make_cms_option(as_of: Date, n_periods: usize, cms_tenor: f64) -> CmsOption {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: CMS cap period count scaling (10Y CMS tenor)
-// ---------------------------------------------------------------------------
 
 fn bench_cms_option_period_count(c: &mut Criterion) {
     let mut group = c.benchmark_group("cms_option_periods");
@@ -151,9 +145,7 @@ fn bench_cms_option_period_count(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: CMS cap tenor scaling (20 quarterly periods)
-// ---------------------------------------------------------------------------
 
 fn bench_cms_option_cms_tenor(c: &mut Criterion) {
     let mut group = c.benchmark_group("cms_option_cms_tenor");
@@ -176,9 +168,7 @@ fn bench_cms_option_cms_tenor(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: CMS swap period count scaling
-// ---------------------------------------------------------------------------
 
 fn bench_cms_swap_period_count(c: &mut Criterion) {
     let mut group = c.benchmark_group("cms_swap_periods");

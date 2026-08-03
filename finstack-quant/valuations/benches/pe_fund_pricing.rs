@@ -31,9 +31,7 @@ use std::hint::black_box;
 use time::macros::date;
 use time::{Date, Month};
 
-// ---------------------------------------------------------------------------
 // Market context
-// ---------------------------------------------------------------------------
 
 fn create_market() -> MarketContext {
     let as_of = date!(2025 - 01 - 01);
@@ -46,9 +44,7 @@ fn create_market() -> MarketContext {
     MarketContext::new().insert(disc)
 }
 
-// ---------------------------------------------------------------------------
 // Waterfall specs
-// ---------------------------------------------------------------------------
 
 fn simple_waterfall() -> WaterfallSpec {
     WaterfallSpec::builder()
@@ -96,9 +92,7 @@ fn american_waterfall() -> WaterfallSpec {
         .unwrap()
 }
 
-// ---------------------------------------------------------------------------
 // Event set builder
-// ---------------------------------------------------------------------------
 
 /// Build n fund events evenly spread across a 10-year fund life.
 /// Roughly half are contributions (early), half are distributions (late).
@@ -143,9 +137,7 @@ fn make_fund(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: event count scaling (run_waterfall only, no discounting)
-// ---------------------------------------------------------------------------
 
 fn bench_pe_waterfall_event_count(c: &mut Criterion) {
     let mut group = c.benchmark_group("pe_fund_waterfall_events");
@@ -162,9 +154,7 @@ fn bench_pe_waterfall_event_count(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: waterfall complexity comparison (30 events)
-// ---------------------------------------------------------------------------
 
 fn bench_pe_waterfall_complexity(c: &mut Criterion) {
     let mut group = c.benchmark_group("pe_fund_waterfall_complexity");
@@ -187,9 +177,7 @@ fn bench_pe_waterfall_complexity(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: European vs. American waterfall (30 events)
-// ---------------------------------------------------------------------------
 
 fn bench_pe_waterfall_style(c: &mut Criterion) {
     let mut group = c.benchmark_group("pe_fund_waterfall_style");
@@ -208,9 +196,7 @@ fn bench_pe_waterfall_style(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: full value() pipeline (waterfall + IRR + NAV discounting)
-// ---------------------------------------------------------------------------
 
 fn bench_pe_fund_full_pricing(c: &mut Criterion) {
     let mut group = c.benchmark_group("pe_fund_full_pricing");

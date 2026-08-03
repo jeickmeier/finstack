@@ -18,9 +18,7 @@ use time::Month;
 // Re-export tolerances from the canonical location
 pub use super::tolerances::{NEAR_ZERO, STANDARD, TIGHT};
 
-// =============================================================================
 // Standard Test Dates
-// =============================================================================
 
 /// Standard base date for most calibration tests (2025-01-02).
 ///
@@ -36,9 +34,7 @@ pub fn imm_base_date() -> Date {
     Date::from_calendar_date(2025, Month::March, 20).expect("valid IMM date: 2025-03-20")
 }
 
-// =============================================================================
 // Discount Curve Fixtures
-// =============================================================================
 
 /// Implied continuously compounded rate used for standard test curves (~2.02%).
 ///
@@ -142,9 +138,7 @@ pub fn usd_discount_curve_monotone_convex(base_date: Date, curve_id: &str) -> Di
         .expect("valid monotone convex test discount curve")
 }
 
-// =============================================================================
 // Market Context Fixtures
-// =============================================================================
 
 /// Creates a market context with a standard USD-OIS discount curve.
 pub fn market_context_with_usd_discount(base_date: Date) -> MarketContext {
@@ -158,9 +152,7 @@ pub fn market_context_with_minimal_discount(base_date: Date) -> MarketContext {
     MarketContext::new().insert(curve)
 }
 
-// =============================================================================
 // Build Context Helpers
-// =============================================================================
 
 /// Standard notional for test instruments ($1M).
 pub const STANDARD_NOTIONAL: f64 = 1_000_000.0;
@@ -168,6 +160,4 @@ pub const STANDARD_NOTIONAL: f64 = 1_000_000.0;
 /// Standard currency for USD tests.
 pub const USD: Currency = Currency::USD;
 
-// =============================================================================
 // Unit Tests
-// =============================================================================

@@ -18,9 +18,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-// ============================================================================
 // CORE TYPES
-// ============================================================================
 
 /// Recipient of waterfall payments
 #[derive(
@@ -642,9 +640,7 @@ impl WaterfallTier {
     }
 }
 
-// ============================================================================
 // WATERFALL RESULT
-// ============================================================================
 
 /// Result of waterfall distribution
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
@@ -746,9 +742,7 @@ pub struct PaymentRecord {
     pub diverted: bool,
 }
 
-// ============================================================================
 // COVERAGE TRIGGERS
-// ============================================================================
 
 /// Simple OC/IC trigger for diversion
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
@@ -818,9 +812,7 @@ pub enum CoverageTestType {
     Ic,
 }
 
-// ============================================================================
 // WATERFALL WORKSPACE (Pre-allocated Buffers)
-// ============================================================================
 
 /// Pre-allocated workspace for waterfall execution to avoid hot-path allocations.
 ///
@@ -887,9 +879,7 @@ impl Default for WaterfallWorkspace {
     }
 }
 
-// ============================================================================
 // WATERFALL ENGINE
-// ============================================================================
 
 /// Main waterfall engine with tier-based distribution
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]

@@ -22,9 +22,7 @@ use finstack_quant_core::Result;
 use std::cell::RefCell;
 use std::sync::Arc;
 
-// =============================================================================
 // Helper Types and Functions
-// =============================================================================
 
 /// Extracted fields from a CDS tranche quote for validation.
 struct TrancheQuoteFields<'a> {
@@ -181,9 +179,7 @@ fn normalize_pct(value: f64) -> f64 {
     }
 }
 
-// =============================================================================
 // Main Bootstrapper
-// =============================================================================
 
 /// Bootstrapper that calibrates a [`BaseCorrelationCurve`] from tranche quotes.
 pub(crate) struct BaseCorrelationTarget {

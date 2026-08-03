@@ -23,9 +23,7 @@ fn maturity_date() -> Date {
     Date::from_calendar_date(2030, Month::January, 1).unwrap()
 }
 
-// ============================================================================
 // Model Spec Serialization Tests
-// ============================================================================
 
 #[test]
 fn test_prepayment_spec_all_variants_serialize() {
@@ -84,9 +82,7 @@ fn test_recovery_spec_all_variants_serialize() {
     }
 }
 
-// ============================================================================
 // Full Instrument Serialization Tests
-// ============================================================================
 
 #[test]
 fn test_clo_json_roundtrip() {
@@ -175,9 +171,7 @@ fn test_rmbs_with_overrides_serialization() {
     assert_eq!(deserialized.behavior_overrides.cdr_annual, Some(0.01));
 }
 
-// ============================================================================
 // JSON Format Stability Tests
-// ============================================================================
 
 #[test]
 fn test_prepayment_spec_json_format() {

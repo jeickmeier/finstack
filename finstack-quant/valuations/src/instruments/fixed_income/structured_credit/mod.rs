@@ -35,9 +35,7 @@ pub mod waterfall {
     pub use super::types::waterfall::CoverageTrigger;
 }
 
-// ============================================================================
 // MAIN TYPES
-// ============================================================================
 
 pub use types::{
     // AssetPool types
@@ -118,18 +116,14 @@ pub use types::{
     CreditFactors, DefaultModelSpec, MarketConditions, PrepaymentModelSpec, RecoveryModelSpec,
 };
 
-// ============================================================================
 // UTILITIES
-// ============================================================================
 
 pub use utils::{
     clamped_cdr_to_mdr, clamped_cpr_to_smm, clamped_mdr_to_cdr, clamped_smm_to_cpr,
     get_validation_errors, is_valid_waterfall_spec, psa_to_cpr, ValidationError,
 };
 
-// ============================================================================
 // PRICING FUNCTIONS
-// ============================================================================
 
 pub use pricing::{
     execute_waterfall, generate_cashflows, generate_tranche_cashflows, resolve_waterfall,
@@ -142,9 +136,7 @@ pub use pricing::stochastic::{StochasticPricingResult, TranchePricingResult};
 pub use pricing::waterfall::execute_waterfall_with_explanation;
 pub use pricing::waterfall::WaterfallContext;
 
-// ============================================================================
 // METRICS
-// ============================================================================
 
 pub use metrics::{
     calculate_tranche_breakeven_cdr,
@@ -196,9 +188,7 @@ pub use metrics::{
     ZSpreadCalculator,
 };
 
-// ============================================================================
 // CONSTANTS
-// ============================================================================
 
 pub use types::constants::{
     abs_auto_standard_cdr, abs_auto_standard_recovery, abs_auto_standard_speed,

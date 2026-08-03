@@ -19,9 +19,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
-// ============================================================================
 // Test Helpers
-// ============================================================================
 
 fn test_date() -> Date {
     Date::from_calendar_date(2025, Month::October, 5).unwrap()
@@ -142,9 +140,7 @@ fn create_test_market() -> MarketContext {
         )
 }
 
-// ============================================================================
 // Cashflow Generation Tests
-// ============================================================================
 
 #[test]
 fn test_clo_generates_cashflows() {

@@ -66,9 +66,7 @@ fn create_negative_rate_market(disc_rate: f64, fwd_rate: f64, base_date: Date) -
     MarketContext::new().insert(disc).insert(fwd)
 }
 
-// ============================================================================
 // Negative Discount Rate Tests
-// ============================================================================
 
 #[test]
 fn test_irs_pricing_negative_discount_rate() {
@@ -149,9 +147,7 @@ fn test_irs_dv01_negative_discount_rate() {
     );
 }
 
-// ============================================================================
 // Negative Forward Rate Tests
-// ============================================================================
 
 #[test]
 fn test_irs_pricing_negative_forward_rate() {
@@ -224,9 +220,7 @@ fn test_irs_par_rate_with_negative_rates() {
     // This is expected behavior in negative rate environments
 }
 
-// ============================================================================
 // Deep Negative Rate Tests
-// ============================================================================
 
 #[test]
 fn test_irs_deep_negative_rates() {
@@ -274,9 +268,7 @@ fn test_irs_deep_negative_rates() {
     }
 }
 
-// ============================================================================
 // Symmetry Tests with Negative Rates
-// ============================================================================
 
 #[test]
 fn test_payer_receiver_symmetry_negative_rates() {

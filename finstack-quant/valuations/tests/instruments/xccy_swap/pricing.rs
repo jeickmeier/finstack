@@ -69,9 +69,7 @@ fn notional_exchange_changes_pv() {
     assert!((pv_none - pv_ex).abs() > 1e-10);
 }
 
-// =============================================================================
 // Stub Period Tests
-// =============================================================================
 
 #[test]
 fn short_front_stub_prices_correctly() {
@@ -117,9 +115,7 @@ fn long_back_stub_prices_correctly() {
     );
 }
 
-// =============================================================================
 // Payment Lag Tests
-// =============================================================================
 
 #[test]
 fn payment_lag_affects_pv() {
@@ -158,9 +154,7 @@ fn payment_lag_affects_pv() {
     );
 }
 
-// =============================================================================
 // Near-Expiry Tests
-// =============================================================================
 
 #[test]
 fn near_expiry_swap_prices_correctly() {
@@ -211,9 +205,7 @@ fn expired_swap_returns_zero_pv() {
     );
 }
 
-// =============================================================================
 // Validation Tests
-// =============================================================================
 
 #[test]
 fn rejects_negative_notional() {
@@ -287,9 +279,7 @@ fn accepts_extreme_but_finite_spread() {
     assert!(result.is_ok(), "Should accept valid extreme spread");
 }
 
-// =============================================================================
 // Spread-Only Pricing Tests
-// =============================================================================
 
 #[test]
 fn spread_affects_pv() {
@@ -367,9 +357,7 @@ fn negative_spread_decreases_pv() {
     );
 }
 
-// =============================================================================
 // Multi-Period Schedule Tests
-// =============================================================================
 
 #[test]
 fn long_dated_swap_prices_with_many_periods() {
@@ -394,9 +382,7 @@ fn long_dated_swap_prices_with_many_periods() {
     );
 }
 
-// =============================================================================
 // Final-Only Exchange Test
-// =============================================================================
 
 #[test]
 fn final_only_exchange_differs_from_initial_and_final() {
@@ -438,9 +424,7 @@ fn final_only_exchange_differs_from_initial_and_final() {
     );
 }
 
-// =============================================================================
 // Leg Side Sign Tests
-// =============================================================================
 
 #[test]
 fn receive_vs_pay_legs_have_opposite_signs() {

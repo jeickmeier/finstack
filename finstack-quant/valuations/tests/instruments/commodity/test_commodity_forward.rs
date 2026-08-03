@@ -253,9 +253,7 @@ fn test_commodity_forward_long_short_symmetry() {
     );
 }
 
-// =============================================================================
 // Round-trip and Parity Tests
-// =============================================================================
 
 /// Round-trip test: Construct forward at quoted price → NPV = 0
 ///

@@ -28,9 +28,7 @@ use finstack_quant_core::{Error, InputError, Result};
 
 use finstack_quant_core::math::random::{poisson_inverse_cdf, RandomNumberGenerator};
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 /// Asset dynamics specification for the Merton model.
 ///
@@ -380,9 +378,7 @@ impl MertonModel {
         Ok(-(1.0 - pd * lgd).ln() / horizon)
     }
 
-    // -----------------------------------------------------------------------
     // Calibration methods
-    // -----------------------------------------------------------------------
 
     /// Minimum equity value (in asset-value units) for which the equity-vol
     /// relation `sigma_E = N(d1) * exp(-qT) * sigma_V * V / E` is numerically
@@ -782,9 +778,7 @@ impl MertonModel {
         )
     }
 
-    // -----------------------------------------------------------------------
     // Accessors
-    // -----------------------------------------------------------------------
 
     /// Current asset value V_0.
     #[inline]
@@ -828,9 +822,7 @@ impl MertonModel {
         &self.dynamics
     }
 
-    // -----------------------------------------------------------------------
     // Hazard curve generation
-    // -----------------------------------------------------------------------
 
     /// Generate a [`HazardCurve`] compatible with existing pricing engines.
     ///
@@ -929,9 +921,7 @@ impl MertonModel {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Monte Carlo path simulation (feature-gated)
-// ---------------------------------------------------------------------------
 
 /// Results from Monte Carlo path simulation.
 #[derive(Debug, Clone)]
@@ -1169,9 +1159,7 @@ impl MertonModel {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -1451,9 +1439,7 @@ mod tests {
         assert!(pd > 0.0 && pd < 1.0, "PD should be in (0,1), got {pd}");
     }
 
-    // -----------------------------------------------------------------------
     // Non-zero payout rate tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn implied_equity_with_payout_rate() {
@@ -1514,9 +1500,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Near-zero equity guards (W-10)
-    // -----------------------------------------------------------------------
 
     #[test]
     fn implied_equity_rejects_near_zero_equity() {
@@ -1554,9 +1538,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Non-convergence test
-    // -----------------------------------------------------------------------
 
     #[test]
     fn from_equity_rejects_invalid_inputs() {
@@ -1578,9 +1560,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Extreme parameter edge cases
-    // -----------------------------------------------------------------------
 
     #[test]
     fn high_vol_pd_approaches_one() {
@@ -1805,9 +1785,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // from_target_pd calibration tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn from_target_pd_roundtrips() {
@@ -1871,9 +1849,7 @@ mod tests {
         assert!(MertonModel::from_target_pd(200.0, 0.25, 0.04, -0.01, 5.0).is_err());
     }
 
-    // -----------------------------------------------------------------------
     // CreditGrades cross-checks
-    // -----------------------------------------------------------------------
 
     #[test]
     fn credit_grades_asset_value_matches_formula() {
@@ -2012,9 +1988,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Monte Carlo path simulation tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn simulate_paths_deterministic_with_seed() {

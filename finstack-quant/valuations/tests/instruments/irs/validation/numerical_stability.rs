@@ -57,9 +57,7 @@ fn build_flat_forward_curve(rate: f64, base_date: Date, curve_id: &str) -> Forwa
         .unwrap()
 }
 
-// ============================================================================
 // Input Validation Tests
-// ============================================================================
 
 #[test]
 fn test_validation_rejects_end_before_start() {
@@ -167,9 +165,7 @@ fn test_validation_accepts_valid_swap() {
     assert!(swap.validate().is_ok());
 }
 
-// ============================================================================
 // Long-Dated Swap Stability Tests (Kahan Summation)
-// ============================================================================
 
 #[test]
 fn test_30y_swap_numerical_stability() {
@@ -276,9 +272,7 @@ fn test_annuity_deterministic_across_runs() {
     }
 }
 
-// ============================================================================
 // Edge Case Tests
-// ============================================================================
 
 #[test]
 fn test_expired_swap_handling() {
@@ -477,9 +471,7 @@ fn test_extreme_rate_environment_stress() {
     );
 }
 
-// ============================================================================
 // Golden Value Tests
-// ============================================================================
 
 #[test]
 fn test_golden_5y_usd_swap_par_npv() {

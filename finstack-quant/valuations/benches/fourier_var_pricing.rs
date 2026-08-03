@@ -41,9 +41,7 @@ fn make_strikes(spot: f64, n: usize) -> Vec<f64> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // COS strip pricing (#13): strike-independent coefficient reuse.
-// ---------------------------------------------------------------------------
 fn bench_cos_strip(c: &mut Criterion) {
     let mut group = c.benchmark_group("cos_strip");
     let spot = 100.0;
@@ -60,9 +58,7 @@ fn bench_cos_strip(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Heston Fourier scalar pricing (#14): shared GL grid across j = 1, 2.
-// ---------------------------------------------------------------------------
 fn bench_heston_fourier_strip(c: &mut Criterion) {
     let mut group = c.benchmark_group("heston_fourier_strip");
     let spot = 100.0;
@@ -92,9 +88,7 @@ fn bench_heston_fourier_strip(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Taylor-approximation Historical VaR (#11): same-currency scenario skip.
-// ---------------------------------------------------------------------------
 fn make_var_market() -> MarketContext {
     let base = Date::from_calendar_date(2025, Month::January, 1).unwrap();
     let disc = DiscountCurve::builder("USD-OIS")

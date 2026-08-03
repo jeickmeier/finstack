@@ -10,9 +10,7 @@ use finstack_quant_core::math::GaussHermiteQuadrature;
 use finstack_quant_core::types::Percentage;
 use std::sync::OnceLock;
 
-// ============================================================================
 // Default Configuration Constants
-// ============================================================================
 
 /// Default quadrature order for Gauss-Hermite integration.
 ///
@@ -46,12 +44,10 @@ const DEFAULT_INDEX_SETTLEMENT_LAG: i32 = 1;
 /// Default settlement lag for bespoke CDS tranches (T+3 per ISDA)
 const DEFAULT_BESPOKE_SETTLEMENT_LAG: i32 = 3;
 
-// ============================================================================
 // Numerical-Stability Constants
 //
 // These epsilons/limits are never varied by callers; they are fixed
 // numerical-stability parameters of the pricing model.
-// ============================================================================
 
 /// Numerical tolerance for integration convergence and boundary checks
 pub(super) const NUMERICAL_TOLERANCE: f64 = 1e-10;
@@ -103,9 +99,7 @@ pub(super) const PAR_SPREAD_MAX_ITER: usize = 50;
 /// Tolerance for par spread solver convergence
 pub(super) const PAR_SPREAD_TOLERANCE: f64 = 1e-6;
 
-// ============================================================================
 // Helper Functions
-// ============================================================================
 
 /// Parameters for the CDS Tranche pricing model.
 ///
@@ -140,9 +134,7 @@ pub(super) const PAR_SPREAD_TOLERANCE: f64 = 1e-6;
 /// - **Stochastic**: Recovery correlated with market factor
 #[derive(Debug, Clone)]
 pub struct CDSTranchePricerConfig {
-    // ========================================================================
     // Model Selection
-    // ========================================================================
     /// Copula model specification (default: Gaussian)
     pub copula_spec: CopulaSpec,
     /// Recovery model specification (default: use index recovery rate)
@@ -157,9 +149,7 @@ pub struct CDSTranchePricerConfig {
     /// This prevents small arbitrage in leg PV calculations.
     pub enforce_el_monotonicity: bool,
 
-    // ========================================================================
     // Numerical Integration
-    // ========================================================================
     /// Number of quadrature points for numerical integration (5, 7, or 10)
     pub quadrature_order: u8,
     /// Whether to use issuer-specific curves if available
@@ -169,18 +159,14 @@ pub struct CDSTranchePricerConfig {
     /// Maximum correlation value for numerical stability
     pub max_correlation: f64,
 
-    // ========================================================================
     // Risk Metric Parameters
-    // ========================================================================
     /// CS01 bump size in basis points, applied as a parallel par-spread bump
     /// with hazard-curve recalibration.
     pub cs01_bump_size: f64,
     /// Correlation bump for correlation delta calculation (absolute)
     pub corr_bump_abs: f64,
 
-    // ========================================================================
     // ISDA Convention Settings
-    // ========================================================================
     /// Whether to use mid-period discounting for protection leg (ISDA standard: true)
     pub mid_period_protection: bool,
     /// Whether to include accrual-on-default in the premium leg
@@ -194,15 +180,11 @@ pub struct CDSTranchePricerConfig {
     /// Settlement lag in business days for bespoke tranches (default: 3 per ISDA)
     pub bespoke_settlement_lag: i32,
 
-    // ========================================================================
     // Numerical Stability
-    // ========================================================================
     /// Smooth boundary width for correlation clamping transitions
     pub corr_boundary_width: f64,
 
-    // ========================================================================
     // Heterogeneous Portfolio Settings
-    // ========================================================================
     /// Heterogeneous issuer method when issuer curves are available
     pub hetero_method: HeteroMethod,
     /// Grid step for exact convolution method (fraction of portfolio notional)

@@ -282,7 +282,6 @@ fn diag_cdx_ig_46_spot_cds_reconciliation() {
         rel_err * 100.0
     );
 
-    // ----------------------------------------------------------------
     // DOCS 2057273 §3 bootstrap round-trip check:
     //
     // The bootstrap (`bump_hazard_spreads` against the CBBT par spreads)
@@ -295,7 +294,6 @@ fn diag_cdx_ig_46_spot_cds_reconciliation() {
     // Act/360. The fix is to align the fixture and the bootstrap on
     // Act/360; this probe guards against future regressions of the same
     // shape.
-    // ----------------------------------------------------------------
     // Use `build_cds_instrument` to construct the par-CDS exactly the way
     // the bootstrap pipeline does. This guarantees an apples-to-apples
     // round-trip: the bootstrap solver targets NPV=0 on this same

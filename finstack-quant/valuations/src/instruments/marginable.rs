@@ -24,9 +24,7 @@ use finstack_quant_margin::{
 };
 use rust_decimal::prelude::ToPrimitive;
 
-// ============================================================================
 // Helper Functions
-// ============================================================================
 
 /// Reprice an instrument and return a single scalar metric from its measures.
 ///
@@ -207,9 +205,7 @@ fn netting_set_id_from_spec(spec: &OtcMarginSpec) -> NettingSetId {
     }
 }
 
-// ============================================================================
 // InterestRateSwap Implementation
-// ============================================================================
 
 impl Marginable for InterestRateSwap {
     fn id(&self) -> &str {
@@ -332,9 +328,7 @@ impl Marginable for InterestRateSwap {
     }
 }
 
-// ============================================================================
 // CreditDefaultSwap Implementation
-// ============================================================================
 
 impl Marginable for CreditDefaultSwap {
     fn id(&self) -> &str {
@@ -419,9 +413,7 @@ impl Marginable for CreditDefaultSwap {
     }
 }
 
-// ============================================================================
 // CDSIndex Implementation
-// ============================================================================
 
 impl Marginable for CDSIndex {
     fn id(&self) -> &str {
@@ -482,9 +474,7 @@ impl Marginable for CDSIndex {
     }
 }
 
-// ============================================================================
 // EquityTotalReturnSwap Implementation
-// ============================================================================
 
 impl Marginable for EquityTotalReturnSwap {
     fn id(&self) -> &str {
@@ -527,9 +517,7 @@ impl Marginable for EquityTotalReturnSwap {
     }
 }
 
-// ============================================================================
 // FIIndexTotalReturnSwap Implementation
-// ============================================================================
 
 impl Marginable for FIIndexTotalReturnSwap {
     fn id(&self) -> &str {
@@ -590,9 +578,7 @@ impl Marginable for FIIndexTotalReturnSwap {
     }
 }
 
-// ============================================================================
 // Repo Implementation
-// ============================================================================
 
 impl Marginable for Repo {
     fn id(&self) -> &str {

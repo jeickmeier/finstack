@@ -19,9 +19,7 @@ use finstack_quant_valuations::instruments::Instrument;
 use finstack_quant_valuations::instruments::{TrsScheduleSpec, TrsSide};
 use rust_decimal::Decimal;
 
-// ================================================================================================
 // Currency Mismatch Tests
-// ================================================================================================
 
 #[test]
 fn test_fi_index_trs_currency_mismatch_validation() {
@@ -50,9 +48,7 @@ fn test_fi_index_trs_currency_mismatch_validation() {
     assert!(result.is_err(), "Should reject currency mismatch");
 }
 
-// ================================================================================================
 // Missing Market Data Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_missing_spot_price() {
@@ -157,9 +153,7 @@ fn test_fi_index_trs_builder_validation() {
     );
 }
 
-// ================================================================================================
 // Extreme Market Conditions Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_with_zero_spot_price() {
@@ -255,9 +249,7 @@ fn test_fi_index_trs_with_zero_duration() {
     assert!(result.is_ok(), "Should handle zero duration");
 }
 
-// ================================================================================================
 // Extreme Notional Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_with_zero_notional() {
@@ -311,9 +303,7 @@ fn test_equity_trs_with_huge_notional() {
     assert!(result.unwrap().amount().is_finite());
 }
 
-// ================================================================================================
 // Extreme Spread Tests
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_with_zero_spread() {
@@ -359,9 +349,7 @@ fn test_equity_trs_with_very_large_spread() {
     assert!(result.unwrap().amount().is_finite());
 }
 
-// ================================================================================================
 // Date Edge Cases
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_with_past_start_date() {
@@ -478,9 +466,7 @@ fn test_fi_index_trs_maturity_equals_valuation_date() {
     );
 }
 
-// ================================================================================================
 // Metric Calculation Edge Cases
-// ================================================================================================
 
 #[test]
 fn test_par_spread_with_tiny_annuity() {
@@ -527,9 +513,7 @@ fn test_index_delta_with_very_small_spot() {
     assert!(delta.is_finite());
 }
 
-// ================================================================================================
 // Contract Size Edge Cases
-// ================================================================================================
 
 #[test]
 fn test_equity_trs_with_zero_contract_size() {

@@ -11,9 +11,7 @@ use finstack_quant_valuations::instruments::equity::variance_swap::{PayReceive, 
 use finstack_quant_valuations::instruments::Attributes;
 use finstack_quant_valuations::instruments::Instrument;
 
-// ============================================================================
 // Historical Prices Tests
-// ============================================================================
 
 #[test]
 fn test_get_historical_prices_prefers_time_series_over_spot() {
@@ -108,9 +106,7 @@ fn test_get_historical_prices_filters_by_as_of_date() {
     assert!(extracted.len() <= expected_count);
 }
 
-// ============================================================================
 // Realized Variance Tests
-// ============================================================================
 
 #[test]
 fn test_partial_realized_variance_before_start_is_zero() {
@@ -208,9 +204,7 @@ fn test_partial_realized_variance_is_always_non_negative() {
     assert!(realized >= 0.0, "Variance must be non-negative");
 }
 
-// ============================================================================
 // Forward Variance Tests
-// ============================================================================
 
 #[test]
 fn test_remaining_forward_variance_requires_market_volatility() {
@@ -284,9 +278,7 @@ fn test_remaining_forward_variance_is_always_positive() {
     assert!(forward > 0.0);
 }
 
-// ============================================================================
 // Expected Variance Tests
-// ============================================================================
 
 #[test]
 fn test_expected_variance_at_maturity_equals_realized() {
@@ -342,9 +334,7 @@ fn test_expected_variance_transitions_smoothly() {
     }
 }
 
-// ============================================================================
 // OHLC Estimator Routing Tests
-// ============================================================================
 
 /// Build OHLC series named `SPX-OPEN`, `SPX-HIGH`, `SPX-LOW`, and close under
 /// the `UNDERLYING_ID` key.

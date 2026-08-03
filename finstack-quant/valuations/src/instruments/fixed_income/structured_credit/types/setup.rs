@@ -17,9 +17,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-// ============================================================================
 // DEAL CONFIGURATION STRUCTURES
-// ============================================================================
 
 /// Complete deal configuration for structured credit instruments
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]

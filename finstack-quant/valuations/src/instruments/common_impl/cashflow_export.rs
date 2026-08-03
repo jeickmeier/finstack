@@ -48,9 +48,7 @@ use crate::instruments::json_loader::InstrumentEnvelope;
 use crate::instruments::rates::xccy_swap::XccySwap;
 use crate::pricer::{shared_standard_registry, ModelKey, PricerKey};
 
-// ---------------------------------------------------------------------------
 // Envelope schema
-// ---------------------------------------------------------------------------
 
 /// Top-level JSON envelope returned by [`instrument_cashflows_json`].
 #[derive(Debug, Clone, Serialize, serde::Deserialize, JsonSchema)]
@@ -135,9 +133,7 @@ pub struct CashflowRow {
     pub pv: f64,
 }
 
-// ---------------------------------------------------------------------------
 // Public entry point
-// ---------------------------------------------------------------------------
 
 /// Build the enriched cashflow envelope for a tagged instrument and serialize to JSON.
 ///
@@ -469,9 +465,7 @@ fn build_envelope(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 #[derive(Clone, Copy)]
 struct MbsState {

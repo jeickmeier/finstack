@@ -31,9 +31,7 @@ use finstack_quant_core::math::random::{Pcg64Rng, RandomNumberGenerator};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 /// Observable credit state at a point in time.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
@@ -169,9 +167,7 @@ pub struct OptimalToggle {
     pub horizon: f64,
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Extract the relevant state value for the toggle decision.
 ///
@@ -190,9 +186,7 @@ fn extract_state_value(state: &CreditState, variable: &CreditStateVariable) -> f
     }
 }
 
-// ---------------------------------------------------------------------------
 // Optimal toggle: nested Monte Carlo
-// ---------------------------------------------------------------------------
 
 /// Number of time steps per year in the nested GBM simulation.
 const NESTED_STEPS_PER_YEAR: usize = 12;
@@ -383,9 +377,7 @@ struct NestedEquityMcModel {
     horizon: f64,
 }
 
-// ---------------------------------------------------------------------------
 // Implementation
-// ---------------------------------------------------------------------------
 
 impl ToggleExerciseModel {
     /// Create a threshold toggle model.
@@ -481,9 +473,7 @@ impl ToggleExerciseModel {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -616,9 +606,7 @@ mod tests {
         assert!((model.pik_fraction(&state_below, &mut rng) - 0.0).abs() < 1e-10);
     }
 
-    // ========================================================================
     // Optimal toggle (nested MC) tests
-    // ========================================================================
 
     /// Helper to build an `OptimalToggle` with typical parameters.
     ///

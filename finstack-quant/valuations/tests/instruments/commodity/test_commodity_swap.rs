@@ -220,9 +220,7 @@ fn test_commodity_swap_receive_fixed() {
     );
 }
 
-// =============================================================================
 // Round-trip and Parity Tests
-// =============================================================================
 
 /// Round-trip test: Swap at par fixed price should have NPV ≈ 0
 ///

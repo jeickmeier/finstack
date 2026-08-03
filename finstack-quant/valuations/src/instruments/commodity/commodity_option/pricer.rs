@@ -13,9 +13,7 @@ use crate::results::ValuationResult;
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;
 
-// ---------------------------------------------------------------------------
 // Monte Carlo Schwartz-Smith pricer (feature-gated)
-// ---------------------------------------------------------------------------
 
 /// Commodity option pricer using Monte Carlo with Schwartz-Smith dynamics.
 ///

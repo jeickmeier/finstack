@@ -25,9 +25,7 @@ use finstack_quant_valuations::metrics::MetricId;
 use proptest::prelude::*;
 use time::macros::date;
 
-// =============================================================================
 // Payer-Receiver Parity Tests
-// =============================================================================
 
 /// At ATM (strike = forward), payer and receiver swaptions should have equal value.
 ///
@@ -111,9 +109,7 @@ fn test_payer_receiver_parity_itm_otm() {
     }
 }
 
-// =============================================================================
 // Monotonicity Tests
-// =============================================================================
 
 /// Payer swaption value decreases as strike increases (higher strike = less valuable call).
 #[test]
@@ -199,9 +195,7 @@ fn test_vega_positive() {
     }
 }
 
-// =============================================================================
 // Boundary Condition Tests
-// =============================================================================
 
 /// At expiry, swaption value equals intrinsic value.
 #[test]
@@ -269,9 +263,7 @@ fn test_zero_vol_gives_intrinsic() {
     );
 }
 
-// =============================================================================
 // Property-Based Tests
-// =============================================================================
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(50))]

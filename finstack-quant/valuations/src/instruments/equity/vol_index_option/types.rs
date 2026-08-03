@@ -521,9 +521,7 @@ impl VolatilityIndexOption {
     }
 }
 
-// ================================================================================================
 // Option risk metric providers (metrics adapters)
-// ================================================================================================
 
 impl crate::instruments::common_impl::traits::OptionGreeksProvider for VolatilityIndexOption {
     fn option_delta(
@@ -559,9 +557,7 @@ impl crate::instruments::common_impl::traits::OptionGreeksProvider for Volatilit
     }
 }
 
-// =============================================================================
 // Trait Implementations
-// =============================================================================
 
 impl crate::instruments::common_impl::traits::Instrument for VolatilityIndexOption {
     impl_instrument_base!(crate::pricer::InstrumentType::VolatilityIndexOption);
@@ -652,9 +648,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for VolatilityIndexOption 
     }
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {

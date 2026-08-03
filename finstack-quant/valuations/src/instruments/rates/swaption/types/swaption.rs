@@ -568,9 +568,7 @@ impl Swaption {
         self
     }
 
-    // ============================================================================
     // Pricing Methods (moved from engine for direct access)
-    // ============================================================================
 
     /// Time to option expiry in years, measured with ACT/365F.
     ///

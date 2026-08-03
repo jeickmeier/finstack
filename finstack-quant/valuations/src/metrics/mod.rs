@@ -215,9 +215,7 @@ pub use sensitivities::config::{
 pub use sensitivities::cross_factor::{CrossFactorCalculator, CrossFactorPair};
 pub use sensitivities::theta::collect_cashflows_in_period;
 
-// -----------------------------------------------------------------------------
 // Crate-internal re-exports (NOT part of the public API)
-// -----------------------------------------------------------------------------
 //
 // These are used across `finstack-quant-valuations` (instrument metric registries, etc.) but are not
 // supported as a stable downstream API. Keep them `pub(crate)` so we can refactor module layout
@@ -250,9 +248,7 @@ pub(crate) use sensitivities::theta::calculate_theta_date;
 pub(crate) use sensitivities::vega::KeyRateVega;
 pub(crate) use shared::df::{GenericDfEndCalculator, GenericDfStartCalculator};
 
-// -----------------------------------------------------------------------------
 // Macros
-// -----------------------------------------------------------------------------
 
 /// Define a trivial metric calculator that delegates to an instrument method or closure.
 #[macro_export]
@@ -285,9 +281,7 @@ macro_rules! define_metric_calculator {
     };
 }
 
-// -----------------------------------------------------------------------------
 // Error helper functions
-// -----------------------------------------------------------------------------
 
 /// Create a NotFound error for missing metrics.
 ///

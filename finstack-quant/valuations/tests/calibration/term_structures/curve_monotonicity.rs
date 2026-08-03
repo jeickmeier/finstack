@@ -128,9 +128,7 @@ proptest! {
     }
 }
 
-// =============================================================================
 // Edge Case Tests for Rate Environments
-// =============================================================================
 
 /// Test EUR-style negative rate environment where DF > 1.0 at short end.
 ///

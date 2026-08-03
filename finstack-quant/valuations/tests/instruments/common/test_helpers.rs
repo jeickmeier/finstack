@@ -96,9 +96,7 @@ pub mod tolerances {
     pub const STATISTICAL: f64 = 2e-2; // 2%
 }
 
-// =============================================================================
 // Standard Test Dates
-// =============================================================================
 
 /// Standard test dates for consistent test fixtures.
 ///
@@ -175,9 +173,7 @@ pub fn scaled_tolerance(base_tol: f64, value: f64, min_abs: f64) -> f64 {
     (value.abs() * base_tol).max(min_abs)
 }
 
-// =============================================================================
 // Assertion Helpers
-// =============================================================================
 
 /// Assert two floats are approximately equal with given tolerance.
 ///
@@ -278,9 +274,7 @@ pub fn assert_in_range(value: f64, min: f64, max: f64, msg: &str) {
     );
 }
 
-// =============================================================================
 // Curve Builders - Discount Curves
-// =============================================================================
 
 /// Create a flat discount curve for testing with simple knots.
 ///
@@ -373,9 +367,7 @@ pub fn flat_discount_curve_with_day_count(
     builder.build().unwrap()
 }
 
-// =============================================================================
 // Curve Builders - Forward Curves
-// =============================================================================
 
 /// Create a flat forward curve for testing.
 ///
@@ -468,9 +460,7 @@ pub fn sloped_forward_curve(
         .unwrap()
 }
 
-// =============================================================================
 // Curve Builders - Hazard Curves
-// =============================================================================
 
 /// Create a flat hazard curve with recovery rate.
 ///
@@ -549,9 +539,7 @@ pub fn upward_curve(curve_id: &str) -> DiscountCurve {
         .unwrap()
 }
 
-// =============================================================================
 // Standard Market Context Builders
-// =============================================================================
 
 /// Create a standard market context with USD and EUR curves.
 ///
@@ -698,9 +686,7 @@ pub fn black_scholes_put(
 mod tests {
     use super::*;
 
-    // =========================================================================
     // Tolerance Tests
-    // =========================================================================
 
     #[test]
     fn test_approx_eq() {
@@ -763,9 +749,7 @@ mod tests {
         assert_in_range(10.0, 0.0, 10.0, "At upper bound");
     }
 
-    // =========================================================================
     // Date Tests
-    // =========================================================================
 
     #[test]
     fn test_standard_dates() {
@@ -787,9 +771,7 @@ mod tests {
         assert_eq!(dates::years_hence(30), date!(2054 - 01 - 01));
     }
 
-    // =========================================================================
     // Curve Builder Tests
-    // =========================================================================
 
     #[test]
     fn test_flat_discount_curve_with_day_count() {
@@ -850,9 +832,7 @@ mod tests {
         assert!((curve.hazard_rate(5.0) - 0.01).abs() < 1e-6);
     }
 
-    // =========================================================================
     // Market Context Tests
-    // =========================================================================
 
     #[test]
     fn test_standard_market_has_curves() {
@@ -892,9 +872,7 @@ mod tests {
         assert!(market.get_hazard("CREDIT").is_ok());
     }
 
-    // =========================================================================
     // Money Helper Tests
-    // =========================================================================
 
     #[test]
     fn test_money_helpers() {
@@ -911,9 +889,7 @@ mod tests {
         assert_eq!(eur_value.currency(), Currency::EUR);
     }
 
-    // =========================================================================
     // Legacy Helper Tests
-    // =========================================================================
 
     #[test]
     fn test_upward_curve_builder() {

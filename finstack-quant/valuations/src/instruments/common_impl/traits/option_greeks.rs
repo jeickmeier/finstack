@@ -1,8 +1,6 @@
 //! Option greeks implementation used by the traits subsystem.
 //!
-// ================================================================================================
 // Option risk metric providers
-// ================================================================================================
 
 use finstack_quant_core::dates::Date;
 use finstack_quant_core::market_data::context::MarketContext;

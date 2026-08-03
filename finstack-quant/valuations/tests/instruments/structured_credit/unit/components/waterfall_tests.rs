@@ -15,9 +15,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     Waterfall, WaterfallBuilder, WaterfallTier,
 };
 
-// ============================================================================
 // Waterfall Builder Tests
-// ============================================================================
 
 #[test]
 fn test_waterfall_builder_creates_proper_priority_order() {
@@ -105,9 +103,7 @@ fn test_waterfall_tier_divertible() {
     assert!(waterfall.tiers[1].divertible);
 }
 
-// ============================================================================
 // Payment Priority Tests
-// ============================================================================
 
 #[test]
 fn test_payment_priority_ordering() {
@@ -144,9 +140,7 @@ fn test_payment_priority_ordering() {
     assert_eq!(waterfall.tiers[2].id, "third");
 }
 
-// ============================================================================
 // Allocation Mode Tests
-// ============================================================================
 
 #[test]
 fn test_allocation_mode_sequential() {
@@ -190,9 +184,7 @@ fn test_allocation_mode_pro_rata() {
     assert_eq!(tier.recipients[1].weight, Some(0.40));
 }
 
-// ============================================================================
 // Recipient Helper Tests
-// ============================================================================
 
 #[test]
 fn test_recipient_fixed_fee_helper() {
@@ -235,9 +227,7 @@ fn test_recipient_tranche_principal_helper() {
     }
 }
 
-// ============================================================================
 // Multi-Recipient Tier Tests
-// ============================================================================
 
 #[test]
 fn test_tier_multiple_recipients() {

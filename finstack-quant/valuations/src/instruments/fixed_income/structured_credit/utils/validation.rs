@@ -12,9 +12,7 @@ use crate::instruments::fixed_income::structured_credit::types::{
 use finstack_quant_core::HashSet;
 use finstack_quant_core::Result;
 
-// ============================================================================
 // VALIDATION ERRORS
-// ============================================================================
 
 /// Validation error details.
 #[derive(
@@ -79,9 +77,7 @@ pub enum ValidationError {
     },
 }
 
-// ============================================================================
 // WATERFALL VALIDATOR TRAIT
-// ============================================================================
 
 /// Trait for validating waterfall specifications.
 pub(crate) trait WaterfallValidator {
@@ -91,9 +87,7 @@ pub(crate) trait WaterfallValidator {
     fn validate(&self) -> Result<()>;
 }
 
-// ============================================================================
 // WATERFALL SPEC VALIDATION
-// ============================================================================
 
 /// Waterfall specification for validation.
 ///
@@ -241,9 +235,7 @@ fn validate_tiers(tiers: &[WaterfallTier]) -> Vec<ValidationError> {
     errors
 }
 
-// ============================================================================
 // HELPER FUNCTIONS
-// ============================================================================
 
 /// Quick validation helper that returns true if spec is valid.
 ///

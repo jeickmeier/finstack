@@ -47,9 +47,7 @@ use indexmap::IndexMap;
 use rayon::prelude::*;
 use smallvec::SmallVec;
 
-// ---------------------------------------------------------------------------
 // PIK schedule types
-// ---------------------------------------------------------------------------
 
 /// Barrier-crossing detection policy for first-passage default simulation.
 ///
@@ -199,9 +197,7 @@ impl PikSchedule {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Configuration
-// ---------------------------------------------------------------------------
 
 /// Configuration for Monte Carlo PIK bond pricing.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
@@ -381,9 +377,7 @@ impl MertonMcConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Results
-// ---------------------------------------------------------------------------
 
 /// Result from Monte Carlo PIK pricing.
 #[derive(Debug, Clone)]
@@ -434,9 +428,7 @@ pub struct PathStatistics {
     pub pik_exercise_rate: f64,
 }
 
-// ---------------------------------------------------------------------------
 // Engine
-// ---------------------------------------------------------------------------
 
 /// Bond parameters for the PIK-aware risk-free leg (no-default scenario).
 struct RiskFreeLeg {
@@ -1000,9 +992,7 @@ impl MertonMcEngine {
         })
     }
 
-    // -----------------------------------------------------------------------
     // Helper methods
-    // -----------------------------------------------------------------------
 
     /// Validate PIK split fractions (non-negative, summing to 1) and, for
     /// `Stepped` schedules, that step times are finite and strictly
@@ -1227,9 +1217,7 @@ impl MertonMcEngine {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Calibration helpers
-// ---------------------------------------------------------------------------
 
 pub mod calibration {
     //! Low-path MC calibration loop with common random numbers.
@@ -1533,9 +1521,7 @@ pub mod calibration {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Pricer Registry Adapter
-// ---------------------------------------------------------------------------
 
 /// Model maturity and flat discount rate for Merton MC, on consistent time bases.
 struct MertonMcTimeBasis {
@@ -1814,9 +1800,7 @@ impl Pricer for SimpleBondMertonMcPricer {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -2051,9 +2035,7 @@ mod tests {
         assert!(result.standard_error > 0.0);
     }
 
-    // -----------------------------------------------------------------------
     // PikSchedule tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn pik_schedule_mode_at_uniform() {
@@ -2202,9 +2184,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Brownian-bridge crossing tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn brownian_bridge_increases_default_rate() {
@@ -2273,9 +2253,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Validation tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn non_gbm_dynamics_rejected() {
@@ -2433,9 +2411,7 @@ mod tests {
         assert!(result.is_ok(), "Valid 30/70 split should be accepted");
     }
 
-    // -----------------------------------------------------------------------
     // Term-structure discounting tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn cashflow_dfs_overrides_flat_rate() {
@@ -2464,9 +2440,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Spread solver test
-    // -----------------------------------------------------------------------
 
     #[test]
     fn effective_spread_positive_for_risky_bond() {
@@ -2490,9 +2464,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Antithetic complementary-uniform regression guard (W15)
-    // -----------------------------------------------------------------------
     //
     // The antithetic path uses sign-flipped normals.  Its Brownian-bridge
     // barrier-crossing test must use the *complementary* uniform `1 - u`

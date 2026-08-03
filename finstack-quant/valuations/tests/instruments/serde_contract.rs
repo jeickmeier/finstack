@@ -33,9 +33,7 @@ macro_rules! serde_contract {
     };
 }
 
-// ---------------------------------------------------------------------------
 // Rates
-// ---------------------------------------------------------------------------
 serde_contract!(
     serde_deposit,
     finstack_quant_valuations::instruments::rates::deposit::Deposit,
@@ -163,9 +161,7 @@ serde_contract!(
     finstack_quant_valuations::instruments::rates::repo::Repo::example()
 );
 
-// ---------------------------------------------------------------------------
 // FX
-// ---------------------------------------------------------------------------
 serde_contract!(
     serde_fx_spot,
     finstack_quant_valuations::instruments::fx::fx_spot::FxSpot,
@@ -219,9 +215,7 @@ serde_contract!(
     finstack_quant_valuations::instruments::fx::ndf::Ndf::example()
 );
 
-// ---------------------------------------------------------------------------
 // Credit derivatives
-// ---------------------------------------------------------------------------
 serde_contract!(
     serde_cds,
     finstack_quant_valuations::instruments::credit_derivatives::cds::CreditDefaultSwap,
@@ -244,9 +238,7 @@ serde_contract!(
     finstack_quant_valuations::instruments::credit_derivatives::cds_tranche::CDSTranche::example()
 );
 
-// ---------------------------------------------------------------------------
 // Equity
-// ---------------------------------------------------------------------------
 serde_contract!(
     serde_equity_spot,
     finstack_quant_valuations::instruments::equity::spot::Equity,
@@ -325,9 +317,7 @@ serde_contract!(
         .expect("example")
 );
 
-// ---------------------------------------------------------------------------
 // Exotics
-// ---------------------------------------------------------------------------
 serde_contract!(
     serde_asian_option,
     finstack_quant_valuations::instruments::exotics::asian_option::AsianOption,
@@ -352,9 +342,7 @@ serde_contract!(
         .expect("example")
 );
 
-// ---------------------------------------------------------------------------
 // Fixed income
-// ---------------------------------------------------------------------------
 serde_contract!(
     serde_bond,
     finstack_quant_valuations::instruments::fixed_income::bond::Bond,
@@ -432,7 +420,6 @@ serde_contract!(
         .expect("example")
 );
 
-// ---------------------------------------------------------------------------
 // Commodity
 //
 // All six commodity instrument types flatten a shared `CommodityUnderlyingParams`
@@ -441,7 +428,6 @@ serde_contract!(
 // denied" invariant with the shared trailing `UnknownFieldGuard` flatten field,
 // so they carry the full contract like every other instrument while keeping
 // the flat v1 wire format/schema unchanged.
-// ---------------------------------------------------------------------------
 serde_contract!(
     serde_commodity_forward,
     finstack_quant_valuations::instruments::commodity::commodity_forward::CommodityForward,

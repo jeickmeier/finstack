@@ -64,9 +64,7 @@ fn price_call(
         .amount()
 }
 
-// ---------------------------------------------------------------------------
 // Crank-Nicolson 1D PDE
-// ---------------------------------------------------------------------------
 
 /// The Crank-Nicolson Black-Scholes PDE must reproduce the closed-form
 /// Black-Scholes price for a European call on a flat-vol surface.
@@ -144,9 +142,7 @@ fn pde_cn1d_is_deterministic() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Heston (semi-analytical Fourier)
-// ---------------------------------------------------------------------------
 
 /// With vol-of-vol `σ_v → 0` and `v0 = θ = σ²`, the Heston variance is
 /// deterministic and the model collapses to Black-Scholes at lognormal vol `σ`.
@@ -253,9 +249,7 @@ fn heston_fourier_missing_scalars_error() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Heston Monte Carlo (slow)
-// ---------------------------------------------------------------------------
 
 /// In the deterministic-variance limit (`σ_v → 0`, `ρ = 0`), the Heston QE
 /// Monte Carlo price must converge to the same Black-Scholes reference as the
@@ -299,9 +293,7 @@ fn heston_mc_collapses_to_black_scholes() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Heston 2D ADI PDE
-// ---------------------------------------------------------------------------
 
 /// The Heston Modified-Craig-Sneyd ADI PDE and the semi-analytical Fourier
 /// pricer are two independent numerical methods for the *same* Heston model, so
@@ -335,9 +327,7 @@ fn pde_adi2d_matches_heston_fourier() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Rough Heston (semi-analytical Fourier)
-// ---------------------------------------------------------------------------
 
 /// Inject the six required `ROUGH_HESTON_*` scalars onto a flat-vol market.
 fn with_rough_heston_scalars(

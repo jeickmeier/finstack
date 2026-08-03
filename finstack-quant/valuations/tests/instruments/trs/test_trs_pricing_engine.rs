@@ -7,9 +7,7 @@ use finstack_quant_core::currency::Currency::USD;
 use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::TrsEngine;
 
-// ================================================================================================
 // Financing Leg PV Tests
-// ================================================================================================
 
 #[test]
 fn test_financing_leg_pv_with_zero_spread() {
@@ -145,9 +143,7 @@ fn test_financing_leg_pv_increases_with_tenor() {
     );
 }
 
-// ================================================================================================
 // Financing Annuity Tests
-// ================================================================================================
 
 #[test]
 fn test_financing_annuity_positive() {
@@ -317,9 +313,7 @@ fn test_financing_annuity_bounded() {
     );
 }
 
-// ================================================================================================
 // Relationship Tests: Annuity and Financing Leg PV
-// ================================================================================================
 
 #[test]
 fn test_financing_leg_pv_equals_annuity_times_rate_plus_spread() {
@@ -363,9 +357,7 @@ fn test_financing_leg_pv_equals_annuity_times_rate_plus_spread() {
     );
 }
 
-// ================================================================================================
 // Edge Case Tests for Pricing Engine
-// ================================================================================================
 
 #[test]
 fn test_financing_leg_with_very_small_notional() {

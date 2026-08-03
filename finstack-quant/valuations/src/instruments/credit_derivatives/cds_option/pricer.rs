@@ -167,9 +167,7 @@ pub(crate) fn implied_vol(
     Ok(log_sigma.exp().max(1e-6))
 }
 
-// =====================================================================
 // Helpers
-// =====================================================================
 
 /// Resolve the lognormal spread vol `σ` for the option, preferring the
 /// instrument-level `pricing_overrides.market_quotes.implied_volatility`
@@ -263,9 +261,7 @@ pub(crate) fn cds_with_bloomberg_protection_end_extension(
     extended
 }
 
-// =====================================================================
 // Registry pricer adapter
-// =====================================================================
 
 /// Registry adapter that exposes the Bloomberg CDSO pricer to the
 /// instrument/model dispatcher.

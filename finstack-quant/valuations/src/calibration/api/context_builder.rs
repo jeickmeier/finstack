@@ -55,11 +55,9 @@ pub fn build_initial_context(
 ) -> finstack_quant_core::Result<MarketContext> {
     let mut ctx = MarketContext::new();
 
-    // -------------------------------------------------------------------------
     // 1. Apply prior curves and surfaces first so credit-index reconstruction
     //    (later, from `market_data`) can resolve hazard / base-correlation
     //    references out of the populated context.
-    // -------------------------------------------------------------------------
     for obj in prior {
         match obj {
             PriorMarketObject::DiscountCurve(c) => {
@@ -97,10 +95,8 @@ pub fn build_initial_context(
         }
     }
 
-    // -------------------------------------------------------------------------
     // 2. Bucket `MarketDatum` entries by kind so credit indices can be applied
     //    after everything else (they need curves resolvable via the context).
-    // -------------------------------------------------------------------------
     let mut fx_quotes: Vec<(
         finstack_quant_core::currency::Currency,
         finstack_quant_core::currency::Currency,
@@ -152,11 +148,9 @@ pub fn build_initial_context(
         }
     }
 
-    // -------------------------------------------------------------------------
     // 3. Materialize the FX matrix from the bucketed spot quotes (if any).
     //    Uses the same quote-only snapshot provider path as
     //    `MarketContext::try_from(MarketContextState)`.
-    // -------------------------------------------------------------------------
     if !fx_quotes.is_empty() {
         tracing::info!(
             explicit_quote_count = fx_quotes.len(),
@@ -166,11 +160,9 @@ pub fn build_initial_context(
         ctx.insert_fx_mut(matrix);
     }
 
-    // -------------------------------------------------------------------------
     // 4. Reconstruct credit indices last — `get_hazard` /
     //    `get_base_correlation` need every relevant curve already present.
     //    Mirrors `state_serde::try_from(MarketContextState)`.
-    // -------------------------------------------------------------------------
     for credit_state in credit_states {
         let index_curve = ctx.get_hazard(&credit_state.index_credit_curve_id)?;
         let base_corr = ctx.get_base_correlation(&credit_state.base_correlation_curve_id)?;
@@ -205,9 +197,7 @@ pub fn build_initial_context(
         ctx.insert_credit_index_mut(&credit_state.id, data);
     }
 
-    // -------------------------------------------------------------------------
     // 5. Attach hierarchy if configured.
-    // -------------------------------------------------------------------------
     if let Some(h) = settings.hierarchy.clone() {
         ctx.set_hierarchy(h);
     }

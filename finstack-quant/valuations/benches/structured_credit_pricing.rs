@@ -129,9 +129,7 @@ fn create_deal(deal_type: DealType, num_assets: usize) -> StructuredCredit {
     )
 }
 
-// ============================================================================
 // NPV Benchmarks by Deal Type
-// ============================================================================
 
 fn bench_npv_by_deal_type(c: &mut Criterion) {
     let mut group = c.benchmark_group("structured_credit_npv");
@@ -151,9 +149,7 @@ fn bench_npv_by_deal_type(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Cashflow Generation Benchmarks
-// ============================================================================
 
 fn bench_cashflow_generation(c: &mut Criterion) {
     let mut group = c.benchmark_group("structured_credit_cashflows");
@@ -176,9 +172,7 @@ fn bench_cashflow_generation(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Risk Metrics Benchmarks
-// ============================================================================
 
 fn bench_wal_calculation(c: &mut Criterion) {
     let mut group = c.benchmark_group("structured_credit_wal");
@@ -252,9 +246,7 @@ fn bench_cs01(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // AssetPool Metrics Benchmarks
-// ============================================================================
 
 fn bench_pool_metrics(c: &mut Criterion) {
     let mut group = c.benchmark_group("structured_credit_pool_metrics");
@@ -315,9 +307,7 @@ fn bench_warf_calculation(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Price Metrics Benchmarks
-// ============================================================================
 
 fn bench_price_metrics(c: &mut Criterion) {
     let mut group = c.benchmark_group("structured_credit_prices");
@@ -344,9 +334,7 @@ fn bench_price_metrics(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Full Metrics Suite Benchmark
-// ============================================================================
 
 fn bench_full_metrics_suite(c: &mut Criterion) {
     let mut group = c.benchmark_group("structured_credit_full_metrics");
@@ -382,9 +370,7 @@ fn bench_full_metrics_suite(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Scaling Benchmarks
-// ============================================================================
 
 fn bench_scaling_with_pool_size(c: &mut Criterion) {
     let mut group = c.benchmark_group("structured_credit_scaling");

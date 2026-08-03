@@ -53,9 +53,7 @@ fn context_for_tranche<'a>(
     }
 }
 
-// ============================================================================
 // OC Test Calculation Tests
-// ============================================================================
 
 #[test]
 fn test_oc_test_passing_scenario() {
@@ -320,9 +318,7 @@ fn test_oc_test_cure_amount_calculation() {
     assert!((result.cure_amount.unwrap().amount() - 40_000_000.0).abs() < 1.0);
 }
 
-// ============================================================================
 // IC Test Calculation Tests
-// ============================================================================
 
 #[test]
 fn test_ic_test_passing_scenario() {
@@ -492,9 +488,7 @@ fn test_ic_test_no_cure_amount() {
     );
 }
 
-// ============================================================================
 // Edge Cases Tests
-// ============================================================================
 
 #[test]
 fn test_oc_test_empty_pool() {
@@ -644,9 +638,7 @@ fn test_oc_test_infinity_ratio_zero_debt() {
     assert_eq!(result.current_ratio, f64::INFINITY);
 }
 
-// ============================================================================
 // IC claims from the waterfall spec (F3)
-// ============================================================================
 
 /// Two-tranche stack used by the claim-cap IC tests: SENIOR (100M @ 5%) over
 /// EQUITY, quarterly accrual, so the legacy IC due is 1.25M.

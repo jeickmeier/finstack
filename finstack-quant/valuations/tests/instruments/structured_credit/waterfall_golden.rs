@@ -26,9 +26,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Duration;
 
-// ============================================================================
 // Market-Standard Tolerances for Waterfall Tests
-// ============================================================================
 
 /// Cash distribution tolerance: deterministic calculations should be exact
 /// within f64 representation error (1 cent on any amount).

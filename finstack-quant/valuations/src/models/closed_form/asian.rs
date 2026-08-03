@@ -811,9 +811,7 @@ fn arithmetic_asian_put_tw_core(
     put_price.max(0.0).min(upper_bound)
 }
 
-// ============================================================================
 // GENERAL FIXING-TIME VARIANTS
-// ============================================================================
 //
 // The `*_times` functions below take the actual fixing times instead of
 // assuming `n` equally-spaced fixings over `[0, T]`. They are the canonical

@@ -722,9 +722,7 @@ mod tests {
     use super::*;
     use crate::instruments::common_impl::traits::{Instrument, OptionGreeksProvider};
 
-    // -----------------------------------------------------------------------
     // Validation tests
-    // -----------------------------------------------------------------------
 
     fn base_swaption_builder() -> CommoditySwaptionBuilder {
         use finstack_quant_core::dates::TenorUnit;
@@ -1173,9 +1171,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Black-76 pricing behavior tests
-    // -----------------------------------------------------------------------
 
     fn date(year: i32, month: u8, day: u8) -> Date {
         use time::Month;

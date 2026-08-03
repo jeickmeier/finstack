@@ -41,9 +41,7 @@ fn create_minimal_tranches() -> TrancheStructure {
     TrancheStructure::new(vec![tranche]).unwrap()
 }
 
-// ============================================================================
 // CLO-specific Tests
-// ============================================================================
 
 #[test]
 fn test_clo_default_payment_frequency() {
@@ -102,9 +100,7 @@ fn test_clo_default_assumptions() {
     assert_eq!(clo.default_assumptions.base_cpr_annual, 0.15); // 15% CPR
 }
 
-// ============================================================================
 // ABS-specific Tests
-// ============================================================================
 
 #[test]
 fn test_abs_default_payment_frequency() {
@@ -140,9 +136,7 @@ fn test_abs_default_assumptions() {
     assert_eq!(abs.default_assumptions.abs_speed_monthly, Some(0.015)); // 1.5% ABS
 }
 
-// ============================================================================
 // RMBS-specific Tests
-// ============================================================================
 
 #[test]
 fn test_rmbs_default_payment_frequency() {
@@ -217,9 +211,7 @@ fn test_rmbs_default_credit_factors() {
     assert_eq!(rmbs.credit_factors.ltv, Some(0.80)); // 80% LTV typical
 }
 
-// ============================================================================
 // CMBS-specific Tests
-// ============================================================================
 
 #[test]
 fn test_cmbs_default_payment_frequency() {
@@ -255,9 +247,7 @@ fn test_cmbs_default_assumptions() {
     assert_eq!(cmbs.default_assumptions.base_cpr_annual, 0.10); // 10% CPR
 }
 
-// ============================================================================
 // Cross-Instrument Consistency Tests
-// ============================================================================
 
 #[test]
 fn test_all_deal_types_have_correct_classification() {

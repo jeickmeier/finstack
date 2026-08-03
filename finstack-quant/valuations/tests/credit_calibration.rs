@@ -18,9 +18,7 @@ use finstack_quant_factor_model::credit::hierarchy::{
 };
 use time::Month;
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 fn d(year: i32, month: Month, day: u8) -> Date {
     create_date(year, month, day).expect("valid date")
@@ -143,9 +141,7 @@ fn config_with(
     }
 }
 
-// ---------------------------------------------------------------------------
 // PR-4 Test 1: bit-identical determinism
-// ---------------------------------------------------------------------------
 
 #[test]
 fn calibration_is_bit_identical_for_same_inputs() {
@@ -185,9 +181,7 @@ fn calibration_is_bit_identical_for_same_inputs() {
     model_a.validate().expect("validate model A");
 }
 
-// ---------------------------------------------------------------------------
 // PR-4 Test 2: GloballyOff sets all betas to 1.0
-// ---------------------------------------------------------------------------
 
 #[test]
 fn globally_off_sets_all_betas_to_one() {
@@ -226,9 +220,7 @@ fn globally_off_sets_all_betas_to_one() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PR-4 Test 3: Dynamic policy classifies short history as BucketOnly
-// ---------------------------------------------------------------------------
 
 #[test]
 fn dynamic_policy_classifies_short_history_as_bucket_only() {
@@ -265,9 +257,7 @@ fn dynamic_policy_classifies_short_history_as_bucket_only() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PR-4 Test 4: ForceIssuerBeta override wins over short-history rule
-// ---------------------------------------------------------------------------
 
 #[test]
 fn override_force_issuer_beta_wins() {
@@ -313,9 +303,7 @@ fn override_force_issuer_beta_wins() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PR-4 Test 5: Sparse bucket folds to parent
-// ---------------------------------------------------------------------------
 
 #[test]
 fn sparse_bucket_folds_to_parent() {
@@ -364,9 +352,7 @@ fn sparse_bucket_folds_to_parent() {
     assert!(any_level0, "fold-up at level 0 must be recorded");
 }
 
-// ---------------------------------------------------------------------------
 // PR-4 Test 6: Single-level hierarchy → expected factor IDs
-// ---------------------------------------------------------------------------
 
 #[test]
 fn single_level_hierarchy_builds_expected_factor_ids() {
@@ -417,9 +403,7 @@ fn single_level_hierarchy_builds_expected_factor_ids() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-4 Test 7: All-BucketOnly calibration succeeds
-// ---------------------------------------------------------------------------
 
 #[test]
 fn all_bucket_only_calibration_succeeds() {
@@ -480,9 +464,7 @@ fn all_bucket_only_calibration_succeeds() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // I-2: sparse bucket emits None for empty dates (factor variance excludes gap)
-// ---------------------------------------------------------------------------
 
 /// Fixture with 2 issuers, each the sole member of its Rating bucket.
 /// On date index 5 (0-based), ISSUER-IG has no observation (spread = None).
@@ -612,9 +594,7 @@ fn sparse_bucket_emits_none_for_empty_dates() {
     assert_eq!(model.as_of, model2.as_of, "round-trip preserves as_of");
 }
 
-// ---------------------------------------------------------------------------
 // Additional: unsupported PR-5a/b features error cleanly
-// ---------------------------------------------------------------------------
 
 /// PR-5b: Ridge covariance is now supported (replaces the old rejection test).
 #[test]
@@ -993,9 +973,7 @@ fn calibration_rejects_invalid_numeric_config_values() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-5a Test 1: caller override wins over IssuerBeta history
-// ---------------------------------------------------------------------------
 
 /// An idiosyncratic override supplied for an `IssuerBeta` issuer must win over
 /// the vol computed from that issuer's residual history, and the source must
@@ -1053,9 +1031,7 @@ fn idiosyncratic_override_wins_over_history() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-5a Test 2: caller override wins over BucketOnly peer proxy
-// ---------------------------------------------------------------------------
 
 /// An idiosyncratic override supplied for a `BucketOnly` issuer must win over
 /// the peer-proxy fallback, and the source must record `CallerSupplied`.
@@ -1108,9 +1084,7 @@ fn idiosyncratic_override_wins_over_bucket_only_peer_proxy() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-5a Test 3: BucketOnly uses peer proxy at deepest level
-// ---------------------------------------------------------------------------
 
 /// Fixture: 1 BucketOnly issuer X with tags `{rating: IG, region: EU}` plus
 /// 2 IssuerBeta peers also tagged `{rating: IG, region: EU}`.
@@ -1246,9 +1220,7 @@ fn bucket_only_uses_peer_proxy_at_deepest_level() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-5a Test 4: peer proxy falls back to parent bucket level
-// ---------------------------------------------------------------------------
 
 /// Fixture: BucketOnly issuer X tagged `{rating: IG, region: APAC}` but there
 /// are no IG.APAC IssuerBeta peers. There ARE IG.EU IssuerBeta peers.
@@ -1383,9 +1355,7 @@ fn bucket_peer_proxy_falls_back_to_parent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-5a Test 5: peer proxy cascade falls back to global mean
-// ---------------------------------------------------------------------------
 
 /// Fixture: BucketOnly issuer X tagged `{rating: HY, region: APAC}` but there
 /// are NO HY.APAC or HY IssuerBeta peers anywhere. There are IG IssuerBeta
@@ -1514,9 +1484,7 @@ fn peer_proxy_cascade_falls_back_to_global() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-5a Test 6: GloballyOff issuers get FromHistory adder vols
-// ---------------------------------------------------------------------------
 
 /// Under `GloballyOff` every issuer is `BucketOnly`, but adder vols are still
 /// estimated from each issuer's own residual history (quant-review M3: the
@@ -1623,9 +1591,7 @@ fn adder_vol_defaults_to_zero_when_history_too_short_everywhere() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-5b Test 1: Ridge covariance adds alpha to diagonal
-// ---------------------------------------------------------------------------
 
 /// Verify that `CovarianceStrategy::Ridge { alpha }` produces Σ where:
 /// - off-diagonal entries equal D·ρ·D (sample covariance off-diagonals)
@@ -1709,9 +1675,7 @@ fn ridge_covariance_adds_alpha_to_diagonal() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-5b Test 2: FullSampleRepaired covariance is PSD
-// ---------------------------------------------------------------------------
 
 /// Fixture where n_factors > n_obs makes naive sample covariance non-PSD.
 /// Verify that `CovarianceStrategy::FullSampleRepaired` produces a covariance
@@ -1818,9 +1782,7 @@ fn full_sample_repaired_covariance_is_psd() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-5b Test 3: Ridge covariance preserves determinism
-// ---------------------------------------------------------------------------
 
 #[test]
 fn ridge_covariance_preserves_determinism() {
@@ -1853,9 +1815,7 @@ fn ridge_covariance_preserves_determinism() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-5b Test 4: FullSampleRepaired preserves determinism
-// ---------------------------------------------------------------------------
 
 #[test]
 fn full_sample_repaired_preserves_determinism() {
@@ -1888,9 +1848,7 @@ fn full_sample_repaired_preserves_determinism() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // PR-5b Test 5: Golden artifact regression test
-// ---------------------------------------------------------------------------
 
 const REGEN_CREDIT_FACTOR_MODEL_GOLDEN_ENV: &str = "FQ_UPDATE_CANONICAL_GOLDENS";
 
@@ -2005,9 +1963,7 @@ fn golden_credit_factor_model_matches_checked_in_json() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Serde round-trip tests (PR-9 Fix 1)
-// ---------------------------------------------------------------------------
 
 /// `CreditCalibrationConfig` must round-trip through JSON without loss.
 ///
@@ -2107,9 +2063,7 @@ fn calibration_config_serialization_matches_schema() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // as_of_spreads must cover exactly the calibrated universe
-// ---------------------------------------------------------------------------
 
 /// A history issuer missing from `as_of_spreads` previously got a silent
 /// `adder_at_anchor = 0.0` and shifted every bucket peer's anchor mean.
@@ -2155,9 +2109,7 @@ fn calibration_rejects_asof_only_issuer() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // '.' in hierarchy tag values corrupts factor identity
-// ---------------------------------------------------------------------------
 
 #[test]
 fn calibration_rejects_dotted_tag_values() {
@@ -2186,9 +2138,7 @@ fn calibration_rejects_dotted_tag_values() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // unsorted/duplicated date grids are rejected
-// ---------------------------------------------------------------------------
 
 #[test]
 fn calibration_rejects_unsorted_or_duplicated_dates() {

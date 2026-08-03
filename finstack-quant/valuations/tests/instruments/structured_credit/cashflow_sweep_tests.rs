@@ -33,9 +33,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
-// ============================================================================
 // Test Helpers
-// ============================================================================
 
 fn as_of() -> Date {
     Date::from_calendar_date(2025, Month::October, 5).unwrap()
@@ -200,9 +198,7 @@ fn run_full(
         .collect()
 }
 
-// ============================================================================
 // CDR Sweep Tests
-// ============================================================================
 
 #[test]
 fn sweep_cdr_increases_reduce_total_tranche_cash() {
@@ -277,9 +273,7 @@ fn sweep_cdr_increases_reduce_equity_distributions() {
     }
 }
 
-// ============================================================================
 // CPR Sweep Tests
-// ============================================================================
 
 #[test]
 fn sweep_cpr_increases_reduce_total_interest() {
@@ -329,9 +323,7 @@ fn sweep_cpr_increases_accelerate_principal_return() {
     );
 }
 
-// ============================================================================
 // Recovery Rate Sweep Tests
-// ============================================================================
 
 #[test]
 fn sweep_higher_recovery_increases_total_cash() {
@@ -408,9 +400,7 @@ fn sweep_recovery_rate_affects_equity_more_than_senior() {
     );
 }
 
-// ============================================================================
 // Recovery Lag Sweep Tests
-// ============================================================================
 
 #[test]
 fn sweep_recovery_lag_affects_cash_timing() {
@@ -457,9 +447,7 @@ fn sweep_recovery_lag_affects_cash_timing() {
     );
 }
 
-// ============================================================================
 // Combined Stress Scenarios
-// ============================================================================
 
 #[test]
 fn stress_scenario_base_vs_stressed() {
@@ -528,9 +516,7 @@ fn stress_scenario_base_vs_stressed() {
     );
 }
 
-// ============================================================================
 // PIK (Payment-in-Kind) Accretion Tests
-// ============================================================================
 
 #[test]
 fn pik_accretion_increases_tranche_balance_on_shortfall() {
@@ -578,9 +564,7 @@ fn pik_accretion_increases_tranche_balance_on_shortfall() {
     }
 }
 
-// ============================================================================
 // Cash Conservation (Full Simulation)
-// ============================================================================
 
 #[test]
 fn full_simulation_total_distributed_consistent() {
@@ -666,9 +650,7 @@ fn full_simulation_non_negative_flows() {
     }
 }
 
-// ============================================================================
 // Zero CDR/CPR Baseline Tests
-// ============================================================================
 
 #[test]
 fn zero_cdr_zero_cpr_returns_all_principal_at_maturity() {

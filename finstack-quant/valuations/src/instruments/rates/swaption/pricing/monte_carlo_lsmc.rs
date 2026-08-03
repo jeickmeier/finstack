@@ -42,9 +42,7 @@ use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_monte_carlo::time_grid::TimeGrid;
 use finstack_quant_monte_carlo::traits::{Discretization, RandomStream};
 
-// ============================================================================
 // Configuration
-// ============================================================================
 
 /// Configuration for Bermudan swaption LSMC pricing.
 ///
@@ -186,9 +184,7 @@ impl SwaptionLsmcConfig {
     }
 }
 
-// ============================================================================
 // Swaption-Specific Basis Functions
-// ============================================================================
 
 /// Extended basis functions including annuity.
 ///

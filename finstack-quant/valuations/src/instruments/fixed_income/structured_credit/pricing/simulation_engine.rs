@@ -31,9 +31,7 @@ use finstack_quant_monte_carlo::rng::philox::PhiloxRng;
 use finstack_quant_monte_carlo::traits::RandomStream;
 use std::sync::Arc;
 
-// ============================================================================
 // POOL FLOW SOURCES
-// ============================================================================
 
 /// Source of pool-level prepayment/default/recovery assumptions for each period.
 pub(crate) trait PoolFlowSource {
@@ -481,9 +479,7 @@ impl PoolFlowSource for StochasticPathFlowSource {
     }
 }
 
-// ============================================================================
 // PUBLIC API
-// ============================================================================
 
 /// Release the unused spread-account balance to equity at deal end.
 ///
@@ -3640,9 +3636,7 @@ mod tests {
     }
 }
 
-// ============================================================================
 // SIMULATION STATE
-// ============================================================================
 
 /// De minimis threshold for write-down recording (avoids noise from fp rounding).
 const WRITEDOWN_DE_MINIMIS: f64 = 0.01;
@@ -3995,9 +3989,7 @@ impl<'a> SimulationState<'a> {
     }
 }
 
-// ============================================================================
 // PERIOD SIMULATION
-// ============================================================================
 
 /// Simulate a single payment period.
 ///
@@ -5125,9 +5117,7 @@ fn par_acquired_at_price(cash: f64, price_fraction: f64) -> f64 {
     }
 }
 
-// ============================================================================
 // CALCULATION HELPERS
-// ============================================================================
 
 /// AssetPool flow results for a single period.
 pub(crate) struct PoolFlows {

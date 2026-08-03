@@ -454,9 +454,7 @@ fn pricing_cashflows_with_hazard_curve() {
     }
 }
 
-// =========================================================================
 // Step-up coupon bond tests
-// =========================================================================
 
 /// Helper: build a step-up bond and return its full cashflow schedule.
 fn build_step_up_bond_schedule(

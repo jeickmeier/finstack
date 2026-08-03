@@ -216,9 +216,7 @@ impl FxBarrierOption {
     }
 }
 
-// ================================================================================================
 // Option risk metric providers (metrics adapters)
-// ================================================================================================
 
 impl crate::instruments::common_impl::traits::OptionGreeksProvider for FxBarrierOption {
     fn option_delta(

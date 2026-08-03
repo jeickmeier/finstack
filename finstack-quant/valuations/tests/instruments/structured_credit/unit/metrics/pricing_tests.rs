@@ -13,9 +13,7 @@ use finstack_quant_core::money::Money;
 use finstack_quant_valuations::instruments::fixed_income::structured_credit::TrancheCashflows;
 use time::Month;
 
-// ============================================================================
 // WAL Calculation Tests
-// ============================================================================
 
 #[test]
 fn test_wal_calculation_equal_payments() {
@@ -264,9 +262,7 @@ fn test_wal_ignores_past_cashflows() {
     assert!((wal - 1.0).abs() < 0.01);
 }
 
-// ============================================================================
 // Market Standard WAL Tests
-// ============================================================================
 
 #[test]
 fn test_wal_rmbs_with_psa() {

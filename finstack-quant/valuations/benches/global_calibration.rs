@@ -58,9 +58,7 @@ fn quotes_to_data(quotes: &[MarketQuote]) -> Vec<MarketDatum> {
     quotes.iter().cloned().map(MarketDatum::from).collect()
 }
 
-// ---------------------------------------------------------------------------
 // Helpers — rate quote builders
-// ---------------------------------------------------------------------------
 
 fn base_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 2).unwrap()
@@ -154,9 +152,7 @@ fn make_cds_quotes(m: usize) -> Vec<MarketQuote> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // Envelope builders
-// ---------------------------------------------------------------------------
 
 fn discount_envelope(
     quotes: Vec<MarketQuote>,
@@ -268,9 +264,7 @@ fn hazard_envelope(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: GlobalSolve discount curve — representative quote count
-// ---------------------------------------------------------------------------
 
 fn bench_global_discount_quote_count(c: &mut Criterion) {
     let mut group = c.benchmark_group("global_discount_curve");
@@ -291,9 +285,7 @@ fn bench_global_discount_quote_count(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: Analytical vs. numerical Jacobian (fixed 16 quotes)
-// ---------------------------------------------------------------------------
 
 fn bench_global_discount_jacobian(c: &mut Criterion) {
     let mut group = c.benchmark_group("global_discount_jacobian");
@@ -324,9 +316,7 @@ fn bench_global_discount_jacobian(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: Bootstrap vs. GlobalSolve head-to-head (16 quotes)
-// ---------------------------------------------------------------------------
 
 fn bench_global_vs_bootstrap(c: &mut Criterion) {
     let mut group = c.benchmark_group("global_vs_bootstrap");
@@ -357,9 +347,7 @@ fn bench_global_vs_bootstrap(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: Hazard curve GlobalSolve — representative tenor count
-// ---------------------------------------------------------------------------
 
 fn bench_global_hazard_tenor_count(c: &mut Criterion) {
     let mut group = c.benchmark_group("global_hazard_curve");

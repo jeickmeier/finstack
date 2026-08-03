@@ -7,9 +7,7 @@ use finstack_quant_cashflows::builder::ScheduleParams;
 use finstack_quant_core::dates::{BusinessDayConvention, DayCount, StubKind, Tenor};
 use finstack_quant_valuations::instruments::{TrsScheduleSpec, TrsSide};
 
-// ================================================================================================
 // TrsSide Tests
-// ================================================================================================
 
 #[test]
 fn test_trs_side_display() {
@@ -92,9 +90,7 @@ fn test_trs_side_clone_and_copy() {
     assert_eq!(side, copied);
 }
 
-// ================================================================================================
 // TrsScheduleSpec Tests
-// ================================================================================================
 
 #[test]
 fn test_trs_schedule_spec_creation() {

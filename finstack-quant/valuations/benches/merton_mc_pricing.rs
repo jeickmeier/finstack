@@ -21,9 +21,7 @@ use finstack_quant_valuations::instruments::fixed_income::bond::pricing::engine:
 use finstack_quant_valuations::models::credit::{BarrierType, MertonModel};
 use std::hint::black_box;
 
-// ---------------------------------------------------------------------------
 // Shared fixtures
-// ---------------------------------------------------------------------------
 
 /// Reference Merton model: asset=200, vol=25%, barrier=100, r=4%.
 fn reference_merton() -> MertonModel {
@@ -46,9 +44,7 @@ fn first_passage_merton() -> MertonModel {
     .unwrap()
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: path count scaling (5Y PIK bond, semi-annual coupons)
-// ---------------------------------------------------------------------------
 
 fn bench_merton_mc_path_count(c: &mut Criterion) {
     let mut group = c.benchmark_group("merton_mc_paths");
@@ -79,9 +75,7 @@ fn bench_merton_mc_path_count(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: tenor scaling (10K paths, semi-annual PIK coupons)
-// ---------------------------------------------------------------------------
 
 fn bench_merton_mc_tenor(c: &mut Criterion) {
     let mut group = c.benchmark_group("merton_mc_tenor");
@@ -116,9 +110,7 @@ fn bench_merton_mc_tenor(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: antithetic variates on vs. off (10K effective paths, 5Y)
-// ---------------------------------------------------------------------------
 
 fn bench_merton_mc_antithetic(c: &mut Criterion) {
     let mut group = c.benchmark_group("merton_mc_antithetic");
@@ -168,9 +160,7 @@ fn bench_merton_mc_antithetic(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: PIK mode comparison (cash vs. PIK vs. toggle)
-// ---------------------------------------------------------------------------
 
 fn bench_merton_mc_pik_mode(c: &mut Criterion) {
     let mut group = c.benchmark_group("merton_mc_pik_mode");
@@ -213,9 +203,7 @@ fn bench_merton_mc_pik_mode(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: barrier type — terminal vs. first-passage (Brownian bridge)
-// ---------------------------------------------------------------------------
 
 fn bench_merton_mc_barrier_type(c: &mut Criterion) {
     let mut group = c.benchmark_group("merton_mc_barrier");

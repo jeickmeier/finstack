@@ -15,9 +15,7 @@ use finstack_quant_valuations::instruments::equity::equity_option::EquityOption;
 use finstack_quant_valuations::instruments::{ExerciseStyle, OptionType};
 use finstack_quant_valuations::instruments::{InstrumentPricingOverrides, SettlementType};
 
-// =============================================================================
 // Market Context Builders
-// =============================================================================
 
 /// Builder for creating test market contexts with common configurations.
 pub struct TestMarketBuilder {
@@ -165,9 +163,7 @@ pub fn option_market_with_divs(
         .build()
 }
 
-// =============================================================================
 // Equity Option Builder
-// =============================================================================
 
 /// Builder for creating test equity options with common configurations.
 pub struct TestOptionBuilder {

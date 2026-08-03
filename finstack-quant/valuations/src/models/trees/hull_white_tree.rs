@@ -43,9 +43,7 @@ use finstack_quant_core::market_data::traits::Discounting;
 use finstack_quant_core::math::piecewise::PiecewiseConstantCurve;
 use finstack_quant_core::{Error, Result};
 
-// ============================================================================
 // Configuration
-// ============================================================================
 
 /// Hull-White 1-factor trinomial tree configuration.
 ///
@@ -128,9 +126,7 @@ impl HullWhiteTreeConfig {
     }
 }
 
-// ============================================================================
 // Hull-White Trinomial Tree
-// ============================================================================
 
 /// Calibrated Hull-White trinomial tree.
 ///
@@ -745,9 +741,7 @@ impl HullWhiteTree {
         }
     }
 
-    // ========================================================================
     // Accessor Methods
-    // ========================================================================
 
     /// Get configuration.
     pub fn config(&self) -> &HullWhiteTreeConfig {
@@ -827,9 +821,7 @@ impl HullWhiteTree {
             .unwrap_or(0.0)
     }
 
-    // ========================================================================
     // Bond Price Calculations
-    // ========================================================================
 
     /// Compute zero-coupon bond price P(t, T) at node (step, node_idx).
     ///
@@ -1016,9 +1008,7 @@ impl HullWhiteTree {
             .sum()
     }
 
-    // ========================================================================
     // Backward Induction
-    // ========================================================================
 
     /// Price an instrument using backward induction.
     ///

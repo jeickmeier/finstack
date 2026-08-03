@@ -16,9 +16,7 @@ use finstack_quant_valuations::models::credit::{
     AssetDynamics, BarrierType, DynamicRecoverySpec, EndogenousHazardSpec, MertonModel,
 };
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// Build a standard Merton model for tests: V=200, sigma=0.25, B=100, r=0.04.
 fn base_merton() -> MertonModel {
@@ -68,9 +66,7 @@ fn merton_with_asset_value(asset_value: f64) -> MertonModel {
     .expect("valid merton model")
 }
 
-// ---------------------------------------------------------------------------
 // Test 1: MC convergence as paths increase
-// ---------------------------------------------------------------------------
 
 #[test]
 fn mc_converges_as_paths_increase() {
@@ -127,9 +123,7 @@ fn mc_converges_as_paths_increase() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Test 2: Higher asset vol increases spread differential
-// ---------------------------------------------------------------------------
 
 #[test]
 fn higher_asset_vol_increases_spread_differential() {
@@ -169,9 +163,7 @@ fn higher_asset_vol_increases_spread_differential() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Test 3: Zero-coupon PIK matches zero-coupon bond
-// ---------------------------------------------------------------------------
 
 #[test]
 fn zero_pik_coupon_matches_zero_coupon_bond() {
@@ -210,9 +202,7 @@ fn zero_pik_coupon_matches_zero_coupon_bond() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Test 4: No endogenous / no dynamic recovery matches standard MC
-// ---------------------------------------------------------------------------
 
 #[test]
 fn no_endogenous_no_dynamic_recovery_matches_standard() {
@@ -271,9 +261,7 @@ fn no_endogenous_no_dynamic_recovery_matches_standard() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Test 5: Antithetic and plain estimators converge to consistent prices
-// ---------------------------------------------------------------------------
 
 #[test]
 fn antithetic_and_plain_prices_are_consistent() {
@@ -322,9 +310,7 @@ fn antithetic_and_plain_prices_are_consistent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Test 6: Default rate increases with leverage
-// ---------------------------------------------------------------------------
 
 #[test]
 fn default_rate_increases_with_leverage() {
@@ -360,9 +346,7 @@ fn default_rate_increases_with_leverage() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Test 7: PIK accrual increases terminal notional
-// ---------------------------------------------------------------------------
 
 #[test]
 fn pik_accrual_increases_terminal_notional() {
@@ -409,9 +393,7 @@ fn pik_accrual_increases_terminal_notional() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Test 8: Higher default rate implies higher expected loss
-// ---------------------------------------------------------------------------
 
 #[test]
 fn higher_default_rate_implies_higher_expected_loss() {
@@ -444,9 +426,7 @@ fn higher_default_rate_implies_higher_expected_loss() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Test 9: Price is bounded between zero and risk-free value
-// ---------------------------------------------------------------------------
 
 #[test]
 fn price_bounded_between_zero_and_risk_free() {
@@ -474,9 +454,7 @@ fn price_bounded_between_zero_and_risk_free() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Test 10: Longer maturity increases expected loss (for risky bond)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn longer_maturity_increases_expected_loss() {

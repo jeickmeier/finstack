@@ -74,9 +74,7 @@ const INV_SQRT_2_PI: f64 = 0.398_942_280_401_432_7_f64;
 /// Bloomberg CDSO model's intended liquid-credit regime.
 const DISTRESSED_FORWARD_SPREAD_LIMIT: f64 = 0.10;
 
-// =====================================================================
 // Public entry points
-// =====================================================================
 
 /// Price a CDS option under the Bloomberg CDSO numerical-quadrature model.
 pub fn npv(
@@ -138,9 +136,7 @@ pub fn forward_par_at_expiry_bp(
     Ok(ctx.display_forward_par_spread * BASIS_POINTS_PER_UNIT)
 }
 
-// =====================================================================
 // Pre-computed deterministic inputs
-// =====================================================================
 
 /// All deterministic quantities the quadrature integrand and the
 /// calibration target need. Built once at the top of `npv()` from the
@@ -587,9 +583,7 @@ impl ForwardCdsContext {
     }
 }
 
-// =====================================================================
 // Calibration of the lognormal mean `m` (DOCS 2055833 Eq. 2.3)
-// =====================================================================
 
 /// Solve the scalar nonlinear equation
 ///
@@ -704,9 +698,7 @@ pub fn calibrate_lognormal_mean(ctx: &ForwardCdsContext) -> Result<f64> {
     Ok(log_m.exp())
 }
 
-// =====================================================================
 // Quadrature integrand (DOCS 2055833 Eq. 2.5)
-// =====================================================================
 
 /// `O / N = P(t_e) · E_0 [ (ξ V_te + H(K) + D)+ ]` per Eq. 2.5, evaluated
 /// by trapezoidal rule on the standard normal density. The `scale` factor
@@ -742,9 +734,7 @@ pub fn quadrature_payoff(
     ctx.scale * ctx.exercise_survival_multiplier() * expected_payoff * ctx.df_to_expiry
 }
 
-// =====================================================================
 // Internal utilities
-// =====================================================================
 
 fn decimal_to_f64(value: Decimal) -> Result<f64> {
     value.to_f64().ok_or_else(|| {

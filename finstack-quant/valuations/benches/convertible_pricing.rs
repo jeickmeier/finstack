@@ -178,9 +178,7 @@ fn create_zero_coupon_convertible() -> ConvertibleBond {
     }
 }
 
-// ============================================================================
 // NPV Benchmarks - Tree Type Comparison
-// ============================================================================
 
 fn bench_npv_binomial(c: &mut Criterion) {
     let mut group = c.benchmark_group("convertible_npv_binomial");
@@ -232,9 +230,7 @@ fn bench_npv_trinomial(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // NPV Benchmarks - Moneyness
-// ============================================================================
 
 fn bench_npv_by_moneyness(c: &mut Criterion) {
     let mut group = c.benchmark_group("convertible_npv_moneyness");
@@ -257,9 +253,7 @@ fn bench_npv_by_moneyness(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // NPV Benchmarks - Features
-// ============================================================================
 
 fn bench_npv_features(c: &mut Criterion) {
     let mut group = c.benchmark_group("convertible_npv_features");
@@ -307,9 +301,7 @@ fn bench_npv_features(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // NPV Benchmarks - Volatility Sensitivity
-// ============================================================================
 
 fn bench_npv_volatility(c: &mut Criterion) {
     let mut group = c.benchmark_group("convertible_npv_volatility");
@@ -332,9 +324,7 @@ fn bench_npv_volatility(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Greeks Benchmarks
-// ============================================================================
 
 fn bench_greeks_calculation(c: &mut Criterion) {
     let mut group = c.benchmark_group("convertible_greeks");
@@ -384,9 +374,7 @@ fn bench_greeks_by_moneyness(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Metrics Benchmarks
-// ============================================================================
 
 fn bench_metrics_suite(c: &mut Criterion) {
     let mut group = c.benchmark_group("convertible_metrics");
@@ -416,9 +404,7 @@ fn bench_metrics_suite(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Parity Benchmarks
-// ============================================================================
 
 fn bench_parity_calculation(c: &mut Criterion) {
     let mut group = c.benchmark_group("convertible_parity");
@@ -434,9 +420,7 @@ fn bench_parity_calculation(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================================================================
 // Convergence Benchmarks
-// ============================================================================
 
 fn bench_tree_convergence(c: &mut Criterion) {
     let mut group = c.benchmark_group("convertible_convergence");

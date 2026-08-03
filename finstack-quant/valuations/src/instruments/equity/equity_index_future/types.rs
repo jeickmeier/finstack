@@ -495,9 +495,7 @@ impl EquityIndexFuture {
     }
 }
 
-// =============================================================================
 // Trait Implementations
-// =============================================================================
 
 impl crate::instruments::common_impl::traits::Instrument for EquityIndexFuture {
     impl_instrument_base!(crate::pricer::InstrumentType::EquityIndexFuture);
@@ -583,9 +581,7 @@ impl finstack_quant_cashflows::CashflowScheduleSource for EquityIndexFuture {
     }
 }
 
-// =============================================================================
 // Tests
-// =============================================================================
 
 #[cfg(test)]
 mod tests {

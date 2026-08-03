@@ -17,9 +17,7 @@
 use finstack_quant_core::{Error, InputError, Result};
 use serde::{Deserialize, Serialize};
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 /// Recovery model specification.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -64,9 +62,7 @@ pub struct DynamicRecoverySpec {
     model: RecoveryModel,
 }
 
-// ---------------------------------------------------------------------------
 // Implementation
-// ---------------------------------------------------------------------------
 
 impl DynamicRecoverySpec {
     // -- Convenience constructors -------------------------------------------
@@ -243,9 +239,7 @@ impl DynamicRecoverySpec {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

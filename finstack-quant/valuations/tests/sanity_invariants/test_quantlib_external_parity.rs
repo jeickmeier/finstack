@@ -197,9 +197,7 @@ fn external_quantlib_parity_vanilla_bond_npv_and_dv01() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // IRS parity
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct IrsFixture {
@@ -340,9 +338,7 @@ fn external_quantlib_parity_vanilla_irs_npv_and_dv01() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FX-forward parity
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct FxForwardFixture {

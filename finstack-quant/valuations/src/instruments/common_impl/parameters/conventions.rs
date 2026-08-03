@@ -639,9 +639,7 @@ mod tests {
     use super::*;
     use finstack_quant_core::dates::Tenor;
 
-    // =======================================================================
     // IRS Convention Tests
-    // =======================================================================
 
     #[test]
     fn irs_ois_float_frequency_annual() {
@@ -741,9 +739,7 @@ mod tests {
         assert_eq!(format!("{}", IRSConvention::JpyTonar), "jpy_tonar");
     }
 
-    // =======================================================================
     // Bond Convention Tests
-    // =======================================================================
 
     // BondConvention tests
     #[test]
@@ -849,9 +845,7 @@ mod tests {
         assert_eq!(format!("{}", BondConvention::Corporate), "corporate");
     }
 
-    // =======================================================================
     // Commodity Convention Tests
-    // =======================================================================
 
     #[test]
     fn commodity_convention_settlement_days() {

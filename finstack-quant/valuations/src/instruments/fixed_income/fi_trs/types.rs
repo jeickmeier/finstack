@@ -317,9 +317,7 @@ impl FIIndexTotalReturnSwap {
     }
 }
 
-// ============================================================================
 // Trait Implementations
-// ============================================================================
 
 impl crate::instruments::common_impl::traits::Instrument for FIIndexTotalReturnSwap {
     impl_instrument_base!(crate::pricer::InstrumentType::FiIndexTotalReturnSwap);

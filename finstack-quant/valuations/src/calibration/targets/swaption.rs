@@ -541,9 +541,7 @@ Set params.sabr_extrapolation='clamp' to allow flat extrapolation.",
         Ok((cube, report))
     }
 
-    // =========================================================================
     // Market-standard forward/par swap rate + SABR parameter interpolation
-    // =========================================================================
 
     /// Resolve swaption leg conventions from quote and plan parameters.
     fn resolve_leg_conventions<'a>(

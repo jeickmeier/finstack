@@ -602,7 +602,6 @@ fn test_metric_date_handling_uses_adjusted_dates() {
     );
 }
 
-// ============================================================================
 // CollateralHaircut01 / CollateralPrice01
 //
 // Both are registered but were previously unexercised. In the current simple
@@ -610,7 +609,6 @@ fn test_metric_date_handling_uses_adjusted_dates() {
 // repo's PV (which is the discounted cash repayment), so both sensitivities are
 // negligible — these tests pin that documented behavior and confirm the metrics
 // compute finite values rather than panicking or erroring.
-// ============================================================================
 
 #[test]
 fn test_collateral_haircut01_is_negligible_for_standard_repo() {

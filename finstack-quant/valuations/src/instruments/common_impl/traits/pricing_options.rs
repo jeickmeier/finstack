@@ -1,8 +1,6 @@
 //! Pricing options implementation used by the traits subsystem.
 //!
-// =============================================================================
 // Pricing Options
-// =============================================================================
 
 use crate::metrics::risk::MarketHistory;
 use crate::metrics::MetricRegistry;

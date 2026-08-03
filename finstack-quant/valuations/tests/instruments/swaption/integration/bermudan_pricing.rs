@@ -358,9 +358,7 @@ fn test_bermudan_to_european_conversion() {
     assert_eq!(european.expiry, first_exercise);
 }
 
-// ============================================================================
 // LSMC Tests (requires "mc" feature)
-// ============================================================================
 
 fn build_market_context() -> MarketContext {
     let curve = test_discount_curve();
@@ -590,9 +588,7 @@ fn test_lsmc_pricer_key() {
     );
 }
 
-// ============================================================================
 // Bermudan calibration gate
-// ============================================================================
 
 /// With `enforce_calibration` set, pricing a Bermudan with the
 /// uncalibrated `HullWhiteParams::default()` must return a clear

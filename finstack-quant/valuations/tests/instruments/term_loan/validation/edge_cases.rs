@@ -166,9 +166,7 @@ fn test_negative_rate_environment() {
     assert!(pv.amount() > 10_000_000.0);
 }
 
-// ---------------------------------------------------------------------------
 // DDTL draw capacity validation (m4) -- via TermLoanSpec TryFrom path
-// ---------------------------------------------------------------------------
 
 fn ddtl_spec_template() -> TermLoanSpec {
     TermLoanSpec {
@@ -255,9 +253,7 @@ fn test_ddtl_draws_within_commitment_accepted() {
     assert!(result.is_ok(), "draws within commitment should be accepted");
 }
 
-// ---------------------------------------------------------------------------
 // Negative OID percentage validation (n3) -- via TermLoanSpec TryFrom path
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_negative_oid_pct_rejected() {

@@ -16,9 +16,7 @@
 //! cargo test --test metrics
 //! ```
 
-// ============================================================================
 // Shared Test Utilities
-// ============================================================================
 
 /// Common test utilities: fixtures, tolerances, assertions, builders
 #[path = "common/mod.rs"]
@@ -40,9 +38,7 @@ mod option_support;
 #[allow(dead_code, unused_imports)]
 mod volatility_support;
 
-// ============================================================================
 // Metrics Tests
-// ============================================================================
 
 #[path = "metrics/mod.rs"]
 mod metrics;

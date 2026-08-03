@@ -33,9 +33,7 @@ use std::hint::black_box;
 use std::sync::Arc;
 use time::Month;
 
-// ---------------------------------------------------------------------------
 // Market context — 2 discount + 2 forward curves + FxMatrix
-// ---------------------------------------------------------------------------
 
 fn base_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 2).unwrap()
@@ -96,9 +94,7 @@ fn create_market() -> MarketContext {
         .insert_fx(fx)
 }
 
-// ---------------------------------------------------------------------------
 // Instrument builder
-// ---------------------------------------------------------------------------
 
 fn make_xccy(base: Date, maturity: Date, exchange: NotionalExchange) -> XccySwap {
     let usd_notional = 10_000_000.0_f64;
@@ -145,9 +141,7 @@ fn make_xccy(base: Date, maturity: Date, exchange: NotionalExchange) -> XccySwap
     XccySwap::new("XCCY-BENCH", leg_usd, leg_eur, Currency::USD).with_notional_exchange(exchange)
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: tenor scaling (InitialAndFinal exchange)
-// ---------------------------------------------------------------------------
 
 fn bench_xccy_tenor(c: &mut Criterion) {
     let mut group = c.benchmark_group("xccy_tenor");
@@ -173,9 +167,7 @@ fn bench_xccy_tenor(c: &mut Criterion) {
     group.finish();
 }
 
-// ---------------------------------------------------------------------------
 // Benchmark: notional exchange convention (5Y swap)
-// ---------------------------------------------------------------------------
 
 fn bench_xccy_notional_exchange(c: &mut Criterion) {
     let mut group = c.benchmark_group("xccy_notional_exchange");

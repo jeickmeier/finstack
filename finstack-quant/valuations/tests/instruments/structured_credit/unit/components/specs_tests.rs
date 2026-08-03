@@ -14,9 +14,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
     DefaultModelSpec, PrepaymentModelSpec, RecoveryModelSpec,
 };
 
-// ============================================================================
 // Prepayment Model Spec Tests
-// ============================================================================
 
 #[test]
 fn test_prepayment_spec_psa() {
@@ -37,9 +35,7 @@ fn test_prepayment_spec_constant_cpr() {
     assert!((smm - expected_smm).abs() < 0.0001);
 }
 
-// ============================================================================
 // Default Model Spec Tests
-// ============================================================================
 
 #[test]
 fn test_default_spec_sda() {
@@ -63,9 +59,7 @@ fn test_default_spec_constant_cdr() {
     assert!((mdr - expected_mdr).abs() < 0.0001);
 }
 
-// ============================================================================
 // Recovery Model Spec Tests
-// ============================================================================
 
 #[test]
 fn test_recovery_spec() {

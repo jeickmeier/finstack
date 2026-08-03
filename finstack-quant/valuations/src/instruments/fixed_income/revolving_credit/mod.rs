@@ -74,9 +74,7 @@ pub(crate) mod types;
 
 mod utils;
 
-// ============================================================================
 // Numerical Constants
-// ============================================================================
 // Centralized thresholds for numerical stability and consistency across the module.
 
 /// General zero comparison threshold for numerical stability.

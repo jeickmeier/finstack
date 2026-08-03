@@ -18,9 +18,7 @@ use finstack_quant_valuations::instruments::fixed_income::structured_credit::{
 };
 use time::Month;
 
-// ============================================================================
 // Test Helpers
-// ============================================================================
 
 fn test_date() -> Date {
     Date::from_calendar_date(2025, Month::January, 1).unwrap()
@@ -121,9 +119,7 @@ fn run_sim(
     .expect("simulation should succeed")
 }
 
-// ============================================================================
 // Test 1: Mid-period maturity interest cap (m-FINAL-1)
-// ============================================================================
 
 #[test]
 fn test_mid_period_maturity_caps_interest_accrual() {
@@ -208,9 +204,7 @@ fn test_mid_period_maturity_caps_interest_accrual() {
     );
 }
 
-// ============================================================================
 // Test 2: Pre-defaulted asset is skipped in pool flows
-// ============================================================================
 
 #[test]
 fn test_pre_defaulted_asset_generates_zero_pool_interest() {
@@ -335,9 +329,7 @@ fn test_pre_defaulted_asset_does_not_affect_performing_pool_flows() {
     );
 }
 
-// ============================================================================
 // Test 3: Reinvestment reconciliation snaps pool_outstanding
-// ============================================================================
 
 #[test]
 fn test_reinvestment_end_reconciles_pool_outstanding() {

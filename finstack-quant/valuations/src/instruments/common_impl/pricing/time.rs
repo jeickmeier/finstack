@@ -38,9 +38,7 @@ use finstack_quant_core::Result;
 
 use crate::constants::numerical::DF_EPSILON;
 
-// ---------------------------------------------------------------------------
 // Discount Curve Helpers
-// ---------------------------------------------------------------------------
 
 /// Compute discount factor from `as_of` to `target` using a [`DiscountCurve`].
 ///
@@ -163,9 +161,7 @@ fn validate_relative_df(df: f64, from: Date, to: Date) -> Result<f64> {
     Ok(df)
 }
 
-// ---------------------------------------------------------------------------
 // Forward Curve Helpers
-// ---------------------------------------------------------------------------
 
 /// Compute year fraction from a forward curve's base_date to a given date.
 ///

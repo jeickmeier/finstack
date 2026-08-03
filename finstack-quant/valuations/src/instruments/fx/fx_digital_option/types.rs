@@ -319,9 +319,7 @@ mod tests {
     use super::*;
     use std::str::FromStr;
 
-    // -----------------------------------------------------------------------
     // Validation tests
-    // -----------------------------------------------------------------------
 
     fn base_digital_builder(
     ) -> crate::instruments::fx::fx_digital_option::types::FxDigitalOptionBuilder {

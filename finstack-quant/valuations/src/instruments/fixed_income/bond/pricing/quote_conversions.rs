@@ -416,9 +416,7 @@ pub struct BondQuoteSet {
     pub i_spread: Option<f64>,
 }
 
-// ============================================================================
 // Price-from-Metric Functions
-// ============================================================================
 
 /// Yield Compounding enumeration.
 ///
@@ -1282,9 +1280,7 @@ pub(crate) fn clear_price_driving_overrides(bond: &mut Bond) {
     quotes.quoted_asw_market = None;
 }
 
-// ============================================================================
 // Main Quote Engine
-// ============================================================================
 
 /// Convert between price, yield, and spread metrics for a bond.
 ///
