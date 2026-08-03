@@ -102,6 +102,13 @@ fn binding_defaults(
 /// `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`,
 /// `median`, `percentile_25`, `percentile_75`, `min`, `max`, and
 /// `relative_stderr`.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be
+/// loaded when `num_steps` is omitted; the GBM parameters, expiry, step count,
+/// path count, or computed discount factor fail validation; a simulated
+/// discounted payoff is non-finite; or the result cannot be serialized.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
@@ -137,6 +144,13 @@ pub fn price_european_call(
 /// `ci_lower`, `ci_upper`, `num_paths`, `num_simulated_paths`,
 /// `median`, `percentile_25`, `percentile_75`, `min`, `max`, and
 /// `relative_stderr`.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be
+/// loaded when `num_steps` is omitted; the GBM parameters, expiry, step count,
+/// path count, or computed discount factor fail validation; a simulated
+/// discounted payoff is non-finite; or the result cannot be serialized.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
@@ -196,6 +210,15 @@ fn price_european(
 
 #[allow(clippy::too_many_arguments)]
 /// Price a European call under Heston stochastic volatility.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be
+/// loaded when `num_steps` is omitted; `rate` or `div_yield` is non-finite;
+/// `kappa`, `theta`, `vol_of_vol`, or `v0` is non-finite or non-positive;
+/// `rho` is outside `[-1, 1]`; the expiry, step count, path count, or computed
+/// discount factor fails validation; a simulated discounted payoff is
+/// non-finite; or the result cannot be serialized.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
@@ -235,6 +258,15 @@ pub fn price_heston_call(
 
 #[allow(clippy::too_many_arguments)]
 /// Price a European put under Heston stochastic volatility.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be
+/// loaded when `num_steps` is omitted; `rate` or `div_yield` is non-finite;
+/// `kappa`, `theta`, `vol_of_vol`, or `v0` is non-finite or non-positive;
+/// `rho` is outside `[-1, 1]`; the expiry, step count, path count, or computed
+/// discount factor fails validation; a simulated discounted payoff is
+/// non-finite; or the result cannot be serialized.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
@@ -324,6 +356,13 @@ pub fn black_scholes_put(
 
 #[allow(clippy::too_many_arguments)]
 /// Price an Asian call via Monte Carlo under GBM dynamics.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be
+/// loaded when `num_steps` is omitted; the GBM parameters, expiry, step count,
+/// path count, or computed discount factor fail validation; a simulated
+/// discounted payoff is non-finite; or the result cannot be serialized.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
@@ -354,6 +393,13 @@ pub fn price_asian_call(
 
 #[allow(clippy::too_many_arguments)]
 /// Price an Asian put via Monte Carlo under GBM dynamics.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `currency` is unknown; embedded defaults cannot be
+/// loaded when `num_steps` is omitted; the GBM parameters, expiry, step count,
+/// path count, or computed discount factor fail validation; a simulated
+/// discounted payoff is non-finite; or the result cannot be serialized.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
@@ -435,6 +481,13 @@ fn price_asian(
 ///   `"polynomial"`, or `"normalized_polynomial"`.
 /// - `basis_degree` (default `3`): polynomial/Laguerre degree. Must be
 ///   positive; `"laguerre"` additionally requires degree in `[1, 4]`.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is
+/// unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry,
+/// basis name, or basis degree fail validation; path generation fails; or the
+/// result cannot be serialized.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
@@ -489,6 +542,13 @@ pub fn price_american_put(
 /// Price an American call via LSMC under GBM dynamics.
 ///
 /// Optional knobs match [`price_american_put`].
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is
+/// unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry,
+/// basis name, or basis degree fail validation; path generation fails; or the
+/// result cannot be serialized.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
@@ -541,6 +601,14 @@ pub fn price_american_call(
 
 #[allow(clippy::too_many_arguments)]
 /// Two-pass unbiased American put price (training fit + out-of-sample pricing).
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is
+/// unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry,
+/// basis name, or basis degree fail validation; `pricing_seed == seed`; either
+/// path-generation pass or the regression fit fails; or the result cannot be
+/// serialized.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
@@ -596,6 +664,14 @@ pub fn price_american_put_unbiased(
 
 #[allow(clippy::too_many_arguments)]
 /// Two-pass unbiased American call price (training fit + out-of-sample pricing).
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the embedded defaults cannot be loaded; `currency` is
+/// unknown; `strike <= 0`; the GBM parameters, path count, step count, expiry,
+/// basis name, or basis degree fail validation; `pricing_seed == seed`; either
+/// path-generation pass or the regression fit fails; or the result cannot be
+/// serialized.
 /// @param spot - Current spot price or exchange rate in the documented quote convention.
 /// @param strike - Option strike price in the same price units as the underlying.
 /// @param rate - Interest rate expressed as a decimal, such as 0.05 for 5%.
