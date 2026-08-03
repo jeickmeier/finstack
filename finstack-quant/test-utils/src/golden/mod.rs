@@ -14,7 +14,7 @@
 //! - **Comparisons** (`compare`): Assertion helpers with actionable error messages
 //!
 //! The stable public surface is the assertion/comparison layer (`assert_abs`,
-//! `assert_expected_value`, [`GoldenAssert`], and [`Tolerance`]). Loader and
+//! `assert_expected_f64`, [`GoldenAssert`], [`Expectation`], and [`Tolerance`]). Loader and
 //! fixture metadata helpers remain public for existing tests, but they are
 //! intended primarily for crate-internal golden suites rather than runtime APIs.
 //!
@@ -119,14 +119,12 @@ mod types;
 
 // Re-export types
 pub use types::{
-    CaseMeta, Expectation, ExpectedValue, GeneratedInfo, GoldenSuite, ReferenceSource, SuiteMeta,
-    Tolerance, ValidatedInfo,
+    CaseMeta, Expectation, GeneratedInfo, GoldenSuite, ReferenceSource, SuiteMeta, Tolerance,
+    ValidatedInfo,
 };
 
 // Re-export loaders
 pub use loader::{golden_path, load_suite_from_path, load_suite_from_str};
 
 // Re-export comparison utilities
-pub use compare::{
-    assert_abs, assert_expected_f64, assert_expected_value, assert_within_tolerance, GoldenAssert,
-};
+pub use compare::{assert_abs, assert_expected_f64, assert_within_tolerance, GoldenAssert};

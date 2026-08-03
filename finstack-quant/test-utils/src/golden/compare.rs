@@ -3,7 +3,7 @@
 //! This module provides assertion helpers that produce actionable error
 //! messages including case identifiers, metric labels, and provenance.
 
-use crate::golden::types::{Expectation, ExpectedValue, SuiteMeta, Tolerance};
+use crate::golden::types::{Expectation, SuiteMeta, Tolerance};
 use crate::Error;
 
 // =============================================================================
@@ -58,32 +58,6 @@ pub fn assert_expected_f64(
         }
     };
     Err(Error::Validation(msg))
-}
-
-/// Assert using [`ExpectedValue`] (a convenience wrapper for existing fixtures).
-///
-/// # Arguments
-///
-/// * `suite_id` - Golden-suite identifier included in any assertion diagnostic.
-/// * `case_id` - Test-case identifier included in any assertion diagnostic.
-/// * `metric` - Name of the measured quantity being compared.
-/// * `actual` - Observed floating-point value produced by the system under test.
-/// * `expected` - Fixture expectation, including its target, range, and any
-///   configured tolerance.
-///
-/// # Errors
-///
-/// Propagates the structured assertion failure returned by
-/// [`assert_expected_f64`].
-pub fn assert_expected_value(
-    suite_id: &str,
-    case_id: &str,
-    metric: &str,
-    actual: f64,
-    expected: &ExpectedValue,
-) -> Result<(), Error> {
-    let expectation = expected.to_expectation();
-    assert_expected_f64(suite_id, case_id, metric, actual, &expectation)
 }
 
 /// Assert with an explicit tolerance (a convenience wrapper).
@@ -207,25 +181,20 @@ impl<'a> GoldenAssert<'a> {
         )
     }
 
-    /// Assert with an [`ExpectedValue`] fixture entry.
+    /// Assert with an [`Expectation`] fixture entry.
     ///
     /// # Errors
     ///
-    /// Propagates the structured mismatch error from [`assert_expected_value`].
-    pub fn expected(
-        &self,
-        metric: &str,
-        actual: f64,
-        expected: &ExpectedValue,
-    ) -> Result<(), Error> {
-        assert_expected_value(self.suite_id, self.case_id, metric, actual, expected)
+    /// Propagates the structured mismatch error from [`assert_expected_f64`].
+    pub fn expected(&self, metric: &str, actual: f64, expected: &Expectation) -> Result<(), Error> {
+        assert_expected_f64(self.suite_id, self.case_id, metric, actual, expected)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::golden::types::{Expectation, ExpectedValue};
+    use crate::golden::types::Expectation;
 
     #[test]
     fn test_assert_abs_pass() {
@@ -255,12 +224,9 @@ mod tests {
         assert!(golden_assert.abs("value", 1.005, 1.0, 0.01).is_ok());
         assert!(golden_assert.abs("value", 1.02, 1.0, 0.01).is_err());
 
-        let expected = ExpectedValue {
+        let expected = Expectation::Exact {
             value: 1.0,
-            tolerance_abs: Some(0.01),
-            tolerance_bp: None,
-            tolerance_pct: None,
-            tolerance_rel: None,
+            tolerance: Some(Tolerance::Abs(0.01)),
             notes: None,
         };
         assert!(golden_assert.expected("value", 1.005, &expected).is_ok());
@@ -268,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn assert_expected_f64_and_expected_value_branches() {
+    fn assert_expected_f64_exact_and_range_branches() {
         let exact = Expectation::Exact {
             value: 1.0,
             tolerance: Some(Tolerance::Abs(0.05)),
@@ -284,16 +250,5 @@ mod tests {
         };
         assert!(assert_expected_f64("s", "c", "m", 0.5, &range).is_ok());
         assert!(assert_expected_f64("s", "c", "m", 2.0, &range).is_err());
-
-        let ev = ExpectedValue {
-            value: 10.0,
-            tolerance_abs: Some(0.1),
-            tolerance_bp: None,
-            tolerance_pct: None,
-            tolerance_rel: None,
-            notes: None,
-        };
-        assert!(assert_expected_value("s", "c", "k", 10.05, &ev).is_ok());
-        assert!(assert_expected_value("s", "c", "k", 12.0, &ev).is_err());
     }
 }

@@ -199,7 +199,7 @@ pub struct CaseMeta {
 
 /// Tolerance specification for numeric comparisons.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(tag = "type", content = "value")]
+#[serde(tag = "type", content = "value", deny_unknown_fields)]
 pub enum Tolerance {
     /// Absolute tolerance (e.g., 0.01 means |actual - expected| < 0.01).
     #[serde(rename = "abs")]
@@ -270,7 +270,7 @@ impl Tolerance {
 
 /// An expected value that can be exact (with tolerance) or a range.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, deny_unknown_fields)]
 pub enum Expectation {
     /// Exact value with optional tolerance.
     Exact {
@@ -356,73 +356,6 @@ impl Expectation {
     }
 }
 
-/// Common expected value structure used in many golden tests.
-///
-/// This provides a more flexible tolerance specification that can be
-/// deserialized from various JSON formats.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExpectedValue {
-    /// The expected value.
-    pub value: f64,
-
-    /// Absolute tolerance.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tolerance_abs: Option<f64>,
-
-    /// Basis points tolerance.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tolerance_bp: Option<f64>,
-
-    /// Percentage tolerance.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tolerance_pct: Option<f64>,
-
-    /// Relative tolerance (as fraction).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tolerance_rel: Option<f64>,
-
-    /// Notes about this expected value.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
-}
-
-impl ExpectedValue {
-    /// Convert to an Expectation for comparison.
-    pub fn to_expectation(&self) -> Expectation {
-        let tol_count = [
-            self.tolerance_abs.is_some(),
-            self.tolerance_bp.is_some(),
-            self.tolerance_pct.is_some(),
-            self.tolerance_rel.is_some(),
-        ]
-        .iter()
-        .filter(|&&b| b)
-        .count();
-        debug_assert!(
-            tol_count <= 1,
-            "ExpectedValue has {tol_count} tolerance fields set; \
-             only the first (priority: abs>bp>pct>rel) is used"
-        );
-        let tolerance = self
-            .tolerance_abs
-            .map(Tolerance::Abs)
-            .or_else(|| self.tolerance_bp.map(Tolerance::Bps))
-            .or_else(|| self.tolerance_pct.map(Tolerance::Pct))
-            .or_else(|| self.tolerance_rel.map(Tolerance::Rel));
-
-        Expectation::Exact {
-            value: self.value,
-            tolerance,
-            notes: self.notes.clone(),
-        }
-    }
-
-    /// Check if actual is within tolerance.
-    pub fn is_within(&self, actual: f64) -> bool {
-        self.to_expectation().is_satisfied(actual)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -481,17 +414,89 @@ mod tests {
     }
 
     #[test]
-    fn test_expected_value_to_expectation() {
-        let ev = ExpectedValue {
-            value: 100.0,
-            tolerance_abs: Some(0.5),
-            tolerance_bp: None,
-            tolerance_pct: None,
-            tolerance_rel: None,
-            notes: None,
-        };
-        assert!(ev.is_within(100.3));
-        assert!(!ev.is_within(100.6));
+    fn expectation_deserializes_exact_and_range_shapes() -> Result<(), serde_json::Error> {
+        let exact: Expectation =
+            serde_json::from_str(r#"{"value":100.0,"tolerance":{"type":"abs","value":0.5}}"#)?;
+        assert!(exact.is_satisfied(100.3));
+        assert!(!exact.is_satisfied(100.6));
+
+        let range: Expectation = serde_json::from_str(r#"{"min":0.0,"max":100.0}"#)?;
+        assert!(range.is_satisfied(50.0));
+        assert!(!range.is_satisfied(101.0));
+
+        Ok(())
+    }
+
+    #[test]
+    fn expectation_deserializes_all_tolerance_units() -> Result<(), serde_json::Error> {
+        let cases = [
+            (
+                r#"{"value":1.0,"tolerance":{"type":"abs","value":0.01}}"#,
+                1.005,
+                1.02,
+            ),
+            (
+                r#"{"value":100.0,"tolerance":{"type":"rel","value":0.01}}"#,
+                100.5,
+                102.0,
+            ),
+            (
+                r#"{"value":0.05,"tolerance":{"type":"bp","value":0.5}}"#,
+                0.05004,
+                0.05006,
+            ),
+            (
+                r#"{"value":100.0,"tolerance":{"type":"pct","value":1.0}}"#,
+                100.5,
+                102.0,
+            ),
+        ];
+
+        for (json, within, outside) in cases {
+            let expectation: Expectation = serde_json::from_str(json)?;
+            assert!(expectation.is_satisfied(within), "fixture: {json}");
+            assert!(!expectation.is_satisfied(outside), "fixture: {json}");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn expectation_rejects_legacy_tolerance_fields() {
+        for field in [
+            "tolerance_abs",
+            "tolerance_rel",
+            "tolerance_bp",
+            "tolerance_pct",
+        ] {
+            let json = format!(r#"{{"value":1.0,"{field}":0.1}}"#);
+            assert!(
+                serde_json::from_str::<Expectation>(&json).is_err(),
+                "legacy field {field} must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn expectation_rejects_ambiguous_tolerances() {
+        let json = r#"{"value":1.0,"tolerance_abs":0.1,"tolerance_bp":1.0}"#;
+        assert!(serde_json::from_str::<Expectation>(json).is_err());
+    }
+
+    #[test]
+    fn expectation_rejects_mixed_exact_and_range_fields() {
+        let json = r#"{"value":1.0,"min":0.0,"max":2.0}"#;
+        assert!(serde_json::from_str::<Expectation>(json).is_err());
+    }
+
+    #[test]
+    fn expectation_rejects_duplicate_tolerance_fields() {
+        let json = r#"{
+            "value": 1.0,
+            "tolerance": {"type": "abs", "value": 0.1},
+            "tolerance": {"type": "bp", "value": 1.0}
+        }"#;
+        assert!(serde_json::from_str::<Expectation>(json).is_err());
     }
 
     #[test]

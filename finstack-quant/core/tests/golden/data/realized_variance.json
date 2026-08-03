@@ -37,7 +37,10 @@
       "expected": {
         "annualized_variance": {
           "value": 1.9234633299312283,
-          "tolerance_abs": 1e-10,
+          "tolerance": {
+            "type": "abs",
+            "value": 1e-10
+          },
           "notes": "Hand-calculated: ln(1.1)=0.0953, ln(1.2)=0.1823, sum_sq=0.0423, factor=0.3607, daily=0.00764, annual=1.924"
         }
       }
@@ -58,7 +61,10 @@
       "expected": {
         "annualized_variance": {
           "value": 2.363437356527532,
-          "tolerance_abs": 1e-10,
+          "tolerance": {
+            "type": "abs",
+            "value": 1e-10
+          },
           "notes": "Hand-calculated: Day1 contrib=0.00982, Day2 contrib=0.00893, daily=0.009375, annual=2.362"
         }
       }
@@ -79,7 +85,10 @@
       "expected": {
         "annualized_variance": {
           "value": 2.300948566921342,
-          "tolerance_abs": 1e-10,
+          "tolerance": {
+            "type": "abs",
+            "value": 1e-10
+          },
           "notes": "Hand-calculated: Day1: hc*ho+lc*lo=0.009567; Day2: 0.008694; daily=0.009131; annual=2.3009"
         }
       }
@@ -100,7 +109,10 @@
       "expected": {
         "annualized_variance": {
           "value": 3.226893321551188,
-          "tolerance_abs": 1e-10,
+          "tolerance": {
+            "type": "abs",
+            "value": 1e-10
+          },
           "notes": "Yang-Zhang (2000): k and the RS average use the period count m = n-1 (bar 0 has no previous close); value recomputed 2026-06-11 after fixing the n-bar divisor bias"
         }
       }

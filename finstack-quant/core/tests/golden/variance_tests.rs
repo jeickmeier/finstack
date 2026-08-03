@@ -4,7 +4,7 @@
 //! compare against computed results from the `finstack_quant_core::math::stats` module.
 
 use finstack_quant_core::math::stats::{realized_variance_ohlc, RealizedVarMethod};
-use finstack_quant_test_utils::golden::{load_suite_from_path, ExpectedValue, GoldenAssert};
+use finstack_quant_test_utils::golden::{load_suite_from_path, Expectation, GoldenAssert};
 use finstack_quant_test_utils::golden_path;
 use serde::Deserialize;
 
@@ -22,7 +22,7 @@ struct VarianceInputs {
 /// Expected output for variance tests.
 #[derive(Debug, Deserialize)]
 struct VarianceExpected {
-    annualized_variance: ExpectedValue,
+    annualized_variance: Expectation,
 }
 
 /// A test case for variance calculations.
