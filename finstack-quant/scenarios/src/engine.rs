@@ -757,15 +757,13 @@ fn generate_effects(op: &OperationSpec, ctx: &ExecutionContext) -> Result<Vec<Sc
         OperationSpec::BaseCorrBucketPts {
             surface_id,
             detachment_bp,
-            maturities,
             points,
-        } => adapters::basecorr::base_corr_bucket_effects(
+        } => Ok(adapters::basecorr::base_corr_bucket_effects(
             surface_id,
             detachment_bp.as_deref(),
-            maturities.as_deref(),
             *points,
             ctx,
-        ),
+        )),
         OperationSpec::VolSurfaceParallelPct {
             vol_surface_id,
             pct,

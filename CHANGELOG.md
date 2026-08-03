@@ -4,6 +4,9 @@
 
 ### Changed
 
+- **Breaking (Rust, Python, JSON):** Removed the unused
+  `OperationSpec::BaseCorrBucketPts.maturities` field and Python argument;
+  base-correlation shocks target the supported detachment dimension only.
 - **Breaking (Rust, JSON):** Removed the unused
   `IndexUnderlyingParams.convexity_id` field and its `with_convexity` builder;
   fixed-income index TRS pricing never consumed the identifier.

@@ -166,21 +166,19 @@ impl PyOperationSpec {
         }
     }
 
-    /// Bucketed base-correlation shock by detachment and (reserved) maturity.
+    /// Bucketed base-correlation shock by detachment.
     #[classmethod]
-    #[pyo3(signature = (surface_id, points, detachment_bp=None, maturities=None))]
+    #[pyo3(signature = (surface_id, points, detachment_bp=None))]
     fn base_corr_bucket_pts(
         _cls: &Bound<'_, PyType>,
         surface_id: &str,
         points: f64,
         detachment_bp: Option<Vec<i32>>,
-        maturities: Option<Vec<String>>,
     ) -> Self {
         Self {
             inner: OperationSpec::BaseCorrBucketPts {
                 surface_id: CurveId::from(surface_id),
                 detachment_bp,
-                maturities,
                 points,
             },
         }

@@ -566,7 +566,6 @@ fn bench_base_correlation_shock(c: &mut Criterion) {
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
             detachment_bp: Some(vec![300, 700]),
-            maturities: None,
             points: 0.03,
         }],
         priority: 0,

@@ -448,7 +448,6 @@ mod tests {
             .with_operation(OperationSpec::BaseCorrBucketPts {
                 surface_id: "USD-SOFR".into(),
                 detachment_bp: Some(vec![300]),
-                maturities: Some(vec!["5Y".into()]),
                 points: 0.03,
             })
             .override_curve("USD-SOFR", "MY_CUSTOM_SOFR")

@@ -226,8 +226,7 @@ fn test_basecorr_bucket_filtering() {
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
             detachment_bp: Some(vec![700]), // 7% = 700bp. Adapter converts 700 -> 0.07
-            maturities: None,
-            points: 0.05, // +5 points
+            points: 0.05,
         }],
         priority: 0,
         resolution_mode: Default::default(),
@@ -290,7 +289,6 @@ fn test_basecorr_bucket_filtering_uses_tight_detachment_match() {
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
             detachment_bp: Some(vec![300]),
-            maturities: None,
             points: 0.05,
         }],
         priority: 0,
@@ -338,7 +336,6 @@ fn test_basecorr_bucket_filtering_reports_clamp_and_no_match() {
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
             detachment_bp: Some(vec![300]),
-            maturities: None,
             points: 0.05,
         }],
         priority: 0,
@@ -370,7 +367,6 @@ fn test_basecorr_bucket_filtering_reports_clamp_and_no_match() {
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
             detachment_bp: Some(vec![500]),
-            maturities: None,
             points: 0.02,
         }],
         priority: 0,

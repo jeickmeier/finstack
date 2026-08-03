@@ -1574,10 +1574,9 @@ class OperationSpec:
         surface_id: str,
         points: float,
         detachment_bp: list[int] | None = None,
-        maturities: list[str] | None = None,
     ) -> OperationSpec:
         """
-        Bucketed base-correlation shock by detachment and (reserved) maturity.
+        Bucketed base-correlation shock by detachment.
 
         Parameters
         ----------
@@ -1587,9 +1586,6 @@ class OperationSpec:
             Absolute correlation-point shift.
         detachment_bp : list[int], optional
             Detachment points (in bp) to target. ``None`` targets all.
-        maturities : list[str], optional
-            Maturity tenors to target. ``None`` targets all. Currently
-            reserved for future use.
 
         Returns
         -------

@@ -1599,7 +1599,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "Bucket-specific base correlation shifts by detachment.\n\nThe current base-correlation representation is one-dimensional by\ndetachment point. Maturity filters are accepted in the wire format for\nforward compatibility, but non-empty maturity filters are rejected during\napplication until term-structured base-correlation surfaces are supported.\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::BaseCorrBucketPts {\n    surface_id: \"CDX_IG\".into(),\n    detachment_bp: Some(vec![300, 700]), // 3% and 7% detachment\n    maturities: None, // required today: base correlation is detachment-only\n    points: 0.03,\n};\n```",
+          "description": "Bucket-specific base correlation shifts by detachment.\n\n# Example\n```rust\nuse finstack_quant_scenarios::OperationSpec;\n\nlet op = OperationSpec::BaseCorrBucketPts {\n    surface_id: \"CDX_IG\".into(),\n    detachment_bp: Some(vec![300, 700]), // 3% and 7% detachment\n    points: 0.03,\n};\n```",
           "properties": {
             "detachment_bp": {
               "description": "Optional detachment points in basis points (e.g., 300 for 3%).",
@@ -1615,16 +1615,6 @@
             "kind": {
               "const": "base_corr_bucket_pts",
               "type": "string"
-            },
-            "maturities": {
-              "description": "Reserved maturity filters for future term-structured base correlation.\n\nUse `None` or an empty vector today. Non-empty maturity filters are\nrejected because `BaseCorrelationCurve` has no maturity dimension.",
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
             },
             "points": {
               "description": "Absolute shift in correlation points.",

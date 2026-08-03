@@ -339,7 +339,6 @@ fn test_optional_fields_serialize() {
             OperationSpec::BaseCorrBucketPts {
                 surface_id: "CDX".into(),
                 detachment_bp: None,
-                maturities: None,
                 points: 0.05,
             },
             OperationSpec::VolSurfaceBucketPct {
@@ -358,6 +357,19 @@ fn test_optional_fields_serialize() {
     let deserialized: ScenarioSpec = serde_json::from_str(&json).unwrap();
 
     assert_eq!(deserialized.operations.len(), 2);
+}
+
+#[test]
+fn base_corr_bucket_rejects_removed_maturities_field() {
+    let legacy = serde_json::json!({
+        "kind": "base_corr_bucket_pts",
+        "surface_id": "CDX",
+        "detachment_bp": [300, 700],
+        "maturities": ["5Y"],
+        "points": 0.01,
+    });
+
+    assert!(serde_json::from_value::<OperationSpec>(legacy).is_err());
 }
 
 #[test]

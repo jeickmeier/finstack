@@ -10,7 +10,6 @@
 
 use crate::adapters::traits::ScenarioEffect;
 use crate::engine::ExecutionContext;
-use crate::error::{Error, Result};
 use crate::warning::Warning;
 use finstack_quant_core::market_data::bumps::{
     BumpMode, BumpSpec, BumpType, BumpUnits, MarketBump,
@@ -102,21 +101,9 @@ pub(crate) fn base_corr_parallel_effects(
 pub(crate) fn base_corr_bucket_effects(
     surface_id: &CurveId,
     detachment_bp: Option<&[i32]>,
-    maturities: Option<&[String]>,
     points: f64,
     ctx: &ExecutionContext,
-) -> Result<Vec<ScenarioEffect>> {
-    if let Some(mats) = maturities {
-        if !mats.is_empty() {
-            return Err(Error::Validation(
-                "BaseCorrBucketPts maturity filtering is not supported: \
-                 BaseCorrelationCurve is 1D (detachment only, no term structure). \
-                 Remove the maturities field or use detachment_bp alone."
-                    .to_string(),
-            ));
-        }
-    }
-
+) -> Vec<ScenarioEffect> {
     let dets = detachment_bp.map(crate::utils::bp_to_fractions);
 
     let bump = MarketBump::BaseCorrBucketPts {
@@ -132,5 +119,5 @@ pub(crate) fn base_corr_bucket_effects(
             .map(ScenarioEffect::Warning),
     );
 
-    Ok(effects)
+    effects
 }

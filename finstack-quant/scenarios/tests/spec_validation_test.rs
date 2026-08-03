@@ -285,7 +285,6 @@ fn scenario_validate_accepts_mixed_valid_operations() {
             OperationSpec::BaseCorrBucketPts {
                 surface_id: "CDX_IG".into(),
                 detachment_bp: Some(vec![300, 700]),
-                maturities: Some(vec!["5Y".into()]),
                 points: 0.02,
             },
             OperationSpec::VolSurfaceBucketPct {

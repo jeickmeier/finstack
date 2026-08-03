@@ -374,7 +374,6 @@ fn test_base_correlation_bounds_after_bucket_shock() {
         operations: vec![OperationSpec::BaseCorrBucketPts {
             surface_id: "CDX_IG".into(),
             detachment_bp: Some(vec![700, 1500]),
-            maturities: None,
             points: 0.25,
         }],
         priority: 0,

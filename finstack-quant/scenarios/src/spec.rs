@@ -373,11 +373,6 @@ pub enum OperationSpec {
 
     /// Bucket-specific base correlation shifts by detachment.
     ///
-    /// The current base-correlation representation is one-dimensional by
-    /// detachment point. Maturity filters are accepted in the wire format for
-    /// forward compatibility, but non-empty maturity filters are rejected during
-    /// application until term-structured base-correlation surfaces are supported.
-    ///
     /// # Example
     /// ```rust
     /// use finstack_quant_scenarios::OperationSpec;
@@ -385,7 +380,6 @@ pub enum OperationSpec {
     /// let op = OperationSpec::BaseCorrBucketPts {
     ///     surface_id: "CDX_IG".into(),
     ///     detachment_bp: Some(vec![300, 700]), // 3% and 7% detachment
-    ///     maturities: None, // required today: base correlation is detachment-only
     ///     points: 0.03,
     /// };
     /// ```
@@ -394,11 +388,6 @@ pub enum OperationSpec {
         surface_id: CurveId,
         /// Optional detachment points in basis points (e.g., 300 for 3%).
         detachment_bp: Option<Vec<i32>>,
-        /// Reserved maturity filters for future term-structured base correlation.
-        ///
-        /// Use `None` or an empty vector today. Non-empty maturity filters are
-        /// rejected because `BaseCorrelationCurve` has no maturity dimension.
-        maturities: Option<Vec<String>>,
         /// Absolute shift in correlation points.
         points: f64,
     },
