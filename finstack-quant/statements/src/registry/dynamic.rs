@@ -109,8 +109,8 @@ impl Registry {
     /// before it remain available.
     pub fn load_builtins(&mut self) -> Result<()> {
         // Load from embedded JSON files
-        for json in crate::registry::builtins::builtin_metric_sources()? {
-            self.load_from_json_str(&json)?;
+        for &json in crate::registry::builtins::builtin_metric_sources() {
+            self.load_from_json_str(json)?;
         }
         Ok(())
     }

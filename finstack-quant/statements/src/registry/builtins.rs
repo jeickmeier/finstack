@@ -31,42 +31,15 @@
 //! from compile-time embedded JSON sources, so packaged binaries and WASM
 //! builds do not require a runtime `data/metrics` directory.
 
-use crate::error::Result;
-
 /// Discover and load all bundled metric registry JSON files.
 ///
 /// Built-in metrics are embedded at compile time for all targets so packaged
 /// binaries do not depend on a source-tree `data/metrics` directory at runtime.
-pub(crate) fn builtin_metric_sources() -> Result<Vec<String>> {
-    let files: &[(&str, &str)] = &[
-        (
-            "fin_basic.json",
-            include_str!("../../data/metrics/fin_basic.json"),
-        ),
-        (
-            "fin_leverage.json",
-            include_str!("../../data/metrics/fin_leverage.json"),
-        ),
-        (
-            "fin_margins.json",
-            include_str!("../../data/metrics/fin_margins.json"),
-        ),
-        (
-            "fin_returns.json",
-            include_str!("../../data/metrics/fin_returns.json"),
-        ),
-    ];
-
-    let mut discovered: Vec<(String, String)> = files
-        .iter()
-        .map(|(name, contents)| (name.to_string(), contents.to_string()))
-        .collect();
-
-    // Ensure deterministic ordering regardless of list order
-    discovered.sort_by(|a, b| a.0.cmp(&b.0));
-
-    Ok(discovered
-        .into_iter()
-        .map(|(_, contents)| contents)
-        .collect())
+pub(crate) fn builtin_metric_sources() -> &'static [&'static str] {
+    &[
+        include_str!("../../data/metrics/fin_basic.json"),
+        include_str!("../../data/metrics/fin_leverage.json"),
+        include_str!("../../data/metrics/fin_margins.json"),
+        include_str!("../../data/metrics/fin_returns.json"),
+    ]
 }
