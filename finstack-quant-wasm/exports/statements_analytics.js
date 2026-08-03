@@ -6,7 +6,6 @@ export const statements_analytics = {
   evaluateScenarioSet: wasm.evaluateScenarioSet,
   backtestForecast: wasm.backtestForecast,
   generateTornadoEntries: wasm.generateTornadoEntries,
-  runMonteCarlo: wasm.runMonteCarlo,
   goalSeek: wasm.goalSeek,
   dcfSensitivity: wasm.dcfSensitivity,
   evaluateLbo: wasm.evaluateLbo,

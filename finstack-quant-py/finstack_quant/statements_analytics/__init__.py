@@ -1,6 +1,6 @@
 """Statement analysis: sensitivity, variance, scenarios, backtesting, and more.
 
-Goal seek, DCF, corporate analysis, Monte Carlo, reports, and introspection.
+Goal seek, DCF, corporate analysis, reports, and introspection.
 Bindings for the ``finstack-quant-statements-analytics`` Rust crate.
 
 Examples:
@@ -23,17 +23,14 @@ with contextlib.suppress(NameError):
 SensitivityConfig = _sa.SensitivityConfig
 VarianceConfig = _sa.VarianceConfig
 ScenarioSet = _sa.ScenarioSet
-MonteCarloConfig = _sa.MonteCarloConfig
 SensitivityResult = _sa.SensitivityResult
 VarianceRow = _sa.VarianceRow
 VarianceReport = _sa.VarianceReport
 ScenarioResultSet = _sa.ScenarioResultSet
-MonteCarloResults = _sa.MonteCarloResults
 run_sensitivity = _sa.run_sensitivity
 generate_tornado_entries = _sa.generate_tornado_entries
 run_variance = _sa.run_variance
 evaluate_scenario_set = _sa.evaluate_scenario_set
-run_monte_carlo = _sa.run_monte_carlo
 backtest_forecast = _sa.backtest_forecast
 goal_seek = _sa.goal_seek
 evaluate_dcf = _sa.evaluate_dcf
@@ -122,8 +119,6 @@ __all__: list[str] = [
     "LeaseSpec",
     "ManagementFeeBase",
     "ManagementFeeSpec",
-    "MonteCarloConfig",
-    "MonteCarloResults",
     "PropertyTemplateNodes",
     "RenewalSpec",
     "RentRollOutputNodes",
@@ -174,7 +169,6 @@ __all__: list[str] = [
     "run_checks",
     "run_corporate_analysis",
     "run_credit_underwriting_checks",
-    "run_monte_carlo",
     "run_sensitivity",
     "run_three_statement_checks",
     "run_variance",

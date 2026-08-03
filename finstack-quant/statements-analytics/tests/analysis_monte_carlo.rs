@@ -3,8 +3,8 @@
 
 use finstack_quant_core::dates::PeriodId;
 use finstack_quant_statements::builder::ModelBuilder;
+use finstack_quant_statements::evaluator::MonteCarloConfig;
 use finstack_quant_statements::types::{AmountOrScalar, ForecastSpec};
-use finstack_quant_statements_analytics::analysis::MonteCarloConfig;
 
 #[test]
 fn evaluate_monte_carlo_produces_deterministic_results() {

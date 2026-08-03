@@ -9,6 +9,7 @@ pub(crate) mod capital_structure;
 mod checks;
 mod dsl;
 pub(crate) mod evaluator;
+mod monte_carlo;
 pub(crate) mod types;
 
 use pyo3::prelude::*;
@@ -26,6 +27,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     capital_structure::register(py, &m)?;
     builder::register(py, &m)?;
     evaluator::register(py, &m)?;
+    monte_carlo::register(py, &m)?;
     dsl::register(py, &m)?;
     adjustments::register(py, &m)?;
     checks::register(py, &m)?;
@@ -51,6 +53,9 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             // Evaluator
             "StatementResult",
             "Evaluator",
+            "MonteCarloConfig",
+            "MonteCarloResults",
+            "run_monte_carlo",
             // DSL
             "parse_formula",
             "validate_formula",

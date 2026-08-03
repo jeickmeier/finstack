@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Core workflows
 
-**Scenarios and variance** — `ScenarioSet` registers named cases with optional parent inheritance and scalar overrides. Use `evaluate_all`, `diff`, `VarianceAnalyzer`, `SensitivityAnalyzer`, and `MonteCarloResults` for comparisons and sweeps.
+**Scenarios and variance** — `ScenarioSet` registers named cases with optional parent inheritance and scalar overrides. Use `evaluate_all`, `diff`, `VarianceAnalyzer`, and `SensitivityAnalyzer` for comparisons and sweeps. Statement-model Monte Carlo evaluation lives in `finstack-quant-statements`.
 
 **Credit and covenants** — `compute_credit_context()` derives coverage and leverage from statement results plus capital-structure cashflows. `forecast_breaches()` and `forecast_covenant(s)()` bridge into the `finstack-quant-valuations` covenant engine.
 
@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 |--------|---------|-------------|
 | `analysis::valuation` | DCF and corporate pipeline | `CorporateAnalysisBuilder`, `evaluate_dcf_with_market` |
 | `analysis::credit` | Coverage, leverage, covenants | `compute_credit_context`, `forecast_breaches` |
-| `analysis::scenarios` | Scenarios, sensitivity, variance, Monte Carlo | `ScenarioSet`, `SensitivityAnalyzer`, `VarianceAnalyzer` |
+| `analysis::scenarios` | Scenarios, sensitivity, variance | `ScenarioSet`, `SensitivityAnalyzer`, `VarianceAnalyzer` |
 | `analysis::checks` | Reconciliation, consistency, credit checks | `three_statement_checks`, `FormulaCheck` |
 | `analysis::ecl` | IFRS 9 / CECL staging and portfolio ECL | `EclEngine`, `CeclEngine`, `classify_stage` |
 | `analysis::comps` | Peer multiples and relative value | `PeerSet`, `compute_peer_multiples` |
@@ -89,7 +89,7 @@ Most types re-export from `finstack_quant_statements_analytics::analysis::*`.
 - Ratios are plain scalars: `2.0` means `2.0x`, `0.40` means `40%`.
 - Percentage inputs use decimal form: `0.10` means `10%`.
 - `ScenarioDefinition.overrides` maps `node_id → scalar`, broadcast across forecast periods; historical actuals are preserved when the model has an actuals cutoff.
-- On native targets, sensitivity diagonal runs and statement Monte Carlo paths use Rayon; results remain deterministic for a fixed seed.
+- On native targets, sensitivity diagonal runs use Rayon.
 
 ## Verification
 

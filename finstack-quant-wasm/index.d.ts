@@ -6588,6 +6588,14 @@ export interface StatementsNamespace {
    */
   evaluateModelWithMarket(modelJson: string, marketJson: string, asOf: string): string;
   /**
+   * Run Monte Carlo simulation on a financial model (JSON in/out).
+   * @returns Canonical JSON containing percentile summaries and optional path data.
+   * @param modelJson - Canonical JSON payload representing the statement model.
+   * @param configJson - Canonical JSON payload representing the Monte Carlo configuration.
+   * @throws Error - Rejects malformed model or configuration JSON, zero simulation paths, a model containing capital structure, model compilation or dependency failures, any path-evaluation failure, or failure to serialize the results.
+   */
+  runMonteCarlo(modelJson: string, configJson: string): string;
+  /**
    * Parse a DSL formula and return a debug string for its AST.
    *
    * Useful for previewing expression structure in UI tooling before
@@ -6692,14 +6700,6 @@ export interface StatementsAnalyticsNamespace {
    * @throws Error - Rejects malformed `result_json`, an invalid optional `period` identifier, or failure to serialize the generated entries. A missing metric produces no entry rather than rejecting.
    */
   generateTornadoEntries(resultJson: string, metricNode: string, period?: string): string;
-  /**
-   * Run Monte Carlo simulation on a financial model (JSON in/out).
-   * @returns Returns the requested string representation or JSON payload.
-   * @param modelJson - Canonical JSON payload representing the model consumed by this API.
-   * @param configJson - Canonical JSON payload representing the config consumed by this API.
-   * @throws Error - Rejects malformed model or configuration JSON, zero simulation paths, a model containing capital structure, model compilation or dependency failures, any path-evaluation failure, or failure to serialize the results.
-   */
-  runMonteCarlo(modelJson: string, configJson: string): string;
   /**
    * Find the driver value that makes a target node reach a target value.
    * @returns Returns the resulting `GoalSeekResult` value or WebAssembly handle.

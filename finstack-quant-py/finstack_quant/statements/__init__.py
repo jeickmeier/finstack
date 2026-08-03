@@ -10,8 +10,6 @@ Examples:
 
 """
 
-from __future__ import annotations
-
 from finstack_quant.finstack_quant import statements as _statements
 
 ForecastMethod = _statements.ForecastMethod
@@ -25,6 +23,9 @@ MixedNodeBuilder = _statements.MixedNodeBuilder
 MetricRegistry = _statements.MetricRegistry
 StatementResult = _statements.StatementResult
 Evaluator = _statements.Evaluator
+MonteCarloConfig = _statements.MonteCarloConfig
+MonteCarloResults = _statements.MonteCarloResults
+run_monte_carlo = _statements.run_monte_carlo
 parse_formula = _statements.parse_formula
 validate_formula = _statements.validate_formula
 NormalizationConfig = _statements.NormalizationConfig
@@ -46,6 +47,8 @@ __all__: list[str] = [
     "MetricRegistry",
     "MixedNodeBuilder",
     "ModelBuilder",
+    "MonteCarloConfig",
+    "MonteCarloResults",
     "NodeId",
     "NodeType",
     "NormalizationConfig",
@@ -55,5 +58,6 @@ __all__: list[str] = [
     "WaterfallSpec",
     "normalize",
     "parse_formula",
+    "run_monte_carlo",
     "validate_formula",
 ]

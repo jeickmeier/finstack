@@ -367,28 +367,6 @@ pub fn wacc(
     .map_err(to_js_err)
 }
 
-/// Run Monte Carlo simulation on a financial model (JSON in/out).
-///
-/// # Errors
-///
-/// Rejects malformed model or configuration JSON, zero simulation paths, a
-/// model containing capital structure, model compilation or dependency
-/// failures, any path-evaluation failure, or failure to serialize the results.
-/// @param model_json - Canonical JSON payload representing the model consumed by this API.
-/// @param config_json - Canonical JSON payload representing the config consumed by this API.
-#[wasm_bindgen(js_name = runMonteCarlo)]
-pub fn run_monte_carlo(model_json: &str, config_json: &str) -> Result<String, JsValue> {
-    let model: finstack_quant_statements::FinancialModelSpec =
-        serde_json::from_str(model_json).map_err(to_js_err)?;
-    let config: finstack_quant_statements::evaluator::MonteCarloConfig =
-        serde_json::from_str(config_json).map_err(to_js_err)?;
-    let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();
-    let results = evaluator
-        .evaluate_monte_carlo(&model, &config)
-        .map_err(to_js_err)?;
-    serde_json::to_string(&results).map_err(to_js_err)
-}
-
 /// Find the driver value that makes a target node reach a target value.
 ///
 /// # Errors
@@ -962,15 +940,5 @@ mod tests {
             Some((0.0, 1.0))
         );
         assert_eq!(goal_seek_bounds(None, None).expect("no bounds valid"), None);
-    }
-
-    #[test]
-    fn run_monte_carlo_on_model() {
-        let model_json = test_model_json();
-        let config = finstack_quant_statements::evaluator::MonteCarloConfig::new(10, 42);
-        let config_json = serde_json::to_string(&config).expect("ser config");
-        let result = run_monte_carlo(&model_json, &config_json).expect("mc");
-        let parsed: serde_json::Value = serde_json::from_str(&result).expect("parse");
-        assert!(parsed.is_object());
     }
 }

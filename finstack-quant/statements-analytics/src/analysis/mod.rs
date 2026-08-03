@@ -4,7 +4,7 @@
 //!
 //! - DCF corporate valuation and the orchestrated analysis pipeline
 //! - Covenant forecasting and credit coverage metrics
-//! - Scenario sets, sensitivity sweeps, variance, and Monte Carlo
+//! - Scenario sets, sensitivity sweeps, and variance
 //! - **[`crate::analysis::introspection`]** — Dependency tracing and formula explanation
 //! - **[`crate::analysis::reports`]** — Formatted P&L summaries and credit assessment reports
 //! - **[`mod@crate::analysis::goal_seek`]** — Root-finding for target metric values
@@ -70,10 +70,10 @@ pub use reports::{
     Report, TableBuilder,
 };
 pub use scenarios::{
-    generate_tornado_entries, BridgeChart, BridgeStep, MonteCarloConfig, MonteCarloResults,
-    ParameterSpec, PercentileSeries, ScenarioDefinition, ScenarioDiff, ScenarioResults,
-    ScenarioSet, SensitivityAnalyzer, SensitivityConfig, SensitivityMode, SensitivityResult,
-    TornadoEntry, VarianceAnalyzer, VarianceConfig, VarianceReport, VarianceRow,
+    generate_tornado_entries, BridgeChart, BridgeStep, ParameterSpec, ScenarioDefinition,
+    ScenarioDiff, ScenarioResults, ScenarioSet, SensitivityAnalyzer, SensitivityConfig,
+    SensitivityMode, SensitivityResult, TornadoEntry, VarianceAnalyzer, VarianceConfig,
+    VarianceReport, VarianceRow,
 };
 pub use valuation::{
     dcf_sensitivity, evaluate_dcf_with_market, evaluate_lbo, wacc, CorporateAnalysis,

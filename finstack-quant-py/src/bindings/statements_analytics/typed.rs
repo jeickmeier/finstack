@@ -3,10 +3,7 @@
 use crate::bindings::statements::evaluator::PyStatementResult;
 use crate::errors::display_to_py;
 use finstack_quant_core::dates::PeriodId;
-use finstack_quant_statements::evaluator::{
-    MonteCarloConfig as RustMonteCarloConfig, MonteCarloResults as RustMonteCarloResults,
-    StatementResult,
-};
+use finstack_quant_statements::evaluator::StatementResult;
 use finstack_quant_statements_analytics::analysis::{
     ParameterSpec, ScenarioDefinition, ScenarioResults, ScenarioSet as RustScenarioSet,
     SensitivityConfig as RustSensitivityConfig, SensitivityMode,
@@ -244,66 +241,6 @@ impl PyScenarioSet {
     }
 }
 
-/// Configuration for statement-model Monte Carlo evaluation.
-#[pyclass(
-    name = "MonteCarloConfig",
-    module = "finstack_quant.statements_analytics",
-    from_py_object
-)]
-#[derive(Clone)]
-pub struct PyMonteCarloConfig {
-    pub(crate) inner: RustMonteCarloConfig,
-}
-
-#[pymethods]
-impl PyMonteCarloConfig {
-    #[new]
-    #[pyo3(signature = (n_paths, seed, percentiles=None, include_path_data=false))]
-    fn new(
-        n_paths: usize,
-        seed: u64,
-        percentiles: Option<Vec<f64>>,
-        include_path_data: bool,
-    ) -> Self {
-        let mut inner = RustMonteCarloConfig::new(n_paths, seed);
-        if let Some(percentiles) = percentiles {
-            inner = inner.with_percentiles(percentiles);
-        }
-        inner = inner.with_path_data(include_path_data);
-        Self { inner }
-    }
-
-    #[staticmethod]
-    fn from_json(json: &str) -> PyResult<Self> {
-        let inner = serde_json::from_str(json).map_err(display_to_py)?;
-        Ok(Self { inner })
-    }
-
-    fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
-    }
-
-    #[getter]
-    fn n_paths(&self) -> usize {
-        self.inner.n_paths
-    }
-
-    #[getter]
-    fn seed(&self) -> u64 {
-        self.inner.seed
-    }
-
-    #[getter]
-    fn percentiles(&self) -> Vec<f64> {
-        self.inner.percentiles.clone()
-    }
-
-    #[getter]
-    fn include_path_data(&self) -> bool {
-        self.inner.include_path_data
-    }
-}
-
 /// Typed root result for statement sensitivity analysis.
 #[pyclass(
     name = "SensitivityResult",
@@ -488,74 +425,13 @@ impl PyScenarioResultSet {
     }
 }
 
-/// Typed root results for statement-model Monte Carlo evaluation.
-#[pyclass(
-    name = "MonteCarloResults",
-    module = "finstack_quant.statements_analytics",
-    from_py_object
-)]
-#[derive(Clone)]
-pub struct PyMonteCarloResults {
-    pub(crate) inner: RustMonteCarloResults,
-}
-
-#[pymethods]
-impl PyMonteCarloResults {
-    #[staticmethod]
-    fn from_json(json: &str) -> PyResult<Self> {
-        let inner = serde_json::from_str(json).map_err(display_to_py)?;
-        Ok(Self { inner })
-    }
-
-    fn to_json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.inner).map_err(display_to_py)
-    }
-
-    #[getter]
-    fn n_paths(&self) -> usize {
-        self.inner.n_paths
-    }
-
-    #[getter]
-    fn percentiles(&self) -> Vec<f64> {
-        self.inner.percentiles.clone()
-    }
-
-    #[getter]
-    fn forecast_periods(&self) -> Vec<String> {
-        self.inner
-            .forecast_periods
-            .iter()
-            .map(ToString::to_string)
-            .collect()
-    }
-
-    fn get_percentile_series<'py>(
-        &self,
-        py: Python<'py>,
-        metric: &str,
-        percentile: f64,
-    ) -> PyResult<Option<Bound<'py, PyDict>>> {
-        let Some(values) = self.inner.get_percentile_series(metric, percentile) else {
-            return Ok(None);
-        };
-        let series = PyDict::new(py);
-        for (period, value) in values {
-            series.set_item(period.to_string(), value)?;
-        }
-        Ok(Some(series))
-    }
-}
-
 pub fn register(_py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PySensitivityConfig>()?;
     module.add_class::<PyVarianceConfig>()?;
     module.add_class::<PyScenarioSet>()?;
-    module.add_class::<PyMonteCarloConfig>()?;
     module.add_class::<PySensitivityResult>()?;
     module.add_class::<PyVarianceRow>()?;
     module.add_class::<PyVarianceReport>()?;
     module.add_class::<PyScenarioResultSet>()?;
-    module.add_class::<PyMonteCarloResults>()?;
     Ok(())
 }

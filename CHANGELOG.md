@@ -4,6 +4,11 @@
 
 ### Changed
 
+- **Breaking (Rust, Python, WASM):** Statement-model Monte Carlo now belongs
+  exclusively to `finstack-quant-statements`. Import `MonteCarloConfig`,
+  `MonteCarloResults`, and `run_monte_carlo` from `finstack_quant.statements`,
+  or call `statements.runMonteCarlo` in WASM; the duplicate
+  `statements_analytics` facade was removed without changing JSON payloads.
 - **Breaking (Python):** `reporting.attribution_tearsheet` is now
   presentation-only and accepts only a precomputed `PnlAttribution` or its
   canonical JSON/dict payload. Inline instrument/market attribution parameters

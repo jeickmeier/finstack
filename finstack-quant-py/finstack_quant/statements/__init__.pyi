@@ -34,9 +34,12 @@ __all__ = [
     "ModelBuilder",
     "MixedNodeBuilder",
     "MetricRegistry",
+    "MonteCarloConfig",
+    "MonteCarloResults",
     "StatementResult",
     "Evaluator",
     "parse_formula",
+    "run_monte_carlo",
     "validate_formula",
     "NormalizationConfig",
     "normalize",
@@ -46,6 +49,303 @@ __all__ = [
     "PikToggleSpec",
     "WaterfallSpec",
 ]
+
+class MonteCarloConfig:
+    """
+    Set reproducible Monte Carlo sampling and retained-output options.
+
+    Parameters
+    ----------
+    n_paths : int
+        Number of stochastic paths to simulate; larger values improve sampling
+        precision at greater runtime and memory cost.
+    seed : int
+        Deterministic random-number seed used to reproduce the simulation.
+    percentiles : list[float] or None
+        Requested percentile levels as decimal probabilities, such as ``0.95``;
+        ``None`` uses the engine defaults.
+    include_path_data : bool
+        Whether to retain individual path data in addition to summary outputs.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import MonteCarloConfig
+    >>> config = MonteCarloConfig(4, 7, [0.5])
+    >>> (config.n_paths, config.seed, config.percentiles)
+    (4, 7, [0.5])
+
+    """
+    def __init__(
+        self,
+        n_paths: int,
+        seed: int,
+        percentiles: list[float] | None = ...,
+        include_path_data: bool = ...,
+    ) -> None:
+        """
+        Configure reproducible path sampling and retained Monte Carlo outputs.
+
+        Parameters
+        ----------
+        n_paths : int
+            Number of stochastic paths evaluated by the statement engine.
+        seed : int
+            Deterministic random-number seed used to reproduce the run.
+        percentiles : list[float] or None, default None
+            Requested decimal quantiles, such as ``0.95``; ``None`` uses the
+            engine defaults.
+        include_path_data : bool, default False
+            Whether to retain individual path values in addition to summaries.
+
+        """
+        ...
+
+    @staticmethod
+    def from_json(json: str) -> MonteCarloConfig:
+        """
+        Deserialize Monte Carlo sampling settings from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON payload describing paths, seed, percentile levels, and output
+            retention.
+
+        Returns
+        -------
+        MonteCarloConfig
+            Validated configuration reconstructed from canonical JSON.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or violates the serialized schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import MonteCarloConfig
+        >>> config = MonteCarloConfig(4, 7, [0.5])
+        >>> MonteCarloConfig.from_json(config.to_json()).n_paths
+        4
+
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize this configuration to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON accepted by :meth:`from_json` and
+            :func:`run_monte_carlo`.
+
+        """
+        ...
+
+    @property
+    def n_paths(self) -> int:
+        """
+        Return the number of paths requested for evaluation.
+
+        Returns
+        -------
+        int
+            Configured stochastic path count.
+
+        """
+        ...
+
+    @property
+    def seed(self) -> int:
+        """
+        Return the deterministic random-number seed.
+
+        Returns
+        -------
+        int
+            Seed used to reproduce path sampling.
+
+        """
+        ...
+
+    @property
+    def percentiles(self) -> list[float]:
+        """
+        Return the requested decimal percentile levels.
+
+        Returns
+        -------
+        list[float]
+            Percentile probabilities reported by the evaluator.
+
+        """
+        ...
+
+    @property
+    def include_path_data(self) -> bool:
+        """
+        Return whether individual path values are retained.
+
+        Returns
+        -------
+        bool
+            ``True`` when the result includes path-level data.
+
+        """
+        ...
+
+class MonteCarloResults:
+    """
+    Hold percentile summaries from statement-model Monte Carlo evaluation.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import MonteCarloResults
+    >>> payload = '{"percentile_results":{},"n_paths":2,"percentiles":[0.5],"forecast_periods":[],"path_data":null}'
+    >>> MonteCarloResults.from_json(payload).n_paths
+    2
+
+    """
+
+    @staticmethod
+    def from_json(json: str) -> MonteCarloResults:
+        """
+        Deserialize Monte Carlo output from canonical JSON.
+
+        Parameters
+        ----------
+        json : str
+            JSON payload returned by :func:`run_monte_carlo` or a matching
+            serialized result.
+
+        Returns
+        -------
+        MonteCarloResults
+            Validated result reconstructed from canonical JSON.
+
+        Raises
+        ------
+        ValueError
+            If ``json`` is malformed or violates the serialized schema.
+
+        Examples
+        --------
+        >>> from finstack_quant.statements import MonteCarloResults
+        >>> payload = '{"percentile_results":{},"n_paths":2,"percentiles":[0.5],"forecast_periods":[],"path_data":null}'
+        >>> MonteCarloResults.from_json(payload).forecast_periods
+        []
+
+        """
+        ...
+
+    def to_json(self) -> str:
+        """
+        Serialize these results to canonical JSON.
+
+        Returns
+        -------
+        str
+            Canonical JSON accepted by :meth:`from_json`.
+
+        """
+        ...
+
+    @property
+    def n_paths(self) -> int:
+        """
+        Return the number of simulated paths.
+
+        Returns
+        -------
+        int
+            Path count represented by the summaries.
+
+        """
+        ...
+
+    @property
+    def percentiles(self) -> list[float]:
+        """
+        Return the reported decimal percentile levels.
+
+        Returns
+        -------
+        list[float]
+            Percentile probabilities available in the result.
+
+        """
+        ...
+
+    @property
+    def forecast_periods(self) -> list[str]:
+        """
+        Return forecast-period labels in model order.
+
+        Returns
+        -------
+        list[str]
+            Period identifiers covered by the simulation.
+
+        """
+        ...
+
+    def get_percentile_series(self, metric: str, percentile: float) -> dict[str, float] | None:
+        """
+        Return one metric's values at a percentile level.
+
+        Parameters
+        ----------
+        metric : str
+            Statement metric or node ID stored in the result.
+        percentile : float
+            Percentile as a decimal probability, such as ``0.95`` for P95.
+
+        Returns
+        -------
+        dict[str, float] or None
+            Forecast-period values, or ``None`` when the series is absent.
+
+        """
+        ...
+
+def run_monte_carlo(
+    model: FinancialModelSpec | str,
+    config: MonteCarloConfig | str,
+) -> MonteCarloResults:
+    """
+    Run Monte Carlo simulation on a financial model.
+
+    Parameters
+    ----------
+    model : FinancialModelSpec or str
+        Typed model or its canonical JSON serialization.
+    config : MonteCarloConfig or str
+        Typed sampling configuration or its canonical JSON serialization.
+
+    Returns
+    -------
+    MonteCarloResults
+        Percentile summaries and optional retained path data.
+
+    Raises
+    ------
+    ValueError
+        If either JSON payload is malformed or evaluation rejects the model or
+        configuration.
+
+    Examples
+    --------
+    >>> from finstack_quant.statements import ModelBuilder, MonteCarloConfig, run_monte_carlo
+    >>> builder = ModelBuilder("demo")
+    >>> builder.periods("2025Q1..Q2", "2025Q1")
+    >>> builder.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
+    >>> run_monte_carlo(builder.build(), MonteCarloConfig(2, 7, [0.5])).n_paths
+    2
+
+    """
+    ...
 
 class ForecastMethod:
     """

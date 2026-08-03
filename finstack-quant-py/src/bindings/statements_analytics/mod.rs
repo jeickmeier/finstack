@@ -2,7 +2,7 @@
 //!
 //! Exposes financial statement analysis: sensitivity, variance, scenario sets,
 //! backtesting, goal seek, introspection, DCF valuation, corporate analysis
-//! pipeline, Monte Carlo, reports, comparable-company analysis, ECL, the
+//! pipeline, reports, comparable-company analysis, ECL, the
 //! corkscrew and credit-scorecard extensions, and the roll-forward / vintage /
 //! real-estate templates.
 
@@ -25,7 +25,7 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
     let m = PyModule::new(py, "statements_analytics")?;
     m.setattr(
         "__doc__",
-        "Statement analysis: sensitivity, variance, scenarios, backtesting, goal seek, DCF, corporate, Monte Carlo, reports, introspection, comparable-company analysis, ECL, corkscrew/scorecard extensions, and roll-forward/vintage/real-estate templates.",
+        "Statement analysis: sensitivity, variance, scenarios, backtesting, goal seek, DCF, corporate, reports, introspection, comparable-company analysis, ECL, corkscrew/scorecard extensions, and roll-forward/vintage/real-estate templates.",
     )?;
 
     analysis::register(py, &m)?;
@@ -44,17 +44,14 @@ pub fn register(py: Python<'_>, parent: &Bound<'_, PyModule>) -> PyResult<()> {
             "SensitivityConfig",
             "VarianceConfig",
             "ScenarioSet",
-            "MonteCarloConfig",
             "SensitivityResult",
             "VarianceRow",
             "VarianceReport",
             "ScenarioResultSet",
-            "MonteCarloResults",
             "run_sensitivity",
             "generate_tornado_entries",
             "run_variance",
             "evaluate_scenario_set",
-            "run_monte_carlo",
             "backtest_forecast",
             "goal_seek",
             "evaluate_dcf",

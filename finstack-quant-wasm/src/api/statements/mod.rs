@@ -5,7 +5,7 @@
 //! - `CheckSuiteSpec`, `WaterfallSpec`, `EcfSweepSpec`, `PikToggleSpec`,
 //!   `CapitalStructureSpec` validation
 //! - DSL formula parsing and validation
-//! - Full `Evaluator` execution (`evaluate`, `evaluate_with_market`)
+//! - Full `Evaluator` execution, including Monte Carlo paths
 //!
 //! The evaluator runs a fresh `Evaluator::new()` per call; WASM clients
 //! hold no live handles. Capital-structure models are configured by
@@ -195,6 +195,28 @@ pub fn evaluate_model_with_market(
     serde_json::to_string(&result).map_err(to_js_err)
 }
 
+/// Run Monte Carlo simulation on a financial model (JSON in/out).
+///
+/// # Errors
+///
+/// Rejects malformed model or configuration JSON, zero simulation paths, a
+/// model containing capital structure, model compilation or dependency
+/// failures, any path-evaluation failure, or failure to serialize the results.
+/// @param model_json - Canonical JSON payload representing the statement model.
+/// @param config_json - Canonical JSON payload representing the Monte Carlo configuration.
+#[wasm_bindgen(js_name = runMonteCarlo)]
+pub fn run_monte_carlo(model_json: &str, config_json: &str) -> Result<String, JsValue> {
+    let model: finstack_quant_statements::FinancialModelSpec =
+        serde_json::from_str(model_json).map_err(to_js_err)?;
+    let config: finstack_quant_statements::evaluator::MonteCarloConfig =
+        serde_json::from_str(config_json).map_err(to_js_err)?;
+    let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();
+    let results = evaluator
+        .evaluate_monte_carlo(&model, &config)
+        .map_err(to_js_err)?;
+    serde_json::to_string(&results).map_err(to_js_err)
+}
+
 // ---------------------------------------------------------------------------
 // DSL
 // ---------------------------------------------------------------------------
@@ -333,6 +355,38 @@ mod tests {
             serde_json::from_str(&out).expect("deserialize result");
         assert!(result.nodes.contains_key("revenue"));
         assert!(result.nodes.contains_key("margin"));
+    }
+
+    #[test]
+    fn run_monte_carlo_on_model() {
+        use finstack_quant_statements::builder::ModelBuilder;
+        use finstack_quant_statements::types::AmountOrScalar;
+
+        let model = ModelBuilder::new("mc")
+            .periods("2025Q1..Q2", None)
+            .expect("periods")
+            .value(
+                "revenue",
+                &[
+                    (
+                        finstack_quant_core::dates::PeriodId::quarter(2025, 1),
+                        AmountOrScalar::scalar(100.0),
+                    ),
+                    (
+                        finstack_quant_core::dates::PeriodId::quarter(2025, 2),
+                        AmountOrScalar::scalar(110.0),
+                    ),
+                ],
+            )
+            .build()
+            .expect("build");
+        let model_json = serde_json::to_string(&model).expect("serialize model");
+        let config = finstack_quant_statements::evaluator::MonteCarloConfig::new(10, 42);
+        let config_json = serde_json::to_string(&config).expect("serialize config");
+
+        let result = run_monte_carlo(&model_json, &config_json).expect("run Monte Carlo");
+        let parsed: serde_json::Value = serde_json::from_str(&result).expect("parse results");
+        assert!(parsed.is_object());
     }
 
     #[test]

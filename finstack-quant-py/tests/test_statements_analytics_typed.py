@@ -6,10 +6,14 @@ import json
 
 import pytest
 
-from finstack_quant.statements import Evaluator, ModelBuilder
-from finstack_quant.statements_analytics import (
+from finstack_quant.statements import (
+    Evaluator,
+    ModelBuilder,
     MonteCarloConfig,
     MonteCarloResults,
+    run_monte_carlo,
+)
+from finstack_quant.statements_analytics import (
     ScenarioResultSet,
     ScenarioSet,
     SensitivityConfig,
@@ -18,7 +22,6 @@ from finstack_quant.statements_analytics import (
     VarianceReport,
     evaluate_scenario_set,
     generate_tornado_entries,
-    run_monte_carlo,
     run_sensitivity,
     run_variance,
 )

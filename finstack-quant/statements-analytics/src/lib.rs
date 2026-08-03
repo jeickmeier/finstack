@@ -25,7 +25,7 @@
 //! This crate provides:
 //!
 //! - **Analysis** — sensitivity, scenario sets, variance, DCF, goal seek,
-//!   covenants, backtesting, Monte Carlo, and introspection
+//!   covenants, backtesting, and introspection
 //! - **Extensions** — concrete analytics extensions (corkscrew, credit
 //!   scorecard) called directly via inherent methods
 //! - **Templates** — real estate, roll-forward, and vintage model builders

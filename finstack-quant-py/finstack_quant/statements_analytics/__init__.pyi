@@ -1,5 +1,5 @@
 """
-Statement analysis: sensitivity, variance, scenarios, backtesting, goal seek, DCF, corporate, Monte Carlo, reports, introspection.
+Statement analysis: sensitivity, variance, scenarios, backtesting, goal seek, DCF, corporate, reports, introspection.
 
 Examples
 --------
@@ -20,17 +20,14 @@ __all__ = [
     "SensitivityConfig",
     "VarianceConfig",
     "ScenarioSet",
-    "MonteCarloConfig",
     "SensitivityResult",
     "VarianceRow",
     "VarianceReport",
     "ScenarioResultSet",
-    "MonteCarloResults",
     "run_sensitivity",
     "generate_tornado_entries",
     "run_variance",
     "evaluate_scenario_set",
-    "run_monte_carlo",
     "backtest_forecast",
     "goal_seek",
     "evaluate_dcf",
@@ -461,145 +458,6 @@ class ScenarioSet:
         """
         ...
 
-class MonteCarloConfig:
-    """
-    Set reproducible Monte Carlo sampling and retained-output options.
-
-    Parameters
-    ----------
-    n_paths : int
-        Number of stochastic paths to simulate; larger values improve sampling
-        precision at greater runtime and memory cost.
-    seed : int
-        Deterministic random-number seed used to reproduce the simulation.
-    percentiles : list[float] or None
-        Requested percentile levels as decimal probabilities, such as ``0.95``;
-        ``None`` uses the engine defaults.
-    include_path_data : bool
-        Whether to retain individual path data in addition to summary outputs.
-
-    Examples
-    --------
-    >>> from finstack_quant.statements_analytics import MonteCarloConfig
-    >>> config = MonteCarloConfig(4, 7, [0.5])
-    >>> (config.n_paths, config.seed, config.percentiles)
-    (4, 7, [0.5])
-
-    """
-    def __init__(
-        self,
-        n_paths: int,
-        seed: int,
-        percentiles: list[float] | None = ...,
-        include_path_data: bool = ...,
-    ) -> None:
-        """
-        Configure reproducible path sampling and retained Monte Carlo outputs.
-
-        Parameters
-        ----------
-        n_paths : int
-            Number of stochastic paths evaluated by the statement engine.
-        seed : int
-            Deterministic random-number seed used to reproduce the run.
-        percentiles : list[float] or None, default None
-            Requested decimal quantiles, such as ``0.95``; ``None`` uses the
-            engine defaults.
-        include_path_data : bool, default False
-            Whether to retain individual path values in addition to summaries.
-
-        """
-        ...
-
-    @staticmethod
-    def from_json(json: str) -> MonteCarloConfig:
-        """
-        Deserialize Monte Carlo sampling settings from canonical JSON.
-
-        Parameters
-        ----------
-        json : str
-            JSON payload describing paths, seed, percentile levels, and output
-            retention.
-
-        Returns
-        -------
-        MonteCarloConfig
-            Validated `MonteCarloConfig` instance reconstructed from the canonical JSON payload.
-
-        Raises
-        ------
-        ValueError
-            If ``json`` is malformed or violates this type's serialized schema.
-
-        Examples
-        --------
-        >>> from finstack_quant.statements_analytics import MonteCarloConfig
-        >>> config = MonteCarloConfig(4, 7, [0.5])
-        >>> MonteCarloConfig.from_json(config.to_json()).n_paths
-        4
-
-        """
-        ...
-    def to_json(self) -> str:
-        """
-        Serialize `MonteCarloConfig` to canonical JSON.
-
-        Returns
-        -------
-        str
-            Canonical JSON representation of this `MonteCarloConfig`, suitable for a matching `from_json` call.
-        """
-        ...
-
-    @property
-    def n_paths(self) -> int:
-        """
-        Return the n paths for `MonteCarloConfig`.
-
-        Returns
-        -------
-        int
-            The n paths exposed by this `MonteCarloConfig`.
-        """
-        ...
-
-    @property
-    def seed(self) -> int:
-        """
-        Return the seed for `MonteCarloConfig`.
-
-        Returns
-        -------
-        int
-            The seed exposed by this `MonteCarloConfig`.
-        """
-        ...
-
-    @property
-    def percentiles(self) -> list[float]:
-        """
-        Return the percentiles for `MonteCarloConfig`.
-
-        Returns
-        -------
-        list[float]
-            The percentiles exposed by this `MonteCarloConfig`.
-        """
-        ...
-
-    @property
-    def include_path_data(self) -> bool:
-        """
-        Return the include path data for `MonteCarloConfig`.
-
-        Returns
-        -------
-        bool
-            The include path data exposed by this `MonteCarloConfig`.
-        """
-        ...
-
 class SensitivityResult:
     """
     Compute SensitivityResult.
@@ -979,116 +837,6 @@ class ScenarioResultSet:
         """
         ...
 
-class MonteCarloResults:
-    """
-    Compute MonteCarloResults.
-
-    Examples
-    --------
-    >>> from finstack_quant.statements_analytics import MonteCarloResults
-    >>> payload = '{"percentile_results":{},"n_paths":2,"percentiles":[0.5],"forecast_periods":[],"path_data":null}'
-    >>> (MonteCarloResults.from_json(payload).n_paths, MonteCarloResults.from_json(payload).percentiles)
-    (2, [0.5])
-
-    """
-
-    @staticmethod
-    def from_json(json: str) -> MonteCarloResults:
-        """
-        Deserialize Monte Carlo output from canonical JSON.
-
-        Parameters
-        ----------
-        json : str
-            JSON payload returned by ``run_monte_carlo`` or a serialized
-            simulation result.
-
-        Returns
-        -------
-        MonteCarloResults
-            Validated `MonteCarloResults` instance reconstructed from the canonical JSON payload.
-
-        Raises
-        ------
-        ValueError
-            If ``json`` is malformed or violates this type's serialized schema.
-
-        Examples
-        --------
-        >>> from finstack_quant.statements_analytics import MonteCarloResults
-        >>> payload = '{"percentile_results":{},"n_paths":2,"percentiles":[0.5],"forecast_periods":[],"path_data":null}'
-        >>> MonteCarloResults.from_json(payload).forecast_periods
-        []
-
-        """
-        ...
-    def to_json(self) -> str:
-        """
-        Serialize `MonteCarloResults` to canonical JSON.
-
-        Returns
-        -------
-        str
-            Canonical JSON representation of this `MonteCarloResults`, suitable for a matching `from_json` call.
-        """
-        ...
-
-    @property
-    def n_paths(self) -> int:
-        """
-        Return the n paths for `MonteCarloResults`.
-
-        Returns
-        -------
-        int
-            The n paths exposed by this `MonteCarloResults`.
-        """
-        ...
-
-    @property
-    def percentiles(self) -> list[float]:
-        """
-        Return the percentiles for `MonteCarloResults`.
-
-        Returns
-        -------
-        list[float]
-            The percentiles exposed by this `MonteCarloResults`.
-        """
-        ...
-
-    @property
-    def forecast_periods(self) -> list[str]:
-        """
-        Return the forecast periods for `MonteCarloResults`.
-
-        Returns
-        -------
-        list[str]
-            The forecast periods exposed by this `MonteCarloResults`.
-        """
-        ...
-
-    def get_percentile_series(self, metric: str, percentile: float) -> dict[str, float] | None:
-        """
-        Return the requested metric's values at one percentile level.
-
-        Parameters
-        ----------
-        metric : str
-            Statement metric or node ID stored in the simulation result.
-        percentile : float
-            Percentile as a decimal probability, such as ``0.95`` for P95.
-
-        Returns
-        -------
-        dict[str, float] | None
-            Mapping from forecast-period labels to values for the requested
-            metric and percentile, or ``None`` when that series is absent.
-
-        """
-        ...
-
 def run_sensitivity(
     model: FinancialModelSpec | str,
     config: SensitivityConfig | str,
@@ -1246,43 +994,6 @@ def evaluate_scenario_set(
     >>> builder.value("revenue", [("2025Q1", 100.0)])
     >>> evaluate_scenario_set(builder.build(), ScenarioSet({"base": {}})).names
     ['base']
-
-    """
-    ...
-
-def run_monte_carlo(
-    model: FinancialModelSpec | str,
-    config: MonteCarloConfig | str,
-) -> MonteCarloResults:
-    """
-    Run Monte Carlo simulation on a financial model.
-
-    Parameters
-    ----------
-    model : FinancialModelSpec or str
-        ``FinancialModelSpec`` object or JSON string.
-    config : MonteCarloConfig or str
-        Typed configuration or JSON string.
-
-    Returns
-    -------
-    MonteCarloResults
-        Typed Monte Carlo results.
-
-    Raises
-    ------
-    ValueError
-        If model or config JSON is malformed, or Monte Carlo evaluation rejects the setup.
-
-    Examples
-    --------
-    >>> from finstack_quant.statements import ModelBuilder
-    >>> from finstack_quant.statements_analytics import MonteCarloConfig, run_monte_carlo
-    >>> builder = ModelBuilder("demo")
-    >>> builder.periods("2025Q1..Q2", "2025Q1")
-    >>> builder.value("revenue", [("2025Q1", 100.0), ("2025Q2", 110.0)])
-    >>> run_monte_carlo(builder.build(), MonteCarloConfig(2, 7, [0.5])).n_paths
-    2
 
     """
     ...

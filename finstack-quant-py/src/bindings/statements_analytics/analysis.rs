@@ -2,7 +2,7 @@
 //!
 //! Covers: sensitivity, variance, scenario sets, backtesting, goal seek,
 //! introspection (dependency tracing, formula explanation), DCF valuation,
-//! credit analysis, Monte Carlo, and reports.
+//! credit analysis, and reports.
 //!
 //! All functions that accept a financial model or statement result support
 //! both JSON strings and typed Python objects (`FinancialModelSpec`,
@@ -11,8 +11,8 @@
 
 use crate::bindings::extract::{extract_market_opt, extract_model_ref, extract_results_ref};
 use crate::bindings::statements_analytics::typed::{
-    PyMonteCarloConfig, PyMonteCarloResults, PyScenarioResultSet, PyScenarioSet,
-    PySensitivityConfig, PySensitivityResult, PyVarianceConfig, PyVarianceReport,
+    PyScenarioResultSet, PyScenarioSet, PySensitivityConfig, PySensitivityResult, PyVarianceConfig,
+    PyVarianceReport,
 };
 use crate::errors::display_to_py;
 use finstack_quant_statements_analytics::analysis::CorporateValuationResult;
@@ -51,15 +51,6 @@ fn extract_scenario_set(
 ) -> PyResult<finstack_quant_statements_analytics::analysis::ScenarioSet> {
     if let Ok(scenario_set) = value.extract::<PyRef<'_, PyScenarioSet>>() {
         return Ok(scenario_set.inner.clone());
-    }
-    serde_json::from_str(value.extract::<&str>()?).map_err(display_to_py)
-}
-
-fn extract_monte_carlo_config(
-    value: &Bound<'_, PyAny>,
-) -> PyResult<finstack_quant_statements::evaluator::MonteCarloConfig> {
-    if let Ok(config) = value.extract::<PyRef<'_, PyMonteCarloConfig>>() {
-        return Ok(config.inner.clone());
     }
     serde_json::from_str(value.extract::<&str>()?).map_err(display_to_py)
 }
@@ -211,41 +202,6 @@ fn evaluate_scenario_set(
     py.detach(move || {
         let inner = scenario_set.evaluate_all(&model).map_err(display_to_py)?;
         Ok(PyScenarioResultSet { inner })
-    })
-}
-
-// ---------------------------------------------------------------------------
-// Monte Carlo
-// ---------------------------------------------------------------------------
-
-/// Run Monte Carlo simulation on a financial model.
-///
-/// Parameters
-/// ----------
-/// model : FinancialModelSpec | str
-///     A typed model or its JSON serialization.
-/// config : MonteCarloConfig | str
-///     Typed configuration or JSON with ``n_paths``, ``seed``,
-///     optional ``percentiles``, and optional ``include_path_data``.
-///
-/// Returns
-/// -------
-/// MonteCarloResults
-///     Typed Monte Carlo results with JSON serialization support.
-#[pyfunction]
-fn run_monte_carlo(
-    py: Python<'_>,
-    model: &Bound<'_, PyAny>,
-    config: &Bound<'_, PyAny>,
-) -> PyResult<PyMonteCarloResults> {
-    let model = extract_model_ref(model)?.into_owned();
-    let config = extract_monte_carlo_config(config)?;
-    py.detach(move || {
-        let mut evaluator = finstack_quant_statements::evaluator::Evaluator::new();
-        let inner = evaluator
-            .evaluate_monte_carlo(&model, &config)
-            .map_err(display_to_py)?;
-        Ok(PyMonteCarloResults { inner })
     })
 }
 
@@ -1422,7 +1378,6 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(pyo3::wrap_pyfunction!(generate_tornado_entries, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(run_variance, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(evaluate_scenario_set, m)?)?;
-    m.add_function(pyo3::wrap_pyfunction!(run_monte_carlo, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(backtest_forecast, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(goal_seek, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(evaluate_dcf, m)?)?;

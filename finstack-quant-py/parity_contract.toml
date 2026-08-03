@@ -704,6 +704,11 @@ registry         = { python = "finstack_quant.statements.registry",          sta
 types            = { python = "finstack_quant.statements.types",             status = "missing", note = "Bindings are currently exported from finstack_quant.statements root" }
 utils            = { python = "finstack_quant.statements.utils",             status = "missing" }
 
+[crates.statements.module_symbols.monte_carlo]
+python_package = "finstack_quant.statements"
+public = ["MonteCarloConfig", "MonteCarloResults", "run_monte_carlo"]
+allow_additional = true
+
 # ---------------------------------------------------------------------------
 # finstack-quant-statements-analytics  →  finstack_quant.statements_analytics
 # ---------------------------------------------------------------------------
@@ -735,8 +740,6 @@ public = [
     "LeaseSpec",
     "ManagementFeeBase",
     "ManagementFeeSpec",
-    "MonteCarloConfig",
-    "MonteCarloResults",
     "PropertyTemplateNodes",
     "RenewalSpec",
     "RentRollOutputNodes",
@@ -787,7 +790,6 @@ public = [
     "run_checks",
     "run_corporate_analysis",
     "run_credit_underwriting_checks",
-    "run_monte_carlo",
     "run_sensitivity",
     "run_three_statement_checks",
     "run_variance",
@@ -816,12 +818,14 @@ root_exports = [
     "validatePikToggleSpec",
     "evaluateModel",
     "evaluateModelWithMarket",
+    "runMonteCarlo",
     "parseFormula",
     "validateFormula",
 ]
 
 [wasm_statements_subset.python_js_map]
 parse_formula = "parseFormula"
+run_monte_carlo = "runMonteCarlo"
 validate_formula = "validateFormula"
 
 # JSON helpers with no Python snake_case twin — Python uses the typed
@@ -844,9 +848,7 @@ symbols = [
 #
 # WASM intentionally keeps the JSON analysis surface plus comps helpers through
 # `exports/statements_analytics.js` with camelCase facade names. Python exposes
-# typed analysis config/result wrappers and typed extension/template wrappers;
-# this host-language difference is intentional and the WASM JSON API remains
-# unchanged.
+# typed analysis config/result wrappers and typed extension/template wrappers.
 # ---------------------------------------------------------------------------
 [wasm_statements_analytics_subset]
 rust_module_root = "../finstack-quant-wasm/src/api/statements_analytics/"
@@ -857,7 +859,6 @@ root_exports = [
     "evaluateScenarioSet",
     "backtestForecast",
     "generateTornadoEntries",
-    "runMonteCarlo",
     "goalSeek",
     "dcfSensitivity",
     "evaluateLbo",
@@ -887,7 +888,6 @@ run_variance = "runVariance"
 evaluate_scenario_set = "evaluateScenarioSet"
 backtest_forecast = "backtestForecast"
 generate_tornado_entries = "generateTornadoEntries"
-run_monte_carlo = "runMonteCarlo"
 goal_seek = "goalSeek"
 dcf_sensitivity = "dcfSensitivity"
 evaluate_lbo = "evaluateLbo"
@@ -1346,7 +1346,6 @@ public = [
     "performance_tearsheet",
     "portfolio_risk_tearsheet",
     "portfolio_tearsheet",
-    "recommended_metrics",
     "scenario_tearsheet",
     "statement_tearsheet",
 ]
