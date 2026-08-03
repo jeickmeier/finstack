@@ -2,9 +2,9 @@
 
 Examples:
 --------
->>> import finstack_quant.reporting as reporting
->>> reporting.__name__
-'finstack_quant.reporting'
+>>> from finstack_quant.reporting import INSTITUTIONAL
+>>> INSTITUTIONAL.name
+'institutional'
 """
 
 from .attribution import attribution_tearsheet

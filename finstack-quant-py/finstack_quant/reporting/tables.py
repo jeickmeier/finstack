@@ -3,9 +3,9 @@
 
 Examples:
 --------
->>> import finstack_quant.reporting.tables as tables
->>> tables.__name__
-'finstack_quant.reporting.tables'
+>>> from finstack_quant.reporting.tables import scroll
+>>> scroll("<table></table>")
+'<div class="fq-scroll"><table></table></div>'
 """
 
 from __future__ import annotations
@@ -30,13 +30,13 @@ def scroll(inner_html: str) -> str:
     Returns:
     -------
     str
-        Result of scroll for the binding in the annotated representation.
+        HTML ``div`` containing the supplied markup with the scrolling CSS class.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.tables import scroll
-    >>> callable(scroll)
-    True
+    >>> scroll("<table></table>")
+    '<div class="fq-scroll"><table></table></div>'
     """
     return f'<div class="fq-scroll">{inner_html}</div>'
 
@@ -52,12 +52,12 @@ def kv_table(rows: list[tuple[str, str, str]]) -> str:
     Returns:
     -------
     str
-        Result of kv table for the binding in the annotated representation.
+        Escaped two-column HTML table in the supplied row order.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.tables import kv_table
-    >>> callable(kv_table)
+    >>> "PV" in kv_table([("PV", "1.2m USD", "pos")])
     True
     """
     body = "".join(
@@ -90,12 +90,13 @@ def data_table(
     Returns:
     -------
     str
-        Result of data table for the binding in the annotated representation.
+        HTML table with the requested columns, formatting, and negative-value classes.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.tables import data_table
-    >>> callable(data_table)
+    >>> html = data_table([{"Name": "Alpha", "PnL": -2}], columns=["Name", "PnL"], neg_columns={"PnL"})
+    >>> 'class="neg"' in html
     True
     """
     formats = formats or {}
@@ -131,12 +132,14 @@ def heatmap(rows: list[tuple[int, list[Any], Any]], *, theme: Theme) -> str:
     Returns:
     -------
     str
-        Result of heatmap for the binding in the annotated representation.
+        HTML table containing month cells and the annual total for each year.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.tables import heatmap
-    >>> callable(heatmap)
+    >>> from finstack_quant.reporting.theme import INSTITUTIONAL
+    >>> html = heatmap([(2025, [1.0] * 12, 12.7)], theme=INSTITUTIONAL)
+    >>> "2025" in html and "Year" in html
     True
     """
     head = '<tr><th class="yr"></th>' + "".join(f"<th>{m}</th>" for m in _MONTHS) + '<th class="ytd">Year</th></tr>'

@@ -8,9 +8,17 @@ built with a benchmark column and select the fund with ``ticker``.
 
 Examples:
 --------
->>> import finstack_quant.reporting.benchmark as benchmark
->>> benchmark.__name__
-'finstack_quant.reporting.benchmark'
+>>> import pandas as pd
+>>> from finstack_quant.analytics import Performance
+>>> from finstack_quant.reporting.benchmark import benchmark_tearsheet
+>>> dates = pd.bdate_range("2025-01-02", periods=80)
+>>> fund = [0.001 if i % 2 else -0.0004 for i in range(80)]
+>>> bench = [0.0008 if i % 3 else -0.0003 for i in range(80)]
+>>> perf = Performance.from_returns(
+...     pd.DataFrame({"Fund": fund, "Benchmark": bench}, index=dates), benchmark_ticker="Benchmark"
+... )
+>>> benchmark_tearsheet(perf, sections=[]).title
+'Fund'
 """
 
 from __future__ import annotations
@@ -188,13 +196,21 @@ def benchmark_tearsheet(
     Returns:
     -------
     TearSheet
-        Result of benchmark tearsheet for the binding in the annotated representation.
+        Benchmark-relative report for the selected fund series and sections.
 
     Examples:
     --------
+    >>> import pandas as pd
+    >>> from finstack_quant.analytics import Performance
     >>> from finstack_quant.reporting.benchmark import benchmark_tearsheet
-    >>> callable(benchmark_tearsheet)
-    True
+    >>> dates = pd.bdate_range("2025-01-02", periods=80)
+    >>> fund = [0.001 if i % 2 else -0.0004 for i in range(80)]
+    >>> bench = [0.0008 if i % 3 else -0.0003 for i in range(80)]
+    >>> perf = Performance.from_returns(
+    ...     pd.DataFrame({"Fund": fund, "Benchmark": bench}, index=dates), benchmark_ticker="Benchmark"
+    ... )
+    >>> benchmark_tearsheet(perf, sections=[]).title
+    'Fund'
     """
     wanted = _resolve_sections(sections, ALL_SECTIONS)
 

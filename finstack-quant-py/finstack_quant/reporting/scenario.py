@@ -11,9 +11,9 @@ sort key and display-unit percent scaling.
 
 Examples:
 --------
->>> import finstack_quant.reporting.scenario as scenario
->>> scenario.__name__
-'finstack_quant.reporting.scenario'
+>>> from finstack_quant.reporting.scenario import scenario_tearsheet
+>>> scenario_tearsheet(sections=[]).title
+'Scenario & Sensitivity'
 """
 
 from __future__ import annotations
@@ -130,13 +130,13 @@ def scenario_tearsheet(
     Returns:
     -------
     TearSheet
-        Result of scenario tearsheet for the binding in the annotated representation.
+        Scenario report containing the selected available sensitivity sections.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.scenario import scenario_tearsheet
-    >>> callable(scenario_tearsheet)
-    True
+    >>> scenario_tearsheet(sections=[]).title
+    'Scenario & Sensitivity'
     """
     wanted = _resolve_sections(sections, ALL_SECTIONS)
 

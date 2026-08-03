@@ -8,9 +8,12 @@ inline from an instrument + two market snapshots (the engine import is confined 
 
 Examples:
 --------
->>> import finstack_quant.reporting.attribution as attribution
->>> attribution.__name__
-'finstack_quant.reporting.attribution'
+>>> from finstack_quant.reporting.attribution import attribution_tearsheet
+>>> try:
+...     attribution_tearsheet()
+... except ValueError as exc:
+...     "requires a PnlAttribution" in str(exc)
+True
 """
 
 from __future__ import annotations
@@ -225,7 +228,7 @@ def attribution_tearsheet(
     Returns:
     -------
     TearSheet
-        Result of attribution tearsheet for the binding in the annotated representation.
+        Attribution report containing reconciliation KPIs and selected factor sections.
 
     Raises:
     ------
@@ -238,7 +241,10 @@ def attribution_tearsheet(
     Examples:
     --------
     >>> from finstack_quant.reporting.attribution import attribution_tearsheet
-    >>> callable(attribution_tearsheet)
+    >>> try:
+    ...     attribution_tearsheet()
+    ... except ValueError as exc:
+    ...     "requires a PnlAttribution" in str(exc)
     True
     """
     if instrument is not None:

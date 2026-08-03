@@ -10,9 +10,9 @@ No financial calculation.
 
 Examples:
 --------
->>> import finstack_quant.reporting.credit as credit
->>> credit.__name__
-'finstack_quant.reporting.credit'
+>>> from finstack_quant.reporting.credit import credit_tearsheet
+>>> credit_tearsheet({}, sections=[]).title
+'Credit Assessment'
 """
 
 from __future__ import annotations
@@ -164,13 +164,13 @@ def credit_tearsheet(
     Returns:
     -------
     TearSheet
-        Result of credit tearsheet for the binding in the annotated representation.
+        Credit report with KPI values and the selected available sections.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.credit import credit_tearsheet
-    >>> callable(credit_tearsheet)
-    True
+    >>> credit_tearsheet({}, sections=[]).title
+    'Credit Assessment'
     """
     wanted = _resolve_sections(sections, ALL_SECTIONS)
 

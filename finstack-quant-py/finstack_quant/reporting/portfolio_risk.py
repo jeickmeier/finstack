@@ -7,9 +7,9 @@ Risk shares come from the engine's ``pct_contribution``; no calculation here.
 
 Examples:
 --------
->>> import finstack_quant.reporting.portfolio_risk as portfolio_risk
->>> portfolio_risk.__name__
-'finstack_quant.reporting.portfolio_risk'
+>>> from finstack_quant.reporting.portfolio_risk import portfolio_risk_tearsheet
+>>> portfolio_risk_tearsheet({}, sections=[]).title
+'Portfolio Risk'
 """
 
 from __future__ import annotations
@@ -143,13 +143,13 @@ def portfolio_risk_tearsheet(
     Returns:
     -------
     TearSheet
-        Result of portfolio risk tearsheet for the binding in the annotated representation.
+        Portfolio-risk report with VaR/ES KPIs and the selected available sections.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.portfolio_risk import portfolio_risk_tearsheet
-    >>> callable(portfolio_risk_tearsheet)
-    True
+    >>> portfolio_risk_tearsheet({}, sections=[]).title
+    'Portfolio Risk'
     """
     wanted = _resolve_sections(sections, ALL_SECTIONS)
 

@@ -8,9 +8,9 @@ transform is display-unit scaling for variance percentages, matching the
 
 Examples:
 --------
->>> import finstack_quant.reporting.statement as statement
->>> statement.__name__
-'finstack_quant.reporting.statement'
+>>> from finstack_quant.reporting.statement import statement_tearsheet
+>>> statement_tearsheet({"nodes": {}}, sections=[]).title
+'Financial Statements'
 """
 
 from __future__ import annotations
@@ -111,13 +111,13 @@ def statement_tearsheet(
     Returns:
     -------
     TearSheet
-        Result of statement tearsheet for the binding in the annotated representation.
+        Statement report with the selected summary, trend, margin, and variance sections.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.statement import statement_tearsheet
-    >>> callable(statement_tearsheet)
-    True
+    >>> statement_tearsheet({"nodes": {}}, sections=[]).title
+    'Financial Statements'
     """
     wanted = _resolve_sections(sections, ALL_SECTIONS)
 

@@ -8,9 +8,9 @@ axis tick labels. ``None``/``NaN`` values are skipped.
 
 Examples:
 --------
->>> import finstack_quant.reporting.charts as charts
->>> charts.__name__
-'finstack_quant.reporting.charts'
+>>> from finstack_quant.reporting.charts import rgba
+>>> rgba("#10243f", 0.5)
+'rgba(16,36,63,0.5)'
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ def rgba(hex_color: str, alpha: float) -> str:
     Returns:
     -------
     str
-        Result of rgba for the binding in the annotated representation.
+        CSS ``rgba(red,green,blue,alpha)`` color string.
 
     Raises:
     ------
@@ -58,8 +58,8 @@ def rgba(hex_color: str, alpha: float) -> str:
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import rgba
-    >>> callable(rgba)
-    True
+    >>> rgba("#10243f", 0.5)
+    'rgba(16,36,63,0.5)'
     """
     h = hex_color.lstrip("#")
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
@@ -81,13 +81,13 @@ def nice_ticks(vmin: float, vmax: float, target: int = 4) -> list[float]:
     Returns:
     -------
     list[float]
-        Result of nice ticks for the binding in the annotated representation.
+        Rounded tick values covering the complete input range.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import nice_ticks
-    >>> callable(nice_ticks)
-    True
+    >>> nice_ticks(-1, 3)
+    [-1, 0.0, 1, 2, 3]
     """
     if vmax <= vmin:
         vmax = vmin + 1.0
@@ -126,13 +126,14 @@ def color_scale(v: Any, theme: Theme, cap: float = 8.0) -> tuple[str, str]:
     Returns:
     -------
     tuple[str, str]
-        Result of color scale for the binding in the annotated representation.
+        CSS background and foreground colors for the heatmap cell.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import color_scale
-    >>> callable(color_scale)
-    True
+    >>> from finstack_quant.reporting.theme import INSTITUTIONAL
+    >>> color_scale(None, INSTITUTIONAL)
+    ('transparent', '#cfc8b8')
     """
     if fmt._missing(v):
         return ("transparent", theme.grid)
@@ -246,12 +247,13 @@ def line_chart(
     Returns:
     -------
     str
-        Result of line chart for the binding in the annotated representation.
+        Self-contained SVG markup for the plotted series.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import line_chart
-    >>> callable(line_chart)
+    >>> from finstack_quant.reporting.theme import INSTITUTIONAL
+    >>> line_chart(["2025-01-01", "2025-02-01"], [1.0, 2.0], theme=INSTITUTIONAL).startswith("<svg")
     True
     """
     color = color or theme.ink
@@ -361,12 +363,13 @@ def cashflow_ladder(
     Returns:
     -------
     str
-        Result of cashflow ladder for the binding in the annotated representation.
+        Self-contained SVG markup for the stacked cashflow ladder.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import cashflow_ladder
-    >>> callable(cashflow_ladder)
+    >>> from finstack_quant.reporting.theme import INSTITUTIONAL
+    >>> cashflow_ladder(["Q1"], [1.0], [10.0], theme=INSTITUTIONAL).startswith("<svg")
     True
     """
     ml, mr, mt, mb = 52, 14, 12, 24
@@ -460,12 +463,13 @@ def waterfall_chart(
     Returns:
     -------
     str
-        Result of waterfall chart for the binding in the annotated representation.
+        Self-contained SVG markup for the contribution bridge and total.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import waterfall_chart
-    >>> callable(waterfall_chart)
+    >>> from finstack_quant.reporting.theme import INSTITUTIONAL
+    >>> waterfall_chart(["Carry"], [2.0], theme=INSTITUTIONAL).startswith("<svg")
     True
     """
     ml, mr, mt, mb = 56, 14, 12, 40
@@ -569,12 +573,13 @@ def bar_chart(labels: list[str], values: list[Any], *, theme: Theme, y_pct: bool
     Returns:
     -------
     str
-        Result of bar chart for the binding in the annotated representation.
+        Self-contained SVG markup for the categorical bars.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import bar_chart
-    >>> callable(bar_chart)
+    >>> from finstack_quant.reporting.theme import INSTITUTIONAL
+    >>> bar_chart(["A"], [1.0], theme=INSTITUTIONAL).startswith("<svg")
     True
     """
     ml, mr, mt, mb = 48, 14, 12, 24
@@ -662,12 +667,13 @@ def tornado_chart(
     Returns:
     -------
     str
-        Result of tornado chart for the binding in the annotated representation.
+        Self-contained SVG markup for the downside and upside sensitivity bars.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import tornado_chart
-    >>> callable(tornado_chart)
+    >>> from finstack_quant.reporting.theme import INSTITUTIONAL
+    >>> tornado_chart([("Revenue", -1.0, 2.0)], theme=INSTITUTIONAL).startswith("<svg")
     True
     """
     n = len(entries)
@@ -772,12 +778,13 @@ def fan_chart(
     Returns:
     -------
     str
-        Result of fan chart for the binding in the annotated representation.
+        Self-contained SVG markup for the percentile band and median line.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.charts import fan_chart
-    >>> callable(fan_chart)
+    >>> from finstack_quant.reporting.theme import INSTITUTIONAL
+    >>> fan_chart(["Q1", "Q2"], [1, 2], [2, 3], [3, 4], theme=INSTITUTIONAL).startswith("<svg")
     True
     """
     ml, mr, mt, mb = 48, 14, 12, 26

@@ -7,9 +7,9 @@ exist as statement nodes or structured engine results.
 
 Examples:
 --------
->>> import finstack_quant.reporting.statements_common as statements_common
->>> statements_common.__name__
-'finstack_quant.reporting.statements_common'
+>>> from finstack_quant.reporting.statements_common import StatementView
+>>> StatementView({"revenue": {"2025": 100.0}}).get("revenue", "2025")
+100.0
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ class StatementView:
     Examples:
     --------
     >>> from finstack_quant.reporting.statements_common import StatementView
-    >>> StatementView.__name__
-    'StatementView'
+    >>> StatementView({"revenue": {"2025": 100.0}}).periods()
+    ['2025']
     """
 
     def __init__(self, nodes: dict[str, dict[str, float]]) -> None:
@@ -59,7 +59,7 @@ class StatementView:
         Returns:
         -------
         float | None
-            Result of get for this `StatementView` in the annotated representation.
+            Stored scalar value, or ``None`` when the node or period is absent.
 
         """
         node = self._nodes.get(node_id)
@@ -71,7 +71,7 @@ class StatementView:
         Returns:
         -------
         list[str]
-            Result of node ids for this `StatementView` in the annotated representation.
+            Node identifiers in source insertion order.
         """
         return list(self._nodes)
 
@@ -81,7 +81,7 @@ class StatementView:
         Returns:
         -------
         list[str]
-            Result of periods for this `StatementView` in the annotated representation.
+            Distinct period labels in ascending order.
         """
         seen: dict[str, None] = {}
         for series in self._nodes.values():
@@ -108,13 +108,13 @@ def json_or_dict(obj: Any, *, noun: str = "value") -> dict[str, Any]:
     Returns:
     -------
     dict[str, Any]
-        Result of json or dict for the binding in the annotated representation.
+        Parsed object mapping, preserving the canonical payload fields.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.statements_common import json_or_dict
-    >>> callable(json_or_dict)
-    True
+    >>> json_or_dict('{"id":"demo"}')
+    {'id': 'demo'}
     """
     if isinstance(obj, dict):
         return obj
@@ -149,13 +149,13 @@ def parse_statement(results: Any) -> StatementView:
     Returns:
     -------
     StatementView
-        Result of parse statement for the binding in the annotated representation.
+        Read-only view over the payload's ``nodes`` mapping.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.statements_common import parse_statement
-    >>> callable(parse_statement)
-    True
+    >>> parse_statement({"nodes": {"revenue": {"2025": 100.0}}}).node_ids()
+    ['revenue']
     """
     if isinstance(results, StatementView):
         return results
@@ -191,12 +191,13 @@ def pl_matrix_table(
     Returns:
     -------
     str
-        Result of pl matrix table for the binding in the annotated representation.
+        HTML table containing the selected line items and periods.
 
     Examples:
     --------
-    >>> from finstack_quant.reporting.statements_common import pl_matrix_table
-    >>> callable(pl_matrix_table)
+    >>> from finstack_quant.reporting.statements_common import StatementView, pl_matrix_table
+    >>> view = StatementView({"revenue": {"2025": 100.0}})
+    >>> "Revenue" in pl_matrix_table(view, [("Revenue", "revenue", str)], ["2025"])
     True
     """
     head = "<th></th>" + "".join(f"<th>{fmt._escape_html(p)}</th>" for p in periods)
@@ -222,12 +223,13 @@ def variance_table(variance: Any) -> str | None:
     Returns:
     -------
     str | None
-        Result of variance table for the binding in the annotated representation.
+        HTML variance table, or ``None`` when no valid rows are supplied.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.statements_common import variance_table
-    >>> callable(variance_table)
+    >>> row = {"period": "2025", "metric": "ebitda", "baseline": 10, "comparison": 12, "abs_var": 2, "pct_var": 0.2}
+    >>> "ebitda" in variance_table({"rows": [row]})
     True
     """
     rows = variance.get("rows") if isinstance(variance, dict) else None

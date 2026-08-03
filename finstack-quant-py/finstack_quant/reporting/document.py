@@ -7,9 +7,10 @@ CSS scope class is constant and the ``generated`` stamp is caller-injectable.
 
 Examples:
 --------
->>> import finstack_quant.reporting.document as document
->>> document.__name__
-'finstack_quant.reporting.document'
+>>> from finstack_quant.reporting.document import TearSheet
+>>> from finstack_quant.reporting.theme import INSTITUTIONAL
+>>> TearSheet(INSTITUTIONAL, "Demo", []).to_html().startswith("<!DOCTYPE html>")
+True
 """
 
 from __future__ import annotations
@@ -73,8 +74,8 @@ class KPI:
     Examples:
     --------
     >>> from finstack_quant.reporting.document import KPI
-    >>> KPI.__name__
-    'KPI'
+    >>> KPI("PV", "1.2m USD").label
+    'PV'
     """
 
     label: str
@@ -89,8 +90,8 @@ class Section:
     Examples:
     --------
     >>> from finstack_quant.reporting.document import Section
-    >>> Section.__name__
-    'Section'
+    >>> Section("Summary", "<p>Ready</p>").title
+    'Summary'
     """
 
     title: str
@@ -105,8 +106,9 @@ class TearSheet:
     Examples:
     --------
     >>> from finstack_quant.reporting.document import TearSheet
-    >>> TearSheet.__name__
-    'TearSheet'
+    >>> from finstack_quant.reporting.theme import INSTITUTIONAL
+    >>> TearSheet(INSTITUTIONAL, "Demo", []).to_html().startswith("<!DOCTYPE html>")
+    True
     """
 
     theme: Theme
@@ -176,7 +178,7 @@ class TearSheet:
         Returns:
         -------
         str
-            Result of to html for this `TearSheet` in the annotated representation.
+            Complete standalone HTML document containing the configured report.
         """
         return (
             "<!DOCTYPE html>\n"

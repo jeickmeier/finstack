@@ -8,9 +8,9 @@ read-only for meta/details, and renders the optional ``cashflows`` DataFrame and
 
 Examples:
 --------
->>> import finstack_quant.reporting.instrument as instrument
->>> instrument.__name__
-'finstack_quant.reporting.instrument'
+>>> from finstack_quant.reporting.instrument import recommended_metrics
+>>> recommended_metrics("bond")[:3]
+['dirty_price', 'clean_price', 'accrued']
 """
 
 from __future__ import annotations
@@ -103,13 +103,13 @@ def recommended_metrics(instrument_type: str) -> list[str]:
     Returns:
     -------
     list[str]
-        Result of recommended metrics for the binding in the annotated representation.
+        Supported metric identifiers in the preferred report order.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.instrument import recommended_metrics
-    >>> callable(recommended_metrics)
-    True
+    >>> recommended_metrics("bond")[:3]
+    ['dirty_price', 'clean_price', 'accrued']
     """
     return list(_RECOMMENDED.get(instrument_type, []))
 
@@ -716,7 +716,7 @@ def instrument_tearsheet(
     Returns:
     -------
     TearSheet
-        Result of instrument tearsheet for the binding in the annotated representation.
+        Instrument report with headline value, requested sections, and available metrics.
 
     Raises:
     ------
@@ -732,9 +732,34 @@ def instrument_tearsheet(
 
     Examples:
     --------
+    >>> import json
     >>> from finstack_quant.reporting.instrument import instrument_tearsheet
-    >>> callable(instrument_tearsheet)
-    True
+    >>> from finstack_quant.valuations import ValuationResult
+    >>> rounding = {
+    ...     "mode": "bankers",
+    ...     "ingest_scale_by_currency": {},
+    ...     "output_scale_by_currency": {},
+    ...     "tolerances": {"rate_epsilon": 1e-12, "generic_epsilon": 1e-10},
+    ...     "version": 1,
+    ... }
+    >>> payload = {
+    ...     "schema_version": 1,
+    ...     "instrument_id": "TEST",
+    ...     "as_of": "2026-06-19",
+    ...     "value": {"amount": "100", "currency": "USD"},
+    ...     "measures": {},
+    ...     "meta": {
+    ...         "numeric_mode": "f64",
+    ...         "rounding": rounding,
+    ...         "fx_policy_applied": None,
+    ...         "timestamp": "2026-06-20T12:19:44Z",
+    ...         "version": "0.7.0",
+    ...     },
+    ...     "covenants": None,
+    ... }
+    >>> result = ValuationResult.from_json(json.dumps(payload))
+    >>> instrument_tearsheet(result, sections=[]).title
+    'TEST'
     """
     if isinstance(result, (str, dict)):
         result, cashflows, definition = _price_path(result, market, as_of, model, market_price, cashflows)

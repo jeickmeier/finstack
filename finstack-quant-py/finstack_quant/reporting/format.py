@@ -6,9 +6,9 @@ em-interpunct placeholder ``"·"`` so tables never show ``nan``.
 
 Examples:
 --------
->>> import finstack_quant.reporting.format as format
->>> format.__name__
-'finstack_quant.reporting.format'
+>>> from finstack_quant.reporting.format import money, pct
+>>> pct(12.34), money(1250, "USD")
+('12.3%', '1,250.00 USD')
 """
 
 from __future__ import annotations
@@ -53,13 +53,13 @@ def pct(x: Any, dp: int = 1, signed: bool = False) -> str:
     Returns:
     -------
     str
-        Result of pct for the binding in the annotated representation.
+        Percentage-point value with the requested precision and sign convention.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.format import pct
-    >>> callable(pct)
-    True
+    >>> pct(13.25, dp=2, signed=True)
+    '+13.25%'
     """
     if _missing(x):
         return _PLACEHOLDER
@@ -80,13 +80,13 @@ def ratio(x: Any, dp: int = 2) -> str:
     Returns:
     -------
     str
-        Result of ratio for the binding in the annotated representation.
+        Unitless ratio rounded to the requested decimal precision.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.format import ratio
-    >>> callable(ratio)
-    True
+    >>> ratio(1.234)
+    '1.23'
     """
     if _missing(x):
         return _PLACEHOLDER
@@ -108,13 +108,13 @@ def money(amount: Any, currency: str | None = None, dp: int = 2) -> str:
     Returns:
     -------
     str
-        Result of money for the binding in the annotated representation.
+        Grouped amount followed by the currency code when one is supplied.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.format import money
-    >>> callable(money)
-    True
+    >>> money(1250, "USD")
+    '1,250.00 USD'
     """
     if _missing(amount):
         return _PLACEHOLDER
@@ -133,13 +133,13 @@ def sign_class(x: Any) -> str:
     Returns:
     -------
     str
-        Result of sign class for the binding in the annotated representation.
+        ``"pos"`` for positive values, ``"neg"`` for negative values, otherwise ``""``.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.format import sign_class
-    >>> callable(sign_class)
-    True
+    >>> sign_class(-0.5)
+    'neg'
     """
     if _missing(x) or x == 0:
         return ""
@@ -157,13 +157,14 @@ def fmt_date(d: Any) -> str:
     Returns:
     -------
     str
-        Result of fmt date for the binding in the annotated representation.
+        Human-readable day, abbreviated month, and four-digit year.
 
     Examples:
     --------
+    >>> from datetime import date
     >>> from finstack_quant.reporting.format import fmt_date
-    >>> callable(fmt_date)
-    True
+    >>> fmt_date(date(2026, 6, 19))
+    '19 Jun 2026'
     """
     if _missing(d):
         return _PLACEHOLDER

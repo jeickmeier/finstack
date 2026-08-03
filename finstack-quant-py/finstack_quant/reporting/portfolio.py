@@ -8,9 +8,10 @@ formatting; no financial calculation.
 
 Examples:
 --------
->>> import finstack_quant.reporting.portfolio as portfolio
->>> portfolio.__name__
-'finstack_quant.reporting.portfolio'
+>>> from finstack_quant.reporting.portfolio import portfolio_tearsheet
+>>> valuation = {"total_base_currency": {"amount": "0", "currency": "USD"}}
+>>> portfolio_tearsheet(valuation, sections=[]).title
+'Portfolio'
 """
 
 from __future__ import annotations
@@ -217,13 +218,14 @@ def portfolio_tearsheet(
     Returns:
     -------
     TearSheet
-        Result of portfolio tearsheet for the binding in the annotated representation.
+        Portfolio report with headline value, position counts, and selected sections.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.portfolio import portfolio_tearsheet
-    >>> callable(portfolio_tearsheet)
-    True
+    >>> valuation = {"total_base_currency": {"amount": "0", "currency": "USD"}}
+    >>> portfolio_tearsheet(valuation, sections=[]).title
+    'Portfolio'
     """
     wanted = _resolve_sections(sections, ALL_SECTIONS)
 

@@ -6,9 +6,14 @@ The primary series is selected positionally by ``ticker``.
 
 Examples:
 --------
->>> import finstack_quant.reporting.performance as performance
->>> performance.__name__
-'finstack_quant.reporting.performance'
+>>> import pandas as pd
+>>> from finstack_quant.analytics import Performance
+>>> from finstack_quant.reporting.performance import performance_tearsheet
+>>> dates = pd.bdate_range("2025-01-02", periods=80)
+>>> returns = [0.001 if i % 2 else -0.0004 for i in range(80)]
+>>> perf = Performance.from_returns(pd.DataFrame({"Fund": returns}, index=dates))
+>>> performance_tearsheet(perf, sections=[]).title
+'Fund'
 """
 
 from __future__ import annotations
@@ -177,7 +182,7 @@ def performance_tearsheet(
     Returns:
     -------
     TearSheet
-        Result of performance tearsheet for the binding in the annotated representation.
+        Performance report for the selected series and report sections.
 
     Raises:
     ------
@@ -188,9 +193,14 @@ def performance_tearsheet(
 
     Examples:
     --------
+    >>> import pandas as pd
+    >>> from finstack_quant.analytics import Performance
     >>> from finstack_quant.reporting.performance import performance_tearsheet
-    >>> callable(performance_tearsheet)
-    True
+    >>> dates = pd.bdate_range("2025-01-02", periods=80)
+    >>> returns = [0.001 if i % 2 else -0.0004 for i in range(80)]
+    >>> perf = Performance.from_returns(pd.DataFrame({"Fund": returns}, index=dates))
+    >>> performance_tearsheet(perf, sections=[]).title
+    'Fund'
     """
     wanted = _resolve_sections(sections, ALL_SECTIONS)
 

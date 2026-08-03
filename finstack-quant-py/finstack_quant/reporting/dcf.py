@@ -9,9 +9,9 @@ debt for the bridge's downward step (a display-direction sign).
 
 Examples:
 --------
->>> import finstack_quant.reporting.dcf as dcf
->>> dcf.__name__
-'finstack_quant.reporting.dcf'
+>>> from finstack_quant.reporting.dcf import dcf_tearsheet
+>>> dcf_tearsheet({}, sections=[]).title
+'DCF Valuation'
 """
 
 from __future__ import annotations
@@ -132,13 +132,13 @@ def dcf_tearsheet(
     Returns:
     -------
     TearSheet
-        Result of dcf tearsheet for the binding in the annotated representation.
+        DCF report with headline valuation KPIs and the selected available sections.
 
     Examples:
     --------
     >>> from finstack_quant.reporting.dcf import dcf_tearsheet
-    >>> callable(dcf_tearsheet)
-    True
+    >>> dcf_tearsheet({}, sections=[]).title
+    'DCF Valuation'
     """
     wanted = _resolve_sections(sections, ALL_SECTIONS)
 

@@ -7,9 +7,9 @@ Note" house style.
 
 Examples:
 --------
->>> import finstack_quant.reporting.theme as theme
->>> theme.__name__
-'finstack_quant.reporting.theme'
+>>> from finstack_quant.reporting.theme import INSTITUTIONAL
+>>> INSTITUTIONAL.name
+'institutional'
 """
 
 from __future__ import annotations
@@ -25,9 +25,9 @@ class Theme:
 
     Examples:
     --------
-    >>> from finstack_quant.reporting.theme import Theme
-    >>> Theme.__name__
-    'Theme'
+    >>> from finstack_quant.reporting.theme import INSTITUTIONAL
+    >>> INSTITUTIONAL.to_css("report").startswith("<style>")
+    True
     """
 
     name: str
@@ -55,7 +55,7 @@ class Theme:
         Returns:
         -------
         str
-            Result of to css for this `Theme` in the annotated representation.
+            Scoped ``style`` element containing the report theme rules.
 
         """
         s = f".{scope}"
