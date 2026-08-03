@@ -15,9 +15,7 @@ use serde::{Deserialize, Serialize};
 use super::engine::ExposureEclResult;
 use super::types::Stage;
 
-// ---------------------------------------------------------------------------
 // Portfolio ECL result
-// ---------------------------------------------------------------------------
 
 /// Portfolio-level ECL result with stage migration and segment breakdown.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,9 +200,7 @@ impl PortfolioEclResult {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Provision waterfall
-// ---------------------------------------------------------------------------
 
 /// Provision movement waterfall between two reporting dates.
 ///

@@ -44,9 +44,7 @@ use serde::{Deserialize, Serialize};
 use super::staging::{classify_stage, StageResult, StagingConfig};
 use super::types::{Exposure, PdTermStructure, Stage};
 
-// ---------------------------------------------------------------------------
 // Macro scenario
-// ---------------------------------------------------------------------------
 
 /// A forward-looking macro scenario with a probability weight.
 ///
@@ -64,9 +62,7 @@ pub struct MacroScenario {
     pub lgd_override: Option<f64>,
 }
 
-// ---------------------------------------------------------------------------
 // LGD type
-// ---------------------------------------------------------------------------
 
 /// LGD methodology selection.
 ///
@@ -120,9 +116,7 @@ pub enum LgdType {
     Downturn,
 }
 
-// ---------------------------------------------------------------------------
 // ECL configuration
-// ---------------------------------------------------------------------------
 
 /// Configuration for ECL calculation.
 ///
@@ -290,9 +284,7 @@ impl EclConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Builder
-// ---------------------------------------------------------------------------
 
 /// Builder for [`EclConfig`].
 ///
@@ -477,9 +469,7 @@ impl Default for EclConfigBuilder {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Result types
-// ---------------------------------------------------------------------------
 
 /// ECL result for a single time bucket.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -545,9 +535,7 @@ pub struct ExposureEclResult {
     pub ead: f64,
 }
 
-// ---------------------------------------------------------------------------
 // Core computation (stateless)
-// ---------------------------------------------------------------------------
 
 /// Effective LGD after applying the configured [`LgdType`] to the base LGD
 /// (the exposure LGD, or a scenario `lgd_override` already applied upstream).
@@ -882,9 +870,7 @@ pub(crate) fn validate_scenario_weights<'a>(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Stateful facade
-// ---------------------------------------------------------------------------
 
 /// Stateful ECL engine wrapping staging + calculation + aggregation.
 ///

@@ -19,9 +19,7 @@ fn s(v: f64) -> AmountOrScalar {
     AmountOrScalar::scalar(v)
 }
 
-// ============================================================================
 // GrowthRateConsistency
-// ============================================================================
 
 #[test]
 fn growth_within_bounds_passes() {
@@ -104,9 +102,7 @@ fn sharp_decline_flags_warning() {
     assert_eq!(result.findings.len(), 1);
 }
 
-// ============================================================================
 // EffectiveTaxRateCheck
-// ============================================================================
 
 #[test]
 fn etr_within_range_passes() {
@@ -184,9 +180,7 @@ fn etr_skips_negative_pretax() {
     assert!(result.findings.is_empty());
 }
 
-// ============================================================================
 // WorkingCapitalConsistency
-// ============================================================================
 
 #[test]
 fn wc_consistent_passes() {

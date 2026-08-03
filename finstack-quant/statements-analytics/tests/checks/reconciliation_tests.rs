@@ -20,9 +20,7 @@ fn s(v: f64) -> AmountOrScalar {
     AmountOrScalar::scalar(v)
 }
 
-// ============================================================================
 // DepreciationReconciliation
-// ============================================================================
 
 #[test]
 fn depreciation_reconciles_passes() {
@@ -92,9 +90,7 @@ fn depreciation_mismatch_flags_warning() {
     assert!((mat.absolute - 50.0).abs() < 0.01);
 }
 
-// ============================================================================
 // InterestExpenseReconciliation
-// ============================================================================
 
 #[test]
 fn interest_cs_matches_passes() {
@@ -223,9 +219,7 @@ fn interest_implied_rate_uses_average_balance() {
     );
 }
 
-// ============================================================================
 // CapexReconciliation
-// ============================================================================
 
 #[test]
 fn capex_reconciles_passes() {
@@ -313,9 +307,7 @@ fn capex_no_components_passes_trivially() {
     assert!(result.passed);
 }
 
-// ============================================================================
 // DividendReconciliation
-// ============================================================================
 
 #[test]
 fn dividends_reconcile_passes() {

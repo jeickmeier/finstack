@@ -698,14 +698,12 @@ mod tests {
         assert_eq!(weighted, 0.0);
     }
 
-    // =====================================================================
     // Scorecard boundary convention
     //
     // Buckets are matched in registry order (best rating first) and every
     // bucket is closed `[min, max]`, so a value on a shared boundary always
     // resolves to the *better* of the two adjacent ratings — for both
     // higher-is-better (coverage) and lower-is-better (leverage) metrics.
-    // =====================================================================
 
     /// With adjacent buckets `AAA: [95, 100]` and `AA+: [90, 95]`, a value
     /// of exactly 95 sits on the shared boundary and must land in AAA

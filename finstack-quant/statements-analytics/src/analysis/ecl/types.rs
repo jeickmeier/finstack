@@ -12,9 +12,7 @@
 use finstack_quant_core::{Error, InputError, Result};
 use serde::{Deserialize, Serialize};
 
-// ---------------------------------------------------------------------------
 // Stage
-// ---------------------------------------------------------------------------
 
 /// IFRS 9 impairment stage for a credit exposure.
 ///
@@ -52,9 +50,7 @@ impl std::fmt::Display for Stage {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Qualitative flags
-// ---------------------------------------------------------------------------
 
 /// Qualitative triggers for SICR detection (IFRS 9 B5.5.17) and
 /// "unlikely-to-pay" evidence of default (IFRS 9 B5.5.37).
@@ -150,9 +146,7 @@ impl QualitativeFlags {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Exposure
-// ---------------------------------------------------------------------------
 
 /// Sanity bound on `remaining_maturity_years`.
 ///
@@ -323,9 +317,7 @@ impl Exposure {
     }
 }
 
-// ---------------------------------------------------------------------------
 // PD Term Structure trait
-// ---------------------------------------------------------------------------
 
 /// Abstraction over PD term structure sources.
 ///
@@ -360,9 +352,7 @@ pub trait PdTermStructure: Send + Sync {
     }
 }
 
-// ---------------------------------------------------------------------------
 // RawPdCurve
-// ---------------------------------------------------------------------------
 
 /// Raw user-supplied PD term structure with linear interpolation.
 ///

@@ -14,9 +14,7 @@ use super::credit::{CoverageFloorCheck, FcfSignCheck, LeverageRangeCheck, TrendC
 use super::reconciliation::DepreciationReconciliation;
 use super::{CreditMapping, ThreeStatementMapping, TrendDirection};
 
-// ---------------------------------------------------------------------------
 // Three-statement suite
-// ---------------------------------------------------------------------------
 
 /// Build a check suite for a three-statement financial model.
 ///
@@ -102,9 +100,7 @@ pub fn three_statement_checks(mapping: ThreeStatementMapping) -> CheckSuite {
     builder.build()
 }
 
-// ---------------------------------------------------------------------------
 // Credit underwriting suite
-// ---------------------------------------------------------------------------
 
 /// Build a check suite for credit underwriting analysis.
 ///
@@ -183,9 +179,7 @@ pub fn credit_underwriting_checks(mapping: CreditMapping) -> CheckSuite {
     builder.build()
 }
 
-// ---------------------------------------------------------------------------
 // LBO suite
-// ---------------------------------------------------------------------------
 
 /// Build a combined check suite for an LBO model.
 ///

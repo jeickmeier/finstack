@@ -17,9 +17,7 @@ fn assert_close(actual: f64, expected: f64, tolerance: f64, message: &str) {
     );
 }
 
-// ============================================================================
 // Basic Metrics Tests
-// ============================================================================
 
 #[test]
 fn test_backtest_perfect_forecast() {
@@ -79,9 +77,7 @@ fn test_backtest_mape_calculation() {
     assert_close(metrics.mape, 10.0, METRICS_TOLERANCE, "MAPE calculation");
 }
 
-// ============================================================================
 // Edge Cases
-// ============================================================================
 
 #[test]
 fn test_backtest_single_datapoint() {
@@ -128,9 +124,7 @@ fn test_backtest_near_zero_actuals() {
     assert!(!metrics.mape.is_nan());
 }
 
-// ============================================================================
 // Error Cases
-// ============================================================================
 
 #[test]
 fn test_backtest_length_mismatch_error() {
@@ -152,9 +146,7 @@ fn test_backtest_empty_arrays_error() {
     assert!(result.unwrap_err().to_string().contains("empty"));
 }
 
-// ============================================================================
 // Metrics Summary Tests
-// ============================================================================
 
 #[test]
 fn test_forecast_metrics_summary() {
@@ -176,9 +168,7 @@ fn test_forecast_metrics_summary() {
     assert!(summary.contains("n=10"));
 }
 
-// ============================================================================
 // Practical Forecasting Scenarios
-// ============================================================================
 
 #[test]
 fn test_backtest_seasonal_forecast_scenario() {

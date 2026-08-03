@@ -30,9 +30,7 @@ mod tests {
     use finstack_quant_core::types::Attributes;
     use indexmap::IndexMap;
 
-    // -----------------------------------------------------------------------
     // Helper: build a CompanyMetrics with common fields populated
-    // -----------------------------------------------------------------------
 
     fn make_company(
         id: &str,
@@ -86,9 +84,7 @@ mod tests {
         ]
     }
 
-    // -----------------------------------------------------------------------
     // Percentile rank tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn percentile_rank_correctness() {
@@ -113,9 +109,7 @@ mod tests {
         assert_eq!(percentile_rank(&[], 100.0), None);
     }
 
-    // -----------------------------------------------------------------------
     // Z-score tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn z_score_known_values() {
@@ -143,9 +137,7 @@ mod tests {
         assert_eq!(z_score(&[5.0, 5.0, 5.0], 5.0), None);
     }
 
-    // -----------------------------------------------------------------------
     // Regression tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn regression_r_squared_positive_for_correlated_data() {
@@ -224,9 +216,7 @@ mod tests {
         assert!(regression_fair_value(&[1.0, 2.0], &[3.0, 5.0], 1.5, 4.0).is_none());
     }
 
-    // -----------------------------------------------------------------------
     // Peer stats tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn peer_stats_correctness() {
@@ -258,9 +248,7 @@ mod tests {
         assert!((stats.max - 42.0).abs() < 1e-10);
     }
 
-    // -----------------------------------------------------------------------
     // PeerFilter tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn peer_filter_by_sector() {
@@ -355,9 +343,7 @@ mod tests {
         assert_eq!(accepted.len(), universe.len() - 1);
     }
 
-    // -----------------------------------------------------------------------
     // PeerSet construction tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn peer_set_excludes_subject() {
@@ -387,9 +373,7 @@ mod tests {
         assert_eq!(peer_set.peer_count(), 5);
     }
 
-    // -----------------------------------------------------------------------
     // Multiples computation tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn compute_ev_ebitda() {
@@ -467,9 +451,7 @@ mod tests {
         assert_eq!(multiples.len(), 10); // All peers have EV and EBITDA
     }
 
-    // -----------------------------------------------------------------------
     // Rich/cheap scoring tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn scoring_single_dimension_univariate() {
@@ -597,9 +579,7 @@ mod tests {
         assert!((result.dimensions[2].weight - 0.2).abs() < 1e-10);
     }
 
-    // -----------------------------------------------------------------------
     // Serde round-trip tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn serde_company_metrics_roundtrip() {
@@ -664,9 +644,7 @@ mod tests {
         assert_eq!(deserialized.dimensions.len(), result.dimensions.len());
     }
 
-    // -----------------------------------------------------------------------
     // Property-like tests
-    // -----------------------------------------------------------------------
 
     #[test]
     fn percentile_rank_always_bounded() {
@@ -688,9 +666,7 @@ mod tests {
         assert!(z.abs() < 1e-10, "z-score of mean should be ~0, got {z}");
     }
 
-    // -----------------------------------------------------------------------
     // Regression alignment / standardization / direction tests
-    // -----------------------------------------------------------------------
 
     /// Four peers with both metrics plus one peer missing leverage but
     /// carrying a poison OAS value: misaligned x/y pairing would drag the
@@ -828,9 +804,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // NaN hardening and PeerStats.iqr
-    // -----------------------------------------------------------------------
 
     #[test]
     fn peer_stats_filters_non_finite_and_reports_iqr() {

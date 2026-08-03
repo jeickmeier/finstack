@@ -20,9 +20,7 @@ fn s(v: f64) -> AmountOrScalar {
     AmountOrScalar::scalar(v)
 }
 
-// ============================================================================
 // LeverageRangeCheck
-// ============================================================================
 
 #[test]
 fn leverage_within_range_passes() {
@@ -140,9 +138,7 @@ fn leverage_flags_non_positive_ebitda_as_error() {
     assert!(result.findings[0].message.contains("undefined"));
 }
 
-// ============================================================================
 // CoverageFloorCheck
-// ============================================================================
 
 #[test]
 fn coverage_above_floor_passes() {
@@ -288,9 +284,7 @@ fn coverage_zero_denominator_is_skipped() {
     assert!(result.findings.is_empty());
 }
 
-// ============================================================================
 // FcfSignCheck
-// ============================================================================
 
 #[test]
 fn fcf_positive_passes() {
@@ -402,9 +396,7 @@ fn fcf_consecutive_negative_error() {
     assert!(!errors.is_empty());
 }
 
-// ============================================================================
 // TrendCheck
-// ============================================================================
 
 #[test]
 fn trend_improving_passes() {
@@ -508,9 +500,7 @@ fn trend_decreasing_is_good_deterioration() {
     assert!(!result.findings.is_empty());
 }
 
-// ============================================================================
 // LiquidityRunwayCheck
-// ============================================================================
 
 #[test]
 fn liquidity_runway_adequate_passes() {

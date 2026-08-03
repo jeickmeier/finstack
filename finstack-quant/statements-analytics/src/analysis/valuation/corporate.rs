@@ -234,9 +234,7 @@ pub fn evaluate_dcf_with_market(
     Ok(result)
 }
 
-// ---------------------------------------------------------------------------
 // DCF sensitivity (tornado)
-// ---------------------------------------------------------------------------
 
 /// Tornado parameter id for the discount-rate shock.
 const SENSITIVITY_PARAM_WACC: &str = "wacc";
@@ -528,9 +526,7 @@ pub fn dcf_sensitivity(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Cost of capital
-// ---------------------------------------------------------------------------
 
 /// Tolerance applied when checking that the capital weights sum to one.
 ///

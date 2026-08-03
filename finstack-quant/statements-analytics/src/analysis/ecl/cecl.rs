@@ -30,9 +30,7 @@ use serde::{Deserialize, Serialize};
 use super::engine::MacroScenario;
 use super::types::{Exposure, PdTermStructure};
 
-// ---------------------------------------------------------------------------
 // CECL configuration
-// ---------------------------------------------------------------------------
 
 /// How the PD curve reverts from forecast to historical after the R&S period.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -228,9 +226,7 @@ impl CeclConfig {
     }
 }
 
-// ---------------------------------------------------------------------------
 // CECL result
-// ---------------------------------------------------------------------------
 
 /// CECL result for a single exposure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -245,9 +241,7 @@ pub struct CeclResult {
     pub methodology: CeclMethodology,
 }
 
-// ---------------------------------------------------------------------------
 // CECL engine
-// ---------------------------------------------------------------------------
 
 /// CECL engine computing lifetime ECL with R&S forecast and historical reversion.
 pub struct CeclEngine<'a> {

@@ -9,9 +9,7 @@ use finstack_quant_statements_analytics::extensions::{
     CreditScorecardExtension, ScorecardConfig, ScorecardMetric, ScorecardStatus,
 };
 
-// ============================================================================
 // Corkscrew Extension Full Execution Tests
-// ============================================================================
 
 #[test]
 fn test_corkscrew_extension_with_valid_config() {
@@ -158,9 +156,7 @@ fn test_corkscrew_set_config() {
     assert_eq!(extension.config().unwrap().tolerance, 0.01);
 }
 
-// ============================================================================
 // Credit Scorecard Extension Full Execution Tests
-// ============================================================================
 
 #[test]
 fn test_scorecard_extension_with_valid_config() {
@@ -560,9 +556,7 @@ fn test_scorecard_metric_evaluation_error_handling() {
     assert!(!report.errors.is_empty());
 }
 
-// ============================================================================
 // Scorecard NM-exclusion, period selection, and partial stamping
-// ============================================================================
 
 fn two_metric_model() -> (
     finstack_quant_statements::types::FinancialModelSpec,

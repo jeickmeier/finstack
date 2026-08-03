@@ -57,9 +57,7 @@ impl PdTermStructure for ForecastHorizonGuardCurve {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Stage 3 measurement (IFRS 9 5.5.33 / B5.5.33)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn stage3_ecl_is_discounted_lgd_times_ead() {
@@ -133,9 +131,7 @@ fn negative_eir_is_rejected() {
     assert!(err.to_string().contains("EIR"));
 }
 
-// ---------------------------------------------------------------------------
 // CECL engine validation
-// ---------------------------------------------------------------------------
 
 #[test]
 fn cecl_engine_rejects_empty_pd_sources() {
@@ -303,9 +299,7 @@ fn cecl_impaired_still_validates_pd_curve_rating() {
     assert!(err.to_string().contains("RawPdCurve is for rating"));
 }
 
-// ---------------------------------------------------------------------------
 // EAD schedule
-// ---------------------------------------------------------------------------
 
 #[test]
 fn amortizing_ead_schedule_reduces_lifetime_ecl_in_ifrs9_and_cecl() {

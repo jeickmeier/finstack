@@ -76,9 +76,7 @@ fn credit_mapping() -> CreditMapping {
     }
 }
 
-// ============================================================================
 // Suite check counts
-// ============================================================================
 
 #[test]
 fn three_statement_minimal_has_expected_checks() {
@@ -138,9 +136,7 @@ fn lbo_suite_merges_both() {
     assert_eq!(suite.len(), 12, "LBO suite should merge both suites");
 }
 
-// ============================================================================
 // Suite runs correctly against a balanced model
-// ============================================================================
 
 #[test]
 fn three_statement_suite_runs_against_balanced_model() {

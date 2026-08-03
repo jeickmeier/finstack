@@ -7,9 +7,7 @@ use finstack_quant_statements::types::{FinancialModelSpec, NodeType};
 use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 
-// ---------------------------------------------------------------------------
 // Dependency tracing
-// ---------------------------------------------------------------------------
 
 /// Traces dependencies between nodes in a financial model.
 ///
@@ -276,9 +274,7 @@ impl DependencyTree {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tree visualization
-// ---------------------------------------------------------------------------
 
 /// Render dependency tree as ASCII art.
 ///
@@ -445,9 +441,7 @@ fn render_tree_with_values(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Formula explanation
-// ---------------------------------------------------------------------------
 
 /// Explains how formulas are calculated.
 ///
@@ -658,9 +652,7 @@ pub struct ExplanationStep {
     pub operation: Option<String>,
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

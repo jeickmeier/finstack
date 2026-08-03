@@ -28,9 +28,7 @@ use finstack_quant_statements::evaluator::StatementResult;
 use serde::Serialize;
 use std::fmt::Write as FmtWrite;
 
-// ============================================================================
 // Report Trait
-// ============================================================================
 
 /// Core reporting trait.
 ///
@@ -50,9 +48,7 @@ pub trait Report {
     }
 }
 
-// ============================================================================
 // Table Formatting
-// ============================================================================
 
 /// Alignment options for table columns.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -306,9 +302,7 @@ impl Default for TableBuilder {
     }
 }
 
-// ============================================================================
 // P&L Summary Report
-// ============================================================================
 
 /// P&L summary report.
 ///
@@ -389,9 +383,7 @@ impl Report for PLSummaryReport<'_> {
     }
 }
 
-// ============================================================================
 // Shared credit metric helpers
-// ============================================================================
 
 /// Trailing-twelve-month sum of `node_id` ending at (and including) `at`.
 ///
@@ -518,9 +510,7 @@ impl CreditAssessment {
     }
 }
 
-// ============================================================================
 // Credit Assessment Report
-// ============================================================================
 
 /// Credit assessment report.
 ///
@@ -587,9 +577,7 @@ impl Report for CreditAssessmentReport<'_> {
     }
 }
 
-// ============================================================================
 // Tests
-// ============================================================================
 
 #[cfg(test)]
 mod tests {

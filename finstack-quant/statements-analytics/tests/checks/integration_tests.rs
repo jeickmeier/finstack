@@ -55,9 +55,7 @@ fn credit_mapping() -> CreditMapping {
     }
 }
 
-// ============================================================================
 // Imbalanced model — intentional BS error + high leverage warning
-// ============================================================================
 
 #[test]
 fn integration_imbalanced_model_catches_errors_and_warnings() {
@@ -233,9 +231,7 @@ fn integration_imbalanced_model_catches_errors_and_warnings() {
     );
 }
 
-// ============================================================================
 // Balanced model — all checks pass
-// ============================================================================
 
 #[test]
 fn integration_balanced_model_passes_all_checks() {

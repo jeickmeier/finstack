@@ -48,9 +48,7 @@ use super::types::{Exposure, PdTermStructure, Stage};
 /// assessed beyond the exposure's own remaining maturity.
 pub const MAX_SICR_HORIZON_YEARS: f64 = 30.0;
 
-// ---------------------------------------------------------------------------
 // Staging trigger (audit trail)
-// ---------------------------------------------------------------------------
 
 /// Reason for stage assignment (audit trail).
 ///
@@ -116,9 +114,7 @@ pub enum StagingTrigger {
     NoTrigger,
 }
 
-// ---------------------------------------------------------------------------
 // Stage result
-// ---------------------------------------------------------------------------
 
 /// Result of stage classification with audit trail.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,9 +127,7 @@ pub struct StageResult {
     pub cured: bool,
 }
 
-// ---------------------------------------------------------------------------
 // Staging configuration
-// ---------------------------------------------------------------------------
 
 /// Configuration for IFRS 9 stage classification.
 ///
@@ -232,9 +226,7 @@ fn rating_downgrade_notches(orig: &str, curr: &str, config: &StagingConfig) -> O
     (curr_idx > orig_idx).then(|| (curr_idx - orig_idx) as u32)
 }
 
-// ---------------------------------------------------------------------------
 // Classification logic
-// ---------------------------------------------------------------------------
 
 /// Classify an exposure into an IFRS 9 stage.
 ///
