@@ -16,16 +16,12 @@ pub(crate) struct PoolState {
     pub(crate) rates: Vec<f64>,
     /// Spread over index (basis points)
     pub(crate) spread_bp: Vec<Option<f64>>,
-    /// Index identifiers for floating rate assets
-    pub(crate) index_ids: Vec<Option<String>>,
     /// Maturity dates
     pub(crate) maturities: Vec<Date>,
     /// Day count conventions
     pub(crate) day_counts: Vec<Option<DayCount>>,
     /// Default status
     pub(crate) is_defaulted: Vec<bool>,
-    /// Recovery amounts for defaulted assets
-    pub(crate) recovery_amounts: Vec<Option<f64>>,
     /// SMM overrides
     pub(crate) smm_overrides: Vec<Option<f64>>,
     /// MDR overrides
@@ -60,7 +56,6 @@ impl PoolState {
         let mut maturities = Vec::with_capacity(n);
         let mut day_counts: Vec<Option<DayCount>> = Vec::with_capacity(n);
         let mut is_defaulted = Vec::with_capacity(n);
-        let mut recovery_amounts = Vec::with_capacity(n);
         let mut smm_overrides = Vec::with_capacity(n);
         let mut mdr_overrides = Vec::with_capacity(n);
         let mut level_payments = Vec::with_capacity(n);
@@ -76,7 +71,6 @@ impl PoolState {
             maturities.push(asset.maturity);
             day_counts.push(Some(asset.day_count));
             is_defaulted.push(asset.is_defaulted);
-            recovery_amounts.push(asset.recovery_amount.map(|m| m.amount()));
             smm_overrides.push(asset.smm_override);
             mdr_overrides.push(asset.mdr_override);
             level_payments.push(asset.contractual_payment.map(|m| m.amount()));
@@ -105,11 +99,9 @@ impl PoolState {
             balances,
             rates,
             spread_bp,
-            index_ids,
             maturities,
             day_counts,
             is_defaulted,
-            recovery_amounts,
             smm_overrides,
             mdr_overrides,
             curve_indices,
