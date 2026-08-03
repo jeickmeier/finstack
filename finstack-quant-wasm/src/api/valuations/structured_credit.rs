@@ -46,6 +46,13 @@ pub fn structured_credit_tranche_discount_margin(
 
 /// Break-even constant default rate (CDR, decimal) for a tranche — the highest
 /// CDR at which the tranche takes no principal writedown.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the instrument or market JSON is
+/// malformed; the instrument fails pricing validation or is not a
+/// structured-credit deal; `as_of` is invalid; the tranche or required market
+/// data is missing; or the break-even calculation fails.
 /// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
 /// @param tranche_id - Stable tranche identifier used to select the required domain object.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
@@ -72,6 +79,13 @@ pub fn structured_credit_tranche_breakeven_cdr(
 ///
 /// `marketPricePct` is the quoted price as a percentage of original balance.
 /// `config`, when present, is a JSON `OasConfig`; the default is used otherwise.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the instrument, market, or optional
+/// configuration JSON is malformed; the instrument fails pricing validation;
+/// `as_of` is invalid; the tranche or discount curve is missing; the OAS solve
+/// fails or produces a non-finite result; or the result cannot be serialized.
 /// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
 /// @param tranche_id - Stable tranche identifier used to select the required domain object.
 /// @param market_price_pct - Tranche market price as a percentage of original balance.
@@ -104,6 +118,13 @@ pub fn structured_credit_tranche_oas(
 /// Scenario (CPR x CDR x severity) table for a tranche; returns a JSON
 /// `ScenarioTable`. `grid` is a JSON `ScenarioGrid` (`cprs`, `cdrs`,
 /// `severities`).
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the instrument, market, or scenario-grid
+/// JSON is malformed; the instrument fails pricing validation; `as_of` is
+/// invalid; the tranche or required market data is missing; a scenario fails
+/// or produces a non-finite result; or the table cannot be serialized.
 /// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
 /// @param tranche_id - Stable tranche identifier used to select the required domain object.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.
@@ -136,6 +157,13 @@ pub fn structured_credit_tranche_scenario_table(
 /// `marketPricePct`, when provided, is the quoted price (% of original balance)
 /// the z-spread and CS01 are solved against; otherwise the tranche's own model
 /// price is used (zero z-spread). Returns a JSON-serialized `TrancheMetrics`.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the instrument or market JSON is
+/// malformed; the instrument fails pricing validation; `as_of` is invalid;
+/// the tranche or discount curve is missing; a metric fails or is non-finite;
+/// or the result cannot be serialized.
 /// @param instrument_json - Canonical JSON payload representing the instrument consumed by this API.
 /// @param tranche_id - Stable tranche identifier used to select the required domain object.
 /// @param market_json - Canonical market-context JSON supplying curves, quotes, and FX data.

@@ -42,6 +42,11 @@ impl JsMarket {
     }
 
     /// Serialize the wrapped MarketContext back to JSON.
+    ///
+    /// # Errors
+    ///
+    /// Throws a JavaScript exception if the market context cannot be
+    /// serialized to JSON.
     #[wasm_bindgen(js_name = toJson)]
     pub fn to_json(&self) -> Result<String, JsValue> {
         serde_json::to_string(&self.inner).map_err(to_js_err)

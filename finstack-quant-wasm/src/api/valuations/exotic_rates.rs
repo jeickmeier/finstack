@@ -26,6 +26,13 @@ use wasm_bindgen::prelude::*;
 /// [`CumulativeCouponTracker`](finstack_quant_valuations::instruments::rates::exotics_shared::cumulative_coupon::CumulativeCouponTracker) configured with
 /// `target_coupon`; once cumulative hits the target, the final coupon is
 /// capped and the instrument is considered redeemed.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `fixed_rate`, `coupon_floor`,
+/// `target_coupon`, `day_count_fraction`, or any fixing is non-finite;
+/// `coupon_floor` is negative; `target_coupon` or `day_count_fraction` is
+/// non-positive; or the result cannot be converted to a JavaScript object.
 /// @param fixed_rate - Fixed coupon rate in decimal form before subtracting each floating fixing.
 /// @param coupon_floor - Minimum period coupon rate in decimal form after the TARN rate calculation.
 /// @param floating_fixings - Ordered floating-rate fixings in decimal form, one for each coupon period.
@@ -60,6 +67,12 @@ pub fn tarn_coupon_profile(
 /// Snowball coupon schedule.
 ///
 ///   `c_i = clip(c_{i-1} + fixed_rate - L_i, floor, cap)` with `c_0 = initial_coupon`.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `initial_coupon` or `floor` is negative;
+/// `initial_coupon`, `fixed_rate`, `floor`, or any fixing is non-finite; or
+/// `cap` is NaN or is not greater than `floor`.
 /// @param initial_coupon - Starting coupon rate before the first snowball update, in decimal form.
 /// @param fixed_rate - Fixed coupon rate in decimal form added at each snowball step.
 /// @param floating_fixings - Ordered floating-rate fixings in decimal form, one for each coupon period.
@@ -84,6 +97,12 @@ pub fn snowball_coupon_profile(
 }
 
 /// Path-independent inverse-floater coupon schedule.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if `floor` is negative; `fixed_rate`,
+/// `floor`, `leverage`, or any fixing is non-finite; `leverage` is
+/// non-positive; or `cap` is NaN or is not greater than `floor`.
 /// @param fixed_rate - Fixed coupon rate in decimal form before the leveraged floating deduction.
 /// @param floating_fixings - Ordered floating-rate fixings in decimal form, one for each coupon period.
 /// @param floor - Minimum permitted coupon rate in decimal form.
@@ -111,6 +130,11 @@ pub fn inverse_floater_coupon_profile(
 ///
 /// `call:  notional * max(long_cms - short_cms - strike, 0)`
 /// `put:   notional * max(strike - (long_cms - short_cms), 0)`
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if a CMS rate or `strike` is non-finite, or
+/// if `notional` is negative or non-finite.
 /// @param long_cms - Long-tenor CMS rate in decimal form.
 /// @param short_cms - Short-tenor CMS rate in decimal form.
 /// @param strike - CMS rate-spread strike in decimal form.
@@ -136,6 +160,12 @@ pub fn cms_spread_option_intrinsic(
 /// `accrued = coupon_rate * day_count_fraction * (#in-range / #observations)`.
 ///
 /// The call provision is not applied here.
+///
+/// # Errors
+///
+/// Throws a JavaScript exception if the range bounds are non-finite or not
+/// strictly ordered; `observations` is empty or contains a non-finite value;
+/// or `coupon_rate` or `day_count_fraction` is negative or non-finite.
 /// @param lower - Inclusive lower bound of the observed-rate range, in decimal form.
 /// @param upper - Inclusive upper bound of the observed-rate range, in decimal form.
 /// @param observations - Observed floating rates in decimal form for the accrual period.
