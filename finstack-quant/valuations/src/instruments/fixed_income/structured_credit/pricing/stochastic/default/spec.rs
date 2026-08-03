@@ -389,17 +389,12 @@ impl StochasticDefaultSpec {
             StochasticDefaultSpec::IntensityProcess {
                 base_hazard,
                 factor_sensitivity,
-                mean_reversion,
+                mean_reversion: _,
                 volatility,
                 correlation,
             } => Some(Box::new(
-                IntensityProcessDefault::new(
-                    *base_hazard,
-                    *factor_sensitivity,
-                    *mean_reversion,
-                    *volatility,
-                )
-                .with_correlation(*correlation),
+                IntensityProcessDefault::new(*base_hazard, *factor_sensitivity, *volatility)
+                    .with_correlation(*correlation),
             )),
 
             StochasticDefaultSpec::FactorCorrelated {

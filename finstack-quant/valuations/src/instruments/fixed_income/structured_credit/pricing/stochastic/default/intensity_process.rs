@@ -49,9 +49,6 @@
 //! - Duffie, D., & Singleton, K. J. (1999). "Modeling Term Structures of Defaultable Bonds."
 //! - Lando, D. (1998). "On Cox Processes and Credit Risky Securities."
 
-#![allow(dead_code)]
-
-use super::super::calibrations::{clo_standard, rmbs_standard};
 use super::traits::{MacroCreditFactors, StochasticDefault};
 
 /// Intensity process (Cox model) default model.
@@ -64,8 +61,6 @@ pub(crate) struct IntensityProcessDefault {
     base_hazard: f64,
     /// Factor sensitivity (beta)
     factor_sensitivity: f64,
-    /// Mean reversion speed (kappa)
-    mean_reversion: f64,
     /// Volatility of intensity process
     volatility: f64,
     /// Asset correlation for distribution calculation
@@ -78,18 +73,11 @@ impl IntensityProcessDefault {
     /// # Arguments
     /// * `base_hazard` - Base annual hazard rate (λ₀)
     /// * `factor_sensitivity` - Sensitivity to systematic factor (β)
-    /// * `mean_reversion` - Mean reversion speed (κ)
     /// * `volatility` - Intensity volatility (σ)
-    pub(crate) fn new(
-        base_hazard: f64,
-        factor_sensitivity: f64,
-        mean_reversion: f64,
-        volatility: f64,
-    ) -> Self {
+    pub(crate) fn new(base_hazard: f64, factor_sensitivity: f64, volatility: f64) -> Self {
         Self {
             base_hazard: base_hazard.clamp(0.0, 1.0),
             factor_sensitivity: factor_sensitivity.clamp(-2.0, 2.0),
-            mean_reversion: mean_reversion.clamp(0.0, 10.0),
             volatility: volatility.clamp(0.0, 2.0),
             correlation: 0.20, // Default correlation
         }
@@ -99,59 +87,6 @@ impl IntensityProcessDefault {
     pub(crate) fn with_correlation(mut self, correlation: f64) -> Self {
         self.correlation = correlation.clamp(0.0, 0.99);
         self
-    }
-
-    /// Standard RMBS calibration.
-    ///
-    /// Uses the registry-backed `rmbs_standard` calibration profile:
-    /// - Base hazard: 2% annual
-    /// - Factor sensitivity: 0.5
-    /// - Mean reversion: 0.5 (2-year half-life)
-    /// - Volatility: 0.30
-    pub(crate) fn rmbs_standard() -> Self {
-        let calibration = rmbs_standard();
-        Self::new(
-            calibration.base_cdr,
-            calibration.default_factor_sensitivity,
-            calibration.default_mean_reversion,
-            calibration.default_volatility,
-        )
-        .with_correlation(calibration.default_correlation)
-    }
-
-    /// Standard CLO calibration.
-    ///
-    /// Uses the registry-backed `clo_standard` calibration profile:
-    /// Higher base hazard and factor sensitivity for corporate loans.
-    pub(crate) fn clo_standard() -> Self {
-        let calibration = clo_standard();
-        Self::new(
-            calibration.base_cdr,
-            calibration.default_factor_sensitivity,
-            calibration.default_mean_reversion,
-            calibration.default_volatility,
-        )
-        .with_correlation(calibration.default_correlation)
-    }
-
-    /// Get the base hazard rate.
-    pub(crate) fn base_hazard(&self) -> f64 {
-        self.base_hazard
-    }
-
-    /// Get the factor sensitivity.
-    pub(crate) fn factor_sensitivity(&self) -> f64 {
-        self.factor_sensitivity
-    }
-
-    /// Get the mean reversion speed.
-    pub(crate) fn mean_reversion(&self) -> f64 {
-        self.mean_reversion
-    }
-
-    /// Get the volatility.
-    pub(crate) fn volatility(&self) -> f64 {
-        self.volatility
     }
 
     /// Calculate intensity at given factor value.
@@ -230,16 +165,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_intensity_process_creation() {
-        let model = IntensityProcessDefault::new(0.02, 0.5, 0.5, 0.30);
-
-        assert!((model.base_hazard() - 0.02).abs() < 1e-10);
-        assert!((model.factor_sensitivity() - 0.5).abs() < 1e-10);
-    }
-
-    #[test]
     fn test_conditional_mdr_at_zero_factor() {
-        let model = IntensityProcessDefault::new(0.02, 0.5, 0.5, 0.30);
+        let model = IntensityProcessDefault::new(0.02, 0.5, 0.30);
         let factors = MacroCreditFactors::default();
 
         let mdr = model.conditional_mdr(12, &[0.0], &factors);
@@ -264,7 +191,7 @@ mod tests {
     /// `expected_mdr` matches the simulated average (Gauss-Hermite check).
     #[test]
     fn test_compensated_shock_has_unit_mean() {
-        let model = IntensityProcessDefault::new(0.05, 0.8, 0.5, 0.40);
+        let model = IntensityProcessDefault::new(0.05, 0.8, 0.40);
 
         // E[g(Z)] ≈ (1/√π) Σ wᵢ g(√2 xᵢ) over Gauss-Hermite nodes.
         let nodes = [
@@ -290,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_negative_factor_increases_mdr() {
-        let model = IntensityProcessDefault::new(0.02, 0.5, 0.5, 0.30);
+        let model = IntensityProcessDefault::new(0.02, 0.5, 0.30);
         let factors = MacroCreditFactors::default();
 
         let mdr_neg = model.conditional_mdr(12, &[-2.0], &factors);
@@ -306,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_intensity_calculation() {
-        let model = IntensityProcessDefault::new(0.02, 1.0, 0.5, 1.0);
+        let model = IntensityProcessDefault::new(0.02, 1.0, 1.0);
 
         // At Z=0: intensity = base × exp(−½β²σ²) (compensated shock)
         let int_zero = model.intensity(0.0);
@@ -318,15 +245,5 @@ mod tests {
         let int_stress = model.intensity(-1.0);
         assert!(int_stress > int_zero);
         assert!((int_stress / int_zero - 1.0_f64.exp()).abs() < 1e-6);
-    }
-
-    #[test]
-    fn test_standard_calibrations() {
-        let rmbs = IntensityProcessDefault::rmbs_standard();
-        assert!((rmbs.base_hazard() - 0.02).abs() < 1e-10);
-
-        let clo = IntensityProcessDefault::clo_standard();
-        assert!(clo.base_hazard() > rmbs.base_hazard());
-        assert!(clo.correlation() > rmbs.correlation());
     }
 }

@@ -37,8 +37,6 @@
 //! - Duffie, D., & Singleton, K. J. (1999). "Modeling Term Structures of Defaultable Bonds."
 //! - O'Kane, D. (2008). *Modelling Single-name and Multi-name Credit Derivatives*.
 
-#![allow(dead_code)]
-
 use super::traits::{MacroCreditFactors, StochasticDefault};
 use finstack_quant_core::market_data::term_structures::HazardCurve;
 
@@ -126,43 +124,6 @@ impl HazardCurveDefault {
         self
     }
 
-    /// Standard RMBS calibration using a hazard curve.
-    ///
-    /// - Factor sensitivity: 0.5
-    /// - Volatility: 0.30
-    /// - Correlation: 5% (low for diversified pools)
-    pub(crate) fn rmbs_standard(hazard_curve: HazardCurve) -> Self {
-        Self::new(hazard_curve, 0.5)
-            .with_volatility(0.30)
-            .with_correlation(0.05)
-    }
-
-    /// Standard CLO calibration using a hazard curve.
-    ///
-    /// - Factor sensitivity: 0.8
-    /// - Volatility: 0.40
-    /// - Correlation: 25% (higher for corporate loans)
-    pub(crate) fn clo_standard(hazard_curve: HazardCurve) -> Self {
-        Self::new(hazard_curve, 0.8)
-            .with_volatility(0.40)
-            .with_correlation(0.25)
-    }
-
-    /// Get the underlying hazard curve.
-    pub(crate) fn hazard_curve(&self) -> &HazardCurve {
-        &self.hazard_curve
-    }
-
-    /// Get the factor sensitivity.
-    pub(crate) fn factor_sensitivity(&self) -> f64 {
-        self.factor_sensitivity
-    }
-
-    /// Get the volatility.
-    pub(crate) fn volatility(&self) -> f64 {
-        self.volatility
-    }
-
     /// Calculate the shocked hazard rate at a given time and factor realization.
     ///
     /// The shock is multiplicative:
@@ -244,11 +205,10 @@ mod tests {
     }
 
     #[test]
-    fn test_hazard_curve_default_creation() {
+    fn test_default_correlation() {
         let hc = test_hazard_curve();
         let model = HazardCurveDefault::new(hc, 0.5);
 
-        assert!((model.factor_sensitivity() - 0.5).abs() < 1e-10);
         assert!((model.correlation() - 0.20).abs() < 1e-10);
     }
 
@@ -293,19 +253,6 @@ mod tests {
     }
 
     #[test]
-    fn test_standard_calibrations() {
-        let hc = test_hazard_curve();
-
-        let rmbs = HazardCurveDefault::rmbs_standard(hc.clone());
-        assert!((rmbs.factor_sensitivity() - 0.5).abs() < 1e-10);
-        assert!((rmbs.correlation() - 0.05).abs() < 1e-10);
-
-        let clo = HazardCurveDefault::clo_standard(hc);
-        assert!((clo.factor_sensitivity() - 0.8).abs() < 1e-10);
-        assert!((clo.correlation() - 0.25).abs() < 1e-10);
-    }
-
-    #[test]
     fn test_model_name() {
         let hc = test_hazard_curve();
         let model = HazardCurveDefault::new(hc, 0.5);
@@ -316,6 +263,7 @@ mod tests {
     #[test]
     fn test_expected_mdr() {
         let hc = test_hazard_curve();
+        let base_hazard = hc.hazard_rate(1.0);
         let model = HazardCurveDefault::new(hc, 0.5);
 
         let expected = model.expected_mdr(12);
@@ -333,7 +281,6 @@ mod tests {
         );
         // And they agree once the compensator is undone.
         let beta_sigma = 0.5 * 0.30;
-        let base_hazard = model.hazard_curve().hazard_rate(1.0);
         let z0_hazard = base_hazard * (-0.5_f64 * beta_sigma * beta_sigma).exp();
         let z0_mdr = 1.0 - (-z0_hazard / 12.0_f64).exp();
         assert!((conditional - z0_mdr).abs() < 1e-12);
