@@ -2330,12 +2330,12 @@ def almgren_chriss_impact(
     """
     ...
 
-def kyle_lambda(volumes: list[float], returns: list[float]) -> float | None:
+def kyle_lambda(volumes: list[float], returns: list[float], reference_price: float) -> float | None:
     """
     Estimate Kyle's lambda from volume and return observations.
 
-    Returns ``None`` when the aligned sample has too few valid observations or
-    cannot support the regression-style estimate.
+    Multiplies the mean absolute decimal return per unit volume by a reference
+    price so the result is a price-space impact coefficient.
 
     Parameters
     ----------
@@ -2343,17 +2343,21 @@ def kyle_lambda(volumes: list[float], returns: list[float]) -> float | None:
         Ordered trading-volume observations in consistent notional or share units.
     returns : list[float]
         Ordered simple decimal returns aligned one-for-one with ``volumes``.
+    reference_price : float
+        Positive price per share or contract used to convert the return-space
+        ratio into price-space lambda.
 
     Returns
     -------
     float | None
-        ``None`` because this legacy two-series API has no reference mid-price series.
+        Estimated price-space Kyle lambda, or ``None`` for invalid samples or
+        a non-positive or non-finite reference price.
 
     Examples
     --------
     >>> from finstack_quant.portfolio import kyle_lambda
-    >>> kyle_lambda([100.0, 200.0], [0.01, -0.02]) is None
-    True
+    >>> kyle_lambda([100.0, 200.0], [0.01, -0.02], 50.0)
+    0.005
     """
     ...
 

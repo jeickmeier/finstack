@@ -45,20 +45,8 @@ impl KyleLambdaModel {
         Ok(Self { lambda })
     }
 
-    /// Legacy Amihud-series calibration.
-    ///
-    /// Returns `None` because converting the Amihud ratio to price-space Kyle
-    /// lambda requires a reference price. Use [`Self::lambda_from_series_with_mid`].
-    pub fn lambda_from_series(volumes: &[f64], returns: &[f64]) -> Option<f64> {
-        if volumes.is_empty() || volumes.len() != returns.len() {
-            return None;
-        }
-        let _ = super::amihud_illiquidity(returns, volumes)?;
-        None
-    }
-
     /// Estimate price-space lambda from observed volume/return series and a
-    /// reference mid price.
+    /// reference price.
     ///
     /// ```text
     /// lambda ~= mean(|r_t| / V_t) * reference_price
@@ -69,10 +57,12 @@ impl KyleLambdaModel {
     ///
     /// # Arguments
     ///
-    /// * `volumes` - Volumes supplied by the caller for this operation
-    /// * `returns` - Returns supplied by the caller for this operation
-    /// * `reference_price` - Reference price supplied by the caller for this operation
-    pub fn lambda_from_series_with_mid(
+    /// * `volumes` - Strictly positive volume observations in consistent share
+    ///   or contract units.
+    /// * `returns` - Simple decimal returns aligned one-for-one with `volumes`.
+    /// * `reference_price` - Positive price per share or contract used to
+    ///   convert the return-space Amihud ratio into price-space lambda.
+    pub fn lambda_from_series(
         volumes: &[f64],
         returns: &[f64],
         reference_price: f64,
@@ -81,34 +71,12 @@ impl KyleLambdaModel {
             return None;
         }
         let illiq = super::amihud_illiquidity(returns, volumes)?;
-        Self::from_amihud_with_mid(illiq, reference_price)
+        Self::from_amihud(illiq, reference_price)
             .ok()
             .map(|m| m.lambda())
     }
 
-    /// Legacy Amihud calibration retained only to fail closed.
-    ///
-    /// # Errors
-    ///
-    /// Always returns `Error::InvalidInput` after validating the legacy inputs,
-    /// because the ADV-only signature cannot produce price-space lambda.
-    pub fn from_amihud(amihud_ratio: f64, avg_daily_volume: f64) -> Result<Self> {
-        if !amihud_ratio.is_finite() || amihud_ratio < 0.0 {
-            return Err(Error::invalid_input(
-                "amihud_ratio must be finite and non-negative",
-            ));
-        }
-        if !avg_daily_volume.is_finite() || avg_daily_volume < 0.0 {
-            return Err(Error::invalid_input(
-                "avg_daily_volume must be finite and non-negative",
-            ));
-        }
-        Err(Error::invalid_input(
-            "from_amihud requires a reference price; use from_amihud_with_mid",
-        ))
-    }
-
-    /// Estimate price-space lambda from an Amihud ratio and reference mid.
+    /// Estimate price-space lambda from an Amihud ratio and reference price.
     ///
     /// ```text
     /// lambda ~= amihud_ratio * reference_price
@@ -118,7 +86,14 @@ impl KyleLambdaModel {
     ///
     /// Returns `Error::InvalidInput` if inputs are non-finite, negative, or if
     /// `reference_price` is zero.
-    pub fn from_amihud_with_mid(amihud_ratio: f64, reference_price: f64) -> Result<Self> {
+    ///
+    /// # Arguments
+    ///
+    /// * `amihud_ratio` - Non-negative mean absolute decimal return per unit
+    ///   volume.
+    /// * `reference_price` - Positive price per share or contract used to
+    ///   convert the return-space ratio into price-space lambda.
+    pub fn from_amihud(amihud_ratio: f64, reference_price: f64) -> Result<Self> {
         if !amihud_ratio.is_finite() || amihud_ratio < 0.0 {
             return Err(Error::invalid_input(
                 "amihud_ratio must be finite and non-negative",
@@ -308,18 +283,9 @@ mod tests {
     }
 
     #[test]
-    fn from_amihud_requires_reference_price() {
-        let model = KyleLambdaModel::from_amihud(1e-9, 1_000_000.0);
-        assert!(
-            model.is_err(),
-            "B-4 legacy ADV-only calibration lacks the reference price needed for price-space lambda"
-        );
-    }
-
-    #[test]
-    fn from_amihud_with_mid_calibrates_price_space_lambda(
+    fn from_amihud_calibrates_price_space_lambda(
     ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let model = KyleLambdaModel::from_amihud_with_mid(1e-8, 100.0)?;
+        let model = KyleLambdaModel::from_amihud(1e-8, 100.0)?;
         assert!((model.lambda() - 1e-6).abs() < 1e-12);
 
         let params = test_params(10_000.0)?;
@@ -327,6 +293,17 @@ mod tests {
         assert!((est.total_cost - 50.0).abs() < 1e-10);
         assert!((est.cost_bp - 0.5).abs() < 1e-10);
         Ok(())
+    }
+
+    #[test]
+    fn lambda_from_series_calibrates_price_space_lambda() {
+        let lambda = KyleLambdaModel::lambda_from_series(&[100.0, 200.0], &[0.01, -0.02], 50.0)
+            .expect("valid price-space inputs");
+        assert!((lambda - 0.005).abs() < 1e-15);
+        assert_eq!(
+            KyleLambdaModel::lambda_from_series(&[100.0], &[0.01], 0.0),
+            None
+        );
     }
 
     #[test]
@@ -346,10 +323,9 @@ mod tests {
     }
 
     #[test]
-    fn estimate_cost_consistent_with_amihud() -> std::result::Result<(), Box<dyn std::error::Error>>
-    {
-        // If lambda = amihud * ADV, then the per-unit price impact
-        // for a trade of size Q is lambda * Q.
+    fn estimate_cost_matches_price_space_lambda(
+    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // Price impact for a trade of size Q is lambda * Q.
         // For Q=1000 shares at lambda=0.001:
         // price_impact = 0.001 * 1000 = 1.0
         // total_cost = 0.001 * 1000^2 / 2 = 500.0

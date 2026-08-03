@@ -253,7 +253,8 @@ fn almgren_chriss_impact<'py>(
 /// Estimate Kyle's (1985) linear price impact coefficient lambda from
 /// observed volumes and returns.
 ///
-/// Uses the Amihud-ratio proxy: ``lambda = mean(|r_t| / V_t) * mean(V_t)``.
+/// Uses the Amihud-ratio proxy:
+/// ``lambda = mean(|r_t| / V_t) * reference_price``.
 /// Under the Kyle model, price impact per trade is ``lambda * signed_volume``.
 ///
 /// Parameters
@@ -262,15 +263,24 @@ fn almgren_chriss_impact<'py>(
 ///     Period trading volumes, strictly positive.
 /// returns : list[float]
 ///     Period returns, same length as ``volumes``.
+/// reference_price : float
+///     Positive price per share or contract used to convert the return-space
+///     ratio into price-space lambda.
 ///
 /// Returns
 /// -------
 /// float | None
-///     Estimated Kyle lambda, or ``None`` if inputs are invalid (empty,
-///     mismatched length, non-finite, or contain zero volumes).
+///     Estimated price-space Kyle lambda, or ``None`` if inputs are invalid
+///     (empty, mismatched length, non-finite, contain zero volumes, or have a
+///     non-positive reference price).
 #[pyfunction]
-fn kyle_lambda(py: Python<'_>, volumes: Vec<f64>, returns: Vec<f64>) -> Option<f64> {
-    py.detach(move || KyleLambdaModel::lambda_from_series(&volumes, &returns))
+fn kyle_lambda(
+    py: Python<'_>,
+    volumes: Vec<f64>,
+    returns: Vec<f64>,
+    reference_price: f64,
+) -> Option<f64> {
+    py.detach(move || KyleLambdaModel::lambda_from_series(&volumes, &returns, reference_price))
 }
 
 // ---------------------------------------------------------------------------

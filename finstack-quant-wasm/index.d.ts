@@ -7725,9 +7725,10 @@ export interface PortfolioNamespace {
    * @returns Returns the result using the declared TypeScript shape.
    * @param volumesJson - Canonical JSON payload representing the volumes consumed by this API.
    * @param returnsJson - Canonical JSON payload representing the returns consumed by this API.
-   * @throws Error - Throws a JavaScript exception if either JSON input is malformed or does not contain a numeric array. Invalid estimator inputs return `undefined`.
+   * @param referencePrice - Positive price per share or contract used to convert the return-space ratio into price-space lambda.
+   * @throws Error - Throws a JavaScript exception if either JSON input is malformed or does not contain a numeric array. Invalid estimator inputs, including a non-positive or non-finite `referencePrice`, return `undefined`.
    */
-  kyleLambda(volumesJson: string, returnsJson: string): number | undefined;
+  kyleLambda(volumesJson: string, returnsJson: string, referencePrice: number): number | undefined;
   /**
    * Compute first-order factor sensitivities and return the matrix as JSON.
    *

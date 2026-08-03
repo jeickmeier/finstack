@@ -404,6 +404,16 @@ fn portfolio_dts_exposes_reference_price_for_almgren_chriss() {
 }
 
 #[test]
+fn portfolio_dts_requires_reference_price_for_kyle_lambda() {
+    let dts = index_dts();
+
+    assert!(contains_signature(
+        &dts,
+        "kyleLambda(volumesJson: string, returnsJson: string, referencePrice: number): number | undefined;",
+    ));
+}
+
+#[test]
 fn core_daycount_dts_exposes_context_for_context_dependent_conventions() {
     let dts = index_dts();
 

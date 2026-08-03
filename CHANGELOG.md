@@ -4,6 +4,10 @@
 
 ### Changed
 
+- **Breaking (Rust, Python, WASM):** Kyle calibration now requires an explicit
+  `reference_price` and returns price-space lambda. The working `*_with_mid`
+  implementations now own the canonical `KyleLambdaModel::lambda_from_series`
+  and `from_amihud` names; the legacy fail-closed signatures were deleted.
 - **Breaking (Rust):** `almgren_chriss_uniform_impact` now returns the canonical
   `ImpactEstimate`; the duplicate `AlmgrenChrissImpactView` was removed.
   Python and WASM retain the established four-key host payload, mapping

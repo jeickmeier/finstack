@@ -100,6 +100,10 @@ test('portfolio Campisi exports keep their declared arity', () => {
   assert.equal(portfolio.campisiReconciliationCheck.length, 2);
 });
 
+test('portfolio.kyleLambda requires the reference-price argument', () => {
+  assert.equal(portfolio.kyleLambda.length, 3);
+});
+
 // Same lesson as the Campisi arity gate above, applied to the credit
 // excess-return / grid-attribution / factor-Brinson surfaces landed here:
 // `index.d.ts` is hand-maintained, so a declaration with the wrong argument

@@ -1272,18 +1272,26 @@ pub fn almgren_chriss_impact(
 /// and returns via the Amihud-ratio proxy. Returns `undefined` on invalid inputs.
 /// @param volumes_json - Canonical JSON payload representing the volumes consumed by this API.
 /// @param returns_json - Canonical JSON payload representing the returns consumed by this API.
+/// @param reference_price - Positive price per share or contract used to convert the return-space ratio into price-space lambda.
 ///
 /// # Errors
 ///
 /// Throws a JavaScript exception if either JSON input is malformed or does not
-/// contain a numeric array. Invalid estimator inputs return `undefined`.
+/// contain a numeric array. Invalid estimator inputs, including a non-positive
+/// or non-finite `referencePrice`, return `undefined`.
 #[wasm_bindgen(js_name = kyleLambda)]
-pub fn kyle_lambda(volumes_json: &str, returns_json: &str) -> Result<Option<f64>, JsValue> {
+pub fn kyle_lambda(
+    volumes_json: &str,
+    returns_json: &str,
+    reference_price: f64,
+) -> Result<Option<f64>, JsValue> {
     let volumes: Vec<f64> = serde_json::from_str(volumes_json).map_err(to_js_err)?;
     let returns: Vec<f64> = serde_json::from_str(returns_json).map_err(to_js_err)?;
     Ok(
         finstack_quant_portfolio::liquidity::KyleLambdaModel::lambda_from_series(
-            &volumes, &returns,
+            &volumes,
+            &returns,
+            reference_price,
         ),
     )
 }
@@ -1594,7 +1602,18 @@ mod tests {
             amihud_illiquidity("[0.01]", "[0.0]").expect("valid json"),
             None
         );
-        assert_eq!(kyle_lambda("[0.0]", "[0.01]").expect("valid json"), None);
+        assert_eq!(
+            kyle_lambda("[0.0]", "[0.01]", 100.0).expect("valid json"),
+            None
+        );
+    }
+
+    #[test]
+    fn kyle_lambda_calibrates_in_price_space() {
+        let lambda = kyle_lambda("[100.0, 200.0]", "[0.01, -0.02]", 50.0)
+            .expect("valid JSON")
+            .expect("valid price-space inputs");
+        assert!((lambda - 0.005).abs() < 1e-15);
     }
 
     #[test]

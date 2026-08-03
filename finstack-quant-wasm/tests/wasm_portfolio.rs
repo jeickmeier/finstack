@@ -48,10 +48,18 @@ fn mo24_liquidity_estimators_return_none_for_missing_estimates() {
         "Amihud estimator should map missing estimate to undefined"
     );
     assert_eq!(
-        kyle_lambda("[0.0]", "[0.01]").unwrap(),
+        kyle_lambda("[0.0]", "[0.01]", 100.0).unwrap(),
         None,
         "Kyle estimator should map missing estimate to undefined"
     );
+}
+
+#[wasm_bindgen_test]
+fn kyle_lambda_calibrates_in_price_space() {
+    let lambda = kyle_lambda("[100.0, 200.0]", "[0.01, -0.02]", 50.0)
+        .unwrap()
+        .expect("valid price-space inputs");
+    assert!((lambda - 0.005).abs() < 1e-15);
 }
 
 #[wasm_bindgen_test]
